@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Static Checks
+    runs-on: "ubuntu-24.04"
+    steps:
+      - uses: ./.github/actions/setup-python-env
+
+      - name: "Install tools"
+        run: |
+          set -eox
+          for tool in just mypy; do
+            uv tool install $tool
+          done
+
+      - name: "Check static types"
+        run: |
+          mypy .
+
+      - name: "Check linting"
+        run: |
+          ruff check .
+
+      - name: "Check formatting"
+        run: |
+          ruff format --check .
+
+  build:
+    name: Build and publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: "ubuntu-24.04"
+    steps:
+      - uses: ./.github/actions/setup-python-env
+
+      - name: Install the project
+        run: uv sync --all-extras
+
+      - name: Build
+        run: |
+          uv build
+
+      - name: "Publish"
+        run: |
+          uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
