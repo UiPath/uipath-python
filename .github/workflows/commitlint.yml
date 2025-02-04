@@ -1,0 +1,12 @@
+name: Commit Lint
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  commit-lint:
+    uses: UiPath/.github/.github/workflows/commit-lint.yml@master
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

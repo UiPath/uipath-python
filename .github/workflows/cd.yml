@@ -1,0 +1,15 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+jobs:
+  build:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
+    uses: ./.github/workflows/build.yml
+    secrets:
+      token: ${{ secrets.PYPI_TOKEN }}
+      repo_access: ${{ secrets.REPO_ACCESS }}

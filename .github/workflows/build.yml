@@ -1,0 +1,65 @@
+name: Reusable Build Workflow
+
+on:
+  workflow_call:
+    secrets:
+      token:
+        required: true
+      repo_access:
+        required: true
+
+jobs:
+  build:
+    name: Build and publish
+    runs-on: "ubuntu-24.04"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Setup venv
+        run: |
+          uv venv
+          uv sync --all-extras
+
+      - name: Build
+        run: |
+          uv build
+
+      - name: Check if version in pyproject.toml was modified
+        id: check_version
+        run: |
+          if git diff --name-only ${{ github.sha }} ${{ github.event.before }} | grep -q 'pyproject.toml'; then
+            echo "modified=true" >> $GITHUB_OUTPUT
+          else
+            echo "modified=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish
+        if: ${{ steps.check_version.outputs.modified }} == 'true'
+        run: |
+          uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.token }}
+
+      - name: Clone plugins
+        if: ${{ steps.check_version.outputs.modified }} == 'true'
+        run: |
+          git clone https://x-access-token:${{ secrets.repo_access }}@github.com/UiPath/uipath-langchain-python plugins/uipath-langchain-python
+
+      - name: Symlink plugin docs
+        if: ${{ steps.check_version.outputs.modified }} == 'true'
+        run: |
+          mkdir -p docs/plugins
+          ln -s ../../plugins/uipath-langchain-python docs/plugins/uipath-langchain-python
+
+      - name: Publish Docs
+        if: ${{ steps.check_version.outputs.modified }} == 'true'
+        run: |
+          ls -la docs
+          uv run mkdocs gh-deploy --force

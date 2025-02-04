@@ -1,0 +1,25 @@
+# Environment variables
+ENV_BASE_URL = "UIPATH_URL"
+ENV_UNATTENDED_USER_ACCESS_TOKEN = "UNATTENDED_USER_ACCESS_TOKEN"
+ENV_UIPATH_ACCESS_TOKEN = "UIPATH_ACCESS_TOKEN"
+ENV_FOLDER_KEY = "UIPATH_FOLDER_KEY"
+ENV_FOLDER_PATH = "UIPATH_FOLDER_PATH"
+ENV_JOB_KEY = "UIPATH_JOB_KEY"
+ENV_JOB_ID = "UIPATH_JOB_ID"
+ENV_ROBOT_KEY = "UIPATH_ROBOT_KEY"
+ENV_TENANT_ID = "UIPATH_TENANT_ID"
+
+# Headers
+HEADER_FOLDER_KEY = "x-uipath-folderkey"
+HEADER_FOLDER_PATH = "x-uipath-folderpath"
+HEADER_USER_AGENT = "x-uipath-user-agent"
+HEADER_TENANT_ID = "x-uipath-tenantid"
+HEADER_JOB_KEY = "x-uipath-jobkey"
+
+# Entrypoint for plugins
+ENTRYPOINT = "uipath.connectors"
+
+# Data sources
+ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (
+    "#UiPath.Vdbs.Domain.Api.V20Models.StorageBucketDataSourceRequest"
+)

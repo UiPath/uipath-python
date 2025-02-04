@@ -1,0 +1,44 @@
+name: Reusable Lint Workflow
+
+on:
+  workflow_call:
+    inputs:
+      should_skip:
+        description: 'Whether to skip the linting step'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: "ubuntu-24.04"
+    if: inputs.should_skip == false
+
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Setup venv
+        run: |
+          uv venv
+          uv sync --all-extras
+
+      - name: Check static types
+        run: |
+          uv run mypy --config-file pyproject.toml .
+
+      - name: "Check linting"
+        run: |
+          uv run ruff check .
+
+      - name: Check formatting
+        run: |
+          uv run ruff format --check .
+

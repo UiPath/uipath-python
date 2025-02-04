@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UiPath CLI Authentication</title>
+    <style>
+        button {
+            opacity: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>UiPath CLI Authentication</h1>
+    <button type="button" onclick="window.open('', '_self', ''); window.close();">Discard</button>
+    <pre id="log"></pre>
+    <script>
+        const baseUrl = '__PY_REPLACE_REDIRECT_URI__'.replace('/oidc/login', '');
+        const logs = [];
+        // Parse URL query parameters
+        function getQueryParams() {
+            const params = {};
+            const queryString = window.location.search;
+            const urlParams = new URLSearchParams(queryString);
+
+            for (const [key, value] of urlParams.entries()) {
+                params[key] = value;
+            }
+            return params;
+        }
+
+        // Exchange authorization code for tokens
+        async function exchangeCodeForToken(code, codeVerifier) {
+            try {
+                // Prepare form data for token request
+                const formData = new URLSearchParams();
+                formData.append('grant_type', 'authorization_code');
+                formData.append('code', code);
+                formData.append('redirect_uri', '__PY_REPLACE_REDIRECT_URI__');
+                formData.append('client_id', '__PY_REPLACE_CLIENT_ID__');
+                formData.append('code_verifier', codeVerifier);
+
+                // Make token request
+                const response = await fetch('https://__PY_REPLACE_DOMAIN__.uipath.com/identity_/connect/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Token request failed: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                const tokenData = await response.json();
+
+                return tokenData;
+            } catch (error) {
+                console.error('Error exchanging code for token:', error);
+                logs.push({
+                    timestamp: new Date().toISOString(),
+                    message: 'Error exchanging code for token:',
+                    error: error.message
+                });
+                throw error;
+            }
+        }
+
+        // Parse JWT token
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+
+                return JSON.parse(jsonPayload);
+            } catch (e) {
+                console.error('Error parsing JWT:', e);
+                logs.push({
+                    timestamp: new Date().toISOString(),
+                    message: 'Error parsing JWT:',
+                    error: e.message
+                });
+                return null;
+            }
+        }
+
+        async function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function sendLogs(logs) {
+            await fetch(`${baseUrl}/log`, {
+                method: 'POST',
+                body: JSON.stringify(logs)
+            });
+        }
+
+        // Main function to handle the authentication flow
+        async function handleAuthentication() {
+            const params = getQueryParams();
+
+            logs.push({
+                timestamp: new Date().toISOString(),
+                message: 'Params:',
+                params: params
+            });
+
+            try {
+                // Check if we have an authorization code
+                if (params.code && params.state) {
+                    // Get code verifier from session storage
+                    const codeVerifier = "__PY_REPLACE_CODE_VERIFIER__";
+                    const state = "__PY_REPLACE_EXPECTED_STATE__";
+
+                    if (!codeVerifier) {
+                        throw new Error('Code verifier not found in session storage');
+                    }
+
+                    if (!params.state || params.state != state) {
+                        throw new Error('Invalid state parameter. Possible CSRF attack.');
+                    }
+
+                    // Exchange code for token
+                    const tokenData = await exchangeCodeForToken(params.code, codeVerifier);
+
+                    await sendLogs(logs);
+                    const setTokenResult = await fetch(`${baseUrl}/set_token`, {
+                        method: 'POST',
+                        body: JSON.stringify(tokenData)
+                    });
+                    // Show success message
+                    document.querySelector('h1').textContent = 'If this windows does not close automatically, you may close it now';
+                    setTimeout(() => {
+                        document.querySelector('button').click();
+                    }, 500);
+
+                    sessionStorage.removeItem('oidc_state');
+                    sessionStorage.removeItem('oidc_code_verifier');
+
+                    // Remove code and state from URL to prevent refresh issues
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            } catch (error) {
+                console.error('Error during authentication:', error);
+                logs.push({
+                    timestamp: new Date().toISOString(),
+                    message: 'Error during authentication:',
+                    error: error.message
+                });
+                await sendLogs(logs);
+                document.querySelector('h1').textContent = 'Authentication failed. Please try again.';
+            }
+        }
+
+        // Start authentication process when page loads
+        handleAuthentication();
+    </script>
+</body>
+
+</html>
