@@ -1,15 +1,22 @@
 [project]
 name = "uipath"
-version = "0.1.0"
-description = ""
+version = "0.0.1"
+description = "UiPath Client"
 readme = "README.md"
-authors = []
+maintainers = [
+  {name = "Gheorghita Hurmuz", email = "gheorghita.hurmuz@uipath.com"}
+]
 requires-python = ">=3.13"
 dependencies = [
     "httpx>=0.28.1",
     "python-dotenv>=1.0.1",
 ]
-classifiers = ["Private :: Do Not Upload"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3.13",
+]
 
 
 [build-system]
