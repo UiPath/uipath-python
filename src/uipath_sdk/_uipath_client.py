@@ -1,6 +1,7 @@
 from httpx import Client, Headers
 
 from ._assets_service import RobotAssetsService
+from ._processes_service import ProcessesService
 from ._uipath_client_config import UiPathClientConfig
 
 
@@ -28,6 +29,7 @@ class UiPathClient:
                 k: v
                 for k, v in {
                     "Authorization": f"Bearer {self.config.secret}",
+                    "Content-Type": "application/json",
                     "x-uipath-organizationunitid": self.config.folder_id,
                 }.items()
                 if v is not None
@@ -37,3 +39,4 @@ class UiPathClient:
 
     def _init_services(self) -> None:
         self.robot_assets = RobotAssetsService(self._http_client)
+        self.processes = ProcessesService(self._http_client)
