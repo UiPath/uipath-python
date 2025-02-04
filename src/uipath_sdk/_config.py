@@ -7,7 +7,7 @@ from ._utils import SingletonMeta
 load_dotenv()
 
 
-class UiPathClientConfig(metaclass=SingletonMeta):
+class Config(metaclass=SingletonMeta):
     def __init__(self) -> None:
         self._uipath_url = self._get_env_var("UIPATH_URL")
         self._account_name = self._get_env_var("UIPATH_ACCOUNT_NAME")
