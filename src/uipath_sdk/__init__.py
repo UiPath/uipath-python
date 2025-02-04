@@ -1,1 +1,3 @@
-from ._uipath_client import UiPathClient as UiPathClient
+from ._uipath_sdk import UiPathSDK
+
+__all__ = ["UiPathSDK"]

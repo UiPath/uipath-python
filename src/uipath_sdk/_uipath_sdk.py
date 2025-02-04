@@ -1,13 +1,12 @@
 from httpx import Client, Headers
 
-from ._assets_service import RobotAssetsService
-from ._processes_service import ProcessesService
-from ._uipath_client_config import UiPathClientConfig
+from ._config import Config
+from ._services import ProcessesService, RobotAssetsService
 
 
-class UiPathClient:
+class UiPathSDK:
     def __init__(self, secret: str | None) -> None:
-        self.config = UiPathClientConfig()
+        self.config = Config()
 
         if secret is not None:
             self.config.secret = secret
