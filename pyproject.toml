@@ -1,11 +1,8 @@
 [project]
-name = "uipath"
+name = "uipath-sdk"
 version = "0.0.1"
-description = "UiPath Client"
+description = "UiPath Client for the UiPath API"
 readme = "README.md"
-maintainers = [
-  {name = "Gheorghita Hurmuz", email = "gheorghita.hurmuz@uipath.com"}
-]
 requires-python = ">=3.13"
 dependencies = [
     "httpx>=0.28.1",
@@ -17,6 +14,10 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "Programming Language :: Python :: 3.13",
 ]
+
+[project.urls]
+Homepage = "https://uipath.com"
+Repository = "https://github.com/UiPath/platform-sdk.git"
 
 
 [build-system]
