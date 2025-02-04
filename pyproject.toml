@@ -1,5 +1,5 @@
 [project]
-name = "uipath-sdk"
+name = "uipath_sdk"
 version = "0.0.1"
 description = "UiPath Client for the UiPath API"
 readme = "README.md"
