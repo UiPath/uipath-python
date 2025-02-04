@@ -1,4 +1,4 @@
-from uipath._base_service import BaseService
+from ._base_service import BaseService
 
 
 class ProcessesService(BaseService):
