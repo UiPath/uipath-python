@@ -1,0 +1,21 @@
+{
+  "window.title": "${rootName}${separator}${activeEditorMedium}",
+  "editor.renderWhitespace": "all",
+  "files.exclude": {
+    "**/*.pyc": true,
+    "**/__pycache__": true,
+    ".pytest_cache": true,
+    ".mypy_cache": true,
+    ".ruff_cache": true,
+    ".venv": true
+  },
+
+  // Formatting
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  }
+}
