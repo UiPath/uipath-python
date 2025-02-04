@@ -255,7 +255,7 @@ wheels = [
 ]
 
 [[package]]
-name = "uipath"
+name = "uipath-sdk"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
