@@ -18,24 +18,17 @@ jobs:
 
       - uses: ./.github/actions/setup-python-env
 
-      - name: "Install tools"
-        run: |
-          set -eox
-          for tool in ruff mypy; do
-            uv tool install $tool
-          done
-
       - name: "Check static types"
         run: |
-          mypy .
+          uv run mypy --config-file pyproject.toml .
 
       - name: "Check linting"
         run: |
-          ruff check .
+          uv run ruff check .
 
       - name: "Check formatting"
         run: |
-          ruff format --check .
+          uv run ruff format --check .
 
   build:
     name: Build and publish
