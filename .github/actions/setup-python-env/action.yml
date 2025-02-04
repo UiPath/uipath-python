@@ -17,3 +17,7 @@ runs:
       shell: bash
       run: |
         uv venv
+
+    - name: "Install the project"
+      shell: bash
+      run: uv sync --all-extras
