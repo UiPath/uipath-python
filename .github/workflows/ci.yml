@@ -32,6 +32,7 @@ jobs:
 
   build:
     name: Build and publish
+    needs: [lint]
     if: github.ref == 'refs/heads/main'
     runs-on: "ubuntu-24.04"
     steps:
@@ -45,6 +46,7 @@ jobs:
 
       - name: "Publish"
         run: |
+          echo ${UV_PUBLISH_TOKEN};
           uv publish
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
