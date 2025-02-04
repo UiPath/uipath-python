@@ -35,11 +35,13 @@ class RobotAssetsService(BaseService):
             UserAsset,
             self.client.post(
                 "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
-                data={
-                    "assetName": assetName,
-                    "robotKey": robotKey,
-                    "supportsCredentialsProxyDisconnected": True,
-                },
+                content=str(
+                    {
+                        "assetName": assetName,
+                        "robotKey": robotKey,
+                        "supportsCredentialsProxyDisconnected": True,
+                    }
+                ),
             ).json(),
         )
 
@@ -50,8 +52,10 @@ class RobotAssetsService(BaseService):
     ) -> None:
         self.client.post(
             "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey",
-            data={
-                "robotKey": robotKey,
-                "robotAsset": robotAsset,
-            },
+            content=str(
+                {
+                    "robotKey": robotKey,
+                    "robotAsset": robotAsset,
+                }
+            ),
         )
