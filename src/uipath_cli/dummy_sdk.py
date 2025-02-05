@@ -1,3 +1,4 @@
+# type: ignore
 class AssetManager:
     def __init__(self):
         self.assets = {}
@@ -10,5 +11,6 @@ class AssetManager:
 
     def setAsset(self, asset_id, asset_value):
         self.assets[asset_id] = asset_value
+
 
 AssetManager = AssetManager()
