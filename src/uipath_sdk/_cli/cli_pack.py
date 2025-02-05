@@ -176,16 +176,24 @@ def pack(projectName, description, type, version, directory):
     )
     package_descriptor_content = generate_package_desriptor_content()
     main_py_content = get_user_script(directory)
-    with zipfile.ZipFile(f"{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(f"./package/services/metadata/core-properties/{psmdcp_file_name}", psmdcp_content)
+    with zipfile.ZipFile(
+        f"{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
+    ) as z:
+        z.writestr(
+            f"./package/services/metadata/core-properties/{psmdcp_file_name}",
+            psmdcp_content,
+        )
         z.writestr("[Content_Types].xml", content_types_content)
 
         z.writestr("content/project.json", "")
-        z.writestr("content/package-descriptor.json", json.dumps(package_descriptor_content, indent=4))
+        z.writestr(
+            "content/package-descriptor.json",
+            json.dumps(package_descriptor_content, indent=4),
+        )
         z.writestr("content/operate.json", json.dumps(operate_file, indent=4))
         z.writestr("content/entry-points.json", json.dumps(entrypoints_file, indent=4))
         z.writestr("content/bindings_v2.json", json.dumps(bindings_content, indent=4))
-        
+
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
         z.writestr("content/main.py", main_py_content)
