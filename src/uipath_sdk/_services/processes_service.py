@@ -10,7 +10,8 @@ class ProcessesService(BaseService):
         )
         content = str({"startInfo": {"ReleaseKey": release_key}})
 
-        return self.client.post(
+        return self.request(
+            "POST",
             endpoint,
             content=content,
         )
