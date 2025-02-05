@@ -1,0 +1,10 @@
+from uipath import UiPathClient
+
+# this is how you register input and output arguments
+# link to doc: ...
+myInputValue = uipath.arguments.registerInput(name="myInputName", defaultValue=42, required=false)
+
+if __name__ == '__main__':
+    asset = uipath.assets.retrieveAsset("number-asset")
+    print(f"asset has value {asset.value}, changing to input value {myInputValue}")
+    uipath.assets.setAssetValue("number-asset", 42)
