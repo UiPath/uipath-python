@@ -268,7 +268,7 @@ wheels = [
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.3"
+version = "0.0.5"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
