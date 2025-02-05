@@ -1,3 +1,5 @@
+# type: ignore
+
 import dummy_sdk as sdk
 
 sdk.AssetManager.setAsset("asset1", "value1")
