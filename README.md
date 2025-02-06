@@ -23,7 +23,8 @@ OR
 uipath init custom-name ./my-projects/custom-dir "my custom description"
 ```
 
-after init `cd` into the created folder and install the dependencies from requirements.txt then set your credentials in the `.env` file
+after init `cd` into the created folder, install the dependencies from requirements.txt then set your credentials in the `.env` file
+_(NOTE: if you just want to publish the default package or edit basic things in the main.py file you may skip installing the dependencies)_
 
 ```
 uipath pack [ROOT] [VERSION]
