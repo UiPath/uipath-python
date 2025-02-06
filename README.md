@@ -36,13 +36,15 @@ Use any package manager (e.g. `uv`) to install `uipath` from PyPi:
 
 ## Usage
 ### SDK
-Set these env variables:
-- UIPATH_BASE_URL
-- UIPATH_ACCOUNT_NAME
-- UIPATH_TENANT_NAME
-- UIPATH_FOLDER_ID
+1. Set these env variables:
+- `UIPATH_BASE_URL`
+- `UIPATH_ACCOUNT_NAME`
+- `UIPATH_TENANT_NAME`
+- `UIPATH_FOLDER_ID`
 
-
+2. Generate a PAT (Personal Access Token)
+For example, to create a PAT for alpha, go to (replace ORG with your organization name)
+https://alpha.uipath.com/[ORG]/portal_/personalAccessToken/add
 
 ```py
 import os
