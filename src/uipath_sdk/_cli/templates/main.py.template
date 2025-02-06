@@ -1,11 +1,21 @@
-from uipath import UiPathClient
+import os
+from uipath_sdk import UiPathSDK
+from dotenv import load_dotenv
+from langgraph.graph import StateGraph
+from typing_extensions import TypedDict
 
-# this is how you register input and output arguments
-# link to doc: ...
-# myInputValue = uipath.arguments.registerInput(name="myInputName", defaultValue=42, required=false)
+# Using State(TypedDict) as input for StateGraph allows automatic type inference
+# of input arguments when invoking the graph
+class State(TypedDict):
+    graph_state: str
 
-if __name__ == '__main__':
-    # asset = uipath.assets.retrieveAsset("number-asset")
-    # print(f"asset has value {asset.value}, changing to input value {myInputValue}")
-    # uipath.assets.setAssetValue("number-asset", 42)
-    print("Hello world from cli package")
+# Build graph
+builder = StateGraph(State)
+
+def main():
+    load_dotenv()
+    secret = os.environ.get("UIPATH_TOKEN")
+    uipath = UiPathSDK(secret)
+    print("Hello world")
+    # job = uipath.processes.invoke(name="")
+    # print(job)

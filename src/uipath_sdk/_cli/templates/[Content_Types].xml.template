@@ -4,5 +4,6 @@
   <Default Extension="psmdcp" ContentType="application/vnd.openxmlformats-package.core-properties+xml" />
   <Default Extension="json" ContentType="application/octet" />
   <Default Extension="py" ContentType="application/octet" />
+  <Default Extension="txt" ContentType="application/octet" />
   <Default Extension="nuspec" ContentType="application/octet" />
 </Types>

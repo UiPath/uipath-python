@@ -35,7 +35,10 @@ def generateRequirementsFile(target_directory, project_name):
 
     requirements_path = os.path.join(final_path, "requirements.txt")
     with open(requirements_path, "w") as f:
-        f.write("uipath==1.0.1\n")
+        f.write("uipath_sdk\n")
+        f.write("langgraph\n")
+        f.write("langgraph-sdk\n")
+        f.write("ipython\n")
 
 
 def generateConfigFile(target_directory, project_name, description, type):
@@ -52,33 +55,33 @@ def generateConfigFile(target_directory, project_name, description, type):
         json.dump(config_data, config_file, indent=4)
 
 
+def generateEnvFile(target_directory, project_name):
+    final_path = get_final_path(target_directory, project_name)
+
+    env_path = os.path.join(final_path, ".env")
+    with open(env_path, "w") as f:
+        f.write("UIPATH_TOKEN=YOUR_TOKEN_HERE\n")
+        f.write("UIPATH_BASE_URL=alpha.uipath.com\n")
+        f.write("UIPATH_ACCOUNT_NAME=\n")
+        f.write("UIPATH_TENANT_NAME=\n")
+        f.write("UIPATH_FOLDER_PATH=\n")
+
+    print(f"Created .env file at {env_path}")
+    print("Please fill in the .env file with your UiPath credentials")
+
+
 @click.command()
-@click.option(
-    "--name", prompt="Name", default="my-first-project", help="Name of your project"
-)
-@click.option(
-    "--type",
-    prompt="Type (process/agent)",
-    help="Whether the project is a process or an agent",
-)
-@click.option(
-    "--description",
-    prompt="Description",
-    default="",
-    help="Description for your project",
-)
-@click.option(
-    "--directory",
-    prompt="Target Directory",
-    default="./proj",
-    help="Target directory for your project",
-)
-def cli_init(name, description, directory, type):
+@click.argument("name", type=str, default="my-agent")
+@click.argument("directory", type=str, default="./")
+@click.argument("description", type=str, default="my-agent description")
+def init(name, directory, description):
+    type = "agent"
     click.echo(
         f"Initializing project {name} with description {description} in directory {directory}"
     )
     generateInitFile(directory, name)
     generateRequirementsFile(directory, name)
+    generateEnvFile(directory, name)
     generateConfigFile(directory, name, description, type)
     click.echo(
         f"Make sure to run `pip install -r {os.path.join(directory, 'requirements.txt')}` to install dependencies"

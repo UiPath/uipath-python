@@ -7,7 +7,9 @@ from string import Template
 
 import click
 
-schema = "https://cloud.uipath.com/draft/2024-12/operate"
+from .input_args import generate_input_args
+
+schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 mainFileEntrypoint = "content/main.py"
 
 
@@ -20,8 +22,6 @@ def validate_config_structure(config_data):
 
 def check_config_file(directory):
     config_path = os.path.join(directory, "config.json")
-    if not os.path.isfile(config_path):
-        raise Exception("config.json file does not exist in the target directory")
 
     with open(config_path, "r") as config_file:
         config_data = json.load(config_file)
@@ -47,7 +47,7 @@ def generate_operate_file(type):
     return operate_json_data
 
 
-def generate_entrypoints_file():
+def generate_entrypoints_file(input_args):
     unique_id = str(uuid.uuid4())
     entrypoint_json_data = {
         "$schema": schema,
@@ -56,8 +56,8 @@ def generate_entrypoints_file():
             {
                 "filePath": mainFileEntrypoint,
                 "uniqueId": unique_id,
-                "type": "codeagent",
-                "input": {},
+                "type": "agent",
+                "input": input_args["state"],
                 "output": {},
             }
         ],
@@ -161,9 +161,22 @@ def get_user_script(directory):
     return main_py_content
 
 
-def pack(projectName, description, type, version, directory):
+def get_user_req_txt(directory):
+    requirements_txt_path = os.path.join(directory, "requirements.txt")
+    if not os.path.isfile(requirements_txt_path):
+        raise Exception("requirements.txt file does not exist in the content directory")
+
+    with open(requirements_txt_path, "r") as requirements_txt_file:
+        requirements_txt_content = requirements_txt_file.read()
+
+    return requirements_txt_content
+
+
+def pack_fn(projectName, description, type, version, directory):
+    main_py_content = get_user_script(directory)
+    input_args = generate_input_args(os.path.join(directory, "main.py"))
     operate_file = generate_operate_file(type)
-    entrypoints_file = generate_entrypoints_file()
+    entrypoints_file = generate_entrypoints_file(input_args)
     bindings_content = generate_bindings_content()
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
@@ -175,7 +188,8 @@ def pack(projectName, description, type, version, directory):
         f"/package/services/metadata/core-properties/{psmdcp_file_name}",
     )
     package_descriptor_content = generate_package_desriptor_content()
-    main_py_content = get_user_script(directory)
+
+    requirements_txt_content = get_user_req_txt(directory)
     with zipfile.ZipFile(
         f"{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
     ) as z:
@@ -185,7 +199,7 @@ def pack(projectName, description, type, version, directory):
         )
         z.writestr("[Content_Types].xml", content_types_content)
 
-        z.writestr("content/project.json", "")
+        # z.writestr("content/project.json", "")
         z.writestr(
             "content/package-descriptor.json",
             json.dumps(package_descriptor_content, indent=4),
@@ -197,27 +211,23 @@ def pack(projectName, description, type, version, directory):
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
         z.writestr("content/main.py", main_py_content)
+        z.writestr("content/requirements.txt", requirements_txt_content)
 
 
 @click.command()
-@click.option(
-    "--directory",
-    prompt="Target Directory",
-    default=".",
-    help="The directory of your project",
-)
-@click.option(
-    "--version", prompt="Version", default="1.0.0", help="Version of this project"
-)
-def cli_pack(directory, version):
-    config = check_config_file(directory)
+@click.argument("root", type=str, default="./")
+@click.argument("version", type=str, default="1.0.0")
+def pack(root, version):
+    while not os.path.isfile(os.path.join(root, "config.json")):
+        root = click.prompt("'config.json' not found.\nEnter your project's directory")
+    config = check_config_file(root)
     click.echo(
         f"Packaging project {config['project_name']}:{version} description {config['description']} and type {config['type']}"
     )
-    pack(
+    pack_fn(
         config["project_name"],
         config["description"],
         config["type"],
         version,
-        directory,
+        root,
     )

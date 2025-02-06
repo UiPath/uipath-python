@@ -1,5 +1,62 @@
 # UiPath SDK
 
+## CLI User's guide
+
+`pip install uipath_sdk`
+_(NOTE: create virtual env if needed)_
+
+```
+uipath init [PROJECT_NAME] [DIRECTORY] [DESCRIPTION]
+```
+
+defaults:
+
+-   project name => my-agent
+-   directory => ./
+-   description => "my-agent description"
+
+example:
+
+```
+uipath init
+OR
+uipath init custom-name ./my-projects/custom-dir "my custom description"
+```
+
+after init `cd` into the created folder and install the dependencies from requirements.txt then set your credentials in the `.env` file
+
+```
+uipath pack [ROOT] [VERSION]
+```
+
+defaults:
+
+-   root => ./
+-   version => 1.0.0
+    example:
+
+```
+uipath pack
+OR
+uipath pack ./my-projects/custom-dir 2.0.4
+```
+
+NOTE: if you run the pack command outside of the folder with the `config.json` it will throw an error
+
+after packing it's time to publish
+
+```
+uipath publish [PATH_TO_NUPKG]
+
+uipath publish my-custom-package.2.3.1.nupkg
+```
+
+defaults:
+
+-   if no path provided, it will use the first `.nupkg` file it finds in your current directory
+
+NOTE: this command also needs an `.env` file in your current directory
+
 ## Setup
 
 1. **Install Python 3.13**:
