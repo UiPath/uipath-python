@@ -1,0 +1,8 @@
+langgraph>=0.2.70
+langchain-core>=0.3.34
+langchain-anthropic>=0.3.7
+python-dotenv>=1.0.1
+uipath-sdk>=0.0.8
+pydantic>=2.10.6
+aiohttp>=3.11.12
+typing-extensions>=4.12.2
