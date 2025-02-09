@@ -1,32 +1,24 @@
-[
-project
-]
+[project]
 name = "ticket-classification"
 version = "0.0.1"
-description = "Your project description"
-authors = [
-    { name = "Cristi Pufu", email = "cristian.pufu@uipath.com" }
-]
+description = "Ticket classification system"
+authors = [{ name = "Cristi Pufu", email = "cristian.pufu@uipath.com" }]
 dependencies = [
     "langgraph>=0.2.70",
     "langchain-core>=0.3.34",
     "langchain-anthropic>=0.3.7",
     "python-dotenv>=1.0.1",
-    "uipath-sdk>=0.0.8",
+    "uipath_sdk>=0.0.8",
     "pydantic>=2.10.6",
     "aiohttp>=3.11.12",
     "typing-extensions>=4.12.2",
 ]
 requires-python = ">=3.9"
 
-[
-build-system
-]
+[build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[
-tool.uv
-]
+[tool.uv]
 exclude = []
 requirements = []

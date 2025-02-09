@@ -5,9 +5,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'src/sdk/**'
   pull_request:
     branches:
       - main
+    paths:
+      - 'src/sdk/**'
 
 jobs:
   lint:
@@ -16,17 +20,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ./.github/actions/setup-python-env
+      - uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: '.python-version'
+
+      - name: Prepare setup
+        working-directory: src/sdk
+        run: |
+            cp ../../README.md .
+
+      - name: Setup venv
+        working-directory: src/sdk
+        run: |
+          uv venv
+          uv sync --all-extras
 
       - name: "Check static types"
+        working-directory: src/sdk
         run: |
           uv run mypy --config-file pyproject.toml .
 
       - name: "Check linting"
+        working-directory: src/sdk
         run: |
           uv run ruff check .
 
       - name: "Check formatting"
+        working-directory: src/sdk
         run: |
           uv run ruff format --check .
 
@@ -37,14 +59,31 @@ jobs:
     runs-on: "ubuntu-24.04"
     steps:
       - uses: actions/checkout@v4
+      
+      - uses: astral-sh/setup-uv@v5
 
-      - uses: ./.github/actions/setup-python-env
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: '.python-version'
+
+      - name: Prepare setup
+        working-directory: src/sdk
+        run: |
+              cp ../../README.md .
+
+      - name: Setup venv
+        working-directory: src/sdk
+        run: |
+          uv venv
+          uv sync --all-extras
 
       - name: Build
+        working-directory: src/sdk
         run: |
           uv build
 
       - name: "Publish"
+        working-directory: src/sdk
         run: |
           uv publish
         env:

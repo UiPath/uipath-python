@@ -2,13 +2,13 @@ import os
 import sys
 import logging
 import traceback
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from enum import Enum
 from dotenv import load_dotenv
 from uipath_sdk import UiPathSDK
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langgraph.graph import Graph, MessageGraph
+from langgraph.graph import MessageGraph
 from langgraph.checkpoint import SQLiteCheckpoint
 from langchain_core.output_parsers import EnumOutputParser
 from langgraph.pregel import InterruptException
@@ -78,7 +78,7 @@ async def wait_for_human(state: Dict[str, Any]) -> Dict[str, Any]:
     """Placeholder for human approval request."""
     raise InterruptException()
 
-def process(ticket_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def process(ticket_data: Dict[str, Any]) -> Any:
     """Process a support ticket through the workflow."""
     checkpoint = SQLiteCheckpoint("uipath.db", "support_tickets")
     graph = MessageGraph()
