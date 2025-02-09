@@ -1,17 +1,18 @@
 import os 
 import sys
+import asyncio
 import logging
 import traceback
-from typing import Dict, Any
-from enum import Enum
+from typing import Dict, Any, Literal, Optional
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from uipath_sdk import UiPathSDK
+from langgraph.types import interrupt
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langgraph.graph import MessageGraph
-from langgraph.checkpoint import SQLiteCheckpoint
-from langchain_core.output_parsers import EnumOutputParser
-from langgraph.pregel import InterruptException
+from langgraph.graph import StateGraph
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langchain_core.output_parsers import PydanticOutputParser
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,26 +21,40 @@ load_dotenv()
 secret = os.environ.get("UIPATH_TOKEN")
 uipath = UiPathSDK(secret)
 
-class TicketLabel(str, Enum):
-    SECURITY = "security"          # Security vulnerabilities, access issues, authentication
-    ERROR = "error"                # Runtime errors, exceptions, crashes
-    SYSTEM = "system"              # Core system issues, deployment, infrastructure
-    BILLING = "billing"            # Payment processing, subscriptions, invoices
-    PERFORMANCE = "performance"    # Slow response times, resource usage, optimization
+class GraphState(BaseModel):
+    message: str
+    ticket_id: str
+    label: Optional[str] = None
+    confidence: Optional[float] = None
+    approved: Optional[bool] = None
+
+class TicketClassification(BaseModel):
+    label: Literal["security", "error", "system", "billing", "performance"] = Field(
+        description="The classification label for the support ticket"
+    )
+    confidence: float = Field(
+        description="Confidence score for the classification",
+        ge=0.0,
+        le=1.0
+    )
+
+output_parser = PydanticOutputParser(pydantic_object=TicketClassification)
 
 prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are a support ticket classifier. Classify tickets into exactly one category:
-    - security: Security issues, access problems, auth failures
-    - error: Runtime errors, exceptions, unexpected behavior
-    - system: Core infrastructure or system-level problems
-    - billing: Payment and subscription related issues
-    - performance: Speed and resource usage concerns
-    
-    Respond with just the category name, no explanation."""),
+    ("system", """You are a support ticket classifier. Classify tickets into exactly one category and provide a confidence score.
+
+{format_instructions}
+
+Categories:
+- security: Security issues, access problems, auth failures
+- error: Runtime errors, exceptions, unexpected behavior
+- system: Core infrastructure or system-level problems
+- billing: Payment and subscription related issues
+- performance: Speed and resource usage concerns
+
+Respond with the classification in the requested JSON format."""),
     ("user", "{ticket_text}")
 ])
-
-output_parser = EnumOutputParser(enum_cls=TicketLabel)
 
 def get_anthropic_api_key() -> str:
     """Get Anthropic API key from environment or UiPath."""
@@ -56,54 +71,82 @@ def get_anthropic_api_key() -> str:
         
     return api_key
 
-async def classify(state: Dict[str, Any]) -> Dict[str, Any]:
+async def classify(state: GraphState) -> GraphState:
     """Classify the support ticket using LLM."""
     llm = ChatAnthropic(
         api_key=get_anthropic_api_key(),
-        model="claude-3-sonnet-20240229"
+        model="claude-3-opus-20240229"
     )
 
-    chain = prompt | llm | output_parser
+    _prompt = prompt.partial(format_instructions=output_parser.get_format_instructions())
+    chain = _prompt | llm | output_parser
+
     try:
-        label = await chain.ainvoke({"ticket_text": state["message"]})
-        state["label"] = label
+        result = await chain.ainvoke({"ticket_text": state.message})
+        state.label = result.label
+        state.confidence = result.confidence
+        return state
     except Exception as e:
-        # Fallback to ERROR category if classification fails
         logger.error(f"Classification failed: {str(e)}")
-        state["label"] = TicketLabel.ERROR
+        state.label = "error"
+        state.confidence = 0.0
+        return state
 
-    return state
+class InterruptDetected(Exception):
+    """Custom exception to indicate an interrupt was triggered."""
+    pass
 
-async def wait_for_human(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Placeholder for human approval request."""
-    raise InterruptException()
+async def wait_for_human(state: GraphState) -> GraphState:
+    logger.info("Processing ticket...")
+    
+    if state.approved is None:
+        logger.info("Needs human approval")
+        raise InterruptDetected()
+    
+    if state.approved:
+        logger.info("Ticket approved - continuing")
+        return state
 
-def process(ticket_data: Dict[str, Any]) -> Any:
+async def process(ticket_data: Dict[str, Any]) -> Any:
     """Process a support ticket through the workflow."""
-    checkpoint = SQLiteCheckpoint("uipath.db", "support_tickets")
-    graph = MessageGraph()
+    builder = StateGraph(GraphState)
     
-    graph.add_node("classify", classify)
-    graph.add_node("human_approval", wait_for_human)
+    builder.add_node("classify", classify)
+    builder.add_node("human_approval", wait_for_human)
     
-    graph.add_edge("classify", "human_approval")
-    graph.set_entry_point("classify")
-    
-    workflow = graph.compile(checkpointer=checkpoint)
-    
-    return workflow.invoke(ticket_data)
+    builder.add_edge("classify", "human_approval")
+    builder.set_entry_point("classify")
 
-def main() -> None:
+    async with AsyncSqliteSaver.from_conn_string("uipath.db") as memory:
+        graph = builder.compile(checkpointer=memory)
+    
+        config = {
+            "configurable": {
+                "thread_id": "123",  # env jobKey
+                "checkpoint_ns": "support_tickets",
+                "checkpoint_id": ticket_data["ticket_id"]
+            }
+        }
+        state = GraphState(**ticket_data)
+        return await graph.ainvoke(state, config)
+
+async def main() -> None:
     """Main entry point for the ticket classification system."""
+
+    approved = len(sys.argv) > 1 and sys.argv[1].lower() == 'true'
+
     ticket = {
         "message": "Having error connecting to database",
-        "ticket_id": "TICKET-123"
+        "ticket_id": "TICKET-123",
+        "approved": approved if len(sys.argv) > 1 else None
     }
        
     try:
-        process(ticket)
+        await process(ticket)
+        logger.info("Successful exit")
         sys.exit(0)
-    except InterruptException:
+    except InterruptDetected:
+        logger.info("Job suspended")
         sys.exit(100)
     except Exception as e:
         logger.error(f"Error occurred: {str(e)}")
@@ -111,4 +154,4 @@ def main() -> None:
         sys.exit(1)
         
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
