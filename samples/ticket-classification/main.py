@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 import traceback
-from typing import Dict
+from typing import Dict, Any, Optional
 from enum import Enum
 from dotenv import load_dotenv
 from uipath_sdk import UiPathSDK
@@ -42,7 +42,7 @@ prompt = ChatPromptTemplate.from_messages([
 output_parser = EnumOutputParser(enum_cls=TicketLabel)
 
 def get_anthropic_api_key() -> str:
-
+    """Get Anthropic API key from environment or UiPath."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
 
     if not api_key:
@@ -56,8 +56,8 @@ def get_anthropic_api_key() -> str:
         
     return api_key
 
-async def classify(state: Dict) -> Dict:
-
+async def classify(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Classify the support ticket using LLM."""
     llm = ChatAnthropic(
         api_key=get_anthropic_api_key(),
         model="claude-3-sonnet-20240229"
@@ -69,16 +69,17 @@ async def classify(state: Dict) -> Dict:
         state["label"] = label
     except Exception as e:
         # Fallback to ERROR category if classification fails
-        print(f"Classification failed: {str(e)}")
+        logger.error(f"Classification failed: {str(e)}")
         state["label"] = TicketLabel.ERROR
 
     return state
 
-async def wait_for_human(state: Dict) -> Dict:
-    """Placeholder for human approval request"""
+async def wait_for_human(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Placeholder for human approval request."""
     raise InterruptException()
 
-def process(ticket_data: Dict) -> Dict:
+def process(ticket_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Process a support ticket through the workflow."""
     checkpoint = SQLiteCheckpoint("uipath.db", "support_tickets")
     graph = MessageGraph()
     
@@ -89,10 +90,11 @@ def process(ticket_data: Dict) -> Dict:
     graph.set_entry_point("classify")
     
     workflow = graph.compile(checkpointer=checkpoint)
+    
+    return workflow.invoke(ticket_data)
 
-    workflow.invoke(ticket_data)
-
-def main():
+def main() -> None:
+    """Main entry point for the ticket classification system."""
     ticket = {
         "message": "Having error connecting to database",
         "ticket_id": "TICKET-123"
@@ -101,9 +103,9 @@ def main():
     try:
         process(ticket)
         sys.exit(0)
-    except InterruptException as e:
+    except InterruptException:
         sys.exit(100)
-    except Exception:
+    except Exception as e:
         logger.error(f"Error occurred: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         sys.exit(1)
