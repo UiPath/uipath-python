@@ -16,7 +16,7 @@ class AssetsService(FolderContext, BaseService):
     def retrieve(
         self,
         assetName: str,
-    ) -> UserAsset:
+    ) -> str:
         endpoint = "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
         content = str(
             {
