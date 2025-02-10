@@ -1131,7 +1131,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
-    { name = "uipath-sdk", specifier = "==0.0.10" },
+    { name = "uipath-sdk", specifier = "==0.0.15" },
 ]
 
 [[package]]
@@ -1145,17 +1145,18 @@ wheels = [
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.10"
+version = "0.0.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "httpx" },
+    { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/43/4e2a3f858b1549f7d1c62c963806af1ffa7e1b706d34fcfe1a65fc448025/uipath_sdk-0.0.10.tar.gz", hash = "sha256:0e6337011d29a0dffeb8fdf3805f3f07b80071ff03bcd32000a058f5bbb9e8f4", size = 10962 }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/7f/32f3685a2822a80e4c7da7568d821a2d12983980f0caecbcafc25c6fa6cc/uipath_sdk-0.0.15.tar.gz", hash = "sha256:def1bea67e0ca3c9bd8075139d6ead564568ba23c2c8fd1e3340c5d638cf1a7d", size = 11953 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/47/d2ad7e7a61e3bcb0a6aa454b2971c9e9f5423e46fccc1912b5b080c0c004/uipath_sdk-0.0.10-py3-none-any.whl", hash = "sha256:6f771828c22dcc627eea23563d5d965747d771c6513e8cddd9945e1e088dd01a", size = 17996 },
+    { url = "https://files.pythonhosted.org/packages/60/ae/cde6ead3cd51dbe83ddf209cd316a213e4eed048fd9a26eea92e88cdd7ce/uipath_sdk-0.0.15-py3-none-any.whl", hash = "sha256:bade4f601eafc749a4dcccb8dcc6d2614c24ffb2b8eb643dbc5e36014244ec48", size = 19946 },
 ]
 
 [[package]]

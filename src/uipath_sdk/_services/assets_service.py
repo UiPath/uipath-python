@@ -21,8 +21,7 @@ class AssetsService(FolderContext, BaseService):
         content = str(
             {
                 "assetName": assetName,
-                "robotKey": self._execution_context.robot_key,
-                "supportsCredentialsProxyDisconnected": True,
+                "robotKey": self._execution_context.robot_key
             }
         )
 
@@ -33,7 +32,7 @@ class AssetsService(FolderContext, BaseService):
                 endpoint,
                 content=content,
             ).json(),
-        )
+        )["CredentialPassword"]
 
     def update(
         self,

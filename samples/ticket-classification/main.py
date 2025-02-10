@@ -20,8 +20,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
-secret = os.environ.get("UIPATH_TOKEN")
-uipath = UiPathSDK(secret)
+uipath = UiPathSDK()
 
 class GraphState(BaseModel):
     message: str
@@ -64,7 +63,7 @@ def get_anthropic_api_key() -> str:
 
     if not api_key:
         try:
-            api_key = uipath.robot_assets.retrieve("ANTHROPIC_API_KEY")
+            api_key = uipath.assets.retrieve("ANTHROPIC_API_KEY")
             if not api_key:
                 raise ValueError("No API key found in credentials")
         except Exception as e:
