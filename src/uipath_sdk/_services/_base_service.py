@@ -1,4 +1,4 @@
-from typing import Any, ParamSpec, TypedDict, Unpack
+from typing import Any, ParamSpec, TypedDict
 
 from httpx import URL, Client, HTTPError, Response
 from httpx._types import (
@@ -31,6 +31,6 @@ class BaseService:
 
     @retry(times=3, exceptions=(HTTPError,))
     def request(
-        self, method: str, url: URL | str, **kwargs: Unpack[RequestOptions]
+        self, method: str, url: URL | str, **kwargs: Any
     ) -> Response:
         return self.client.request(method, url, **kwargs)
