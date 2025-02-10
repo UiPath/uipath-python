@@ -50,4 +50,4 @@ class AssetsService(BaseService, FolderContext):
 
     @property
     def custom_headers(self) -> dict[str, str]:
-       return self.folder_headers
+        return self.folder_headers

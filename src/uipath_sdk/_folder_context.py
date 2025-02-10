@@ -24,4 +24,6 @@ class FolderContext:
         elif self._folder_path is not None:
             return {"X-uipath-folderpath": self._folder_path}
         else:
-            raise ValueError("Folder key or path is not set (UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH)")
+            raise ValueError(
+                "Folder key or path is not set (UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH)"
+            )
