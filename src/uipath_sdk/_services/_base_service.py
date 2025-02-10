@@ -39,6 +39,8 @@ class BaseService:
             base_url=self._config.base_url, headers=Headers(self.default_headers)
         )
 
+        super().__init__()
+
     @retry(times=3, exceptions=(HTTPError,))
     def request(self, method: str, url: URL | str, **kwargs: Any) -> Response:
         self._logger.debug(f"Request: {method} {url}")

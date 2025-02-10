@@ -17,6 +17,8 @@ class ExecutionContext:
         except KeyError:
             self._robot_key = None
 
+        super().__init__()
+
     @property
     def instance_id(self) -> None | str:
         if self._instance_id is None:

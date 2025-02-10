@@ -17,6 +17,8 @@ class FolderContext:
         except KeyError:
             self._folder_path = None
 
+        super().__init__()
+
     @property
     def folder_headers(self) -> dict[str, str]:
         if self._folder_key is not None:

@@ -2,12 +2,18 @@ from typing import cast
 
 from httpx import Response
 
+from .._config import Config
+from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._models import UserAsset
 from ._base_service import BaseService
 
 
 class AssetsService(BaseService, FolderContext):
+    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+        BaseService.__init__(self, config, execution_context)
+        FolderContext.__init__(self)
+
     def retrieve(
         self,
         assetName: str,
