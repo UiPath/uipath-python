@@ -3,6 +3,7 @@ import sys
 import asyncio
 import logging
 import traceback
+import json
 from typing import Dict, Any, Literal, Optional
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -11,6 +12,7 @@ from langgraph.types import interrupt
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph
+from langgraph.graph.state import Command
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_core.output_parsers import PydanticOutputParser
 
@@ -85,6 +87,7 @@ async def classify(state: GraphState) -> GraphState:
         result = await chain.ainvoke({"ticket_text": state.message})
         state.label = result.label
         state.confidence = result.confidence
+        logger.info(f"Ticket classified with label: {result.label} confidence score: {result.confidence}")
         return state
     except Exception as e:
         logger.error(f"Classification failed: {str(e)}")
@@ -102,6 +105,10 @@ async def wait_for_human(state: GraphState) -> GraphState:
     if state.approved is None:
         logger.info("Needs human approval")
         raise InterruptDetected()
+    
+#    if state.approved is None:
+#        logger.info("Needs human approval")
+#        state.approved = interrupt("Waiting for human approval")
     
     if state.approved:
         logger.info("Ticket approved - continuing")
@@ -128,18 +135,23 @@ async def process(ticket_data: Dict[str, Any]) -> Any:
             }
         }
         state = GraphState(**ticket_data)
+
+#        if state.approved:
+#            return await graph.ainvoke(Command(resume=state), config)
+        
         return await graph.ainvoke(state, config)
 
 async def main() -> None:
     """Main entry point for the ticket classification system."""
 
-    approved = len(sys.argv) > 1 and sys.argv[1].lower() == 'true'
+    if len(sys.argv) < 2:
+        logger.error("Please provide a ticket JSON as the first argument")
+        sys.exit(1)
 
-    ticket = {
-        "message": "Having error connecting to database",
-        "ticket_id": "TICKET-123",
-        "approved": approved if len(sys.argv) > 1 else None
-    }
+    ticket: Dict[str, Any] = json.loads(sys.argv[1])
+
+    approved = len(sys.argv) > 2 and sys.argv[2].lower() == 'true'
+    ticket['approved'] = approved if len(sys.argv) > 2 else None
        
     try:
         await process(ticket)
