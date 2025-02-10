@@ -1,8 +1,8 @@
 [project]
 name = "uipath_sdk"
-version = "0.0.8"
+version = "0.0.9"
 description = "UiPath SDK"
-readme = { file = "README.md", content-type = "text/markdown" }
+readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.1.8",
@@ -22,17 +22,17 @@ Homepage = "https://uipath.com"
 Repository = "https://github.com/UiPath/platform-sdk.git"
 
 [project.scripts]
-uipath = "sdk._cli:cli"
+uipath = "uipath_sdk._cli:cli"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sdk"]
+packages = ["src/uipath_sdk"]
 
 [tool.hatch.build.targets.sdist]
-packages = ["src/sdk"]
+packages = ["src/uipath_sdk"]
 
 [dependency-groups]
 dev = [
@@ -61,3 +61,9 @@ line-ending = "auto"
 [tool.mypy]
 strict = true
 follow_imports = "normal"
+
+[tool.pyright]
+venvPath = "../.."
+venv = ".venv"
+strict = ["**/*.py"]
+pythonVersion = "3.13"

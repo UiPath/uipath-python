@@ -3,23 +3,27 @@ name = "ticket-classification"
 version = "0.0.1"
 description = "Ticket classification system"
 authors = [{ name = "Cristi Pufu", email = "cristian.pufu@uipath.com" }]
+requires-python = ">=3.13"
 dependencies = [
     "langgraph>=0.2.70",
     "langchain-core>=0.3.34",
     "langchain-anthropic>=0.3.7",
     "langgraph-checkpoint-sqlite>=2.0.3",
     "python-dotenv>=1.0.1",
-    "uipath_sdk>=0.0.8",
     "pydantic>=2.10.6",
     "aiohttp>=3.11.12",
-    "typing-extensions>=4.12.2"
+    "typing-extensions>=4.12.2",
+    "uipath_sdk"
 ]
-requires-python = ">=3.9"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv.sources]
+uipath_sdk = { workspace = true }
 
-[tool.uv]
-exclude = []
-requirements = []
+[tool.mypy]
+follow_imports = "normal"
+
+[tool.pyright]
+venvPath = "../.."
+venv = ".venv"
+strict = ["**/*.py"]
+pythonVersion = "3.13"

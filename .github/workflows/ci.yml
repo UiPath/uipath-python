@@ -6,12 +6,12 @@ on:
     branches:
       - main
     paths:
-      - 'src/sdk/**'
+      - 'packages/uipath_sdk/**'
   pull_request:
     branches:
       - main
     paths:
-      - 'src/sdk/**'
+      - 'packages/uipath_sdk/**'
 
 jobs:
   lint:
@@ -27,28 +27,28 @@ jobs:
           python-version-file: '.python-version'
 
       - name: Prepare setup
-        working-directory: src/sdk
+        working-directory: packages/uipath_sdk
         run: |
             cp ../../README.md .
 
       - name: Setup venv
-        working-directory: src/sdk
+        working-directory: packages/uipath_sdk
         run: |
           uv venv
           uv sync --all-extras
 
       - name: "Check static types"
-        working-directory: src/sdk
+        working-directory: packages/uipath_sdk
         run: |
           uv run mypy --config-file pyproject.toml .
 
       - name: "Check linting"
-        working-directory: src/sdk
+        working-directory: packages/uipath_sdk
         run: |
           uv run ruff check .
 
       - name: "Check formatting"
-        working-directory: src/sdk
+        working-directory: packages/uipath_sdk
         run: |
           uv run ruff format --check .
 
@@ -66,24 +66,19 @@ jobs:
         with:
           python-version-file: '.python-version'
 
-      - name: Prepare setup
-        working-directory: src/sdk
-        run: |
-              cp ../../README.md .
-
       - name: Setup venv
-        working-directory: src/sdk
+        working-directory: packages/uipath_sdk
         run: |
           uv venv
           uv sync --all-extras
 
       - name: Build
-        working-directory: src/sdk
+        working-directory: packages/uipath_sdk
         run: |
           uv build
 
       - name: "Publish"
-        working-directory: src/sdk
+        working-directory: packages/uipath_sdk
         run: |
           uv publish
         env:

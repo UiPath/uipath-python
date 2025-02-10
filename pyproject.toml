@@ -1,0 +1,9 @@
+[project]
+name = "uipath"
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.uv.workspace]
+members = ["packages/*", "samples/*"]
