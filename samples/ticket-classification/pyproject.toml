@@ -9,17 +9,9 @@ dependencies = [
     "langchain-anthropic>=0.3.7",
     "langgraph-checkpoint-sqlite>=2.0.3",
     "python-dotenv>=1.0.1",
-    "uipath_sdk>=0.0.8",
+    "uipath-sdk==0.0.10",
     "pydantic>=2.10.6",
     "aiohttp>=3.11.12",
-    "typing-extensions>=4.12.2"
+    "typing-extensions>=4.12.2",
 ]
 requires-python = ">=3.10"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.uv]
-exclude = []
-requirements = []
