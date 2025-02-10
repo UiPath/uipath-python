@@ -30,7 +30,5 @@ class BaseService:
         self.client = client
 
     @retry(times=3, exceptions=(HTTPError,))
-    def request(
-        self, method: str, url: URL | str, **kwargs: Any
-    ) -> Response:
+    def request(self, method: str, url: URL | str, **kwargs: Any) -> Response:
         return self.client.request(method, url, **kwargs)
