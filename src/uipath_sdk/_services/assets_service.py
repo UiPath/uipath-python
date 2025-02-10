@@ -9,10 +9,9 @@ from .._models import UserAsset
 from ._base_service import BaseService
 
 
-class AssetsService(BaseService, FolderContext):
+class AssetsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
-        BaseService.__init__(self, config, execution_context)
-        FolderContext.__init__(self)
+        super().__init__(config=config, execution_context=execution_context)
 
     def retrieve(
         self,

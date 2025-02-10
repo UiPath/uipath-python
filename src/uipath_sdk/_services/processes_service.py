@@ -1,15 +1,12 @@
 from httpx import Response
-
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from ._base_service import BaseService
 
-
-class ProcessesService(BaseService, FolderContext):
+class ProcessesService(FolderContext, BaseService):  
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
-        BaseService.__init__(self, config, execution_context)
-        FolderContext.__init__(self)
+        super().__init__(config=config, execution_context=execution_context)
 
     def invoke(self, release_key: str) -> Response:
         endpoint = (

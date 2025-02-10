@@ -1,12 +1,10 @@
 from os import environ as env
-
 from dotenv import load_dotenv
 
 load_dotenv()
 
-
 class FolderContext:
-    def __init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         try:
             self._folder_key: str | None = env["UIPATH_FOLDER_KEY"]
         except KeyError:
@@ -17,7 +15,7 @@ class FolderContext:
         except KeyError:
             self._folder_path = None
 
-        super().__init__()
+        super().__init__(**kwargs)
 
     @property
     def folder_headers(self) -> dict[str, str]:
