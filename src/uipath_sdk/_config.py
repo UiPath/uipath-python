@@ -7,8 +7,6 @@ PRODUCT_URL = "uipath.com"
 class Config(BaseModel):
     base_url: str
     secret: str
-    folder_id: str | None
-    debug: bool = False
 
     @field_validator("base_url", mode="before")
     @classmethod

@@ -1,9 +1,10 @@
 from httpx import Response
 
+from .._folder_context import FolderContext
 from ._base_service import BaseService
 
 
-class ProcessesService(BaseService):
+class ProcessesService(BaseService, FolderContext):
     def invoke(self, release_key: str) -> Response:
         endpoint = (
             "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
@@ -18,7 +19,4 @@ class ProcessesService(BaseService):
 
     @property
     def custom_headers(self) -> dict[str, str]:
-        if self._config.folder_id is None:
-            raise ValueError("Folder ID is required for Processes  Service")
-
-        return {"x-uipath-organizationunitid": self._config.folder_id}
+        return self.folder_headers

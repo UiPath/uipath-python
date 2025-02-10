@@ -2,11 +2,12 @@ from typing import cast
 
 from httpx import Response
 
+from .._folder_context import FolderContext
 from .._models import UserAsset
 from ._base_service import BaseService
 
 
-class AssetsService(BaseService):
+class AssetsService(BaseService, FolderContext):
     def retrieve(
         self,
         assetName: str,
@@ -49,7 +50,4 @@ class AssetsService(BaseService):
 
     @property
     def custom_headers(self) -> dict[str, str]:
-        if self._config.folder_id is None:
-            raise ValueError("Folder ID is required for Assets Service")
-
-        return {"x-uipath-organizationunitid": self._config.folder_id}
+        return self.folder_headers
