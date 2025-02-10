@@ -1,10 +1,11 @@
+from typing import Any
 from os import environ as env
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class FolderContext:
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         try:
             self._folder_key: str | None = env["UIPATH_FOLDER_KEY"]
         except KeyError:
