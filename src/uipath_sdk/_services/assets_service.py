@@ -6,24 +6,24 @@ from .._models import UserAsset
 from ._base_service import BaseService
 
 
-class RobotAssetsService(BaseService):
+class AssetsService(BaseService):
     def retrieve(
         self,
         assetName: str,
-        robotKey: str,
     ) -> UserAsset:
         endpoint = "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
         content = str(
             {
                 "assetName": assetName,
-                "robotKey": robotKey,
+                "robotKey": self._execution_context.robot_key,
                 "supportsCredentialsProxyDisconnected": True,
             }
         )
 
         return cast(
             UserAsset,
-            self.client.post(
+            self.request(
+                "POST",
                 endpoint,
                 content=content,
             ).json(),
@@ -31,18 +31,25 @@ class RobotAssetsService(BaseService):
 
     def update(
         self,
-        robotKey: str,
         robotAsset: UserAsset,
     ) -> Response:
         endpoint = "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey"
         content = str(
             {
-                "robotKey": robotKey,
+                "robotKey": self._execution_context.robot_key,
                 "robotAsset": robotAsset,
             }
         )
 
-        return self.client.post(
+        return self.request(
+            "POST",
             endpoint,
             content=content,
         )
+
+    @property
+    def custom_headers(self) -> dict[str, str]:
+        if self._config.folder_id is None:
+            raise ValueError("Folder ID is required for Assets Service")
+
+        return {"x-uipath-organizationunitid": self._config.folder_id}

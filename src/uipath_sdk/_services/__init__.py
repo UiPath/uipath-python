@@ -1,4 +1,4 @@
-from .assets_service import RobotAssetsService
+from .assets_service import AssetsService
 from .processes_service import ProcessesService
 
-__all__ = ["RobotAssetsService", "ProcessesService"]
+__all__ = ["AssetsService", "ProcessesService"]

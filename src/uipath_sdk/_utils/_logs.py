@@ -1,0 +1,11 @@
+import logging
+
+logger: logging.Logger = logging.getLogger("uipath")
+
+
+def setup_logging(should_debug: bool | None) -> None:
+    logging.basicConfig(
+        format="[%(asctime)s - %(name)s:%(lineno)d - %(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logger.setLevel(logging.DEBUG if should_debug else logging.INFO)

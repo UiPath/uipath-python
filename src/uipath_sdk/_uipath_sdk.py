@@ -1,41 +1,52 @@
-from httpx import Client, Headers
+from logging import getLogger
+from os import environ as env
+
+from dotenv import load_dotenv
 
 from ._config import Config
-from ._services import ProcessesService, RobotAssetsService
+from ._execution_context import ExecutionContext
+from ._services.assets_service import AssetsService
+from ._services.processes_service import ProcessesService
+from ._utils._logs import setup_logging
+
+load_dotenv()
 
 
 class UiPathSDK:
-    def __init__(self, secret: str | None) -> None:
-        self.config = Config()
-
-        if secret is not None:
-            self.config.secret = secret
-
-        if self.config.secret is None:
-            raise ValueError("Secret is required")
-
-        self._init_http_client()
-        self._init_services()
-
-    def change_folder(self, folder_id: str) -> None:
-        self.config.folder_id = folder_id
-        self._init_http_client()
-        self._init_services()
-
-    def _init_http_client(self) -> None:
-        headers = Headers(
-            {
-                k: v
-                for k, v in {
-                    "Authorization": f"Bearer {self.config.secret}",
-                    "Content-Type": "application/json",
-                    "x-uipath-organizationunitid": self.config.folder_id,
-                }.items()
-                if v is not None
-            }
+    def __init__(
+        self,
+        *,
+        base_url: str | None = None,
+        secret: str | None = None,
+        debug: bool = False,
+    ) -> None:
+        base_url_value = base_url or env.get("UIPATH_BASE_URL")
+        secret_value = (
+            secret
+            or env.get("UNATTENDED_USER_ACCESS_TOKEN")
+            or env.get("UIPATH_ACCESS_TOKEN")
         )
-        self._http_client = Client(base_url=self.config.base_url, headers=headers)
+        folder_id_value = env.get("UIPATH_FOLDER_ID")
 
-    def _init_services(self) -> None:
-        self.robot_assets = RobotAssetsService(self._http_client)
-        self.processes = ProcessesService(self._http_client)
+        self._config = Config(
+            base_url=base_url_value,  # type: ignore
+            secret=secret_value,  # type: ignore
+            folder_id=folder_id_value,
+            debug=debug,
+        )
+
+        setup_logging(self._config.debug)
+        log = getLogger("uipath")
+
+        log.debug("CONFIG:")
+        log.debug(f"{self._config.model_dump()}\n")
+
+        self._execution_context = ExecutionContext()
+
+    @property
+    def assets(self) -> AssetsService:
+        return AssetsService(self._config, self._execution_context)
+
+    @property
+    def processes(self) -> ProcessesService:
+        return ProcessesService(self._config, self._execution_context)

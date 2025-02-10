@@ -1,46 +1,23 @@
-import os
+from pydantic import BaseModel, HttpUrl, field_validator
 
-from dotenv import load_dotenv
-
-from ._utils import SingletonMeta
-
-load_dotenv()
+PREFIX = "UIPATH_"
+PRODUCT_URL = "uipath.com"
 
 
-class Config(metaclass=SingletonMeta):
-    def __init__(self) -> None:
-        self._uipath_url = self._get_env_var("UIPATH_URL")
-        self._account_name = self._get_env_var("UIPATH_ACCOUNT_NAME")
-        self._tenant_name = self._get_env_var("UIPATH_TENANT_NAME")
-        self._folder_id = self._get_env_var("UIPATH_FOLDER_ID")
-        self._secret = self._get_env_var(
-            "UNATTENDED_USER_ACCESS_TOKEN", "UIPATH_ACCESS_TOKEN"
-        )
+class Config(BaseModel):
+    base_url: str
+    secret: str
+    folder_id: str | None
+    debug: bool = False
 
-    @property
-    def base_url(self) -> str:
-        return f"{self._uipath_url}/{self._account_name}/{self._tenant_name}"
-
-    @property
-    def folder_id(self) -> str:
-        return self._folder_id
-
-    @folder_id.setter
-    def folder_id(self, value: str) -> None:
-        self._folder_id = value
-
-    @property
-    def secret(self) -> str:
-        return self._secret
-
-    @secret.setter
-    def secret(self, value: str) -> None:
-        self._secret = value
-
-    @staticmethod
-    def _get_env_var(*keys: str, default: str = "") -> str:
-        for key in keys:
-            value = os.getenv(key)
-            if value:
-                return value
-        return default
+    @field_validator("base_url", mode="before")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        # assume that the URL is in the correct format.
+        # https://{domain}.uipath.com/{account_name}/{tenant_name}
+        urlValue = HttpUrl(url=value)
+        assert urlValue.host and urlValue.host.endswith(PRODUCT_URL), "Invalid URL"
+        assert (
+            urlValue.path and len([x for x in urlValue.path.split("/") if x != ""]) == 2
+        ), "Invalid URL"
+        return value

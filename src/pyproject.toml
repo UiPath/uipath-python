@@ -1,12 +1,13 @@
 [project]
 name = "uipath_sdk"
-version = "0.0.10"
+version = "0.0.11"
 description = "UiPath SDK"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.1.8",
     "httpx>=0.28.1",
+    "pydantic>=2.10.6",
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
 ]
@@ -14,7 +15,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
 ]
 
 [project.urls]
@@ -59,5 +60,22 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
-strict = true
-follow_imports = "normal"
+plugins = [
+  "pydantic.mypy"
+]
+
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+
+disallow_untyped_defs = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+
