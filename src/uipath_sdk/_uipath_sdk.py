@@ -26,16 +26,13 @@ class UiPathSDK:
             or env.get("UNATTENDED_USER_ACCESS_TOKEN")
             or env.get("UIPATH_ACCESS_TOKEN")
         )
-        folder_id_value = env.get("UIPATH_FOLDER_ID")
 
         self._config = Config(
             base_url=base_url_value,  # type: ignore
             secret=secret_value,  # type: ignore
-            folder_id=folder_id_value,
-            debug=debug,
         )
 
-        setup_logging(self._config.debug)
+        setup_logging(debug)
         log = getLogger("uipath")
 
         log.debug("CONFIG:")
