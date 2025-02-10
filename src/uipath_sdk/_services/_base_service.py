@@ -57,7 +57,7 @@ class BaseService:
 
     @property
     def auth_headers(self) -> dict[str, str]:
-        header = f"Basic {self._config.secret}"
+        header = f"Bearer {self._config.secret}"
         return {"Authorization": header}
 
     @property
