@@ -110,7 +110,13 @@ def get_proposed_version(directory):
     else:
         version = name_version
 
-    return version
+    # Increment patch version by 1
+    try:
+        major, minor, patch = version.split(".")
+        new_version = f"{major}.{minor}.{int(patch) + 1}"
+        return new_version
+    except Exception:
+        return "0.0.1"
 
 
 def generate_content_types_content():
@@ -214,8 +220,6 @@ def get_user_req_txt(directory):
 def pack_fn(projectName, description, type, version, authors, directory):
     main_py_content = get_user_script(directory)
     args = generate_args(os.path.join(directory, "main.py"))
-    print(json.dumps(args["input"], indent=4))
-    print(json.dumps(args["output"], indent=4))
     # return
     operate_file = generate_operate_file(type)
     entrypoints_file = generate_entrypoints_file(args["input"], args["output"])
@@ -281,8 +285,9 @@ def read_toml_project(file_path: str) -> dict[str, any]:
 @click.argument("root", type=str, default="./")
 @click.argument("version", type=str, default="")
 def pack(root, version):
-    # proposed_version = get_proposed_version(root)
-    # print(proposed_version)
+    proposed_version = get_proposed_version(root)
+    if proposed_version and click.confirm(f"Use version {proposed_version}?"):
+        version = proposed_version
     # # return
     while not os.path.isfile(os.path.join(root, ".uipath/config.json")):
         root = click.prompt(

@@ -27,14 +27,14 @@ def get_most_recent_package():
 def get_env_vars():
     load_dotenv(os.path.join(os.getcwd(), ".env"))
 
-    base_url = os.environ.get("UIPATH_BASE_URL")
+    base_url = os.environ.get("UIPATH_URL")
     token = os.environ.get("UIPATH_TOKEN")
 
     if not all([base_url, token]):
         click.echo(
             "Missing required environment variables. Please check your .env file contains:"
         )
-        click.echo("UIPATH_BASE_URL, UIPATH_TOKEN")
+        click.echo("UIPATH_URL, UIPATH_TOKEN")
         raise click.Abort("Missing environment variables")
 
     return [base_url, token]
