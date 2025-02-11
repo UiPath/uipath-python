@@ -71,7 +71,7 @@ def generate_seed_env_file(target_directory):
         # Check which variables need to be added
         env_vars = {
             "UIPATH_TOKEN": "YOUR_TOKEN_HERE",
-            "UIPATH_BASE_URL": "alpha.uipath.com",
+            "UIPATH_URL": "alpha.uipath.com",
         }
 
         # Only append missing variables
@@ -84,9 +84,7 @@ def generate_seed_env_file(target_directory):
     click.echo(f"Created .env file at {env_path}")
     with open(env_path, "w") as f:
         f.write("UIPATH_TOKEN=YOUR_TOKEN_HERE\n")
-        f.write(
-            "UIPATH_BASE_URL=alpha.uipath.com/ACCOUNT_NAME/TENANT_NAME/orchestrator_\n"
-        )
+        f.write("UIPATH_URL=alpha.uipath.com/ACCOUNT_NAME/TENANT_NAME/orchestrator_\n")
 
 
 def has_toml_file(directory: str) -> bool:
