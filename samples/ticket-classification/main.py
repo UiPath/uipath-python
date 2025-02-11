@@ -16,7 +16,7 @@ from langgraph.graph.state import Command
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_core.output_parsers import PydanticOutputParser
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
@@ -128,9 +128,7 @@ async def process(ticket_data: Dict[str, Any]) -> Any:
     
         config = {
             "configurable": {
-                "thread_id": "123",  # env jobKey
-                "checkpoint_ns": "support_tickets",
-                "checkpoint_id": ticket_data["ticket_id"]
+                "thread_id": uipath._execution_context.instance_id
             }
         }
         state = GraphState(**ticket_data)
@@ -153,7 +151,8 @@ async def main() -> None:
     ticket['approved'] = approved if len(sys.argv) > 2 else None
        
     try:
-        await process(ticket)
+        result = await process(ticket)
+        print(json.dumps(result))
         logger.info("Successful exit")
         sys.exit(0)
     except InterruptDetected:
