@@ -70,6 +70,16 @@ class ArgumentVisitor(ast.NodeVisitor):
                         and base_type.value.id == "Optional"
                     )
 
+                    # Extract default value if present
+                    default_value = None
+                    if node.value:
+                        if isinstance(node.value, ast.Constant):
+                            default_value = node.value.value
+                        elif isinstance(node.value, ast.List):
+                            default_value = []
+                        elif isinstance(node.value, ast.Dict):
+                            default_value = {}
+
                     for decorator in args.elts[1:]:
                         if isinstance(decorator, ast.Call) and isinstance(
                             decorator.func, ast.Name
@@ -78,19 +88,20 @@ class ArgumentVisitor(ast.NodeVisitor):
                                 self.has_arg = True
                                 if "state" in self.input_state:
                                     schema = self.input_state["state"]
-                                    schema["properties"][field_name] = {
-                                        "type": field_type
-                                    }
+                                    field_schema = {"type": field_type}
+                                    if default_value is not None:
+                                        field_schema["default"] = default_value
+                                    schema["properties"][field_name] = field_schema
                                     if not is_optional:
                                         schema["required"].append(field_name)
                             elif decorator.func.id == "OutputArgument":
                                 self.has_arg = True
                                 if "state" in self.output_state:
                                     schema = self.output_state["state"]
-                                    print(field_name, field_type)
-                                    schema["properties"][field_name] = {
-                                        "type": field_type
-                                    }
+                                    field_schema = {"type": field_type}
+                                    if default_value is not None:
+                                        field_schema["default"] = default_value
+                                    schema["properties"][field_name] = field_schema
                                     if not is_optional:
                                         schema["required"].append(field_name)
 
