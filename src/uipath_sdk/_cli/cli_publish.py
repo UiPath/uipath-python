@@ -1,5 +1,4 @@
 # type: ignore
-import json
 import os
 
 import click
