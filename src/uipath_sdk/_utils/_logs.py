@@ -1,4 +1,5 @@
 import logging
+import sys
 
 logger: logging.Logger = logging.getLogger("uipath")
 
@@ -9,3 +10,5 @@ def setup_logging(should_debug: bool | None) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger.setLevel(logging.DEBUG if should_debug else logging.INFO)
+    logger.removeHandler(logging.StreamHandler(sys.stdout))
+    logger.addHandler(logging.StreamHandler(sys.stderr))
