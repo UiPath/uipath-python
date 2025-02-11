@@ -12,3 +12,4 @@ wheels/
 **/uipath.db
 **/.uipath
 **/**.nupkg
+**/_output
