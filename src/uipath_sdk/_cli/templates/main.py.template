@@ -14,7 +14,7 @@ builder = StateGraph(State)
 
 def main():
     load_dotenv()
-    secret = os.environ.get("UIPATH_TOKEN")
+    secret = os.environ.get("UIPATH_ACCESS_TOKEN")
     uipath = UiPathSDK(secret)
     print("Hello world")
     # job = uipath.processes.invoke(name="")
