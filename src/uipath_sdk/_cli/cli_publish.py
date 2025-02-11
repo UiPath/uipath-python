@@ -28,13 +28,13 @@ def get_env_vars():
     load_dotenv(os.path.join(os.getcwd(), ".env"))
 
     base_url = os.environ.get("UIPATH_URL")
-    token = os.environ.get("UIPATH_TOKEN")
+    token = os.environ.get("UIPATH_ACCESS_TOKEN")
 
     if not all([base_url, token]):
         click.echo(
             "Missing required environment variables. Please check your .env file contains:"
         )
-        click.echo("UIPATH_URL, UIPATH_TOKEN")
+        click.echo("UIPATH_URL, UIPATH_ACCESS_TOKEN")
         raise click.Abort("Missing environment variables")
 
     return [base_url, token]
@@ -73,7 +73,7 @@ def publish(path):
 
     [base_url, token] = get_env_vars()
 
-    url = f"https://{base_url}/orchestrator_/odata/Processes/UiPath.Server.Configuration.OData.UploadPackage()"
+    url = f"{base_url}/orchestrator_/odata/Processes/UiPath.Server.Configuration.OData.UploadPackage()"
 
     headers = {"Authorization": f"Bearer {token}"}
 
