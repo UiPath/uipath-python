@@ -44,7 +44,9 @@ class BaseService:
     @retry(times=3, exceptions=(HTTPError,))
     def request(self, method: str, url: URL | str, **kwargs: Any) -> Response:
         self._logger.debug(f"Request: {method} {url}")
-        return self.client.request(method, url, **kwargs)
+        response = self.client.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response
 
     @property
     def default_headers(self) -> dict[str, str]:
