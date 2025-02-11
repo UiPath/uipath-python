@@ -1,3 +1,3 @@
-from ._arguments import UiPathArgument
+from ._arguments import InputArgument, OutputArgument
 
-__all__ = ["UiPathArgument"]
+__all__ = ["InputArgument", "OutputArgument"]

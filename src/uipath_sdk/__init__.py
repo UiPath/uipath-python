@@ -1,4 +1,4 @@
 from ._uipath_sdk import UiPathSDK
-from .package import UiPathArgument
+from .package import InputArgument, OutputArgument
 
-__all__ = ["UiPathSDK", "UiPathArgument"]
+__all__ = ["UiPathSDK", "InputArgument", "OutputArgument"]
