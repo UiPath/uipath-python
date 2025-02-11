@@ -1,31 +1,24 @@
 from logging import getLogger
-from typing import Any, ParamSpec, TypedDict
+from typing import Any
 
-from httpx import URL, Client, Headers, HTTPError, Response
-from httpx._types import (
-    CookieTypes,
-    HeaderTypes,
-    QueryParamTypes,
-    RequestContent,
-    RequestData,
-    RequestFiles,
+from httpx import URL, Client, ConnectTimeout, Headers, Response, TimeoutException
+from tenacity import (
+    retry,
+    retry_if_exception,
+    retry_if_result,
+    wait_exponential,
 )
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._utils.retry_decorator import retry
-
-Param = ParamSpec("Param")
 
 
-class RequestOptions(TypedDict, total=False):
-    content: RequestContent | None
-    data: RequestData | None
-    files: RequestFiles | None
-    json: Any | None
-    params: QueryParamTypes | None
-    headers: HeaderTypes | None
-    cookies: CookieTypes | None
+def is_retryable_exception(exception: BaseException) -> bool:
+    return isinstance(exception, (ConnectTimeout, TimeoutException))
+
+
+def is_retryable_status_code(response: Response) -> bool:
+    return response.status_code >= 500 and response.status_code < 600
 
 
 class BaseService:
@@ -41,11 +34,19 @@ class BaseService:
 
         super().__init__()
 
-    @retry(times=3, exceptions=(HTTPError,))
+    @retry(
+        retry=(
+            retry_if_exception(is_retryable_exception)
+            | retry_if_result(is_retryable_status_code)
+        ),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     def request(self, method: str, url: URL | str, **kwargs: Any) -> Response:
         self._logger.debug(f"Request: {method} {url}")
+
         response = self.client.request(method, url, **kwargs)
         response.raise_for_status()
+
         return response
 
     @property
