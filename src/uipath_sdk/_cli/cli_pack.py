@@ -138,7 +138,7 @@ def generate_nuspec_content(projectName, packageVersion, description, authors):
     templates_path = os.path.join(
         os.path.dirname(__file__), "templates", "package.nuspec.template"
     )
-    with open(templates_path, "r") as f:
+    with open(templates_path, "r", encoding="utf-8-sig") as f:
         content = f.read()
     return Template(content).substitute(variables)
 
@@ -156,7 +156,7 @@ def generate_rels_content(nuspecPath, psmdcpPath):
         "psmdcpPath": psmdcpPath,
         "psmdcpId": psmdcpId,
     }
-    with open(templates_path, "r") as f:
+    with open(templates_path, "r", encoding="utf-8-sig") as f:
         content = f.read()
     return Template(content).substitute(variables)
 
@@ -175,7 +175,7 @@ def generate_psmdcp_content(projectName, version, description, authors):
         "projectName": projectName,
         "publicKeyToken": token,
     }
-    with open(templates_path, "r") as f:
+    with open(templates_path, "r", encoding="utf-8-sig") as f:
         content = f.read()
 
     return [random_file_name, Template(content).substitute(variables)]
