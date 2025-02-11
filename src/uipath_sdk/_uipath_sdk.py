@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from ._config import Config
 from ._execution_context import ExecutionContext
 from ._services import ActionsService, AssetsService, ProcessesService
-from ._utils._logs import setup_logging
+from ._utils import setup_logging
 
 load_dotenv()
 

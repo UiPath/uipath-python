@@ -1,3 +1,3 @@
-from .singleton import SingletonMeta
+from ._logs import setup_logging
 
-__all__ = ["SingletonMeta"]
+__all__ = ["setup_logging"]
