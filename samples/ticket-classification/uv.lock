@@ -1107,7 +1107,7 @@ wheels = [
 
 [[package]]
 name = "ticket-classification"
-version = "0.0.1"
+version = "0.0.3"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1131,7 +1131,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
-    { name = "uipath-sdk", specifier = "==0.0.25" },
+    { name = "uipath-sdk", specifier = "==0.0.27" },
 ]
 
 [[package]]
@@ -1145,7 +1145,7 @@ wheels = [
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.25"
+version = "0.0.27"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -1155,9 +1155,9 @@ dependencies = [
     { name = "requests" },
     { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1a/4d/23ccdaf23bdf54fb33e2ca2d2cebee89abbfa6f0af7a938922859176686d/uipath_sdk-0.0.25.tar.gz", hash = "sha256:24b325d0897e72be957510050c7a57fe8e3ebd1c3b5ea6078dc5aed615f18467", size = 14519 }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/ef/b7ebad08b1da431b7c85ed8eaac747c023352a6d5cf0341bec4f9f12270b/uipath_sdk-0.0.27.tar.gz", hash = "sha256:06820ceccc72cf8e127fe45d867ee0fb288216390f0ca1a7bf6792af3608703b", size = 14579 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ad/46/e8c4c4139ae80079507139e17749d93aa7d2e9f370df6e8235820f31819e/uipath_sdk-0.0.25-py3-none-any.whl", hash = "sha256:f549e1d995770b80dfd38da4e5087b9b7364732fd6e36fb6fb09a15fb970d2fb", size = 23489 },
+    { url = "https://files.pythonhosted.org/packages/c7/69/efd4a8430ec8fae52a056881bca757651c831c296616be7023de295c91e5/uipath_sdk-0.0.27-py3-none-any.whl", hash = "sha256:de935a3a3483596735d6a80912f6ed28e6ee4bde3938e24eef761e082dfaa1a5", size = 23830 },
 ]
 
 [[package]]
