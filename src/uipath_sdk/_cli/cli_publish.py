@@ -1,4 +1,5 @@
 # type: ignore
+import json
 import os
 
 import click
@@ -6,52 +7,74 @@ import requests
 from dotenv import load_dotenv
 
 
+def get_most_recent_package():
+    nupkg_files = [f for f in os.listdir("_output") if f.endswith(".nupkg")]
+    if not nupkg_files:
+        click.echo("No .nupkg file found in _output directory")
+        return
+
+    # Get full path and modification time for each file
+    nupkg_files_with_time = [
+        (f, os.path.getmtime(os.path.join("_output", f))) for f in nupkg_files
+    ]
+
+    # Sort by modification time (most recent first)
+    nupkg_files_with_time.sort(key=lambda x: x[1], reverse=True)
+
+    # Get most recent file
+    return nupkg_files_with_time[0][0]
+
+
+def get_env_vars():
+    load_dotenv(os.path.join(os.getcwd(), ".env"))
+
+    base_url = os.environ.get("UIPATH_BASE_URL")
+    token = os.environ.get("UIPATH_TOKEN")
+
+    if not all([base_url, token]):
+        click.echo(
+            "Missing required environment variables. Please check your .env file contains:"
+        )
+        click.echo("UIPATH_BASE_URL, UIPATH_TOKEN")
+        raise click.Abort("Missing environment variables")
+
+    return [base_url, token]
+
+
 @click.command()
 @click.argument("path", type=str, default="")
 def publish(path):
     # Search for .nupkg file
     packageToPublish = None
+
     if not path:
-        nupkg_files = [f for f in os.listdir("./") if f.endswith(".nupkg")]
-        if not nupkg_files:
-            click.echo("No .nupkg file found in current directory")
+        if not os.path.exists("_output"):
+            click.echo("No _output directory found in current directory")
             return
-        click.echo(f"Found package: {nupkg_files[0]}")
-        if not click.confirm("Are you sure you want to publish this package?"):
+
+        # Find most recent .nupkg file in _output directory
+        most_recent = get_most_recent_package()
+        # click.echo(f"Do you want to publish {most_recent}?")
+
+        if not click.confirm(f"Do you want to publish {most_recent}?"):
             click.echo("Aborting publish")
             return
-        packageToPublish = nupkg_files[0]
+
+        packageToPublish = os.path.join("_output", most_recent)
     else:
         if not os.path.exists(path):
             click.echo(f"{path} not found")
             return
         packageToPublish = path
+
     # Check .env file
     if not os.path.exists(".env"):
         click.echo("No .env file found in current directory")
         return
 
-    load_dotenv(os.path.join(os.getcwd(), ".env"))
+    [base_url, token] = get_env_vars()
 
-    if not os.environ.get("UIPATH_TOKEN"):
-        click.echo("Invalid .env file - UIPATH_TOKEN not found")
-        return
-
-    click.echo("valid")
-
-    base_url = os.environ.get("UIPATH_BASE_URL")
-    account = os.environ.get("UIPATH_ACCOUNT_NAME")
-    tenant = os.environ.get("UIPATH_TENANT_NAME")
-    token = os.environ.get("UIPATH_TOKEN")
-
-    if not all([base_url, account, tenant]):
-        click.echo(
-            "Missing required environment variables. Please check your .env file contains:"
-        )
-        click.echo("UIPATH_BASE_URL, UIPATH_ACCOUNT_NAME, UIPATH_TENANT_NAME")
-        return
-
-    url = f"https://{base_url}/{account}/{tenant}/orchestrator_/odata/Processes/UiPath.Server.Configuration.OData.UploadPackage()"
+    url = f"https://{base_url}/orchestrator_/odata/Processes/UiPath.Server.Configuration.OData.UploadPackage()"
 
     headers = {"Authorization": f"Bearer {token}"}
 

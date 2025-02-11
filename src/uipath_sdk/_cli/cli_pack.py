@@ -6,29 +6,42 @@ import zipfile
 from string import Template
 
 import click
+import tomllib
 
-from .input_args import generate_input_args
+from .input_args import generate_args
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 mainFileEntrypoint = "content/main.py"
 
 
 def validate_config_structure(config_data):
-    required_fields = ["project_name", "description", "type"]
+    required_fields = ["type"]
     for field in required_fields:
         if field not in config_data:
             raise Exception(f"config.json is missing the required field: {field}")
 
 
-def check_config_file(directory):
-    config_path = os.path.join(directory, "config.json")
+def check_config(directory):
+    config_path = os.path.join(directory, ".uipath/config.json")
+    toml_path = os.path.join(directory, "pyproject.toml")
+
+    if not os.path.isfile(config_path) and not os.path.isfile(toml_path):
+        raise Exception("config.json and pyproject.toml not found")
 
     with open(config_path, "r") as config_file:
         config_data = json.load(config_file)
 
     validate_config_structure(config_data)
 
-    return config_data
+    toml_data = read_toml_project(toml_path)
+
+    return {
+        "project_name": toml_data["name"],
+        "description": toml_data["description"],
+        "type": config_data["type"],
+        "version": toml_data["version"],
+        "authors": toml_data["authors"],
+    }
 
 
 def generate_operate_file(type):
@@ -47,7 +60,7 @@ def generate_operate_file(type):
     return operate_json_data
 
 
-def generate_entrypoints_file(input_args):
+def generate_entrypoints_file(input_args, output_args):
     unique_id = str(uuid.uuid4())
     entrypoint_json_data = {
         "$schema": schema,
@@ -57,8 +70,8 @@ def generate_entrypoints_file(input_args):
                 "filePath": mainFileEntrypoint,
                 "uniqueId": unique_id,
                 "type": "agent",
-                "input": input_args["state"],
-                "output": {},
+                "input": input_args.get("state", {}),
+                "output": output_args.get("state", {}),
             }
         ],
     }
@@ -72,6 +85,34 @@ def generate_bindings_content():
     return bindings_content
 
 
+def get_proposed_version(directory):
+    output_dir = os.path.join(directory, "_output")
+    if not os.path.exists(output_dir):
+        return None
+
+    # Get all .nupkg files
+    nupkg_files = [f for f in os.listdir(output_dir) if f.endswith(".nupkg")]
+    if not nupkg_files:
+        return None
+
+    # Sort by modification time to get most recent
+    latest_file = max(
+        nupkg_files, key=lambda f: os.path.getmtime(os.path.join(output_dir, f))
+    )
+
+    # Extract version from filename
+    # Remove .nupkg extension first
+    name_version = latest_file[:-6]
+    # Find 3rd last occurrence of . by splitting and joining parts
+    parts = name_version.split(".")
+    if len(parts) >= 3:
+        version = ".".join(parts[-3:])
+    else:
+        version = name_version
+
+    return version
+
+
 def generate_content_types_content():
     templates_path = os.path.join(
         os.path.dirname(__file__), "templates", "[Content_Types].xml.template"
@@ -81,8 +122,7 @@ def generate_content_types_content():
     return content_types_content
 
 
-def generate_nuspec_content(projectName, packageVersion, description):
-    authors = "UiPath"
+def generate_nuspec_content(projectName, packageVersion, description, authors):
     variables = {
         "packageName": projectName,
         "packageVersion": packageVersion,
@@ -115,16 +155,15 @@ def generate_rels_content(nuspecPath, psmdcpPath):
     return Template(content).substitute(variables)
 
 
-def generate_psmdcp_content(projectName, version, description):
+def generate_psmdcp_content(projectName, version, description, authors):
     templates_path = os.path.join(
         os.path.dirname(__file__), "templates", ".psmdcp.template"
     )
-    creator = "UiPath"
 
     token = str(uuid.uuid4()).replace("-", "")[:32]
     random_file_name = f"{uuid.uuid4().hex[:16]}.psmdcp"
     variables = {
-        "creator": creator,
+        "creator": authors,
         "description": description,
         "packageVersion": version,
         "projectName": projectName,
@@ -172,17 +211,20 @@ def get_user_req_txt(directory):
     return requirements_txt_content
 
 
-def pack_fn(projectName, description, type, version, directory):
+def pack_fn(projectName, description, type, version, authors, directory):
     main_py_content = get_user_script(directory)
-    input_args = generate_input_args(os.path.join(directory, "main.py"))
+    args = generate_args(os.path.join(directory, "main.py"))
+    print(json.dumps(args["input"], indent=4))
+    print(json.dumps(args["output"], indent=4))
+    # return
     operate_file = generate_operate_file(type)
-    entrypoints_file = generate_entrypoints_file(input_args)
+    entrypoints_file = generate_entrypoints_file(args["input"], args["output"])
     bindings_content = generate_bindings_content()
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
-        projectName, version, description
+        projectName, version, description, authors
     )
-    nuspec_content = generate_nuspec_content(projectName, version, description)
+    nuspec_content = generate_nuspec_content(projectName, version, description, authors)
     rels_content = generate_rels_content(
         f"/{projectName}.nuspec",
         f"/package/services/metadata/core-properties/{psmdcp_file_name}",
@@ -190,8 +232,10 @@ def pack_fn(projectName, description, type, version, directory):
     package_descriptor_content = generate_package_desriptor_content()
 
     requirements_txt_content = get_user_req_txt(directory)
+    # Create _output directory if it doesn't exist
+    os.makedirs("_output", exist_ok=True)
     with zipfile.ZipFile(
-        f"{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
+        f"_output/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
     ) as z:
         z.writestr(
             f"./package/services/metadata/core-properties/{psmdcp_file_name}",
@@ -213,21 +257,50 @@ def pack_fn(projectName, description, type, version, directory):
         z.writestr("content/main.py", main_py_content)
         z.writestr("content/requirements.txt", requirements_txt_content)
 
+        if os.path.exists(os.path.join(directory, "pyproject.toml")):
+            with open(os.path.join(directory, "pyproject.toml"), "r") as f:
+                z.writestr("content/pyproject.toml", f.read())
+
+        if os.path.exists(os.path.join(directory, "README.md")):
+            with open(os.path.join(directory, "README.md"), "r") as f:
+                z.writestr("content/README.md", f.read())
+
+
+def read_toml_project(file_path: str) -> dict[str, any]:
+    with open(file_path, "rb") as f:
+        content = tomllib.load(f)
+        return {
+            "name": content["project"]["name"],
+            "description": content["project"]["description"],
+            "version": content["project"]["version"],
+            "authors": content["project"].get("authors", [{"name": ""}])[0]["name"],
+        }
+
 
 @click.command()
 @click.argument("root", type=str, default="./")
-@click.argument("version", type=str, default="1.0.0")
+@click.argument("version", type=str, default="")
 def pack(root, version):
-    while not os.path.isfile(os.path.join(root, "config.json")):
-        root = click.prompt("'config.json' not found.\nEnter your project's directory")
-    config = check_config_file(root)
+    # proposed_version = get_proposed_version(root)
+    # print(proposed_version)
+    # # return
+    while not os.path.isfile(os.path.join(root, ".uipath/config.json")):
+        root = click.prompt(
+            "'.uipath/config.json' not found.\nEnter your project's directory"
+        )
+    config = check_config(root)
     click.echo(
-        f"Packaging project {config['project_name']}:{version} description {config['description']} and type {config['type']}"
+        f"Packaging project {config['project_name']}:{version or config['version']} description {config['description']} authored by {config['authors']}"
     )
     pack_fn(
         config["project_name"],
         config["description"],
         config["type"],
-        version,
+        version or config["version"],
+        config["authors"],
         root,
     )
+
+
+if __name__ == "__main__":
+    pack()

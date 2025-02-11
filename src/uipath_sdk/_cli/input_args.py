@@ -1,49 +1,98 @@
 import ast
-from typing import Any
+from typing import Any, Dict, Optional
 
 TYPE_MAP = {
     "int": "integer",
-    "float": "number",
+    "float": "double",
     "str": "string",
     "bool": "boolean",
     "list": "array",
     "dict": "object",
+    "Optional": "object",
 }
 
 
-class TypedDictTransformer(ast.NodeVisitor):
+class ArgumentVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.schemas: dict[str, dict[str, Any]] = {}
+        self.input_state: Dict[str, Dict[str, Any]] = {}
+        self.output_state: Dict[str, Dict[str, Any]] = {}
+        self.current_class: Optional[str] = None
+        self.has_arg: bool = False
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        if any(self.is_typed_dict_base(base) for base in node.bases):
-            schema: dict[str, Any] = {
+        self.current_class = node.name
+        self.has_arg = False
+
+        # Visit all class members first to check for Arguments
+        self.generic_visit(node)
+
+        # Only add class to state if it had an Argument
+        if self.has_arg:
+            self.input_state["state"] = {
                 "type": "object",
                 "properties": {},
                 "required": [],
             }
-            for stmt in node.body:
-                if isinstance(stmt, ast.AnnAssign) and isinstance(
-                    stmt.target, ast.Name
-                ):
-                    field = stmt.target.id
-                    field_type = self.resolve_type(stmt.annotation)
-                    if "properties" not in schema:
-                        schema["properties"] = {}
-                    schema["properties"][field] = {"type": field_type}
+            self.output_state["state"] = {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            }
+            # Re-visit to actually process the members
+            self.generic_visit(node)
 
-                    if "required" not in schema:
-                        schema["required"] = []
-                    schema["required"].append(field)
-            self.schemas[node.name.lower()] = schema
-        self.generic_visit(node)
+        self.current_class = None
+        self.has_arg = False
 
-    def is_typed_dict_base(self, base: ast.AST) -> bool:
-        if isinstance(base, ast.Name) and base.id == "TypedDict":
-            return True
-        if isinstance(base, ast.Attribute) and base.attr == "TypedDict":
-            return True
-        return False
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if not self.current_class:
+            return
+
+        if not isinstance(node.target, ast.Name):
+            return
+
+        # Look for Argument annotation
+        if isinstance(node.annotation, ast.Subscript):
+            if (
+                isinstance(node.annotation.value, ast.Name)
+                and node.annotation.value.id == "Annotated"
+            ):
+                args = node.annotation.slice
+                if isinstance(args, ast.Tuple):
+                    base_type = args.elts[0]
+                    field_name = node.target.id
+                    field_type = self.resolve_type(base_type)
+
+                    # Check if type is Optional
+                    is_optional = (
+                        isinstance(base_type, ast.Subscript)
+                        and isinstance(base_type.value, ast.Name)
+                        and base_type.value.id == "Optional"
+                    )
+
+                    for decorator in args.elts[1:]:
+                        if isinstance(decorator, ast.Call) and isinstance(
+                            decorator.func, ast.Name
+                        ):
+                            if decorator.func.id == "InputArgument":
+                                self.has_arg = True
+                                if "state" in self.input_state:
+                                    schema = self.input_state["state"]
+                                    schema["properties"][field_name] = {
+                                        "type": field_type
+                                    }
+                                    if not is_optional:
+                                        schema["required"].append(field_name)
+                            elif decorator.func.id == "OutputArgument":
+                                self.has_arg = True
+                                if "state" in self.output_state:
+                                    schema = self.output_state["state"]
+                                    print(field_name, field_type)
+                                    schema["properties"][field_name] = {
+                                        "type": field_type
+                                    }
+                                    if not is_optional:
+                                        schema["required"].append(field_name)
 
     def resolve_type(self, annotation: ast.AST) -> str:
         if isinstance(annotation, ast.Name):
@@ -55,30 +104,25 @@ class TypedDictTransformer(ast.NodeVisitor):
                     return "array"
                 if base in ("Dict", "dict"):
                     return "object"
+                if base == "Optional":
+                    return self.resolve_type(annotation.slice)
         return "object"
 
 
-# if __name__ == "__main__":
-#     if len(sys.argv) != 3:
-#         print("Usage: python transform.py <input.py> <output.json>")
-#         sys.exit(1)
+def generate_args(path: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """
+    Parse Python file at given path and extract input/output arguments schema.
 
-#     input_path, output_path = sys.argv[1], sys.argv[2]
-#     with open(input_path, "r") as f:
-#         tree = ast.parse(f.read(), filename=input_path)
+    Args:
+        path: Path to Python file to parse
 
-#     transformer = TypedDictTransformer()
-#     transformer.visit(tree)
-
-#     with open(output_path, "w") as f:
-#         json.dump(transformer.schemas, f, indent=2)
-
-
-def generate_input_args(path: str) -> dict[str, dict[str, Any]]:
+    Returns:
+        Dictionary with 'input' and 'output' keys mapping class names to their argument schemas
+    """
     with open(path, "r") as f:
         tree = ast.parse(f.read(), filename=path)
 
-    transformer = TypedDictTransformer()
-    transformer.visit(tree)
+    visitor = ArgumentVisitor()
+    visitor.visit(tree)
 
-    return transformer.schemas
+    return {"input": visitor.input_state, "output": visitor.output_state}
