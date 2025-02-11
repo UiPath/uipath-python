@@ -19,10 +19,7 @@ class AssetsService(FolderContext, BaseService):
     ) -> str:
         endpoint = "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
         content = str(
-            {
-                "assetName": assetName,
-                "robotKey": self._execution_context.robot_key
-            }
+            {"assetName": assetName, "robotKey": self._execution_context.robot_key}
         )
 
         return cast(
