@@ -107,11 +107,10 @@ async def wait_for_human(state: GraphState) -> GraphState:
     
 #    if state.approved is None:
 #        logger.info("Needs human approval")
-#        state.approved = interrupt("Waiting for human approval")
+#        return interrupt("Waiting for human approval")
     
-    if state.approved:
-        logger.info("Ticket approved - continuing")
-        return state
+    logger.info("Ticket approved - continuing")
+    return state
 
 async def process(ticket_data: Dict[str, Any]) -> Any:
     """Process a support ticket through the workflow."""
@@ -125,7 +124,7 @@ async def process(ticket_data: Dict[str, Any]) -> Any:
 
     async with AsyncSqliteSaver.from_conn_string("uipath.db") as memory:
         graph = builder.compile(checkpointer=memory)
-    
+        
         config = {
             "configurable": {
                 "thread_id": uipath._execution_context.instance_id
@@ -133,8 +132,8 @@ async def process(ticket_data: Dict[str, Any]) -> Any:
         }
         state = GraphState(**ticket_data)
 
-#        if state.approved:
-#            return await graph.ainvoke(Command(resume=state), config)
+        #if state.approved:
+        #    return await graph.ainvoke(Command(resume=state), config)
         
         return await graph.ainvoke(state, config)
 
@@ -152,7 +151,7 @@ async def main() -> None:
        
     try:
         result = await process(ticket)
-        print(json.dumps(result))
+        print(result)
         logger.info("Successful exit")
         sys.exit(0)
     except InterruptDetected:
