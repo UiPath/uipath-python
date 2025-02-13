@@ -27,23 +27,23 @@ jobs:
           python-version-file: '.python-version'
 
       - name: Setup venv
-        working-directory: src
+        working-directory: sdk
         run: |
           uv venv
           uv sync --all-extras
 
       - name: "Check static types"
-        working-directory: src
+        working-directory: sdk
         run: |
           uv run mypy --config-file pyproject.toml .
 
       - name: "Check linting"
-        working-directory: src
+        working-directory: sdk
         run: |
           uv run ruff check .
 
       - name: "Check formatting"
-        working-directory: src
+        working-directory: sdk
         run: |
           uv run ruff format --check .
 
@@ -62,18 +62,18 @@ jobs:
           python-version-file: '.python-version'
 
       - name: Setup venv
-        working-directory: src
+        working-directory: sdk
         run: |
           uv venv
           uv sync --all-extras
 
       - name: Build
-        working-directory: src
+        working-directory: sdk
         run: |
           uv build
 
       - name: "Publish"
-        working-directory: src
+        working-directory: sdk
         run: |
           uv publish
         env:
