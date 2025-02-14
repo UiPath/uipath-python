@@ -50,7 +50,3 @@ class UiPathSDK:
     @property
     def actions(self) -> ActionsService:
         return ActionsService(self._config, self._execution_context)
-
-    @property
-    def tasks(self) -> TasksService:
-        return TasksService(self._config, self._execution_context)
