@@ -45,6 +45,11 @@ dev = [
     "rust-just>=1.39.0",
 ]
 
+[project.optional-dependencies]
+langchain = [
+  "uipath-langchain>=0.0.2"
+]
+
 [tool.ruff]
 line-length = 88
 indent-width = 4

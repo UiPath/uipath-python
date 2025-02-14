@@ -569,6 +569,18 @@ wheels = [
 ]
 
 [[package]]
+name = "uipath-langchain"
+version = "0.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "uipath-sdk" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/39/74/cd3f63f6d407073aebd5b5cdcf6c0f08d0a5eb08d55b2424a19890a07df7/uipath_langchain-0.0.2.tar.gz", hash = "sha256:0b0ccd1ed377968f8fce452a4924c1d73131cd47151ba53395ef3612bb881626", size = 886 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/53/a7/80507f348fcc901ce42d576f9714c29a03578e29b4d20450ea2fb8b7f1ec/uipath_langchain-0.0.2-py3-none-any.whl", hash = "sha256:5efb863554483bff4ae777704f31e4857508bbab1a73934f2e410b0e66bd4e88", size = 1243 },
+]
+
+[[package]]
 name = "uipath-sdk"
 version = "0.0.28"
 source = { editable = "." }
@@ -579,6 +591,12 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "tenacity" },
+    { name = "tomli" },
+]
+
+[package.optional-dependencies]
+langchain = [
+    { name = "uipath-langchain" },
 ]
 
 [package.dev-dependencies]
@@ -597,6 +615,8 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "tenacity", specifier = ">=9.0.0" },
+    { name = "tomli", specifier = ">=2.2.1" },
+    { name = "uipath-langchain", marker = "extra == 'langchain'", specifier = ">=0.0.2" },
 ]
 
 [package.metadata.requires-dev]

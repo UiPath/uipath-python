@@ -4,10 +4,17 @@ import os
 import shutil
 
 import click
+
 try:
     import tomllib
 except ImportError:
     import tomli as tomllib
+
+langchain_init = None
+try:
+    from uipath_langchain import init as langchain_init
+except ImportError:
+    pass
 
 
 def get_final_path(target_directory, project_name):
@@ -144,49 +151,54 @@ def configure_existing_project(
 @click.argument("description", type=str, default="")
 @click.argument("authors", type=str, default="")
 def init(name, directory, description, authors):
-    print("HELLO")
-    type = "agent"
-    if has_toml_file(directory):
-        project_data = read_toml_file(os.path.join(directory, "pyproject.toml"))
-        click.echo(
-            f"Initializing project {project_data['name']} with description {project_data['description']}"
-        )
-
-        if check_uipath_project_already_initialized(directory):
-            click.echo("Project already initialized")
-            return
-
-        configure_existing_project(
-            directory,
-            override_name=name,
-            override_description=description,
-            override_authors=authors,
-        )
-
+    if langchain_init:
+        langchain_init()
     else:
-        click.echo(
-            f"Initializing project {name} with description {description} in directory {directory}"
-        )
-        if not name:
-            raise click.UsageError("Project name is required")
+        print("HELLO")
+        type = "agent"
+        if has_toml_file(directory):
+            project_data = read_toml_file(os.path.join(directory, "pyproject.toml"))
+            click.echo(
+                f"Initializing project {project_data['name']} with description {project_data['description']}"
+            )
 
-        os.makedirs(f"{directory}/{name}")
-        os.makedirs(f"{directory}/{name}/.uipath")
-        generate_init_file(f"{directory}/{name}")
-        generate_requirements_file(f"{directory}/{name}")
-        generate_project_toml_file(f"{directory}/{name}", name, description, authors)
-        generate_seed_env_file(f"{directory}/{name}")
-        generate_config_file(
-            f"{directory}/{name}/.uipath",
-            name,
-            description,
-            type,
-            authors,
-        )
+            if check_uipath_project_already_initialized(directory):
+                click.echo("Project already initialized")
+                return
 
-        click.echo(
-            f"Make sure to run `pip install -r {os.path.join(directory, 'requirements.txt')}` to install dependencies"
-        )
+            configure_existing_project(
+                directory,
+                override_name=name,
+                override_description=description,
+                override_authors=authors,
+            )
+
+        else:
+            click.echo(
+                f"Initializing project {name} with description {description} in directory {directory}"
+            )
+            if not name:
+                raise click.UsageError("Project name is required")
+
+            os.makedirs(f"{directory}/{name}")
+            os.makedirs(f"{directory}/{name}/.uipath")
+            generate_init_file(f"{directory}/{name}")
+            generate_requirements_file(f"{directory}/{name}")
+            generate_project_toml_file(
+                f"{directory}/{name}", name, description, authors
+            )
+            generate_seed_env_file(f"{directory}/{name}")
+            generate_config_file(
+                f"{directory}/{name}/.uipath",
+                name,
+                description,
+                type,
+                authors,
+            )
+
+            click.echo(
+                f"Make sure to run `pip install -r {os.path.join(directory, 'requirements.txt')}` to install dependencies"
+            )
 
 
 # if __name__ == "__main__":
