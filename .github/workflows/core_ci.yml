@@ -50,3 +50,5 @@ jobs:
   build:
     needs: [lint]
     uses: ./.github/workflows/build.yml
+    with:
+      folder_path: "sdk/core"
