@@ -1,6 +1,6 @@
 [project]
 name = "uipath_sdk"
-version = "0.0.28"
+version = "0.0.29"
 description = "UiPath SDK"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -11,6 +11,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
     "tenacity>=9.0.0",
+    "tomli>=2.2.1",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -21,7 +22,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://uipath.com"
-Repository = "https://github.com/UiPath/platform-sdk.git"
+Repository = "https://github.com/UiPath/uipath-python"
 
 [project.scripts]
 uipath = "uipath_sdk._cli:cli"
@@ -42,6 +43,11 @@ dev = [
     "mypy>=1.14.1",
     "ruff>=0.9.4",
     "rust-just>=1.39.0",
+]
+
+[project.optional-dependencies]
+langchain = [
+  "uipath-langchain>=0.0.2"
 ]
 
 [tool.ruff]

@@ -1,0 +1,22 @@
+name: Langchain CI
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - "sdk/langchain/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "sdk/langchain/**"
+
+defaults:
+  run:
+    working-directory: "sdk/langchain"
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
