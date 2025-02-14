@@ -1,7 +1,12 @@
 name: Reusable Build Workflow
 
 on:
-  workflow_call: {}
+  workflow_call:
+    inputs:
+      folder_path:
+        description: 'The folder path to run actions in'
+        required: true
+        type: string
 
 jobs:
   build:

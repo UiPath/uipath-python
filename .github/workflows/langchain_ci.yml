@@ -20,3 +20,5 @@ defaults:
 jobs:
   build:
     uses: ./.github/workflows/build.yml
+    with:
+      folder_path: "sdk/langchain"
