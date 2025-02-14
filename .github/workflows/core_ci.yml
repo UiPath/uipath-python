@@ -13,6 +13,10 @@ on:
     paths:
       - "sdk/core/**"
 
+defaults:
+  run:
+    working-directory: "sdk/core"
+
 jobs:
   lint:
     name: Static Checks
@@ -27,54 +31,22 @@ jobs:
           python-version-file: ".python-version"
 
       - name: Setup venv
-        working-directory: sdk/core
         run: |
           uv venv
           uv sync --all-extras
 
       - name: "Check static types"
-        working-directory: sdk/core
         run: |
           uv run mypy --config-file pyproject.toml .
 
       - name: "Check linting"
-        working-directory: sdk/core
         run: |
           uv run ruff check .
 
       - name: "Check formatting"
-        working-directory: sdk/core
         run: |
           uv run ruff format --check .
 
   build:
-    name: Build and publish
     needs: [lint]
-    if: github.ref == 'refs/heads/main'
-    runs-on: "ubuntu-24.04"
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: astral-sh/setup-uv@v5
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: ".python-version"
-
-      - name: Setup venv
-        working-directory: sdk/core
-        run: |
-          uv venv
-          uv sync --all-extras
-
-      - name: Build
-        working-directory: sdk/core
-        run: |
-          uv build
-
-      - name: "Publish"
-        working-directory: sdk/core
-        run: |
-          uv publish
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+    uses: ./.github/workflows/build.yml
