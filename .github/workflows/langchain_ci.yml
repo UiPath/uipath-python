@@ -22,3 +22,5 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       folder_path: "sdk/langchain"
+    secrets:
+      token: ${{ secrets.PYPI_TOKEN }}
