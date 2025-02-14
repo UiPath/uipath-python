@@ -8,15 +8,15 @@ on:
         required: true
         type: string
 
-defaults:
-  run:
-    working-directory: ${{ inputs.folder_path }}
-
 jobs:
   build:
     name: Build and publish
     if: github.ref == 'refs/heads/main'
     runs-on: "ubuntu-24.04"
+    defaults:
+      run:
+        working-directory: ${{ inputs.folder_path }}
+
 
     steps:
       - uses: actions/checkout@v4
