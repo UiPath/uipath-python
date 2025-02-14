@@ -1,4 +1,4 @@
-name: CI
+name: Core CI
 
 on:
   workflow_dispatch: {}
@@ -6,12 +6,12 @@ on:
     branches:
       - main
     paths:
-      - 'src/**'
+      - "sdk/core/**"
   pull_request:
     branches:
       - main
     paths:
-      - 'src/**'
+      - "sdk/core/**"
 
 jobs:
   lint:
@@ -24,26 +24,26 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version-file: '.python-version'
+          python-version-file: ".python-version"
 
       - name: Setup venv
-        working-directory: sdk
+        working-directory: sdk/core
         run: |
           uv venv
           uv sync --all-extras
 
       - name: "Check static types"
-        working-directory: sdk
+        working-directory: sdk/core
         run: |
           uv run mypy --config-file pyproject.toml .
 
       - name: "Check linting"
-        working-directory: sdk
+        working-directory: sdk/core
         run: |
           uv run ruff check .
 
       - name: "Check formatting"
-        working-directory: sdk
+        working-directory: sdk/core
         run: |
           uv run ruff format --check .
 
@@ -59,21 +59,21 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version-file: '.python-version'
+          python-version-file: ".python-version"
 
       - name: Setup venv
-        working-directory: sdk
+        working-directory: sdk/core
         run: |
           uv venv
           uv sync --all-extras
 
       - name: Build
-        working-directory: sdk
+        working-directory: sdk/core
         run: |
           uv build
 
       - name: "Publish"
-        working-directory: sdk
+        working-directory: sdk/core
         run: |
           uv publish
         env:
