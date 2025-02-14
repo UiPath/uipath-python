@@ -4,7 +4,10 @@ import os
 import shutil
 
 import click
-import tomllib
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 
 
 def get_final_path(target_directory, project_name):

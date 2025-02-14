@@ -11,6 +11,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
     "tenacity>=9.0.0",
+    "tomli>=2.2.1",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -21,7 +22,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://uipath.com"
-Repository = "https://github.com/UiPath/platform-sdk.git"
+Repository = "https://github.com/UiPath/uipath-python"
 
 [project.scripts]
 uipath = "uipath_sdk._cli:cli"
