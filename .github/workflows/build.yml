@@ -8,6 +8,10 @@ on:
         required: true
         type: string
 
+defaults:
+  run:
+    working-directory: ${{ inputs.folder_path }}
+
 jobs:
   build:
     name: Build and publish
