@@ -13,14 +13,11 @@ except ImportError:
     import tomli as tomllib
 
 
-from .input_args import generate_args
-
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
-mainFileEntrypoint = "content/main.py"
 
 
 def validate_config_structure(config_data):
-    required_fields = ["type"]
+    required_fields = ["entryPoints"]
     for field in required_fields:
         if field not in config_data:
             raise Exception(f"uipath.json is missing the required field: {field}")
@@ -45,19 +42,23 @@ def check_config(directory):
     return {
         "project_name": toml_data["name"],
         "description": toml_data["description"],
-        "type": config_data["type"],
+        "entryPoints": config_data["entryPoints"],
         "version": toml_data["version"],
         "authors": toml_data["authors"],
     }
 
 
-def generate_operate_file(type):
+def generate_operate_file(entryPoints):
     project_id = str(uuid.uuid4())
+
+    first_entry = entryPoints[0]
+    file_path = first_entry["filePath"]
+    type = first_entry["type"]
 
     operate_json_data = {
         "$schema": schema,
         "projectId": project_id,
-        "main": mainFileEntrypoint,
+        "main": file_path,
         "contentType": type,
         "targetFramework": "Portable",
         "targetRuntime": "python",
@@ -67,20 +68,11 @@ def generate_operate_file(type):
     return operate_json_data
 
 
-def generate_entrypoints_file(input_args, output_args):
-    unique_id = str(uuid.uuid4())
+def generate_entrypoints_file(entryPoints):
     entrypoint_json_data = {
         "$schema": schema,
         "$id": "entry-points.json",
-        "entryPoints": [
-            {
-                "filePath": mainFileEntrypoint,
-                "uniqueId": unique_id,
-                "type": "agent",
-                "input": input_args.get("state", {}),
-                "output": output_args.get("state", {}),
-            }
-        ],
+        "entryPoints": entryPoints,
     }
 
     return entrypoint_json_data
@@ -93,7 +85,7 @@ def generate_bindings_content():
 
 
 def get_proposed_version(directory):
-    output_dir = os.path.join(directory, "_output")
+    output_dir = os.path.join(directory, ".uipath")
     if not os.path.exists(output_dir):
         return None
 
@@ -213,23 +205,10 @@ def get_user_script(directory):
     return main_py_content
 
 
-def get_user_req_txt(directory):
-    requirements_txt_path = os.path.join(directory, "requirements.txt")
-    if not os.path.isfile(requirements_txt_path):
-        raise Exception("requirements.txt file does not exist in the content directory")
-
-    with open(requirements_txt_path, "r") as requirements_txt_file:
-        requirements_txt_content = requirements_txt_file.read()
-
-    return requirements_txt_content
-
-
-def pack_fn(projectName, description, type, version, authors, directory):
+def pack_fn(projectName, description, entryPoints, version, authors, directory):
     main_py_content = get_user_script(directory)
-    args = generate_args(os.path.join(directory, "main.py"))
-    # return
-    operate_file = generate_operate_file(type)
-    entrypoints_file = generate_entrypoints_file(args["input"], args["output"])
+    operate_file = generate_operate_file(entryPoints)
+    entrypoints_file = generate_entrypoints_file(entryPoints)
     bindings_content = generate_bindings_content()
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
@@ -242,11 +221,10 @@ def pack_fn(projectName, description, type, version, authors, directory):
     )
     package_descriptor_content = generate_package_descriptor_content()
 
-    requirements_txt_content = get_user_req_txt(directory)
-    # Create _output directory if it doesn't exist
-    os.makedirs("_output", exist_ok=True)
+    # Create .uipath directory if it doesn't exist
+    os.makedirs(".uipath", exist_ok=True)
     with zipfile.ZipFile(
-        f"_output/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
+        f".uipath/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
     ) as z:
         z.writestr(
             f"./package/services/metadata/core-properties/{psmdcp_file_name}",
@@ -266,7 +244,6 @@ def pack_fn(projectName, description, type, version, authors, directory):
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
         z.writestr("content/main.py", main_py_content)
-        z.writestr("content/requirements.txt", requirements_txt_content)
 
         if os.path.exists(os.path.join(directory, "pyproject.toml")):
             with open(os.path.join(directory, "pyproject.toml"), "r") as f:
@@ -305,7 +282,7 @@ def pack(root, version):
     pack_fn(
         config["project_name"],
         config["description"],
-        config["type"],
+        config["entryPoints"],
         version or config["version"],
         config["authors"],
         root,

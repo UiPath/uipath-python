@@ -1,6 +1,7 @@
 # type: ignore
 import json
 import os
+import uuid
 
 import click
 
@@ -52,6 +53,7 @@ def init(entrypoint: str):
         "entryPoints": [
             {
                 "filePath": relative_path,
+                "unique_id": str(uuid.uuid4()),
                 "type": "process",
                 "input": args["input"],
                 "output": args["output"],

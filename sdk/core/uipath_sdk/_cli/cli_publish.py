@@ -7,14 +7,14 @@ from dotenv import load_dotenv
 
 
 def get_most_recent_package():
-    nupkg_files = [f for f in os.listdir("_output") if f.endswith(".nupkg")]
+    nupkg_files = [f for f in os.listdir(".uipath") if f.endswith(".nupkg")]
     if not nupkg_files:
-        click.echo("No .nupkg file found in _output directory")
+        click.echo("No .nupkg file found in .uipath directory")
         return
 
     # Get full path and modification time for each file
     nupkg_files_with_time = [
-        (f, os.path.getmtime(os.path.join("_output", f))) for f in nupkg_files
+        (f, os.path.getmtime(os.path.join(".uipath", f))) for f in nupkg_files
     ]
 
     # Sort by modification time (most recent first)
@@ -47,11 +47,11 @@ def publish(path):
     packageToPublish = None
 
     if not path:
-        if not os.path.exists("_output"):
-            click.echo("No _output directory found in current directory")
+        if not os.path.exists(".uipath"):
+            click.echo("No .uipath directory found in current directory")
             return
 
-        # Find most recent .nupkg file in _output directory
+        # Find most recent .nupkg file in .uipath directory
         most_recent = get_most_recent_package()
         # click.echo(f"Do you want to publish {most_recent}?")
 
@@ -59,7 +59,7 @@ def publish(path):
             click.echo("Aborting publish")
             return
 
-        packageToPublish = os.path.join("_output", most_recent)
+        packageToPublish = os.path.join(".uipath", most_recent)
     else:
         if not os.path.exists(path):
             click.echo(f"{path} not found")
