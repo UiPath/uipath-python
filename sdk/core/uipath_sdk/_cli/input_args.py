@@ -1,7 +1,20 @@
 import ast
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
-TYPE_MAP = {
+
+class PropertySchema(TypedDict, total=False):
+    type: str
+    items: Dict[str, Any]
+    default: Union[str, int, float, bool, List[Any], Dict[str, Any]]
+
+
+class ArgumentSchema(TypedDict):
+    type: str
+    properties: Dict[str, PropertySchema]
+    required: List[str]
+
+
+TYPE_MAP: Dict[str, str] = {
     "int": "integer",
     "float": "double",
     "str": "string",
@@ -14,12 +27,12 @@ TYPE_MAP = {
 
 class ArgumentVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.input_schema: Dict[str, Any] = {
+        self.input_schema: ArgumentSchema = {
             "type": "object",
             "properties": {},
             "required": [],
         }
-        self.output_schema: Dict[str, Any] = {
+        self.output_schema: ArgumentSchema = {
             "type": "object",
             "properties": {},
             "required": [],
@@ -68,11 +81,12 @@ class ArgumentVisitor(ast.NodeVisitor):
 
     def get_field_schema(
         self, type_node: ast.AST, default_value: Optional[ast.AST] = None
-    ) -> Dict[str, Any]:
+    ) -> PropertySchema:
         """Generate complete schema for a field based on its type and default value."""
+        schema: PropertySchema = {"type": "object"}
+
         if isinstance(type_node, ast.Name):
-            base_type = TYPE_MAP.get(type_node.id, "object")
-            schema = {"type": base_type}
+            schema["type"] = TYPE_MAP.get(type_node.id, "object")
 
         elif isinstance(type_node, ast.Subscript):
             if isinstance(type_node.value, ast.Name):
@@ -81,16 +95,10 @@ class ArgumentVisitor(ast.NodeVisitor):
                     inner_schema = self.get_field_schema(type_node.slice)
                     schema = inner_schema
                 elif base in ("List", "list"):
-                    schema = {
-                        "type": "array",
-                        "items": self.get_field_schema(type_node.slice),
-                    }
+                    items_schema = self.get_field_schema(type_node.slice)
+                    schema = {"type": "array", "items": items_schema}
                 elif base in ("Dict", "dict"):
                     schema = {"type": "object"}
-                else:
-                    schema = {"type": "object"}
-        else:
-            schema = {"type": "object"}
 
         if default_value is not None:
             if isinstance(default_value, ast.Constant):
@@ -111,7 +119,7 @@ class ArgumentVisitor(ast.NodeVisitor):
         )
 
 
-def generate_args(path: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+def generate_args(path: str) -> Dict[str, ArgumentSchema]:
     """
     Parse Python file at given path and extract input/output arguments schema.
 
