@@ -58,7 +58,7 @@ def generate_operate_file(entryPoints):
     operate_json_data = {
         "$schema": schema,
         "projectId": project_id,
-        "main": file_path,
+        "main": f"content/{file_path}",
         "contentType": type,
         "targetFramework": "Portable",
         "targetRuntime": "python",
