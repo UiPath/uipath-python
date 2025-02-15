@@ -13,18 +13,21 @@ def get_user_script(directory, entrypoint=None):
     if entrypoint:
         script_path = os.path.join(directory, entrypoint)
         if not os.path.isfile(script_path):
-            raise Exception(f"{entrypoint} file does not exist in the directory")
+            click.echo(f"The {entrypoint} file does not exist in the current directory")
+            return None
     else:
         python_files = [f for f in os.listdir(directory) if f.endswith(".py")]
 
         if not python_files:
-            raise Exception("No Python files found in the directory")
+            click.echo("No Python files found in the directory")
+            return None
         elif len(python_files) == 1:
             script_path = os.path.join(directory, python_files[0])
         else:
-            raise Exception(
-                "Multiple Python files in current directory\nPlease specify the entrypoint: uipath init <entrypoint>"
+            click.echo(
+                "Multiple Python files in current directory\nPlease specify the entrypoint: `uipath init <file>`"
             )
+            return None
 
     return script_path
 
@@ -42,6 +45,10 @@ def init(entrypoint: str):
 
     current_directory = os.getcwd()
     script_name = get_user_script(current_directory, entrypoint=entrypoint)
+
+    if not script_name:
+        return
+
     script_path = os.path.join(current_directory, script_name)
 
     args = generate_args(script_path)

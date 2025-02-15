@@ -1,9 +1,10 @@
+# type: ignore
 import importlib.util
 import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import click
 
@@ -18,7 +19,9 @@ def find_python_files(directory: str = ".") -> List[Path]:
     return list(Path(directory).glob("*.py"))
 
 
-def execute_python_script(script_path: str, input_data: dict) -> Any:
+def execute_python_script(
+    script_path: str, input_data: Dict[str, Any]
+) -> Dict[str, Any]:
     """Execute the Python script with the given input."""
     try:
         # Load the module
@@ -47,7 +50,7 @@ def execute_python_script(script_path: str, input_data: dict) -> Any:
 @click.command()
 @click.argument("input", required=False, default="{}")
 @click.option("--entrypoint", "-e", help="The path to the Python script to execute")
-def run(input: str, entrypoint: Optional[str] = None):
+def run(input: str, entrypoint: Optional[str] = None) -> None:
     """Execute a Python script with JSON input."""
     should_continue, errorMessage = Middlewares.next(
         "run", input, entrypoint=entrypoint

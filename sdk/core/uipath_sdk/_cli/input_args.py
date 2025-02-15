@@ -1,20 +1,32 @@
 import ast
-from typing import Any, Dict, List, Optional, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, TypedDict, Union, cast
+
+SchemaType = Literal["object", "integer", "double", "string", "boolean", "array"]
 
 
-class PropertySchema(TypedDict, total=False):
-    type: str
-    items: Dict[str, Any]
+class BaseSchema(TypedDict, total=False):
     default: Union[str, int, float, bool, List[Any], Dict[str, Any]]
 
 
+class ObjectSchema(BaseSchema):
+    type: Literal["object", "integer", "double", "string", "boolean"]
+
+
+class ArraySchema(BaseSchema):
+    type: Literal["array"]
+    items: ObjectSchema
+
+
+PropertySchema = Union[ObjectSchema, ArraySchema]
+
+
 class ArgumentSchema(TypedDict):
-    type: str
+    type: Literal["object"]
     properties: Dict[str, PropertySchema]
     required: List[str]
 
 
-TYPE_MAP: Dict[str, str] = {
+TYPE_MAP: Dict[str, SchemaType] = {
     "int": "integer",
     "float": "double",
     "str": "string",
@@ -83,32 +95,43 @@ class ArgumentVisitor(ast.NodeVisitor):
         self, type_node: ast.AST, default_value: Optional[ast.AST] = None
     ) -> PropertySchema:
         """Generate complete schema for a field based on its type and default value."""
-        schema: PropertySchema = {"type": "object"}
-
         if isinstance(type_node, ast.Name):
-            schema["type"] = TYPE_MAP.get(type_node.id, "object")
+            schema_type = TYPE_MAP.get(type_node.id, "object")
+            if schema_type != "array":
+                schema = cast(ObjectSchema, {"type": schema_type})
+                result: PropertySchema = schema
+            else:
+                basic_obj_schema = cast(ObjectSchema, {"type": "object"})
+                result = cast(ArraySchema, {"type": "array", "items": basic_obj_schema})
 
         elif isinstance(type_node, ast.Subscript):
             if isinstance(type_node.value, ast.Name):
                 base = type_node.value.id
                 if base == "Optional":
-                    inner_schema = self.get_field_schema(type_node.slice)
-                    schema = inner_schema
+                    result = self.get_field_schema(type_node.slice)
                 elif base in ("List", "list"):
                     items_schema = self.get_field_schema(type_node.slice)
-                    schema = {"type": "array", "items": items_schema}
+                    if "type" in items_schema and items_schema["type"] != "array":
+                        obj_schema = cast(ObjectSchema, items_schema)
+                    else:
+                        obj_schema = cast(ObjectSchema, {"type": "object"})
+                    result = cast(ArraySchema, {"type": "array", "items": obj_schema})
                 elif base in ("Dict", "dict"):
-                    schema = {"type": "object"}
+                    result = cast(ObjectSchema, {"type": "object"})
+                else:
+                    result = cast(ObjectSchema, {"type": "object"})
+        else:
+            result = cast(ObjectSchema, {"type": "object"})
 
         if default_value is not None:
             if isinstance(default_value, ast.Constant):
-                schema["default"] = default_value.value
+                result["default"] = default_value.value
             elif isinstance(default_value, ast.List):
-                schema["default"] = []
+                result["default"] = []
             elif isinstance(default_value, ast.Dict):
-                schema["default"] = {}
+                result["default"] = {}
 
-        return schema
+        return result
 
     def is_optional_type(self, node: ast.AST) -> bool:
         """Check if a type annotation represents an Optional type."""
