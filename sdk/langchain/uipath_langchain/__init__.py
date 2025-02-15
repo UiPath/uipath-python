@@ -1,6 +1,4 @@
-def init():
-    print("init")
-
+from ._cli import init
 
 def run():
     print("run")

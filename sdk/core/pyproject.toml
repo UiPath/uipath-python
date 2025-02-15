@@ -47,8 +47,11 @@ dev = [
 
 [project.optional-dependencies]
 langchain = [
-  "uipath-langchain>=0.0.2"
+  "uipath-langchain"
 ]
+
+[tool.uv.sources]
+uipath-langchain = { path = "../langchain" }
 
 [tool.ruff]
 line-length = 88
