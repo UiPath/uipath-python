@@ -23,15 +23,17 @@ def validate_config_structure(config_data):
     required_fields = ["type"]
     for field in required_fields:
         if field not in config_data:
-            raise Exception(f"config.json is missing the required field: {field}")
+            raise Exception(f"uipath.json is missing the required field: {field}")
 
 
 def check_config(directory):
-    config_path = os.path.join(directory, ".uipath/config.json")
+    config_path = os.path.join(directory, "uipath.json")
     toml_path = os.path.join(directory, "pyproject.toml")
 
-    if not os.path.isfile(config_path) and not os.path.isfile(toml_path):
-        raise Exception("config.json and pyproject.toml not found")
+    if not os.path.isfile(config_path):
+        raise Exception("uipath.json not found, please run `uipath init`")
+    if not os.path.isfile(toml_path):
+        raise Exception("pyproject.toml not found")
 
     with open(config_path, "r") as config_file:
         config_data = json.load(config_file)
@@ -186,7 +188,7 @@ def generate_psmdcp_content(projectName, version, description, authors):
     return [random_file_name, Template(content).substitute(variables)]
 
 
-def generate_package_desriptor_content():
+def generate_package_descriptor_content():
     package_descriptor_content = {
         "$schema": "https://cloud.uipath.com/draft/2024-12/package-descriptor",
         "files": {
@@ -238,7 +240,7 @@ def pack_fn(projectName, description, type, version, authors, directory):
         f"/{projectName}.nuspec",
         f"/package/services/metadata/core-properties/{psmdcp_file_name}",
     )
-    package_descriptor_content = generate_package_desriptor_content()
+    package_descriptor_content = generate_package_descriptor_content()
 
     requirements_txt_content = get_user_req_txt(directory)
     # Create _output directory if it doesn't exist
@@ -294,9 +296,9 @@ def pack(root, version):
     if proposed_version and click.confirm(f"Use version {proposed_version}?"):
         version = proposed_version
     # # return
-    while not os.path.isfile(os.path.join(root, ".uipath/config.json")):
+    while not os.path.isfile(os.path.join(root, "uipath.json")):
         root = click.prompt(
-            "'.uipath/config.json' not found.\nEnter your project's directory"
+            "'uipath.json' not found.\nEnter your project's directory"
         )
     config = check_config(root)
     click.echo(

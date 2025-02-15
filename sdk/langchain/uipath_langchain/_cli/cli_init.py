@@ -52,7 +52,7 @@ def langgraph_init_middleware(*args: Any, **kwargs: Any) -> Tuple[bool, Optional
             except Exception as e:
                 return False, f"Failed to load graph '{graph.name}': {str(e)}"
 
-        uipath_config = {"entrypoints": entrypoints}
+        uipath_config = {"type": "agent", "entrypoints": entrypoints}
 
         with open("uipath.json", "w") as f:
             json.dump(uipath_config, f, indent=2)

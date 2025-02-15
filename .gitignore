@@ -13,3 +13,4 @@ wheels/
 **/.uipath
 **/**.nupkg
 **/_output
+**/uipath.json
