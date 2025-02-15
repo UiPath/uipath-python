@@ -194,19 +194,7 @@ def generate_package_descriptor_content():
     return package_descriptor_content
 
 
-def get_user_script(directory):
-    main_py_path = os.path.join(directory, "main.py")
-    if not os.path.isfile(main_py_path):
-        raise Exception("main.py file does not exist in the content directory")
-
-    with open(main_py_path, "r") as main_py_file:
-        main_py_content = main_py_file.read()
-
-    return main_py_content
-
-
 def pack_fn(projectName, description, entryPoints, version, authors, directory):
-    main_py_content = get_user_script(directory)
     operate_file = generate_operate_file(entryPoints)
     entrypoints_file = generate_entrypoints_file(entryPoints)
     bindings_content = generate_bindings_content()
@@ -223,16 +211,16 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
 
     # Create .uipath directory if it doesn't exist
     os.makedirs(".uipath", exist_ok=True)
+
     with zipfile.ZipFile(
         f".uipath/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
     ) as z:
+        # Add metadata files
         z.writestr(
             f"./package/services/metadata/core-properties/{psmdcp_file_name}",
             psmdcp_content,
         )
         z.writestr("[Content_Types].xml", content_types_content)
-
-        # z.writestr("content/project.json", "")
         z.writestr(
             "content/package-descriptor.json",
             json.dumps(package_descriptor_content, indent=4),
@@ -240,18 +228,43 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
         z.writestr("content/operate.json", json.dumps(operate_file, indent=4))
         z.writestr("content/entry-points.json", json.dumps(entrypoints_file, indent=4))
         z.writestr("content/bindings_v2.json", json.dumps(bindings_content, indent=4))
-
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
-        z.writestr("content/main.py", main_py_content)
 
-        if os.path.exists(os.path.join(directory, "pyproject.toml")):
-            with open(os.path.join(directory, "pyproject.toml"), "r") as f:
-                z.writestr("content/pyproject.toml", f.read())
+        # Walk through directory and add all Python files
+        for root, dirs, files in os.walk(directory):
+            # Skip all directories that start with .
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
 
-        if os.path.exists(os.path.join(directory, "README.md")):
-            with open(os.path.join(directory, "README.md"), "r") as f:
-                z.writestr("content/README.md", f.read())
+            for file in files:
+                if file.endswith(".py"):  # Only include .py files
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, directory)
+                    try:
+                        # Try UTF-8 first
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            z.writestr(f"content/{rel_path}", f.read())
+                    except UnicodeDecodeError:
+                        # If UTF-8 fails, try with utf-8-sig (for files with BOM)
+                        try:
+                            with open(file_path, "r", encoding="utf-8-sig") as f:
+                                z.writestr(f"content/{rel_path}", f.read())
+                        except UnicodeDecodeError:
+                            # If that also fails, try with latin-1 as a fallback
+                            with open(file_path, "r", encoding="latin-1") as f:
+                                z.writestr(f"content/{rel_path}", f.read())
+
+        # Add optional files if they exist
+        optional_files = ["pyproject.toml", "README.md"]
+        for file in optional_files:
+            file_path = os.path.join(directory, file)
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        z.writestr(f"content/{file}", f.read())
+                except UnicodeDecodeError:
+                    with open(file_path, "r", encoding="latin-1") as f:
+                        z.writestr(f"content/{file}", f.read())
 
 
 def read_toml_project(file_path: str) -> dict[str, any]:
