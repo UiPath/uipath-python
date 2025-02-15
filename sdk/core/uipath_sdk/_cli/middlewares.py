@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,9 @@ class Middlewares:
         return cls._middlewares.get(command, [])
 
     @classmethod
-    def next(cls, command: str, *args, **kwargs) -> Tuple[bool, Optional[str]]:
+    def next(
+        cls, command: str, *args: Any, **kwargs: Any
+    ) -> Tuple[bool, Optional[str]]:
         """Invoke middleware.
 
         Returns:

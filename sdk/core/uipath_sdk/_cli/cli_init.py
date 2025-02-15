@@ -1,12 +1,13 @@
 # type: ignore
 import json
+from typing import Any
 
 import click
 from middlewares import Middlewares
 
 
 @click.command()
-def init(*args, **kwargs):
+def init(*args: Any, **kwargs: Any):
     should_continue, errorMessage = Middlewares.next("init", *args, **kwargs)
 
     if errorMessage:
