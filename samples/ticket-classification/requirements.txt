@@ -7,3 +7,4 @@ uipath_sdk>=0.0.27
 pydantic>=2.10.6
 aiohttp>=3.11.12
 typing-extensions>=4.12.2
+ipython>=8.32.0

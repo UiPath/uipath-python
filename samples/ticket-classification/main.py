@@ -1,35 +1,25 @@
-import asyncio
-import json
 import logging
 import os
-import sys
-import traceback
-from typing import Annotated, Any, Dict, Literal, Optional
+from typing import Literal, Optional
 
-from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
+from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
 from uipath_sdk import UiPathSDK
-from uipath_sdk.package._arguments import InputArgument, OutputArgument
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
-load_dotenv()
 
 uipath = UiPathSDK()
 
-
 class GraphState(BaseModel):
-    message: Annotated[str, InputArgument(), OutputArgument()]
-    ticket_id: Annotated[str, InputArgument(), OutputArgument()]
-    label: Annotated[Optional[str], OutputArgument()] = None
-    confidence: Annotated[Optional[float], OutputArgument()] = None
-    approved: Annotated[Optional[bool], OutputArgument()] = None
+    message: str
+    ticket_id: str
+    label: Optional[str] = None
+    confidence: Optional[float] = None
 
 
 class TicketClassification(BaseModel):
@@ -104,75 +94,35 @@ async def classify(state: GraphState) -> GraphState:
         state.confidence = 0.0
         return state
 
-
-class InterruptDetected(Exception):
-    """Custom exception to indicate an interrupt was triggered."""
-
-    pass
-
-
-async def wait_for_human(state: GraphState) -> GraphState:
-    logger.info("Processing ticket...")
-
-    if state.approved is None:
-        logger.info("Needs human approval")
-        raise InterruptDetected()
-
-    #    if state.approved is None:
-    #        logger.info("Needs human approval")
-    #        return interrupt("Waiting for human approval")
-
-    logger.info("Ticket approved - continuing")
+async def create_action(state: GraphState) -> GraphState:
+    logger.info("Create Action Center approval")
     return state
 
+async def wait_for_human(state: GraphState) -> GraphState:
+    logger.info("Wait for human approval")
+    return interrupt({"message": "requires human approval", "type": "action"})
 
-async def process(ticket_data: Dict[str, Any]) -> Any:
-    """Process a support ticket through the workflow."""
-    builder = StateGraph(GraphState)
+async def notify_team(state: GraphState) -> GraphState:
+    logger.info("Send team email notification")
+    return state
 
-    builder.add_node("classify", classify)
-    builder.add_node("human_approval", wait_for_human)
+"""Process a support ticket through the workflow."""
 
-    builder.add_edge("classify", "human_approval")
-    builder.set_entry_point("classify")
+builder = StateGraph(GraphState)
 
-    async with AsyncSqliteSaver.from_conn_string("uipath.db") as memory:
-        graph = builder.compile(checkpointer=memory)
+builder.add_node("classify", classify)
+builder.add_node("create_action", create_action)
+builder.add_node("human_approval", wait_for_human)
+builder.add_node("notify_team", notify_team)
 
-        config = {"configurable": {"thread_id": uipath._execution_context.instance_id}}
-        state = GraphState(**ticket_data)
+builder.add_edge("classify", "create_action")
+builder.add_edge("create_action", "human_approval")
+builder.add_edge("human_approval", "notify_team")
 
-        # if state.approved:
-        #    return await graph.ainvoke(Command(resume=state), config)
+builder.set_entry_point("classify")
 
-        return await graph.ainvoke(state, config)
+from langgraph.checkpoint.memory import MemorySaver
 
+memory = MemorySaver()
 
-async def main() -> None:
-    """Main entry point for the ticket classification system."""
-
-    if len(sys.argv) < 2:
-        logger.error("Please provide a ticket JSON as the first argument")
-        sys.exit(1)
-
-    ticket: Dict[str, Any] = json.loads(sys.argv[1])
-
-    approved = len(sys.argv) > 2 and sys.argv[2].lower() == "true"
-    ticket["approved"] = approved if len(sys.argv) > 2 else None
-
-    try:
-        result = await process(ticket)
-        print(result)
-        logger.info("Successful exit")
-        sys.exit(0)
-    except InterruptDetected:
-        logger.info("Job suspended")
-        sys.exit(100)
-    except Exception as e:
-        logger.error(f"Error occurred: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+graph = builder.compile(checkpointer=memory)

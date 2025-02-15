@@ -1,6 +1,6 @@
 [project]
 name = "ticket-classification"
-version = "0.0.3"
+version = "0.0.5"
 description = "Ticket classification system"
 authors = [{ name = "Cristi Pufu", email = "cristian.pufu@uipath.com" }]
 dependencies = [
@@ -13,5 +13,6 @@ dependencies = [
     "pydantic>=2.10.6",
     "aiohttp>=3.11.12",
     "typing-extensions>=4.12.2",
+    "ipython>=8.32.0"
 ]
 requires-python = ">=3.10"
