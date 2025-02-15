@@ -4,8 +4,9 @@ import os
 
 import click
 
-from .middlewares import Middlewares
 from .input_args import generate_args
+from .middlewares import Middlewares
+
 
 def get_user_script(directory, entrypoint=None):
     if entrypoint:
@@ -13,16 +14,19 @@ def get_user_script(directory, entrypoint=None):
         if not os.path.isfile(script_path):
             raise Exception(f"{entrypoint} file does not exist in the directory")
     else:
-        python_files = [f for f in os.listdir(directory) if f.endswith('.py')]
+        python_files = [f for f in os.listdir(directory) if f.endswith(".py")]
 
         if not python_files:
             raise Exception("No Python files found in the directory")
         elif len(python_files) == 1:
             script_path = os.path.join(directory, python_files[0])
         else:
-            raise Exception("Multiple Python files in current directory\nPlease specify the entrypoint: uipath init <entrypoint>")
+            raise Exception(
+                "Multiple Python files in current directory\nPlease specify the entrypoint: uipath init <entrypoint>"
+            )
 
     return script_path
+
 
 @click.command()
 @click.argument("entrypoint", required=False, default=None)
@@ -50,7 +54,7 @@ def init(entrypoint: str):
                 "filePath": relative_path,
                 "type": "process",
                 "input": args["input"],
-                "output": args["output"]
+                "output": args["output"],
             }
         ]
     }

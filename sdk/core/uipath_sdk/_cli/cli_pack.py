@@ -297,9 +297,7 @@ def pack(root, version):
         version = proposed_version
     # # return
     while not os.path.isfile(os.path.join(root, "uipath.json")):
-        root = click.prompt(
-            "'uipath.json' not found.\nEnter your project's directory"
-        )
+        root = click.prompt("'uipath.json' not found.\nEnter your project's directory")
     config = check_config(root)
     click.echo(
         f"Packaging project {config['project_name']}:{version or config['version']} description {config['description']} authored by {config['authors']}"

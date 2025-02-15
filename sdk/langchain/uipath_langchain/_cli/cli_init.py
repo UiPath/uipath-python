@@ -1,6 +1,8 @@
 import json
 from typing import Any, Dict, Optional, Tuple
+
 from uipath_sdk._cli.middlewares import Middlewares
+
 from ._utils._graph import LangGraphConfig
 
 
@@ -26,7 +28,7 @@ def generate_schema_from_graph(graph: Any) -> Dict[str, Any]:
     return schema
 
 
-def langgraph_init_middleware(*args: Any, **kwargs: Any) -> Tuple[bool, Optional[str]]:
+def langgraph_init_middleware(entrypoint: str) -> Tuple[bool, Optional[str]]:
     """Middleware to check for langgraph.json and create uipath.json with schemas"""
     config = LangGraphConfig()
 
@@ -35,31 +37,38 @@ def langgraph_init_middleware(*args: Any, **kwargs: Any) -> Tuple[bool, Optional
 
     try:
         config.load_config()
-        loaded_graphs = {}
-        entrypoints = {}
+        entrypoints = []
 
         for graph in config.graphs:
+            if entrypoint and graph.name != entrypoint:
+                continue
+
             try:
                 loaded_graph = graph.load_graph()
-                loaded_graphs[graph.name] = loaded_graph
-
                 graph_schema = generate_schema_from_graph(loaded_graph)
-                entrypoints[graph.name] = {
+
+                entrypoint = {
+                    "filePath": graph.name,
+                    "type": "agent",
                     "input": graph_schema["input"],
                     "output": graph_schema["output"],
                 }
+                entrypoints.append(entrypoint)
 
             except Exception as e:
                 return False, f"Failed to load graph '{graph.name}': {str(e)}"
 
-        uipath_config = {"type": "agent", "entrypoints": entrypoints}
+        if entrypoint and not entrypoints:
+            return False, f"No graph found with name '{entrypoint}'"
+
+        uipath_config = {"entryPoints": entrypoints}
 
         with open("uipath.json", "w") as f:
             json.dump(uipath_config, f, indent=2)
 
         return (
             False,
-            f"Created uipath.json with schemas for {len(loaded_graphs)} graphs",
+            f"Created uipath.json with schemas for {len(entrypoints)} graphs",
         )
 
     except Exception as e:
