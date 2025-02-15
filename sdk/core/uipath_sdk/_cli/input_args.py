@@ -14,44 +14,29 @@ TYPE_MAP = {
 
 class ArgumentVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.input_state: Dict[str, Dict[str, Any]] = {}
-        self.output_state: Dict[str, Dict[str, Any]] = {}
+        self.input_schema: Dict[str, Any] = {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        }
+        self.output_schema: Dict[str, Any] = {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        }
         self.current_class: Optional[str] = None
-        self.has_arg: bool = False
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         self.current_class = node.name
-        self.has_arg = False
-
-        # Visit all class members first to check for Arguments
         self.generic_visit(node)
-
-        # Only add class to state if it had an Argument
-        if self.has_arg:
-            self.input_state["state"] = {
-                "type": "object",
-                "properties": {},
-                "required": [],
-            }
-            self.output_state["state"] = {
-                "type": "object",
-                "properties": {},
-                "required": [],
-            }
-            # Re-visit to actually process the members
-            self.generic_visit(node)
-
         self.current_class = None
-        self.has_arg = False
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        if not self.current_class:
+        if not self.current_class or not isinstance(node.target, ast.Name):
             return
 
-        if not isinstance(node.target, ast.Name):
-            return
+        field_name = node.target.id
 
-        # Look for Argument annotation
         if isinstance(node.annotation, ast.Subscript):
             if (
                 isinstance(node.annotation.value, ast.Name)
@@ -60,64 +45,70 @@ class ArgumentVisitor(ast.NodeVisitor):
                 args = node.annotation.slice
                 if isinstance(args, ast.Tuple):
                     base_type = args.elts[0]
-                    field_name = node.target.id
-                    field_type = self.resolve_type(base_type)
-
-                    # Check if type is Optional
-                    is_optional = (
-                        isinstance(base_type, ast.Subscript)
-                        and isinstance(base_type.value, ast.Name)
-                        and base_type.value.id == "Optional"
-                    )
-
-                    # Extract default value if present
-                    default_value = None
-                    if node.value:
-                        if isinstance(node.value, ast.Constant):
-                            default_value = node.value.value
-                        elif isinstance(node.value, ast.List):
-                            default_value = []
-                        elif isinstance(node.value, ast.Dict):
-                            default_value = {}
+                    is_optional = self.is_optional_type(base_type)
+                    field_schema = self.get_field_schema(base_type, node.value)
 
                     for decorator in args.elts[1:]:
                         if isinstance(decorator, ast.Call) and isinstance(
                             decorator.func, ast.Name
                         ):
                             if decorator.func.id == "InputArgument":
-                                self.has_arg = True
-                                if "state" in self.input_state:
-                                    schema = self.input_state["state"]
-                                    field_schema = {"type": field_type}
-                                    if default_value is not None:
-                                        field_schema["default"] = default_value
-                                    schema["properties"][field_name] = field_schema
-                                    if not is_optional:
-                                        schema["required"].append(field_name)
-                            elif decorator.func.id == "OutputArgument":
-                                self.has_arg = True
-                                if "state" in self.output_state:
-                                    schema = self.output_state["state"]
-                                    field_schema = {"type": field_type}
-                                    if default_value is not None:
-                                        field_schema["default"] = default_value
-                                    schema["properties"][field_name] = field_schema
-                                    if not is_optional:
-                                        schema["required"].append(field_name)
+                                self.input_schema["properties"][field_name] = (
+                                    field_schema
+                                )
+                                if not is_optional:
+                                    self.input_schema["required"].append(field_name)
 
-    def resolve_type(self, annotation: ast.AST) -> str:
-        if isinstance(annotation, ast.Name):
-            return TYPE_MAP.get(annotation.id, "object")
-        if isinstance(annotation, ast.Subscript):
-            if isinstance(annotation.value, ast.Name):
-                base = annotation.value.id
-                if base in ("List", "list"):
-                    return "array"
-                if base in ("Dict", "dict"):
-                    return "object"
+                            if decorator.func.id == "OutputArgument":
+                                self.output_schema["properties"][field_name] = (
+                                    field_schema
+                                )
+                                if not is_optional:
+                                    self.output_schema["required"].append(field_name)
+
+    def get_field_schema(
+        self, type_node: ast.AST, default_value: Optional[ast.AST] = None
+    ) -> Dict[str, Any]:
+        """Generate complete schema for a field based on its type and default value."""
+        if isinstance(type_node, ast.Name):
+            base_type = TYPE_MAP.get(type_node.id, "object")
+            schema = {"type": base_type}
+
+        elif isinstance(type_node, ast.Subscript):
+            if isinstance(type_node.value, ast.Name):
+                base = type_node.value.id
                 if base == "Optional":
-                    return self.resolve_type(annotation.slice)
-        return "object"
+                    inner_schema = self.get_field_schema(type_node.slice)
+                    schema = inner_schema
+                elif base in ("List", "list"):
+                    schema = {
+                        "type": "array",
+                        "items": self.get_field_schema(type_node.slice),
+                    }
+                elif base in ("Dict", "dict"):
+                    schema = {"type": "object"}
+                else:
+                    schema = {"type": "object"}
+        else:
+            schema = {"type": "object"}
+
+        if default_value is not None:
+            if isinstance(default_value, ast.Constant):
+                schema["default"] = default_value.value
+            elif isinstance(default_value, ast.List):
+                schema["default"] = []
+            elif isinstance(default_value, ast.Dict):
+                schema["default"] = {}
+
+        return schema
+
+    def is_optional_type(self, node: ast.AST) -> bool:
+        """Check if a type annotation represents an Optional type."""
+        return (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "Optional"
+        )
 
 
 def generate_args(path: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
@@ -128,7 +119,7 @@ def generate_args(path: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
         path: Path to Python file to parse
 
     Returns:
-        Dictionary with 'input' and 'output' keys mapping class names to their argument schemas
+        Dictionary with 'input' and 'output' keys containing argument schemas
     """
     with open(path, "r") as f:
         tree = ast.parse(f.read(), filename=path)
@@ -136,4 +127,4 @@ def generate_args(path: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
     visitor = ArgumentVisitor()
     visitor.visit(tree)
 
-    return {"input": visitor.input_state, "output": visitor.output_state}
+    return {"input": visitor.input_schema, "output": visitor.output_schema}
