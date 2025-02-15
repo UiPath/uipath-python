@@ -1,38 +1,127 @@
-from typing import Optional
-
-import click
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-
+import json
+import asyncio
+import logging
+import sys
+from typing import Any, Dict, Optional, Tuple
+from os import environ as env
+from uipath_sdk._cli.middlewares import Middlewares
 from ._utils._graph import LangGraphConfig
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.graph import StateGraph
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import Command, StateSnapshot, Interrupt
+from dotenv import load_dotenv
+
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logger = logging.getLogger(__name__)
+load_dotenv()
 
 
-async def handle_run(graph_name: Optional[str] = None, db_path: str = "uipath.db"):
-    """Enhanced run command with LangGraph support"""
-    try:
-        config = LangGraphConfig()
-        if not config.exists:
-            raise click.UsageError("No langgraph.json found. Please initialize first.")
+def get_interrupt_data(
+    state: Optional[StateSnapshot],
+) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """Check if the graph execution was interrupted."""
+    if not state:
+        return False, None
 
-        # If no specific graph is specified and there's only one, use that
-        if not graph_name and len(config.graphs) == 1:
-            graph_config = config.graphs[0]
-        elif not graph_name:
-            raise click.UsageError(
-                f"Multiple graphs available. Please specify one of: {', '.join(g.name for g in config.graphs)}"
-            )
+    if not hasattr(state, "next") or not state.next:
+        return False, None
+
+    for task in state.tasks:
+        if hasattr(task, "interrupts") and task.interrupts:
+            for interrupt in task.interrupts:
+                if isinstance(interrupt, Interrupt):
+                    return True, interrupt.value
+
+    return False, None
+
+
+async def execute(
+    builder: StateGraph,
+    input_data: Any,
+    config: Optional[Dict[str, Any]] = None,
+    resume: bool = False,
+) -> Tuple[Any, bool, Optional[Dict[str, Any]]]:
+    """Execute the loaded graph with the given input."""
+
+    async with AsyncSqliteSaver.from_conn_string("uipath.db") as memory:
+        graph = builder.compile(checkpointer=memory)
+
+        config = config or {}
+
+        if resume:
+            result = await graph.ainvoke(Command(resume=input_data), config)
         else:
-            graph_config = config.get_graph(graph_name)
-            if not graph_config:
-                raise click.UsageError(f"Graph '{graph_name}' not found")
+            result = await graph.ainvoke(input_data, config)
 
-        graph = graph_config.load_graph()
+        state = None
+        try:
+            state = await graph.aget_state(config)
+        except Exception as e:
+            logger.error(f"[Executor]: Failed to get state: {str(e)}")
 
-        async with AsyncSqliteSaver.from_conn_string(db_path) as memory:
-            builder = graph.builder if hasattr(graph, "builder") else graph
-            compiled_graph = builder.compile(checkpointer=memory)
+        is_interrupted, interrupt_data = get_interrupt_data(state)
 
-            # TODO: Add your execution logic here
+        if is_interrupted:
+            logger.info(f"[Executor] Graph execution interrupted: {interrupt_data}")
+        else:
+            logger.info("[Executor] Graph execution completed successfully")
 
+        if hasattr(result, 'dict'):
+            serialized_result = result.dict()
+        elif hasattr(result, 'to_dict'):
+            serialized_result = result.to_dict()
+        else:
+            serialized_result = dict(result)
+
+        print(json.dumps(serialized_result))
+
+        #return result, is_interrupted, interrupt_data
+
+
+def langgraph_run_middleware(input: str, entrypoint: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+    """Middleware to handle langgraph execution"""
+    config = LangGraphConfig()
+    if not config.exists:
+        return True, None  # Continue with normal flow if no langgraph.json
+
+    try:
+        input_data = json.loads(input)
+
+        if not entrypoint and len(config.graphs) == 1:
+            entrypoint = config.graphs[0].name
+        elif not entrypoint:
+            return (
+                False,
+                f"Multiple graphs available. Please specify one of: {', '.join(g.name for g in config.graphs)}",
+            )
+
+        graph = config.get_graph(entrypoint)
+        if not graph:
+            return False, f"Graph '{entrypoint}' not found"
+
+        loaded_graph = graph.load_graph()
+
+        state_graph = (
+            loaded_graph.builder
+            if isinstance(loaded_graph, CompiledStateGraph)
+            else loaded_graph
+        )
+
+        config = {"configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")}}
+
+        asyncio.run(execute(state_graph, input_data, config))
+
+        return False, None
+
+    except json.JSONDecodeError:
+        return False, "Invalid JSON input data"
     except Exception as e:
-        click.echo(f"Error during execution: {str(e)}")
-        raise
+        return False, f"Error in run middleware: {str(e)}"
+
+
+Middlewares.register("run", langgraph_run_middleware)
+
+
+def handle_run():
+    pass
