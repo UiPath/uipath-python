@@ -1,9 +1,3 @@
-def init():
-    print("init")
-
-
-def run():
-    print("run")
-
+from ._cli import init, run
 
 __all__ = ["init", "run"]
