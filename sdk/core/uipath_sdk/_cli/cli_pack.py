@@ -6,7 +6,12 @@ import zipfile
 from string import Template
 
 import click
-import tomllib
+
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
 
 from .input_args import generate_args
 

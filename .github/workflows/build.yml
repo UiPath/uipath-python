@@ -1,0 +1,46 @@
+name: Reusable Build Workflow
+
+on:
+  workflow_call:
+    secrets:
+      token:
+        required: true
+    inputs:
+      folder_path:
+        description: 'The folder path to run actions in'
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build and publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: "ubuntu-24.04"
+    defaults:
+      run:
+        working-directory: ${{ inputs.folder_path }}
+
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Setup venv
+        run: |
+          uv venv
+          uv sync --all-extras
+
+      - name: Build
+        run: |
+          uv build
+
+      - name: "Publish"
+        run: |
+          uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.token }}
