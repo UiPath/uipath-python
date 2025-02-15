@@ -2,7 +2,8 @@
 from typing import Any
 
 import click
-from middlewares import Middlewares
+
+from .middlewares import Middlewares
 
 
 @click.command()
