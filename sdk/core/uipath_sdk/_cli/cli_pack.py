@@ -180,15 +180,19 @@ def generate_psmdcp_content(projectName, version, description, authors):
     return [random_file_name, Template(content).substitute(variables)]
 
 
-def generate_package_descriptor_content():
+def generate_package_descriptor_content(entryPoints):
+    files = {
+        "operate.json": "content/operate.json",
+        "entry-points.json": "content/entry-points.json",
+        "bindings.json": "content/bindings_v2.json",
+    }
+
+    for entry in entryPoints:
+        files[entry["filePath"]] = f"content/{entry['filePath']}"
+
     package_descriptor_content = {
         "$schema": "https://cloud.uipath.com/draft/2024-12/package-descriptor",
-        "files": {
-            "operate.json": "content/operate.json",
-            "entry-points.json": "content/entry-points.json",
-            "bindings.json": "content/bindings_v2.json",
-            "main.py": "content/main.py",
-        },
+        "files": files,
     }
 
     return package_descriptor_content
@@ -207,7 +211,7 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
         f"/{projectName}.nuspec",
         f"/package/services/metadata/core-properties/{psmdcp_file_name}",
     )
-    package_descriptor_content = generate_package_descriptor_content()
+    package_descriptor_content = generate_package_descriptor_content(entryPoints)
 
     # Create .uipath directory if it doesn't exist
     os.makedirs(".uipath", exist_ok=True)
@@ -254,8 +258,12 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
                             with open(file_path, "r", encoding="latin-1") as f:
                                 z.writestr(f"content/{rel_path}", f.read())
 
-        # Add optional files if they exist
-        optional_files = ["pyproject.toml", "README.md"]
+        optional_files = [
+            "pyproject.toml",
+            "README.md",
+            "uipath.json",
+            "langgraph.json",
+        ]
         for file in optional_files:
             file_path = os.path.join(directory, file)
             if os.path.exists(file_path):
@@ -285,7 +293,6 @@ def pack(root, version):
     proposed_version = get_proposed_version(root)
     if proposed_version and click.confirm(f"Use version {proposed_version}?"):
         version = proposed_version
-    # # return
     while not os.path.isfile(os.path.join(root, "uipath.json")):
         root = click.prompt("'uipath.json' not found.\nEnter your project's directory")
     config = check_config(root)

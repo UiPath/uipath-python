@@ -72,7 +72,7 @@ def init(entrypoint: str) -> None:
             "entryPoints": [
                 {
                     "filePath": relative_path,
-                    "unique_id": str(uuid.uuid4()),
+                    "uniqueId": str(uuid.uuid4()),
                     "type": "process",
                     "input": args["input"],
                     "output": args["output"],

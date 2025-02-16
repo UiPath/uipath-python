@@ -50,7 +50,7 @@ def langgraph_init_middleware(entrypoint: str) -> Tuple[bool, Optional[str]]:
 
                 entrypoint = {
                     "filePath": graph.name,
-                    "unique_id": str(uuid.uuid4()),
+                    "uniqueId": str(uuid.uuid4()),
                     "type": "agent",
                     "input": graph_schema["input"],
                     "output": graph_schema["output"],
