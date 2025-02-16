@@ -162,7 +162,6 @@ def run(input: str, entrypoint: Optional[str] = None) -> None:
 
             if len(python_files) == 1:
                 entrypoint = str(python_files[0])
-                click.echo(f"Using {entrypoint} as entrypoint")
             else:
                 click.echo(
                     "Multiple Python files found. Please specify an entrypoint using `uipath run -e <file>`:"

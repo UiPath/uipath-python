@@ -11,8 +11,7 @@ class EchoIn:
 
 @dataclass
 class EchoOut:
-    original_input: EchoIn
-    result: str
+    message: str
 
 
 def main(input: EchoIn) -> EchoOut:
@@ -23,4 +22,4 @@ def main(input: EchoIn) -> EchoOut:
             line = f"{input.prefix}: {line}"
         result.append(line)
 
-    return EchoOut(original_input=input, result="\n".join(result))
+    return EchoOut(message="\n".join(result))
