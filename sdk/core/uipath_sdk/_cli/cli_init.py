@@ -14,7 +14,8 @@ def generate_env_file(target_directory):
     env_path = os.path.join(target_directory, ".env")
 
     if not os.path.exists(env_path):
-        click.echo(f"Created {env_path} file.")
+        relative_path = os.path.relpath(env_path, target_directory)
+        click.echo(f"Created {relative_path} file.")
         with open(env_path, "w") as f:
             f.write("UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE\n")
             f.write("UIPATH_URL=alpha.uipath.com/ACCOUNT_NAME/TENANT_NAME\n")
