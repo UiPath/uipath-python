@@ -106,27 +106,29 @@ def execute_python_script(
         for func_name in ["main", "run", "execute"]:
             if hasattr(module, func_name):
                 main_func = getattr(module, func_name)
-
                 sig = inspect.signature(main_func)
                 params = list(sig.parameters.values())
 
+                # Case 1: No parameters
                 if not params:
-                    raise ValueError(
-                        f"Function {func_name} must have at least one parameter"
-                    )
+                    result = main_func()
+                    return convert_from_class(result) if result is not None else {}
 
                 input_param = params[0]
                 input_type = input_param.annotation
 
-                # Check if input type is a class (either dataclass or regular)
+                # Case 2: Class or dataclass parameter
                 if input_type != inspect.Parameter.empty and (
                     is_dataclass(input_type) or hasattr(input_type, "__annotations__")
                 ):
                     typed_input = convert_to_class(input_data, input_type)
                     result = main_func(typed_input)
-                    return convert_from_class(result)
+                    return convert_from_class(result) if result is not None else {}
+
+                # Case 3: Dict parameter
                 else:
-                    return main_func(input_data)
+                    result = main_func(input_data)
+                    return convert_from_class(result) if result is not None else {}
 
         raise ValueError(
             f"No main function (main, run, or execute) found in {script_path}"
