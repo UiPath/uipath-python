@@ -1,30 +1,20 @@
-import ast
-from typing import Any, Dict, List, Literal, Optional, TypedDict, Union, cast
+import importlib.util
+import inspect
+import sys
+from dataclasses import fields, is_dataclass
+from types import ModuleType
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 SchemaType = Literal["object", "integer", "double", "string", "boolean", "array"]
-
-
-class BaseSchema(TypedDict, total=False):
-    default: Union[str, int, float, bool, List[Any], Dict[str, Any]]
-
-
-class ObjectSchema(BaseSchema):
-    type: Literal["object", "integer", "double", "string", "boolean"]
-
-
-class ArraySchema(BaseSchema):
-    type: Literal["array"]
-    items: ObjectSchema
-
-
-PropertySchema = Union[ObjectSchema, ArraySchema]
-
-
-class ArgumentSchema(TypedDict):
-    type: Literal["object"]
-    properties: Dict[str, PropertySchema]
-    required: List[str]
-
 
 TYPE_MAP: Dict[str, SchemaType] = {
     "int": "integer",
@@ -33,129 +23,102 @@ TYPE_MAP: Dict[str, SchemaType] = {
     "bool": "boolean",
     "list": "array",
     "dict": "object",
-    "Optional": "object",
+    "List": "array",
+    "Dict": "object",
 }
 
 
-class ArgumentVisitor(ast.NodeVisitor):
-    def __init__(self) -> None:
-        self.input_schema: ArgumentSchema = {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        }
-        self.output_schema: ArgumentSchema = {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        }
-        self.current_class: Optional[str] = None
+def get_type_schema(type_hint: Any) -> Dict[str, Any]:
+    """Convert a type hint to a JSON schema."""
+    if type_hint is None or type_hint == inspect.Parameter.empty:
+        return {"type": "object"}
 
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        self.current_class = node.name
-        self.generic_visit(node)
-        self.current_class = None
+    origin = get_origin(type_hint)
+    args = get_args(type_hint)
 
-    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        if not self.current_class or not isinstance(node.target, ast.Name):
-            return
+    if origin is Union:
+        if type(None) in args:
+            real_type = next(arg for arg in args if arg is not type(None))
+            return get_type_schema(real_type)
+        return {"type": "object"}
 
-        field_name = node.target.id
+    if origin in (list, List):
+        item_type = args[0] if args else Any
+        return {"type": "array", "items": get_type_schema(item_type)}
 
-        if isinstance(node.annotation, ast.Subscript):
-            if (
-                isinstance(node.annotation.value, ast.Name)
-                and node.annotation.value.id == "Annotated"
-            ):
-                args = node.annotation.slice
-                if isinstance(args, ast.Tuple):
-                    base_type = args.elts[0]
-                    is_optional = self.is_optional_type(base_type)
-                    field_schema = self.get_field_schema(base_type, node.value)
+    if origin in (dict, Dict):
+        return {"type": "object"}
 
-                    for decorator in args.elts[1:]:
-                        if isinstance(decorator, ast.Call) and isinstance(
-                            decorator.func, ast.Name
-                        ):
-                            if decorator.func.id == "InputArgument":
-                                self.input_schema["properties"][field_name] = (
-                                    field_schema
-                                )
-                                if not is_optional:
-                                    self.input_schema["required"].append(field_name)
+    if inspect.isclass(type_hint):
+        if is_dataclass(type_hint):
+            properties = {}
+            required = []
 
-                            if decorator.func.id == "OutputArgument":
-                                self.output_schema["properties"][field_name] = (
-                                    field_schema
-                                )
-                                if not is_optional:
-                                    self.output_schema["required"].append(field_name)
+            for field in fields(type_hint):
+                field_schema = get_type_schema(field.type)
+                properties[field.name] = field_schema
+                if field.default == field.default_factory:
+                    required.append(field.name)
 
-    def get_field_schema(
-        self, type_node: ast.AST, default_value: Optional[ast.AST] = None
-    ) -> PropertySchema:
-        """Generate complete schema for a field based on its type and default value."""
-        if isinstance(type_node, ast.Name):
-            schema_type = TYPE_MAP.get(type_node.id, "object")
-            if schema_type != "array":
-                schema = cast(ObjectSchema, {"type": schema_type})
-                result: PropertySchema = schema
-            else:
-                basic_obj_schema = cast(ObjectSchema, {"type": "object"})
-                result = cast(ArraySchema, {"type": "array", "items": basic_obj_schema})
+            return {"type": "object", "properties": properties, "required": required}
+        elif hasattr(type_hint, "__annotations__"):
+            properties = {}
+            required = []
 
-        elif isinstance(type_node, ast.Subscript):
-            if isinstance(type_node.value, ast.Name):
-                base = type_node.value.id
-                if base == "Optional":
-                    result = self.get_field_schema(type_node.slice)
-                elif base in ("List", "list"):
-                    items_schema = self.get_field_schema(type_node.slice)
-                    if "type" in items_schema and items_schema["type"] != "array":
-                        obj_schema = cast(ObjectSchema, items_schema)
-                    else:
-                        obj_schema = cast(ObjectSchema, {"type": "object"})
-                    result = cast(ArraySchema, {"type": "array", "items": obj_schema})
-                elif base in ("Dict", "dict"):
-                    result = cast(ObjectSchema, {"type": "object"})
+            for name, field_type in type_hint.__annotations__.items():
+                field_schema = get_type_schema(field_type)
+                properties[name] = field_schema
+                # For regular classes, we'll consider all annotated fields as required
+                # unless they have a default value in __init__
+                if hasattr(type_hint, "__init__"):
+                    sig = inspect.signature(type_hint.__init__)
+                    if (
+                        name in sig.parameters
+                        and sig.parameters[name].default == inspect.Parameter.empty
+                    ):
+                        required.append(name)
                 else:
-                    result = cast(ObjectSchema, {"type": "object"})
-        else:
-            result = cast(ObjectSchema, {"type": "object"})
+                    required.append(name)
 
-        if default_value is not None:
-            if isinstance(default_value, ast.Constant):
-                result["default"] = default_value.value
-            elif isinstance(default_value, ast.List):
-                result["default"] = []
-            elif isinstance(default_value, ast.Dict):
-                result["default"] = {}
+            return {"type": "object", "properties": properties, "required": required}
 
-        return result
+    type_name = type_hint.__name__ if hasattr(type_hint, "__name__") else str(type_hint)
+    schema_type = TYPE_MAP.get(type_name, "object")
 
-    def is_optional_type(self, node: ast.AST) -> bool:
-        """Check if a type annotation represents an Optional type."""
-        return (
-            isinstance(node, ast.Subscript)
-            and isinstance(node.value, ast.Name)
-            and node.value.id == "Optional"
-        )
+    return {"type": schema_type}
 
 
-def generate_args(path: str) -> Dict[str, ArgumentSchema]:
-    """
-    Parse Python file at given path and extract input/output arguments schema.
+def load_module(file_path: str) -> ModuleType:
+    """Load a Python module from file path."""
+    spec = importlib.util.spec_from_file_location("dynamic_module", file_path)
+    if not spec or not spec.loader:
+        raise ImportError(f"Could not load spec for {file_path}")
 
-    Args:
-        path: Path to Python file to parse
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["dynamic_module"] = module
+    spec.loader.exec_module(module)
+    return module
 
-    Returns:
-        Dictionary with 'input' and 'output' keys containing argument schemas
-    """
-    with open(path, "r") as f:
-        tree = ast.parse(f.read(), filename=path)
 
-    visitor = ArgumentVisitor()
-    visitor.visit(tree)
+def generate_args(path: str) -> Dict[str, Dict[str, Any]]:
+    """Generate input/output schema from main function type hints."""
+    module = load_module(path)
 
-    return {"input": visitor.input_schema, "output": visitor.output_schema}
+    main_func = None
+    for func_name in ["main", "run", "execute"]:
+        if hasattr(module, func_name):
+            main_func = getattr(module, func_name)
+            break
+
+    if not main_func:
+        raise ValueError("No main function found in module")
+
+    hints = get_type_hints(main_func)
+
+    sig = inspect.signature(main_func)
+    input_param_name = next(iter(sig.parameters))
+
+    input_schema = get_type_schema(hints.get(input_param_name))
+    output_schema = get_type_schema(hints.get("return"))
+
+    return {"input": input_schema, "output": output_schema}
