@@ -13,11 +13,13 @@ from langgraph.types import Command, Interrupt, StateSnapshot
 from uipath_sdk._cli.middlewares import MiddlewareResult, Middlewares
 
 from ._utils._graph import LangGraphConfig
+from sdk.langchain.uipath_langchain import LlmopsTracer
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
+tracer = LlmopsTracer()
 
 def get_interrupt_data(
     state: Optional[StateSnapshot],
@@ -116,7 +118,14 @@ def langgraph_run_middleware(
             else loaded_graph
         )
 
-        config = {"configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")}}
+        # manually create a single trace for the job or else langgraph will create multiple parents on Interrrupts
+        # parent the trace to the JobKey
+        tracer.start_trace(env.get("UIPATH_PROCESS_NAME"), env.get("UIPATH_JOB_KEY"))
+
+        config = {
+            "configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default") },
+            "callbacks": [ tracer ]
+        }
 
         asyncio.run(execute(state_graph, input_data, config))
 
