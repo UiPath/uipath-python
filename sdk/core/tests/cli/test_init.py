@@ -22,7 +22,10 @@ def test_init_env_file_creation(runner: CliRunner, temp_dir: str) -> None:
         with open(".env", "r") as f:
             content = f.read()
             assert "UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE" in content
-            assert "UIPATH_URL=alpha.uipath.com/ACCOUNT_NAME/TENANT_NAME" in content
+            assert (
+                "UIPATH_URL=https://alpha.uipath.com/ACCOUNT_NAME/TENANT_NAME"
+                in content
+            )
 
         # Test existing .env isn't overwritten
         original_content = "EXISTING=CONFIG"
