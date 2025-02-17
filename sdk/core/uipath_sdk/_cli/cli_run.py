@@ -140,6 +140,9 @@ def run(entrypoint: Optional[str], input: Optional[str]) -> None:
             click.echo(traceback.format_exc())
         click.get_current_context().exit(1)
 
+    if result.info_message:
+        click.echo(result.info_message)
+
     if not result.should_continue:
         return
 

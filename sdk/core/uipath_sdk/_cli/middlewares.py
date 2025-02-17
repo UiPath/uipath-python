@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MiddlewareResult:
     should_continue: bool
+    info_message: Optional[str] = None
     error_message: Optional[str] = None
     should_include_stacktrace: bool = False
 
