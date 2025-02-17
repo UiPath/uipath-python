@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import sys
-import traceback
 from os import environ as env
 from typing import Any, Dict, Optional, Tuple
 
@@ -11,7 +10,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt, StateSnapshot
-from uipath_sdk._cli.middlewares import Middlewares
+from uipath_sdk._cli.middlewares import Middlewares, MiddlewareResult
 
 from ._utils._graph import LangGraphConfig
 
@@ -84,11 +83,11 @@ async def execute(
 
 def langgraph_run_middleware(
     entrypoint: Optional[str], input: Optional[str]
-) -> Tuple[bool, Optional[str]]:
+) -> MiddlewareResult:
     """Middleware to handle langgraph execution"""
     config = LangGraphConfig()
     if not config.exists:
-        return True, None  # Continue with normal flow if no langgraph.json
+        return MiddlewareResult(should_continue=True)  # Continue with normal flow if no langgraph.json
 
     try:
         input_data = json.loads(input)
@@ -96,14 +95,17 @@ def langgraph_run_middleware(
         if not entrypoint and len(config.graphs) == 1:
             entrypoint = config.graphs[0].name
         elif not entrypoint:
-            return (
-                False,
-                f"Multiple graphs available. Please specify one of: {', '.join(g.name for g in config.graphs)}",
+            return MiddlewareResult(
+                should_continue=False,
+                error_message=f"Multiple graphs available. Please specify one of: {', '.join(g.name for g in config.graphs)}."
             )
 
         graph = config.get_graph(entrypoint)
         if not graph:
-            return False, f"Graph '{entrypoint}' not found"
+            return MiddlewareResult(
+                should_continue=False,
+                error_message=f"Graph '{entrypoint}' not found."
+            )
 
         loaded_graph = graph.load_graph()
 
@@ -117,12 +119,23 @@ def langgraph_run_middleware(
 
         asyncio.run(execute(state_graph, input_data, config))
 
-        return False, None
+        # Successful execution with no errors
+        return MiddlewareResult(
+            should_continue=False,
+            error_message=None
+        )
 
     except json.JSONDecodeError:
-        return False, "Invalid JSON input data"
+        return MiddlewareResult(
+            should_continue=False,
+            error_message="Error: Invalid JSON input data."
+        )
     except Exception as e:
-        return False, f"Error: {str(e)}\n\nStacktrace:\n{traceback.format_exc()}"
+        return MiddlewareResult(
+            should_continue=False,
+            error_message=f"Error: {str(e)}",
+            should_include_stacktrace=True
+        )
 
 
 Middlewares.register("run", langgraph_run_middleware)

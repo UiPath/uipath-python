@@ -1,8 +1,8 @@
 import json
 import uuid
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
-from uipath_sdk._cli.middlewares import Middlewares
+from uipath_sdk._cli.middlewares import Middlewares, MiddlewareResult
 
 from ._utils._graph import LangGraphConfig
 
@@ -29,12 +29,15 @@ def generate_schema_from_graph(graph: Any) -> Dict[str, Any]:
     return schema
 
 
-def langgraph_init_middleware(entrypoint: str) -> Tuple[bool, Optional[str]]:
+def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
     """Middleware to check for langgraph.json and create uipath.json with schemas"""
+
     config = LangGraphConfig()
 
     if not config.exists:
-        return True, None  # Continue with normal flow if no langgraph.json
+        return MiddlewareResult(
+            should_continue=True
+        )  # Continue with normal flow if no langgraph.json
 
     try:
         config.load_config()
@@ -58,23 +61,36 @@ def langgraph_init_middleware(entrypoint: str) -> Tuple[bool, Optional[str]]:
                 entrypoints.append(entrypoint)
 
             except Exception as e:
-                return False, f"Failed to load graph '{graph.name}': {str(e)}"
+                return MiddlewareResult(
+                    should_continue=False,
+                    error_message=f"Failed to load graph '{graph.name}': {str(e)}",
+                    should_include_stacktrace=True,
+                )
 
         if entrypoint and not entrypoints:
-            return False, f"No graph found with name '{entrypoint}'"
+            return MiddlewareResult(
+                should_continue=False,
+                error_message=f"Error: No graph found with name '{entrypoint}'",
+            )
 
         uipath_config = {"entryPoints": entrypoints}
 
-        with open("uipath.json", "w") as f:
+        config_path = "uipath.json"
+
+        with open(config_path, "w") as f:
             json.dump(uipath_config, f, indent=2)
 
-        return (
-            False,
-            f"Created uipath.json with schemas for {len(entrypoints)} graphs",
+        return MiddlewareResult(
+            should_continue=False,
+            info_message=f"Configuration file {config_path} created successfully.",
         )
 
     except Exception as e:
-        return False, f"Error processing langgraph configuration: {str(e)}"
+        return MiddlewareResult(
+            should_continue=False,
+            error_message=f"Error processing langgraph configuration: {str(e)}",
+            should_include_stacktrace=True,
+        )
 
 
 Middlewares.register("init", langgraph_init_middleware)
