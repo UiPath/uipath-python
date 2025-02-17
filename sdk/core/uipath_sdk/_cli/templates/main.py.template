@@ -1,21 +1,25 @@
-import os
-from uipath_sdk import UiPathSDK
-from dotenv import load_dotenv
-from langgraph.graph import StateGraph
-from typing_extensions import TypedDict
+from dataclasses import dataclass
+from typing import Optional
 
-# Using State(TypedDict) as input for StateGraph allows automatic type inference
-# of input arguments when invoking the graph
-class State(TypedDict):
-    graph_state: str
 
-# Build graph
-builder = StateGraph(State)
+@dataclass
+class EchoIn:
+    message: str
+    repeat: Optional[int] = 1
+    prefix: Optional[str] = None
 
-def main():
-    load_dotenv()
-    secret = os.environ.get("UIPATH_ACCESS_TOKEN")
-    uipath = UiPathSDK(secret)
-    print("Hello world")
-    # job = uipath.processes.invoke(name="")
-    # print(job)
+
+@dataclass
+class EchoOut:
+    message: str
+
+
+def main(input: EchoIn) -> EchoOut:
+    result = []
+    for _ in range(input.repeat):
+        line = input.message
+        if input.prefix:
+            line = f"{input.prefix}: {line}"
+        result.append(line)
+
+    return EchoOut(message="\n".join(result))
