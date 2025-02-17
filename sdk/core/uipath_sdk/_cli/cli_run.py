@@ -3,16 +3,15 @@ import importlib.util
 import inspect
 import json
 import logging
-import sys
+import os
+import traceback
 from dataclasses import asdict, is_dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, TypeVar, get_type_hints
+from typing import Any, Dict, Optional, Type, TypeVar, get_type_hints
 
 import click
 
 from .middlewares import Middlewares
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -86,63 +85,52 @@ def convert_from_class(obj: Any) -> Dict[str, Any]:
     return obj
 
 
-def find_python_files(directory: str = ".") -> List[Path]:
-    """Find all Python files in the given directory."""
-    return list(Path(directory).glob("*.py"))
-
-
 def execute_python_script(
     script_path: str, input_data: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Execute the Python script with the given input."""
-    try:
-        spec = importlib.util.spec_from_file_location("dynamic_module", script_path)
-        if not spec or not spec.loader:
-            raise ImportError(f"Could not load spec for {script_path}")
 
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+    spec = importlib.util.spec_from_file_location("dynamic_module", script_path)
+    if not spec or not spec.loader:
+        raise ImportError(f"Could not load spec for {script_path}")
 
-        for func_name in ["main", "run", "execute"]:
-            if hasattr(module, func_name):
-                main_func = getattr(module, func_name)
-                sig = inspect.signature(main_func)
-                params = list(sig.parameters.values())
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
 
-                # Case 1: No parameters
-                if not params:
-                    result = main_func()
-                    return convert_from_class(result) if result is not None else {}
+    for func_name in ["main", "run", "execute"]:
+        if hasattr(module, func_name):
+            main_func = getattr(module, func_name)
+            sig = inspect.signature(main_func)
+            params = list(sig.parameters.values())
 
-                input_param = params[0]
-                input_type = input_param.annotation
+            # Case 1: No parameters
+            if not params:
+                result = main_func()
+                return convert_from_class(result) if result is not None else {}
 
-                # Case 2: Class or dataclass parameter
-                if input_type != inspect.Parameter.empty and (
-                    is_dataclass(input_type) or hasattr(input_type, "__annotations__")
-                ):
-                    typed_input = convert_to_class(input_data, input_type)
-                    result = main_func(typed_input)
-                    return convert_from_class(result) if result is not None else {}
+            input_param = params[0]
+            input_type = input_param.annotation
 
-                # Case 3: Dict parameter
-                else:
-                    result = main_func(input_data)
-                    return convert_from_class(result) if result is not None else {}
+            # Case 2: Class or dataclass parameter
+            if input_type != inspect.Parameter.empty and (
+                is_dataclass(input_type) or hasattr(input_type, "__annotations__")
+            ):
+                typed_input = convert_to_class(input_data, input_type)
+                result = main_func(typed_input)
+                return convert_from_class(result) if result is not None else {}
 
-        raise ValueError(
-            f"No main function (main, run, or execute) found in {script_path}"
-        )
+            # Case 3: Dict parameter
+            else:
+                result = main_func(input_data)
+                return convert_from_class(result) if result is not None else {}
 
-    except Exception as e:
-        logger.error(f"Error executing Python script: {str(e)}")
-        raise
+    raise ValueError(f"No main function (main, run, or execute) found in {script_path}")
 
 
 @click.command()
+@click.argument("entrypoint", required=False, default="main.py")
 @click.argument("input", required=False, default="{}")
-@click.option("--entrypoint", "-e", help="The path to the Python script to execute")
-def run(input: str, entrypoint: Optional[str] = None) -> None:
+def run(entrypoint: Optional[str], input: Optional[str]) -> None:
     """Execute a Python script with JSON input."""
     should_continue, errorMessage = Middlewares.next(
         "run", input, entrypoint=entrypoint
@@ -154,37 +142,31 @@ def run(input: str, entrypoint: Optional[str] = None) -> None:
     if not should_continue:
         return
 
+    if not entrypoint:
+        click.echo(
+            "Error: No entrypoint specified. Please provide a path to a Python script."
+        )
+        click.get_current_context().exit(1)
+
+    if not os.path.exists(entrypoint):
+        click.echo(f"""Error: Script not found at path {entrypoint}.
+Usage: `uipath run <entrypoint_path> <input_arguments>`""")
+        click.get_current_context().exit(1)
+
     try:
-        if not entrypoint:
-            python_files = find_python_files()
-
-            if not python_files:
-                click.echo("No Python files found in the current directory.")
-                return
-
-            if len(python_files) == 1:
-                entrypoint = str(python_files[0])
-            else:
-                click.echo(
-                    "Multiple Python files found. Please specify an entrypoint using `uipath run -e <file>`:"
-                )
-                for idx, file in enumerate(python_files, 1):
-                    click.echo(f"  {idx}. {file}")
-                return
-
         try:
             input_data = json.loads(input)
         except json.JSONDecodeError:
-            click.echo("Invalid JSON input data")
-            return
+            click.echo("Error: Invalid JSON input data")
+            click.get_current_context().exit(1)
 
         result = execute_python_script(entrypoint, input_data)
         print(json.dumps(result))
 
-    except FileNotFoundError:
-        click.echo(f"Script not found: {entrypoint}")
     except Exception as e:
         click.echo(f"Error: {str(e)}")
+        click.echo(traceback.format_exc())
+        click.get_current_context().exit(1)
 
 
 if __name__ == "__main__":
