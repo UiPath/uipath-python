@@ -132,16 +132,15 @@ def execute_python_script(
 @click.argument("input", required=False, default="{}")
 def run(entrypoint: Optional[str], input: Optional[str]) -> None:
     """Execute a Python script with JSON input."""
-    should_continue, errorMessage = Middlewares.next(
-        "run", input, entrypoint=entrypoint
-    )
+    result = Middlewares.next("run", input, entrypoint=entrypoint)
 
-    if errorMessage:
-        click.echo(f"{errorMessage}")
-        if not should_continue:
-            click.get_current_context().exit(1)
+    if result.error_message:
+        click.echo(result.error_message)
+        if result.should_include_stacktrace:
+            click.echo(traceback.format_exc())
+        click.get_current_context().exit(1)
 
-    if not should_continue:
+    if not result.should_continue:
         return
 
     if not entrypoint:

@@ -1,6 +1,7 @@
 # type: ignore
 import json
 import os
+import traceback
 import uuid
 from typing import Optional
 
@@ -39,7 +40,7 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
         return os.path.join(directory, python_files[0])
     else:
         click.echo(
-            "Multiple Python files in current directory\nPlease specify the entrypoint: `uipath init <file>`"
+            "Multiple Python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
         )
         return None
 
@@ -51,18 +52,21 @@ def init(entrypoint: str) -> None:
     current_directory = os.getcwd()
     generate_env_file(current_directory)
 
-    should_continue, errorMessage = Middlewares.next("init", entrypoint)
+    result = Middlewares.next("init", entrypoint)
 
-    if errorMessage:
-        click.echo(f"{errorMessage}")
+    if result.error_message:
+        click.echo(result.error_message)
+        if result.should_include_stacktrace:
+            click.echo(traceback.format_exc())
+        click.get_current_context().exit(1)
 
-    if not should_continue:
+    if not result.should_continue:
         return
 
     script_path = get_user_script(current_directory, entrypoint=entrypoint)
 
     if not script_path:
-        return
+        click.get_current_context().exit(1)
 
     try:
         args = generate_args(script_path)
@@ -86,7 +90,9 @@ def init(entrypoint: str) -> None:
         with open(config_path, "w") as config_file:
             json.dump(config_data, config_file, indent=4)
 
-        click.echo(f"Created configuration file at {config_path}")
+        click.echo(f"Configuration file {config_path} created successfully.")
 
     except Exception as e:
         click.echo(f"Error generating configuration: {str(e)}")
+        click.echo(traceback.format_exc())
+        click.get_current_context().exit(1)

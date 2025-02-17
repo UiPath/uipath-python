@@ -114,10 +114,12 @@ def generate_args(path: str) -> Dict[str, Dict[str, Any]]:
         raise ValueError("No main function found in module")
 
     hints = get_type_hints(main_func)
-
     sig = inspect.signature(main_func)
-    input_param_name = next(iter(sig.parameters))
 
+    if not sig.parameters:
+        return {"input": {}, "output": get_type_schema(hints.get("return", None))}
+
+    input_param_name = next(iter(sig.parameters))
     input_schema = get_type_schema(hints.get(input_param_name))
     output_schema = get_type_schema(hints.get("return"))
 

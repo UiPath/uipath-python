@@ -1,11 +1,18 @@
 import logging
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-MiddlewareFunc = Callable[
-    ..., Tuple[bool, Optional[str]]
-]  # Returns (should_continue, errorMessage)
+
+@dataclass
+class MiddlewareResult:
+    should_continue: bool
+    error_message: Optional[str] = None
+    should_include_stacktrace: bool = False
+
+
+MiddlewareFunc = Callable[..., MiddlewareResult]
 
 
 class Middlewares:
@@ -33,29 +40,28 @@ class Middlewares:
         return cls._middlewares.get(command, [])
 
     @classmethod
-    def next(
-        cls, command: str, *args: Any, **kwargs: Any
-    ) -> Tuple[bool, Optional[str]]:
+    def next(cls, command: str, *args: Any, **kwargs: Any) -> MiddlewareResult:
         """Invoke middleware.
 
         Returns:
-            Tuple[bool, Optional[str]]: (should_continue, errorMessage)
-                - continue: True if we want to apply the next middleware, False breaks
-                - message: Optional message from the handler
+            MiddlewareResult containing:
+                - should_continue: True if we want to apply the next middleware, False breaks
+                - error_message: Optional message from the handler
+                - should_include_stacktrace: Whether to include stacktrace in error output
         """
         middlewares = cls.get(command)
         for middleware in middlewares:
             try:
-                should_continue, errorMessage = middleware(*args, **kwargs)
-                if not should_continue:
+                result = middleware(*args, **kwargs)
+                if not result.should_continue:
                     logger.debug(
                         f"Command '{command}' stopped by {middleware.__name__}"
                     )
-                    return False, errorMessage
+                    return result
             except Exception as e:
                 logger.error(f"Middleware {middleware.__name__} failed: {str(e)}")
                 raise
-        return True, None
+        return MiddlewareResult(should_continue=True)
 
     @classmethod
     def clear(cls, command: Optional[str] = None) -> None:
