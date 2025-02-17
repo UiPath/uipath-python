@@ -5,6 +5,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from uipath_sdk._cli.cli_init import init  # type: ignore
+from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
 
 
 def test_init_env_file_creation(runner: CliRunner, temp_dir: str) -> None:
@@ -39,7 +40,7 @@ def test_init_script_detection(runner: CliRunner, temp_dir: str) -> None:
     with runner.isolated_filesystem(temp_dir=temp_dir):
         # Test empty directory
         result = runner.invoke(init)
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "No Python files found in the directory" in result.output
 
         # Test single Python file
@@ -55,8 +56,8 @@ def test_init_script_detection(runner: CliRunner, temp_dir: str) -> None:
             f.write("def main(input): return input")
 
         result = runner.invoke(init)
-        assert result.exit_code == 0
-        assert "Multiple Python files in current directory" in result.output
+        assert result.exit_code == 1
+        assert "Multiple Python files found in the current directory" in result.output
         assert "Please specify the entrypoint" in result.output
 
 
@@ -65,7 +66,7 @@ def test_init_with_entrypoint(runner: CliRunner, temp_dir: str) -> None:
     with runner.isolated_filesystem(temp_dir=temp_dir):
         # Test with non-existent file
         result = runner.invoke(init, ["nonexistent.py"])
-        assert result.exit_code == 0
+        assert result.exit_code == 1
         assert "does not exist in the current directory" in result.output
 
         # Test with valid Python file
@@ -90,16 +91,25 @@ def test_init_middleware_interaction(runner: CliRunner, temp_dir: str) -> None:
     """Test middleware integration."""
     with runner.isolated_filesystem(temp_dir=temp_dir):
         with patch("uipath_sdk._cli.cli_init.Middlewares.next") as mock_middleware:
-            # Test middleware stopping execution
-            mock_middleware.return_value = (False, "Middleware error")
+            # Test middleware stopping execution with error
+            mock_middleware.return_value = MiddlewareResult(
+                should_continue=False,
+                error_message="Middleware error",
+                should_include_stacktrace=False,
+            )
 
             result = runner.invoke(init)
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             assert "Middleware error" in result.output
             assert not os.path.exists("uipath.json")
 
             # Test middleware allowing execution
-            mock_middleware.return_value = (True, None)
+            mock_middleware.return_value = MiddlewareResult(
+                should_continue=True,
+                error_message=None,
+                should_include_stacktrace=False,
+            )
+
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
 
@@ -115,9 +125,14 @@ def test_init_error_handling(runner: CliRunner, temp_dir: str) -> None:
         with open("invalid.py", "w") as f:
             f.write("def main(input: return input")  # Invalid syntax
 
-        result = runner.invoke(init, ["invalid.py"])
-        assert result.exit_code == 0
-        assert "Error generating configuration" in result.output
+        # Mock middleware to allow execution
+        with patch("uipath_sdk._cli.cli_init.Middlewares.next") as mock_middleware:
+            mock_middleware.return_value = MiddlewareResult(should_continue=True)
+
+            result = runner.invoke(init, ["invalid.py"])
+            assert result.exit_code == 1
+            assert "Error generating configuration" in result.output
+            assert "SyntaxError" in result.output  # Should show stacktrace
 
         # Test with generate_args raising exception
         with patch("uipath_sdk._cli.cli_init.generate_args") as mock_generate:
@@ -125,9 +140,16 @@ def test_init_error_handling(runner: CliRunner, temp_dir: str) -> None:
             with open("script.py", "w") as f:
                 f.write("def main(input): return input")
 
-            result = runner.invoke(init, ["script.py"])
-            assert result.exit_code == 0
-            assert "Error generating configuration: Generation error" in result.output
+            # Mock middleware to allow execution
+            with patch("uipath_sdk._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+
+                result = runner.invoke(init, ["script.py"])
+                assert result.exit_code == 1
+                assert (
+                    "Error generating configuration: Generation error" in result.output
+                )
+                assert "Traceback" in result.output
 
 
 def test_init_config_generation(runner: CliRunner, temp_dir: str) -> None:
