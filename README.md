@@ -2,11 +2,17 @@
 
 ## CLI User's guide
 
-`pip install uipath_sdk`
-_(NOTE: create virtual env if needed)_
-
+_optional - (NOTE: create virtual env if needed)_
+```sh
+python3 -m venv my_env
+source my_env/bin/activate
 ```
-uipath init [PROJECT_NAME] [DIRECTORY] [DESCRIPTION]
+```sh
+pip install uipath_sdk
+```
+
+```sh
+uipath init [OPTIONS] [ENTRYPOINT]
 ```
 
 defaults:
@@ -17,9 +23,11 @@ defaults:
 
 example:
 
-```
+```sh
 uipath init
+```
 OR
+```sh
 uipath init custom-name ./my-projects/custom-dir "my custom description"
 ```
 
@@ -46,7 +54,7 @@ NOTE: if you run the pack command outside of the folder with the `config.json` i
 
 after packing it's time to publish
 
-```
+```sh
 uipath publish [PATH_TO_NUPKG]
 
 uipath publish my-custom-package.2.3.1.nupkg

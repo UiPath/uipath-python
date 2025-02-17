@@ -26,7 +26,9 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
     if entrypoint:
         script_path = os.path.join(directory, entrypoint)
         if not os.path.isfile(script_path):
-            click.echo(f"The {entrypoint} file does not exist in the current directory")
+            click.echo(
+                f"The '{entrypoint}' file does NOT exist in the current directory"
+            )
             return None
         return script_path
 
