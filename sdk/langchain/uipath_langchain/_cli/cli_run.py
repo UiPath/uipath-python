@@ -12,10 +12,13 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt, StateSnapshot
 from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
 
+from ..tracers import Tracer
 from ._utils._graph import LangGraphConfig
 
 logger = logging.getLogger(__name__)
 load_dotenv()
+
+tracer = Tracer()
 
 
 def get_interrupt_data(
@@ -121,13 +124,16 @@ def langgraph_run_middleware(
             else loaded_graph
         )
 
-        asyncio.run(
-            execute(
-                state_graph,
-                input_data,
-                {"configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")}},
-            )
-        )
+        # manually create a single trace for the job or else langgraph will create multiple parents on Interrrupts
+        # parent the trace to the JobKey
+        tracer.init_trace(env.get("UIPATH_PROCESS_NAME"), env.get("UIPATH_JOB_KEY"))
+
+        graph_config: RunnableConfig = {
+            "configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")},
+            "callbacks": [tracer] if env.get("UIPATH_JOB_KEY") else [],
+        }
+
+        asyncio.run(execute(state_graph, input_data, graph_config))
 
         # Successful execution with no errors
         return MiddlewareResult(should_continue=False, error_message=None)

@@ -8,7 +8,9 @@ dependencies = [
     "uipath-sdk>=0.0.46",
     "langgraph>=0.2.70",
     "langchain-core>=0.3.34",
-    "langgraph-checkpoint-sqlite>=2.0.3"
+    "langgraph-checkpoint-sqlite>=2.0.3",
+    "requests>=2.23.3",
+    "types-requests==2.32.0.20241016"
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
