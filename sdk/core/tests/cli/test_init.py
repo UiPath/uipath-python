@@ -5,7 +5,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from uipath_sdk._cli.cli_init import init  # type: ignore
-from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
+from uipath_sdk._cli.middlewares import MiddlewareResult
 
 
 def test_init_env_file_creation(runner: CliRunner, temp_dir: str) -> None:
