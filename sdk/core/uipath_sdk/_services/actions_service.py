@@ -1,5 +1,4 @@
-import json
-from typing import cast
+from typing import Any, cast
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -12,73 +11,32 @@ class ActionsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    def create(self, title: str, task_catalog: str) -> Action:
-        endpoint = "/orchestrator_/forms/TaskForms/CreateFormTask"
-        content = json.dumps(
+    def create(
+        self,
+        title: str,
+        data: dict[str, Any] | None = None,
+        *,
+        app_id: str = "",
+        app_version: int = -1,
+    ) -> Action:
+        """
+        :param app_id: The `systemName` of the app.
+        :param app_version: The `deployVersion` of the app.
+        :param title: The title of the task.
+        """
+
+        endpoint = "/orchestrator_/tasks/AppTasks/CreateAppTask"
+        content = str(
             {
-                "formLayout": {
-                    "components": [
-                        {
-                            "mask": False,
-                            "customClass": "uipath-button-container",
-                            "tableView": True,
-                            "alwaysEnabled": False,
-                            "type": "table",
-                            "input": False,
-                            "key": "key",
-                            "label": "label",
-                            "rows": [
-                                [
-                                    {"components": []},
-                                    {"components": []},
-                                    {"components": []},
-                                    {"components": []},
-                                    {"components": []},
-                                    {"components": []},
-                                ]
-                            ],
-                            "numRows": 1,
-                            "numCols": 6,
-                            "reorder": False,
-                        },
-                        {
-                            "label": "JIRA Description",
-                            "disabled": True,
-                            "tableView": True,
-                            "defaultValue": "JIRA Description",
-                            "key": "jiraDescription",
-                            "type": "textfield",
-                            "input": True,
-                        },
-                        {
-                            "label": "LLM Classification",
-                            "disabled": True,
-                            "tableView": True,
-                            "defaultValue": "LLM Classification",
-                            "key": "llmClassification",
-                            "type": "textarea",
-                            "input": True,
-                        },
-                        {
-                            "type": "button",
-                            "label": "Approve",
-                            "key": "submit",
-                            "disableOnInvalid": True,
-                            "input": True,
-                            "alwaysEnabled": False,
-                            "tableView": True,
-                        },
-                    ],
-                    "version": 1,
-                },
+                "appId": app_id,
+                "appVersion": app_version,
                 "title": title,
-                "priority": "Low",
-                "taskCatalogName": task_catalog,
+                "data": data if data is not None else {},
             }
         )
 
         return cast(
-            "Action",
+            Action,
             self.request(
                 "POST",
                 endpoint,
