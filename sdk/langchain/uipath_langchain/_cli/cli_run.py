@@ -10,7 +10,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt, StateSnapshot
-from uipath_sdk._cli.middlewares import Middlewares, MiddlewareResult
+from uipath_sdk._cli.middlewares import MiddlewareResult, Middlewares
 
 from ._utils._graph import LangGraphConfig
 
@@ -76,7 +76,7 @@ async def execute(
         else:
             serialized_result = dict(result)
 
-        print(json.dumps(serialized_result))
+        print(f"Output={json.dumps(serialized_result)}")
 
         # return result, is_interrupted, interrupt_data
 
@@ -87,7 +87,9 @@ def langgraph_run_middleware(
     """Middleware to handle langgraph execution"""
     config = LangGraphConfig()
     if not config.exists:
-        return MiddlewareResult(should_continue=True)  # Continue with normal flow if no langgraph.json
+        return MiddlewareResult(
+            should_continue=True
+        )  # Continue with normal flow if no langgraph.json
 
     try:
         input_data = json.loads(input)
@@ -97,14 +99,13 @@ def langgraph_run_middleware(
         elif not entrypoint:
             return MiddlewareResult(
                 should_continue=False,
-                error_message=f"Multiple graphs available. Please specify one of: {', '.join(g.name for g in config.graphs)}."
+                error_message=f"Multiple graphs available. Please specify one of: {', '.join(g.name for g in config.graphs)}.",
             )
 
         graph = config.get_graph(entrypoint)
         if not graph:
             return MiddlewareResult(
-                should_continue=False,
-                error_message=f"Graph '{entrypoint}' not found."
+                should_continue=False, error_message=f"Graph '{entrypoint}' not found."
             )
 
         loaded_graph = graph.load_graph()
@@ -120,21 +121,17 @@ def langgraph_run_middleware(
         asyncio.run(execute(state_graph, input_data, config))
 
         # Successful execution with no errors
-        return MiddlewareResult(
-            should_continue=False,
-            error_message=None
-        )
+        return MiddlewareResult(should_continue=False, error_message=None)
 
     except json.JSONDecodeError:
         return MiddlewareResult(
-            should_continue=False,
-            error_message="Error: Invalid JSON input data."
+            should_continue=False, error_message="Error: Invalid JSON input data."
         )
     except Exception as e:
         return MiddlewareResult(
             should_continue=False,
             error_message=f"Error: {str(e)}",
-            should_include_stacktrace=True
+            should_include_stacktrace=True,
         )
 
 
