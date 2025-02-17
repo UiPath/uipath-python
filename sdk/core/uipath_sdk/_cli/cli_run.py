@@ -128,7 +128,7 @@ def execute_python_script(
 
 
 @click.command()
-@click.argument("entrypoint", required=False, default="main.py")
+@click.argument("entrypoint", required=False)
 @click.argument("input", required=False, default="{}")
 def run(entrypoint: Optional[str], input: Optional[str]) -> None:
     """Execute a Python script with JSON input."""
@@ -138,14 +138,15 @@ def run(entrypoint: Optional[str], input: Optional[str]) -> None:
 
     if errorMessage:
         click.echo(f"{errorMessage}")
+        if not should_continue:
+            click.get_current_context().exit(1)
 
     if not should_continue:
         return
 
     if not entrypoint:
-        click.echo(
-            "Error: No entrypoint specified. Please provide a path to a Python script."
-        )
+        click.echo("""Error: No entrypoint specified. Please provide a path to a Python script.
+Usage: `uipath run <entrypoint_path> <input_arguments>`""")
         click.get_current_context().exit(1)
 
     if not os.path.exists(entrypoint):

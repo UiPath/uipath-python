@@ -1,16 +1,19 @@
-import json
 import asyncio
+import json
 import logging
 import sys
-from typing import Any, Dict, Optional, Tuple
+import traceback
 from os import environ as env
-from uipath_sdk._cli.middlewares import Middlewares
-from ._utils._graph import LangGraphConfig
+from typing import Any, Dict, Optional, Tuple
+
+from dotenv import load_dotenv
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.types import Command, StateSnapshot, Interrupt
-from dotenv import load_dotenv
+from langgraph.types import Command, Interrupt, StateSnapshot
+from uipath_sdk._cli.middlewares import Middlewares
+
+from ._utils._graph import LangGraphConfig
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,19 +70,21 @@ async def execute(
         else:
             logger.info("[Executor] Graph execution completed successfully")
 
-        if hasattr(result, 'dict'):
+        if hasattr(result, "dict"):
             serialized_result = result.dict()
-        elif hasattr(result, 'to_dict'):
+        elif hasattr(result, "to_dict"):
             serialized_result = result.to_dict()
         else:
             serialized_result = dict(result)
 
         print(json.dumps(serialized_result))
 
-        #return result, is_interrupted, interrupt_data
+        # return result, is_interrupted, interrupt_data
 
 
-def langgraph_run_middleware(input: str, entrypoint: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+def langgraph_run_middleware(
+    entrypoint: Optional[str], input: Optional[str]
+) -> Tuple[bool, Optional[str]]:
     """Middleware to handle langgraph execution"""
     config = LangGraphConfig()
     if not config.exists:
@@ -117,7 +122,7 @@ def langgraph_run_middleware(input: str, entrypoint: Optional[str] = None) -> Tu
     except json.JSONDecodeError:
         return False, "Invalid JSON input data"
     except Exception as e:
-        return False, f"Error in run middleware: {str(e)}"
+        return False, f"Error: {str(e)}\n\nStacktrace:\n{traceback.format_exc()}"
 
 
 Middlewares.register("run", langgraph_run_middleware)
