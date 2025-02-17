@@ -164,7 +164,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""")
             click.get_current_context().exit(1)
 
         result = execute_python_script(entrypoint, input_data)
-        print(json.dumps(result))
+        print(f"Output={json.dumps(result)}")
 
     except Exception as e:
         click.echo(f"Error: {str(e)}")
