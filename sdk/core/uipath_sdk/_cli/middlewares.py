@@ -1,3 +1,4 @@
+import importlib.metadata
 import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
@@ -24,6 +25,7 @@ class Middlewares:
         "publish": [],
         "run": [],
     }
+    _plugins_loaded = False
 
     @classmethod
     def register(cls, command: str, middleware: MiddlewareFunc) -> None:
@@ -42,14 +44,10 @@ class Middlewares:
 
     @classmethod
     def next(cls, command: str, *args: Any, **kwargs: Any) -> MiddlewareResult:
-        """Invoke middleware.
+        """Invoke middleware."""
+        if not cls._plugins_loaded:
+            cls.load_plugins()
 
-        Returns:
-            MiddlewareResult containing:
-                - should_continue: True if we want to apply the next middleware, False breaks
-                - error_message: Optional message from the handler
-                - should_include_stacktrace: Whether to include stacktrace in error output
-        """
         middlewares = cls.get(command)
         for middleware in middlewares:
             try:
@@ -66,11 +64,33 @@ class Middlewares:
 
     @classmethod
     def clear(cls, command: Optional[str] = None) -> None:
-        """Clear middlewares for a specific command or all middlewares if command is None.
-        Useful for testing."""
+        """Clear middlewares for a specific command or all middlewares if command is None."""
         if command:
             if command in cls._middlewares:
                 cls._middlewares[command] = []
         else:
             for cmd in cls._middlewares:
                 cls._middlewares[cmd] = []
+
+    @classmethod
+    def load_plugins(cls) -> None:
+        """Load all middlewares registered via entry points"""
+        if cls._plugins_loaded:
+            return
+
+        try:
+            for entry_point in importlib.metadata.entry_points(
+                group="uipath_sdk.middlewares"
+            ):
+                try:
+                    register_func = entry_point.load()
+                    register_func()
+                    logger.debug(f"Loaded middleware plugin: {entry_point.name}")
+                except Exception as e:
+                    logger.error(
+                        f"Failed to load middleware plugin {entry_point.name}: {str(e)}"
+                    )
+        except Exception as e:
+            logger.error(f"Failed to load middleware plugins: {str(e)}")
+        finally:
+            cls._plugins_loaded = True
