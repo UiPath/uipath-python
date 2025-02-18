@@ -23,6 +23,7 @@ def generate_pyproject(target_directory, project_name):
 name = "{project_name}"
 version = "0.0.1"
 description = "{project_name}"
+authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
     "uipath_sdk>=0.0.44"
 ]
