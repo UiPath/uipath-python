@@ -1,0 +1,41 @@
+trigger:
+- main
+
+pr:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  testResultsDirectory: '$(Agent.WorkFolder)/test-results'
+
+steps:
+
+- script: mkdir -p $(testResultsDirectory)
+  displayName: 'Create Test Results Directory'
+
+- task: Docker@2
+  displayName: Build an image
+  inputs:
+    command: build
+    Dockerfile: '**/core.dockerfile'
+    containerRegistry: $(dockerHubServiceConnection)
+    repository: $(imageName)
+    tags: $(Build.BuildId)
+
+- task: Docker@2
+  displayName: Run container
+  inputs:
+    command: run
+    imageName: $(imageName):$(Build.BuildId)
+    containerCommand: poetry run pytest --junitxml=test-results.xml
+    volumes: $(testResultsDirectory):/app/test-results
+
+- task: PublishTestResults@2
+  displayName: Publish Test Results
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '**/test-results.xml'
+    searchFolder: $(testResultsDirectory)
+    failTaskOnFailedTests: true
