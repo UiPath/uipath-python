@@ -5,7 +5,7 @@ description = "UiPath Langchain"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 dependencies = [
-    "uipath-sdk>=0.0.43",
+    "uipath-sdk>=0.0.45",
     "langgraph>=0.2.70",
     "langchain-core>=0.3.34",
     "langgraph-checkpoint-sqlite>=2.0.3"
@@ -16,6 +16,9 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "Programming Language :: Python :: 3.10",
 ]
+
+[project.entry-points."uipath_sdk.middlewares"]
+register = "uipath_langchain.middleware:register_middleware"
 
 [project.urls]
 Homepage = "https://uipath.com"

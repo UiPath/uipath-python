@@ -2,7 +2,7 @@ import json
 import uuid
 from typing import Any, Dict
 
-from uipath_sdk._cli.middlewares import Middlewares, MiddlewareResult
+from uipath_sdk._cli.middlewares import MiddlewareResult
 
 from ._utils._graph import LangGraphConfig
 
@@ -91,10 +91,3 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
             error_message=f"Error processing langgraph configuration: {str(e)}",
             should_include_stacktrace=True,
         )
-
-
-Middlewares.register("init", langgraph_init_middleware)
-
-
-def handle_init():
-    pass

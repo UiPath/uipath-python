@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import sys
 from os import environ as env
 from typing import Any, Dict, Optional, Tuple
 
@@ -10,11 +9,10 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt, StateSnapshot
-from uipath_sdk._cli.middlewares import MiddlewareResult, Middlewares
+from uipath_sdk._cli.middlewares import MiddlewareResult
 
 from ._utils._graph import LangGraphConfig
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
 load_dotenv()
 
@@ -133,10 +131,3 @@ def langgraph_run_middleware(
             error_message=f"Error: {str(e)}",
             should_include_stacktrace=True,
         )
-
-
-Middlewares.register("run", langgraph_run_middleware)
-
-
-def handle_run():
-    pass
