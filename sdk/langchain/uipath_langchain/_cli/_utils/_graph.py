@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
+from dotenv import load_dotenv
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -29,13 +30,19 @@ class GraphConfig:
     def load_graph(self) -> Union[StateGraph, CompiledStateGraph]:
         """Load graph from the specified path"""
         try:
-            if self.file_path.startswith("."):
-                abs_file_path = os.path.abspath(self.file_path)
-            else:
-                abs_file_path = self.file_path
+            cwd = os.path.abspath(os.getcwd())
+            abs_file_path = os.path.abspath(os.path.normpath(self.file_path))
+
+            if not abs_file_path.startswith(cwd):
+                raise ValueError(
+                    f"Script path must be within the current directory. Found: {self.file_path}"
+                )
 
             if not os.path.exists(abs_file_path):
                 raise FileNotFoundError(f"Script not found: {abs_file_path}")
+
+            if cwd not in sys.path:
+                sys.path.insert(0, cwd)
 
             module_name = Path(abs_file_path).stem
             spec = importlib.util.spec_from_file_location(module_name, abs_file_path)
@@ -96,6 +103,17 @@ class LangGraphConfig:
                 raise ValueError(
                     f"Missing required fields in langgraph.json: {missing_fields}"
                 )
+
+            if env_file := config.get("env"):
+                env_path = os.path.abspath(os.path.normpath(env_file))
+                if not os.path.exists(env_path):
+                    logger.warning(f"Environment file not found: {env_path}")
+                elif not load_dotenv(env_path):
+                    logger.warning(
+                        f"Could not load environment variables from {env_path}"
+                    )
+                else:
+                    logger.debug(f"Loaded environment variables from {env_path}")
 
             self._config = config
             self._load_graphs()
