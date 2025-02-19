@@ -1,11 +1,11 @@
 [project]
 name = "uipath_langchain"
-version = "0.0.15"
+version = "0.0.17"
 description = "UiPath Langchain"
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
-    "uipath-sdk>=0.0.46",
+    "uipath-sdk>=0.0.47",
     "langgraph>=0.2.70",
     "langchain-core>=0.3.34",
     "langgraph-checkpoint-sqlite>=2.0.3",
@@ -16,7 +16,10 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 
 [project.entry-points."uipath_sdk.middlewares"]

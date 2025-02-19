@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any
+from typing import Any, Union
 
 from httpx import (
     URL,
@@ -57,26 +57,25 @@ class BaseService:
         ),
         wait=wait_exponential(multiplier=1, min=1, max=10),
     )
-    def request(self, method: str, url: URL | str, **kwargs: Any) -> Response:
+    def request(self, method: str, url: Union[URL, str], **kwargs: Any) -> Response:
         self._logger.debug(f"Request: {method} {url}")
 
         response = self.client.request(method, url, **kwargs)
 
         status_code = response.status_code
         if status_code in [400, 401, 404, 409, 422, 429]:
-            match status_code:
-                case 400:
-                    raise BadRequestError()
-                case 401:
-                    raise AuthenticationError()
-                case 404:
-                    raise NotFoundError()
-                case 409:
-                    raise ConflictError()
-                case 422:
-                    raise UnprocessableEntityError()
-                case 429:
-                    raise RateLimitError()
+            if status_code == 400:
+                raise BadRequestError()
+            elif status_code == 401:
+                raise AuthenticationError()
+            elif status_code == 404:
+                raise NotFoundError()
+            elif status_code == 409:
+                raise ConflictError()
+            elif status_code == 422:
+                raise UnprocessableEntityError()
+            elif status_code == 429:
+                raise RateLimitError()
         else:
             response.raise_for_status()
 

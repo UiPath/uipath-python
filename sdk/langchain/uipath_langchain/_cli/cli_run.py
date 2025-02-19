@@ -43,7 +43,7 @@ def get_interrupt_data(
 async def execute(
     builder: StateGraph,
     input_data: Any,
-    config: RunnableConfig | None = None,
+    config: Optional[RunnableConfig] = None,
     resume: bool = False,
 ) -> None:
     """Execute the loaded graph with the given input."""
