@@ -1,5 +1,6 @@
 from logging import getLogger
 from os import environ as env
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -15,8 +16,8 @@ class UiPathSDK:
     def __init__(
         self,
         *,
-        base_url: str | None = None,
-        secret: str | None = None,
+        base_url: Optional[str] = None,
+        secret: Optional[str] = None,
         debug: bool = False,
     ) -> None:
         base_url_value = base_url or env.get("UIPATH_URL")

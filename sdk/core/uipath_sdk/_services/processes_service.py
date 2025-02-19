@@ -1,3 +1,5 @@
+from typing import Dict
+
 from httpx import Response
 
 from .._config import Config
@@ -23,5 +25,5 @@ class ProcessesService(FolderContext, BaseService):
         )
 
     @property
-    def custom_headers(self) -> dict[str, str]:
+    def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers

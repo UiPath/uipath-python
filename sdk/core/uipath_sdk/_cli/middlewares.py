@@ -79,9 +79,9 @@ class Middlewares:
             return
 
         try:
-            for entry_point in importlib.metadata.entry_points(
-                group="uipath_sdk.middlewares"
-            ):
+            entry_points = importlib.metadata.entry_points()
+            middlewares = entry_points["uipath_sdk.middlewares"]
+            for entry_point in middlewares:
                 try:
                     register_func = entry_point.load()
                     register_func()

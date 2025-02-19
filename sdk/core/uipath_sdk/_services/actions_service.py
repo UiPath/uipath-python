@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any, Dict, Optional, cast
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -14,7 +14,7 @@ class ActionsService(FolderContext, BaseService):
     def create(
         self,
         title: str,
-        data: dict[str, Any] | None = None,
+        data: Optional[Dict[str, Any]] = None,
         *,
         app_id: str = "",
         app_version: int = -1,
@@ -45,5 +45,5 @@ class ActionsService(FolderContext, BaseService):
         )
 
     @property
-    def custom_headers(self) -> dict[str, str]:
+    def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers

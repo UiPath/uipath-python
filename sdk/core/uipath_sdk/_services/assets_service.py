@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Dict, cast
 
 from httpx import Response
 
@@ -50,5 +50,5 @@ class AssetsService(FolderContext, BaseService):
         )
 
     @property
-    def custom_headers(self) -> dict[str, str]:
+    def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
