@@ -1,0 +1,37 @@
+name: Reusable Test Workflow
+
+on:
+  workflow_call:
+    inputs:
+      folder_path:
+        description: 'The folder path to run actions in'
+        required: true
+        type: string
+
+jobs:
+  test:
+    name: Test
+    runs-on: "ubuntu-24.04"
+    defaults:
+      run:
+        working-directory: ${{ inputs.folder_path }}
+
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: "Setup venv"
+        run: |
+          uv venv
+          uv sync --all-extras
+
+      - name: "Run tests"
+        run: |
+          uv run pytest
+

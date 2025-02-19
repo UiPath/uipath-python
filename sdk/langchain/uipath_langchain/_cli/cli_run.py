@@ -5,11 +5,12 @@ from os import environ as env
 from typing import Any, Dict, Optional, Tuple
 
 from dotenv import load_dotenv
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt, StateSnapshot
-from uipath_sdk._cli.middlewares import MiddlewareResult
+from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
 
 from ._utils._graph import LangGraphConfig
 
@@ -39,15 +40,15 @@ def get_interrupt_data(
 async def execute(
     builder: StateGraph,
     input_data: Any,
-    config: Optional[Dict[str, Any]] = None,
+    config: RunnableConfig | None = None,
     resume: bool = False,
-) -> Tuple[Any, bool, Optional[Dict[str, Any]]]:
+) -> None:
     """Execute the loaded graph with the given input."""
 
     async with AsyncSqliteSaver.from_conn_string("uipath.db") as memory:
         graph = builder.compile(checkpointer=memory)
 
-        config = config or {}
+        config = config or None
 
         if resume:
             result = await graph.ainvoke(Command(resume=input_data), config)
@@ -56,6 +57,9 @@ async def execute(
 
         state = None
         try:
+            if config is None:
+                raise Exception("Config is None")
+
             state = await graph.aget_state(config)
         except Exception as e:
             logger.error(f"[Executor]: Failed to get state: {str(e)}")
@@ -90,6 +94,9 @@ def langgraph_run_middleware(
         )  # Continue with normal flow if no langgraph.json
 
     try:
+        if input is None:
+            raise Exception("Input is None")
+
         input_data = json.loads(input)
 
         if not entrypoint and len(config.graphs) == 1:
@@ -114,9 +121,13 @@ def langgraph_run_middleware(
             else loaded_graph
         )
 
-        config = {"configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")}}
-
-        asyncio.run(execute(state_graph, input_data, config))
+        asyncio.run(
+            execute(
+                state_graph,
+                input_data,
+                {"configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")}},
+            )
+        )
 
         # Successful execution with no errors
         return MiddlewareResult(should_continue=False, error_message=None)

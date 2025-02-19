@@ -18,7 +18,18 @@ defaults:
     working-directory: "sdk/langchain"
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    with:
+      folder_path: "sdk/langchain"
+
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      folder_path: "sdk/langchain"
+
   build:
+    needs: [lint, test]
     uses: ./.github/workflows/build.yml
     with:
       folder_path: "sdk/langchain"
