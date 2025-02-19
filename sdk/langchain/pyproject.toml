@@ -33,3 +33,55 @@ packages = ["uipath_langchain"]
 
 [tool.hatch.build.targets.sdist]
 packages = ["uipath_langchain"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.1",
+    "ruff>=0.9.4",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+    "pre-commit>=4.1.0",
+]
+
+[project.optional-dependencies]
+langchain = [
+  "uipath-langchain>=0.0.2"
+]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"*" = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+plugins = [
+  "pydantic.mypy"
+]
+
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-ra -q"
+
+

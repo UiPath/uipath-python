@@ -2,7 +2,7 @@ import json
 import uuid
 from typing import Any, Dict
 
-from uipath_sdk._cli.middlewares import MiddlewareResult
+from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
 
 from ._utils._graph import LangGraphConfig
 
@@ -51,14 +51,14 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
                 loaded_graph = graph.load_graph()
                 graph_schema = generate_schema_from_graph(loaded_graph)
 
-                entrypoint = {
+                new_entrypoint: dict[str, Any] = {
                     "filePath": graph.name,
                     "uniqueId": str(uuid.uuid4()),
                     "type": "agent",
                     "input": graph_schema["input"],
                     "output": graph_schema["output"],
                 }
-                entrypoints.append(entrypoint)
+                entrypoints.append(new_entrypoint)
 
             except Exception as e:
                 return MiddlewareResult(

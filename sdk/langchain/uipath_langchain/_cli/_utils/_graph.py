@@ -5,7 +5,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -66,7 +66,7 @@ class GraphConfig:
             self._graph = self.load_graph()
 
         if hasattr(self._graph, "input_schema"):
-            return self._graph.input_schema
+            return cast(dict[str, Any], self._graph.input_schema)
         return {}
 
 
