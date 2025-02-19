@@ -1,0 +1,134 @@
+import json
+import logging
+import re
+import uuid
+import warnings
+from os import environ as env
+
+import requests
+from langchain_core.tracers.base import BaseTracer
+from langchain_core.tracers.schemas import Run
+from pydantic import PydanticDeprecationWarning
+
+logger = logging.getLogger(__name__)
+
+
+class Tracer(BaseTracer):
+    def __init__(self, verify_https=True, **kwargs):
+        super().__init__(**kwargs)
+
+        # usefull when testing
+        self.verify_https = verify_https
+
+        llm_ops_pattern = self._get_base_url() + "{orgId}/llmops_"
+        self.orgId = env.get("UIPATH_ORGANIZATION_ID")
+        self.tenantId = env.get("UIPATH_TENANT_ID")
+        self.agentId = env.get("UIPATH_AGENT_ID")
+        self.url = llm_ops_pattern.format(orgId=self.orgId).rstrip("/")
+
+        self.auth_token = env.get("UIPATH_ACCESS_TOKEN")
+
+        self.headers = {
+            "Authorization": f"Bearer {self.auth_token}",
+        }
+
+    def _get_base_url(self) -> str:
+        uipath_url = (
+            env.get("UIPATH_URL") or "https://cloud.uipath.com/dummyOrg/dummyTennant/"
+        )
+        uipath_url = uipath_url.rstrip("/")
+
+        # split by "//" to get ['', 'https:', 'alpha.uipath.com/ada/byoa']
+        parts = uipath_url.split("//")
+
+        # after splitting by //, the base URL will be at index 1 along with the rest,
+        # hence split it again using "/" to get ['https:', 'alpha.uipath.com', 'ada', 'byoa']
+        base_url_parts = parts[1].split("/")
+
+        # combine scheme and netloc to get the base URL
+        base_url = parts[0] + "//" + base_url_parts[0] + "/"
+
+        return base_url
+
+    def init_trace(self, run_name, trace_id=None) -> None:
+        trace_id_env = env.get("UIPATH_TRACE_ID")
+
+        if trace_id_env:
+            self.trace_parent = trace_id_env
+        else:
+            self.start_trace(run_name, trace_id)
+
+    def start_trace(self, run_name, trace_id=None) -> None:
+        self.trace_parent = trace_id or str(uuid.uuid4())
+        run_name = run_name or f"Job Run: {self.trace_parent}"
+        trace_data = {
+            "id": self.trace_parent,
+            "name": re.sub(
+                "[!@#$<>\.]", "", run_name
+            ),  # if we use these characters the Agents UI throws some error (but llmops backend seems fine)
+            "referenceId": self.agentId,
+            "attributes": "{}",
+            "organizationId": self.orgId,
+            "tenantId": self.tenantId,
+        }
+
+        response = requests.post(
+            f"{self.url}/api/Agent/trace/",
+            headers=self.headers,
+            verify=self.verify_https,
+            json=trace_data,
+        )
+
+        if 400 <= response.status_code < 600:
+            logger.warning(f"Error when sending trace: {response}")
+
+    def _persist_run(self, run: Run) -> None:
+        # when (run.id == run.parent_run_id)  it's the start of a new trace
+        # but we treat all as spans and parent to a single Trace with Id == Job.Key
+
+        span_data = {
+            "id": str(run.id),
+            "parentId": str(run.parent_run_id)
+            if run.parent_run_id is not None
+            else env.get("UIPATH_PARENT_SPAN_ID"),
+            "traceId": self.trace_parent,
+            "name": run.name,
+            "startTime": str(run.start_time),
+            "endTime": str(run.end_time or run.start_time),
+            "referenceId": self.agentId,
+            "attributes": self._safe_json_dump(self._run_to_dict(run)),
+            "organizationId": self.orgId,
+            "tenantId": self.tenantId,
+        }
+
+        response = requests.post(
+            f"{self.url}/api/Agent/span/",
+            headers=self.headers,
+            verify=self.verify_https,
+            json=span_data,
+        )
+
+        if 400 <= response.status_code < 600:
+            logger.warning(f"Error when sending trace: {response}")
+
+    def _end_trace(self, run: Run) -> None:
+        super()._end_trace(run)
+        self._persist_run(run)
+
+    def _safe_json_dump(self, obj) -> str:
+        try:
+            json_str = json.dumps(obj, default=str)
+            return json_str
+        except Exception as e:
+            logger.warning(e)
+            return "{ }"
+
+    def _run_to_dict(self, run: Run):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=PydanticDeprecationWarning)
+
+            return {
+                **run.dict(exclude={"child_runs", "inputs", "outputs"}),
+                "inputs": run.inputs.copy() if run.inputs is not None else None,
+                "outputs": run.outputs.copy() if run.outputs is not None else None,
+            }
