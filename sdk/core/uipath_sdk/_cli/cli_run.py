@@ -133,7 +133,7 @@ def execute_python_script(
 @click.option("--resume", is_flag=True, help="Resume execution from a previous state")
 def run(entrypoint: Optional[str], input: Optional[str], resume: bool) -> None:
     """Execute a Python script with JSON input."""
-    result = Middlewares.next("run", entrypoint, input)
+    result = Middlewares.next("run", entrypoint, input, resume)
 
     if result.error_message:
         click.echo(result.error_message)
