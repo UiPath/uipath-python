@@ -105,6 +105,9 @@ def langgraph_run_middleware(
         if input is None:
             raise Exception("Input is None")
 
+        print(f"[Resume] {resume}")
+        print(f"[Input] {input}")
+
         input_data = json.loads(input)
 
         if not entrypoint and len(config.graphs) == 1:
