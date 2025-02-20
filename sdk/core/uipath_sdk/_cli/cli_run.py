@@ -130,7 +130,8 @@ def execute_python_script(
 @click.command()
 @click.argument("entrypoint", required=False)
 @click.argument("input", required=False, default="{}")
-def run(entrypoint: Optional[str], input: Optional[str]) -> None:
+@click.option("--resume", is_flag=True, help="Resume execution from a previous state")
+def run(entrypoint: Optional[str], input: Optional[str], resume: bool) -> None:
     """Execute a Python script with JSON input."""
     result = Middlewares.next("run", entrypoint, input)
 
