@@ -5,7 +5,7 @@ description = "UiPath Langchain"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
 dependencies = [
-    "uipath-sdk>=0.0.47",
+    "uipath-sdk>=0.0.53",
     "langgraph>=0.2.70",
     "langchain-core>=0.3.34",
     "langgraph-checkpoint-sqlite>=2.0.3",
