@@ -87,7 +87,7 @@ async def execute(
 
 
 def langgraph_run_middleware(
-    entrypoint: Optional[str], input: Optional[str]
+    entrypoint: Optional[str], input: Optional[str], resume: bool
 ) -> MiddlewareResult:
     """Middleware to handle langgraph execution"""
     config = LangGraphConfig()
@@ -133,7 +133,7 @@ def langgraph_run_middleware(
             "callbacks": [tracer] if env.get("UIPATH_JOB_KEY") else [],
         }
 
-        asyncio.run(execute(state_graph, input_data, graph_config))
+        asyncio.run(execute(state_graph, input_data, graph_config, resume))
 
         # Successful execution with no errors
         return MiddlewareResult(should_continue=False, error_message=None)
