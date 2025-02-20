@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import sys
 from os import environ as env
 from typing import Any, Dict, Optional, Tuple
 
@@ -81,9 +82,13 @@ async def execute(
         else:
             serialized_result = dict(result)
 
-        print(f"Output={json.dumps(serialized_result)}")
+        print(f"[OutputStart]{json.dumps(serialized_result)}[OutputEnd]")
 
-        # return result, is_interrupted, interrupt_data
+        if interrupt_data:
+            print(f"[SuspendStart]{json.dumps(interrupt_data)}[SuspendEnd]")
+
+        if is_interrupted:
+            sys.exit(42)
 
 
 def langgraph_run_middleware(
