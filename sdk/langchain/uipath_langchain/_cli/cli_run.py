@@ -131,7 +131,7 @@ def langgraph_run_middleware(
 
         # manually create a single trace for the job or else langgraph will create multiple parents on Interrrupts
         # parent the trace to the JobKey
-        tracer.init_trace(env.get("UIPATH_PROCESS_NAME"), env.get("UIPATH_JOB_KEY"))
+        # tracer.init_trace(env.get("UIPATH_PROCESS_NAME"), env.get("UIPATH_JOB_KEY"))
 
         graph_config: RunnableConfig = {
             "configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")},
