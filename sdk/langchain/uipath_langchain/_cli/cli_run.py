@@ -135,7 +135,7 @@ def langgraph_run_middleware(
 
         graph_config: RunnableConfig = {
             "configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")},
-            "callbacks": [tracer] if env.get("UIPATH_JOB_KEY") else [],
+            "callbacks": [],
         }
 
         asyncio.run(execute(state_graph, input_data, graph_config, resume))
