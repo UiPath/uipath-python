@@ -72,44 +72,44 @@ class Middlewares:
             for cmd in cls._middlewares:
                 cls._middlewares[cmd] = []
 
+    @classmethod
+    def load_plugins(cls) -> None:
+        """Load all middlewares registered via entry points"""
+        if cls._plugins_loaded:
+            return
 
-@classmethod
-def load_plugins(cls) -> None:
-    """Load all middlewares registered via entry points"""
-    if cls._plugins_loaded:
-        return
-
-    try:
         try:
-            entry_points = importlib.metadata.entry_points()
-            if hasattr(entry_points, "select"):
-                middlewares = entry_points.select(group="uipath_sdk.middlewares")
-            else:
-                middlewares = entry_points.get("uipath_sdk.middlewares", [])
-        except Exception:
-            middlewares = importlib.metadata.entry_points(
-                group="uipath_sdk.middlewares"
-            )
-
-        middleware_list = list(middlewares)
-
-        if middleware_list:
-            logger.info(f"Found {len(middleware_list)} middleware plugins")
-
-            for entry_point in middleware_list:
-                try:
-                    register_func = entry_point.load()
-                    register_func()
-                    logger.info(f"Loaded middleware plugin: {entry_point.name}")
-                except Exception as e:
-                    logger.error(
-                        f"Failed to load middleware plugin {entry_point.name}: {str(e)}",
-                        exc_info=True,
+            try:
+                entry_points = importlib.metadata.entry_points()
+                if hasattr(entry_points, "select"):
+                    middlewares = list(
+                        entry_points.select(group="uipath_sdk.middlewares")
                     )
-        else:
-            logger.info("No middleware plugins found")
+                else:
+                    middlewares = list(entry_points.get("uipath_sdk.middlewares", []))
+            except Exception:
+                middlewares = list(importlib.metadata.entry_points())
+                middlewares = [
+                    ep for ep in middlewares if ep.group == "uipath_sdk.middlewares"
+                ]
 
-    except Exception as e:
-        logger.error(f"No middleware plugins loaded: {str(e)}")
-    finally:
-        cls._plugins_loaded = True
+            if middlewares:
+                logger.info(f"Found {len(middlewares)} middleware plugins")
+
+                for entry_point in middlewares:
+                    try:
+                        register_func = entry_point.load()
+                        register_func()
+                        logger.info(f"Loaded middleware plugin: {entry_point.name}")
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to load middleware plugin {entry_point.name}: {str(e)}",
+                            exc_info=True,
+                        )
+            else:
+                logger.info("No middleware plugins found")
+
+        except Exception as e:
+            logger.error(f"No middleware plugins loaded: {str(e)}")
+        finally:
+            cls._plugins_loaded = True
