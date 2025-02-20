@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from ._config import Config
 from ._execution_context import ExecutionContext
-from ._services import ActionsService, AssetsService, ProcessesService
+from ._services import ActionsService, AssetsService, BucketsService, ProcessesService
 from ._utils import setup_logging
 
 load_dotenv()
@@ -51,3 +51,7 @@ class UiPathSDK:
     @property
     def actions(self) -> ActionsService:
         return ActionsService(self._config, self._execution_context)
+
+    @property
+    def buckets(self) -> BucketsService:
+        return BucketsService(self._config, self._execution_context)
