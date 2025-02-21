@@ -13,3 +13,5 @@ wheels/
 **/.uipath
 **/**.nupkg
 **/uipath.json
+
+**/playground.py
