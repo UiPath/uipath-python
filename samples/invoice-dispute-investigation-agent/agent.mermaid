@@ -1,0 +1,20 @@
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	input_node(input_node)
+	call_model(call_model)
+	tools(tools)
+	ask_human(ask_human)
+	output_node(output_node)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> input_node;
+	ask_human --> call_model;
+	input_node --> call_model;
+	output_node --> __end__;
+	tools --> call_model;
+	call_model -.-> output_node;
+	call_model -.-> tools;
+	call_model -.-> ask_human;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
