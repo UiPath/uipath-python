@@ -44,6 +44,21 @@ class ActionsService(FolderContext, BaseService):
             ).json(),
         )
 
+    def retrieve(
+        self,
+        action_id: str,
+    ) -> Action:
+        endpoint = "/orchestrator_/tasks/GenericTasks/GetTaskDataById"
+
+        return cast(
+            Action,
+            self.request(
+                "GET",
+                endpoint,
+                params={"taskId": action_id},
+            ).json(),
+        )
+
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
