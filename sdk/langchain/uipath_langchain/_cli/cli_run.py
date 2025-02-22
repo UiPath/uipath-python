@@ -12,14 +12,18 @@ from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt, StateSnapshot
 from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
+from uipath_sdk._models import Action
 
 from ..tracers import Tracer
 from ._utils._graph import LangGraphConfig
+from ._utils._key_value_store import SimpleKeyValueStore
 
 logger = logging.getLogger(__name__)
 load_dotenv()
 
 tracer = Tracer()
+
+from uipath_sdk import UiPathSDK
 
 
 def get_interrupt_data(
@@ -55,6 +59,16 @@ async def execute(
         config = config or None
 
         if resume:
+            store = SimpleKeyValueStore()
+            await store.init_db()
+            resume_data = store.get_json("resume_data")
+            resume_action = resume_data["action"] if resume_data is not None else None
+
+            if resume_action:
+                sdk = UiPathSDK()
+                action = sdk.actions.retrieve(resume_action["id"])
+                input_data = action
+
             result = await graph.ainvoke(Command(resume=input_data), config)
         else:
             result = await graph.ainvoke(input_data, config)
@@ -83,6 +97,15 @@ async def execute(
             serialized_result = dict(result)
 
         print(f"[OutputStart]{json.dumps(serialized_result)}[OutputEnd]")
+
+        if isinstance(interrupt_data, Action):
+            action_id = interrupt_data["id"]
+            store = SimpleKeyValueStore()
+            await store.init_db()
+
+            store.set("resume_data", json.dumps({"action": {"id": action_id}}))
+
+            print(f"[SuspendActionStart]{action_id}[SuspendActionStart]")
 
         if interrupt_data:
             print(f"[SuspendStart]{json.dumps(interrupt_data)}[SuspendEnd]")
