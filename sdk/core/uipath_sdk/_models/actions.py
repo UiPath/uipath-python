@@ -1,24 +1,24 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class Action(BaseModel):
     taskDefinitionPropertiesId: Optional[int] = None
     appTasksMetadata: Optional[Any] = None
     actionLabel: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[Union[str, int]] = None
     data: Optional[Dict[str, Any]] = None
     action: Optional[str] = None
     waitJobState: Optional[str] = None
     organizationUnitFullyQualifiedName: Optional[str] = None
-    tags: List[Any] = Field(default_factory=list)
+    tags: Optional[List[Any]] = None
     assignedToUser: Optional[Any] = None
-    taskSlaDetails: List[Any] = Field(default_factory=list)
+    taskSlaDetails: Optional[List[Any]] = None
     completedByUser: Optional[Any] = None
     taskAssignmentCriteria: Optional[str] = None
-    taskAssignees: List[Any] = Field(default_factory=list)
+    taskAssignees: Optional[List[Any]] = None
     title: Optional[str] = None
     type: Optional[str] = None
     priority: Optional[str] = None
