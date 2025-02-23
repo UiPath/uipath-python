@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -35,14 +35,13 @@ class ActionsService(FolderContext, BaseService):
             }
         )
 
-        return cast(
-            Action,
-            self.request(
-                "POST",
-                endpoint,
-                content=content,
-            ).json(),
+        response = self.request(
+            "POST",
+            endpoint,
+            content=content,
         )
+
+        return Action.model_validate(response.json())
 
     @property
     def custom_headers(self) -> Dict[str, str]:
