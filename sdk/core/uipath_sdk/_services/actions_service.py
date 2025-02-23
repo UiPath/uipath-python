@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional, cast
+from json import dumps
+from typing import Any, Dict, Optional
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -20,13 +21,20 @@ class ActionsService(FolderContext, BaseService):
         app_version: int = -1,
     ) -> Action:
         """
-        :param app_id: The `systemName` of the app.
-        :param app_version: The `deployVersion` of the app.
-        :param title: The title of the task.
-        """
+        Create a new action.
 
+        Args:
+            title: The title of the action.
+            data: Optional dictionary of additional data.
+            app_id: The `systemName` of the app.
+            app_version: The `deployVersion` of the app.
+
+        Returns:
+            Action: The created action.
+        """
         endpoint = "/orchestrator_/tasks/AppTasks/CreateAppTask"
-        content = str(
+
+        content = dumps(
             {
                 "appId": app_id,
                 "appVersion": app_version,
@@ -35,29 +43,36 @@ class ActionsService(FolderContext, BaseService):
             }
         )
 
-        return cast(
-            Action,
-            self.request(
-                "POST",
-                endpoint,
-                content=content,
-            ).json(),
+        response = self.request(
+            "POST",
+            endpoint,
+            content=content,
         )
+
+        return Action.model_validate(response.json())
 
     def retrieve(
         self,
         action_id: str,
     ) -> Action:
+        """
+        Retrieve an action by Id.
+
+        Args:
+            action_id: The Id of the action to retrieve.
+
+        Returns:
+            Action: The retrieved action.
+        """
         endpoint = "/orchestrator_/tasks/GenericTasks/GetTaskDataById"
 
-        return cast(
-            Action,
-            self.request(
-                "GET",
-                endpoint,
-                params={"taskId": action_id},
-            ).json(),
+        response = self.request(
+            "GET",
+            endpoint,
+            params={"taskId": action_id},
         )
+
+        return Action.model_validate(response.json())
 
     @property
     def custom_headers(self) -> Dict[str, str]:
