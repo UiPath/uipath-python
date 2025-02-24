@@ -26,7 +26,9 @@ class Tracer(BaseTracer):
         self.agentId = env.get("UIPATH_AGENT_ID")
         self.url = llm_ops_pattern.format(orgId=self.orgId).rstrip("/")
 
-        self.auth_token = env.get("UIPATH_ACCESS_TOKEN")
+        self.auth_token = env.get("UNATTENDED_USER_ACCESS_TOKEN") or env.get(
+            "UIPATH_ACCESS_TOKEN"
+        )
 
         self.headers = {
             "Authorization": f"Bearer {self.auth_token}",
