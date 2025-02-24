@@ -59,6 +59,7 @@ class BaseService:
     )
     def request(self, method: str, url: Union[URL, str], **kwargs: Any) -> Response:
         self._logger.debug(f"Request: {method} {url}")
+        self._logger.debug(f"HEADERS: {kwargs.get('headers', self.client.headers)}")
 
         response = self.client.request(method, url, **kwargs)
 
