@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import sys
 from os import environ as env
 from typing import Any, Dict, List, Optional, Tuple
@@ -104,6 +105,8 @@ def langgraph_run_middleware(
         if input is None:
             raise Exception("Input is None")
 
+        for key, value in os.environ.items():
+            print(f"[Env]{key}={value}")
         print(f"[Resume] {resume}")
         print(f"[Input] {input}")
 
@@ -134,7 +137,7 @@ def langgraph_run_middleware(
         # manually create a single trace for the job or else langgraph will create multiple parents on Interrrupts
         # parent the trace to the JobKey
         job_key = env.get("UIPATH_JOB_KEY", None)
-        tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
+        tracing_enabled = env.get("UIPATH_TRACING_ENABLED", False)
         callbacks: List[BaseCallbackHandler] = []
         run_name = env.get("PROCESS_KEY") or "default"
 
