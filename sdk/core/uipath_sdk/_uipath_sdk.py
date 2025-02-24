@@ -1,4 +1,3 @@
-from logging import getLogger
 from os import environ as env
 from typing import Optional
 
@@ -8,6 +7,7 @@ from ._config import Config
 from ._execution_context import ExecutionContext
 from ._services import (
     ActionsService,
+    ApiClient,
     AssetsService,
     BucketsService,
     ContextGroundingService,
@@ -39,12 +39,11 @@ class UiPathSDK:
         )
 
         setup_logging(debug)
-        log = getLogger("uipath")
-
-        log.debug("CONFIG:")
-        log.debug(f"{self._config.model_dump()}\n")
-
         self._execution_context = ExecutionContext()
+
+    @property
+    def api_client(self) -> ApiClient:
+        return ApiClient(self._config, self._execution_context)
 
     @property
     def assets(self) -> AssetsService:
