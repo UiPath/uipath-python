@@ -136,10 +136,11 @@ def langgraph_run_middleware(
         job_key = env.get("UIPATH_JOB_KEY", None)
         tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
         callbacks: List[BaseCallbackHandler] = []
+        run_name = env.get("PROCESS_KEY") or "default"
 
         if job_key and tracing_enabled:
             tracer = Tracer()
-            tracer.init_trace(env.get("UIPATH_PROCESS_NAME"), job_key)
+            tracer.init_trace(run_name, job_key)
             callbacks = [tracer]
 
         graph_config: RunnableConfig = {

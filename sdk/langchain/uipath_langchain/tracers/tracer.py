@@ -17,7 +17,7 @@ class Tracer(BaseTracer):
     def __init__(self, verify_https=True, **kwargs):
         super().__init__(**kwargs)
 
-        # usefull when testing
+        # useful when testing
         self.verify_https = verify_https
 
         llm_ops_pattern = self._get_base_url() + "{orgId}/llmops_"
