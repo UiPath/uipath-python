@@ -3,9 +3,10 @@ import json
 import logging
 import sys
 from os import environ as env
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
+from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
@@ -18,8 +19,6 @@ from ._utils._graph import LangGraphConfig
 
 logger = logging.getLogger(__name__)
 load_dotenv()
-
-tracer = Tracer()
 
 
 def get_interrupt_data(
@@ -134,11 +133,18 @@ def langgraph_run_middleware(
 
         # manually create a single trace for the job or else langgraph will create multiple parents on Interrrupts
         # parent the trace to the JobKey
-        # tracer.init_trace(env.get("UIPATH_PROCESS_NAME"), env.get("UIPATH_JOB_KEY"))
+        job_key = env.get("UIPATH_JOB_KEY", None)
+        tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
+        callbacks: List[BaseCallbackHandler] = []
+
+        if job_key and tracing_enabled:
+            tracer = Tracer()
+            tracer.init_trace(env.get("UIPATH_PROCESS_NAME"), job_key)
+            callbacks = [tracer]
 
         graph_config: RunnableConfig = {
-            "configurable": {"thread_id": env.get("UIPATH_JOB_KEY", "default")},
-            "callbacks": [],
+            "configurable": {"thread_id": job_key if job_key else "default"},
+            "callbacks": callbacks,
         }
 
         asyncio.run(execute(state_graph, input_data, graph_config, resume))
