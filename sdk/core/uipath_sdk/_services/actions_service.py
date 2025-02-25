@@ -53,23 +53,24 @@ class ActionsService(FolderContext, BaseService):
 
     def retrieve(
         self,
-        action_id: str,
+        action_key: str,
     ) -> Action:
         """
-        Retrieve an action by Id.
+        Retrieve an action by key.
 
         Args:
-            action_id: The Id of the action to retrieve.
+            action_key: The key of the action to retrieve.
 
         Returns:
             Action: The retrieved action.
         """
-        endpoint = "/orchestrator_/tasks/GenericTasks/GetTaskDataById"
+        endpoint = "/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"
+        params = {"taskKey": action_key}
 
         response = self.request(
             "GET",
             endpoint,
-            params={"taskId": action_id},
+            params=params,
         )
 
         return Action.model_validate(response.json())
