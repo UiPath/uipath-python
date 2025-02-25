@@ -41,30 +41,17 @@ def get_env_vars():
 
 
 @click.command()
-@click.argument("path", type=str, default="")
-def publish(path):
-    # Search for .nupkg file
-    packageToPublish = None
+def publish():
+    if not os.path.exists(".uipath"):
+        click.echo("No .uipath directory found in current directory")
+        return
 
-    if not path:
-        if not os.path.exists(".uipath"):
-            click.echo("No .uipath directory found in current directory")
-            return
+    # Find most recent .nupkg file in .uipath directory
+    most_recent = get_most_recent_package()
 
-        # Find most recent .nupkg file in .uipath directory
-        most_recent = get_most_recent_package()
-        # click.echo(f"Do you want to publish {most_recent}?")
+    click.echo(f"Publishing most recent package: {most_recent}")
 
-        if not click.confirm(f"Do you want to publish {most_recent}?"):
-            click.echo("Aborting publish")
-            return
-
-        packageToPublish = os.path.join(".uipath", most_recent)
-    else:
-        if not os.path.exists(path):
-            click.echo(f"{path} not found")
-            return
-        packageToPublish = path
+    package_to_publish_path = os.path.join(".uipath", most_recent)
 
     # Check .env file
     if not os.path.exists(".env"):
@@ -77,8 +64,8 @@ def publish(path):
 
     headers = {"Authorization": f"Bearer {token}"}
 
-    with open(packageToPublish, "rb") as f:
-        files = {"file": (packageToPublish, f, "application/octet-stream")}
+    with open(package_to_publish_path, "rb") as f:
+        files = {"file": (package_to_publish_path, f, "application/octet-stream")}
         response = requests.post(url, headers=headers, files=files)
 
     if response.status_code == 200:
