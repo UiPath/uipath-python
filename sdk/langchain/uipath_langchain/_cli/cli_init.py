@@ -7,6 +7,27 @@ from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
 from ._utils._graph import LangGraphConfig
 
 
+def resolve_refs(schema, root=None):
+    """Recursively resolves $ref references in a JSON schema."""
+    if root is None:
+        root = schema  # Store the root schema to resolve $refs
+
+    if isinstance(schema, dict):
+        if "$ref" in schema:
+            ref_path = schema["$ref"].lstrip("#/").split("/")
+            ref_schema = root
+            for part in ref_path:
+                ref_schema = ref_schema.get(part, {})
+            return resolve_refs(ref_schema, root)
+
+        return {k: resolve_refs(v, root) for k, v in schema.items()}
+
+    elif isinstance(schema, list):
+        return [resolve_refs(item, root) for item in schema]
+
+    return schema
+
+
 def generate_schema_from_graph(graph: Any) -> Dict[str, Any]:
     """Extract input/output schema from a LangGraph graph"""
     schema = {
@@ -17,14 +38,27 @@ def generate_schema_from_graph(graph: Any) -> Dict[str, Any]:
     if hasattr(graph, "input_schema"):
         if hasattr(graph.input_schema, "model_json_schema"):
             input_schema = graph.input_schema.model_json_schema()
-            schema["input"]["properties"] = input_schema.get("properties", {})
-            schema["input"]["required"] = input_schema.get("required", [])
+
+            unpacked_ref_def_properties = resolve_refs(input_schema)
+
+            schema["input"]["properties"] = unpacked_ref_def_properties.get(
+                "properties", {}
+            )
+            schema["input"]["required"] = unpacked_ref_def_properties.get(
+                "required", []
+            )
 
     if hasattr(graph, "output_schema"):
         if hasattr(graph.output_schema, "model_json_schema"):
             output_schema = graph.output_schema.model_json_schema()
-            schema["output"]["properties"] = output_schema.get("properties", {})
-            schema["output"]["required"] = output_schema.get("required", [])
+
+            unpacked_ref_def_properties = resolve_refs(output_schema)
+            schema["output"]["properties"] = unpacked_ref_def_properties.get(
+                "properties", {}
+            )
+            schema["output"]["required"] = unpacked_ref_def_properties.get(
+                "required", []
+            )
 
     return schema
 
@@ -52,7 +86,7 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
                 graph_schema = generate_schema_from_graph(loaded_graph)
 
                 new_entrypoint: dict[str, Any] = {
-                    "filePath": graph.name,
+                    "filePath": f"content/{graph.name}",
                     "uniqueId": str(uuid.uuid4()),
                     "type": "agent",
                     "input": graph_schema["input"],
