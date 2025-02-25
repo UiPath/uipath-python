@@ -286,15 +286,25 @@ def read_toml_project(file_path: str) -> dict[str, any]:
         }
 
 
+def get_project_version(directory):
+    toml_path = os.path.join(directory, "pyproject.toml")
+    if not os.path.exists(toml_path):
+        click.echo("Warning: No pyproject.toml found. Using default version 0.0.1")
+        return "0.0.1"
+    toml_data = read_toml_project(toml_path)
+    return toml_data["version"]
+
+
 @click.command()
 @click.argument("root", type=str, default="./")
-@click.argument("version", type=str, default="")
-def pack(root, version):
-    proposed_version = get_proposed_version(root)
-    if proposed_version and click.confirm(f"Use version {proposed_version}?"):
-        version = proposed_version
+def pack(root):
+    version = get_project_version(root)
+
     while not os.path.isfile(os.path.join(root, "uipath.json")):
-        root = click.prompt("'uipath.json' not found.\nEnter your project's directory")
+        click.echo(
+            "uipath.json not found. Please run `uipath init` in the project directory."
+        )
+        return
     config = check_config(root)
     click.echo(
         f"Packaging project {config['project_name']}:{version or config['version']} description {config['description']} authored by {config['authors']}"
