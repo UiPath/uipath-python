@@ -1,14 +1,17 @@
 import json
 import uuid
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Interrupt, StateSnapshot
+from uipath_sdk import UiPathSDK  # type: ignore
 from uipath_sdk._models.actions import Action  # type: ignore
 
+from ._escalation import EscalationConfig
 from ._trigger import ResumeTriggerType
 
+uipath = UiPathSDK()
 
 @dataclass
 class ApiResumeTrigger:
@@ -46,6 +49,11 @@ class InterruptInfo:
         if isinstance(self.value, Action):
             return str(self.value.key)
         return None
+
+    @property
+    def interrupt_value(self) -> Union[Action, Any]:
+        """Returns the actual value of the interrupt, with its specific type."""
+        return self.value
 
     def serialize(self) -> str:
         """
@@ -141,17 +149,36 @@ class GraphOutput:
             """)
 
             key = None
-            if (
-                self.resume_trigger.triggerType == ResumeTriggerType.API
-                and self.resume_trigger.apiResume
-            ):
-                key = self.resume_trigger.apiResume.inboxId
+            type = None
+
+            default_escalation = EscalationConfig()
+
+            if default_escalation.enabled and self.interrupt_info:
+                interrupt_value = self.interrupt_info.interrupt_value
+                action = await default_escalation.create_action(interrupt_value)
+                if action:
+                    key = action.key
+                    type = ResumeTriggerType.ACTION
             else:
-                key = self.resume_trigger.itemKey
+                if (
+                    self.resume_trigger.triggerType == ResumeTriggerType.API
+                    and self.resume_trigger.apiResume
+                ):
+                    key = self.resume_trigger.apiResume.inboxId
+                    type = self.resume_trigger.triggerType
+
+                else:
+                    key = self.resume_trigger.itemKey
+                    type = self.resume_trigger.triggerType
+
+                    if key is None and self.interrupt_info:
+                        if type is ResumeTriggerType.ACTION:
+                            action = await uipath.actions.create(self.interrupt_info.interrupt_value)
+                            key = action.key
 
             await cur.execute(
                 "INSERT INTO __uipath_resume_triggers (type, key) VALUES (?, ?)",
-                (self.resume_trigger.triggerType, key),
+                (type, key),
             )
             await self.checkpointer.conn.commit()
 
