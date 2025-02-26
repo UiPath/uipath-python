@@ -5,6 +5,7 @@ from httpx import Response
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
+from .._utils import Endpoint
 from ._base_service import BaseService
 
 
@@ -13,7 +14,7 @@ class ProcessesService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     def invoke(self, release_key: str) -> Response:
-        endpoint = (
+        endpoint = Endpoint(
             "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
         )
         content = str({"startInfo": {"ReleaseKey": release_key}})

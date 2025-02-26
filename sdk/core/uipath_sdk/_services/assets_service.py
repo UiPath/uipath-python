@@ -6,6 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._models import UserAsset
+from .._utils import Endpoint
 from ._base_service import BaseService
 
 
@@ -17,7 +18,9 @@ class AssetsService(FolderContext, BaseService):
         self,
         assetName: str,
     ) -> str:
-        endpoint = "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
+        endpoint = Endpoint(
+            "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
+        )
         content = str(
             {"assetName": assetName, "robotKey": self._execution_context.robot_key}
         )
@@ -35,7 +38,9 @@ class AssetsService(FolderContext, BaseService):
         self,
         robotAsset: UserAsset,
     ) -> Response:
-        endpoint = "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey"
+        endpoint = Endpoint(
+            "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey"
+        )
         content = str(
             {
                 "robotKey": self._execution_context.robot_key,

@@ -5,6 +5,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._models import Action
+from .._utils import Endpoint
 from ._base_service import BaseService
 
 
@@ -32,7 +33,7 @@ class ActionsService(FolderContext, BaseService):
         Returns:
             Action: The created action.
         """
-        endpoint = "/orchestrator_/tasks/AppTasks/CreateAppTask"
+        endpoint = Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask")
 
         content = dumps(
             {
@@ -64,7 +65,7 @@ class ActionsService(FolderContext, BaseService):
         Returns:
             Action: The retrieved action.
         """
-        endpoint = "/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"
+        endpoint = Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey")
         params = {"taskKey": action_key}
 
         response = self.request(

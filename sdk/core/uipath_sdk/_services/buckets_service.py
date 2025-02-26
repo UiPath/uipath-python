@@ -2,6 +2,8 @@ from typing import Dict
 
 from httpx import request
 
+from uipath_sdk._utils._endpoint import Endpoint
+
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
@@ -18,9 +20,11 @@ class BucketsService(FolderContext, BaseService):
         blob_file_path: str,
         destination_path: str,
     ) -> None:
-        endpoint = f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetReadUri?path={blob_file_path}"
+        endpoint = Endpoint(
+            f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetReadUri"
+        )
 
-        result = self.request("GET", endpoint).json()
+        result = self.request("GET", endpoint, params={"path": blob_file_path}).json()
         read_uri = result["Uri"]
 
         headers = {
@@ -45,9 +49,15 @@ class BucketsService(FolderContext, BaseService):
         content_type: str,
         source_path: str,
     ) -> None:
-        endpoint = f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetWriteUri?path={blob_file_path}&contentType={content_type}"
+        endpoint = Endpoint(
+            f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetWriteUri"
+        )
 
-        result = self.request("GET", endpoint).json()
+        result = self.request(
+            "GET",
+            endpoint,
+            params={"path": blob_file_path, "contentType": content_type},
+        ).json()
         write_uri = result["Uri"]
 
         headers = {
@@ -64,9 +74,17 @@ class BucketsService(FolderContext, BaseService):
                 request("PUT", write_uri, headers=headers, files={"file": file})
 
     def get_bucket_id(self, bucket_name: str) -> str:
-        endpoint = f"/orchestrator_/odata/Buckets?$top=1&$filter=(contains(Name,%27{bucket_name}%27))&$orderby=Name%20asc"
+        endpoint = Endpoint("/orchestrator_/odata/Buckets")
 
-        response = self.request("GET", endpoint)
+        response = self.request(
+            "GET",
+            endpoint,
+            params={
+                "$top": 1,
+                "$filter": f"(contains(Name,%27{bucket_name}%27))",
+                "$orderby": "Name%20asc",
+            },
+        )
         key = response.json()["value"][0]["Id"]
         return key
 

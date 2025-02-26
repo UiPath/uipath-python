@@ -1,3 +1,4 @@
+from ._endpoint import Endpoint
 from ._exceptions import (
     AuthenticationError,
     BadRequestError,
@@ -10,6 +11,7 @@ from ._exceptions import (
 from ._logs import setup_logging
 
 __all__ = [
+    "Endpoint",
     "setup_logging",
     "BadRequestError",
     "AuthenticationError",
