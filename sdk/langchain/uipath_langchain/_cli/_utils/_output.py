@@ -35,6 +35,9 @@ class InterruptInfo:
     _inbox_id: str = field(
         default_factory=lambda: str(uuid.uuid4()), init=False, repr=False
     )
+    _resume_trigger: Optional[ResumeTrigger] = field(
+        default=None, init=False, repr=False
+    )
 
     @property
     def type(self) -> Optional[str]:
@@ -71,15 +74,19 @@ class InterruptInfo:
 
     @property
     def resume_trigger(self) -> ResumeTrigger:
-        """Creates appropriate suspend data based on interrupt type."""
-        if self.type is None:
-            return ResumeTrigger(
-                apiResume=ApiResumeTrigger(
-                    inboxId=self._inbox_id, request=self.serialize()
+        """Creates the resume trigger based on interrupt type."""
+        if self._resume_trigger is None:
+            if self.type is None:
+                self._resume_trigger = ResumeTrigger(
+                    apiResume=ApiResumeTrigger(
+                        inboxId=self._inbox_id, request=self.serialize()
+                    )
                 )
-            )
-        else:
-            return ResumeTrigger(itemKey=self.identifier, triggerType=self.type)
+            else:
+                self._resume_trigger = ResumeTrigger(
+                    itemKey=self.identifier, triggerType=self.type
+                )
+        return self._resume_trigger
 
 
 @dataclass
@@ -152,6 +159,7 @@ class GraphOutput:
             else:
                 key = self.resume_trigger.itemKey
 
+            print(f"[ResumeTrigger]: Store DB {self.resume_trigger.triggerType} {key}")
             await cur.execute(
                 "INSERT INTO __uipath_resume_triggers (type, key) VALUES (?, ?)",
                 (self.resume_trigger.triggerType, key),

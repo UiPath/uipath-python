@@ -50,7 +50,7 @@ class GraphInput:
                 f"/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
                 include_folder_headers=True,
             )
-            return response.get("value")
+            return response.get("payload")
         except Exception as e:
             print(f"Error fetching API trigger payload: {e}")
             return None
@@ -71,6 +71,7 @@ class GraphInput:
             return Command(resume=input_data)
 
         type, key = trigger
+        print(f"[ResumeTrigger]: Retrieve DB {type} {key}")
         if type == ResumeTriggerType.ACTION and key:
             action = await uipath.actions.retrieve(key)
             return Command(resume=action.data)
