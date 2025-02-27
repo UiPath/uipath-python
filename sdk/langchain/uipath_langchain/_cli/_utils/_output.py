@@ -1,6 +1,6 @@
 import json
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Optional
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -32,6 +32,9 @@ class InterruptInfo:
     """Contains all information about an interrupt."""
 
     value: Any
+    _inbox_id: str = field(
+        default_factory=lambda: str(uuid.uuid4()), init=False, repr=False
+    )
 
     @property
     def type(self) -> Optional[str]:
@@ -72,7 +75,7 @@ class InterruptInfo:
         if self.type is None:
             return ResumeTrigger(
                 apiResume=ApiResumeTrigger(
-                    inboxId=str(uuid.uuid4()), request=self.serialize()
+                    inboxId=self._inbox_id, request=self.serialize()
                 )
             )
         else:
