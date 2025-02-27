@@ -1,6 +1,7 @@
 import json
 import uuid
 from dataclasses import asdict, dataclass, field
+from functools import cached_property
 from typing import Any, Dict, Optional
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -32,12 +33,6 @@ class InterruptInfo:
     """Contains all information about an interrupt."""
 
     value: Any
-    _inbox_id: str = field(
-        default_factory=lambda: str(uuid.uuid4()), init=False, repr=False
-    )
-    _resume_trigger: Optional[ResumeTrigger] = field(
-        default=None, init=False, repr=False
-    )
 
     @property
     def type(self) -> Optional[str]:
@@ -72,21 +67,17 @@ class InterruptInfo:
         except (TypeError, ValueError, json.JSONDecodeError):
             return str(self.value)
 
-    @property
+    @cached_property
     def resume_trigger(self) -> ResumeTrigger:
         """Creates the resume trigger based on interrupt type."""
-        if self._resume_trigger is None:
-            if self.type is None:
-                self._resume_trigger = ResumeTrigger(
-                    apiResume=ApiResumeTrigger(
-                        inboxId=self._inbox_id, request=self.serialize()
-                    )
+        if self.type is None:
+            return ResumeTrigger(
+                apiResume=ApiResumeTrigger(
+                    inboxId=str(uuid.uuid4()), request=self.serialize()
                 )
-            else:
-                self._resume_trigger = ResumeTrigger(
-                    itemKey=self.identifier, triggerType=self.type
-                )
-        return self._resume_trigger
+            )
+        else:
+            return ResumeTrigger(itemKey=self.identifier, triggerType=self.type)
 
 
 @dataclass
@@ -100,32 +91,42 @@ class GraphOutput:
     state: Optional[StateSnapshot]
     checkpointer: Optional[AsyncSqliteSaver] = None
 
-    @property
-    def status(self) -> str:
-        """Determines the execution status based on state."""
-        return "suspended" if self.interrupt_info else "completed"
+    _interrupt_info: Optional[InterruptInfo] = field(
+        default=None, init=False, repr=False
+    )
+    _resume_trigger: Optional[ResumeTrigger] = field(
+        default=None, init=False, repr=False
+    )
 
-    @property
-    def interrupt_info(self) -> Optional[InterruptInfo]:
-        """Gets interrupt information if available."""
+    def __post_init__(self):
+        """Process and cache interrupt information after initialization."""
         if not self.state or not hasattr(self.state, "next") or not self.state.next:
-            return None
+            return
 
         for task in self.state.tasks:
             if hasattr(task, "interrupts") and task.interrupts:
                 for interrupt in task.interrupts:
                     if isinstance(interrupt, Interrupt):
-                        return InterruptInfo(interrupt.value)
-        return None
+                        self._interrupt_info = InterruptInfo(interrupt.value)
+                        self._resume_trigger = self._interrupt_info.resume_trigger
+                        return
+
+    @property
+    def status(self) -> str:
+        """Determines the execution status based on state."""
+        return "suspended" if self._interrupt_info else "completed"
+
+    @property
+    def interrupt_info(self) -> Optional[InterruptInfo]:
+        """Gets interrupt information if available."""
+        return self._interrupt_info
 
     @property
     def resume_trigger(self) -> Optional[ResumeTrigger]:
         """Gets resume trigger if interrupted."""
-        if self.interrupt_info:
-            return self.interrupt_info.resume_trigger
-        return None
+        return self._resume_trigger
 
-    @property
+    @cached_property
     def serialized_result(self) -> Dict[str, Any]:
         """Serializes the graph execution result."""
         if hasattr(self.result, "dict"):
