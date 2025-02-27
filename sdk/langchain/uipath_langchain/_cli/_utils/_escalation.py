@@ -3,12 +3,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from uipath_sdk import UiPathSDK  # type: ignore
-from uipath_sdk._models.actions import Action  # type: ignore
+from uipath_sdk import UiPathSDK
+from uipath_sdk._models.actions import Action
 
 logger = logging.getLogger(__name__)
-
-uipath = UiPathSDK()
 
 
 class Escalation:
@@ -180,6 +178,7 @@ class Escalation:
             return None
 
         try:
+            uipath = UiPathSDK()
             action = uipath.actions.create(
                 title=self._config.get("title", "Default escalation"),
                 app_id=self._config.get("appId"),

@@ -2,7 +2,7 @@ import json
 import uuid
 from typing import Any, Dict
 
-from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
+from uipath_sdk._cli.middlewares import MiddlewareResult
 
 from ._utils._graph import LangGraphConfig
 

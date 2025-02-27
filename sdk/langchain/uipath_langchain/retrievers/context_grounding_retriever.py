@@ -3,7 +3,7 @@ from typing import List, Optional
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
-from uipath_sdk import UiPathSDK  # type: ignore
+from uipath_sdk import UiPathSDK
 
 
 class ContextGroundingRetriever(BaseRetriever):
@@ -18,7 +18,9 @@ class ContextGroundingRetriever(BaseRetriever):
 
         sdk = self.uipath_sdk if self.uipath_sdk is not None else UiPathSDK()
         results = sdk.context_grounding.search(
-            self.index_name, query, self.number_of_results
+            self.index_name,
+            query,
+            self.number_of_results if self.number_of_results is not None else 10,
         )
 
         return [

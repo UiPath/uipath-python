@@ -11,7 +11,7 @@ from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from uipath_sdk._cli.middlewares import MiddlewareResult  # type: ignore
+from uipath_sdk._cli.middlewares import MiddlewareResult
 
 from ..tracers import Tracer
 from ._utils._graph import LangGraphConfig

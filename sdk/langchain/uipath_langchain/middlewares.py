@@ -1,4 +1,4 @@
-from uipath_sdk._cli.middlewares import Middlewares  # type: ignore
+from uipath_sdk._cli.middlewares import Middlewares
 
 from ._cli.cli_init import langgraph_init_middleware
 from ._cli.cli_run import langgraph_run_middleware
