@@ -102,7 +102,7 @@ def langgraph_run_middleware(
         # manually create a single trace for the job or else langgraph will create multiple parents on Interrrupts
         # parent the trace to the JobKey
         job_key = env.get("UIPATH_JOB_KEY", None)
-        tracing_enabled = env.get("UIPATH_TRACING_ENABLED", False)
+        tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
         callbacks: List[BaseCallbackHandler] = []
         run_name = env.get("PROCESS_KEY") or "default"
 
