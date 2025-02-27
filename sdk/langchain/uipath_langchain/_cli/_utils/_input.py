@@ -50,8 +50,9 @@ class GraphInput:
                 f"/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
                 include_folder_headers=True,
             )
-            print(response)
-            return response.get("payload")
+            data = response.json()
+            print(data)
+            return data.get("payload")
         except Exception as e:
             print(f"Error fetching API trigger payload: {e}")
             return None
