@@ -45,11 +45,12 @@ class GraphInput:
             The value field from the API response payload, or None if an error occurs.
         """
         try:
-            response = await uipath.api_client.request(
+            response = uipath.api_client.request(
                 "GET",
                 f"/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
                 include_folder_headers=True,
             )
+            print(response)
             return response.get("payload")
         except Exception as e:
             print(f"Error fetching API trigger payload: {e}")
