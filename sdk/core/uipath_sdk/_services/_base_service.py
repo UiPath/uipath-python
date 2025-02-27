@@ -16,15 +16,6 @@ from tenacity import (
     wait_exponential,
 )
 
-from uipath_sdk._utils._exceptions import (
-    AuthenticationError,
-    BadRequestError,
-    ConflictError,
-    NotFoundError,
-    RateLimitError,
-    UnprocessableEntityError,
-)
-
 from .._config import Config
 from .._execution_context import ExecutionContext
 
@@ -63,22 +54,7 @@ class BaseService:
 
         response = self.client.request(method, url, **kwargs)
 
-        status_code = response.status_code
-        if status_code in [400, 401, 404, 409, 422, 429]:
-            if status_code == 400:
-                raise BadRequestError()
-            elif status_code == 401:
-                raise AuthenticationError()
-            elif status_code == 404:
-                raise NotFoundError()
-            elif status_code == 409:
-                raise ConflictError()
-            elif status_code == 422:
-                raise UnprocessableEntityError()
-            elif status_code == 429:
-                raise RateLimitError()
-        else:
-            response.raise_for_status()
+        response.raise_for_status()
 
         return response
 
