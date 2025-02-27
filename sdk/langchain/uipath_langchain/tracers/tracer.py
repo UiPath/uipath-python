@@ -101,6 +101,8 @@ class Tracer(BaseTracer):
             "attributes": self._safe_json_dump(self._run_to_dict(run)),
             "organizationId": self.orgId,
             "tenantId": self.tenantId,
+            "spanType": "LangGraphRun",
+            "status": 2 if run.error else 1,
         }
 
         response = requests.post(
