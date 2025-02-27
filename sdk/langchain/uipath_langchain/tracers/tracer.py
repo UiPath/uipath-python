@@ -23,7 +23,7 @@ class Tracer(BaseTracer):
         llm_ops_pattern = self._get_base_url() + "{orgId}/llmops_"
         self.orgId = env.get("UIPATH_ORGANIZATION_ID")
         self.tenantId = env.get("UIPATH_TENANT_ID")
-        self.agentId = env.get("UIPATH_AGENT_ID")
+        self.referenceId = env.get("UIPATH_JOB_KEY") or str(uuid.uuid4())
         self.url = llm_ops_pattern.format(orgId=self.orgId).rstrip("/")
 
         self.auth_token = env.get("UNATTENDED_USER_ACCESS_TOKEN") or env.get(
@@ -68,7 +68,7 @@ class Tracer(BaseTracer):
             "name": re.sub(
                 "[!@#$<>\.]", "", run_name
             ),  # if we use these characters the Agents UI throws some error (but llmops backend seems fine)
-            "referenceId": self.agentId,
+            "referenceId": self.referenceId,
             "attributes": "{}",
             "organizationId": self.orgId,
             "tenantId": self.tenantId,
@@ -97,7 +97,7 @@ class Tracer(BaseTracer):
             "name": run.name,
             "startTime": str(run.start_time),
             "endTime": str(run.end_time or run.start_time),
-            "referenceId": self.agentId,
+            "referenceId": self.referenceId,
             "attributes": self._safe_json_dump(self._run_to_dict(run)),
             "organizationId": self.orgId,
             "tenantId": self.tenantId,
