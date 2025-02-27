@@ -58,51 +58,20 @@ defaults:
 
 NOTE: this command also needs an `.env` file in your current directory
 
-## Setup
-
-1. **Install Python 3.13**:
-
-    - Download and install Python 3.13 from the official [Python website](https://www.python.org/downloads/).
-    - Verify the installation by running:
-        ```sh
-        python3.13 --version
-        ```
-
-2. **Install [uv](https://docs.astral.sh/uv/)**:
-
-    ```sh
-    pip install uv
-    ```
-
-3. **Create a virtual environment in the current working directory**:
-
-    ```sh
-        uv venv
-    ```
-
-4. **Install dependencies**:
-    ```sh
-
-        uv sync --all-extras
-    ```
-
-See `just --list` for linting, formatting and build
-
 ## Installation
 Use any package manager (e.g. `uv`) to install `uipath` from PyPi:
     `uv add uipath_sdk`
 
 ## Usage
 ### SDK
-1. Set these env variables:
-- `UIPATH_BASE_URL`
-- `UIPATH_ACCOUNT_NAME`
-- `UIPATH_TENANT_NAME`
-- `UIPATH_FOLDER_ID`
-
-2. Generate a PAT (Personal Access Token)
+1. Generate a PAT (Personal Access Token)
 For example, to create a PAT for alpha, go to (replace ORG with your organization name)
 https://alpha.uipath.com/[ORG]/portal_/personalAccessToken/add
+
+2. Set these env variables:
+- `UIPATH_URL`
+- `UIPATH_ACCESS_TOKEN`
+- `UIPATH_FOLDER_PATH`
 
 ```py
 import os
@@ -110,16 +79,13 @@ from uipath_sdk import UiPathSDK
 
 
 def main():
-    secret = os.environ.get("UIPATH_ALPHA_SECRET")
+    uipath = UiPathSDK()
 
-    uipath = UiPathSDK(secret)
-
-    job = uipath.processes.invoke_process(release_key="")
+    job = uipath.processes.invoke_process(name="process_name")
     print(job)
 
 ```
 
 ### CLI
-
 
 ## License
