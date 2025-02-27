@@ -3,7 +3,7 @@ from typing import Any, Optional, cast
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
-from uipath_sdk import UiPathSDK  # type: ignore
+from uipath_sdk import UiPathSDK
 
 from ._trigger import ResumeTriggerType
 
@@ -75,7 +75,7 @@ class GraphInput:
         type, key = trigger
         print(f"[ResumeTrigger]: Retrieve DB {type} {key}")
         if type == ResumeTriggerType.ACTION and key:
-            action = await uipath.actions.retrieve(key)
+            action = uipath.actions.retrieve(key)
             return Command(resume=action.data)
         elif type == ResumeTriggerType.API and key:
             payload = await self.get_api_payload(key)

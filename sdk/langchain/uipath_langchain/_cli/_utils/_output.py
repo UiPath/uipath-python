@@ -2,12 +2,13 @@ import json
 import uuid
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Interrupt, StateSnapshot
-from uipath_sdk._models.actions import Action  # type: ignore
+from uipath_sdk._models.actions import Action
 
+from ._escalation import Escalation
 from ._trigger import ResumeTriggerType
 
 
@@ -117,6 +118,13 @@ class GraphOutput:
         return "suspended" if self._interrupt_info else "completed"
 
     @property
+    def interrupt_value(self) -> Union[Action, Any]:
+        """Returns the actual value of the interrupt, with its specific type."""
+        if self.interrupt_info is None:
+            return None
+        return self.interrupt_info.value
+
+    @property
     def interrupt_info(self) -> Optional[InterruptInfo]:
         """Gets interrupt information if available."""
         return self._interrupt_info
@@ -152,18 +160,31 @@ class GraphOutput:
             """)
 
             key = None
+            type = None
+
+            default_escalation = Escalation()
+
+            if default_escalation.enabled:
+                action = await default_escalation.create(self.interrupt_value)
+                if action:
+                    self._resume_trigger = ResumeTrigger(
+                        ResumeTriggerType.ACTION, action.key
+                    )
+
             if (
                 self.resume_trigger.triggerType == ResumeTriggerType.API
                 and self.resume_trigger.apiResume
             ):
                 key = self.resume_trigger.apiResume.inboxId
+                type = self.resume_trigger.triggerType
             else:
                 key = self.resume_trigger.itemKey
+                type = self.resume_trigger.triggerType
 
-            print(f"[ResumeTrigger]: Store DB {self.resume_trigger.triggerType} {key}")
+            print(f"[ResumeTrigger]: Store DB {type} {key}")
             await cur.execute(
                 "INSERT INTO __uipath_resume_triggers (type, key) VALUES (?, ?)",
-                (self.resume_trigger.triggerType, key),
+                (type, key),
             )
             await self.checkpointer.conn.commit()
 
