@@ -82,7 +82,9 @@ class Tracer(BaseTracer):
         )
 
         if 400 <= response.status_code < 600:
-            logger.warning(f"Error when sending trace: {response}")
+            logger.warning(
+                f"Error when sending trace: {response}. Body is: {response.text}"
+            )
 
     def _persist_run(self, run: Run) -> None:
         # when (run.id == run.parent_run_id)  it's the start of a new trace
@@ -113,7 +115,9 @@ class Tracer(BaseTracer):
         )
 
         if 400 <= response.status_code < 600:
-            logger.warning(f"Error when sending trace: {response}")
+            logger.warning(
+                f"Error when sending trace: {response}. Body is: {response.text}"
+            )
 
     def _end_trace(self, run: Run) -> None:
         super()._end_trace(run)
