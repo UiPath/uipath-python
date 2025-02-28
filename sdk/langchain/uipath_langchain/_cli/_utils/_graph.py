@@ -106,14 +106,13 @@ class LangGraphConfig:
 
             if env_file := config.get("env"):
                 env_path = os.path.abspath(os.path.normpath(env_file))
-                if not os.path.exists(env_path):
-                    logger.warning(f"Environment file not found: {env_path}")
-                elif not load_dotenv(env_path):
-                    logger.warning(
-                        f"Could not load environment variables from {env_path}"
-                    )
-                else:
-                    logger.debug(f"Loaded environment variables from {env_path}")
+                if os.path.exists(env_path):
+                    if not load_dotenv(env_path):
+                        logger.warning(
+                            f"Could not load environment variables from {env_path}"
+                        )
+                    else:
+                        logger.debug(f"Loaded environment variables from {env_path}")
 
             self._config = config
             self._load_graphs()

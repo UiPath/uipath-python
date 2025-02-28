@@ -76,6 +76,7 @@ class GraphInput:
         print(f"[ResumeTrigger]: Retrieve DB {type} {key}")
         if type == ResumeTriggerType.ACTION and key:
             action = uipath.actions.retrieve(key)
+            print(action.data)
             return Command(resume=action.data)
         elif type == ResumeTriggerType.API and key:
             payload = await self.get_api_payload(key)
