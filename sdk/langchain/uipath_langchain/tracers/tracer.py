@@ -94,7 +94,7 @@ class Tracer(BaseTracer):
             "id": str(run.id),
             "parentId": str(run.parent_run_id)
             if run.parent_run_id is not None
-            else env.get("UIPATH_PARENT_SPAN_ID"),
+            else None,
             "traceId": self.trace_parent,
             "name": run.name,
             "startTime": str(run.start_time),
