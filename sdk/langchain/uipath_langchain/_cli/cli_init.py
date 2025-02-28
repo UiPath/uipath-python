@@ -86,7 +86,7 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
                 graph_schema = generate_schema_from_graph(loaded_graph)
 
                 new_entrypoint: dict[str, Any] = {
-                    "filePath": f"content/{graph.name}",
+                    "filePath": graph.name,
                     "uniqueId": str(uuid.uuid4()),
                     "type": "agent",
                     "input": graph_schema["input"],
