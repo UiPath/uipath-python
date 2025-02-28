@@ -53,7 +53,6 @@ async def execute(
             logger.info("[Executor]: Graph execution completed successfully.")
 
         output.write_to_file()
-        output.print_output()
 
 
 def langgraph_run_middleware(
@@ -70,10 +69,11 @@ def langgraph_run_middleware(
         if input is None:
             raise Exception("Input is None")
 
-        for key, value in os.environ.items():
-            print(f"[Env]{key}={value}")
-        print(f"[Input]: {input}")
-        print(f"[Resumed]: {resume}")
+        if os.environ.get("LOG_LEVEL") == "DEBUG":
+            for key, value in os.environ.items():
+                print(f"[Env]{key}={value}")
+                print(f"[Input]: {input}")
+                print(f"[Resumed]: {resume}")
 
         input_data = json.loads(input)
 

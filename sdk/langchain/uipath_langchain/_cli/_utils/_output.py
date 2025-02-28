@@ -204,10 +204,3 @@ class GraphOutput:
         print(json.dumps(content))
         with open(filename, "w") as f:
             json.dump(content, f, indent=2, default=str)
-
-    def print_output(self) -> None:
-        """Prints the output in the expected format."""
-        print(f"[OutputStart]{json.dumps(self.serialized_result)}[OutputEnd]")
-
-        if self.interrupt_info:
-            print(f"[SuspendStart]{self.interrupt_info.serialize()}[SuspendEnd]")
