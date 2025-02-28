@@ -39,7 +39,7 @@ class Escalation:
             escalation_config = config_data.get("defaultEscalation")
 
             if escalation_config:
-                required_fields = {"appId", "data", "title"}
+                required_fields = {"appId", "request", "title"}
                 missing_fields = [
                     field for field in required_fields if field not in escalation_config
                 ]
@@ -96,7 +96,7 @@ class Escalation:
         if not self.enabled or not self._config:
             return {}
 
-        template = self._config.get("data", {})
+        template = self._config.get("request", {})
 
         if isinstance(value, str):
             try:
@@ -157,6 +157,55 @@ class Escalation:
             current = current.get(part)
 
         return current
+
+    def extract_response_value(self, action_data: Dict[str, Any]) -> Any:
+        if not self.enabled or not self._config:
+            return action_data
+
+        response_template = self._config.get("response")
+        if not response_template:
+            return action_data
+
+        for key, template_value in response_template.items():
+            if key in action_data:
+                extracted_value = None
+
+                if template_value == "$VALUE":
+                    extracted_value = action_data[key]
+                elif isinstance(template_value, str) and template_value.startswith(
+                    "$VALUE."
+                ):
+                    path_parts = template_value.replace("$VALUE.", "").split(".")
+                    current = action_data[key]
+
+                    valid_path = True
+                    for part in path_parts:
+                        if not isinstance(current, dict) or part not in current:
+                            valid_path = False
+                            break
+                        current = current.get(part)
+
+                    if valid_path:
+                        extracted_value = current
+
+                if extracted_value is not None:
+                    if isinstance(extracted_value, str):
+                        if extracted_value.lower() == "true":
+                            return True
+                        elif extracted_value.lower() == "false":
+                            return False
+
+                        try:
+                            if "." in extracted_value:
+                                return float(extracted_value)
+                            else:
+                                return int(extracted_value)
+                        except ValueError:
+                            pass
+
+                    return extracted_value
+
+        return action_data
 
     async def create(self, value: Any) -> Optional[Action]:
         """

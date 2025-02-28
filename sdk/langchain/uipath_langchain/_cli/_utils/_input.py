@@ -5,6 +5,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
 from uipath_sdk import UiPathSDK
 
+from ._escalation import Escalation
 from ._trigger import ResumeTriggerType
 
 uipath = UiPathSDK()
@@ -18,6 +19,12 @@ class GraphInput:
     """
 
     checkpointer: AsyncSqliteSaver
+    config_path: str = "uipath.json"
+    _escalation: Optional[Escalation] = None
+
+    def __post_init__(self):
+        """Initialize the escalation handler after initialization."""
+        self._escalation = Escalation(self.config_path)
 
     async def get_latest_trigger(self) -> Optional[tuple[str, str]]:
         """Fetch the most recent trigger from the database."""
@@ -76,8 +83,11 @@ class GraphInput:
         print(f"[ResumeTrigger]: Retrieve DB {type} {key}")
         if type == ResumeTriggerType.ACTION and key:
             action = uipath.actions.retrieve(key)
-            print(action)
-            print(action.data)
+            if action.data is None:
+                return Command(resume={})
+            if self._escalation:
+                extracted_value = self._escalation.extract_response_value(action.data)
+                return Command(resume=extracted_value)
             return Command(resume=action.data)
         elif type == ResumeTriggerType.API and key:
             payload = await self.get_api_payload(key)
