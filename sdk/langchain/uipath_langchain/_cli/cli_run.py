@@ -6,6 +6,7 @@ from os import environ as env
 from typing import Any, List, Optional
 
 from dotenv import load_dotenv
+from langchain.callbacks.tracers.langchain import wait_for_all_tracers
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -43,6 +44,9 @@ async def execute(
         except Exception as e:
             logger.error(f"[Executor]: Failed to get state: {str(e)}")
             state = None
+        finally:
+            if env.get("LANGSMITH_TRACING", False):
+                wait_for_all_tracers()
 
         output = GraphOutput(result=result, state=state, checkpointer=memory)
 
