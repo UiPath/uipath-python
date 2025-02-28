@@ -1,6 +1,6 @@
 [project]
 name = "uipath_langchain"
-version = "0.0.43"
+version = "0.0.44"
 description = "UiPath Langchain"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
@@ -75,6 +75,7 @@ plugins = [
   "pydantic.mypy"
 ]
 
+ignore_missing_imports = true
 follow_imports = "silent"
 warn_redundant_casts = true
 warn_unused_ignores = true
