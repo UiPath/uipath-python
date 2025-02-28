@@ -85,7 +85,7 @@ def test_init_with_entrypoint(runner: CliRunner, temp_dir: str) -> None:
             config = json.load(f)
             assert "entryPoints" in config
             assert len(config["entryPoints"]) == 1
-            assert config["entryPoints"][0]["filePath"] == "content/script.py"
+            assert config["entryPoints"][0]["filePath"] == "script.py"
             assert config["entryPoints"][0]["type"] == "agent"
             assert "uniqueId" in config["entryPoints"][0]
 

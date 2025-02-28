@@ -79,7 +79,7 @@ def init(entrypoint: str) -> None:
         config_data = {
             "entryPoints": [
                 {
-                    "filePath": f"content/{relative_path}",
+                    "filePath": relative_path,
                     "uniqueId": str(uuid.uuid4()),
                     # "type": "process", OR BE doesn't offer json schema support for type: Process
                     "type": "agent",

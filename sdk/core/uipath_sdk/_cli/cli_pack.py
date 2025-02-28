@@ -58,7 +58,7 @@ def generate_operate_file(entryPoints):
     operate_json_data = {
         "$schema": schema,
         "projectId": project_id,
-        "main": f"content/{file_path}",
+        "main": file_path,
         "contentType": type,
         "targetFramework": "Portable",
         "targetRuntime": "python",
@@ -188,7 +188,7 @@ def generate_package_descriptor_content(entryPoints):
     }
 
     for entry in entryPoints:
-        files[entry["filePath"]] = f"content/{entry['filePath']}"
+        files[entry["filePath"]] = entry["filePath"]
 
     package_descriptor_content = {
         "$schema": "https://cloud.uipath.com/draft/2024-12/package-descriptor",

@@ -72,8 +72,6 @@ def langgraph_run_middleware(
 
         for key, value in os.environ.items():
             print(f"[Env]{key}={value}")
-        print(f"[Resume] {resume}")
-        print(f"[Input] {input}")
         print(f"[Input]: {input}")
         print(f"[Resumed]: {resume}")
 
