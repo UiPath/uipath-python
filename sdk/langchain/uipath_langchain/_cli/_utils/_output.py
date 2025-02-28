@@ -137,6 +137,8 @@ class GraphOutput:
     @cached_property
     def serialized_result(self) -> Dict[str, Any]:
         """Serializes the graph execution result."""
+        if self.result is None:
+            return {}
         if hasattr(self.result, "dict"):
             return self.result.dict()
         elif hasattr(self.result, "to_dict"):
