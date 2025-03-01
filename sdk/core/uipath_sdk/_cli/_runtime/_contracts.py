@@ -18,12 +18,10 @@ class RuntimeStatus(str, Enum):
 class ErrorCategory(str, Enum):
     """Categories of runtime errors."""
 
-    VALIDATION = "validation"
-    EXECUTION = "execution"
-    INPUT = "input"
-    OUTPUT = "output"
+    DEPLOYMENT = "deployment"
     SYSTEM = "system"
     UNKNOWN = "unknown"
+    USER = "user"
 
 
 class ResumeTrigger(str, Enum):
@@ -62,7 +60,7 @@ class ErrorInfo:
 
 
 @dataclass
-class ApiTrigger:
+class ApiTriggerInfo:
     """API resume trigger request."""
 
     inboxId: Optional[str] = None
@@ -75,7 +73,7 @@ class ResumeInfo:
 
     triggerType: str = ResumeTrigger.API
     itemKey: Optional[str] = None
-    apiResume: Optional[ApiTrigger] = None
+    apiResume: Optional[ApiTriggerInfo] = None
 
 
 @dataclass
@@ -84,8 +82,10 @@ class RuntimeContext:
 
     entrypoint: Optional[str] = None
     input: Optional[str] = None
+    input_json: Any = None
     job_id: Optional[str] = None
     trace_id: Optional[str] = None
+    tracing_enabled: bool = False
     resume: bool = False
     config_path: str = "uipath.json"
     logs_dir: Optional[str] = "__uipath_logs"
@@ -116,7 +116,23 @@ class ExecutionResult:
 
         return result
 
+
+class UiPathRuntimeError(Exception):
+    """Base exception class for UiPath runtime errors with structured error information."""
+
+    def __init__(
+        self,
+        code: str,
+        title: str,
+        detail: str,
+        category: ErrorCategory = ErrorCategory.UNKNOWN,
+        status: Optional[int] = None,
+        prefix: str = "CODE",
+    ):
+        self.error_info = ErrorInfo(f"{prefix}.{code}", title, detail, category, status)
+        super().__init__(detail)
+
     @property
-    def success(self) -> bool:
-        """Determine if the execution was successful."""
-        return self.status == RuntimeStatus.SUCCESSFUL
+    def as_dict(self) -> Dict[str, Any]:
+        """Get the error information as a dictionary."""
+        return self.error_info.to_dict()
