@@ -2,9 +2,11 @@
 Core runtime contracts that define the interfaces between components.
 """
 
-from dataclasses import asdict, dataclass
+import traceback
 from enum import Enum
 from typing import Any, Dict, Optional, Union
+
+from pydantic import BaseModel, Field
 
 
 class RuntimeStatus(str, Enum):
@@ -38,8 +40,7 @@ class ResumeTrigger(str, Enum):
     API = "Api"
 
 
-@dataclass
-class ErrorInfo:
+class ErrorInfo(BaseModel):
     """Standard error contract used across the runtime."""
 
     code: str
@@ -48,36 +49,27 @@ class ErrorInfo:
     category: ErrorCategory = ErrorCategory.UNKNOWN
     status: Optional[int] = None
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary compatible with JobErrorDto."""
-        return {
-            "code": self.code,
-            "title": self.title,
-            "detail": self.detail,
-            "category": self.category,
-            "status": self.status,
-        }
 
-
-@dataclass
-class ApiTriggerInfo:
+class ApiTriggerInfo(BaseModel):
     """API resume trigger request."""
 
-    inboxId: Optional[str] = None
+    inbox_id: Optional[str] = Field(default=None, alias="inboxId")
     request: Any = None
 
+    model_config = {"populate_by_name": True}
 
-@dataclass
-class ResumeInfo:
+
+class ResumeInfo(BaseModel):
     """Information needed to resume execution."""
 
-    triggerType: ResumeTrigger = ResumeTrigger.API
-    itemKey: Optional[str] = None
-    apiResume: Optional[ApiTriggerInfo] = None
+    trigger_type: ResumeTrigger = Field(default=ResumeTrigger.API, alias="triggerType")
+    item_key: Optional[str] = Field(default=None, alias="itemKey")
+    api_resume: Optional[ApiTriggerInfo] = Field(default=None, alias="apiResume")
+
+    model_config = {"populate_by_name": True}
 
 
-@dataclass
-class RuntimeContext:
+class RuntimeContext(BaseModel):
     """Context information passed throughout the runtime execution."""
 
     entrypoint: Optional[str] = None
@@ -85,15 +77,16 @@ class RuntimeContext:
     input_json: Optional[Any] = None
     job_id: Optional[str] = None
     trace_id: Optional[str] = None
-    tracing_enabled: Union[str, bool] = False
+    tracing_enabled: Union[bool, str] = False
     resume: bool = False
     config_path: str = "uipath.json"
     logs_dir: Optional[str] = "__uipath_logs"
     output_file: str = "__uipath_output.json"
 
+    model_config = {"arbitrary_types_allowed": True}
 
-@dataclass
-class ExecutionResult:
+
+class ExecutionResult(BaseModel):
     """Result of an execution with status and optional error information."""
 
     output: Optional[Dict[str, Any]] = None
@@ -109,10 +102,10 @@ class ExecutionResult:
         }
 
         if self.resume:
-            result["resume"] = asdict(self.resume)
+            result["resume"] = self.resume.model_dump(by_alias=True)
 
         if self.error:
-            result["error"] = self.error.to_dict()
+            result["error"] = self.error.model_dump()
 
         return result
 
@@ -128,11 +121,26 @@ class UiPathRuntimeError(Exception):
         category: ErrorCategory = ErrorCategory.UNKNOWN,
         status: Optional[int] = None,
         prefix: str = "CODE",
+        include_traceback: bool = True,
     ):
-        self.error_info = ErrorInfo(f"{prefix}.{code}", title, detail, category, status)
+        # Get the current traceback as a string
+        if include_traceback:
+            tb = traceback.format_exc()
+            if (
+                tb and tb.strip() != "NoneType: None"
+            ):  # Ensure there's an actual traceback
+                detail = f"{detail}\n\nTraceback:\n{tb}"
+
+        self.error_info = ErrorInfo(
+            code=f"{prefix}.{code}",
+            title=title,
+            detail=detail,
+            category=category,
+            status=status,
+        )
         super().__init__(detail)
 
     @property
     def as_dict(self) -> Dict[str, Any]:
         """Get the error information as a dictionary."""
-        return self.error_info.to_dict()
+        return self.error_info.model_dump()
