@@ -4,7 +4,7 @@ Core runtime contracts that define the interfaces between components.
 
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 
 class RuntimeStatus(str, Enum):
@@ -71,7 +71,7 @@ class ApiTriggerInfo:
 class ResumeInfo:
     """Information needed to resume execution."""
 
-    triggerType: str = ResumeTrigger.API
+    triggerType: ResumeTrigger = ResumeTrigger.API
     itemKey: Optional[str] = None
     apiResume: Optional[ApiTriggerInfo] = None
 
@@ -82,10 +82,10 @@ class RuntimeContext:
 
     entrypoint: Optional[str] = None
     input: Optional[str] = None
-    input_json: Any = None
+    input_json: Optional[Any] = None
     job_id: Optional[str] = None
     trace_id: Optional[str] = None
-    tracing_enabled: bool = False
+    tracing_enabled: Union[str, bool] = False
     resume: bool = False
     config_path: str = "uipath.json"
     logs_dir: Optional[str] = "__uipath_logs"
