@@ -46,16 +46,17 @@ class LangGraphInputProcessor:
 
         type, key = trigger
         print(f"[ResumeTrigger]: Retrieve DB {type} {key}")
-        if type == ResumeTrigger.ACTION and key:
+        if type == ResumeTrigger.ACTION.value and key:
+            print(f"[ActionKey]: {key}")
             action = uipath.actions.retrieve(key)
-            print(f"[Action]: {action.key}")
+            print(f"[Action]: {action}")
             if action.data is None:
                 return Command(resume={})
             if self._escalation:
                 extracted_value = self._escalation.extract_response_value(action.data)
                 return Command(resume=extracted_value)
             return Command(resume=action.data)
-        elif type == ResumeTrigger.API and key:
+        elif type == ResumeTrigger.API.value and key:
             payload = await self._get_api_payload(key)
             if payload:
                 return Command(resume=payload)

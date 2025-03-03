@@ -226,14 +226,14 @@ class LangGraphOutputProcessor:
                     ) from e
 
                 if (
-                    self.resume_trigger.trigger_type == ResumeTrigger.API
+                    self.resume_trigger.trigger_type.value == ResumeTrigger.API.value
                     and self.resume_trigger.api_resume
                 ):
                     trigger_key = self.resume_trigger.api_resume.inbox_id
-                    trigger_type = str(self.resume_trigger.trigger_type)
+                    trigger_type = self.resume_trigger.trigger_type.value
                 else:
                     trigger_key = self.resume_trigger.item_key
-                    trigger_type = str(self.resume_trigger.trigger_type)
+                    trigger_type = self.resume_trigger.trigger_type.value
 
                 try:
                     print(f"[ResumeTrigger]: Store DB {trigger_type} {trigger_key}")
