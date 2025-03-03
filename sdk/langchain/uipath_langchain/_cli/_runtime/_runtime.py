@@ -212,8 +212,6 @@ class LangGraphRuntime:
         try:
             if self.context.input:
                 self.context.input_json = json.loads(self.context.input)
-            else:
-                self.context.input_json = {}
         except json.JSONDecodeError as e:
             raise LangGraphRuntimeError(
                 "INPUT_INVALID_JSON",
