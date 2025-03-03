@@ -31,19 +31,24 @@ class LangGraphInputProcessor:
         Process the input data, handling resume scenarios by fetching
         necessary data from UiPath if needed.
         """
+        print(f"[Resumed]: {self.context.resume}")
+        print(f"[Input]: {self.context.input_json}")
+
         if not self.context.resume:
             return self.context.input_json
 
         if self.context.input_json:
-            return self.context.input_json
+            return Command(resume=self.context.input_json)
 
         trigger = await self._get_latest_trigger()
         if not trigger:
             return Command(resume=self.context.input_json)
 
         type, key = trigger
+        print(f"[ResumeTrigger]: Retrieve DB {type} {key}")
         if type == ResumeTrigger.ACTION and key:
             action = uipath.actions.retrieve(key)
+            print(f"[Action]: {action.key}")
             if action.data is None:
                 return Command(resume={})
             if self._escalation:
