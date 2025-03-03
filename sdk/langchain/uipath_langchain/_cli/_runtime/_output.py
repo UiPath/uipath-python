@@ -2,9 +2,9 @@ import json
 import uuid
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, cast
 
-from langgraph.types import Interrupt
+from langgraph.types import Interrupt, StateSnapshot
 from uipath_sdk._cli._runtime._contracts import (
     ApiTriggerInfo,
     ErrorCategory,
@@ -88,14 +88,11 @@ class LangGraphOutputProcessor:
 
     def __post_init__(self):
         """Process and cache interrupt information after initialization."""
-        if (
-            not self.context.state
-            or not hasattr(self.context.state, "next")
-            or not self.context.state.next
-        ):
+        state = cast(StateSnapshot, self.context.state)
+        if not state or not hasattr(state, "next") or not state.next:
             return
 
-        for task in self.context.state.tasks:
+        for task in state.tasks:
             if hasattr(task, "interrupts") and task.interrupts:
                 for interrupt in task.interrupts:
                     if isinstance(interrupt, Interrupt):
