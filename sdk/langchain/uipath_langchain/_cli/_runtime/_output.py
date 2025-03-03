@@ -236,6 +236,7 @@ class LangGraphOutputProcessor:
                     trigger_type = str(self.resume_trigger.trigger_type)
 
                 try:
+                    print(f"[ResumeTrigger]: Store DB {trigger_type} {trigger_key}")
                     await cur.execute(
                         f"INSERT INTO {self.context.resume_triggers_table} (type, key) VALUES (?, ?)",
                         (trigger_type, trigger_key),
