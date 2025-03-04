@@ -53,8 +53,6 @@ class LangGraphRuntime:
         """
         print(f"Starting runtime with job id: {self.context.job_id}")
 
-        self._validate_context()
-
         return self
 
     async def execute(self) -> Optional[ExecutionResult]:
@@ -67,6 +65,9 @@ class LangGraphRuntime:
         Raises:
             LangGraphRuntimeError: If execution fails
         """
+
+        self._validate_context()
+
         if self.context.state_graph is None:
             return None
 
@@ -164,9 +165,12 @@ class LangGraphRuntime:
                 execution_result.status = RuntimeStatus.FAULTED
                 execution_result.error = error_info
 
+            content = execution_result.to_dict()
+            print(content)
+
             # Always write output file
             with open(self.context.output_file, "w") as f:
-                json.dump(execution_result.to_dict(), f, indent=2, default=str)
+                json.dump(content, f, indent=2, default=str)
 
             # Don't suppress exceptions
             return False
