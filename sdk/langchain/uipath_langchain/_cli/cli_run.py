@@ -31,12 +31,13 @@ def langgraph_run_middleware(
             context = LangGraphRuntimeContext(
                 entrypoint=entrypoint,
                 input=input,
+                resume=resume,
+                langgraph_config=config,
+                logs_min_level=env.get("LOG_LEVEL", "DEBUG"),
                 job_id=env.get("UIPATH_JOB_KEY"),
                 trace_id=env.get("UIPATH_TRACE_ID"),
                 tracing_enabled=env.get("UIPATH_TRACING_ENABLED", True),
                 langsmith_tracing_enabled=env.get("LANGSMITH_TRACING", False),
-                resume=resume,
-                langgraph_config=config,
             )
 
             async with LangGraphRuntime.from_context(context) as runtime:

@@ -1106,7 +1106,7 @@ wheels = [
 
 [[package]]
 name = "uipath-langchain"
-version = "0.0.44"
+version = "0.0.50"
 source = { editable = "." }
 dependencies = [
     { name = "langchain-core" },
@@ -1135,7 +1135,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.23.3" },
     { name = "types-requests", specifier = "==2.32.0.20241016" },
     { name = "uipath-langchain", marker = "extra == 'langchain'", specifier = ">=0.0.2" },
-    { name = "uipath-sdk", specifier = ">=0.0.63" },
+    { name = "uipath-sdk", specifier = ">=0.0.65" },
 ]
 
 [package.metadata.requires-dev]
@@ -1150,7 +1150,7 @@ dev = [
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.63"
+version = "0.0.65"
 source = { registry = "https://pypi.org/simple/" }
 dependencies = [
     { name = "click" },
@@ -1162,9 +1162,9 @@ dependencies = [
     { name = "tenacity" },
     { name = "tomli" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d1/ca/cbfa06a42e7f803196ef832bacd273d498031a759afd06bf9a12d4e6a2b4/uipath_sdk-0.0.63.tar.gz", hash = "sha256:367d1e13e790ee939652dbf7143929e1a9cee1e4c391b0bb38105f4b269ba549", size = 19708 }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/86/a89c1e1de2ebecba3bb99a6a49f30d882460cc745f4a01a58761f5f2889f/uipath_sdk-0.0.65.tar.gz", hash = "sha256:c285d3020dd1b7c96c4f2593c4c4cc7dde93de5196c674ae6a4607597a6318db", size = 21331 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/f2/56ef4ae7df489839e0966f4fc7d29edb9667c38c8b99cd2403e12b0fe0c8/uipath_sdk-0.0.63-py3-none-any.whl", hash = "sha256:4b47899f680c2cad06906241120454288b6e20a96929ef35457cc6bda59963bd", size = 32911 },
+    { url = "https://files.pythonhosted.org/packages/6f/10/fa70e47ab8bbe7d9d43a77fa932490648c61d4e1e584e8c8aca5e2d4da35/uipath_sdk-0.0.65-py3-none-any.whl", hash = "sha256:201f4d54203684e56b74ed147e02d5c99ceb5dccfb8c24b1feefc244c03d5782", size = 34916 },
 ]
 
 [[package]]
