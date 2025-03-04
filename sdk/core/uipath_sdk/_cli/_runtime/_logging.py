@@ -49,6 +49,9 @@ class LogsInterceptor:
         # Convert to numeric level for consistent comparison
         self.numeric_min_level = getattr(logging, min_level.upper(), logging.DEBUG)
 
+        # Store the original disable level
+        self.original_disable_level = logging.root.manager.disable
+
         self.root_logger = logging.getLogger()
         self.original_level = self.root_logger.level
         self.original_handlers = list(self.root_logger.handlers)
@@ -61,8 +64,6 @@ class LogsInterceptor:
 
         self.logger = logging.getLogger("runtime")
 
-        self.original_get_logger = logging.getLogger
-
         self.patched_loggers: set[str] = set()
 
     def _clean_all_handlers(self, logger: logging.Logger) -> None:
@@ -74,54 +75,28 @@ class LogsInterceptor:
         # Now add our handler
         logger.addHandler(self.log_handler)
 
-    def _patch_get_logger(self) -> None:
-        """
-        Patch the getLogger function to ensure all new loggers use our handler.
-        """
-        patched_loggers = self.patched_loggers
-        clean_all_handlers = self._clean_all_handlers
-        min_level = self.numeric_min_level
-
-        def patched_get_logger(name=None):
-            logger = self.original_get_logger(name)
-
-            # Set the level to prevent lower-level logs
-            logger.setLevel(min_level)
-
-            # Remove all handlers and add only ours
-            clean_all_handlers(logger)
-
-            if name:
-                patched_loggers.add(name)
-
-            return logger
-
-        logging.getLogger = patched_get_logger
-
     def setup(self) -> None:
         """
         Configure logging to use our persistent handler.
         """
-        # Set root logger to our min level
+        # Use global disable to prevent all logging below our minimum level
+        if self.numeric_min_level > logging.NOTSET:
+            logging.disable(self.numeric_min_level - 1)
+
+        # Set root logger level
         self.root_logger.setLevel(self.numeric_min_level)
 
         # Remove ALL handlers from root logger and add only ours
         self._clean_all_handlers(self.root_logger)
 
-        # Now set up propagation and handlers for all loggers
+        # Set up propagation for all existing loggers
         for logger_name in logging.root.manager.loggerDict:
             logger = logging.getLogger(logger_name)
             logger.propagate = False  # Prevent double-logging
-
-            # Force the level
-            logger.setLevel(self.numeric_min_level)
-
-            # Remove all handlers and add only ours
             self._clean_all_handlers(logger)
             self.patched_loggers.add(logger_name)
 
-        # Patch getLogger
-        self._patch_get_logger()
+        # Set up stdout/stderr redirection
         self._redirect_stdout_stderr()
 
     def _redirect_stdout_stderr(self) -> None:
@@ -146,14 +121,10 @@ class LogsInterceptor:
         # Set up stdout and stderr loggers with propagate=False
         stdout_logger = logging.getLogger("stdout")
         stdout_logger.propagate = False
-        stdout_logger.setLevel(self.numeric_min_level)
+        self._clean_all_handlers(stdout_logger)
 
         stderr_logger = logging.getLogger("stderr")
         stderr_logger.propagate = False
-        stderr_logger.setLevel(self.numeric_min_level)
-
-        # Clean handlers and add our handler
-        self._clean_all_handlers(stdout_logger)
         self._clean_all_handlers(stderr_logger)
 
         # Use the min_level in the LoggerWriter to filter messages
@@ -162,7 +133,8 @@ class LogsInterceptor:
 
     def teardown(self) -> None:
         """Restore original logging configuration."""
-        logging.getLogger = self.original_get_logger
+        # Restore the original disable level
+        logging.disable(self.original_disable_level)
 
         if self.log_handler in self.root_logger.handlers:
             self.root_logger.removeHandler(self.log_handler)
