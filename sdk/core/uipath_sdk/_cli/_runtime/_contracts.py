@@ -81,6 +81,7 @@ class RuntimeContext(BaseModel):
     resume: bool = False
     config_path: str = "uipath.json"
     logs_dir: Optional[str] = "__uipath_logs"
+    logs_min_level: Optional[str] = "DEBUG"
     output_file: str = "__uipath_output.json"
 
     model_config = {"arbitrary_types_allowed": True}
