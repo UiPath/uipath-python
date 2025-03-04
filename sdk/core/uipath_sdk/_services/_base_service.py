@@ -3,6 +3,7 @@ from typing import Any, Union
 
 from httpx import (
     URL,
+    AsyncClient,
     Client,
     ConnectTimeout,
     Headers,
@@ -38,6 +39,9 @@ class BaseService:
         self.client = Client(
             base_url=self._config.base_url, headers=Headers(self.default_headers)
         )
+        self.client_async = AsyncClient(
+            base_url=self._config.base_url, headers=Headers(self.default_headers)
+        )
 
         super().__init__()
 
@@ -53,6 +57,27 @@ class BaseService:
         self._logger.debug(f"HEADERS: {kwargs.get('headers', self.client.headers)}")
 
         response = self.client.request(method, url, **kwargs)
+
+        response.raise_for_status()
+
+        return response
+
+    @retry(
+        retry=(
+            retry_if_exception(is_retryable_exception)
+            | retry_if_result(is_retryable_status_code)
+        ),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
+    async def request_async(
+        self, method: str, url: Union[URL, str], **kwargs: Any
+    ) -> Response:
+        self._logger.debug(f"Request: {method} {url}")
+        self._logger.debug(
+            f"HEADERS: {kwargs.get('headers', self.client_async.headers)}"
+        )
+
+        response = await self.client_async.request(method, url, **kwargs)
 
         response.raise_for_status()
 
