@@ -223,7 +223,7 @@ class LangGraphRuntime:
                 ) from e
             raise
         finally:
-            # Restore origin logging
+            # Restore original logging
             if self.context.job_id and self.logs_interceptor:
                 self.logs_interceptor.teardown()
 
