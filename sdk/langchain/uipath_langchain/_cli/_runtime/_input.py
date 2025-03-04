@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Any, Optional, cast
 
@@ -8,6 +9,8 @@ from uipath_sdk._cli._runtime._contracts import ErrorCategory, ResumeTrigger
 from ._context import LangGraphRuntimeContext
 from ._escalation import Escalation
 from ._exception import LangGraphRuntimeError
+
+logger = logging.getLogger(__name__)
 
 uipath = UiPathSDK()
 
@@ -31,8 +34,7 @@ class LangGraphInputProcessor:
         Process the input data, handling resume scenarios by fetching
         necessary data from UiPath if needed.
         """
-        print(f"[Resumed]: {self.context.resume}")
-        print(f"[Input]: {self.context.input_json}")
+        logger.debug(f"Resumed: {self.context.resume} Input: {self.context.input_json}")
 
         if not self.context.resume:
             return self.context.input_json
@@ -45,11 +47,10 @@ class LangGraphInputProcessor:
             return Command(resume=self.context.input_json)
 
         type, key = trigger
-        print(f"[ResumeTrigger]: Retrieve DB {type} {key}")
+        logger.debug(f"ResumeTrigger: {type} {key}")
         if type == ResumeTrigger.ACTION.value and key:
-            print(f"[ActionKey]: {key}")
             action = uipath.actions.retrieve(key)
-            print(f"[Action]: {action}")
+            logger.debug(f"Action: {action}")
             if action.data is None:
                 return Command(resume={})
             if self._escalation:

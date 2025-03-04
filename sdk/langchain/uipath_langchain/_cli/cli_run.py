@@ -33,7 +33,7 @@ def langgraph_run_middleware(
                 input=input,
                 resume=resume,
                 langgraph_config=config,
-                logs_min_level=env.get("LOG_LEVEL", "DEBUG"),
+                logs_min_level=env.get("LOG_LEVEL", "INFO"),
                 job_id=env.get("UIPATH_JOB_KEY"),
                 trace_id=env.get("UIPATH_TRACE_ID"),
                 tracing_enabled=env.get("UIPATH_TRACING_ENABLED", True),
