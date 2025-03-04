@@ -12,6 +12,7 @@ from uipath_sdk._cli._runtime._contracts import (
     ExecutionResult,
     RuntimeStatus,
 )
+from uipath_sdk._cli._runtime._logging import LogsInterceptor
 
 from ...tracers.tracer import Tracer
 from ._context import LangGraphRuntimeContext
@@ -51,6 +52,14 @@ class LangGraphRuntime:
         Returns:
             The runtime instance
         """
+
+        # Intercept all stdout/stderr/logs and write them to a file at runtime
+        if self.context.job_id:
+            self.logs_interceptor = LogsInterceptor(
+                min_level=self.context.logs_min_level, dir=self.context.logs_dir
+            )
+            self.logs_interceptor.setup()
+
         print(f"Starting runtime with job id: {self.context.job_id}")
 
         return self
@@ -168,9 +177,10 @@ class LangGraphRuntime:
             content = execution_result.to_dict()
             print(content)
 
-            # Always write output file
-            with open(self.context.output_file, "w") as f:
-                json.dump(content, f, indent=2, default=str)
+            # Always write output file at runtime
+            if self.context.job_id:
+                with open(self.context.output_file, "w") as f:
+                    json.dump(content, f, indent=2, default=str)
 
             # Don't suppress exceptions
             return False
@@ -194,11 +204,14 @@ class LangGraphRuntime:
                 error_result = ExecutionResult(
                     status=RuntimeStatus.FAULTED, error=error_info
                 )
-
-                with open(self.context.output_file, "w") as f:
-                    json.dump(error_result.to_dict(), f, indent=2, default=str)
+                error_result_content = error_result.to_dict()
+                print(error_result_content)
+                if self.context.job_id:
+                    with open(self.context.output_file, "w") as f:
+                        json.dump(error_result_content, f, indent=2, default=str)
             except Exception as write_error:
                 print(f"Failed to write error output file: {str(write_error)}")
+                raise
 
             # Re-raise as LangGraphRuntimeError if it's not already
             if not isinstance(e, LangGraphRuntimeError):
@@ -209,6 +222,10 @@ class LangGraphRuntime:
                     error_info.category,
                 ) from e
             raise
+        finally:
+            # Restore origin logging
+            if self.context.job_id and self.logs_interceptor:
+                self.logs_interceptor.teardown()
 
     def _validate_context(self):
         """Validate runtime inputs."""
