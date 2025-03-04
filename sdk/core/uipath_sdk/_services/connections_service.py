@@ -1,5 +1,3 @@
-from typing import cast
-
 from uipath_sdk._utils._endpoint import Endpoint
 
 from .._config import Config
@@ -13,11 +11,10 @@ class ConnectionsService(BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     def token(self, elementInstanceId: int) -> ConnectionPing:
-        return cast(
-            ConnectionPing,
-            self.request(
-                "GET",
-                Endpoint(f"/elements_/v3/element/instances/{elementInstanceId}/ping"),
-                params={"forcePing": True, "disableOnFailure": True},
-            ).json(),
+        response = self.request(
+            "GET",
+            Endpoint(f"/elements_/v3/element/instances/{elementInstanceId}/ping"),
+            params={"forcePing": True, "disableOnFailure": True},
         )
+
+        return ConnectionPing.model_validate(response.json())
