@@ -10,6 +10,7 @@ from ._services import (
     ApiClient,
     AssetsService,
     BucketsService,
+    ConnectionsService,
     ContextGroundingService,
     ProcessesService,
 )
@@ -60,6 +61,10 @@ class UiPathSDK:
     @property
     def buckets(self) -> BucketsService:
         return BucketsService(self._config, self._execution_context)
+
+    @property
+    def connections(self) -> ConnectionsService:
+        return ConnectionsService(self._config, self._execution_context)
 
     @property
     def context_grounding(self) -> ContextGroundingService:
