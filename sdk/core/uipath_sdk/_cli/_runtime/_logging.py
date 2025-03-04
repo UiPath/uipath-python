@@ -33,7 +33,9 @@ class LogsInterceptor:
     Ensures that all output is captured regardless of how it's generated in user scripts.
     """
 
-    def __init__(self, min_level: str = "DEBUG", dir: str = "__uipath_logs"):
+    def __init__(
+        self, min_level: Optional[str] = "DEBUG", dir: Optional[str] = "__uipath_logs"
+    ):
         """
         Initialize the log interceptor.
 
@@ -41,6 +43,9 @@ class LogsInterceptor:
             min_level: Minimum logging level to capture.
             dir (str): The directory where logs should be stored.
         """
+        min_level = min_level or "DEBUG"
+        dir = dir or "__uipath_logs"
+
         self.root_logger = logging.getLogger()
         self.original_level = self.root_logger.level
         self.original_handlers = list(self.root_logger.handlers)
