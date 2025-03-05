@@ -19,5 +19,4 @@ class LangGraphRuntimeContext(RuntimeContext):
     memory: Optional[AsyncSqliteSaver] = None
     result: Optional[ExecutionResult] = None
     langsmith_tracing_enabled: Union[str, bool, None] = False
-    db_path: str = "uipath.db"
     resume_triggers_table: str = "__uipath_resume_triggers"

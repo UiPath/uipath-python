@@ -62,7 +62,7 @@ class LangGraphRuntime:
         if self.context.job_id:
             self.logs_interceptor = LogsInterceptor(
                 min_level=self.context.logs_min_level,
-                dir=self.context.logs_dir,
+                dir=self.context.runtime_dir,
                 file=self.context.logs_file,
             )
             self.logs_interceptor.setup()
@@ -89,7 +89,7 @@ class LangGraphRuntime:
 
         try:
             async with AsyncSqliteSaver.from_conn_string(
-                self.context.db_path
+                self._state_file_path
             ) as memory:
                 self.context.memory = memory
 
@@ -236,11 +236,17 @@ class LangGraphRuntime:
 
     @cached_property
     def _output_file_path(self) -> str:
-        if self.context.logs_dir and self.context.output_file:
-            os.makedirs(self.context.logs_dir, exist_ok=True)
-            output_file = os.path.join(self.context.logs_dir, self.context.output_file)
-            return output_file
-        return "output.json"
+        if self.context.runtime_dir and self.context.output_file:
+            os.makedirs(self.context.runtime_dir, exist_ok=True)
+            return os.path.join(self.context.runtime_dir, self.context.output_file)
+        return os.path.join("__uipath", "output.json")
+
+    @cached_property
+    def _state_file_path(self) -> str:
+        if self.context.runtime_dir and self.context.state_file:
+            os.makedirs(self.context.runtime_dir, exist_ok=True)
+            return os.path.join(self.context.runtime_dir, self.context.state_file)
+        return os.path.join("__uipath", "state.db")
 
     def _validate_context(self):
         """Validate runtime inputs."""
