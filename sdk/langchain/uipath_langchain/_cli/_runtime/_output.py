@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
@@ -18,6 +19,8 @@ from uipath_sdk._models.actions import Action
 from ._context import LangGraphRuntimeContext
 from ._escalation import Escalation
 from ._exception import LangGraphRuntimeError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -236,7 +239,7 @@ class LangGraphOutputProcessor:
                     trigger_type = self.resume_trigger.trigger_type.value
 
                 try:
-                    print(f"[ResumeTrigger]: Store DB {trigger_type} {trigger_key}")
+                    logger.debug(f"ResumeTrigger: {trigger_type} {trigger_key}")
                     await cur.execute(
                         f"INSERT INTO {self.context.resume_triggers_table} (type, key) VALUES (?, ?)",
                         (trigger_type, trigger_key),

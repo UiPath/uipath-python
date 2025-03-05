@@ -1,4 +1,7 @@
 import json
+import logging
+import os
+from functools import cached_property
 from typing import List, Optional
 
 from langchain_core.callbacks.base import BaseCallbackHandler
@@ -19,6 +22,8 @@ from ._context import LangGraphRuntimeContext
 from ._exception import LangGraphRuntimeError
 from ._input import LangGraphInputProcessor
 from ._output import LangGraphOutputProcessor
+
+logger = logging.getLogger(__name__)
 
 
 class LangGraphRuntime:
@@ -56,11 +61,13 @@ class LangGraphRuntime:
         # Intercept all stdout/stderr/logs and write them to a file at runtime
         if self.context.job_id:
             self.logs_interceptor = LogsInterceptor(
-                min_level=self.context.logs_min_level, dir=self.context.logs_dir
+                min_level=self.context.logs_min_level,
+                dir=self.context.logs_dir,
+                file=self.context.logs_file,
             )
             self.logs_interceptor.setup()
 
-        print(f"Starting runtime with job id: {self.context.job_id}")
+        logger.debug(f"Starting runtime with job id: {self.context.job_id}")
 
         return self
 
@@ -151,7 +158,7 @@ class LangGraphRuntime:
         suspended, or encountered an error.
         """
         try:
-            print(f"Shutting down runtime with job id: {self.context.job_id}")
+            logger.debug(f"Shutting down runtime with job id: {self.context.job_id}")
 
             if self.context.result is None:
                 execution_result = ExecutionResult()
@@ -175,18 +182,18 @@ class LangGraphRuntime:
                 execution_result.error = error_info
 
             content = execution_result.to_dict()
-            print(content)
+            logger.debug(content)
 
             # Always write output file at runtime
             if self.context.job_id:
-                with open(self.context.output_file, "w") as f:
+                with open(self._output_file_path, "w") as f:
                     json.dump(content, f, indent=2, default=str)
 
             # Don't suppress exceptions
             return False
 
         except Exception as e:
-            print(f"Error during runtime shutdown: {str(e)}")
+            logger.error(f"Error during runtime shutdown: {str(e)}")
 
             # Create a fallback error result if we fail during cleanup
             if not isinstance(e, LangGraphRuntimeError):
@@ -205,12 +212,12 @@ class LangGraphRuntime:
                     status=RuntimeStatus.FAULTED, error=error_info
                 )
                 error_result_content = error_result.to_dict()
-                print(error_result_content)
+                logger.debug(error_result_content)
                 if self.context.job_id:
-                    with open(self.context.output_file, "w") as f:
+                    with open(self._output_file_path, "w") as f:
                         json.dump(error_result_content, f, indent=2, default=str)
             except Exception as write_error:
-                print(f"Failed to write error output file: {str(write_error)}")
+                logger.error(f"Failed to write error output file: {str(write_error)}")
                 raise
 
             # Re-raise as LangGraphRuntimeError if it's not already
@@ -226,6 +233,14 @@ class LangGraphRuntime:
             # Restore original logging
             if self.context.job_id and self.logs_interceptor:
                 self.logs_interceptor.teardown()
+
+    @cached_property
+    def _output_file_path(self) -> str:
+        if self.context.logs_dir and self.context.output_file:
+            os.makedirs(self.context.logs_dir, exist_ok=True)
+            output_file = os.path.join(self.context.logs_dir, self.context.output_file)
+            return output_file
+        return "output.json"
 
     def _validate_context(self):
         """Validate runtime inputs."""
@@ -246,7 +261,7 @@ class LangGraphRuntime:
                 "CONFIG_MISSING",
                 "Invalid configuration",
                 "Failed to load configuration",
-                ErrorCategory.USER,
+                ErrorCategory.DEPLOYMENT,
             )
 
         try:
@@ -256,7 +271,7 @@ class LangGraphRuntime:
                 "CONFIG_INVALID",
                 "Invalid configuration",
                 f"Failed to load configuration: {str(e)}",
-                ErrorCategory.USER,
+                ErrorCategory.DEPLOYMENT,
             ) from e
 
         # Determine entrypoint if not provided
@@ -269,7 +284,7 @@ class LangGraphRuntime:
                 "ENTRYPOINT_MISSING",
                 "Entrypoint required",
                 f"Multiple graphs available. Please specify one of: {graph_names}.",
-                ErrorCategory.USER,
+                ErrorCategory.DEPLOYMENT,
             )
 
         # Get the specified graph
@@ -279,7 +294,7 @@ class LangGraphRuntime:
                 "GRAPH_NOT_FOUND",
                 "Graph not found",
                 f"Graph '{self.context.entrypoint}' not found.",
-                ErrorCategory.USER,
+                ErrorCategory.DEPLOYMENT,
             )
         try:
             loaded_graph = graph_config.load_graph()
