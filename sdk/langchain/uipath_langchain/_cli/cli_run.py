@@ -28,7 +28,9 @@ def langgraph_run_middleware(
     try:
 
         async def execute():
-            context = LangGraphRuntimeContext.from_config()
+            context = LangGraphRuntimeContext.from_config(
+                env.get("UIPATH_CONFIG_PATH", "uipath.json")
+            )
 
             context.entrypoint = entrypoint
             context.input = input
