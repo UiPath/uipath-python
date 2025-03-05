@@ -1,12 +1,11 @@
 from typing import Dict
 
-from httpx import request
-
-from uipath_sdk._utils._endpoint import Endpoint
+from httpx import Response, request
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
+from .._utils import Endpoint, RequestSpec
 from ._base_service import BaseService
 
 
@@ -14,12 +13,22 @@ class BucketsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    def retrieve(self, key: str) -> Response:
+        spec = self._retrieve_spec(key)
+        return self.request(spec.method, url=spec.endpoint)
+
+    async def retrieve_async(self, key: str) -> Response:
+        spec = self._retrieve_spec(key)
+        return await self.request_async(spec.method, url=spec.endpoint)
+
     def download(
         self,
-        bucket_id: str,
+        bucket_key: str,
         blob_file_path: str,
         destination_path: str,
     ) -> None:
+        bucket = self.retrieve(bucket_key).json()
+        bucket_id = bucket["Id"]
         endpoint = Endpoint(
             f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetReadUri"
         )
@@ -44,11 +53,13 @@ class BucketsService(FolderContext, BaseService):
 
     def upload(
         self,
-        bucket_id: str,
+        bucket_key: str,
         blob_file_path: str,
         content_type: str,
         source_path: str,
     ) -> None:
+        bucket = self.retrieve(bucket_key).json()
+        bucket_id = bucket["Id"]
         endpoint = Endpoint(
             f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetWriteUri"
         )
@@ -73,21 +84,14 @@ class BucketsService(FolderContext, BaseService):
             else:
                 request("PUT", write_uri, headers=headers, files={"file": file})
 
-    def get_bucket_id(self, bucket_name: str) -> str:
-        endpoint = Endpoint("/orchestrator_/odata/Buckets")
-
-        response = self.request(
-            "GET",
-            endpoint,
-            params={
-                "$top": 1,
-                "$filter": f"(contains(Name,%27{bucket_name}%27))",
-                "$orderby": "Name%20asc",
-            },
-        )
-        key = response.json()["value"][0]["Id"]
-        return key
-
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
+
+    def _retrieve_spec(self, key: str) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={key})"
+            ),
+        )
