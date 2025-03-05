@@ -1,30 +1,30 @@
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
 
 class Connection(BaseModel):
-    id: str
-    name: str
-    owner: str
-    createTime: str
-    updateTime: str
-    state: str
-    apiBaseUri: str
+    id: Optional[str] = None
+    name: Optional[str] = None
+    owner: Optional[str] = None
+    createTime: Optional[str] = None
+    updateTime: Optional[str] = None
+    state: Optional[str] = None
+    apiBaseUri: Optional[str] = None
     elementInstanceId: int
-    connector: Any
-    isDefault: bool
-    lastUsedTime: str
-    connectionIdentity: str
-    pollingIntervalInMinutes: int
-    folder: Any
-    elementVersion: str
+    connector: Optional[Any] = None
+    isDefault: Optional[bool] = None
+    lastUsedTime: Optional[str] = None
+    connectionIdentity: Optional[str] = None
+    pollingIntervalInMinutes: Optional[int] = None
+    folder: Optional[Any] = None
+    elementVersion: Optional[str] = None
 
 
 class ConnectionToken(BaseModel):
     accessToken: str
-    tokenType: str
-    scope: str
-    expiresIn: int
-    apiBaseUri: str
-    elementInstanceId: int
+    tokenType: Optional[str] = None
+    scope: Optional[str] = None
+    expiresIn: Optional[int] = None
+    apiBaseUri: Optional[str] = None
+    elementInstanceId: Optional[int] = None
