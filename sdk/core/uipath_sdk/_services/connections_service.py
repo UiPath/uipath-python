@@ -1,10 +1,9 @@
 from typing import Any, Protocol, TypeVar, Union
 
-from uipath_sdk._utils._endpoint import Endpoint
-
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._models.connections import ConnectionPing
+from .._models import Connection, ConnectionToken
+from .._utils import Endpoint, RequestSpec
 from ._base_service import BaseService
 
 T_co = TypeVar("T_co", covariant=True)
@@ -24,16 +23,57 @@ class ConnectionsService(BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    def __call__(
-        self, connector: Connector[T_co], instance_id: Union[str, int]
-    ) -> T_co:
-        return connector(client=self.client, instance_id=instance_id)
+    def __call__(self, connector: Connector[T_co], key: str) -> T_co:
+        connection = self.retrieve(key)
+        return connector(client=self.client, instance_id=connection.elementInstanceId)
 
-    def token(self, instance_id: int) -> ConnectionPing:
-        response = self.request(
-            "GET",
-            Endpoint(f"/elements_/v3/element/instances/{instance_id}/ping"),
-            params={"forcePing": True, "disableOnFailure": True},
+    def retrieve(self, key: str) -> Connection:
+        """
+        Retrieves a connection by key.
+        """
+
+        spec = self._retrieve_spec(key)
+        response = self.request(spec.method, url=spec.endpoint)
+        return Connection.model_validate(response.json())
+
+    async def retrieve_async(self, key: str) -> Connection:
+        """
+        Retrieves a connection by key asynchronously.
+        """
+
+        spec = self._retrieve_spec(key)
+        response = await self.request_async(spec.method, url=spec.endpoint)
+        return Connection.model_validate(response.json())
+
+    def retrieve_token(self, key: str) -> ConnectionToken:
+        """
+        Retrieves a token for a connection by key.
+        """
+
+        spec = self._retrieve_token_spec(key)
+        response = self.request(spec.method, url=spec.endpoint, params=spec.params)
+        return ConnectionToken.model_validate(response.json())
+
+    async def retrieve_token_async(self, key: str) -> ConnectionToken:
+        """
+        Retrieves a token for a connection by key asynchronously.
+        """
+
+        spec = self._retrieve_token_spec(key)
+        response = await self.request_async(
+            spec.method, url=spec.endpoint, params=spec.params
+        )
+        return ConnectionToken.model_validate(response.json())
+
+    def _retrieve_spec(self, key: str) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/connections_/api/v1/Connections/{key}"),
         )
 
-        return ConnectionPing.model_validate(response.json())
+    def _retrieve_token_spec(self, key: str) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/connections_/api/v1/Connections/{key}/token"),
+            params={"type": "direct"},
+        )
