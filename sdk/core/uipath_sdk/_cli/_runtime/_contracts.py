@@ -62,12 +62,53 @@ class RuntimeContext(BaseModel):
     tracing_enabled: Union[bool, str] = False
     resume: bool = False
     config_path: str = "uipath.json"
-    logs_min_level: Optional[str] = "INFO"
-    logs_dir: Optional[str] = "__uipath"
+    runtime_dir: Optional[str] = "__uipath"
     logs_file: Optional[str] = "execution.log"
+    logs_min_level: Optional[str] = "INFO"
     output_file: str = "output.json"
+    state_file: str = "state.db"
 
     model_config = {"arbitrary_types_allowed": True}
+
+    @classmethod
+    def from_config(cls, config_path=None):
+        """
+        Load configuration from uipath.json file.
+
+        Args:
+            config_path: Path to the configuration file. If None, uses the default "uipath.json"
+
+        Returns:
+            An instance of the class with fields populated from the config file
+        """
+        import json
+        import os
+
+        path = config_path or "uipath.json"
+
+        config = {}
+
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                config = json.load(f)
+
+        instance = cls()
+
+        if "runtime" in config:
+            runtime_config = config["runtime"]
+
+            mapping = {
+                "dir": "runtime_dir",
+                "outputFile": "output_file",
+                "stateFile": "state_file",
+                "logsFile": "logs_file",
+            }
+
+            for config_key, attr_name in mapping.items():
+                if config_key in runtime_config and hasattr(instance, attr_name):
+                    setattr(instance, attr_name, runtime_config[config_key])
+
+        return instance
 
 
 class ErrorCategory(str, Enum):
