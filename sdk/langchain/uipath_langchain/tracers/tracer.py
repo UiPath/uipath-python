@@ -23,12 +23,17 @@ class Tracer(BaseTracer):
         llm_ops_pattern = self._get_base_url() + "{orgId}/llmops_"
         self.orgId = env.get("UIPATH_ORGANIZATION_ID")
         self.tenantId = env.get("UIPATH_TENANT_ID")
-        self.referenceId = env.get("UIPATH_JOB_KEY") or str(uuid.uuid4())
         self.url = llm_ops_pattern.format(orgId=self.orgId).rstrip("/")
 
         self.auth_token = env.get("UNATTENDED_USER_ACCESS_TOKEN") or env.get(
             "UIPATH_ACCESS_TOKEN"
         )
+
+        self.jobKey = env.get("UIPATH_JOB_KEY")
+        self.folderKey = env.get("UIPATH_FOLDER_KEY")
+        self.processKey = env.get("UIPATH_PROCESS_UUID")
+
+        self.referenceId = self.jobKey or str(uuid.uuid4())
 
         self.headers = {
             "Authorization": f"Bearer {self.auth_token}",
@@ -89,6 +94,8 @@ class Tracer(BaseTracer):
     def _persist_run(self, run: Run) -> None:
         # when (run.id == run.parent_run_id)  it's the start of a new trace
         # but we treat all as spans and parent to a single Trace with Id == Job.Key
+        start_time = run.start_time.isoformat() if run.start_time is not None else None
+        end_time = run.end_time.isoformat() if run.end_time is not None else start_time
 
         span_data = {
             "id": str(run.id),
@@ -97,14 +104,17 @@ class Tracer(BaseTracer):
             else None,
             "traceId": self.trace_parent,
             "name": run.name,
-            "startTime": str(run.start_time),
-            "endTime": str(run.end_time or run.start_time),
+            "startTime": start_time,
+            "endTime": end_time,
             "referenceId": self.referenceId,
             "attributes": self._safe_json_dump(self._run_to_dict(run)),
             "organizationId": self.orgId,
             "tenantId": self.tenantId,
             "spanType": "LangGraphRun",
             "status": 2 if run.error else 1,
+            "jobKey": self.jobKey,
+            "folderKey": self.folderKey,
+            "processKey": self.processKey,
         }
 
         response = requests.post(
