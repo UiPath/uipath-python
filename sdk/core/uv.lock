@@ -1224,7 +1224,7 @@ wheels = [
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.57"
+version = "0.0.72"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
