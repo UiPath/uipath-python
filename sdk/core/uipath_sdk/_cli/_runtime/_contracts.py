@@ -2,6 +2,7 @@
 Core runtime contracts that define the interfaces between components.
 """
 
+import sys
 import traceback
 from enum import Enum
 from typing import Any, Dict, Optional, Union
@@ -17,15 +18,6 @@ class RuntimeStatus(str, Enum):
     SUSPENDED = "suspended"
 
 
-class ErrorCategory(str, Enum):
-    """Categories of runtime errors."""
-
-    DEPLOYMENT = "deployment"
-    SYSTEM = "system"
-    UNKNOWN = "unknown"
-    USER = "user"
-
-
 class ResumeTrigger(str, Enum):
     """
     Constants representing different types of resume job triggers in the system.
@@ -38,16 +30,6 @@ class ResumeTrigger(str, Enum):
     TIMER = "Timer"
     INBOX = "Inbox"
     API = "Api"
-
-
-class ErrorInfo(BaseModel):
-    """Standard error contract used across the runtime."""
-
-    code: str
-    title: str
-    detail: str
-    category: ErrorCategory = ErrorCategory.UNKNOWN
-    status: Optional[int] = None
 
 
 class ApiTriggerInfo(BaseModel):
@@ -80,11 +62,47 @@ class RuntimeContext(BaseModel):
     tracing_enabled: Union[bool, str] = False
     resume: bool = False
     config_path: str = "uipath.json"
-    logs_dir: Optional[str] = "__uipath_logs"
     logs_min_level: Optional[str] = "INFO"
-    output_file: str = "__uipath_output.json"
+    logs_dir: Optional[str] = "__uipath"
+    logs_file: Optional[str] = "execution.log"
+    output_file: str = "output.json"
 
     model_config = {"arbitrary_types_allowed": True}
+
+
+class ErrorCategory(str, Enum):
+    """Categories of runtime errors."""
+
+    DEPLOYMENT = "Deployment"  # Configuration, licensing, or permission issues
+    SYSTEM = "System"  # Unexpected internal errors or infrastructure issues
+    UNKNOWN = "Unknown"  # Default category when the error type is not specified
+    USER = "User"  # Business logic or domain-level errors
+
+
+class ErrorInfo(BaseModel):
+    """Standard error contract used across the runtime."""
+
+    code: str  # Human-readable code uniquely identifying this error type across the platform.
+    # Format: <Component>.<PascalCaseErrorCode> (e.g. LangGraph.InvaliGraphReference)
+    # Only use alphanumeric characters [A-Za-z0-9] and periods. No whitespace allowed.
+
+    title: str  # Short, human-readable summary of the problem that should remain consistent
+    # across occurrences.
+
+    detail: (
+        str  # Human-readable explanation specific to this occurrence of the problem.
+    )
+    # May include context, recommended actions, or technical details like call stacks
+    # for technical users.
+
+    category: ErrorCategory = ErrorCategory.UNKNOWN  # Classification of the error:
+    # - User: Business logic or domain-level errors
+    # - Deployment: Configuration, licensing, or permission issues
+    # - System: Unexpected internal errors or infrastructure issues
+
+    status: Optional[int] = (
+        None  # HTTP status code, if relevant (e.g., when forwarded from a web API)
+    )
 
 
 class ExecutionResult(BaseModel):
@@ -121,7 +139,7 @@ class UiPathRuntimeError(Exception):
         detail: str,
         category: ErrorCategory = ErrorCategory.UNKNOWN,
         status: Optional[int] = None,
-        prefix: str = "CODE",
+        prefix: str = "Code",
         include_traceback: bool = True,
     ):
         # Get the current traceback as a string
@@ -132,6 +150,9 @@ class UiPathRuntimeError(Exception):
             ):  # Ensure there's an actual traceback
                 detail = f"{detail}\n\nTraceback:\n{tb}"
 
+        if status is None:
+            status = self._extract_http_status()
+
         self.error_info = ErrorInfo(
             code=f"{prefix}.{code}",
             title=title,
@@ -140,6 +161,34 @@ class UiPathRuntimeError(Exception):
             status=status,
         )
         super().__init__(detail)
+
+    def _extract_http_status(self) -> Optional[int]:
+        """Extract HTTP status code from the exception chain if present."""
+        exc_info = sys.exc_info()
+        if not exc_info or len(exc_info) < 2 or exc_info[1] is None:
+            return None
+
+        exc: Optional[BaseException] = exc_info[1]  # Current exception being handled
+        while exc is not None:
+            if hasattr(exc, "status_code"):
+                return exc.status_code
+
+            if hasattr(exc, "response") and hasattr(exc.response, "status_code"):
+                return exc.response.status_code
+
+            # Move to the next exception in the chain
+            next_exc = getattr(exc, "__cause__", None) or getattr(
+                exc, "__context__", None
+            )
+
+            # Ensure next_exc is a BaseException or None
+            exc = (
+                next_exc
+                if isinstance(next_exc, BaseException) or next_exc is None
+                else None
+            )
+
+        return None
 
     @property
     def as_dict(self) -> Dict[str, Any]:

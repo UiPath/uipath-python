@@ -9,19 +9,15 @@ class PersistentLogsHandler(logging.FileHandler):
     A simple log handler that always writes to a single file without rotation.
     """
 
-    def __init__(self, dir: str):
+    def __init__(self, file: str):
         """
         Initialize the handler to write logs to a single file, appending always.
 
         Args:
             dir (str): The directory where logs should be stored.
         """
-        os.makedirs(dir, exist_ok=True)
-
-        log_file = os.path.join(dir, "execution.log")
-
         # Open file in append mode ('a'), so logs are not overwritten
-        super().__init__(log_file, mode="a", encoding="utf8")
+        super().__init__(file, mode="a", encoding="utf8")
 
         self.formatter = logging.Formatter("[%(asctime)s][%(levelname)s] %(message)s")
         self.setFormatter(self.formatter)
@@ -34,7 +30,10 @@ class LogsInterceptor:
     """
 
     def __init__(
-        self, min_level: Optional[str] = "DEBUG", dir: Optional[str] = "__uipath_logs"
+        self,
+        min_level: Optional[str] = "INFO",
+        dir: Optional[str] = "__uipath",
+        file: Optional[str] = "execution.log",
     ):
         """
         Initialize the log interceptor.
@@ -43,11 +42,16 @@ class LogsInterceptor:
             min_level: Minimum logging level to capture.
             dir (str): The directory where logs should be stored.
         """
-        min_level = min_level or "DEBUG"
-        dir = dir or "__uipath_logs"
+        min_level = min_level or "INFO"
+        dir = dir or "__uipath"
+        file = file or "execution.log"
+
+        os.makedirs(dir, exist_ok=True)
+
+        log_file = os.path.join(dir, file)
 
         # Convert to numeric level for consistent comparison
-        self.numeric_min_level = getattr(logging, min_level.upper(), logging.DEBUG)
+        self.numeric_min_level = getattr(logging, min_level.upper(), logging.INFO)
 
         # Store the original disable level
         self.original_disable_level = logging.root.manager.disable
@@ -59,7 +63,7 @@ class LogsInterceptor:
         self.original_stdout: Optional[TextIO] = None
         self.original_stderr: Optional[TextIO] = None
 
-        self.log_handler = PersistentLogsHandler(dir=dir)
+        self.log_handler = PersistentLogsHandler(file=log_file)
         self.log_handler.setLevel(self.numeric_min_level)
 
         self.logger = logging.getLogger("runtime")
