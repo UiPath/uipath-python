@@ -28,17 +28,17 @@ def langgraph_run_middleware(
     try:
 
         async def execute():
-            context = LangGraphRuntimeContext(
-                entrypoint=entrypoint,
-                input=input,
-                resume=resume,
-                langgraph_config=config,
-                logs_min_level=env.get("LOG_LEVEL", "INFO"),
-                job_id=env.get("UIPATH_JOB_KEY"),
-                trace_id=env.get("UIPATH_TRACE_ID"),
-                tracing_enabled=env.get("UIPATH_TRACING_ENABLED", True),
-                langsmith_tracing_enabled=env.get("LANGSMITH_TRACING", False),
-            )
+            context = LangGraphRuntimeContext.from_config()
+
+            context.entrypoint = entrypoint
+            context.input = input
+            context.resume = resume
+            context.langgraph_config = config
+            context.logs_min_level = env.get("LOG_LEVEL", "INFO")
+            context.job_id = env.get("UIPATH_JOB_KEY")
+            context.trace_id = env.get("UIPATH_TRACE_ID")
+            context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
+            context.langsmith_tracing_enabled = env.get("LANGSMITH_TRACING", False)
 
             async with LangGraphRuntime.from_context(context) as runtime:
                 await runtime.execute()
