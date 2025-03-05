@@ -1,5 +1,6 @@
 from .actions import Action
 from .assets import UserAsset
+from .connections import Connection, ConnectionToken
 from .context_grounding import ContextGroundingQueryResponse
 from .processes import Process
 from .queues import (
@@ -20,4 +21,6 @@ __all__ = [
     "TransactionItem",
     "QueueItemPriority",
     "TransactionItemResult",
+    "Connection",
+    "ConnectionToken",
 ]
