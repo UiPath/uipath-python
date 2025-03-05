@@ -1,4 +1,4 @@
-from typing import Dict, cast
+from typing import Dict, Optional, cast
 
 from httpx import Response
 
@@ -6,7 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._models import UserAsset
-from .._utils import Endpoint, RequestSpec
+from .._utils import Endpoint, RequestSpec, header_folder
 from ._base_service import BaseService
 
 
@@ -16,28 +16,68 @@ class AssetsService(FolderContext, BaseService):
 
     def retrieve(
         self,
-        asset_name: str,
-    ) -> str:
-        spec = self._retrieve_spec(asset_name)
-
-        # TODO: by types
-        return cast(
-            UserAsset,
-            self.request(spec.method, url=spec.endpoint, content=spec.content).json(),
-        )["CredentialPassword"]
+        key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Response:
+        spec = self._retrieve_spec(key, folder_key=folder_key, folder_path=folder_path)
+        return self.request(
+            spec.method, url=spec.endpoint, content=spec.content, headers=spec.headers
+        )
 
     async def retrieve_async(
         self,
-        asset_name: str,
-    ) -> str:
-        spec = self._retrieve_spec(asset_name)
+        key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Response:
+        spec = self._retrieve_spec(key, folder_key=folder_key, folder_path=folder_path)
+        return await self.request_async(
+            spec.method, url=spec.endpoint, content=spec.content, headers=spec.headers
+        )
 
-        # TODO: by types
+    def retrieve_credential(
+        self,
+        asset_name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> str:
+        spec = self._retrieve_credential_spec(
+            asset_name, folder_key=folder_key, folder_path=folder_path
+        )
+
+        return cast(
+            UserAsset,
+            self.request(
+                spec.method,
+                url=spec.endpoint,
+                content=spec.content,
+                headers=spec.headers,
+            ).json(),
+        )["CredentialPassword"]
+
+    async def retrieve_credential_async(
+        self,
+        asset_name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> str:
+        spec = self._retrieve_credential_spec(
+            asset_name, folder_key=folder_key, folder_path=folder_path
+        )
+
         return cast(
             UserAsset,
             (
                 await self.request_async(
-                    spec.method, url=spec.endpoint, content=spec.content
+                    spec.method,
+                    url=spec.endpoint,
+                    content=spec.content,
+                    headers=spec.headers,
                 )
             ).json(),
         )["CredentialPassword"]
@@ -64,7 +104,28 @@ class AssetsService(FolderContext, BaseService):
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
-    def _retrieve_spec(self, asset_name: str) -> RequestSpec:
+    def _retrieve_spec(
+        self,
+        key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/orchestrator_/odata/Assets({key})"),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _retrieve_credential_spec(
+        self,
+        asset_name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
@@ -73,6 +134,9 @@ class AssetsService(FolderContext, BaseService):
             content=str(
                 {"assetName": asset_name, "robotKey": self._execution_context.robot_key}
             ),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
     def _update_spec(self, robot_asset: UserAsset) -> RequestSpec:

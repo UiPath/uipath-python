@@ -16,6 +16,11 @@ from ._services import (
     QueuesService,
 )
 from ._utils import setup_logging
+from ._utils.constants import (
+    ENV_BASE_URL,
+    ENV_UIPATH_ACCESS_TOKEN,
+    ENV_UNATTENDED_USER_ACCESS_TOKEN,
+)
 
 load_dotenv()
 
@@ -28,11 +33,11 @@ class UiPathSDK:
         secret: Optional[str] = None,
         debug: bool = False,
     ) -> None:
-        base_url_value = base_url or env.get("UIPATH_URL")
+        base_url_value = base_url or env.get(ENV_BASE_URL)
         secret_value = (
             secret
-            or env.get("UNATTENDED_USER_ACCESS_TOKEN")
-            or env.get("UIPATH_ACCESS_TOKEN")
+            or env.get(ENV_UNATTENDED_USER_ACCESS_TOKEN)
+            or env.get(ENV_UIPATH_ACCESS_TOKEN)
         )
 
         self._config = Config(
