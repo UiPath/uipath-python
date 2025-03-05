@@ -13,6 +13,7 @@ from ._services import (
     ConnectionsService,
     ContextGroundingService,
     ProcessesService,
+    QueuesService,
 )
 from ._utils import setup_logging
 
@@ -69,3 +70,7 @@ class UiPathSDK:
     @property
     def context_grounding(self) -> ContextGroundingService:
         return ContextGroundingService(self._config, self._execution_context)
+
+    @property
+    def queues(self) -> QueuesService:
+        return QueuesService(self._config, self._execution_context)
