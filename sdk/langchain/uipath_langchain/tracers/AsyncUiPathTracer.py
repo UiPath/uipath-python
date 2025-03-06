@@ -21,11 +21,8 @@ class AsyncUiPathTracer(AsyncBaseTracer):
     def __init__(self, client=None, **kwargs):
         super().__init__(**kwargs)
 
+        self.client = client or httpx.AsyncClient()
         self.retries = 3
-        # useful when testing
-        self.client = client or httpx.AsyncClient(
-            transport=AsyncHTTPTransport(retries=3)
-        )
 
         llm_ops_pattern = self._get_base_url() + "{orgId}/llmops_"
         self.orgId = env.get("UIPATH_ORGANIZATION_ID")
@@ -70,7 +67,7 @@ class AsyncUiPathTracer(AsyncBaseTracer):
         if trace_id_env:
             self.trace_parent = trace_id_env
         else:
-            self.start_trace(run_name, trace_id)
+            await self.start_trace(run_name, trace_id)
 
     async def start_trace(self, run_name, trace_id=None) -> None:
         self.trace_parent = trace_id or str(uuid.uuid4())
@@ -88,10 +85,7 @@ class AsyncUiPathTracer(AsyncBaseTracer):
 
         for attempt in range(self.retries):
             response = await self.client.post(
-                f"{self.url}/api/Agent/trace/",
-                headers=self.headers,
-                json=trace_data,
-                retry=self.retry_strategy,
+                f"{self.url}/api/Agent/trace/", headers=self.headers, json=trace_data
             )
 
             if response.is_success:
@@ -132,9 +126,7 @@ class AsyncUiPathTracer(AsyncBaseTracer):
 
         for attempt in range(self.retries):
             response = await self.client.post(
-                f"{self.url}/api/Agent/span/",
-                headers=self.headers,
-                json=span_data,
+                f"{self.url}/api/Agent/span/", headers=self.headers, json=span_data
             )
 
             if response.is_success:
@@ -148,7 +140,7 @@ class AsyncUiPathTracer(AsyncBaseTracer):
             )
 
     async def _end_trace(self, run: Run) -> None:
-        super()._end_trace(run)
+        await super()._end_trace(run)
         await self._persist_run(run)
 
     def _safe_json_dump(self, obj) -> str:
