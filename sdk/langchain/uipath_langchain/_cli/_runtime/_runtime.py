@@ -1,7 +1,5 @@
 import json
 import logging
-import os
-from functools import cached_property
 from typing import List, Optional
 
 from langchain_core.callbacks.base import BaseCallbackHandler
@@ -10,12 +8,10 @@ from langchain_core.tracers.langchain import wait_for_all_tracers
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 from uipath_sdk._cli._runtime._contracts import (
-    ErrorCategory,
-    ErrorInfo,
-    ExecutionResult,
-    RuntimeStatus,
+    UiPathBaseRuntime,
+    UiPathErrorCategory,
+    UiPathRuntimeResult,
 )
-from uipath_sdk._cli._runtime._logging import LogsInterceptor
 
 from ...tracers.tracer import Tracer
 from ._context import LangGraphRuntimeContext
@@ -26,52 +22,17 @@ from ._output import LangGraphOutputProcessor
 logger = logging.getLogger(__name__)
 
 
-class LangGraphRuntime:
+class LangGraphRuntime(UiPathBaseRuntime):
     """
     A runtime class implementing the async context manager protocol.
     This allows using the class with 'async with' statements.
     """
 
     def __init__(self, context: LangGraphRuntimeContext):
-        self.context = context
+        super().__init__(context)
+        self.context: LangGraphRuntimeContext = context
 
-    @classmethod
-    def from_context(cls, context: LangGraphRuntimeContext):
-        """
-        Factory method to create a runtime instance from a context.
-
-        Args:
-            context: The runtime context with configuration
-
-        Returns:
-            An initialized LangGraphRuntime instance
-        """
-        runtime = cls(context)
-        return runtime
-
-    async def __aenter__(self):
-        """
-        Async enter method called when entering the 'async with' block.
-        Initializes and prepares the runtime environment.
-
-        Returns:
-            The runtime instance
-        """
-
-        # Intercept all stdout/stderr/logs and write them to a file at runtime
-        if self.context.job_id:
-            self.logs_interceptor = LogsInterceptor(
-                min_level=self.context.logs_min_level,
-                dir=self.context.runtime_dir,
-                file=self.context.logs_file,
-            )
-            self.logs_interceptor.setup()
-
-        logger.debug(f"Starting runtime with job id: {self.context.job_id}")
-
-        return self
-
-    async def execute(self) -> Optional[ExecutionResult]:
+    async def execute(self) -> Optional[UiPathRuntimeResult]:
         """
         Execute the graph with the provided input and configuration.
 
@@ -82,14 +43,14 @@ class LangGraphRuntime:
             LangGraphRuntimeError: If execution fails
         """
 
-        self._validate_context()
+        self.validate()
 
         if self.context.state_graph is None:
             return None
 
         try:
             async with AsyncSqliteSaver.from_conn_string(
-                self._state_file_path
+                self.state_file_path
             ) as memory:
                 self.context.memory = memory
 
@@ -146,109 +107,10 @@ class LangGraphRuntime:
                 "EXECUTION_ERROR",
                 "Graph execution failed",
                 f"Error: {str(e)}",
-                ErrorCategory.SYSTEM,
+                UiPathErrorCategory.SYSTEM,
             ) from e
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """
-        Async exit method called when exiting the 'async with' block.
-        Cleans up resources and handles any exceptions.
-
-        Always writes output file regardless of whether execution was successful,
-        suspended, or encountered an error.
-        """
-        try:
-            logger.debug(f"Shutting down runtime with job id: {self.context.job_id}")
-
-            if self.context.result is None:
-                execution_result = ExecutionResult()
-            else:
-                execution_result = self.context.result
-
-            if exc_type:
-                # Create error info from exception
-                if isinstance(exc_val, LangGraphRuntimeError):
-                    error_info = exc_val.error_info
-                else:
-                    # Generic error
-                    error_info = ErrorInfo(
-                        code=f"ERROR_{exc_type.__name__}",
-                        title=f"Runtime error: {exc_type.__name__}",
-                        detail=str(exc_val),
-                        category=ErrorCategory.UNKNOWN,
-                    )
-
-                execution_result.status = RuntimeStatus.FAULTED
-                execution_result.error = error_info
-
-            content = execution_result.to_dict()
-            logger.debug(content)
-
-            # Always write output file at runtime
-            if self.context.job_id:
-                with open(self._output_file_path, "w") as f:
-                    json.dump(content, f, indent=2, default=str)
-
-            # Don't suppress exceptions
-            return False
-
-        except Exception as e:
-            logger.error(f"Error during runtime shutdown: {str(e)}")
-
-            # Create a fallback error result if we fail during cleanup
-            if not isinstance(e, LangGraphRuntimeError):
-                error_info = ErrorInfo(
-                    code="RUNTIME_SHUTDOWN_ERROR",
-                    title="Runtime shutdown failed",
-                    detail=f"Error: {str(e)}",
-                    category=ErrorCategory.SYSTEM,
-                )
-            else:
-                error_info = e.error_info
-
-            # Last-ditch effort to write error output
-            try:
-                error_result = ExecutionResult(
-                    status=RuntimeStatus.FAULTED, error=error_info
-                )
-                error_result_content = error_result.to_dict()
-                logger.debug(error_result_content)
-                if self.context.job_id:
-                    with open(self._output_file_path, "w") as f:
-                        json.dump(error_result_content, f, indent=2, default=str)
-            except Exception as write_error:
-                logger.error(f"Failed to write error output file: {str(write_error)}")
-                raise
-
-            # Re-raise as LangGraphRuntimeError if it's not already
-            if not isinstance(e, LangGraphRuntimeError):
-                raise LangGraphRuntimeError(
-                    error_info.code,
-                    error_info.title,
-                    error_info.detail,
-                    error_info.category,
-                ) from e
-            raise
-        finally:
-            # Restore original logging
-            if self.context.job_id and self.logs_interceptor:
-                self.logs_interceptor.teardown()
-
-    @cached_property
-    def _output_file_path(self) -> str:
-        if self.context.runtime_dir and self.context.output_file:
-            os.makedirs(self.context.runtime_dir, exist_ok=True)
-            return os.path.join(self.context.runtime_dir, self.context.output_file)
-        return os.path.join("__uipath", "output.json")
-
-    @cached_property
-    def _state_file_path(self) -> str:
-        if self.context.runtime_dir and self.context.state_file:
-            os.makedirs(self.context.runtime_dir, exist_ok=True)
-            return os.path.join(self.context.runtime_dir, self.context.state_file)
-        return os.path.join("__uipath", "state.db")
-
-    def _validate_context(self):
+    def validate(self) -> None:
         """Validate runtime inputs."""
         """Load and validate the graph configuration ."""
         try:
@@ -259,7 +121,7 @@ class LangGraphRuntime:
                 "INPUT_INVALID_JSON",
                 "Invalid JSON input",
                 "The input data is not valid JSON.",
-                ErrorCategory.USER,
+                UiPathErrorCategory.USER,
             ) from e
 
         if self.context.langgraph_config is None:
@@ -267,7 +129,7 @@ class LangGraphRuntime:
                 "CONFIG_MISSING",
                 "Invalid configuration",
                 "Failed to load configuration",
-                ErrorCategory.DEPLOYMENT,
+                UiPathErrorCategory.DEPLOYMENT,
             )
 
         try:
@@ -277,7 +139,7 @@ class LangGraphRuntime:
                 "CONFIG_INVALID",
                 "Invalid configuration",
                 f"Failed to load configuration: {str(e)}",
-                ErrorCategory.DEPLOYMENT,
+                UiPathErrorCategory.DEPLOYMENT,
             ) from e
 
         # Determine entrypoint if not provided
@@ -290,7 +152,7 @@ class LangGraphRuntime:
                 "ENTRYPOINT_MISSING",
                 "Entrypoint required",
                 f"Multiple graphs available. Please specify one of: {graph_names}.",
-                ErrorCategory.DEPLOYMENT,
+                UiPathErrorCategory.DEPLOYMENT,
             )
 
         # Get the specified graph
@@ -300,7 +162,7 @@ class LangGraphRuntime:
                 "GRAPH_NOT_FOUND",
                 "Graph not found",
                 f"Graph '{self.context.entrypoint}' not found.",
-                ErrorCategory.DEPLOYMENT,
+                UiPathErrorCategory.DEPLOYMENT,
             )
         try:
             loaded_graph = graph_config.load_graph()
@@ -314,26 +176,26 @@ class LangGraphRuntime:
                 "GRAPH_IMPORT_ERROR",
                 "Graph import failed",
                 f"Failed to import graph '{self.context.entrypoint}': {str(e)}",
-                ErrorCategory.USER,
+                UiPathErrorCategory.USER,
             ) from e
         except TypeError as e:
             raise LangGraphRuntimeError(
                 "GRAPH_TYPE_ERROR",
                 "Invalid graph type",
                 f"Graph '{self.context.entrypoint}' is not a valid StateGraph or CompiledStateGraph: {str(e)}",
-                ErrorCategory.USER,
+                UiPathErrorCategory.USER,
             ) from e
         except ValueError as e:
             raise LangGraphRuntimeError(
                 "GRAPH_VALUE_ERROR",
                 "Invalid graph value",
                 f"Invalid value in graph '{self.context.entrypoint}': {str(e)}",
-                ErrorCategory.USER,
+                UiPathErrorCategory.USER,
             ) from e
         except Exception as e:
             raise LangGraphRuntimeError(
                 "GRAPH_LOAD_ERROR",
                 "Failed to load graph",
                 f"Unexpected error loading graph '{self.context.entrypoint}': {str(e)}",
-                ErrorCategory.USER,
+                UiPathErrorCategory.USER,
             ) from e

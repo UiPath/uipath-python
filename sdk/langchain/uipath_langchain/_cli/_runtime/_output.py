@@ -7,12 +7,12 @@ from typing import Any, Dict, Optional, Union, cast
 
 from langgraph.types import Interrupt, StateSnapshot
 from uipath_sdk._cli._runtime._contracts import (
-    ApiTriggerInfo,
-    ErrorCategory,
-    ExecutionResult,
-    ResumeInfo,
-    ResumeTrigger,
-    RuntimeStatus,
+    UiPathApiTrigger,
+    UiPathErrorCategory,
+    UiPathResumeTrigger,
+    UiPathResumeTriggerType,
+    UiPathRuntimeResult,
+    UiPathRuntimeStatus,
 )
 from uipath_sdk._models.actions import Action
 
@@ -30,10 +30,10 @@ class InterruptInfo:
     value: Any
 
     @property
-    def type(self) -> Optional[ResumeTrigger]:
+    def type(self) -> Optional[UiPathResumeTriggerType]:
         """Returns the type of the interrupt value."""
         if isinstance(self.value, Action):
-            return ResumeTrigger.ACTION
+            return UiPathResumeTriggerType.ACTION
         return None
 
     @property
@@ -63,16 +63,16 @@ class InterruptInfo:
             return str(self.value)
 
     @cached_property
-    def resume_trigger(self) -> ResumeInfo:
+    def resume_trigger(self) -> UiPathResumeTrigger:
         """Creates the resume trigger based on interrupt type."""
         if self.type is None:
-            return ResumeInfo(
-                api_resume=ApiTriggerInfo(
+            return UiPathResumeTrigger(
+                api_resume=UiPathApiTrigger(
                     inbox_id=str(uuid.uuid4()), request=self.serialize()
                 )
             )
         else:
-            return ResumeInfo(itemKey=self.identifier, triggerType=self.type)
+            return UiPathResumeTrigger(itemKey=self.identifier, triggerType=self.type)
 
 
 @dataclass
@@ -87,7 +87,9 @@ class LangGraphOutputProcessor:
     _interrupt_info: Optional[InterruptInfo] = field(
         default=None, init=False, repr=False
     )
-    _resume_trigger: Optional[ResumeInfo] = field(default=None, init=False, repr=False)
+    _resume_trigger: Optional[UiPathResumeTrigger] = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self):
         """Process and cache interrupt information after initialization."""
@@ -104,12 +106,12 @@ class LangGraphOutputProcessor:
                         return
 
     @property
-    def status(self) -> RuntimeStatus:
+    def status(self) -> UiPathRuntimeStatus:
         """Determines the execution status based on state."""
         return (
-            RuntimeStatus.SUSPENDED
+            UiPathRuntimeStatus.SUSPENDED
             if self._interrupt_info
-            else RuntimeStatus.SUCCESSFUL
+            else UiPathRuntimeStatus.SUCCESSFUL
         )
 
     @property
@@ -125,7 +127,7 @@ class LangGraphOutputProcessor:
         return self._interrupt_info
 
     @property
-    def resume_trigger(self) -> Optional[ResumeInfo]:
+    def resume_trigger(self) -> Optional[UiPathResumeTrigger]:
         """Gets resume trigger if interrupted."""
         return self._resume_trigger
 
@@ -145,15 +147,15 @@ class LangGraphOutputProcessor:
                 "OUTPUT_SERIALIZATION_FAILED",
                 "Failed to serialize graph output",
                 f"Error serializing output data: {str(e)}",
-                ErrorCategory.SYSTEM,
+                UiPathErrorCategory.SYSTEM,
             ) from e
 
-    async def process(self) -> ExecutionResult:
+    async def process(self) -> UiPathRuntimeResult:
         """
         Process the output and prepare the final execution result.
 
         Returns:
-            ExecutionResult: The processed execution result.
+            UiPathRuntimeResult: The processed execution result.
 
         Raises:
             LangGraphRuntimeError: If processing fails.
@@ -161,7 +163,7 @@ class LangGraphOutputProcessor:
         try:
             await self._save_resume_trigger()
 
-            return ExecutionResult(
+            return UiPathRuntimeResult(
                 output=self.serialized_output,
                 status=self.status,
                 resume=self.resume_trigger if self.resume_trigger else None,
@@ -174,7 +176,7 @@ class LangGraphOutputProcessor:
                 "OUTPUT_PROCESSING_FAILED",
                 "Failed to process execution output",
                 f"Unexpected error during output processing: {str(e)}",
-                ErrorCategory.SYSTEM,
+                UiPathErrorCategory.SYSTEM,
             ) from e
 
     async def _save_resume_trigger(self) -> None:
@@ -207,7 +209,7 @@ class LangGraphOutputProcessor:
                         "DB_TABLE_CREATION_FAILED",
                         "Failed to create resume triggers table",
                         f"Database error while creating table: {str(e)}",
-                        ErrorCategory.SYSTEM,
+                        UiPathErrorCategory.SYSTEM,
                     ) from e
 
                 try:
@@ -216,8 +218,9 @@ class LangGraphOutputProcessor:
                     if default_escalation.enabled:
                         action = await default_escalation.create(self.interrupt_value)
                         if action:
-                            self._resume_trigger = ResumeInfo(
-                                trigger_type=ResumeTrigger.ACTION, item_key=action.key
+                            self._resume_trigger = UiPathResumeTrigger(
+                                trigger_type=UiPathResumeTriggerType.ACTION,
+                                item_key=action.key,
                             )
 
                 except Exception as e:
@@ -225,11 +228,12 @@ class LangGraphOutputProcessor:
                         "ESCALATION_CREATION_FAILED",
                         "Failed to create escalation action",
                         f"Error while creating escalation action: {str(e)}",
-                        ErrorCategory.SYSTEM,
+                        UiPathErrorCategory.SYSTEM,
                     ) from e
 
                 if (
-                    self.resume_trigger.trigger_type.value == ResumeTrigger.API.value
+                    self.resume_trigger.trigger_type.value
+                    == UiPathResumeTriggerType.API.value
                     and self.resume_trigger.api_resume
                 ):
                     trigger_key = self.resume_trigger.api_resume.inbox_id
@@ -250,7 +254,7 @@ class LangGraphOutputProcessor:
                         "DB_INSERT_FAILED",
                         "Failed to save resume trigger",
                         f"Database error while saving resume trigger: {str(e)}",
-                        ErrorCategory.SYSTEM,
+                        UiPathErrorCategory.SYSTEM,
                     ) from e
         except LangGraphRuntimeError:
             raise
@@ -259,5 +263,5 @@ class LangGraphOutputProcessor:
                 "RESUME_TRIGGER_SAVE_FAILED",
                 "Failed to save resume trigger",
                 f"Unexpected error while saving resume trigger: {str(e)}",
-                ErrorCategory.SYSTEM,
+                UiPathErrorCategory.SYSTEM,
             ) from e

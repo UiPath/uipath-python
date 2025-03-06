@@ -2,12 +2,12 @@ from typing import Any, Optional, Union
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import StateGraph
-from uipath_sdk._cli._runtime._contracts import ExecutionResult, RuntimeContext
+from uipath_sdk._cli._runtime._contracts import UiPathRuntimeContext
 
 from .._utils._graph import LangGraphConfig
 
 
-class LangGraphRuntimeContext(RuntimeContext):
+class LangGraphRuntimeContext(UiPathRuntimeContext):
     """Context information passed throughout the runtime execution."""
 
     langgraph_config: Optional[LangGraphConfig] = None
@@ -17,6 +17,5 @@ class LangGraphRuntimeContext(RuntimeContext):
         None  # TypedDict issue, the actual type is: Optional[langgraph.types.StateSnapshot]
     )
     memory: Optional[AsyncSqliteSaver] = None
-    result: Optional[ExecutionResult] = None
     langsmith_tracing_enabled: Union[str, bool, None] = False
     resume_triggers_table: str = "__uipath_resume_triggers"

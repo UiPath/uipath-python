@@ -4,7 +4,10 @@ from typing import Any, Optional, cast
 
 from langgraph.types import Command
 from uipath_sdk import UiPathSDK
-from uipath_sdk._cli._runtime._contracts import ErrorCategory, ResumeTrigger
+from uipath_sdk._cli._runtime._contracts import (
+    UiPathErrorCategory,
+    UiPathResumeTriggerType,
+)
 
 from ._context import LangGraphRuntimeContext
 from ._escalation import Escalation
@@ -48,7 +51,7 @@ class LangGraphInputProcessor:
 
         type, key = trigger
         logger.debug(f"ResumeTrigger: {type} {key}")
-        if type == ResumeTrigger.ACTION.value and key:
+        if type == UiPathResumeTriggerType.ACTION.value and key:
             action = uipath.actions.retrieve(key)
             logger.debug(f"Action: {action}")
             if action.data is None:
@@ -57,7 +60,7 @@ class LangGraphInputProcessor:
                 extracted_value = self._escalation.extract_response_value(action.data)
                 return Command(resume=extracted_value)
             return Command(resume=action.data)
-        elif type == ResumeTrigger.API.value and key:
+        elif type == UiPathResumeTriggerType.API.value and key:
             payload = await self._get_api_payload(key)
             if payload:
                 return Command(resume=payload)
@@ -89,7 +92,7 @@ class LangGraphInputProcessor:
                 "DB_QUERY_FAILED",
                 "Database query failed",
                 f"Error querying resume trigger information: {str(e)}",
-                ErrorCategory.SYSTEM,
+                UiPathErrorCategory.SYSTEM,
             ) from e
 
     async def _get_api_payload(self, inbox_id: str) -> Any:
@@ -115,6 +118,6 @@ class LangGraphInputProcessor:
                 "API_CONNECTION_ERROR",
                 "Failed to get trigger payload",
                 f"Error fetching API trigger payload for inbox {inbox_id}: {str(e)}",
-                ErrorCategory.SYSTEM,
+                UiPathErrorCategory.SYSTEM,
                 response.status_code,
             ) from e
