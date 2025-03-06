@@ -1,6 +1,6 @@
 [project]
 name = "uipath_langchain"
-version = "0.0.56"
+version = "0.0.57"
 description = "UiPath Langchain"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
@@ -20,6 +20,10 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+]
+maintainers = [
+    { name = "Marius Cosareanu", email = "marius.cosareanu@uipath.com" },
+    { name = "Cristian Pufu", email = "cristian.pufu@uipath.com" }
 ]
 
 [project.entry-points."uipath_sdk.middlewares"]
