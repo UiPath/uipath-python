@@ -7,7 +7,6 @@ from os import environ as env
 from time import sleep
 
 import httpx
-import requests
 from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
 from pydantic import PydanticDeprecationWarning
@@ -19,8 +18,8 @@ class UiPathTracer(BaseTracer):
     def __init__(self, client, **kwargs):
         super().__init__(**kwargs)
 
-        # useful when testing
         self.client = client or httpx.Client()
+        self.retries = 3
 
         llm_ops_pattern = self._get_base_url() + "{orgId}/llmops_"
         self.orgId = env.get("UIPATH_ORGANIZATION_ID")
@@ -83,10 +82,7 @@ class UiPathTracer(BaseTracer):
 
         for attempt in range(self.retries):
             response = self.client.post(
-                f"{self.url}/api/Agent/trace/",
-                headers=self.headers,
-                json=trace_data,
-                retry=self.retry_strategy,
+                f"{self.url}/api/Agent/trace/", headers=self.headers, json=trace_data
             )
 
             if response.is_success:
@@ -127,9 +123,7 @@ class UiPathTracer(BaseTracer):
 
         for attempt in range(self.retries):
             response = self.client.post(
-                f"{self.url}/api/Agent/span/",
-                headers=self.headers,
-                json=span_data,
+                f"{self.url}/api/Agent/span/", headers=self.headers, json=span_data
             )
 
             if response.is_success:

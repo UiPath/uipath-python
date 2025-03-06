@@ -69,7 +69,9 @@ class LangGraphRuntime(UiPathBaseRuntime):
 
                 if self.context.job_id and self.context.tracing_enabled:
                     tracer = AsyncUiPathTracer()
-                    tracer.init_trace(self.context.entrypoint, self.context.job_id)
+                    await tracer.init_trace(
+                        self.context.entrypoint, self.context.job_id
+                    )
                     callbacks = [tracer]
 
                 graph_config: RunnableConfig = {
