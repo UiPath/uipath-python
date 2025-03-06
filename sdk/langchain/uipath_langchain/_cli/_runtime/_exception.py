@@ -1,6 +1,6 @@
 from typing import Optional
 
-from uipath_sdk._cli._runtime._contracts import ErrorCategory, UiPathRuntimeError
+from uipath_sdk._cli._runtime._contracts import UiPathErrorCategory, UiPathRuntimeError
 
 
 class LangGraphRuntimeError(UiPathRuntimeError):
@@ -11,7 +11,7 @@ class LangGraphRuntimeError(UiPathRuntimeError):
         code: str,
         title: str,
         detail: str,
-        category: ErrorCategory = ErrorCategory.UNKNOWN,
+        category: UiPathErrorCategory = UiPathErrorCategory.UNKNOWN,
         status: Optional[int] = None,
     ):
         super().__init__(code, title, detail, category, status, prefix="LANGGRAPH")
