@@ -1,3 +1,4 @@
-from .tracer import Tracer
+from .AsyncUiPathTracer import AsyncUiPathTracer
+from .UiPathTracer import UiPathTracer
 
-__all__ = ["Tracer"]
+__all__ = ["AsyncUiPathTracer", "UiPathTracer"]
