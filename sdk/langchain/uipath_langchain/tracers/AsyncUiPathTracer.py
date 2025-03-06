@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -5,20 +6,26 @@ import uuid
 import warnings
 from os import environ as env
 
-import requests
-from langchain_core.tracers.base import BaseTracer
+import httpx
+from httpx import AsyncHTTPTransport
+from langchain_core.tracers.base import AsyncBaseTracer
 from langchain_core.tracers.schemas import Run
 from pydantic import PydanticDeprecationWarning
+
+transport = AsyncHTTPTransport(retries=3)
 
 logger = logging.getLogger(__name__)
 
 
-class Tracer(BaseTracer):
-    def __init__(self, verify_https=True, **kwargs):
+class AsyncUiPathTracer(AsyncBaseTracer):
+    def __init__(self, client=None, **kwargs):
         super().__init__(**kwargs)
 
+        self.retries = 3
         # useful when testing
-        self.verify_https = verify_https
+        self.client = client or httpx.AsyncClient(
+            transport=AsyncHTTPTransport(retries=3)
+        )
 
         llm_ops_pattern = self._get_base_url() + "{orgId}/llmops_"
         self.orgId = env.get("UIPATH_ORGANIZATION_ID")
@@ -57,7 +64,7 @@ class Tracer(BaseTracer):
 
         return base_url
 
-    def init_trace(self, run_name, trace_id=None) -> None:
+    async def init_trace(self, run_name, trace_id=None) -> None:
         trace_id_env = env.get("UIPATH_TRACE_ID")
 
         if trace_id_env:
@@ -65,7 +72,7 @@ class Tracer(BaseTracer):
         else:
             self.start_trace(run_name, trace_id)
 
-    def start_trace(self, run_name, trace_id=None) -> None:
+    async def start_trace(self, run_name, trace_id=None) -> None:
         self.trace_parent = trace_id or str(uuid.uuid4())
         run_name = run_name or f"Job Run: {self.trace_parent}"
         trace_data = {
@@ -79,19 +86,25 @@ class Tracer(BaseTracer):
             "tenantId": self.tenantId,
         }
 
-        response = requests.post(
-            f"{self.url}/api/Agent/trace/",
-            headers=self.headers,
-            verify=self.verify_https,
-            json=trace_data,
-        )
+        for attempt in range(self.retries):
+            response = await self.client.post(
+                f"{self.url}/api/Agent/trace/",
+                headers=self.headers,
+                json=trace_data,
+                retry=self.retry_strategy,
+            )
+
+            if response.is_success:
+                break
+
+            await asyncio.sleep(0.5 * (2**attempt))  # Exponential backoff
 
         if 400 <= response.status_code < 600:
             logger.warning(
                 f"Error when sending trace: {response}. Body is: {response.text}"
             )
 
-    def _persist_run(self, run: Run) -> None:
+    async def _persist_run(self, run: Run) -> None:
         # when (run.id == run.parent_run_id)  it's the start of a new trace
         # but we treat all as spans and parent to a single Trace with Id == Job.Key
         start_time = run.start_time.isoformat() if run.start_time is not None else None
@@ -117,21 +130,26 @@ class Tracer(BaseTracer):
             "processKey": self.processKey,
         }
 
-        response = requests.post(
-            f"{self.url}/api/Agent/span/",
-            headers=self.headers,
-            verify=self.verify_https,
-            json=span_data,
-        )
+        for attempt in range(self.retries):
+            response = await self.client.post(
+                f"{self.url}/api/Agent/span/",
+                headers=self.headers,
+                json=span_data,
+            )
+
+            if response.is_success:
+                break
+
+            await asyncio.sleep(0.5 * (2**attempt))  # Exponential backoff
 
         if 400 <= response.status_code < 600:
             logger.warning(
                 f"Error when sending trace: {response}. Body is: {response.text}"
             )
 
-    def _end_trace(self, run: Run) -> None:
+    async def _end_trace(self, run: Run) -> None:
         super()._end_trace(run)
-        self._persist_run(run)
+        await self._persist_run(run)
 
     def _safe_json_dump(self, obj) -> str:
         try:
