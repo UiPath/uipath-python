@@ -1,130 +1,89 @@
 # type: ignore
-import importlib.util
-import inspect
-import json
+import asyncio
 import logging
 import os
 import traceback
-from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, Optional, Type, TypeVar, get_type_hints
+from os import environ as env
+from typing import Optional
 
 import click
+from dotenv import load_dotenv
+
+from uipath_sdk._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeError
+from uipath_sdk._cli._runtime._runtime import UiPathRuntime
+from uipath_sdk._cli.middlewares import MiddlewareResult
 
 from .middlewares import Middlewares
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T")
-
-
-def convert_to_class(data: Dict[str, Any], cls: Type[T]) -> T:
-    """Convert a dictionary to either a dataclass or regular class instance."""
-    if is_dataclass(cls):
-        field_types = get_type_hints(cls)
-        converted_data = {}
-
-        for field_name, field_type in field_types.items():
-            if field_name not in data:
-                continue
-
-            value = data[field_name]
-            if (
-                is_dataclass(field_type) or hasattr(field_type, "__annotations__")
-            ) and isinstance(value, dict):
-                value = convert_to_class(value, field_type)
-            converted_data[field_name] = value
-
-        return cls(**converted_data)
-    else:
-        sig = inspect.signature(cls.__init__)
-        params = sig.parameters
-
-        init_args = {}
-
-        for param_name, param in params.items():
-            if param_name == "self":
-                continue
-
-            if param_name in data:
-                value = data[param_name]
-                param_type = (
-                    param.annotation
-                    if param.annotation != inspect.Parameter.empty
-                    else Any
-                )
-
-                if (
-                    is_dataclass(param_type) or hasattr(param_type, "__annotations__")
-                ) and isinstance(value, dict):
-                    value = convert_to_class(value, param_type)
-
-                init_args[param_name] = value
-            elif param.default != inspect.Parameter.empty:
-                init_args[param_name] = param.default
-
-        return cls(**init_args)
+load_dotenv()
 
 
-def convert_from_class(obj: Any) -> Dict[str, Any]:
-    """Convert a class instance (dataclass or regular) to a dictionary."""
-    if obj is None:
-        return None
+def python_run_middleware(
+    entrypoint: Optional[str], input: Optional[str], resume: bool
+) -> MiddlewareResult:
+    """
+    Middleware to handle Python script execution.
 
-    if is_dataclass(obj):
-        return asdict(obj)
-    elif hasattr(obj, "__dict__"):
-        result = {}
-        for key, value in obj.__dict__.items():
-            # Skip private attributes
-            if not key.startswith("_"):
-                if hasattr(value, "__dict__") or is_dataclass(value):
-                    result[key] = convert_from_class(value)
-                else:
-                    result[key] = value
-        return result
-    return obj
+    Args:
+        entrypoint: Path to the Python script to execute
+        input: JSON string with input data
+        resume: Flag indicating if this is a resume execution
 
+    Returns:
+        MiddlewareResult with execution status and messages
+    """
 
-def execute_python_script(
-    script_path: str, input_data: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Execute the Python script with the given input."""
+    if not entrypoint:
+        return MiddlewareResult(
+            should_continue=False,
+            info_message="""Error: No entrypoint specified. Please provide a path to a Python script.
+Usage: `uipath run <entrypoint_path> <input_arguments>`""",
+        )
 
-    spec = importlib.util.spec_from_file_location("dynamic_module", script_path)
-    if not spec or not spec.loader:
-        raise ImportError(f"Could not load spec for {script_path}")
+    if not os.path.exists(entrypoint):
+        return MiddlewareResult(
+            should_continue=False,
+            error_message=f"""Error: Script not found at path {entrypoint}.
+Usage: `uipath run <entrypoint_path> <input_arguments>`""",
+        )
 
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
 
-    for func_name in ["main", "run", "execute"]:
-        if hasattr(module, func_name):
-            main_func = getattr(module, func_name)
-            sig = inspect.signature(main_func)
-            params = list(sig.parameters.values())
+        async def execute():
+            context = UiPathRuntimeContext.from_config(
+                env.get("UIPATH_CONFIG_PATH", "uipath.json")
+            )
+            context.entrypoint = entrypoint
+            context.input = input
+            context.resume = resume
+            context.job_id = env.get("UIPATH_JOB_KEY")
+            context.trace_id = env.get("UIPATH_TRACE_ID")
+            context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
+            context.logs_min_level = env.get("LOG_LEVEL", "INFO")
 
-            # Case 1: No parameters
-            if not params:
-                result = main_func()
-                return convert_from_class(result) if result is not None else {}
+            async with UiPathRuntime.from_context(context) as runtime:
+                await runtime.execute()
 
-            input_param = params[0]
-            input_type = input_param.annotation
+        asyncio.run(execute())
 
-            # Case 2: Class or dataclass parameter
-            if input_type != inspect.Parameter.empty and (
-                is_dataclass(input_type) or hasattr(input_type, "__annotations__")
-            ):
-                typed_input = convert_to_class(input_data, input_type)
-                result = main_func(typed_input)
-                return convert_from_class(result) if result is not None else {}
+        # Return success
+        return MiddlewareResult(should_continue=False)
 
-            # Case 3: Dict parameter
-            else:
-                result = main_func(input_data)
-                return convert_from_class(result) if result is not None else {}
-
-    raise ValueError(f"No main function (main, run, or execute) found in {script_path}")
+    except UiPathRuntimeError as e:
+        return MiddlewareResult(
+            should_continue=False,
+            error_message=f"Error: {e.error_info.title} - {e.error_info.detail}",
+            should_include_stacktrace=False,
+        )
+    except Exception as e:
+        # Handle unexpected errors
+        logger.exception("Unexpected error in Python runtime middleware")
+        return MiddlewareResult(
+            should_continue=False,
+            error_message=f"Error: Unexpected error occurred - {str(e)}",
+            should_include_stacktrace=True,
+        )
 
 
 @click.command()
@@ -133,8 +92,15 @@ def execute_python_script(
 @click.option("--resume", is_flag=True, help="Resume execution from a previous state")
 def run(entrypoint: Optional[str], input: Optional[str], resume: bool) -> None:
     """Execute a Python script with JSON input."""
+    # Process through middleware chain
     result = Middlewares.next("run", entrypoint, input, resume)
 
+    if result.should_continue:
+        result = python_run_middleware(
+            entrypoint=entrypoint, input=input, resume=resume
+        )
+
+    # Handle result from middleware
     if result.error_message:
         click.echo(result.error_message)
         if result.should_include_stacktrace:
@@ -144,32 +110,9 @@ def run(entrypoint: Optional[str], input: Optional[str], resume: bool) -> None:
     if result.info_message:
         click.echo(result.info_message)
 
-    if not result.should_continue:
-        return
-
-    if not entrypoint:
-        click.echo("""Error: No entrypoint specified. Please provide a path to a Python script.
-Usage: `uipath run <entrypoint_path> <input_arguments>`""")
-        click.get_current_context().exit(1)
-
-    if not os.path.exists(entrypoint):
-        click.echo(f"""Error: Script not found at path {entrypoint}.
-Usage: `uipath run <entrypoint_path> <input_arguments>`""")
-        click.get_current_context().exit(1)
-
-    try:
-        try:
-            input_data = json.loads(input)
-        except json.JSONDecodeError:
-            click.echo("Error: Invalid JSON input data")
-            click.get_current_context().exit(1)
-
-        result = execute_python_script(entrypoint, input_data)
-        print(f"[OutputStart]{json.dumps(result)}[OutputEnd]")
-
-    except Exception as e:
-        click.echo(f"Error: {str(e)}")
-        click.echo(traceback.format_exc())
+    # If middleware chain completed but didn't handle the request
+    if result.should_continue:
+        click.echo("Error: Could not process the request with any available handler.")
         click.get_current_context().exit(1)
 
 
