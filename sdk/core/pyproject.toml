@@ -1,6 +1,6 @@
 [project]
 name = "uipath_sdk"
-version = "0.0.73"
+version = "0.0.74"
 description = "UiPath SDK"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
@@ -22,6 +22,10 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+]
+maintainers = [
+    { name = "Marius Cosareanu", email = "marius.cosareanu@uipath.com" },
+    { name = "Cristian Pufu", email = "cristian.pufu@uipath.com" }
 ]
 
 [project.urls]
