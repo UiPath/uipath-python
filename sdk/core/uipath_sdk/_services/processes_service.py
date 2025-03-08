@@ -6,7 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._models import Process
-from .._utils import Endpoint, RequestSpec
+from .._utils import Endpoint, RequestSpec, infer_bindings
 from ._base_service import BaseService
 
 
@@ -14,6 +14,7 @@ class ProcessesService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    @infer_bindings()
     def invoke(self, name: str) -> Response:
         process = self.retrieve_by_name(name)
         process_key = process.Key
@@ -22,6 +23,7 @@ class ProcessesService(FolderContext, BaseService):
 
         return self.request(spec.method, url=spec.endpoint, content=spec.content)
 
+    @infer_bindings()
     async def invoke_async(self, name: str) -> Response:
         process = await self.retrieve_by_name_async(name)
         process_key = process.Key
@@ -32,6 +34,7 @@ class ProcessesService(FolderContext, BaseService):
             spec.method, url=spec.endpoint, content=spec.content
         )
 
+    @infer_bindings()
     def retrieve_by_name(self, name: str) -> Process:
         spec = self._retrieve_by_name_spec(name)
 
@@ -46,6 +49,7 @@ class ProcessesService(FolderContext, BaseService):
 
         return Process.model_validate(response.json()["value"][0])
 
+    @infer_bindings()
     async def retrieve_by_name_async(self, name: str) -> Process:
         spec = self._retrieve_by_name_spec(name)
 

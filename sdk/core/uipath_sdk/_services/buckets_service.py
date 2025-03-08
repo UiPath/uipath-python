@@ -1,5 +1,4 @@
-# type: ignore
-from typing import Dict
+from typing import Any, Dict
 
 from httpx import request
 
@@ -8,7 +7,7 @@ from uipath_sdk._utils._endpoint import Endpoint
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import RequestSpec
+from .._utils import RequestSpec, infer_bindings
 from ._base_service import BaseService
 
 
@@ -96,7 +95,8 @@ class BucketsService(FolderContext, BaseService):
             else:
                 request("PUT", write_uri, headers=headers, files={"file": file})
 
-    def retrieve(self, name: str) -> Dict:
+    @infer_bindings()
+    def retrieve(self, name: str) -> Any:
         """Retrieve a bucket by name.
 
         Args:
@@ -115,7 +115,8 @@ class BucketsService(FolderContext, BaseService):
 
         return response.json()["value"][0]
 
-    async def retrieve_async(self, name: str) -> Dict:
+    @infer_bindings()
+    async def retrieve_async(self, name: str) -> Any:
         """Retrieve a bucket by name asynchronously.
 
         Args:
@@ -134,7 +135,7 @@ class BucketsService(FolderContext, BaseService):
 
         return response.json()["value"][0]
 
-    def retrieve_by_key(self, key: str) -> Dict:
+    def retrieve_by_key(self, key: str) -> Any:
         """Retrieve a bucket by key.
 
         Args:
@@ -149,7 +150,7 @@ class BucketsService(FolderContext, BaseService):
 
         return response.json()
 
-    async def retrieve_by_key_async(self, key: str) -> Dict:
+    async def retrieve_by_key_async(self, key: str) -> Any:
         """Retrieve a bucket by key asynchronously.
 
         Args:
