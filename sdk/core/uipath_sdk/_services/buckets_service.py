@@ -1,11 +1,13 @@
-from typing import Dict
+from typing import Any, Dict
 
-from httpx import Response, request
+from httpx import request
+
+from uipath_sdk._utils._endpoint import Endpoint
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec
+from .._utils import RequestSpec, infer_bindings
 from ._base_service import BaseService
 
 
@@ -13,22 +15,22 @@ class BucketsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    def retrieve(self, key: str) -> Response:
-        spec = self._retrieve_spec(key)
-        return self.request(spec.method, url=spec.endpoint)
-
-    async def retrieve_async(self, key: str) -> Response:
-        spec = self._retrieve_spec(key)
-        return await self.request_async(spec.method, url=spec.endpoint)
-
     def download(
         self,
         bucket_key: str,
         blob_file_path: str,
         destination_path: str,
     ) -> None:
-        bucket = self.retrieve(bucket_key).json()
+        """Download a file from a bucket.
+
+        Args:
+            bucket_key: The key of the bucket
+            blob_file_path: The path to the file in the bucket
+            destination_path: The local path where the file will be saved
+        """
+        bucket = self.retrieve_by_key(bucket_key)
         bucket_id = bucket["Id"]
+
         endpoint = Endpoint(
             f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetReadUri"
         )
@@ -58,8 +60,17 @@ class BucketsService(FolderContext, BaseService):
         content_type: str,
         source_path: str,
     ) -> None:
-        bucket = self.retrieve(bucket_key).json()
+        """Upload a file to a bucket.
+
+        Args:
+            bucket_key: The key of the bucket
+            blob_file_path: The path where the file will be stored in the bucket
+            content_type: The MIME type of the file
+            source_path: The local path of the file to upload
+        """
+        bucket = self.retrieve_by_key(bucket_key)
         bucket_id = bucket["Id"]
+
         endpoint = Endpoint(
             f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetWriteUri"
         )
@@ -84,11 +95,88 @@ class BucketsService(FolderContext, BaseService):
             else:
                 request("PUT", write_uri, headers=headers, files={"file": file})
 
+    @infer_bindings()
+    def retrieve(self, name: str) -> Any:
+        """Retrieve a bucket by name.
+
+        Args:
+            name: The name of the bucket
+        """
+        spec = self._retrieve_spec(name)
+
+        try:
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+            )
+        except Exception as e:
+            raise Exception(f"Bucket with name {name} not found") from e
+
+        return response.json()["value"][0]
+
+    @infer_bindings()
+    async def retrieve_async(self, name: str) -> Any:
+        """Retrieve a bucket by name asynchronously.
+
+        Args:
+            name: The name of the bucket
+        """
+        spec = self._retrieve_spec(name)
+
+        try:
+            response = await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+            )
+        except Exception as e:
+            raise Exception(f"Bucket with name {name} not found") from e
+
+        return response.json()["value"][0]
+
+    def retrieve_by_key(self, key: str) -> Any:
+        """Retrieve a bucket by key.
+
+        Args:
+            key: The key of the bucket
+        """
+        spec = self._retrieve_by_key_spec(key)
+
+        try:
+            response = self.request(spec.method, url=spec.endpoint)
+        except Exception as e:
+            raise Exception(f"Bucket with key {key} not found") from e
+
+        return response.json()
+
+    async def retrieve_by_key_async(self, key: str) -> Any:
+        """Retrieve a bucket by key asynchronously.
+
+        Args:
+            key: The key of the bucket
+        """
+        spec = self._retrieve_by_key_spec(key)
+
+        try:
+            response = await self.request_async(spec.method, url=spec.endpoint)
+        except Exception as e:
+            raise Exception(f"Bucket with key {key} not found") from e
+
+        return response.json()
+
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
-    def _retrieve_spec(self, key: str) -> RequestSpec:
+    def _retrieve_spec(self, name: str) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/odata/Buckets"),
+            params={"$filter": f"Name eq '{name}'", "$top": 1},
+        )
+
+    def _retrieve_by_key_spec(self, key: str) -> RequestSpec:
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(

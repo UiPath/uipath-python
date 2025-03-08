@@ -6,7 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._models import UserAsset
-from .._utils import Endpoint, RequestSpec, header_folder
+from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from ._base_service import BaseService
 
 
@@ -38,6 +38,7 @@ class AssetsService(FolderContext, BaseService):
             spec.method, url=spec.endpoint, content=spec.content, headers=spec.headers
         )
 
+    @infer_bindings(name="asset_name")
     def retrieve_credential(
         self,
         asset_name: str,
@@ -59,6 +60,7 @@ class AssetsService(FolderContext, BaseService):
             ).json(),
         )["CredentialPassword"]
 
+    @infer_bindings(name="asset_name")
     async def retrieve_credential_async(
         self,
         asset_name: str,

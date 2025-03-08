@@ -12,6 +12,7 @@ try:
 except ImportError:
     import tomli as tomllib
 
+from .parse_ast import generate_bindings_json
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 
@@ -201,7 +202,7 @@ def generate_package_descriptor_content(entryPoints):
 def pack_fn(projectName, description, entryPoints, version, authors, directory):
     operate_file = generate_operate_file(entryPoints)
     entrypoints_file = generate_entrypoints_file(entryPoints)
-    bindings_content = generate_bindings_content()
+    bindings_content = generate_bindings_json(entryPoints[0]["filePath"])
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
         projectName, version, description, authors
