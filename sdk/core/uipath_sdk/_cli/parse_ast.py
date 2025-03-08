@@ -1,6 +1,7 @@
 # type: ignore
 
 import ast
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -130,14 +131,48 @@ def extract_parameter(
     return None
 
 
+def parse_local_module(
+    module_path: str, base_dir: str
+) -> Dict[str, List[Dict[str, str]]]:
+    """
+    Parse a local module and extract SDK usage.
+
+    Args:
+        module_path: Import path of the module (e.g., 'myapp.utils')
+        base_dir: Base directory to resolve relative imports
+
+    Returns:
+        Dictionary of SDK usage from the module
+    """
+    # Convert module path to file path
+    file_path = os.path.join(base_dir, *module_path.split(".")) + ".py"
+
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        # Try as a package with __init__.py
+        file_path = os.path.join(base_dir, *module_path.split("."), "__init__.py")
+        if not os.path.exists(file_path):
+            return {}
+
+    # Parse the module
+    try:
+        with open(file_path, "r") as f:
+            source_code = f.read()
+        return parse_sdk_usage(source_code, base_dir)
+    except Exception:
+        return {}
+
+
 class UiPathSDKTracker:
     """Tracks UiPathSDK usage throughout the code."""
 
-    def __init__(self, source_code: str):
+    def __init__(self, source_code: str, base_dir: str = ""):
         self.source_code = source_code
+        self.base_dir = base_dir
         self.tree = ast.parse(source_code)
         self.sdk_imports: Dict[str, str] = {}  # Import alias -> original module
         self.sdk_instances: Dict[str, str] = {}  # Instance name -> class
+        self.local_imports: List[str] = []  # List of local module imports
         self.service_usage: Dict[str, ServiceUsage] = {
             "assets": ServiceUsage("assets"),
             "processes": ServiceUsage("processes"),
@@ -154,16 +189,23 @@ class UiPathSDKTracker:
         self._find_method_calls()
 
     def _find_imports(self) -> None:
-        """Find all imports of UiPathSDK."""
+        """Find all imports of UiPathSDK and local modules."""
 
         class ImportVisitor(ast.NodeVisitor):
             def __init__(self):
                 self.imports = {}
+                self.local_imports = []
 
             def visit_Import(self, node):
                 for alias in node.names:
                     if alias.name == "uipath_sdk":
                         self.imports[alias.asname or alias.name] = alias.name
+                    elif (
+                        not alias.name.startswith(("__", "builtins", "typing"))
+                        and "." not in alias.name
+                    ):
+                        # Potential local import
+                        self.local_imports.append(alias.name)
                 self.generic_visit(node)
 
             def visit_ImportFrom(self, node):
@@ -173,11 +215,17 @@ class UiPathSDKTracker:
                             self.imports[alias.asname or alias.name] = (
                                 "uipath_sdk.UiPathSDK"
                             )
+                elif node.module and not node.module.startswith(
+                    ("__", "builtins", "typing")
+                ):
+                    # Potential local import
+                    self.local_imports.append(node.module)
                 self.generic_visit(node)
 
         visitor = ImportVisitor()
         visitor.visit(self.tree)
         self.sdk_imports = visitor.imports
+        self.local_imports = visitor.local_imports
 
     def _find_instances(self) -> None:
         """Find all instances created from UiPathSDK."""
@@ -276,11 +324,36 @@ class UiPathSDKTracker:
         return results
 
 
-def parse_sdk_usage(source_code: str) -> Dict[str, List[Dict[str, str]]]:
-    """Parse the source code and return UiPathSDK usage information."""
-    tracker = UiPathSDKTracker(source_code)
+def parse_sdk_usage(
+    source_code: str, base_dir: str = ""
+) -> Dict[str, List[Dict[str, str]]]:
+    """
+    Parse the source code and return UiPathSDK usage information.
+
+    Args:
+        source_code: The Python source code to analyze
+        base_dir: Base directory to resolve relative imports
+
+    Returns:
+        Dictionary of SDK usage information
+    """
+    tracker = UiPathSDKTracker(source_code, base_dir)
     tracker.analyze()
-    return tracker.get_results()
+    results = tracker.get_results()
+    print(tracker.local_imports)
+    # Parse local imports recursively
+    if base_dir:
+        for module_path in tracker.local_imports:
+            module_results = parse_local_module(module_path, base_dir)
+
+            # Merge results
+            for service_name, components in module_results.items():
+                if service_name in results:
+                    results[service_name].extend(components)
+                else:
+                    results[service_name] = components
+
+    return results
 
 
 def convert_to_bindings_format(sdk_usage_data):
@@ -362,8 +435,10 @@ def generate_bindings_json(file_path: str) -> str:
         with open(file_path, "r") as f:
             source_code = f.read()
 
-        sdk_usage = parse_sdk_usage(source_code)
+        # Get the base directory for resolving imports
+        base_dir = os.path.dirname(os.path.abspath(file_path))
 
+        sdk_usage = parse_sdk_usage(source_code, base_dir)
         bindings = convert_to_bindings_format(sdk_usage)
 
         return bindings
