@@ -2,6 +2,7 @@ import json
 import uuid
 from typing import Any, Dict
 
+from langgraph.graph.state import CompiledStateGraph
 from uipath_sdk._cli.middlewares import MiddlewareResult
 
 from ._utils._graph import LangGraphConfig
@@ -28,7 +29,7 @@ def resolve_refs(schema, root=None):
     return schema
 
 
-def generate_schema_from_graph(graph: Any) -> Dict[str, Any]:
+def generate_schema_from_graph(graph: CompiledStateGraph) -> Dict[str, Any]:
     """Extract input/output schema from a LangGraph graph"""
     schema = {
         "input": {"type": "object", "properties": {}, "required": []},
@@ -76,6 +77,7 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
     try:
         config.load_config()
         entrypoints = []
+        mermaids = {}
 
         for graph in config.graphs:
             if entrypoint and graph.name != entrypoint:
@@ -83,7 +85,15 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
 
             try:
                 loaded_graph = graph.load_graph()
-                graph_schema = generate_schema_from_graph(loaded_graph)
+                state_graph = (
+                    loaded_graph.builder
+                    if isinstance(loaded_graph, CompiledStateGraph)
+                    else loaded_graph
+                )
+                compiled_graph = state_graph.compile()
+                graph_schema = generate_schema_from_graph(compiled_graph)
+
+                mermaids[graph.name] = compiled_graph.get_graph(xray=1).draw_mermaid()
 
                 new_entrypoint: dict[str, Any] = {
                     "filePath": graph.name,
@@ -113,6 +123,18 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
 
         with open(config_path, "w") as f:
             json.dump(uipath_config, f, indent=2)
+
+        for graph_name, mermaid_content in mermaids.items():
+            mermaid_file_path = f"{graph_name}.mermaid"
+            try:
+                with open(mermaid_file_path, "w") as f:
+                    f.write(mermaid_content)
+            except Exception as write_error:
+                return MiddlewareResult(
+                    should_continue=False,
+                    error_message=f"Error writing mermaid file for '{graph_name}': {str(write_error)}",
+                    should_include_stacktrace=True,
+                )
 
         return MiddlewareResult(
             should_continue=False,
