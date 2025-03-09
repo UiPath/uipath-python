@@ -217,6 +217,9 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
     # Create .uipath directory if it doesn't exist
     os.makedirs(".uipath", exist_ok=True)
 
+    # Define the allowlist of file extensions to include
+    file_extensions_allowlist = [".py", ".mermaid", ".json"]
+
     with zipfile.ZipFile(
         f".uipath/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
     ) as z:
@@ -236,13 +239,14 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        # Walk through directory and add all Python files
+        # Walk through directory and add all files with extensions in the allowlist
         for root, dirs, files in os.walk(directory):
             # Skip all directories that start with .
             dirs[:] = [d for d in dirs if not d.startswith(".")]
 
             for file in files:
-                if file.endswith(".py"):  # Only include .py files
+                file_extension = os.path.splitext(file)[1].lower()
+                if file_extension in file_extensions_allowlist:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, directory)
                     try:
@@ -259,12 +263,7 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
                             with open(file_path, "r", encoding="latin-1") as f:
                                 z.writestr(f"content/{rel_path}", f.read())
 
-        optional_files = [
-            "pyproject.toml",
-            "README.md",
-            "uipath.json",
-            "langgraph.json",
-        ]
+        optional_files = ["pyproject.toml", "README.md"]
         for file in optional_files:
             file_path = os.path.join(directory, file)
             if os.path.exists(file_path):
