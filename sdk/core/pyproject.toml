@@ -6,7 +6,6 @@ readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
 dependencies = [
     "click>=8.1.8",
-    "dotenv>=0.9.9",
     "httpx>=0.28.1",
     "pydantic>=2.10.6",
     "python-dotenv>=1.0.1",
