@@ -11,27 +11,63 @@ from ._base_service import BaseService
 
 
 class QueuesService(FolderContext, BaseService):
+    """
+    Service for managing UiPath queues and queue items.
+
+    Queues are a fundamental component of UiPath automation that enable distributed
+    and scalable processing of work items. This service provides methods to:
+    - List and create queue items
+    - Handle transaction-based processing of items
+    - Manage item progress and completion
+    - Support bulk operations
+
+    The service supports both synchronous and asynchronous operations and provides
+    flexible input formats (dictionaries or model objects) for queue items.
+    """
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+        """
+        Initialize the queues service.
+
+        Args:
+            config (Config): Configuration object containing API settings.
+            execution_context (ExecutionContext): Context object containing execution-specific
+                information.
+        """
         super().__init__(config=config, execution_context=execution_context)
 
     def list_items(self) -> Response:
         """
-        List all queue items.
+        List all queue items in the current folder.
+
+        This method retrieves all queue items that are accessible within the current
+        folder context, including their status, priority, and other metadata.
 
         Returns:
-            A Response object.
+            Response: The HTTP response containing a list of queue items.
+
+        Example:
+            ```python
+            # Get all queue items
+            response = queues_service.list_items()
+            items = response.json()
+            for item in items["value"]:
+                print(f"Item {item['Id']}: {item['Status']}")
+            ```
         """
         spec = self._list_items_spec()
         return self.request(spec.method, url=spec.endpoint)
 
     async def list_items_async(self) -> Response:
         """
-        List all queue items.
+        Asynchronously list all queue items in the current folder.
+
+        This method retrieves all queue items that are accessible within the current
+        folder context, including their status, priority, and other metadata.
 
         Returns:
-            A Response object.
+            Response: The HTTP response containing a list of queue items.
         """
-
         spec = self._list_items_spec()
         return await self.request_async(spec.method, url=spec.endpoint)
 
@@ -39,13 +75,34 @@ class QueuesService(FolderContext, BaseService):
         """
         Create a new queue item.
 
+        This method adds a new item to a queue for processing. The item can be
+        specified either as a dictionary or as a QueueItem object.
+
         Args:
-            item: A dictionary that contains the queue item data or a QueueItem object.
+            item (Union[Dict[str, Any], QueueItem]): The item to add to the queue.
+                Can be either a dictionary with item properties or a QueueItem instance.
 
         Returns:
-            A Response object.
-        """
+            Response: The HTTP response containing the created item details.
 
+        Example:
+            ```python
+            # Create an item using a dictionary
+            response = queues_service.create_item({
+                "Name": "Process Invoice",
+                "Priority": "High",
+                "SpecificContent": {"InvoiceId": "INV-123"}
+            })
+
+            # Or using a QueueItem object
+            item = QueueItem(
+                Name="Process Invoice",
+                Priority="High",
+                SpecificContent={"InvoiceId": "INV-123"}
+            )
+            response = queues_service.create_item(item)
+            ```
+        """
         spec = self._create_item_spec(item)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -53,15 +110,18 @@ class QueuesService(FolderContext, BaseService):
         self, item: Union[Dict[str, Any], QueueItem]
     ) -> Response:
         """
-        Create a new queue item.
+        Asynchronously create a new queue item.
+
+        This method adds a new item to a queue for processing. The item can be
+        specified either as a dictionary or as a QueueItem object.
 
         Args:
-            item: A dictionary that contains the queue item data or a QueueItem object.
+            item (Union[Dict[str, Any], QueueItem]): The item to add to the queue.
+                Can be either a dictionary with item properties or a QueueItem instance.
 
         Returns:
-            A Response object.
+            Response: The HTTP response containing the created item details.
         """
-
         spec = self._create_item_spec(item)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -72,17 +132,37 @@ class QueuesService(FolderContext, BaseService):
         commit_type: CommitType,
     ) -> Response:
         """
-        Create multiple queue items.
+        Create multiple queue items in a single operation.
+
+        This method provides efficient bulk creation of queue items with configurable
+        commit behavior to handle failures.
 
         Args:
-            items: A list of dictionaries that contain the queue item data or a QueueItem object.
-            queue_name: The name of the queue.
-            commit_type: AllOrNothing | StopOnFirstFailure | ProcessAllIndependently
+            items (List[Union[Dict[str, Any], QueueItem]]): List of items to add.
+                Each item can be either a dictionary or a QueueItem instance.
+            queue_name (str): The name of the queue to add items to.
+            commit_type (CommitType): How to handle failures during bulk creation:
+                - AllOrNothing: Either all items are created or none
+                - StopOnFirstFailure: Stop processing after first failure
+                - ProcessAllIndependently: Try to create all items regardless of failures
 
         Returns:
-            A Response object.
-        """
+            Response: The HTTP response containing results of the bulk operation.
 
+        Example:
+            ```python
+            # Create multiple items with all-or-nothing behavior
+            items = [
+                {"Name": "Invoice 1", "SpecificContent": {"Id": "INV-1"}},
+                {"Name": "Invoice 2", "SpecificContent": {"Id": "INV-2"}}
+            ]
+            response = queues_service.create_items(
+                items,
+                queue_name="invoices",
+                commit_type=CommitType.ALL_OR_NOTHING
+            )
+            ```
+        """
         spec = self._create_items_spec(items, queue_name, commit_type)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -93,17 +173,23 @@ class QueuesService(FolderContext, BaseService):
         commit_type: CommitType,
     ) -> Response:
         """
-        Create multiple queue items.
+        Asynchronously create multiple queue items in a single operation.
+
+        This method provides efficient bulk creation of queue items with configurable
+        commit behavior to handle failures.
 
         Args:
-            items: A list of dictionaries that contain the queue item data or a QueueItem object.
-            queue_name: The name of the queue.
-            commit_type: AllOrNothing | StopOnFirstFailure | ProcessAllIndependently
+            items (List[Union[Dict[str, Any], QueueItem]]): List of items to add.
+                Each item can be either a dictionary or a QueueItem instance.
+            queue_name (str): The name of the queue to add items to.
+            commit_type (CommitType): How to handle failures during bulk creation:
+                - AllOrNothing: Either all items are created or none
+                - StopOnFirstFailure: Stop processing after first failure
+                - ProcessAllIndependently: Try to create all items regardless of failures
 
         Returns:
-            A Response object.
+            Response: The HTTP response containing results of the bulk operation.
         """
-
         spec = self._create_items_spec(items, queue_name, commit_type)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -111,16 +197,31 @@ class QueuesService(FolderContext, BaseService):
         self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
         """
-        Create or update a queue item. If the item already exists, it will be updated.
-        Otherwise, it will be created and started (status: InProgress)
+        Create or update a transaction item in a queue.
+
+        Transaction items represent work that is actively being processed. This method
+        either creates a new transaction or updates an existing one, setting its
+        status to InProgress.
 
         Args:
-            item: A dictionary that contains the transaction item data or a TransactionItem object.
+            item (Union[Dict[str, Any], TransactionItem]): The transaction item to
+                create or update. Can be either a dictionary or a TransactionItem instance.
+            no_robot (bool, optional): If True, creates the transaction without
+                associating it with a robot. Defaults to False.
 
         Returns:
-            A Response object.
-        """
+            Response: The HTTP response containing the transaction details.
 
+        Example:
+            ```python
+            # Create a transaction for processing an invoice
+            response = queues_service.create_transaction_item({
+                "QueueName": "invoices",
+                "Reference": "INV-123",
+                "Priority": "High"
+            })
+            ```
+        """
         spec = self._create_transaction_item_spec(item, no_robot)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -128,16 +229,21 @@ class QueuesService(FolderContext, BaseService):
         self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
         """
-        Create or update a queue item. If the item already exists, it will be updated.
-        Otherwise, it will be created and started (status: InProgress)
+        Asynchronously create or update a transaction item in a queue.
+
+        Transaction items represent work that is actively being processed. This method
+        either creates a new transaction or updates an existing one, setting its
+        status to InProgress.
 
         Args:
-            item: A dictionary that contains the transaction item data or a TransactionItem object.
+            item (Union[Dict[str, Any], TransactionItem]): The transaction item to
+                create or update. Can be either a dictionary or a TransactionItem instance.
+            no_robot (bool, optional): If True, creates the transaction without
+                associating it with a robot. Defaults to False.
 
         Returns:
-            A Response object.
+            Response: The HTTP response containing the transaction details.
         """
-
         spec = self._create_transaction_item_spec(item, no_robot)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -145,16 +251,27 @@ class QueuesService(FolderContext, BaseService):
         self, transaction_key: str, progress: str
     ) -> Response:
         """
-        Update the progress of a transaction item that is currently being processed.
+        Update the progress of an in-process transaction item.
+
+        This method allows reporting intermediate progress while processing a
+        transaction item, which can be useful for monitoring long-running operations.
 
         Args:
-            transaction_key: The key of the transaction item.
-            progress: The progress of the transaction item.
+            transaction_key (str): The unique identifier of the transaction.
+            progress (str): A description of the current progress state.
 
         Returns:
-            A Response object.
-        """
+            Response: The HTTP response confirming the progress update.
 
+        Example:
+            ```python
+            # Update progress of a transaction
+            queues_service.update_progress_of_transaction_item(
+                "tx-123-abc",
+                "Processing page 3 of 10"
+            )
+            ```
+        """
         spec = self._update_progress_of_transaction_item_spec(transaction_key, progress)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -162,16 +279,18 @@ class QueuesService(FolderContext, BaseService):
         self, transaction_key: str, progress: str
     ) -> Response:
         """
-        Update the progress of a transaction item that is currently being processed.
+        Asynchronously update the progress of an in-process transaction item.
+
+        This method allows reporting intermediate progress while processing a
+        transaction item, which can be useful for monitoring long-running operations.
 
         Args:
-            transaction_key: The key of the transaction item.
-            progress: The progress of the transaction item.
+            transaction_key (str): The unique identifier of the transaction.
+            progress (str): A description of the current progress state.
 
         Returns:
-            A Response object.
+            Response: The HTTP response confirming the progress update.
         """
-
         spec = self._update_progress_of_transaction_item_spec(transaction_key, progress)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -179,9 +298,31 @@ class QueuesService(FolderContext, BaseService):
         self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
     ) -> Response:
         """
-        Complete the processing of a transaction item.
-        """
+        Mark a transaction item as completed.
 
+        This method finalizes the processing of a transaction item, recording its
+        final status and any result data.
+
+        Args:
+            transaction_key (str): The unique identifier of the transaction.
+            result (Union[Dict[str, Any], TransactionItemResult]): The result of
+                processing. Can be either a dictionary or a TransactionItemResult instance.
+
+        Returns:
+            Response: The HTTP response confirming the completion.
+
+        Example:
+            ```python
+            # Complete a transaction with success
+            queues_service.complete_transaction_item(
+                "tx-123-abc",
+                {
+                    "IsSuccessful": True,
+                    "Output": {"ProcessedInvoiceId": "INV-123"}
+                }
+            )
+            ```
+        """
         spec = self._complete_transaction_item_spec(transaction_key, result)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -189,17 +330,39 @@ class QueuesService(FolderContext, BaseService):
         self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
     ) -> Response:
         """
-        Complete the processing of a transaction item.
-        """
+        Asynchronously mark a transaction item as completed.
 
+        This method finalizes the processing of a transaction item, recording its
+        final status and any result data.
+
+        Args:
+            transaction_key (str): The unique identifier of the transaction.
+            result (Union[Dict[str, Any], TransactionItemResult]): The result of
+                processing. Can be either a dictionary or a TransactionItemResult instance.
+
+        Returns:
+            Response: The HTTP response confirming the completion.
+        """
         spec = self._complete_transaction_item_spec(transaction_key, result)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
     @property
     def custom_headers(self) -> Dict[str, str]:
+        """
+        Get custom headers for queue-related requests.
+
+        Returns:
+            Dict[str, str]: Headers containing folder context information.
+        """
         return self.folder_headers
 
     def _list_items_spec(self) -> RequestSpec:
+        """
+        Create a request specification for listing queue items.
+
+        Returns:
+            RequestSpec: The request specification for the API call.
+        """
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
@@ -208,6 +371,15 @@ class QueuesService(FolderContext, BaseService):
         )
 
     def _create_item_spec(self, item: Union[Dict[str, Any], QueueItem]) -> RequestSpec:
+        """
+        Create a request specification for creating a queue item.
+
+        Args:
+            item (Union[Dict[str, Any], QueueItem]): The item to create.
+
+        Returns:
+            RequestSpec: The request specification for the API call.
+        """
         if isinstance(item, dict):
             queue_item = QueueItem(**item)
         elif isinstance(item, QueueItem):
@@ -231,6 +403,17 @@ class QueuesService(FolderContext, BaseService):
         queue_name: str,
         commit_type: CommitType,
     ) -> RequestSpec:
+        """
+        Create a request specification for bulk creation of queue items.
+
+        Args:
+            items (List[Union[Dict[str, Any], QueueItem]]): The items to create.
+            queue_name (str): The name of the target queue.
+            commit_type (CommitType): The commit behavior to use.
+
+        Returns:
+            RequestSpec: The request specification for the API call.
+        """
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(

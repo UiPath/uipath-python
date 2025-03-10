@@ -10,6 +10,18 @@ from ._base_service import BaseService
 
 
 class ActionsService(FolderContext, BaseService):
+    """
+    Service for managing UiPath Actions.
+
+    Actions are task-based automation components that can be integrated into
+    applications and processes. They represent discrete units of work that can
+    be triggered and monitored through the UiPath API.
+
+    This service provides methods to create and retrieve actions, supporting
+    both app-specific and generic actions. It inherits folder context management
+    capabilities from FolderContext.
+    """
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
@@ -24,14 +36,20 @@ class ActionsService(FolderContext, BaseService):
         """
         Create a new action.
 
+        When creating an app-specific action, both app_id and app_version must be provided.
+
         Args:
-            title: The title of the action.
-            data: Optional dictionary of additional data.
-            app_id: The `systemName` of the app.
-            app_version: The `deployVersion` of the app.
+            title (str): The title of the action. This will be displayed in the UiPath
+                interface and can be used to identify the action.
+            data (Optional[Dict[str, Any]]): The data parameter should contain key-value pairs
+                where keys match the field names defined in your app, and values contain the
+                data to be filled into those respective fields.
+            app_id (str): The systemName of the app this action belongs to.
+            app_version (int): The deployVersion of the app this action belongs to.
 
         Returns:
-            Action: The created action.
+            Action: The created action object containing details like the action key,
+                status, and creation timestamp.
         """
         endpoint = Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask")
 
@@ -57,13 +75,25 @@ class ActionsService(FolderContext, BaseService):
         action_key: str,
     ) -> Action:
         """
-        Retrieve an action by key.
+        Retrieve an action by its key.
+
+        This method allows you to fetch the details of an existing action,
+        including its current status, associated data, and metadata.
 
         Args:
-            action_key: The key of the action to retrieve.
+            action_key (str): The unique identifier of the action to retrieve.
+                This is typically obtained when creating the action or from
+                the UiPath interface.
 
         Returns:
-            Action: The retrieved action.
+            Action: The retrieved action object containing all action details.
+
+        Example:
+            ```python
+            # Retrieve an action's details
+            action = actions_service.retrieve("action-123-abc")
+            print(f"Action status: {action.Status}")
+            ```
         """
         endpoint = Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey")
         params = {"taskKey": action_key}
