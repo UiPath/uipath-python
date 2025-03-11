@@ -36,10 +36,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
-            Response: The HTTP response containing the job execution details.
-
-        Raises:
-            Exception: If the process with the given name is not found.
+            Job: The job execution details.
 
         Examples:
             ```python
@@ -48,6 +45,16 @@ class ProcessesService(FolderContext, BaseService):
             client = UiPathSDK()
 
             client.processes.invoke(name="MyProcess")
+            ```
+
+            ```python
+            # if you want to execute the process in a specific folder
+            # another one than the one set in the SDK config
+            from uipath_sdk import UiPathSDK
+
+            client = UiPathSDK()
+
+            client.processes.invoke(name="MyProcess", folder_path="my-folder-key")
             ```
         """
         spec = self._invoke_spec(
@@ -83,10 +90,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
-            Response: The HTTP response containing the job execution details.
-
-        Raises:
-            Exception: If the process with the given name is not found.
+            Job: The job execution details.
 
         Examples:
             ```python
@@ -97,8 +101,8 @@ class ProcessesService(FolderContext, BaseService):
             sdk = UiPathSDK()
 
             async def main():
-                process = await sdk.processes.invoke_async("testAppAction")
-                print(process)
+                job = await sdk.processes.invoke_async("testAppAction")
+                print(job)
 
             asyncio.run(main())
             ```
