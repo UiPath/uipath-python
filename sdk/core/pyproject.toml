@@ -6,7 +6,6 @@ readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
 dependencies = [
     "click>=8.1.8",
-    "dotenv>=0.9.9",
     "httpx>=0.28.1",
     "pydantic>=2.10.6",
     "python-dotenv>=1.0.1",
@@ -55,6 +54,10 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.1",
     "pre-commit>=4.1.0",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.7",
+    "mkdocstrings>=0.29.0",
+    "mkdocstrings-python>=1.16.5",
 ]
 
 [project.optional-dependencies]
@@ -67,10 +70,19 @@ line-length = 88
 indent-width = 4
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I"]
+select = ["E", "F", "B", "I", "D"]
+ignore = ["D417"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-decorators = []
 
 [tool.ruff.lint.per-file-ignores]
 "*" = ["E501"]
+"tests/**" = ["D"]
+"*_test.py" = ["D"]
+# TODO: Remove this once the documentation for CLI is updated
+"uipath_sdk/_cli/**" = ["D"]
 
 [tool.ruff.format]
 quote-style = "double"

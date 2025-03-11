@@ -21,18 +21,6 @@ class ActionsService(FolderContext, BaseService):
         app_id: str = "",
         app_version: int = -1,
     ) -> Action:
-        """
-        Create a new action.
-
-        Args:
-            title: The title of the action.
-            data: Optional dictionary of additional data.
-            app_id: The `systemName` of the app.
-            app_version: The `deployVersion` of the app.
-
-        Returns:
-            Action: The created action.
-        """
         endpoint = Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask")
 
         content = dumps(
@@ -56,15 +44,6 @@ class ActionsService(FolderContext, BaseService):
         self,
         action_key: str,
     ) -> Action:
-        """
-        Retrieve an action by key.
-
-        Args:
-            action_key: The key of the action to retrieve.
-
-        Returns:
-            Action: The retrieved action.
-        """
         endpoint = Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey")
         params = {"taskKey": action_key}
 

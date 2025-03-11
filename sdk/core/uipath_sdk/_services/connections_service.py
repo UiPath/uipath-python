@@ -10,12 +10,6 @@ T_co = TypeVar("T_co", covariant=True)
 
 
 class Connector(Protocol[T_co]):
-    """
-    A protocol for connectors.
-    This helps with type inference when instantiating the connector.
-    Even if we have here a callable, the actual connector should be a class.
-    """
-
     def __call__(self, *, client: Any, instance_id: Union[str, int]) -> T_co: ...
 
 
@@ -28,37 +22,21 @@ class ConnectionsService(BaseService):
         return connector(client=self.client, instance_id=connection.elementInstanceId)
 
     def retrieve(self, key: str) -> Connection:
-        """
-        Retrieves a connection by key.
-        """
-
         spec = self._retrieve_spec(key)
         response = self.request(spec.method, url=spec.endpoint)
         return Connection.model_validate(response.json())
 
     async def retrieve_async(self, key: str) -> Connection:
-        """
-        Retrieves a connection by key asynchronously.
-        """
-
         spec = self._retrieve_spec(key)
         response = await self.request_async(spec.method, url=spec.endpoint)
         return Connection.model_validate(response.json())
 
     def retrieve_token(self, key: str) -> ConnectionToken:
-        """
-        Retrieves a token for a connection by key.
-        """
-
         spec = self._retrieve_token_spec(key)
         response = self.request(spec.method, url=spec.endpoint, params=spec.params)
         return ConnectionToken.model_validate(response.json())
 
     async def retrieve_token_async(self, key: str) -> ConnectionToken:
-        """
-        Retrieves a token for a connection by key asynchronously.
-        """
-
         spec = self._retrieve_token_spec(key)
         response = await self.request_async(
             spec.method, url=spec.endpoint, params=spec.params
