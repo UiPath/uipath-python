@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+import json
+from typing import Any, Dict, Optional
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -22,6 +23,7 @@ class ProcessesService(FolderContext, BaseService):
     def invoke(
         self,
         name: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -32,6 +34,7 @@ class ProcessesService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the process to execute.
+            input_arguments (Optional[Dict[str, Any]]): The input arguments to pass to the process.
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
@@ -59,6 +62,7 @@ class ProcessesService(FolderContext, BaseService):
         """
         spec = self._invoke_spec(
             name,
+            input_arguments=input_arguments,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -76,6 +80,7 @@ class ProcessesService(FolderContext, BaseService):
     async def invoke_async(
         self,
         name: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -86,6 +91,7 @@ class ProcessesService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the process to execute.
+            input_arguments (Optional[Dict[str, Any]]): The input arguments to pass to the process.
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
@@ -109,6 +115,7 @@ class ProcessesService(FolderContext, BaseService):
         """
         spec = self._invoke_spec(
             name,
+            input_arguments=input_arguments,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -129,6 +136,7 @@ class ProcessesService(FolderContext, BaseService):
     def _invoke_spec(
         self,
         name: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -138,7 +146,16 @@ class ProcessesService(FolderContext, BaseService):
             endpoint=Endpoint(
                 "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
             ),
-            content=str({"startInfo": {"ReleaseName": name}}),
+            content=str(
+                {
+                    "startInfo": {
+                        "ReleaseName": name,
+                        "InputArguments": json.dumps(input_arguments)
+                        if input_arguments
+                        else "{}",
+                    }
+                }
+            ),
             headers={
                 **header_folder(folder_key, folder_path),
             },
