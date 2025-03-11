@@ -340,7 +340,7 @@ def parse_sdk_usage(
     tracker = UiPathSDKTracker(source_code, base_dir)
     tracker.analyze()
     results = tracker.get_results()
-    print(tracker.local_imports)
+
     # Parse local imports recursively
     if base_dir:
         for module_path in tracker.local_imports:

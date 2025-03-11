@@ -1,9 +1,11 @@
 import json
+import os
 import uuid
 from typing import Any, Dict
 
 from langgraph.graph.state import CompiledStateGraph
 from uipath_sdk._cli.middlewares import MiddlewareResult
+from uipath_sdk._cli.parse_ast import generate_bindings_json  # type: ignore
 
 from ._utils._graph import LangGraphConfig
 
@@ -66,9 +68,7 @@ def generate_schema_from_graph(graph: CompiledStateGraph) -> Dict[str, Any]:
 
 def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
     """Middleware to check for langgraph.json and create uipath.json with schemas"""
-
     config = LangGraphConfig()
-
     if not config.exists:
         return MiddlewareResult(
             should_continue=True
@@ -77,6 +77,7 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
     try:
         config.load_config()
         entrypoints = []
+        all_bindings = {"version": "2.0", "resources": []}
         mermaids = {}
 
         for graph in config.graphs:
@@ -94,6 +95,20 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
                 graph_schema = generate_schema_from_graph(compiled_graph)
 
                 mermaids[graph.name] = compiled_graph.get_graph(xray=1).draw_mermaid()
+
+                try:
+                    print("Generating bindings for ", graph.file_path)
+                    # Make sure the file path exists
+                    if os.path.exists(graph.file_path):
+                        file_bindings = generate_bindings_json(graph.file_path)
+
+                        # Merge bindings
+                        if "resources" in file_bindings:
+                            all_bindings["resources"] = file_bindings["resources"]
+                except Exception as e:
+                    print(
+                        f"Warning: Could not generate bindings for {graph.file_path}: {str(e)}"
+                    )
 
                 new_entrypoint: dict[str, Any] = {
                     "filePath": graph.name,
@@ -117,10 +132,10 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
                 error_message=f"Error: No graph found with name '{entrypoint}'",
             )
 
-        uipath_config = {"entryPoints": entrypoints}
+        uipath_config = {"entryPoints": entrypoints, "bindings": all_bindings}
 
+        # Save the uipath.json file
         config_path = "uipath.json"
-
         with open(config_path, "w") as f:
             json.dump(uipath_config, f, indent=2)
 
