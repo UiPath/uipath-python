@@ -9,6 +9,7 @@ import click
 
 from .input_args import generate_args
 from .middlewares import Middlewares
+from .parse_ast import generate_bindings_json
 
 
 def generate_env_file(target_directory):
@@ -88,6 +89,17 @@ def init(entrypoint: str) -> None:
                 }
             ]
         }
+
+        # Generate bindings JSON based on the script path
+        try:
+            bindings_data = generate_bindings_json(script_path)
+
+            # Add bindings to the config data
+            config_data["bindings"] = bindings_data
+
+            click.echo("Bindings generated successfully.")
+        except Exception as e:
+            click.echo(f"Warning: Could not generate bindings: {str(e)}")
 
         config_path = "uipath.json"
         with open(config_path, "w") as config_file:

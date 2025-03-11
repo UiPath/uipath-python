@@ -202,7 +202,21 @@ def generate_package_descriptor_content(entryPoints):
 def pack_fn(projectName, description, entryPoints, version, authors, directory):
     operate_file = generate_operate_file(entryPoints)
     entrypoints_file = generate_entrypoints_file(entryPoints)
-    bindings_content = generate_bindings_json(entryPoints[0]["filePath"])
+
+    # Get bindings from uipath.json if available
+    config_path = os.path.join(directory, "uipath.json")
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            config_data = json.load(f)
+            if "bindings" in config_data:
+                bindings_content = config_data["bindings"]
+            else:
+                # Fall back to generating bindings from the first entry point
+                bindings_content = generate_bindings_json(entryPoints[0]["filePath"])
+    else:
+        # Fall back to generating bindings from the first entry point
+        bindings_content = generate_bindings_json(entryPoints[0]["filePath"])
+
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
         projectName, version, description, authors
