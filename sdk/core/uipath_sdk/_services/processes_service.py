@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+import json
+from typing import Any, Dict, Optional
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -22,6 +23,7 @@ class ProcessesService(FolderContext, BaseService):
     def invoke(
         self,
         name: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -32,14 +34,12 @@ class ProcessesService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the process to execute.
+            input_arguments (Optional[Dict[str, Any]]): The input arguments to pass to the process.
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
-            Response: The HTTP response containing the job execution details.
-
-        Raises:
-            Exception: If the process with the given name is not found.
+            Job: The job execution details.
 
         Examples:
             ```python
@@ -49,9 +49,20 @@ class ProcessesService(FolderContext, BaseService):
 
             client.processes.invoke(name="MyProcess")
             ```
+
+            ```python
+            # if you want to execute the process in a specific folder
+            # another one than the one set in the SDK config
+            from uipath_sdk import UiPathSDK
+
+            client = UiPathSDK()
+
+            client.processes.invoke(name="MyProcess", folder_path="my-folder-key")
+            ```
         """
         spec = self._invoke_spec(
             name,
+            input_arguments=input_arguments,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -69,6 +80,7 @@ class ProcessesService(FolderContext, BaseService):
     async def invoke_async(
         self,
         name: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -79,14 +91,12 @@ class ProcessesService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the process to execute.
+            input_arguments (Optional[Dict[str, Any]]): The input arguments to pass to the process.
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
-            Response: The HTTP response containing the job execution details.
-
-        Raises:
-            Exception: If the process with the given name is not found.
+            Job: The job execution details.
 
         Examples:
             ```python
@@ -97,14 +107,15 @@ class ProcessesService(FolderContext, BaseService):
             sdk = UiPathSDK()
 
             async def main():
-                process = await sdk.processes.invoke_async("testAppAction")
-                print(process)
+                job = await sdk.processes.invoke_async("testAppAction")
+                print(job)
 
             asyncio.run(main())
             ```
         """
         spec = self._invoke_spec(
             name,
+            input_arguments=input_arguments,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -125,6 +136,7 @@ class ProcessesService(FolderContext, BaseService):
     def _invoke_spec(
         self,
         name: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -134,7 +146,16 @@ class ProcessesService(FolderContext, BaseService):
             endpoint=Endpoint(
                 "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
             ),
-            content=str({"startInfo": {"ReleaseName": name}}),
+            content=str(
+                {
+                    "startInfo": {
+                        "ReleaseName": name,
+                        "InputArguments": json.dumps(input_arguments)
+                        if input_arguments
+                        else "{}",
+                    }
+                }
+            ),
             headers={
                 **header_folder(folder_key, folder_path),
             },
