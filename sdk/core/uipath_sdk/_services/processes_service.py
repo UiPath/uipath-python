@@ -1,87 +1,141 @@
-from typing import Dict
-
-from httpx import Response
+from typing import Dict, Optional
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._models import Process
-from .._utils import Endpoint, RequestSpec, infer_bindings
+from .._models.job import Job
+from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from ._base_service import BaseService
 
 
 class ProcessesService(FolderContext, BaseService):
+    """Service for managing and executing UiPath automation processes.
+
+    Processes (also known as automations or workflows) are the core units of
+    automation in UiPath, representing sequences of activities that perform
+    specific business tasks.
+    """
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @infer_bindings()
-    def invoke(self, name: str) -> Response:
-        process = self.retrieve_by_name(name)
-        process_key = process.Key
+    def invoke(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Job:
+        """Start execution of a process by its name.
 
-        spec = self._invoke_spec(process_key)
+        Related Activity: [Invoke Process](https://docs.uipath.com/activities/other/latest/workflow/invoke-process)
 
-        return self.request(spec.method, url=spec.endpoint, content=spec.content)
+        Args:
+            name (str): The name of the process to execute.
+            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
-    @infer_bindings()
-    async def invoke_async(self, name: str) -> Response:
-        process = await self.retrieve_by_name_async(name)
-        process_key = process.Key
+        Returns:
+            Response: The HTTP response containing the job execution details.
 
-        spec = self._invoke_spec(process_key)
+        Raises:
+            Exception: If the process with the given name is not found.
 
-        return await self.request_async(
-            spec.method, url=spec.endpoint, content=spec.content
+        Examples:
+            ```python
+            from uipath_sdk import UiPathSDK
+
+            client = UiPathSDK()
+
+            client.processes.invoke(name="MyProcess")
+            ```
+        """
+        spec = self._invoke_spec(
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
         )
 
-    @infer_bindings()
-    def retrieve_by_name(self, name: str) -> Process:
-        spec = self._retrieve_by_name_spec(name)
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            content=spec.content,
+            headers=spec.headers,
+        )
 
-        try:
-            response = self.request(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-            )
-        except Exception as e:
-            raise Exception(f"Process with name {name} not found") from e
-
-        return Process.model_validate(response.json()["value"][0])
+        return Job.model_validate(response.json()["value"][0])
 
     @infer_bindings()
-    async def retrieve_by_name_async(self, name: str) -> Process:
-        spec = self._retrieve_by_name_spec(name)
+    async def invoke_async(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Job:
+        """Asynchronously start execution of a process by its name.
 
-        try:
-            response = await self.request_async(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-            )
-        except Exception as e:
-            raise Exception(f"Process with name {name} not found") from e
+        Related Activity: [Invoke Process](https://docs.uipath.com/activities/other/latest/workflow/invoke-process)
 
-        return Process.model_validate(response.json()["value"][0])
+        Args:
+            name (str): The name of the process to execute.
+            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+
+        Returns:
+            Response: The HTTP response containing the job execution details.
+
+        Raises:
+            Exception: If the process with the given name is not found.
+
+        Examples:
+            ```python
+            import asyncio
+
+            from uipath_sdk import UiPathSDK
+
+            sdk = UiPathSDK()
+
+            async def main():
+                process = await sdk.processes.invoke_async("testAppAction")
+                print(process)
+
+            asyncio.run(main())
+            ```
+        """
+        spec = self._invoke_spec(
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            content=spec.content,
+            headers=spec.headers,
+        )
+
+        return Job.model_validate(response.json()["value"][0])
 
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
-    def _invoke_spec(self, process_key: str) -> RequestSpec:
+    def _invoke_spec(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
             ),
-            content=str({"startInfo": {"ReleaseKey": process_key}}),
-        )
-
-    def _retrieve_by_name_spec(self, name: str) -> RequestSpec:
-        return RequestSpec(
-            method="GET",
-            endpoint=Endpoint(
-                "/orchestrator_/odata/Releases/UiPath.Server.Configuration.OData.ListReleases"
-            ),
-            params={"$filter": f"Name eq '{name}'", "$top": 1},
+            content=str({"startInfo": {"ReleaseName": name}}),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )

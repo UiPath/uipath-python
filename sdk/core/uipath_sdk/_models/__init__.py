@@ -2,6 +2,7 @@ from .actions import Action
 from .assets import UserAsset
 from .connections import Connection, ConnectionToken
 from .context_grounding import ContextGroundingQueryResponse
+from .job import Job
 from .processes import Process
 from .queues import (
     CommitType,
@@ -23,4 +24,5 @@ __all__ = [
     "TransactionItemResult",
     "Connection",
     "ConnectionToken",
+    "Job",
 ]

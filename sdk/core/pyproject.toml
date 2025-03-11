@@ -54,6 +54,10 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.1",
     "pre-commit>=4.1.0",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.7",
+    "mkdocstrings>=0.29.0",
+    "mkdocstrings-python>=1.16.5",
 ]
 
 [project.optional-dependencies]
