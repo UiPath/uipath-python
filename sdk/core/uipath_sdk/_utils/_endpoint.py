@@ -2,17 +2,30 @@ from typing import Any
 
 
 class Endpoint(str):
-    """
-    This class represents an API endpoint.
-    It ensures the endpoint:
-      - Starts with a slash.
-      - Does not end with a slash (unless it's the root).
-      - Has no query parameters.
+    """A string subclass representing a normalized API endpoint path.
 
-    It supports standard string formatting for dynamic endpoints.
+    This class ensures consistent endpoint formatting by:
+    - Adding a leading slash if missing
+    - Removing trailing slashes (except for root '/')
+    - Stripping query parameters
+
+    The class supports string formatting for dynamic path parameters.
+
+    Examples:
+        >>> endpoint = Endpoint("/api/v1/users/{id}")
+        >>> endpoint.format(id=123)
+        '/api/v1/users/123'
+
+        >>> endpoint = Endpoint("projects")
+        >>> str(endpoint)
+        '/projects'
 
     Args:
-        endpoint: The endpoint to parse, which may include placeholders.
+        endpoint (str): The endpoint path to normalize. May include format placeholders
+            for dynamic values (e.g. "/users/{id}").
+
+    Raises:
+        ValueError: If format() is called with None or empty string arguments.
     """
 
     def __new__(cls, endpoint: str) -> "Endpoint":
@@ -27,9 +40,7 @@ class Endpoint(str):
         return super().__new__(cls, endpoint)
 
     def format(self, *args: Any, **kwargs: Any) -> str:
-        """
-        Formats the endpoint with the given arguments.
-        """
+        """Formats the endpoint with the given arguments."""
         for index, arg in enumerate(args):
             if not self._is_valid_value(arg):
                 raise ValueError(f"Positional argument `{index}` is `{arg}`.")
@@ -48,8 +59,21 @@ class Endpoint(str):
 
     @property
     def service(self) -> str:
-        """
-        Returns the service name from the endpoint.
-        Assumes the endpoint is in the format `/service_/path`.
+        """Extracts and returns the service name from the endpoint path.
+
+        The service name is expected to be the first path segment after the leading slash,
+        with any underscores removed.
+
+        Examples:
+            >>> endpoint = Endpoint("/cloud_/projects")
+            >>> endpoint.service
+            'cloud'
+
+            >>> endpoint = Endpoint("/automation_hub_/assets")
+            >>> endpoint.service
+            'automationhub'
+
+        Returns:
+            str: The service name with underscores removed.
         """
         return self.split("/")[1].replace("_", "")

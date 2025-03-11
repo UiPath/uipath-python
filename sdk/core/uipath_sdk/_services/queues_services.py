@@ -15,53 +15,20 @@ class QueuesService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     def list_items(self) -> Response:
-        """
-        List all queue items.
-
-        Returns:
-            A Response object.
-        """
         spec = self._list_items_spec()
         return self.request(spec.method, url=spec.endpoint)
 
     async def list_items_async(self) -> Response:
-        """
-        List all queue items.
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._list_items_spec()
         return await self.request_async(spec.method, url=spec.endpoint)
 
     def create_item(self, item: Union[Dict[str, Any], QueueItem]) -> Response:
-        """
-        Create a new queue item.
-
-        Args:
-            item: A dictionary that contains the queue item data or a QueueItem object.
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._create_item_spec(item)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
     async def create_item_async(
         self, item: Union[Dict[str, Any], QueueItem]
     ) -> Response:
-        """
-        Create a new queue item.
-
-        Args:
-            item: A dictionary that contains the queue item data or a QueueItem object.
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._create_item_spec(item)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -71,18 +38,6 @@ class QueuesService(FolderContext, BaseService):
         queue_name: str,
         commit_type: CommitType,
     ) -> Response:
-        """
-        Create multiple queue items.
-
-        Args:
-            items: A list of dictionaries that contain the queue item data or a QueueItem object.
-            queue_name: The name of the queue.
-            commit_type: AllOrNothing | StopOnFirstFailure | ProcessAllIndependently
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._create_items_spec(items, queue_name, commit_type)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
@@ -92,106 +47,42 @@ class QueuesService(FolderContext, BaseService):
         queue_name: str,
         commit_type: CommitType,
     ) -> Response:
-        """
-        Create multiple queue items.
-
-        Args:
-            items: A list of dictionaries that contain the queue item data or a QueueItem object.
-            queue_name: The name of the queue.
-            commit_type: AllOrNothing | StopOnFirstFailure | ProcessAllIndependently
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._create_items_spec(items, queue_name, commit_type)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
     def create_transaction_item(
         self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
-        """
-        Create or update a queue item. If the item already exists, it will be updated.
-        Otherwise, it will be created and started (status: InProgress)
-
-        Args:
-            item: A dictionary that contains the transaction item data or a TransactionItem object.
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._create_transaction_item_spec(item, no_robot)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
     async def create_transaction_item_async(
         self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
-        """
-        Create or update a queue item. If the item already exists, it will be updated.
-        Otherwise, it will be created and started (status: InProgress)
-
-        Args:
-            item: A dictionary that contains the transaction item data or a TransactionItem object.
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._create_transaction_item_spec(item, no_robot)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
     def update_progress_of_transaction_item(
         self, transaction_key: str, progress: str
     ) -> Response:
-        """
-        Update the progress of a transaction item that is currently being processed.
-
-        Args:
-            transaction_key: The key of the transaction item.
-            progress: The progress of the transaction item.
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._update_progress_of_transaction_item_spec(transaction_key, progress)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
     async def update_progress_of_transaction_item_async(
         self, transaction_key: str, progress: str
     ) -> Response:
-        """
-        Update the progress of a transaction item that is currently being processed.
-
-        Args:
-            transaction_key: The key of the transaction item.
-            progress: The progress of the transaction item.
-
-        Returns:
-            A Response object.
-        """
-
         spec = self._update_progress_of_transaction_item_spec(transaction_key, progress)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
     def complete_transaction_item(
         self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
     ) -> Response:
-        """
-        Complete the processing of a transaction item.
-        """
-
         spec = self._complete_transaction_item_spec(transaction_key, result)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
     async def complete_transaction_item_async(
         self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
     ) -> Response:
-        """
-        Complete the processing of a transaction item.
-        """
-
         spec = self._complete_transaction_item_spec(transaction_key, result)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 

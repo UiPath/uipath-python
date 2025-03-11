@@ -6,8 +6,11 @@ from ._endpoint import Endpoint
 
 @dataclass
 class RequestSpec:
-    """
-    A specification for an HTTP request.
+    """Encapsulates the configuration for making an HTTP request.
+
+    This class contains all necessary parameters to construct and send an HTTP request,
+    including the HTTP method, endpoint, query parameters, headers, and various forms
+    of request body data (content, JSON, form data).
     """
 
     method: str
