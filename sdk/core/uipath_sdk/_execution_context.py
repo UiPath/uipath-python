@@ -3,7 +3,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-from ._utils.constants import ENV_JOB_KEY, ENV_ROBOT_KEY
+from ._utils.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
 
 load_dotenv()
 
@@ -18,7 +18,12 @@ class ExecutionContext:
 
     def __init__(self) -> None:
         try:
-            self._instance_id: Optional[str] = env[ENV_JOB_KEY]
+            self._instance_key: Optional[str] = env[ENV_JOB_KEY]
+        except KeyError:
+            self._instance_key = None
+
+        try:
+            self._instance_id: Optional[str] = env[ENV_JOB_ID]
         except KeyError:
             self._instance_id = None
 
@@ -43,9 +48,21 @@ class ExecutionContext:
             ValueError: If the instance ID is not set in the environment.
         """
         if self._instance_id is None:
-            raise ValueError(f"Instance ID is not set ({ENV_JOB_KEY})")
+            raise ValueError(f"Instance ID is not set ({ENV_JOB_ID})")
 
         return self._instance_id
+
+    @property
+    def instance_key(self) -> Optional[str]:
+        """Get the current job instance key.
+
+        The instance key uniquely identifies the current automation job execution
+        in UiPath Automation Cloud.
+        """
+        if self._instance_key is None:
+            raise ValueError(f"Instance key is not set ({ENV_JOB_KEY})")
+
+        return self._instance_key
 
     @property
     def robot_key(self) -> Optional[str]:

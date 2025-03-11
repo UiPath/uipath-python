@@ -4,6 +4,7 @@ from .assets_service import AssetsService
 from .buckets_service import BucketsService
 from .connections_service import ConnectionsService
 from .context_grounding_service import ContextGroundingService
+from .jobs_service import JobsService
 from .processes_service import ProcessesService
 from .queues_services import QueuesService
 
@@ -16,4 +17,5 @@ __all__ = [
     "ProcessesService",
     "ApiClient",
     "QueuesService",
+    "JobsService",
 ]
