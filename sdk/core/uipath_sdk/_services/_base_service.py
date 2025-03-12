@@ -57,7 +57,6 @@ class BaseService:
         self._logger.debug(f"HEADERS: {kwargs.get('headers', self.client.headers)}")
 
         response = self.client.request(method, url, **kwargs)
-
         response.raise_for_status()
 
         return response
@@ -78,7 +77,6 @@ class BaseService:
         )
 
         response = await self.client_async.request(method, url, **kwargs)
-
         response.raise_for_status()
 
         return response

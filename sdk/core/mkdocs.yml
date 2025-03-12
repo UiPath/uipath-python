@@ -38,6 +38,7 @@ theme:
 nav:
   - Home: index.md
   - Process: processes.md
+  - Jobs: jobs.md
 
 plugins:
   - search

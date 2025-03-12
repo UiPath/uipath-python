@@ -12,6 +12,7 @@ from ._services import (
     BucketsService,
     ConnectionsService,
     ContextGroundingService,
+    JobsService,
     ProcessesService,
     QueuesService,
 )
@@ -79,3 +80,7 @@ class UiPathSDK:
     @property
     def queues(self) -> QueuesService:
         return QueuesService(self._config, self._execution_context)
+
+    @property
+    def jobs(self) -> JobsService:
+        return JobsService(self._config, self._execution_context)
