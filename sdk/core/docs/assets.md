@@ -1,0 +1,1 @@
+::: uipath_sdk._services.assets_service
