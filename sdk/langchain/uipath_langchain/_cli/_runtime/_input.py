@@ -1,5 +1,4 @@
 import logging
-from dataclasses import dataclass
 from typing import Any, Optional, cast
 
 from langgraph.types import Command
@@ -15,22 +14,23 @@ from ._exception import LangGraphRuntimeError
 
 logger = logging.getLogger(__name__)
 
-uipath = UiPathSDK()
 
-
-@dataclass
 class LangGraphInputProcessor:
     """
     Handles input processing for graph execution, including resume scenarios
     where it needs to fetch data from UiPath.
     """
 
-    context: LangGraphRuntimeContext
-    _escalation: Optional[Escalation] = None
+    def __init__(self, context: LangGraphRuntimeContext):
+        """
+        Initialize the LangGraphInputProcessor.
 
-    def __post_init__(self):
-        """Initialize the escalation handler after initialization."""
-        self._escalation = Escalation(self.context.config_path)
+        Args:
+            context: The runtime context for the graph execution.
+        """
+        self.context = context
+        self.escalation = Escalation(self.context.config_path)
+        self.uipath = UiPathSDK()
 
     async def process(self) -> Any:
         """
@@ -52,12 +52,12 @@ class LangGraphInputProcessor:
         type, key = trigger
         logger.debug(f"ResumeTrigger: {type} {key}")
         if type == UiPathResumeTriggerType.ACTION.value and key:
-            action = uipath.actions.retrieve(key)
+            action = self.uipath.actions.retrieve(key)
             logger.debug(f"Action: {action}")
             if action.data is None:
                 return Command(resume={})
-            if self._escalation:
-                extracted_value = self._escalation.extract_response_value(action.data)
+            if self.escalation:
+                extracted_value = self.escalation.extract_response_value(action.data)
                 return Command(resume=extracted_value)
             return Command(resume=action.data)
         elif type == UiPathResumeTriggerType.API.value and key:
@@ -106,7 +106,7 @@ class LangGraphInputProcessor:
             The value field from the API response payload, or None if an error occurs.
         """
         try:
-            response = uipath.api_client.request(
+            response = self.uipath.api_client.request(
                 "GET",
                 f"/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
                 include_folder_headers=True,
