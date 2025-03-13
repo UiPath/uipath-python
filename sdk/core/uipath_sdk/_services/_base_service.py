@@ -1,3 +1,4 @@
+import inspect
 from logging import getLogger
 from typing import Any, Union
 
@@ -19,6 +20,7 @@ from tenacity import (
 
 from .._config import Config
 from .._execution_context import ExecutionContext
+from .._utils import user_agent_value
 
 
 def is_retryable_exception(exception: BaseException) -> bool:
@@ -56,7 +58,30 @@ class BaseService:
         self._logger.debug(f"Request: {method} {url}")
         self._logger.debug(f"HEADERS: {kwargs.get('headers', self.client.headers)}")
 
+        try:
+            stack = inspect.stack()
+
+            # use the third frame because of the retry decorator
+            caller_frame = stack[3].frame
+            function_name = caller_frame.f_code.co_name
+
+            if "self" in caller_frame.f_locals:
+                module_name = type(caller_frame.f_locals["self"]).__name__
+            elif "cls" in caller_frame.f_locals:
+                module_name = caller_frame.f_locals["cls"].__name__
+            else:
+                module_name = ""
+        except Exception:
+            function_name = ""
+            module_name = ""
+
+        specific_component = (
+            f"{module_name}.{function_name}" if module_name and function_name else ""
+        )
+        kwargs["headers"]["X-UiPath-User-Agent"] = user_agent_value(specific_component)
+
         response = self.client.request(method, url, **kwargs)
+
         response.raise_for_status()
 
         return response
@@ -75,6 +100,28 @@ class BaseService:
         self._logger.debug(
             f"HEADERS: {kwargs.get('headers', self.client_async.headers)}"
         )
+
+        try:
+            stack = inspect.stack()
+
+            # use the third frame because of the retry decorator
+            caller_frame = stack[3].frame
+            function_name = caller_frame.f_code.co_name
+
+            if "self" in caller_frame.f_locals:
+                module_name = type(caller_frame.f_locals["self"]).__name__
+            elif "cls" in caller_frame.f_locals:
+                module_name = caller_frame.f_locals["cls"].__name__
+            else:
+                module_name = ""
+        except Exception:
+            function_name = ""
+            module_name = ""
+
+        specific_component = (
+            f"{module_name}.{function_name}" if module_name and function_name else ""
+        )
+        kwargs["headers"]["X-UiPath-User-Agent"] = user_agent_value(specific_component)
 
         response = await self.client_async.request(method, url, **kwargs)
         response.raise_for_status()
