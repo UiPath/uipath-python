@@ -1,7 +1,7 @@
 import json
 import logging
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from functools import cached_property
 from typing import Any, Dict, Optional, Union, cast
 
@@ -75,24 +75,24 @@ class InterruptInfo:
             return UiPathResumeTrigger(itemKey=self.identifier, triggerType=self.type)
 
 
-@dataclass
 class LangGraphOutputProcessor:
     """
     Contains and manages the complete output information from graph execution.
     Handles serialization, interrupt data, and file output.
     """
 
-    context: LangGraphRuntimeContext
+    def __init__(self, context: LangGraphRuntimeContext):
+        """
+        Initialize the LangGraphOutputProcessor.
 
-    _interrupt_info: Optional[InterruptInfo] = field(
-        default=None, init=False, repr=False
-    )
-    _resume_trigger: Optional[UiPathResumeTrigger] = field(
-        default=None, init=False, repr=False
-    )
+        Args:
+            context: The runtime context for the graph execution.
+        """
+        self.context = context
+        self._interrupt_info: Optional[InterruptInfo] = None
+        self._resume_trigger: Optional[UiPathResumeTrigger] = None
 
-    def __post_init__(self):
-        """Process and cache interrupt information after initialization."""
+        # Process interrupt information during initialization
         state = cast(StateSnapshot, self.context.state)
         if not state or not hasattr(state, "next") or not state.next:
             return
