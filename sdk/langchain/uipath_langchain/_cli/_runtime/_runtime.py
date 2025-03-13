@@ -67,6 +67,7 @@ class LangGraphRuntime(UiPathBaseRuntime):
                 # Set up tracing if available
                 callbacks: List[BaseCallbackHandler] = []
 
+                tracer = None
                 if self.context.job_id and self.context.tracing_enabled:
                     tracer = AsyncUiPathTracer()
                     await tracer.init_trace(
@@ -91,6 +92,9 @@ class LangGraphRuntime(UiPathBaseRuntime):
                     self.context.state = await graph.aget_state(graph_config)
                 except Exception:
                     pass
+
+                if tracer is not None:
+                    await tracer.wait_for_all_tracers()
 
                 if self.context.langsmith_tracing_enabled:
                     wait_for_all_tracers()
