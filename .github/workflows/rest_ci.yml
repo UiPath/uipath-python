@@ -1,0 +1,27 @@
+name: Core CI
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "sdk/**"
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "sdk/**"
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    with:
+      should_skip: true
+      folder_path: "."
+
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      should_skip: true
+      folder_path: "."

@@ -7,11 +7,17 @@ on:
         description: 'The folder path to run actions in'
         required: true
         type: string
+      should_skip:
+          description: 'Whether to skip the linting step'
+          required: false
+          type: boolean
+          default: false
 
 jobs:
   test:
     name: Test
     runs-on: "ubuntu-24.04"
+    if: inputs.should_skip == false
     defaults:
       run:
         working-directory: ${{ inputs.folder_path }}
