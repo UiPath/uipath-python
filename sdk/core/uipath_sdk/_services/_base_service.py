@@ -21,6 +21,7 @@ from tenacity import (
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import user_agent_value
+from .._utils.constants import HEADER_USER_AGENT
 
 
 def is_retryable_exception(exception: BaseException) -> bool:
@@ -78,7 +79,8 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        kwargs["headers"]["X-UiPath-User-Agent"] = user_agent_value(specific_component)
+        headers = kwargs.get("headers", {})
+        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
         response = self.client.request(method, url, **kwargs)
 
@@ -121,7 +123,9 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        kwargs["headers"]["X-UiPath-User-Agent"] = user_agent_value(specific_component)
+
+        headers = kwargs.get("headers", {})
+        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
         response = await self.client_async.request(method, url, **kwargs)
         response.raise_for_status()
