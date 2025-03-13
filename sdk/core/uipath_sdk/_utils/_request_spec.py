@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
 from ._endpoint import Endpoint
@@ -15,9 +15,9 @@ class RequestSpec:
 
     method: str
     endpoint: Endpoint
-    params: Optional[dict[str, Any]] = None
+    params: dict[str, Any] = field(default_factory=dict)
+    headers: dict[str, Any] = field(default_factory=dict)
     content: Optional[Any] = None
     json: Optional[Any] = None
-    headers: Optional[dict[str, Any]] = None
     data: Optional[Any] = None
     timeout: Optional[Union[int, float]] = None
