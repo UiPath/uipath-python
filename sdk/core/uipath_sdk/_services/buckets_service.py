@@ -12,6 +12,12 @@ from ._base_service import BaseService
 
 
 class BucketsService(FolderContext, BaseService):
+    """Service for managing UiPath storage buckets.
+
+    Buckets are cloud storage containers that can be used to store and manage files
+    used by automation processes.
+    """
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
@@ -97,10 +103,14 @@ class BucketsService(FolderContext, BaseService):
 
     @infer_bindings()
     def retrieve(self, name: str) -> Any:
-        """Retrieve a bucket by name.
+        """Retrieve bucket information by its name.
 
         Args:
-            name: The name of the bucket
+            name (str): The name of the bucket to retrieve.
+
+        Returns:
+            Response: The HTTP response containing the bucket details, including
+                its ID, name, and configuration.
         """
         spec = self._retrieve_spec(name)
 
@@ -117,10 +127,14 @@ class BucketsService(FolderContext, BaseService):
 
     @infer_bindings()
     async def retrieve_async(self, name: str) -> Any:
-        """Retrieve a bucket by name asynchronously.
+        """Asynchronously retrieve bucket information by its name.
 
         Args:
-            name: The name of the bucket
+            name (str): The name of the bucket to retrieve.
+
+        Returns:
+            Response: The HTTP response containing the bucket details, including
+                its ID, name, and configuration.
         """
         spec = self._retrieve_spec(name)
 
@@ -136,10 +150,14 @@ class BucketsService(FolderContext, BaseService):
         return response.json()["value"][0]
 
     def retrieve_by_key(self, key: str) -> Any:
-        """Retrieve a bucket by key.
+        """Retrieve bucket information by its key.
 
         Args:
-            key: The key of the bucket
+            key (str): The key of the bucket
+
+        Returns:
+            Response: The HTTP response containing the bucket details, including
+                its ID, name, and configuration.
         """
         spec = self._retrieve_by_key_spec(key)
 
@@ -151,10 +169,14 @@ class BucketsService(FolderContext, BaseService):
         return response.json()
 
     async def retrieve_by_key_async(self, key: str) -> Any:
-        """Retrieve a bucket by key asynchronously.
+        """Asynchronously retrieve bucket information by its key.
 
         Args:
-            key: The key of the bucket
+            key (str): The key of the bucket
+
+        Returns:
+            Response: The HTTP response containing the bucket details, including
+                its ID, name, and configuration.
         """
         spec = self._retrieve_by_key_spec(key)
 

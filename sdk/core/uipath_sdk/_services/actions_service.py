@@ -10,6 +10,17 @@ from ._base_service import BaseService
 
 
 class ActionsService(FolderContext, BaseService):
+    """Service for managing UiPath Actions.
+
+    Actions are task-based automation components that can be integrated into
+    applications and processes. They represent discrete units of work that can
+    be triggered and monitored through the UiPath API.
+
+    This service provides methods to create and retrieve actions, supporting
+    both app-specific and generic actions. It inherits folder context management
+    capabilities from FolderContext.
+    """
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 

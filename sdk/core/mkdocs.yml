@@ -33,12 +33,15 @@ theme:
     - toc.follow
   logo: assets/uipath-logo.svg
 
-
-
 nav:
   - Home: index.md
-  - Process: processes.md
+  - Assets: assets.md
+  - Buckets: buckets.md
+  - Connections: connections.md
+  - Context Grounding: context_grounding.md
   - Jobs: jobs.md
+  - Queues: queues.md
+  - Processes: processes.md
 
 plugins:
   - search

@@ -9,6 +9,14 @@ from ._base_service import BaseService
 
 
 class ApiClient(FolderContext, BaseService):
+    """Low-level client for making direct HTTP requests to the UiPath API.
+
+    This class provides a flexible way to interact with the UiPath API when the
+    higher-level service classes don't provide the needed functionality. It inherits
+    from both FolderContext and BaseService to provide folder-aware request capabilities
+    with automatic authentication and retry logic.
+    """
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
