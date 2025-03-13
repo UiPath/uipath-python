@@ -1,5 +1,7 @@
 import importlib
 
+from .constants import HEADER_USER_AGENT
+
 
 def user_agent_value(specific_component: str) -> str:
     product = "UiPath.Python.Sdk"
@@ -11,4 +13,4 @@ def user_agent_value(specific_component: str) -> str:
 
 
 def header_user_agent(specific_component: str) -> dict[str, str]:
-    return {"X-UiPath-User-Agent": user_agent_value(specific_component)}
+    return {HEADER_USER_AGENT: user_agent_value(specific_component)}

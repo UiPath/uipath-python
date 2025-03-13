@@ -11,3 +11,4 @@ ENV_ROBOT_KEY = "UIPATH_ROBOT_KEY"
 # Headers
 HEADER_FOLDER_KEY = "x-uipath-folderkey"
 HEADER_FOLDER_PATH = "x-uipath-folderpath"
+HEADER_USER_AGENT = "x-uipath-user-agent"
