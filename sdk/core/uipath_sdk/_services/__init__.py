@@ -6,7 +6,7 @@ from .connections_service import ConnectionsService
 from .context_grounding_service import ContextGroundingService
 from .jobs_service import JobsService
 from .processes_service import ProcessesService
-from .queues_services import QueuesService
+from .queues_service import QueuesService
 
 __all__ = [
     "ActionsService",
