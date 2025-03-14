@@ -26,9 +26,7 @@ def select_tenant(
     click.echo(f"Selected tenant: {tenant_name}")
 
     update_env_file(
-        {
-            "UIPATH_URL": f"https://{domain}.uipath.com/{account_name}/{tenant_name}/orchestrator_"
-        }
+        {"UIPATH_URL": f"https://{domain}.uipath.com/{account_name}/{tenant_name}"}
     )
 
 
