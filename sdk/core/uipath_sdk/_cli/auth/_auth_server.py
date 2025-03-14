@@ -4,6 +4,7 @@ import os
 import socketserver
 import ssl
 import threading
+import time
 
 from dotenv import load_dotenv
 
@@ -42,10 +43,10 @@ def make_request_handler_class(state, code_verifier, token_callback):
                 self.end_headers()
                 self.wfile.write(b"Token received")
 
-                def signal_token_received():
-                    threading.Timer(1.0, lambda: token_callback(token_data)).start()
+                time.sleep(1)
 
-                signal_token_received()
+                token_callback(token_data)
+
             else:
                 self.send_error(404, "Path not found")
 
@@ -91,11 +92,12 @@ class HTTPSServer:
         self.httpd = None
         self.token_data = None
         self.shutdown_event = threading.Event()
+        self.should_shutdown = False
 
     def token_received_callback(self, token_data):
         """Callback for when a token is received."""
         self.token_data = token_data
-        self.shutdown_event.set()
+        self.should_shutdown = True
 
     def create_server(self, state, code_verifier):
         """Create and configure the HTTPS server."""
@@ -117,25 +119,16 @@ class HTTPSServer:
         if not self.httpd:
             self.create_server(state, code_verifier)
 
-        # Start a monitoring thread for shutdown
-        def monitor_shutdown():
-            self.shutdown_event.wait()
-            if self.httpd:
-                self.httpd.shutdown()
-
-        shutdown_thread = threading.Thread(target=monitor_shutdown)
-        shutdown_thread.daemon = True
-        shutdown_thread.start()
-
         try:
             if self.httpd:
-                self.httpd.serve_forever()
+                while not self.should_shutdown:
+                    self.httpd.handle_request()
         except KeyboardInterrupt:
             print("Process interrupted by user")
         finally:
             self.stop()
 
-        return self.token_data
+        return self.token_data if self.token_data else {}
 
     def stop(self):
         """Stop the server gracefully."""
