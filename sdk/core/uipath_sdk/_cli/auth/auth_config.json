@@ -1,0 +1,6 @@
+{
+  "client_id": "1119a927-10ab-4543-bd1a-ad6bfbbc27f4",
+  "redirect_uri": "https://localhost:6234/oidc/login",
+  "scope": "offline_access openid profile",
+  "port": 6234
+}

@@ -1530,6 +1530,18 @@ wheels = [
 ]
 
 [[package]]
+name = "types-requests"
+version = "2.32.0.20250306"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/09/1a/beaeff79ef9efd186566ba5f0d95b44ae21f6d31e9413bcfbef3489b6ae3/types_requests-2.32.0.20250306.tar.gz", hash = "sha256:0962352694ec5b2f95fda877ee60a159abdf84a0fc6fdace599f20acb41a03d1", size = 23012 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/26/645d89f56004aa0ba3b96fec27793e3c7e62b40982ee069e52568922b6db/types_requests-2.32.0.20250306-py3-none-any.whl", hash = "sha256:25f2cbb5c8710b2022f8bbee7b2b66f319ef14aeea2f35d80f18c9dbf3b60a0b", size = 20673 },
+]
+
+[[package]]
 name = "typing-extensions"
 version = "4.12.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1555,7 +1567,7 @@ wheels = [
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.78"
+version = "0.0.80"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -1565,6 +1577,7 @@ dependencies = [
     { name = "requests" },
     { name = "tenacity" },
     { name = "tomli" },
+    { name = "types-requests" },
 ]
 
 [package.optional-dependencies]
@@ -1597,6 +1610,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.32.3" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "tomli", specifier = ">=2.2.1" },
+    { name = "types-requests", specifier = ">=2.32.0.20250306" },
     { name = "uipath-langchain", marker = "extra == 'langchain'", specifier = ">=0.0.16" },
 ]
 provides-extras = ["langchain"]

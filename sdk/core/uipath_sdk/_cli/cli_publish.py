@@ -5,6 +5,9 @@ import click
 import requests
 from dotenv import load_dotenv
 
+from ._common_cli_utils import environment_options
+from .auth.cli_auth import PortalService, auth
+
 
 def get_most_recent_package():
     nupkg_files = [f for f in os.listdir(".uipath") if f.endswith(".nupkg")]
@@ -41,22 +44,22 @@ def get_env_vars():
 
 
 @click.command()
-def publish():
+@environment_options
+def publish(domain="alpha"):
     if not os.path.exists(".uipath"):
         click.echo("No .uipath directory found in current directory")
         return
-
+    portal_service = PortalService(domain)
+    if not portal_service.has_initialized_auth():
+        click.echo("No valid authentication found. Please authenticate.")
+        ctx = click.get_current_context()
+        ctx.invoke(auth)
     # Find most recent .nupkg file in .uipath directory
     most_recent = get_most_recent_package()
 
     click.echo(f"Publishing most recent package: {most_recent}")
 
     package_to_publish_path = os.path.join(".uipath", most_recent)
-
-    # Check .env file
-    if not os.path.exists(".env"):
-        click.echo("No .env file found in current directory")
-        return
 
     [base_url, token] = get_env_vars()
 
