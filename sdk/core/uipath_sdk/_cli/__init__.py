@@ -3,7 +3,7 @@ import sys
 
 import click
 
-from .auth.cli_auth import auth as auth
+from ._auth.cli_auth import auth as auth
 from .cli_deploy import deploy as deploy  # type: ignore
 from .cli_init import init as init  # type: ignore
 from .cli_new import new as new  # type: ignore

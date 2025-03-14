@@ -5,8 +5,8 @@ import click
 import requests
 from dotenv import load_dotenv
 
+from ._auth.cli_auth import PortalService, auth
 from ._common_cli_utils import environment_options
-from .auth.cli_auth import PortalService, auth
 
 
 def get_most_recent_package():

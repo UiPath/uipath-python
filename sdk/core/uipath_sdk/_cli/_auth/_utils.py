@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -7,6 +8,7 @@ from ._models import AccessTokenData, TokenData
 
 
 def update_auth_file(token_data: TokenData):
+    os.makedirs(Path.cwd() / ".uipath", exist_ok=True)
     auth_file = Path.cwd() / ".uipath" / ".auth.json"
     with open(auth_file, "w") as f:
         json.dump(token_data, f)
