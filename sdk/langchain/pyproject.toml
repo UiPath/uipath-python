@@ -1,6 +1,6 @@
 [project]
 name = "uipath_langchain"
-version = "0.0.60"
+version = "0.0.61"
 description = "UiPath Langchain"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
@@ -10,7 +10,7 @@ dependencies = [
     "langchain-core>=0.3.34",
     "langgraph-checkpoint-sqlite>=2.0.3",
     "requests>=2.23.3",
-    "types-requests==2.32.0.20241016"
+    "types-requests>=2.32.0.20241016"
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
