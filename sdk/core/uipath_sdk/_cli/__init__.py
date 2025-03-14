@@ -1,3 +1,6 @@
+import importlib.metadata
+import sys
+
 import click
 
 from .auth.cli_auth import auth as auth
@@ -9,9 +12,37 @@ from .cli_publish import publish as publish  # type: ignore
 from .cli_run import run as run  # type: ignore
 
 
-@click.group()
-def cli() -> None:
-    pass
+@click.group(invoke_without_command=True)
+@click.version_option(
+    importlib.metadata.version("uipath-sdk"),
+    prog_name="uipath",
+    message="%(prog)s version %(version)s",
+)
+@click.option(
+    "-lv",
+    is_flag=True,
+    help="Display the current version of uipath-langchain.",
+)
+@click.option(
+    "-v",
+    is_flag=True,
+    help="Display the current version of uipath-sdk.",
+)
+def cli(lv: bool, v: bool) -> None:
+    if lv:
+        try:
+            version = importlib.metadata.version("uipath-langchain")
+            click.echo(f"uipath-langchain version {version}")
+        except importlib.metadata.PackageNotFoundError:
+            click.echo("uipath-langchain is not installed", err=True)
+            sys.exit(1)
+    if v:
+        try:
+            version = importlib.metadata.version("uipath-sdk")
+            click.echo(f"uipath-sdk version {version}")
+        except importlib.metadata.PackageNotFoundError:
+            click.echo("uipath-sdk is not installed", err=True)
+            sys.exit(1)
 
 
 cli.add_command(new)
