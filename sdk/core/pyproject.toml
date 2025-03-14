@@ -12,6 +12,7 @@ dependencies = [
     "requests>=2.32.3",
     "tenacity>=9.0.0",
     "tomli>=2.2.1",
+    "types-requests>=2.32.0.20250306",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
