@@ -46,9 +46,7 @@ def get_env_vars():
 @click.command()
 @environment_options
 def publish(domain="alpha"):
-    if not os.path.exists(".uipath"):
-        click.echo("No .uipath directory found in current directory")
-        return
+    os.makedirs(".uipath", exist_ok=True)
     portal_service = PortalService(domain)
     if not portal_service.has_initialized_auth():
         click.echo("No valid authentication found. Please authenticate.")

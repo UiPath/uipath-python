@@ -3,7 +3,6 @@ import json
 import os
 import socketserver
 import ssl
-import threading
 import time
 
 from dotenv import load_dotenv
@@ -91,7 +90,6 @@ class HTTPSServer:
         self.key_file = os.path.join(self.current_path, "localhost.key")
         self.httpd = None
         self.token_data = None
-        self.shutdown_event = threading.Event()
         self.should_shutdown = False
 
     def token_received_callback(self, token_data):
