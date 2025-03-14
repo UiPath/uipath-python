@@ -5,8 +5,8 @@ from typing import Literal, Optional
 from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langgraph.graph import StateGraph
-from langgraph.types import interrupt
+from langgraph.graph import START, END, StateGraph
+from langgraph.types import interrupt, Command
 from pydantic import BaseModel, Field
 
 from uipath_sdk import UiPathSDK
@@ -61,7 +61,7 @@ def get_anthropic_api_key() -> str:
 
     if not api_key:
         try:
-            api_key = uipath.assets.retrieve("ANTHROPIC_API_KEY")
+            api_key = uipath.assets.retrieve_credential("ANTHROPIC_API_KEY")
             if not api_key:
                 raise ValueError("No API key found in credentials")
         except Exception as e:
@@ -100,7 +100,12 @@ async def create_action(state: GraphState) -> GraphState:
 
 async def wait_for_human(state: GraphState) -> GraphState:
     logger.info("Wait for human approval")
-    return interrupt({"message": "requires human approval", "type": "action"})
+    feedback = interrupt(f"Label: {state.label} Confidence: {state.confidence}")
+
+    if isinstance(feedback, bool) and feedback is True:
+        return Command(goto="notify_team")
+    else:
+        return Command(goto=END)
 
 async def notify_team(state: GraphState) -> GraphState:
     logger.info("Send team email notification")
@@ -115,11 +120,12 @@ builder.add_node("create_action", create_action)
 builder.add_node("human_approval", wait_for_human)
 builder.add_node("notify_team", notify_team)
 
+builder.add_edge(START, "classify")
 builder.add_edge("classify", "create_action")
 builder.add_edge("create_action", "human_approval")
 builder.add_edge("human_approval", "notify_team")
+builder.add_edge("notify_team", END)
 
-builder.set_entry_point("classify")
 
 from langgraph.checkpoint.memory import MemorySaver
 
