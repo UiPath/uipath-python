@@ -1,7 +1,10 @@
 import os
+from typing import cast
+
 from langchain_core.tools import tool
-from uipath_sdk import UiPathSDK
 from uipath_connectors.uipath_airdk import UiPathAirdk, WebReaderRequest
+from uipath_sdk import UiPathSDK
+
 
 @tool
 def SupplierWebsiteReader(request: WebReaderRequest) -> str:
@@ -18,6 +21,11 @@ def SupplierWebsiteReader(request: WebReaderRequest) -> str:
         The text from the URL
     """
 
-    airdk = UiPathSDK().connections(UiPathAirdk, os.environ.get('UIPATH_AIRDK_CONNECTION_KEY'))
+    airdk = cast(
+        UiPathAirdk,
+        UiPathSDK().connections.uipath_airdk(
+            os.environ.get("UIPATH_AIRDK_CONNECTION_KEY")
+        ),
+    )
     response = airdk.web_reader(body=request)
     return response.text
