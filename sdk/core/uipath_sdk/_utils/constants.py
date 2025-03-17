@@ -14,4 +14,4 @@ HEADER_FOLDER_PATH = "x-uipath-folderpath"
 HEADER_USER_AGENT = "x-uipath-user-agent"
 
 # Entrypoint for plugins
-ENTRYPOINT = "uipath_connectors"
+ENTRYPOINT = "uipath_sdk.connectors"
