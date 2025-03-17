@@ -59,9 +59,6 @@ class ConnectionsService(BaseService):
             PluginNotFoundError: If the plugin is not installed
             ImportError: If the plugin fails to load
         """
-        if hasattr(self, name):
-            return getattr(self, name)
-
         if not self._plugins_loaded:
             self._load_connectors()
 
