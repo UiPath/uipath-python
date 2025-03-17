@@ -1,6 +1,6 @@
 [project]
 name = "invoice-dispute-investigation-agent"
-version = "0.1.0"
+version = "0.1.1"
 description = "Invoice Dispute Investigation Agent"
 authors = [
     { name = "Eduard Stanculet" }
@@ -10,9 +10,10 @@ dependencies = [
     "urllib3>=1.25.3,<3.0.0",
     "pydantic>=2",
     "typing-extensions>=4.7.1",
-    "uipath_sdk>=0.0.80",
+    "uipath_sdk>=0.0.88",
     "uipath_langchain>=0.0.60",
-    "uipath_connectors.uipath_airdk >=1.53.6.dev2",
+    "uipath_connectors.uipath_airdk >=1.53.6.dev6",
+    "uipath_connectors.google_gmail >=1.18.17.dev6",
     "langchain",
     "langchain-core",
     "langchain-anthropic",
