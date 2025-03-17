@@ -5,14 +5,12 @@ import re
 import uuid
 import warnings
 from os import environ as env
+from typing import List, Optional, Set
 
 import httpx
-from httpx import AsyncHTTPTransport
 from langchain_core.tracers.base import AsyncBaseTracer
 from langchain_core.tracers.schemas import Run
 from pydantic import PydanticDeprecationWarning
-
-transport = AsyncHTTPTransport(retries=3)
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +19,20 @@ class AsyncUiPathTracer(AsyncBaseTracer):
     def __init__(self, client=None, **kwargs):
         super().__init__(**kwargs)
 
+        self.pending_tasks: List[asyncio.Task[Optional[None]]] = []
+        self.end_traced_runs: Set[str] = set()
+        self.end_traced_runs_lock = asyncio.Lock()
+
         self.client = client or httpx.AsyncClient()
         self.retries = 3
 
         llm_ops_pattern = self._get_base_url() + "{orgId}/llmops_"
-        self.orgId = env.get("UIPATH_ORGANIZATION_ID")
-        self.tenantId = env.get("UIPATH_TENANT_ID")
+        self.orgId = env.get(
+            "UIPATH_ORGANIZATION_ID", "00000000-0000-0000-0000-000000000000"
+        )
+        self.tenantId = env.get(
+            "UIPATH_TENANT_ID", "00000000-0000-0000-0000-000000000000"
+        )
         self.url = llm_ops_pattern.format(orgId=self.orgId).rstrip("/")
 
         self.auth_token = env.get("UNATTENDED_USER_ACCESS_TOKEN") or env.get(
@@ -98,50 +104,100 @@ class AsyncUiPathTracer(AsyncBaseTracer):
                 f"Error when sending trace: {response}. Body is: {response.text}"
             )
 
+    async def wait_for_all_tracers(self) -> None:
+        """
+        Wait for all pending log requests to complete
+        """
+        if self.pending_tasks:
+            await asyncio.gather(*self.pending_tasks)
+            self.pending_tasks = []
+
     async def _persist_run(self, run: Run) -> None:
-        # when (run.id == run.parent_run_id)  it's the start of a new trace
-        # but we treat all as spans and parent to a single Trace with Id == Job.Key
-        start_time = run.start_time.isoformat() if run.start_time is not None else None
-        end_time = run.end_time.isoformat() if run.end_time is not None else start_time
+        # Determine if this is a start or end trace based on whether end_time is set
+        is_end_trace = run.end_time is not None
 
-        span_data = {
-            "id": str(run.id),
-            "parentId": str(run.parent_run_id)
-            if run.parent_run_id is not None
-            else None,
-            "traceId": self.trace_parent,
-            "name": run.name,
-            "startTime": start_time,
-            "endTime": end_time,
-            "referenceId": self.referenceId,
-            "attributes": self._safe_json_dump(self._run_to_dict(run)),
-            "organizationId": self.orgId,
-            "tenantId": self.tenantId,
-            "spanType": "LangGraphRun",
-            "status": 2 if run.error else 1,
-            "jobKey": self.jobKey,
-            "folderKey": self.folderKey,
-            "processKey": self.processKey,
-        }
+        await self._send_span(run, is_end_trace=is_end_trace)
 
-        for attempt in range(self.retries):
-            response = await self.client.post(
-                f"{self.url}/api/Agent/span/", headers=self.headers, json=span_data
+    async def _send_span(self, run: Run, is_end_trace: bool = False) -> None:
+        """Send span data for a run to the API"""
+        run_id = str(run.id)
+
+        # StartTrace should not overwrite EndTrace
+        skip_run = False
+        async with self.end_traced_runs_lock:
+            if not is_end_trace and run_id in self.end_traced_runs:
+                skip_run = True
+
+            if is_end_trace:
+                self.end_traced_runs.add(run_id)
+
+        if skip_run:
+            logger.debug(
+                f"Skipping _start_trace for already end-traced run ID {run_id}"
+            )
+            return
+
+        try:
+            start_time = (
+                run.start_time.isoformat() if run.start_time is not None else None
+            )
+            end_time = (
+                run.end_time.isoformat() if run.end_time is not None else start_time
             )
 
-            if response.is_success:
-                break
+            span_data = {
+                "id": run_id,
+                "parentId": str(run.parent_run_id)
+                if run.parent_run_id is not None
+                else None,
+                "traceId": self.trace_parent,
+                "name": run.name,
+                "startTime": start_time,
+                "endTime": end_time,
+                "referenceId": self.referenceId,
+                "attributes": self._safe_json_dump(self._run_to_dict(run)),
+                "organizationId": self.orgId,
+                "tenantId": self.tenantId,
+                "spanType": "LangGraphRun",
+                "status": 2 if run.error else 1,
+                "jobKey": self.jobKey,
+                "folderKey": self.folderKey,
+                "processKey": self.processKey,
+            }
 
-            await asyncio.sleep(0.5 * (2**attempt))  # Exponential backoff
+            for attempt in range(self.retries):
+                response = await self.client.post(
+                    f"{self.url}/api/Agent/span/",
+                    headers=self.headers,
+                    json=span_data,
+                    timeout=10,
+                )
 
-        if 400 <= response.status_code < 600:
-            logger.warning(
-                f"Error when sending trace: {response}. Body is: {response.text}"
-            )
+                if response.is_success:
+                    break
+
+                await asyncio.sleep(0.5 * (2**attempt))  # Exponential backoff
+
+                if 400 <= response.status_code < 600:
+                    logger.warning(
+                        f"Error when sending trace: {response}. Body is: {response.text}"
+                    )
+        except Exception as e:
+            logger.warning(f"Exception when sending trace: {e}.")
+
+    async def _start_trace(self, run: Run) -> None:
+        await super()._start_trace(run)
+
+        task = asyncio.create_task(self._send_span(run, is_end_trace=False))
+        self.pending_tasks.append(task)
+        self._clean_completed_tasks()
 
     async def _end_trace(self, run: Run) -> None:
         await super()._end_trace(run)
-        await self._persist_run(run)
+
+        task = asyncio.create_task(self._send_span(run, is_end_trace=True))
+        self.pending_tasks.append(task)
+        self._clean_completed_tasks()
 
     def _safe_json_dump(self, obj) -> str:
         try:
@@ -160,3 +216,9 @@ class AsyncUiPathTracer(AsyncBaseTracer):
                 "inputs": run.inputs.copy() if run.inputs is not None else None,
                 "outputs": run.outputs.copy() if run.outputs is not None else None,
             }
+
+    def _clean_completed_tasks(self) -> None:
+        """
+        Remove completed tasks from the pending list
+        """
+        self.pending_tasks = [task for task in self.pending_tasks if not task.done()]
