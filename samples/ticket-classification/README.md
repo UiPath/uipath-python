@@ -7,7 +7,7 @@ Use LangGraph with Azure OpenAI to automatically classify support tickets into p
 1. Clone the repository:
 ```bash
 git clone
-cd samples/ticket-classification
+cd samples\ticket-classification
 ```
 
 2. Install dependencies:
@@ -29,7 +29,7 @@ AZURE_OPENAI_ENDPOINT=xxx
 uipath run <entrypoint> <input> [--resume]
 ```
 
-### Debug
+### Run
 
 To classify a ticket, run the script using UiPath CLI:
 
@@ -60,8 +60,6 @@ The input ticket should be in the following format:
 The script outputs JSON with the classification results:
 ```json
 {
-    "message": "Original ticket message",
-    "ticket_id": "TICKET-ID",
     "label": "security",
     "confidence": 0.9
 }
