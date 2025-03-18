@@ -61,7 +61,7 @@ class LogsInterceptor:
         self.original_stdout: Optional[TextIO] = None
         self.original_stderr: Optional[TextIO] = None
 
-        self.log_handler: Union[PersistentLogsHandler, logging.StreamHandler]
+        self.log_handler: Union[PersistentLogsHandler, logging.StreamHandler[TextIO]]
 
         # Create either file handler (runtime) or stdout handler (debug)
         if self.job_id:
