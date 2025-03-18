@@ -1,6 +1,6 @@
 [project]
 name = "uipath_sdk"
-version = "0.0.89"
+version = "0.0.90"
 description = "UiPath SDK"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
@@ -8,6 +8,7 @@ dependencies = [
     "click>=8.1.8",
     "httpx>=0.28.1",
     "pydantic>=2.10.6",
+    "pytest-asyncio>=0.25.3",
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
     "tenacity>=9.0.0",
