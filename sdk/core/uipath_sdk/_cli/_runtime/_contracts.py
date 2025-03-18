@@ -282,14 +282,14 @@ class UiPathBaseRuntime(ABC):
         Returns:
             The runtime instance
         """
-        # Intercept all stdout/stderr/logs and write them to a file at runtime
-        if self.context.job_id:
-            self.logs_interceptor = LogsInterceptor(
-                min_level=self.context.logs_min_level,
-                dir=self.context.runtime_dir,
-                file=self.context.logs_file,
-            )
-            self.logs_interceptor.setup()
+        # Intercept all stdout/stderr/logs and write them to a file (runtime), stdout (debug)
+        self.logs_interceptor = LogsInterceptor(
+            min_level=self.context.logs_min_level,
+            dir=self.context.runtime_dir,
+            file=self.context.logs_file,
+            job_id=self.context.job_id,
+        )
+        self.logs_interceptor.setup()
 
         logger.debug(f"Starting runtime with job id: {self.context.job_id}")
 
