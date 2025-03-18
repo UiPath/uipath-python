@@ -22,5 +22,10 @@
   "workbench.colorCustomizations": {
     "titleBar.activeBackground": "#0099cc",
     "titleBar.inactiveBackground": "#0099cc"
-  }
+  },
+  "python.testing.pytestArgs": [
+    "sdk"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
 }
