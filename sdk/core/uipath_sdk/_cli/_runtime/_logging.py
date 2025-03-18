@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from typing import Optional, TextIO
+from typing import Optional, TextIO, Union
 
 
 class PersistentLogsHandler(logging.FileHandler):
@@ -60,6 +60,8 @@ class LogsInterceptor:
 
         self.original_stdout: Optional[TextIO] = None
         self.original_stderr: Optional[TextIO] = None
+
+        self.log_handler: Union[PersistentLogsHandler, logging.StreamHandler]
 
         # Create either file handler (runtime) or stdout handler (debug)
         if self.job_id:
