@@ -2,7 +2,7 @@ import logging
 import os
 from typing import Literal, Optional
 
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import AzureChatOpenAI
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import START, END, StateGraph
@@ -14,6 +14,14 @@ from uipath_sdk import UiPathSDK
 logger = logging.getLogger(__name__)
 
 uipath = UiPathSDK()
+
+class GraphInput(BaseModel):
+    message: str
+    ticket_id: str
+
+class GraphOutput(BaseModel):
+    label: str
+    confidence: float
 
 class GraphState(BaseModel):
     message: str
@@ -55,26 +63,30 @@ Respond with the classification in the requested JSON format.""",
 )
 
 
-def get_anthropic_api_key() -> str:
-    """Get Anthropic API key from environment or UiPath."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+def get_azure_openai_api_key() -> str:
+    """Get Azure OpenAI API key from environment or UiPath."""
+    api_key = os.getenv("AZURE_OPENAI_API_KEY")
 
     if not api_key:
         try:
-            api_key = uipath.assets.retrieve_credential("ANTHROPIC_API_KEY")
+            api_key = uipath.assets.retrieve_credential("AZURE_OPENAI_API_KEY")
             if not api_key:
                 raise ValueError("No API key found in credentials")
         except Exception as e:
             logger.error(f"Failed to get API key: {str(e)}")
-            raise RuntimeError("Failed to get Anthropic API key")
+            raise RuntimeError("Failed to get Azure OpenAI API key")
 
     return api_key
 
 
 async def classify(state: GraphState) -> GraphState:
     """Classify the support ticket using LLM."""
-    llm = ChatAnthropic(api_key=get_anthropic_api_key(), model="claude-3-opus-20240229")
-
+    llm = AzureChatOpenAI(
+        azure_deployment="gpt-4o-mini",
+        api_key=get_azure_openai_api_key(),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_version="2024-10-21"
+    )
     _prompt = prompt.partial(
         format_instructions=output_parser.get_format_instructions()
     )
@@ -82,6 +94,7 @@ async def classify(state: GraphState) -> GraphState:
 
     try:
         result = await chain.ainvoke({"ticket_text": state.message})
+        print(result)
         state.label = result.label
         state.confidence = result.confidence
         logger.info(
@@ -94,10 +107,6 @@ async def classify(state: GraphState) -> GraphState:
         state.confidence = 0.0
         return state
 
-async def create_action(state: GraphState) -> GraphState:
-    logger.info("Create Action Center approval")
-    return state
-
 async def wait_for_human(state: GraphState) -> GraphState:
     logger.info("Wait for human approval")
     feedback = interrupt(f"Label: {state.label} Confidence: {state.confidence}")
@@ -109,20 +118,19 @@ async def wait_for_human(state: GraphState) -> GraphState:
 
 async def notify_team(state: GraphState) -> GraphState:
     logger.info("Send team email notification")
+    print(state)
     return state
 
 """Process a support ticket through the workflow."""
 
-builder = StateGraph(GraphState)
+builder = StateGraph(GraphState, input=GraphInput, output=GraphOutput)
 
 builder.add_node("classify", classify)
-builder.add_node("create_action", create_action)
 builder.add_node("human_approval", wait_for_human)
 builder.add_node("notify_team", notify_team)
 
 builder.add_edge(START, "classify")
-builder.add_edge("classify", "create_action")
-builder.add_edge("create_action", "human_approval")
+builder.add_edge("classify", "human_approval")
 builder.add_edge("human_approval", "notify_team")
 builder.add_edge("notify_team", END)
 

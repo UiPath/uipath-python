@@ -1,41 +1,48 @@
 # Support Ticket Classification System
 
-Use LangGraph with Anthropic to automatically classify support tickets into predefined categories with confidence scores. UiPath integration with Action Center for human approval step.
+Use LangGraph with Azure OpenAI to automatically classify support tickets into predefined categories with confidence scores. UiPath Orchestrator API integration for human approval step.
 
 ## Debug
 
 1. Clone the repository:
 ```bash
-git clone 
-cd ticket-classification
+git clone
+cd samples/ticket-classification
 ```
 
 2. Install dependencies:
+```bash
+uv venv -p 3.11 .venv
+.venv\Scripts\activate
+uv sync
+```
 
 3. Create a `.env` file in the project root with the following configuration:
 ```env
-UIPATH_ACCESS_TOKEN=your_access_token
 UIPATH_URL=https://alpha.uipath.com/ada/byoa
-UIPATH_FOLDER_PATH=Pufos
-UIPATH_ROBOT_KEY=805d2237-34e3-41f3-bfc3-710f808926b2
-UIPATH_JOB_KEY=805d2237-34e3-41f3-bfc3-710f808926b5
-ANTHROPIC_API_KEY=your_anthropic_api_key
+UIPATH_ACCESS_TOKEN=xxx
+AZURE_OPENAI_API_KEY=xxx
+AZURE_OPENAI_ENDPOINT=xxx
 ```
 
-### Basic Classification
-
-To classify a ticket, run the script with a JSON ticket object:
-
 ```bash
-python main.py '{"message": "GET Assets API does not enforce proper permissions Assets.View", "ticket_id": "TICKET-2345"}'
+uipath run <entrypoint> <input> [--resume]
 ```
 
-### Resume with Approval
+### Debug
 
-To resume a suspended job with approval:
+To classify a ticket, run the script using UiPath CLI:
 
 ```bash
-python main.py '{"message": "GET Assets API does not enforce proper permissions Assets.View", "ticket_id": "TICKET-2345"}' true
+uipath run agent '{"message": "GET Assets API does not enforce proper permissions Assets.View", "ticket_id": "TICKET-2345"}'
+```
+
+### Resume
+
+To resume the graph with approval:
+
+```bash
+uipath run agent true --resume
 ```
 
 ### Input JSON Format
@@ -56,7 +63,6 @@ The script outputs JSON with the classification results:
     "message": "Original ticket message",
     "ticket_id": "TICKET-ID",
     "label": "security",
-    "confidence": 0.9,
-    "approved": true
+    "confidence": 0.9
 }
 ```
