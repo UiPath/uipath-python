@@ -12,6 +12,7 @@ cd samples\ticket-classification
 
 2. Install dependencies:
 ```bash
+pip install uv
 uv venv -p 3.11 .venv
 .venv\Scripts\activate
 uv sync
