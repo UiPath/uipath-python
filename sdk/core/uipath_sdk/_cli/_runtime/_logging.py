@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from typing import Optional, TextIO
+from typing import Optional, TextIO, Union
 
 
 class PersistentLogsHandler(logging.FileHandler):
@@ -25,8 +25,8 @@ class PersistentLogsHandler(logging.FileHandler):
 
 class LogsInterceptor:
     """
-    Intercepts all logging and stdout/stderr, routing everything to persistent log files.
-    Ensures that all output is captured regardless of how it's generated in user scripts.
+    Intercepts all logging and stdout/stderr, routing to either persistent log files or stdout
+    based on whether it's running as a job or not.
     """
 
     def __init__(
@@ -34,6 +34,7 @@ class LogsInterceptor:
         min_level: Optional[str] = "INFO",
         dir: Optional[str] = "__uipath",
         file: Optional[str] = "execution.log",
+        job_id: Optional[str] = None,
     ):
         """
         Initialize the log interceptor.
@@ -41,14 +42,11 @@ class LogsInterceptor:
         Args:
             min_level: Minimum logging level to capture.
             dir (str): The directory where logs should be stored.
+            file (str): The log file name.
+            job_id (str, optional): If provided, logs go to file; otherwise, to stdout.
         """
         min_level = min_level or "INFO"
-        dir = dir or "__uipath"
-        file = file or "execution.log"
-
-        os.makedirs(dir, exist_ok=True)
-
-        log_file = os.path.join(dir, file)
+        self.job_id = job_id
 
         # Convert to numeric level for consistent comparison
         self.numeric_min_level = getattr(logging, min_level.upper(), logging.INFO)
@@ -63,11 +61,24 @@ class LogsInterceptor:
         self.original_stdout: Optional[TextIO] = None
         self.original_stderr: Optional[TextIO] = None
 
-        self.log_handler = PersistentLogsHandler(file=log_file)
+        self.log_handler: Union[PersistentLogsHandler, logging.StreamHandler[TextIO]]
+
+        # Create either file handler (runtime) or stdout handler (debug)
+        if self.job_id:
+            # Ensure directory exists for file logging
+            dir = dir or "__uipath"
+            file = file or "execution.log"
+            os.makedirs(dir, exist_ok=True)
+            log_file = os.path.join(dir, file)
+            self.log_handler = PersistentLogsHandler(file=log_file)
+        else:
+            # Use stdout handler when not running as a job
+            self.log_handler = logging.StreamHandler(sys.stdout)
+            formatter = logging.Formatter("[%(asctime)s][%(levelname)s] %(message)s")
+            self.log_handler.setFormatter(formatter)
+
         self.log_handler.setLevel(self.numeric_min_level)
-
         self.logger = logging.getLogger("runtime")
-
         self.patched_loggers: set[str] = set()
 
     def _clean_all_handlers(self, logger: logging.Logger) -> None:
