@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import pytest
 from langchain_community.cache import SQLiteCache
@@ -17,7 +19,7 @@ from uipath_langchain.embeddings import (
 )
 
 
-def test_cached_call(cached_llmgw_calls: SQLiteCache | None):
+def test_cached_call(cached_llmgw_calls: Optional[SQLiteCache]):
     model = UiPathAzureChatOpenAI(cache=cached_llmgw_calls)
     messages = [
         SystemMessage(content="How much is 2 + 2?"),
@@ -27,7 +29,7 @@ def test_cached_call(cached_llmgw_calls: SQLiteCache | None):
     assert "4" in response.content, f"Expected '4' in response, got: {response.content}"
 
 
-def test_cached_call_tokens(cached_llmgw_calls: SQLiteCache | None):
+def test_cached_call_tokens(cached_llmgw_calls: Optional[SQLiteCache]):
     model = UiPathAzureChatOpenAI(cache=cached_llmgw_calls)
     messages = [
         SystemMessage(content="How much is 2 + 2?"),
@@ -39,7 +41,7 @@ def test_cached_call_tokens(cached_llmgw_calls: SQLiteCache | None):
     assert total_tokens >= 20, f"Expected more than 20 tokens, got: {total_tokens}"
 
 
-def test_normalized_cached_call(cached_llmgw_calls: SQLiteCache | None):
+def test_normalized_cached_call(cached_llmgw_calls: Optional[SQLiteCache]):
     model = UiPathNormalizedChatModel(
         model="anthropic.claude-3-5-sonnet-20240620-v1:0", cache=cached_llmgw_calls
     )
@@ -51,7 +53,7 @@ def test_normalized_cached_call(cached_llmgw_calls: SQLiteCache | None):
     assert "4" in response.content, f"Expected '4' in response, got: {response.content}"
 
 
-def test_normalized_cached_call_tokens(cached_llmgw_calls: SQLiteCache | None):
+def test_normalized_cached_call_tokens(cached_llmgw_calls: Optional[SQLiteCache]):
     model = UiPathNormalizedChatModel(
         model="anthropic.claude-3-5-sonnet-20240620-v1:0", cache=cached_llmgw_calls
     )
@@ -65,7 +67,7 @@ def test_normalized_cached_call_tokens(cached_llmgw_calls: SQLiteCache | None):
     assert total_tokens >= 20, f"Expected more than 20 tokens, got: {total_tokens}"
 
 
-def test_tool_call(cached_llmgw_calls: SQLiteCache | None):
+def test_tool_call(cached_llmgw_calls: Optional[SQLiteCache]):
     @tool
     def get_first_letter(input):
         """
@@ -83,7 +85,7 @@ def test_tool_call(cached_llmgw_calls: SQLiteCache | None):
     assert hasattr(response, "tool_calls"), (
         "The response should have a 'tool_calls' attribute"
     )
-    tool_call = response.tool_calls[0]  # type: ignore
+    tool_call = response.tool_calls[0]
     assert tool_call["name"] == "get_first_letter", (
         f"Expected tool call to 'get_first_letter', got: {tool_call['name']}"
     )
@@ -92,7 +94,7 @@ def test_tool_call(cached_llmgw_calls: SQLiteCache | None):
     )
 
 
-def test_structured_output_call(cached_llmgw_calls: SQLiteCache | None):
+def test_structured_output_call(cached_llmgw_calls: Optional[SQLiteCache]):
     class CitySize(BaseModel):
         """City and its size."""
 
@@ -120,7 +122,7 @@ def test_structured_output_call(cached_llmgw_calls: SQLiteCache | None):
         pytest.fail(f"The response was not in the correct format: {exc}")
 
 
-def test_embedding_call(cached_embedder: Embeddings | None):
+def test_embedding_call(cached_embedder: Optional[Embeddings]):
     if not cached_embedder:
         cached_embedder = UiPathOpenAIEmbeddings(model="text-embedding-3-large")
     data = [
@@ -135,7 +137,7 @@ def test_embedding_call(cached_embedder: Embeddings | None):
     assert arr.shape == (2, 3072), f"Expected shape (2, 3072), got: {arr.shape}"
 
 
-def test_custom_embedding_call(cached_embedder: Embeddings | None):
+def test_custom_embedding_call(cached_embedder: Optional[Embeddings]):
     if not cached_embedder:
         cached_embedder = UiPathAzureOpenAIEmbeddings(model="text-embedding-3-large")
     data = [

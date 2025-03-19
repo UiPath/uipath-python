@@ -3,6 +3,7 @@ name: Reusable Test Workflow
 on:
   workflow_call:
     inputs:
+    
       folder_path:
         description: 'The folder path to run actions in'
         required: true
@@ -17,11 +18,11 @@ jobs:
   test:
     name: Test
     runs-on: "ubuntu-24.04"
+    environment: PYPY_TOKEN
     if: inputs.should_skip == false
     defaults:
       run:
         working-directory: ${{ inputs.folder_path }}
-
 
     steps:
       - uses: actions/checkout@v4
@@ -39,5 +40,12 @@ jobs:
 
       - name: "Run tests"
         run: |
+          printenv | sort
           uv run pytest
+        env:
+          UIPATH_URL: ${{ secrets.UIPATH_URL }}
+          UIPATH_CLIENT_ID: ${{ secrets.UIPATH_CLIENT_ID }}
+          UIPATH_CLIENT_SECRET: ${{ secrets.UIPATH_CLIENT_SECRET }}
+          UIPATH_ORGANIZATION_ID: ${{ vars.UIPATH_ORGANIZATION_ID }}
+          UIPATH_TENANT_ID: ${{ vars.UIPATH_TENANT_ID }}
 

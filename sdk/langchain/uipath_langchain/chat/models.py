@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from langchain_core.callbacks import (
     AsyncCallbackManagerForLLMRun,
@@ -11,7 +11,6 @@ from langchain_core.messages.ai import UsageMetadata
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import Runnable
 from langchain_openai.chat_models import AzureChatOpenAI
-from langchain_openai.chat_models.azure import _DictOrPydantic, _DictOrPydanticClass
 from pydantic import BaseModel
 
 from uipath_langchain.utils._request_mixin import UiPathRequestMixin
@@ -49,13 +48,13 @@ class UiPathAzureChatOpenAI(UiPathRequestMixin, AzureChatOpenAI):
 
     def with_structured_output(
         self,
-        schema: Optional[_DictOrPydanticClass] = None,
+        schema: Optional[Any] = None,
         *,
         method: Literal["function_calling", "json_mode", "json_schema"] = "json_schema",
         include_raw: bool = False,
         strict: Optional[bool] = None,
         **kwargs: Any,
-    ) -> Runnable[LanguageModelInput, _DictOrPydantic]:
+    ) -> Runnable[LanguageModelInput, Any]:
         """Model wrapper that returns outputs formatted to match the given schema."""
         schema = (
             schema.model_json_schema()
@@ -82,8 +81,8 @@ class UiPathNormalizedChatModel(UiPathRequestMixin, AzureChatOpenAI):
 
     def _create_chat_result(
         self,
-        response: Dict[str, Any] | BaseModel,
-        generation_info: Optional[Dict] = None,
+        response: Union[Dict[str, Any], BaseModel],
+        generation_info: Optional[Dict[Any, Any]] = None,
     ) -> ChatResult:
         if not isinstance(response, dict):
             response = response.model_dump()
@@ -125,7 +124,7 @@ class UiPathNormalizedChatModel(UiPathRequestMixin, AzureChatOpenAI):
         *,
         stop: Optional[List[str]] = None,
         **kwargs: Any,
-    ) -> Dict:
+    ) -> Dict[Any, Any]:
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
         # hacks to make the request work with uipath normalized
         for message in payload["messages"]:
@@ -220,7 +219,7 @@ class UiPathNormalizedChatModel(UiPathRequestMixin, AzureChatOpenAI):
 
     def with_structured_output(
         self,
-        schema: Optional[_DictOrPydanticClass] = None,
+        schema: Optional[Any] = None,
         *,
         method: Literal[
             "function_calling", "json_mode", "json_schema"
@@ -228,7 +227,7 @@ class UiPathNormalizedChatModel(UiPathRequestMixin, AzureChatOpenAI):
         include_raw: bool = False,
         strict: Optional[bool] = None,
         **kwargs: Any,
-    ) -> Runnable[LanguageModelInput, _DictOrPydantic]:
+    ) -> Runnable[LanguageModelInput, Any]:
         """Model wrapper that returns outputs formatted to match the given schema."""
         if method == "json_schema" and (
             not self.model_name or not self.model_name.startswith("gpt")

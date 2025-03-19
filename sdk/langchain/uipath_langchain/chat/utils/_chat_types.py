@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -6,24 +6,24 @@ from pydantic import BaseModel, Field
 class ToolCall(BaseModel):
     id: str
     name: str
-    arguments: dict
+    arguments: Dict[Any, Any]
 
 
 class Message(BaseModel):
     role: str
-    content: str | dict | None = None
-    tool_calls: List[ToolCall] | None = None
+    content: Optional[Union[str, Dict[Any, Any]]] = None
+    tool_calls: Optional[List[ToolCall]] = None
 
 
 class Tool(BaseModel):
     name: str
     description: str
-    parameters: dict | None = None
+    parameters: Optional[Dict[Any, Any]] = None
 
 
 class ToolChoice(BaseModel):
     type: str
-    name: str | None = None
+    name: Optional[str] = None
 
 
 class ChatCompletionRequest(BaseModel):
@@ -34,8 +34,8 @@ class ChatCompletionRequest(BaseModel):
     frequency_penalty: float
     presence_penalty: float
     messages: List[Message]
-    tools: List[Tool] | None = None
-    tool_choice: ToolChoice | None = None
+    tools: Optional[List[Tool]] = None
+    tool_choice: Optional[ToolChoice] = None
     response_format: Optional[Dict[str, Any]] = None
 
 
@@ -46,8 +46,8 @@ class ModelSettings(BaseModel):
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
     max_tokens: int = 4096
-    tool_choice: str | None = None
-    enforced_tool_name: str | None = None
+    tool_choice: Optional[str] = None
+    enforced_tool_name: Optional[str] = None
 
 
 class UiPathOutput(BaseModel):

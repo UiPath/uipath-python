@@ -1,19 +1,19 @@
 import os
-from typing import List
+from typing import List, Optional
 
 import httpx
 from langchain_community.callbacks.manager import openai_callback_var
 from langchain_openai.embeddings import AzureOpenAIEmbeddings, OpenAIEmbeddings
 from pydantic import Field
 
-from uipath_langchain.utils._settings import UiPathEndpoints
 from uipath_langchain.utils._request_mixin import UiPathRequestMixin
+from uipath_langchain.utils._settings import UiPathEndpoints
 
 
-class UiPathAzureOpenAIEmbeddings(UiPathRequestMixin, AzureOpenAIEmbeddings):  # type: ignore
+class UiPathAzureOpenAIEmbeddings(UiPathRequestMixin, AzureOpenAIEmbeddings):
     """Custom Embeddings connector for LangChain integration with UiPath, with minimal changes compared to AzureOpenAIEmbeddings."""
 
-    model_name: str | None = Field(
+    model_name: Optional[str] = Field(
         default_factory=lambda: os.getenv(
             "UIPATH_MODEL_NAME", "text-embedding-3-large"
         ),
@@ -22,13 +22,13 @@ class UiPathAzureOpenAIEmbeddings(UiPathRequestMixin, AzureOpenAIEmbeddings):  #
 
     def __init__(self, **kwargs):
         super().__init__(
-            http_client=httpx.Client(  # type: ignore
+            http_client=httpx.Client(
                 event_hooks={
                     "request": [self._log_request_duration],
                     "response": [self._log_response_duration],
                 }
             ),
-            http_async_client=httpx.AsyncClient(  # type: ignore
+            http_async_client=httpx.AsyncClient(
                 event_hooks={
                     "request": [self._alog_request_duration],
                     "response": [self._alog_response_duration],
@@ -48,10 +48,10 @@ class UiPathAzureOpenAIEmbeddings(UiPathRequestMixin, AzureOpenAIEmbeddings):  #
         )
 
 
-class UiPathOpenAIEmbeddings(UiPathRequestMixin, OpenAIEmbeddings):  # type: ignore
+class UiPathOpenAIEmbeddings(UiPathRequestMixin, OpenAIEmbeddings):
     """Custom Embeddings connector for LangChain integration with UiPath, with full control over the embedding call."""
 
-    model_name: str | None = Field(
+    model_name: Optional[str] = Field(
         default_factory=lambda: os.getenv(
             "UIPATH_MODEL_NAME", "text-embedding-3-large"
         ),
@@ -59,7 +59,7 @@ class UiPathOpenAIEmbeddings(UiPathRequestMixin, OpenAIEmbeddings):  # type: ign
     )
 
     def embed_documents(
-        self, texts: List[str], chunk_size: int | None = None
+        self, texts: List[str], chunk_size: Optional[int] = None
     ) -> List[List[float]]:
         """Embed a list of documents using the UiPath."""
         embeddings = []
@@ -82,7 +82,7 @@ class UiPathOpenAIEmbeddings(UiPathRequestMixin, OpenAIEmbeddings):  # type: ign
     async def aembed_documents(
         self,
         texts: List[str],
-        chunk_size: int | None = None,
+        chunk_size: Optional[int] = None,
     ) -> List[List[float]]:
         """Async version of embed_documents."""
         embeddings = []

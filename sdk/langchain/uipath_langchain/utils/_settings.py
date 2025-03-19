@@ -1,12 +1,11 @@
+# mypy: disable-error-code="syntax"
 import os
 from enum import Enum
+from typing import Any, Optional
 
-import aiohttp
-import requests
+import httpx
 from pydantic import Field
 from pydantic_settings import BaseSettings
-
-uipath_token_header = None
 
 
 class UiPathCachedPathsSettings(BaseSettings):
@@ -23,6 +22,7 @@ class UiPathCachedPathsSettings(BaseSettings):
 
 
 uipath_cached_paths_settings = UiPathCachedPathsSettings()
+uipath_token_header: Optional[str] = None
 
 
 class UiPathClientFactorySettings(BaseSettings):
@@ -51,24 +51,8 @@ class UiPathEndpoints(Enum):
     )
 
 
-def get_uipath_token_header(settings: UiPathClientFactorySettings | None = None) -> str:
-    global uipath_token_header
-    if not uipath_token_header:
-        settings = settings or UiPathClientFactorySettings()
-        url_get_token = f"{settings.base_url}/identity_/connect/token"
-        token_credentials = dict(
-            client_id=settings.client_id,
-            client_secret=settings.client_secret,
-            grant_type="client_credentials",
-        )
-        res = requests.post(url_get_token, data=token_credentials)
-        res_json = res.json()
-        uipath_token_header = res_json.get("access_token")
-    return uipath_token_header
-
-
-async def get_token_header_async(
-    settings: UiPathClientFactorySettings | None = None,
+def get_uipath_token_header(
+    settings: Any = None,
 ) -> str:
     global uipath_token_header
     if not uipath_token_header:
@@ -79,9 +63,29 @@ async def get_token_header_async(
             client_secret=settings.client_secret,
             grant_type="client_credentials",
         )
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url_get_token, data=token_credentials) as res:
-                res.raise_for_status()
-                res_json = await res.json()
-        uipath_token_header = res_json.get("access_token")
-    return uipath_token_header
+        with httpx.Client() as client:
+            res = client.post(url_get_token, data=token_credentials)
+            res_json = res.json()
+            uipath_token_header = res_json.get("access_token")
+
+    return uipath_token_header or ""
+
+
+async def get_token_header_async(
+    settings: Any = None,
+) -> str:
+    global uipath_token_header
+    if not uipath_token_header:
+        settings = settings or UiPathClientFactorySettings()
+        url_get_token = f"{settings.base_url}/identity_/connect/token"
+        token_credentials = dict(
+            client_id=settings.client_id,
+            client_secret=settings.client_secret,
+            grant_type="client_credentials",
+        )
+
+        with httpx.Client() as client:
+            res_json = client.post(url_get_token, data=token_credentials).json()
+            uipath_token_header = res_json.get("access_token")
+
+    return uipath_token_header or ""

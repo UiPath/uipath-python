@@ -17,6 +17,7 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.0.1",
     "httpx>=0.27.0",
+    "openai>=1.65.5",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

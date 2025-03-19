@@ -1,3 +1,4 @@
+# mypy: disable-error-code="no-redef,arg-type"
 import json
 import logging
 import os
@@ -25,30 +26,41 @@ from uipath_langchain.utils._settings import (
 from uipath_langchain.utils._sleep_policy import before_sleep_log
 
 
+def get_from_uipath_url():
+    url = os.getenv("UIPATH_URL")
+    if url:
+        return "/".join(url.split("/", 3)[:3])
+    return None
+
+
 class UiPathRequestMixin(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    default_headers: Mapping[str, str] | None = {
+    default_headers: Optional[Mapping[str, str]] = {
         "X-UiPath-Streaming-Enabled": "false",
     }
-    model_name: str | None = Field(
+    model_name: Optional[str] = Field(
         default_factory=lambda: os.getenv("UIPATH_MODEL_NAME", "gpt-4o-2024-08-06"),
         alias="model",
     )
-    settings: UiPathClientSettings | None = None
-    client_id: str | None = Field(default_factory=lambda: os.getenv("UIPATH_CLIENT_ID"))
-    client_secret: str | None = Field(
+    settings: Optional[UiPathClientSettings] = None
+    client_id: Optional[str] = Field(
+        default_factory=lambda: os.getenv("UIPATH_CLIENT_ID")
+    )
+    client_secret: Optional[str] = Field(
         default_factory=lambda: os.getenv("UIPATH_CLIENT_SECRET")
     )
-    base_url: str | None = Field(
+    base_url: Optional[str] = Field(
         default_factory=lambda data: getattr(data["settings"], "base_url", None)
-        or os.getenv("UIPATH_BASE_URL"),
+        or os.getenv("UIPATH_BASE_URL")
+        or get_from_uipath_url(),
         alias="azure_endpoint",
     )
-    access_token: str | None = Field(
+    access_token: Optional[str] = Field(
         default_factory=lambda data: (
             getattr(data["settings"], "access_token", None)
+            or os.getenv("UIPATH_ACCESS_TOKEN")  # Environment variable
             or os.getenv("UIPATH_SERVICE_TOKEN")  # Environment variable
             or get_uipath_token_header(
                 UiPathClientFactorySettings(
@@ -59,27 +71,27 @@ class UiPathRequestMixin(BaseModel):
             )  # Get service token from UiPath
         )
     )
-    org_id: str = Field(
+    org_id: Any = Field(
         default_factory=lambda data: getattr(data["settings"], "org_id", None)
         or os.getenv("UIPATH_ORGANIZATION_ID", "")
     )
-    tenant_id: str = Field(
+    tenant_id: Any = Field(
         default_factory=lambda data: getattr(data["settings"], "tenant_id", None)
         or os.getenv("UIPATH_TENANT_ID", "")
     )
-    requesting_product: str = Field(
+    requesting_product: Any = Field(
         default_factory=lambda data: getattr(
             data["settings"], "requesting_product", None
         )
         or os.getenv("UIPATH_REQUESTING_PRODUCT", "")
     )
-    requesting_feature: str = Field(
+    requesting_feature: Any = Field(
         default_factory=lambda data: getattr(
             data["settings"], "requesting_feature", None
         )
         or os.getenv("UIPATH_REQUESTING_FEATURE", "")
     )
-    default_request_timeout: float = Field(
+    default_request_timeout: Any = Field(
         default_factory=lambda data: float(
             getattr(data["settings"], "timeout_seconds", None)
             or os.getenv("UIPATH_TIMEOUT_SECONDS", "120")
@@ -87,23 +99,23 @@ class UiPathRequestMixin(BaseModel):
         alias="timeout",
     )
 
-    openai_api_version: str | None = Field(
+    openai_api_version: Optional[str] = Field(
         default_factory=lambda: os.getenv("OPENAI_API_VERSION", "2024-08-01-preview"),
         alias="api_version",
     )
     include_account_id: bool = False
-    temperature: float | None = 0.0
-    max_tokens: int | None = 1000
-    frequency_penalty: float | None = None
-    presence_penalty: float | None = None
+    temperature: Optional[float] = 0.0
+    max_tokens: Optional[int] = 1000
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
 
-    logger: logging.Logger | None = None
-    max_retries: int | None = 5
+    logger: Optional[logging.Logger] = None
+    max_retries: Optional[int] = 5
     base_delay: float = 5.0
     max_delay: float = 60.0
 
-    _url: str | None = None
-    _auth_headers: Dict[str, str] | None = None
+    _url: Optional[str] = None
+    _auth_headers: Optional[Dict[str, str]] = None
 
     # required to instantiate AzureChatOpenAI subclasses
     azure_endpoint: Optional[str] = Field(
@@ -256,7 +268,7 @@ class UiPathRequestMixin(BaseModel):
         )
 
         try:
-            response = await retryer(self._arequest, url, request_body, headers)
+            response: Any = await retryer(self._arequest, url, request_body, headers)
             if self.logger:
                 self.logger.info(
                     f"[uipath_langchain_client] Finished retryer after {retryer.statistics['attempt_number'] - 1} retries",
@@ -287,7 +299,7 @@ class UiPathRequestMixin(BaseModel):
                         "reason": err.message,
                         "statusCode": err.status_code,
                     },
-                )  # type: ignore
+                )
             raise err
 
     def _make_status_error_from_response(
