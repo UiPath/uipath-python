@@ -1,125 +1,178 @@
-# UiPath SDK
+# UiPath Python SDK
 
-## CLI User's guide
+A Python SDK that enables programmatic interaction with UiPath Platform services including processes, assets, buckets, context grounding, data services, jobs, and more. The package also features a CLI for creation, packaging, and deployment of automations to UiPath Platform.
 
-`pip install uipath_sdk`
-_(NOTE: create virtual env if needed)_
+## Table of Contents
 
-```
-uipath init [PROJECT_NAME] [DIRECTORY] [DESCRIPTION]
-```
-
-defaults:
-
--   project name => my-agent
--   directory => ./
--   description => "my-agent description"
-
-example:
-
-```
-uipath init
-OR
-uipath init custom-name ./my-projects/custom-dir "my custom description"
-```
-
-after init `cd` into the created folder, install the dependencies from requirements.txt then set your credentials in the `.env` file
-_(NOTE: if you just want to publish the default package or edit basic things in the main.py file you may skip installing the dependencies)_
-
-```
-uipath pack [ROOT] [VERSION]
-```
-
-defaults:
-
--   root => ./
--   version => 1.0.0
-    example:
-
-```
-uipath pack
-OR
-uipath pack ./my-projects/custom-dir 2.0.4
-```
-
-NOTE: if you run the pack command outside of the folder with the `config.json` it will throw an error
-
-after packing it's time to publish
-
-```
-uipath publish [PATH_TO_NUPKG]
-
-uipath publish my-custom-package.2.3.1.nupkg
-```
-
-defaults:
-
--   if no path provided, it will use the first `.nupkg` file it finds in your current directory
-
-NOTE: this command also needs an `.env` file in your current directory
-
-## Setup
-
-1. **Install Python 3.13**:
-
-    - Download and install Python 3.13 from the official [Python website](https://www.python.org/downloads/).
-    - Verify the installation by running:
-        ```sh
-        python3.13 --version
-        ```
-
-2. **Install [uv](https://docs.astral.sh/uv/)**:
-
-    ```sh
-    pip install uv
-    ```
-
-3. **Create a virtual environment in the current working directory**:
-
-    ```sh
-        uv venv
-    ```
-
-4. **Install dependencies**:
-    ```sh
-
-        uv sync --all-extras
-    ```
-
-See `just --list` for linting, formatting and build
+- [Installation](#installation)
+- [Configuration](#configuration)
+  - [Environment Variables](#environment-variables)
+- [Basic Usage](#basic-usage)
+- [Available Services](#available-services)
+- [Examples](#examples)
+  - [Buckets Service](#buckets-service)
+  - [Context Grounding Service](#context-grounding-service)
+- [Command Line Interface (CLI)](#command-line-interface-cli)
+  - [Authentication](#authentication)
+  - [Initialize a Project](#initialize-a-project)
+  - [Debug a Project](#debug-a-project)
+  - [Package a Project](#package-a-project)
+  - [Publish a Package](#publish-a-package)
+- [Project Structure](#project-structure)
+- [Development](#development)
+  - [Setting Up a Development Environment](#setting-up-a-development-environment)
 
 ## Installation
-Use any package manager (e.g. `uv`) to install `uipath` from PyPi:
-    `uv add uipath_sdk`
 
-## Usage
-### SDK
-1. Set these env variables:
-- `UIPATH_BASE_URL`
-- `UIPATH_ACCOUNT_NAME`
-- `UIPATH_TENANT_NAME`
-- `UIPATH_FOLDER_ID`
-
-2. Generate a PAT (Personal Access Token)
-For example, to create a PAT for alpha, go to (replace ORG with your organization name)
-https://alpha.uipath.com/[ORG]/portal_/personalAccessToken/add
-
-```py
-import os
-from uipath_sdk import UiPathSDK
-
-
-def main():
-    secret = os.environ.get("UIPATH_ALPHA_SECRET")
-
-    uipath = UiPathSDK(secret)
-
-    job = uipath.processes.invoke_process(release_key="")
-    print(job)
-
+```bash
+pip install uipath_sdk
 ```
 
-### CLI
+using `uv`:
 
+```bash
+uv add uipath_sdk
+```
 
-## License
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in your project root with the following variables:
+
+```
+UIPATH_URL=https://cloud.uipath.com/ACCOUNT_NAME/TENANT_NAME
+UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE
+```
+
+## Basic Usage
+
+```python
+from uipath_sdk import UiPathSDK
+# Initialize the SDK
+sdk = UiPathSDK()
+# Execute a process
+job = sdk.processes.invoke(
+    name="MyProcess",
+    input_arguments={"param1": "value1", "param2": 42}
+)
+# Work with assets
+asset = sdk.assets.retrieve(name="MyAsset")
+```
+
+## Available Services
+
+The SDK provides access to various UiPath services:
+- `sdk.processes` - Manage and execute UiPath automation processes
+- `sdk.assets` - Work with assets (variables, credentials) stored in UiPath
+- `sdk.buckets` - Manage cloud storage containers for automation files
+- `sdk.connections` - Handle connections to external systems
+- `sdk.context_grounding` - Work with semantic contexts for AI-enabled automation
+- `sdk.jobs` - Monitor and manage automation jobs
+- `sdk.queues` - Work with transaction queues
+- `sdk.actions` - Work with Action Center
+- `sdk.api_client` - Direct access to the API client for custom requests
+
+## Examples
+
+### Buckets Service
+
+```python
+# Download a file from a bucket
+sdk.buckets.download(
+    bucket_key="my-bucket",
+    blob_file_path="path/to/file.xlsx",
+    destination_path="local/path/file.xlsx"
+)
+```
+
+### Context Grounding Service
+
+```python
+# Search for contextual information
+results = sdk.context_grounding.search(
+    name="my-knowledge-index",
+    query="How do I process an invoice?",
+    number_of_results=5
+)
+```
+
+## Command Line Interface (CLI)
+
+The SDK also provides a command-line interface for creating, packaging, and deploying automations:
+
+### Authentication
+
+```bash
+uipath auth
+```
+
+This command opens a browser for authentication and creates/updates your `.env` file with the proper credentials.
+
+### Initialize a Project
+
+```bash
+uipath init [ENTRYPOINT]
+```
+
+Creates a `uipath.json` configuration file for your project. If the entrypoint is not provided, it will try to find a single Python file in the current directory.
+
+### Debug a Project
+
+```bash
+uipath run ENTRYPOINT [INPUT]
+```
+
+Executes a Python script with the provided JSON input arguments.
+
+### Package a Project
+
+```bash
+uipath pack
+```
+
+Packages your project into a `.nupkg` file that can be deployed to UiPath.
+
+### Publish a Package
+
+```bash
+uipath publish
+```
+
+Publishes the most recently created package to your UiPath Orchestrator.
+
+## Project Structure
+
+To properly use the CLI for packaging and publishing, your project should include:
+- A `pyproject.toml` file with project metadata
+- A `uipath.json` file (generated by `uipath init`)
+- Any Python files needed for your automation
+
+## Development
+
+### Setting Up a Development Environment
+
+For contributing to the UiPath SDK, follow these steps:
+
+```bash
+# Clone or fork the repository
+git clone https://github.com/UiPath/uipath-python.git
+# OR fork the repository and clone your fork
+
+# Navigate to the core SDK directory
+cd uipath-python/sdk/core
+
+# Create a virtual environment with Python 3.11
+uv venv -p 3.11 .venv
+
+# Activate the virtual environment
+source .venv/bin/activate
+# On Windows: .venv\Scripts\activate
+
+# Install dependencies
+uv sync
+
+# Make your changes to the codebase
+
+# Create a pull request with your changes
+```
