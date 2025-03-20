@@ -9,7 +9,6 @@
     ".ruff_cache": true,
     ".venv": true
   },
-
   // Formatting
   "editor.formatOnSave": true,
   "[python]": {
@@ -18,7 +17,6 @@
       "source.organizeImports": "explicit"
     }
   },
-
   "workbench.colorCustomizations": {
     "titleBar.activeBackground": "#0099cc",
     "titleBar.inactiveBackground": "#0099cc"

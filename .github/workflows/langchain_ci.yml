@@ -17,6 +17,14 @@ defaults:
   run:
     working-directory: "sdk/langchain"
 
+env:
+  UIPATH_URL: ${{ secrets.UIPATH_URL }}
+  UIPATH_CLIENT_ID: ${{ secrets.UIPATH_CLIENT_ID }}
+  UIPATH_CLIENT_SECRET: ${{ secrets.UIPATH_CLIENT_SECRET }}
+  UIPATH_ORGANIZATION_ID: ${{ vars.UIPATH_ORGANIZATION_ID }}
+  UIPATH_TENANT_ID: ${{ vars.UIPATH_TENANT_ID }}
+
+
 jobs:
   lint:
     uses: ./.github/workflows/lint.yml

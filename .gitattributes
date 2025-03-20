@@ -1,0 +1,2 @@
+*.db filter=lfs diff=lfs merge=lfs -text
+**/cached_embeddings/** filter=lfs diff=lfs merge=lfs -text
