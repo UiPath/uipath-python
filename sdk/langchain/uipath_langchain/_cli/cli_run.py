@@ -42,6 +42,10 @@ def langgraph_run_middleware(
             context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
             context.langsmith_tracing_enabled = env.get("LANGSMITH_TRACING", False)
 
+            # Add default env variables
+            env["UIPATH_REQUESTING_PRODUCT"] = "uipath-python-sdk"
+            env["UIPATH_REQUESTING_FEATURE"] = "langgraph-agent"
+
             async with LangGraphRuntime.from_context(context) as runtime:
                 await runtime.execute()
 
