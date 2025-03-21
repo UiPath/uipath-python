@@ -165,11 +165,8 @@ class UiPathNormalizedChatModel(UiPathRequestMixin, AzureChatOpenAI):
                   downstream and understand why generation stopped.
             run_manager: A run manager with callbacks for the LLM.
         """
-        kwargs["tools"] = (
-            [tool["function"] for tool in kwargs["tools"]]
-            if "tools" in kwargs
-            else None
-        )
+        if kwargs.get("tools"):
+            kwargs["tools"] = [tool["function"] for tool in kwargs["tools"]]
         if "tool_choice" in kwargs and kwargs["tool_choice"]["type"] == "function":
             kwargs["tool_choice"] = {
                 "type": "tool",
@@ -202,11 +199,8 @@ class UiPathNormalizedChatModel(UiPathRequestMixin, AzureChatOpenAI):
                   downstream and understand why generation stopped.
             run_manager: A run manager with callbacks for the LLM.
         """
-        kwargs["tools"] = (
-            [tool["function"] for tool in kwargs["tools"]]
-            if "tools" in kwargs
-            else None
-        )
+        if kwargs.get("tools"):
+            kwargs["tools"] = [tool["function"] for tool in kwargs["tools"]]
         if "tool_choice" in kwargs and kwargs["tool_choice"]["type"] == "function":
             kwargs["tool_choice"] = {
                 "type": "tool",
