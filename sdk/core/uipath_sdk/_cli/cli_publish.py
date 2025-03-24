@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from ._auth.cli_auth import PortalService, auth
 from ._common_cli_utils import environment_options
 
+load_dotenv(os.path.join(os.getcwd(), ".env"))
+
 
 def get_most_recent_package():
     nupkg_files = [f for f in os.listdir(".uipath") if f.endswith(".nupkg")]
@@ -44,8 +46,29 @@ def get_env_vars():
 
 
 @click.command()
+@click.option(
+    "--tenant",
+    "-t",
+    "feed",
+    flag_value="tenant",
+    help="Whether to publish to the tenant package feed",
+)
+@click.option(
+    "--personal-workspace",
+    "-p",
+    "feed",
+    flag_value="personal",
+    help="Whether to publish to the personal workspace",
+)
 @environment_options
-def publish(domain="alpha"):
+def publish(feed, domain="alpha"):
+    if feed is None:
+        click.echo("Select feed type:")
+        click.echo("  0: Tenant package feed")
+        click.echo("  1: Personal workspace")
+        feed_idx = click.prompt("Select feed", type=int)
+        feed = "tenant" if feed_idx == 0 else "personal"
+        click.echo(f"Selected feed: {feed}")
     os.makedirs(".uipath", exist_ok=True)
     portal_service = PortalService(domain)
     if not portal_service.has_initialized_auth():
@@ -61,6 +84,27 @@ def publish(domain="alpha"):
     [base_url, token] = get_env_vars()
 
     url = f"{base_url}/orchestrator_/odata/Processes/UiPath.Server.Configuration.OData.UploadPackage()"
+
+    if feed == "personal":
+        # Get current user extended info to get personal workspace ID
+        user_url = f"{base_url}/orchestrator_/odata/Users/UiPath.Server.Configuration.OData.GetCurrentUserExtended"
+        user_response = requests.get(
+            user_url, headers={"Authorization": f"Bearer {token}"}
+        )
+
+        if user_response.status_code != 200:
+            click.echo("Failed to get user info")
+            click.echo(f"Response: {user_response.text}")
+            raise click.Abort()
+
+        user_data = user_response.json()
+        personal_workspace_id = user_data.get("PersonalWorskpaceFeedId")
+
+        if not personal_workspace_id:
+            click.echo("No personal workspace found for user")
+            raise click.Abort()
+
+        url = url + "?feedId=" + personal_workspace_id
 
     headers = {"Authorization": f"Bearer {token}"}
 
