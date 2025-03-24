@@ -5,13 +5,11 @@ import dotenv
 from typing import Optional
 from uipath_sdk import UiPathSDK
 from uipath_connectors.uipath_airdk import (
-    UiPathAirdk,
     WebSearchRequest,
     GenerateEmailRequest,
     WebSearchRequestSearchEngine,
 )
 from uipath_connectors.google_gmail import (
-    GoogleGmail,
     SendEmailBody,
     SendEmailRequest,
 )
@@ -32,7 +30,7 @@ class EchoOut:
 
 def main(input: EchoIn) -> EchoOut:
     sdk = UiPathSDK()
-    airdk = sdk.connections(UiPathAirdk, os.environ["UIPATH_AIRDK_CONNECTION_KEY"])
+    airdk = sdk.connections.uipath_airdk(os.environ["UIPATH_AIRDK_CONNECTION_KEY"])
 
     initialSearch = airdk.web_search(body=WebSearchRequest(provider=WebSearchRequestSearchEngine.GOOGLECUSTOMSEARCH, query=input.message))
     if input.debug:
@@ -47,7 +45,7 @@ def main(input: EchoIn) -> EchoOut:
         print(content.model_dump_json(indent=4))
 
     if input.send_email_to:
-        gmail = sdk.connections(GoogleGmail, os.environ["UIPATH_GOOGLE_GMAIL_CONNECTION_KEY"])
+        gmail = sdk.connections.google_gmail(os.environ["UIPATH_GOOGLE_GMAIL_CONNECTION_KEY"])
         gmail.client._client.verify = False
         if input.debug:
             print(content.emailContent)
