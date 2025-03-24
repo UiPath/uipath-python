@@ -32,7 +32,29 @@ service_name_resource_mapping = {
     "assets": "asset",
     "processes": "process",
     "buckets": "bucket",
+    "connections": "connection",
 }
+
+
+def transform_connector_name(connector_name: str) -> str:
+    """Transform connector name from underscore format to hyphenated format.
+
+    Args:
+        connector_name: Connector name in format "one_two"
+
+    Returns:
+        str: Connector name in format "uipath-one-two"
+
+    Examples:
+        >>> transform_connector_name("google_gmail")
+        'uipath-google-gmail'
+        >>> transform_connector_name("salesforce_sfdc")
+        'uipath-salesforce-sfdc'
+    """
+    if not connector_name:
+        return ""
+    parts = connector_name.split("_")
+    return f"uipath-{'-'.join(parts)}"
 
 
 @dataclass
@@ -100,6 +122,20 @@ class ServiceUsage:
                                 "name": name,
                                 "folder": folder_path or "",
                                 "method": call.method_name,
+                            }
+                        )
+
+        elif self.service_name == "connections":
+            for call in self.method_calls:
+                connection_id = None
+                if len(call.args) > 0:
+                    connection_id = call.args[0]
+                    if connection_id:
+                        result.append(
+                            {
+                                "name": str(connection_id),
+                                "connector": call.method_name,
+                                "method": "connector",
                             }
                         )
 
@@ -180,6 +216,7 @@ class UiPathSDKTracker:
             "actions": ServiceUsage("actions"),
             "context_grounding": ServiceUsage("context_grounding"),
             "api_client": ServiceUsage("api_client"),
+            "connections": ServiceUsage("connections"),  # Add connections service
         }
 
     def analyze(self) -> None:
@@ -284,18 +321,20 @@ class UiPathSDKTracker:
                                     args.append(arg.value)
                                 else:
                                     # For expressions and variables, prefix with EXPR$
-                                    args.append(
-                                        f"{ast.get_source_segment(self.source_code, arg)}"
+                                    source_segment = ast.get_source_segment(
+                                        self.source_code, arg
                                     )
+                                    args.append(f"EXPR${source_segment}")
 
                             kwargs = {}
                             for keyword in node.keywords:
                                 if isinstance(keyword.value, ast.Constant):
                                     kwargs[keyword.arg] = keyword.value.value
                                 else:
-                                    kwargs[keyword.arg] = (
-                                        f"{ast.get_source_segment(self.source_code, keyword.value)}"
+                                    source_segment = ast.get_source_segment(
+                                        self.source_code, keyword.value
                                     )
+                                    kwargs[keyword.arg] = f"EXPR${source_segment}"
 
                             method_call = ServiceMethodCall(
                                 method_name=method_name,
@@ -306,6 +345,50 @@ class UiPathSDKTracker:
                             self.service_usage[service_name].method_calls.append(
                                 method_call
                             )
+
+                elif isinstance(node.func, ast.Attribute) and isinstance(
+                    node.func.value, ast.Attribute
+                ):
+                    if (
+                        isinstance(node.func.value.value, ast.Name)
+                        and node.func.value.value.id in self.sdk_instances
+                        and node.func.value.attr == "connections"
+                    ):
+                        connector_name = node.func.attr
+
+                        args = []
+                        for arg in node.args:
+                            if isinstance(arg, ast.Constant) and isinstance(
+                                arg.value, (str, int)
+                            ):
+                                args.append(arg.value)
+                            elif isinstance(arg, ast.Constant):
+                                args.append(arg.value)
+                            else:
+                                source_segment = ast.get_source_segment(
+                                    self.source_code, arg
+                                )
+                                args.append(f"EXPR${source_segment}")
+
+                        kwargs = {}
+                        for keyword in node.keywords:
+                            if isinstance(keyword.value, ast.Constant):
+                                kwargs[keyword.arg] = keyword.value.value
+                            else:
+                                source_segment = ast.get_source_segment(
+                                    self.source_code, keyword.value
+                                )
+                                kwargs[keyword.arg] = f"EXPR${source_segment}"
+
+                        method_call = ServiceMethodCall(
+                            method_name=connector_name,
+                            args=args,
+                            kwargs=kwargs,
+                            line_number=node.lineno,
+                        )
+                        self.service_usage["connections"].method_calls.append(
+                            method_call
+                        )
 
                 self.generic_visit(node)
 
@@ -370,34 +453,54 @@ def convert_to_bindings_format(sdk_usage_data):
 
     for resource_type, components in sdk_usage_data.items():
         for component in components:
+            if resource_type == "connections":
+                connection_id = component.get("name", "")
+                connector_name = transform_connector_name(
+                    component.get("connector", "")
+                )
+                is_connection_id_expression = connection_id.startswith("EXPR$")
+                connection_id = connection_id.replace("EXPR$", "")
+                resource_entry = {
+                    "resource": "connection",
+                    "key": connection_id,
+                    "value": {
+                        "ConnectionId": {
+                            "defaultValue": connection_id,
+                            "isExpression": is_connection_id_expression,
+                            "displayName": "Connection",
+                            "description": "The connection to be used",
+                        }
+                    },
+                    "metadata": {
+                        "BindingsVersion": "2.1",
+                        "Connector": connector_name,
+                        "UseConnectionService": "True",
+                    },
+                }
+
+                bindings["resources"].append(resource_entry)
+                continue
+
             resource_name = component.get("name", "")
             folder_path = component.get("folder", None)
             method_name = component.get("method", "Unknown")
 
             name = resource_name
-            if "/" in resource_name:
-                parts = resource_name.split(".")
-                if len(parts) > 1:
-                    name = parts[-1]
-            elif "." in resource_name:
-                parts = resource_name.split(".")
-                if len(parts) > 1:
-                    name = parts[-1]
 
-            key = resource_name
-            if folder_path and "." not in resource_name and "/" not in resource_name:
-                if "/" in folder_path:
-                    key = f"{folder_path}.{name}"
-                else:
-                    key = f"{folder_path}.{name}"
-
+            is_expression = name.startswith("EXPR$")
+            is_folder_path_expression = folder_path and folder_path.startswith("EXPR$")
+            name = name.replace("EXPR$", "")
+            folder_path = folder_path.replace("EXPR$", "") if folder_path else None
+            key = name
+            if folder_path:
+                key = f"{folder_path}.{name}"
             resource_entry = {
                 "resource": service_name_resource_mapping[resource_type],
                 "key": key,
                 "value": {
                     "name": {
                         "defaultValue": name,
-                        "isExpression": not isinstance(name, str) or "{" in name,
+                        "isExpression": is_expression,
                         "displayName": "Name",
                     }
                 },
@@ -411,8 +514,7 @@ def convert_to_bindings_format(sdk_usage_data):
             if folder_path:
                 resource_entry["value"]["folderPath"] = {
                     "defaultValue": folder_path,
-                    "isExpression": not isinstance(folder_path, str)
-                    or "{" in folder_path,
+                    "isExpression": is_folder_path_expression,
                     "displayName": "Folder Path",
                 }
 
