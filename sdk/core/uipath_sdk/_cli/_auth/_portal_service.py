@@ -2,6 +2,7 @@ import os
 import time
 from typing import Optional
 
+import click
 import requests
 
 from ._models import TenantsAndOrganizationInfoResponse, TokenData
@@ -99,7 +100,11 @@ class PortalService:
         exp = claims.get("exp")
 
         if exp is not None and float(exp) > time.time():
+            if not os.getenv("UIPATH_URL"):
+                tenants_and_organizations = self.get_tenants_and_organizations()
+                select_tenant(self.domain, tenants_and_organizations)
             return auth_data.get("access_token")
+
         refresh_token = auth_data.get("refresh_token")
         if refresh_token is None:
             raise Exception("Refresh token not found")
@@ -112,6 +117,10 @@ class PortalService:
         updated_env_contents = {
             "UIPATH_ACCESS_TOKEN": token_data["access_token"],
         }
+        if not os.getenv("UIPATH_URL"):
+            tenants_and_organizations = self.get_tenants_and_organizations()
+            select_tenant(self.domain, tenants_and_organizations)
+
         update_env_file(updated_env_contents)
 
     def has_initialized_auth(self):
@@ -127,3 +136,20 @@ class PortalService:
             return True
         except Exception:
             return False
+
+
+def select_tenant(
+    domain: str, tenants_and_organizations: TenantsAndOrganizationInfoResponse
+):
+    tenant_names = [tenant["name"] for tenant in tenants_and_organizations["tenants"]]
+    click.echo("Available tenants:")
+    for idx, name in enumerate(tenant_names):
+        click.echo(f"  {idx}: {name}")
+    tenant_idx = click.prompt("Select tenant", type=int)
+    tenant_name = tenant_names[tenant_idx]
+    account_name = tenants_and_organizations["organization"]["name"]
+    click.echo(f"Selected tenant: {tenant_name}")
+
+    update_env_file(
+        {"UIPATH_URL": f"https://{domain}.uipath.com/{account_name}/{tenant_name}"}
+    )

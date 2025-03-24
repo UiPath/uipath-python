@@ -50,8 +50,7 @@ def publish(domain="alpha"):
     portal_service = PortalService(domain)
     if not portal_service.has_initialized_auth():
         click.echo("No valid authentication found. Please authenticate.")
-        ctx = click.get_current_context()
-        ctx.invoke(auth)
+        return
     # Find most recent .nupkg file in .uipath directory
     most_recent = get_most_recent_package()
 

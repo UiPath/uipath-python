@@ -1,3 +1,4 @@
+import os
 import webbrowser
 
 import click
@@ -5,29 +6,11 @@ from dotenv import load_dotenv
 
 from .._common_cli_utils import environment_options
 from ._auth_server import HTTPSServer
-from ._models import TenantsAndOrganizationInfoResponse
 from ._oidc_utils import get_auth_config, get_auth_url
-from ._portal_service import PortalService
+from ._portal_service import PortalService, select_tenant
 from ._utils import update_auth_file, update_env_file
 
 load_dotenv()
-
-
-def select_tenant(
-    domain, tenants_and_organizations: TenantsAndOrganizationInfoResponse
-):
-    tenant_names = [tenant["name"] for tenant in tenants_and_organizations["tenants"]]
-    click.echo("Available tenants:")
-    for idx, name in enumerate(tenant_names):
-        click.echo(f"  {idx}: {name}")
-    tenant_idx = click.prompt("Select tenant", type=int)
-    tenant_name = tenant_names[tenant_idx]
-    account_name = tenants_and_organizations["organization"]["name"]
-    click.echo(f"Selected tenant: {tenant_name}")
-
-    update_env_file(
-        {"UIPATH_URL": f"https://{domain}.uipath.com/{account_name}/{tenant_name}"}
-    )
 
 
 @click.command()
@@ -35,12 +18,15 @@ def select_tenant(
 def auth(domain="alpha"):
     """Authenticate with UiPath Cloud Platform"""
     portal_service = PortalService(domain)
-    try:
-        portal_service.ensure_valid_token()
-        click.echo("Authentication successful")
-        return
-    except Exception:
-        click.echo("Authentication not found or expired. Please authenticate again.")
+    if os.getenv("UIPATH_URL"):
+        try:
+            portal_service.ensure_valid_token()
+            click.echo("Authentication successful")
+            return
+        except Exception:
+            click.echo(
+                "Authentication not found or expired. Please authenticate again."
+            )
 
     auth_url, code_verifier, state = get_auth_url(domain)
 

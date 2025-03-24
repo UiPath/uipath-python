@@ -28,27 +28,6 @@ def get_auth_config() -> AuthConfig:
     auth_config = {}
     with open(os.path.join(os.path.dirname(__file__), "auth_config.json"), "r") as f:
         auth_config = json.load(f)
-    if "UIPATH_URL" in os.environ:
-        url = os.environ["UIPATH_URL"]
-        # Expected format: https://{domain}.uipath.com/{account}/{tenant}
-        parts = url.strip("/").split("/")
-        if len(parts) >= 3:
-            domain = parts[2].split(".")[0]
-            account = parts[3]
-            auth_config["domain"] = domain
-            auth_config["account"] = account
-    else:
-        raise ValueError("[auth] UIPATH_URL is not set")
-    if "client_id" not in auth_config:
-        raise ValueError("[auth] client_id is not set")
-    if "redirect_uri" not in auth_config:
-        raise ValueError("[auth] redirect_uri is not set")
-    if "scope" not in auth_config:
-        raise ValueError("[auth] scope is not set")
-    if "domain" not in auth_config:
-        raise ValueError("[auth] domain is not set")
-    if "account" not in auth_config:
-        raise ValueError("[auth] account is not set")
 
     return AuthConfig(
         client_id=auth_config["client_id"],

@@ -1,6 +1,5 @@
 {
   "window.title": "${rootName}${separator}${activeEditorMedium}",
-  "editor.renderWhitespace": "all",
   "files.exclude": {
     "**/*.pyc": true,
     "**/__pycache__": true,
