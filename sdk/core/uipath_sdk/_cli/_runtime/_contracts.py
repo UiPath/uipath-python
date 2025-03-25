@@ -309,8 +309,13 @@ class UiPathBaseRuntime(ABC):
         pass
 
     @abstractmethod
-    def validate(self):
+    async def validate(self):
         """Validate runtime inputs."""
+        pass
+
+    @abstractmethod
+    async def cleanup(self):
+        """Cleaup runtime resources."""
         pass
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -397,6 +402,8 @@ class UiPathBaseRuntime(ABC):
             # Restore original logging
             if self.context.job_id and self.logs_interceptor:
                 self.logs_interceptor.teardown()
+
+            await self.cleanup()
 
     @cached_property
     def output_file_path(self) -> str:
