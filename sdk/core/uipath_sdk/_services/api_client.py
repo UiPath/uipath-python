@@ -20,10 +20,15 @@ class ApiClient(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    def request(self, method: str, url: Union[URL, str], **kwargs: Any) -> Response:
+    def request(
+        self,
+        method: str,
+        url: Union[URL, str],
+        **kwargs: Any,
+    ) -> Response:
         if kwargs.get("include_folder_headers", False):
             kwargs["headers"] = {
-                **kwargs.get("headers", self.client.headers),
+                **kwargs.get("headers", self._tenant_scope_client.headers),
                 **self.folder_headers,
             }
 
@@ -31,3 +36,54 @@ class ApiClient(FolderContext, BaseService):
             del kwargs["include_folder_headers"]
 
         return super().request(method, url, **kwargs)
+
+    async def request_async(
+        self,
+        method: str,
+        url: Union[URL, str],
+        **kwargs: Any,
+    ) -> Response:
+        if kwargs.get("include_folder_headers", False):
+            kwargs["headers"] = {
+                **kwargs.get("headers", self._tenant_scope_client_async.headers),
+                **self.folder_headers,
+            }
+
+        if "include_folder_headers" in kwargs:
+            del kwargs["include_folder_headers"]
+
+        return await super().request_async(method, url, **kwargs)
+
+    def request_org_scope(
+        self,
+        method: str,
+        url: Union[URL, str],
+        **kwargs: Any,
+    ) -> Response:
+        if kwargs.get("include_folder_headers", False):
+            kwargs["headers"] = {
+                **kwargs.get("headers", self._org_scope_client.headers),
+                **self.folder_headers,
+            }
+
+        if "include_folder_headers" in kwargs:
+            del kwargs["include_folder_headers"]
+
+        return super().request_org_scope(method, url, **kwargs)
+
+    async def request_org_scope_async(
+        self,
+        method: str,
+        url: Union[URL, str],
+        **kwargs: Any,
+    ) -> Response:
+        if kwargs.get("include_folder_headers", False):
+            kwargs["headers"] = {
+                **kwargs.get("headers", self._org_scope_client_async.headers),
+                **self.folder_headers,
+            }
+
+        if "include_folder_headers" in kwargs:
+            del kwargs["include_folder_headers"]
+
+        return await super().request_org_scope_async(method, url, **kwargs)

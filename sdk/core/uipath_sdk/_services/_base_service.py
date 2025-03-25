@@ -37,14 +37,21 @@ class BaseService:
         self._logger = getLogger("uipath")
         self._config = config
         self._execution_context = execution_context
+        self._tenant_scope_client = Client(
+            base_url=self._config.base_url, headers=Headers(self.default_headers)
+        )
+        self._tenant_scope_client_async = AsyncClient(
+            base_url=self._config.base_url, headers=Headers(self.default_headers)
+        )
+        org_scope_base_url = self.__get_org_scope_base_url()
+        self._org_scope_client = Client(
+            base_url=org_scope_base_url, headers=self.default_headers
+        )
+        self._org_scope_client_async = AsyncClient(
+            base_url=org_scope_base_url, headers=self.default_headers
+        )
 
         self._logger.debug(f"HEADERS: {self.default_headers}")
-        self.client = Client(
-            base_url=self._config.base_url, headers=Headers(self.default_headers)
-        )
-        self.client_async = AsyncClient(
-            base_url=self._config.base_url, headers=Headers(self.default_headers)
-        )
 
         super().__init__()
 
@@ -55,9 +62,16 @@ class BaseService:
         ),
         wait=wait_exponential(multiplier=1, min=1, max=10),
     )
-    def request(self, method: str, url: Union[URL, str], **kwargs: Any) -> Response:
+    def request(
+        self,
+        method: str,
+        url: Union[URL, str],
+        **kwargs: Any,
+    ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
-        self._logger.debug(f"HEADERS: {kwargs.get('headers', self.client.headers)}")
+        self._logger.debug(
+            f"HEADERS: {kwargs.get('headers', self._tenant_scope_client.headers)}"
+        )
 
         try:
             stack = inspect.stack()
@@ -82,8 +96,7 @@ class BaseService:
         headers = kwargs.get("headers", {})
         headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = self.client.request(method, url, **kwargs)
-
+        response = self._tenant_scope_client.request(method, url, **kwargs)
         response.raise_for_status()
 
         return response
@@ -96,11 +109,14 @@ class BaseService:
         wait=wait_exponential(multiplier=1, min=1, max=10),
     )
     async def request_async(
-        self, method: str, url: Union[URL, str], **kwargs: Any
+        self,
+        method: str,
+        url: Union[URL, str],
+        **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
         self._logger.debug(
-            f"HEADERS: {kwargs.get('headers', self.client_async.headers)}"
+            f"HEADERS: {kwargs.get('headers', self._tenant_scope_client.headers)}"
         )
 
         try:
@@ -123,11 +139,88 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-
         headers = kwargs.get("headers", {})
         headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = await self.client_async.request(method, url, **kwargs)
+        response = await self._tenant_scope_client_async.request(method, url, **kwargs)
+        response.raise_for_status()
+
+        return response
+
+    def request_org_scope(
+        self,
+        method: str,
+        url: Union[URL, str],
+        **kwargs: Any,
+    ) -> Response:
+        self._logger.debug(f"Request: {method} {url}")
+        self._logger.debug(
+            f"HEADERS: {kwargs.get('headers', self._tenant_scope_client.headers)}"
+        )
+
+        try:
+            stack = inspect.stack()
+
+            # use the third frame because of the retry decorator
+            caller_frame = stack[3].frame
+            function_name = caller_frame.f_code.co_name
+
+            if "self" in caller_frame.f_locals:
+                module_name = type(caller_frame.f_locals["self"]).__name__
+            elif "cls" in caller_frame.f_locals:
+                module_name = caller_frame.f_locals["cls"].__name__
+            else:
+                module_name = ""
+        except Exception:
+            function_name = ""
+            module_name = ""
+
+        specific_component = (
+            f"{module_name}.{function_name}" if module_name and function_name else ""
+        )
+        headers = kwargs.get("headers", {})
+        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+
+        response = self._org_scope_client.request(method, url, **kwargs)
+        response.raise_for_status()
+
+        return response
+
+    async def request_org_scope_async(
+        self,
+        method: str,
+        url: Union[URL, str],
+        **kwargs: Any,
+    ) -> Response:
+        self._logger.debug(f"Request: {method} {url}")
+        self._logger.debug(
+            f"HEADERS: {kwargs.get('headers', self._tenant_scope_client.headers)}"
+        )
+
+        try:
+            stack = inspect.stack()
+
+            # use the third frame because of the retry decorator
+            caller_frame = stack[3].frame
+            function_name = caller_frame.f_code.co_name
+
+            if "self" in caller_frame.f_locals:
+                module_name = type(caller_frame.f_locals["self"]).__name__
+            elif "cls" in caller_frame.f_locals:
+                module_name = caller_frame.f_locals["cls"].__name__
+            else:
+                module_name = ""
+        except Exception:
+            function_name = ""
+            module_name = ""
+
+        specific_component = (
+            f"{module_name}.{function_name}" if module_name and function_name else ""
+        )
+        headers = kwargs.get("headers", {})
+        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+
+        response = await self._org_scope_client_async.request(method, url, **kwargs)
         response.raise_for_status()
 
         return response
@@ -149,3 +242,9 @@ class BaseService:
     @property
     def custom_headers(self) -> dict[str, str]:
         return {}
+
+    def __get_org_scope_base_url(self) -> str:
+        base_url = str(self._config.base_url)
+        if base_url.endswith("/"):
+            base_url = base_url[:-1]
+        return base_url.rsplit("/", 1)[0] + "/"
