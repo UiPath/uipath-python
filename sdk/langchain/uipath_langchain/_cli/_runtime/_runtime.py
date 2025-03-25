@@ -209,5 +209,5 @@ class LangGraphRuntime(UiPathBaseRuntime):
             ) from e
 
     async def cleanup(self):
-        if self.graph_config:
+        if hasattr(self, "graph_config") and self.graph_config:
             await self.graph_config.cleanup()
