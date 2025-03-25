@@ -1,6 +1,6 @@
 [project]
 name = "travel-planner-agent"
-version = "0.0.12"
+version = "0.0.17"
 description = "Travel planner agent"
 authors = [{ name = "Ion Mincu", email = "ion.mincu@uipath.com" }]
 dependencies = [
