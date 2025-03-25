@@ -39,10 +39,13 @@ class Escalation:
             escalation_config = config_data.get("defaultEscalation")
 
             if escalation_config:
-                required_fields = {"appId", "request", "title"}
+                required_fields = {"request", "title"}
                 missing_fields = [
                     field for field in required_fields if field not in escalation_config
                 ]
+
+                if not any(key in escalation_config for key in ("appName", "appKey")):
+                    missing_fields.append("appName or appKey")
 
                 if missing_fields:
                     raise ValueError(
@@ -230,7 +233,8 @@ class Escalation:
             uipath = UiPathSDK()
             action = uipath.actions.create(
                 title=self._config.get("title", "Default escalation"),
-                app_id=self._config.get("appId"),
+                app_name=self._config.get("appName"),
+                app_key=self._config.get("appKey"),
                 app_version=self._config.get("appVersion", 1),
                 data=action_data,
             )
