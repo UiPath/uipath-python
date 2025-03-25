@@ -102,7 +102,9 @@ class PortalService:
         if exp is not None and float(exp) > time.time():
             if not os.getenv("UIPATH_URL"):
                 tenants_and_organizations = self.get_tenants_and_organizations()
-                select_tenant(self.domain, tenants_and_organizations)
+                select_tenant(
+                    self.domain if self.domain else "alpha", tenants_and_organizations
+                )
             return auth_data.get("access_token")
 
         refresh_token = auth_data.get("refresh_token")
@@ -119,7 +121,9 @@ class PortalService:
         }
         if not os.getenv("UIPATH_URL"):
             tenants_and_organizations = self.get_tenants_and_organizations()
-            select_tenant(self.domain, tenants_and_organizations)
+            select_tenant(
+                self.domain if self.domain else "alpha", tenants_and_organizations
+            )
 
         update_env_file(updated_env_contents)
 
@@ -151,5 +155,7 @@ def select_tenant(
     click.echo(f"Selected tenant: {tenant_name}")
 
     update_env_file(
-        {"UIPATH_URL": f"https://{domain}.uipath.com/{account_name}/{tenant_name}"}
+        {
+            "UIPATH_URL": f"https://{domain if domain else 'alpha'}.uipath.com/{account_name}/{tenant_name}"
+        }
     )

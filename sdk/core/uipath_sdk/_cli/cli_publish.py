@@ -5,7 +5,7 @@ import click
 import requests
 from dotenv import load_dotenv
 
-from ._auth.cli_auth import PortalService, auth
+from ._auth.cli_auth import PortalService
 from ._common_cli_utils import environment_options
 
 load_dotenv(os.path.join(os.getcwd(), ".env"))
