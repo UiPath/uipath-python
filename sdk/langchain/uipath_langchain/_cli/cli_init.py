@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import uuid
@@ -66,7 +67,7 @@ def generate_schema_from_graph(graph: CompiledStateGraph) -> Dict[str, Any]:
     return schema
 
 
-def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
+async def langgraph_init_middleware_async(entrypoint: str) -> MiddlewareResult:
     """Middleware to check for langgraph.json and create uipath.json with schemas"""
     config = LangGraphConfig()
     if not config.exists:
@@ -85,7 +86,7 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
                 continue
 
             try:
-                loaded_graph = graph.load_graph()
+                loaded_graph = await graph.load_graph()
                 state_graph = (
                     loaded_graph.builder
                     if isinstance(loaded_graph, CompiledStateGraph)
@@ -120,11 +121,14 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
                 entrypoints.append(new_entrypoint)
 
             except Exception as e:
+                print(f"Error during graph load: {e}")
                 return MiddlewareResult(
                     should_continue=False,
                     error_message=f"Failed to load graph '{graph.name}': {str(e)}",
                     should_include_stacktrace=True,
                 )
+            finally:
+                await graph.cleanup()
 
         if entrypoint and not entrypoints:
             return MiddlewareResult(
@@ -162,3 +166,8 @@ def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
             error_message=f"Error processing langgraph configuration: {str(e)}",
             should_include_stacktrace=True,
         )
+
+
+def langgraph_init_middleware(entrypoint: str) -> MiddlewareResult:
+    """Middleware to check for langgraph.json and create uipath.json with schemas"""
+    return asyncio.run(langgraph_init_middleware_async(entrypoint))

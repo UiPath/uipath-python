@@ -1,4 +1,5 @@
 import importlib.util
+import inspect
 import json
 import logging
 import os
@@ -27,7 +28,7 @@ class GraphConfig:
         file_path, graph_var = path.split(":")
         return cls(name=name, path=path, file_path=file_path, graph_var=graph_var)
 
-    def load_graph(self) -> Union[StateGraph, CompiledStateGraph]:
+    async def load_graph(self) -> Union[StateGraph, CompiledStateGraph]:
         """Load graph from the specified path"""
         try:
             cwd = os.path.abspath(os.getcwd())
@@ -55,9 +56,43 @@ class GraphConfig:
             spec.loader.exec_module(module)
 
             graph = getattr(module, self.graph_var, None)
+
+            # Get the graph object or function
+            graph_obj = getattr(module, self.graph_var, None)
+
+            # Handle callable graph factory
+            if callable(graph_obj):
+                if inspect.iscoroutinefunction(graph_obj):
+                    # Handle async function
+                    try:
+                        graph_obj = await graph_obj()
+                    except RuntimeError as e:
+                        raise e
+                else:
+                    # Call regular function
+                    graph_obj = graph_obj()
+
+            # Handle async context manager
+            if (
+                graph_obj is not None
+                and hasattr(graph_obj, "__aenter__")
+                and callable(graph_obj.__aenter__)
+            ):
+                # This is an async context manager
+                logger.info(f"Detected async context manager for graph {self.name}")
+                self._context_manager = graph_obj
+                graph = await graph_obj.__aenter__()
+
+                # No need for atexit registration - the calling code should
+                # maintain a reference to this object and call cleanup explicitly
+
+            else:
+                # Not a context manager, use directly
+                graph = graph_obj
+
             if not isinstance(graph, (StateGraph, CompiledStateGraph)):
                 raise TypeError(
-                    f"Expected StateGraph or CompiledStateGraph, got {type(graph)}"
+                    f"Expected StateGraph, CompiledStateGraph, or a callable returning one of these, got {type(graph)}"
                 )
 
             self._graph = graph
@@ -67,14 +102,29 @@ class GraphConfig:
             logger.error(f"Failed to load graph {self.name}: {str(e)}")
             raise
 
-    def get_input_schema(self) -> Dict[str, Any]:
+    async def get_input_schema(self) -> Dict[str, Any]:
         """Extract input schema from graph"""
         if not self._graph:
-            self._graph = self.load_graph()
+            self._graph = await self.load_graph()
 
         if hasattr(self._graph, "input_schema"):
             return cast(dict[str, Any], self._graph.input_schema)
         return {}
+
+    async def cleanup(self):
+        """
+        Clean up resources when done with the graph.
+        This should be called when the graph is no longer needed.
+        """
+        if hasattr(self, "_context_manager") and self._context_manager:
+            try:
+                logger.info(f"Cleaning up context for graph {self.name}")
+                await self._context_manager.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Error during context cleanup: {str(e)}")
+            finally:
+                self._context_manager = None
+                self._graph = None
 
 
 class LangGraphConfig:

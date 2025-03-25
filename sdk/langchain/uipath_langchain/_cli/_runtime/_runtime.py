@@ -43,7 +43,7 @@ class LangGraphRuntime(UiPathBaseRuntime):
             LangGraphRuntimeError: If execution fails
         """
 
-        self.validate()
+        await self.validate()
 
         if self.context.state_graph is None:
             return None
@@ -116,7 +116,7 @@ class LangGraphRuntime(UiPathBaseRuntime):
                 UiPathErrorCategory.SYSTEM,
             ) from e
 
-    def validate(self) -> None:
+    async def validate(self) -> None:
         """Validate runtime inputs."""
         """Load and validate the graph configuration ."""
         try:
@@ -162,8 +162,10 @@ class LangGraphRuntime(UiPathBaseRuntime):
             )
 
         # Get the specified graph
-        graph_config = self.context.langgraph_config.get_graph(self.context.entrypoint)
-        if not graph_config:
+        self.graph_config = self.context.langgraph_config.get_graph(
+            self.context.entrypoint
+        )
+        if not self.graph_config:
             raise LangGraphRuntimeError(
                 "GRAPH_NOT_FOUND",
                 "Graph not found",
@@ -171,7 +173,7 @@ class LangGraphRuntime(UiPathBaseRuntime):
                 UiPathErrorCategory.DEPLOYMENT,
             )
         try:
-            loaded_graph = graph_config.load_graph()
+            loaded_graph = await self.graph_config.load_graph()
             self.context.state_graph = (
                 loaded_graph.builder
                 if isinstance(loaded_graph, CompiledStateGraph)
@@ -205,3 +207,7 @@ class LangGraphRuntime(UiPathBaseRuntime):
                 f"Unexpected error loading graph '{self.context.entrypoint}': {str(e)}",
                 UiPathErrorCategory.USER,
             ) from e
+
+    async def cleanup(self):
+        if self.graph_config:
+            await self.graph_config.cleanup()
