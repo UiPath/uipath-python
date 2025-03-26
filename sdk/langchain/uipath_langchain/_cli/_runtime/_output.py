@@ -6,6 +6,7 @@ from functools import cached_property
 from typing import Any, Dict, Optional, Union, cast
 
 from langgraph.types import Interrupt, StateSnapshot
+from uipath_sdk import UiPathSDK
 from uipath_sdk._cli._runtime._contracts import (
     UiPathApiTrigger,
     UiPathErrorCategory,
@@ -15,6 +16,8 @@ from uipath_sdk._cli._runtime._contracts import (
     UiPathRuntimeStatus,
 )
 from uipath_sdk._models.actions import Action
+from uipath_sdk._models._interrupt_models.invoke_process import InvokeProcess
+
 
 from ._context import LangGraphRuntimeContext
 from ._escalation import Escalation
@@ -34,6 +37,8 @@ class InterruptInfo:
         """Returns the type of the interrupt value."""
         if isinstance(self.value, Action):
             return UiPathResumeTriggerType.ACTION
+        if isinstance(self.value, InvokeProcess):
+            return UiPathResumeTriggerType.JOB
         return None
 
     @property
@@ -115,7 +120,7 @@ class LangGraphOutputProcessor:
         )
 
     @property
-    def interrupt_value(self) -> Union[Action, Any]:
+    def interrupt_value(self) -> Union[Action, InvokeProcess, Any]:
         """Returns the actual value of the interrupt, with its specific type."""
         if self.interrupt_info is None:
             return None
@@ -221,6 +226,18 @@ class LangGraphOutputProcessor:
                             self._resume_trigger = UiPathResumeTrigger(
                                 trigger_type=UiPathResumeTriggerType.ACTION,
                                 item_key=action.key,
+                            )
+
+                    if self._interrupt_info.type is UiPathResumeTriggerType.JOB:
+                        uipath = UiPathSDK()
+                        job = await uipath.processes.invoke_async(
+                            name=self.interrupt_value.name,
+                            input_arguments=self.interrupt_value.input_arguments,
+                        )
+                        if job:
+                            self._resume_trigger = UiPathResumeTrigger(
+                                trigger_type=UiPathResumeTriggerType.JOB,
+                                item_key=job.Key,
                             )
 
                 except Exception as e:

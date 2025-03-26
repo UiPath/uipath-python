@@ -64,7 +64,10 @@ class LangGraphInputProcessor:
             payload = await self._get_api_payload(key)
             if payload:
                 return Command(resume=payload)
-
+        elif type == UiPathResumeTriggerType.JOB.value and key:
+            job = await self.uipath.jobs.retrieve_async(key)
+            if job.OutputArguments:
+                return Command(resume=job.OutputArguments)
         return Command(resume=self.context.input_json)
 
     async def _get_latest_trigger(self) -> Optional[tuple[str, str]]:
