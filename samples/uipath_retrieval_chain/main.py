@@ -1,5 +1,6 @@
 """Example demonstrating how to use the ContextGroundingVectorStore class with LangChain."""
 
+import argparse
 import asyncio
 from pprint import pprint
 from typing import Any
@@ -117,6 +118,18 @@ async def main(index_name: str, query: str, k: int = 3):
 
 
 if __name__ == "__main__":
-    index_name = "ECCN"
-    query = "What is the ECCN for a laptop?"
-    asyncio.run(main(index_name, query, k=3))
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--index_name", type=str, default="ECCN", help="The name of the index to use"
+    )
+    parser.add_argument(
+        "--query",
+        type=str,
+        default="What is the ECCN for a laptop?",
+        help="The query for which documents will be retrieved",
+    )
+    parser.add_argument(
+        "--k", type=int, default=3, help="The number of documents to retrieve"
+    )
+    args = parser.parse_args()
+    asyncio.run(main(args.index_name, args.query, args.k))

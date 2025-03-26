@@ -231,14 +231,14 @@ class ContextGroundingVectorStore(VectorStore):
         docs_and_scores = await self.asimilarity_search_with_score(query, k, **kwargs)
         return [doc for doc, _ in docs_and_scores]
 
-    def as_retriever(self, **kwargs: Any) -> VectorStoreRetriever:
+    def as_retriever(self, **kwargs: Any) -> ContextGroundingRetriever:
         """Create a retriever from this vector store.
 
         Args:
-            **kwargs: Arguments to pass to the VectorStoreRetriever constructor
+            **kwargs: Arguments to pass to the ContextGroundingRetriever constructor
 
         Returns:
-            A VectorStoreRetriever
+            A ContextGroundingRetriever
         """
         number_of_results = kwargs.get(
             "k", kwargs.get("search_kwargs", {}).get("k", 10)
@@ -254,7 +254,7 @@ class ContextGroundingVectorStore(VectorStore):
         cls: type[VST],
         texts: list[str],
         embedding: Embeddings,
-        metadatas: Optional[list[dict]] = None,
+        metadatas: Optional[list[dict[str, Any]]] = None,
         **kwargs: Any,
     ) -> VST:
         """This method is required by the VectorStore abstract class, but is not supported
@@ -272,7 +272,7 @@ class ContextGroundingVectorStore(VectorStore):
     def add_texts(
         self,
         texts: Iterable[str],
-        metadatas: Optional[list[dict]] = None,
+        metadatas: Optional[list[dict[str, Any]]] = None,
         **kwargs: Any,
     ) -> list[str]:
         """Not implemented for ContextGroundingVectorStore as this is a read-only wrapper."""
