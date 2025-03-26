@@ -5,8 +5,8 @@ import uuid
 from typing import Any, Dict
 
 from langgraph.graph.state import CompiledStateGraph
+from uipath_sdk._cli._utils._parse_ast import generate_bindings_json  # type: ignore
 from uipath_sdk._cli.middlewares import MiddlewareResult
-from uipath_sdk._cli.parse_ast import generate_bindings_json  # type: ignore
 
 from ._utils._graph import LangGraphConfig
 

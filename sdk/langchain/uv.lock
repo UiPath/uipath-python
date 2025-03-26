@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.9"
 resolution-markers = [
     "python_full_version >= '3.12.4'",
@@ -466,17 +465,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/fc/f8/98eea607f65de6527f8a2e8885fc8015d3e6f5775df186e443e0964a11c3/distro-1.9.0.tar.gz", hash = "sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed", size = 60722 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2", size = 20277 },
-]
-
-[[package]]
-name = "dotenv"
-version = "0.9.9"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "python-dotenv" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892 },
 ]
 
 [[package]]
@@ -1700,6 +1688,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-asyncio"
+version = "0.26.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+    { name = "typing-extensions", marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/c4/453c52c659521066969523e87d85d54139bbd17b78f09532fb8eb8cdb58e/pytest_asyncio-0.26.0.tar.gz", hash = "sha256:c4df2a697648241ff39e7f0e4a73050b03f123f760673956cf0d72a4990e312f", size = 54156 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/20/7f/338843f449ace853647ace35870874f69a764d251872ed1b4de9f234822c/pytest_asyncio-0.26.0-py3-none-any.whl", hash = "sha256:7b51ed894f4fbea1340262bdae5135797ebbe21d8638978e35d31c6d19f72fb0", size = 19694 },
+]
+
+[[package]]
 name = "pytest-cov"
 version = "6.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2123,10 +2124,9 @@ wheels = [
 
 [[package]]
 name = "uipath-langchain"
-version = "0.0.62"
+version = "0.0.68"
 source = { editable = "." }
 dependencies = [
-    { name = "aiohttp" },
     { name = "httpx" },
     { name = "langchain" },
     { name = "langchain-community" },
@@ -2156,7 +2156,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", specifier = ">=3.11.13" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "langchain", specifier = ">=0.3.4" },
     { name = "langchain-community", specifier = ">=0.3.18" },
@@ -2170,9 +2169,8 @@ requires-dist = [
     { name = "requests", specifier = ">=2.23.3" },
     { name = "types-requests", specifier = ">=2.32.0.20241016" },
     { name = "uipath-langchain", marker = "extra == 'langchain'", specifier = ">=0.0.2" },
-    { name = "uipath-sdk", specifier = ">=0.0.75" },
+    { name = "uipath-sdk", specifier = ">=0.0.95" },
 ]
-provides-extras = ["langchain"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2187,21 +2185,22 @@ dev = [
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.75"
+version = "0.0.95"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
-    { name = "dotenv" },
     { name = "httpx" },
     { name = "pydantic" },
+    { name = "pytest-asyncio" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "tenacity" },
     { name = "tomli" },
+    { name = "types-requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/20/740ae63404155feb78606218b54ff77684d3f2cd362362616d55f8e082f3/uipath_sdk-0.0.75.tar.gz", hash = "sha256:bbb7dc17f31960b62cb65302e529d214fa62a75746a98a3919c32d0ea838b650", size = 32068 }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/7c/6a38b0ed4c2601c667b86449053009f2875e1d58bb840b5f278b059518ec/uipath_sdk-0.0.95.tar.gz", hash = "sha256:55ca01cc175d154d712ef67622c17c2459baaea6486ab14308cba944ba8e3e8b", size = 52574 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b1/19/2b13106646e8dd91a7ebd07c6e1b4e1a45f4181f2b801cc5de65bb0508b3/uipath_sdk-0.0.75-py3-none-any.whl", hash = "sha256:a47b23161e314b87ed45464acf36335ebca2f92403f6cc5fb8c1db5f717a8d6d", size = 49450 },
+    { url = "https://files.pythonhosted.org/packages/87/06/7664d45d00b387e3225915f2d0fa36653870c7dc0a6c3023591e5e818f27/uipath_sdk-0.0.95-py3-none-any.whl", hash = "sha256:46ec9c31c368dfe1b4baec01c956efc4ff6f2e494ed364c23a3f4c557e68445a", size = 76728 },
 ]
 
 [[package]]
