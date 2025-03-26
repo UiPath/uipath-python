@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, overload
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
+from .._models.job import Job
 from .._utils import Endpoint, RequestSpec, header_folder
 from ._base_service import BaseService
 
@@ -137,6 +138,30 @@ class JobsService(FolderContext, BaseService):
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
+    def retrieve(
+        self,
+        job_key: str,
+    ) -> Job:
+        spec = self._retrieve_spec(job_key=job_key)
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+        )
+
+        return Job.model_validate(response.json())
+
+    async def retrieve_async(
+        self,
+        job_key: str,
+    ) -> Job:
+        spec = self._retrieve_spec(job_key=job_key)
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+        )
+
+        return Job.model_validate(response.json())
+
     def _retrieve_inbox_id(
         self,
         *,
@@ -225,4 +250,16 @@ class JobsService(FolderContext, BaseService):
             headers={
                 **header_folder(folder_key, folder_path),
             },
+        )
+
+    def _retrieve_spec(
+        self,
+        *,
+        job_key: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_key})"
+            ),
         )
