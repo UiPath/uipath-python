@@ -25,13 +25,13 @@ A Python SDK that enables programmatic interaction with UiPath Platform services
 ## Installation
 
 ```bash
-pip install uipath_sdk
+pip install uipath-sdk
 ```
 
 using `uv`:
 
 ```bash
-uv add uipath_sdk
+uv add uipath-sdk
 ```
 
 ## Configuration

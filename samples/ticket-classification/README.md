@@ -46,7 +46,7 @@ To resume the graph with approval:
 uipath run agent true --resume
 ```
 
-### Input JSON Format
+### Input Format
 
 The input ticket should be in the following format:
 ```json
