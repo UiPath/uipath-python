@@ -7,11 +7,13 @@ ENV_FOLDER_PATH = "UIPATH_FOLDER_PATH"
 ENV_JOB_KEY = "UIPATH_JOB_KEY"
 ENV_JOB_ID = "UIPATH_JOB_ID"
 ENV_ROBOT_KEY = "UIPATH_ROBOT_KEY"
+ENV_TENANT_ID = "UIPATH_TENANT_ID"
 
 # Headers
 HEADER_FOLDER_KEY = "x-uipath-folderkey"
 HEADER_FOLDER_PATH = "x-uipath-folderpath"
 HEADER_USER_AGENT = "x-uipath-user-agent"
+HEADER_TENANT_ID = "x-uipath-tenantid"
 
 # Entrypoint for plugins
 ENTRYPOINT = "uipath_sdk.connectors"
