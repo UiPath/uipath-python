@@ -1,4 +1,4 @@
-"""Example demonstrating how to use the ECSVectorStore class with LangChain."""
+"""Example demonstrating how to use the ContextGroundingVectorStore class with LangChain."""
 
 import asyncio
 from pprint import pprint
@@ -11,7 +11,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.vectorstores import VectorStore
 from uipath_langchain.chat.models import UiPathAzureChatOpenAI
-from uipath_langchain.vectorstores.ecs_vectorstore import ECSVectorStore
+from uipath_langchain.vectorstores.context_grounding_vectorstore import (
+    ContextGroundingVectorStore,
+)
 
 
 def create_retrieval_chain(vectorstore: VectorStore, model: BaseChatModel, k: int = 3):
@@ -59,8 +61,8 @@ def create_retrieval_chain(vectorstore: VectorStore, model: BaseChatModel, k: in
 async def main(index_name: str, query: str, k: int = 3):
     load_dotenv(find_dotenv())
 
-    """Run a simple example of ECSVectorStore."""
-    vectorstore = ECSVectorStore(
+    """Run a simple example of ContextGroundingVectorStore."""
+    vectorstore = ContextGroundingVectorStore(
         index_name=index_name,
     )
 

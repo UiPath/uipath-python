@@ -22,10 +22,10 @@ from uipath_langchain.retrievers.context_grounding_retriever import (
     ContextGroundingRetriever,
 )
 
-VST = TypeVar("VST", bound="ECSVectorStore")
+VST = TypeVar("VST", bound="ContextGroundingVectorStore")
 
 
-class ECSVectorStore(VectorStore):
+class ContextGroundingVectorStore(VectorStore):
     """Vector store that uses UiPath Context Grounding (ECS) as a backend.
 
     This class provides a straightforward implementation that connects to the
@@ -34,10 +34,10 @@ class ECSVectorStore(VectorStore):
     Example:
         .. code-block:: python
 
-            from uipath_agents_gym.tools.ecs_vectorstore import ECSVectorStore
+            from uipath_agents_gym.tools.ecs_vectorstore import ContextGroundingVectorStore
 
             # Initialize the vector store with an index name
-            vectorstore = ECSVectorStore(index_name="ECCN")
+            vectorstore = ContextGroundingVectorStore(index_name="ECCN")
 
             # Perform similarity search
             docs_with_scores = vectorstore.similarity_search_with_score(
@@ -50,7 +50,7 @@ class ECSVectorStore(VectorStore):
         index_name: str,
         uipath_sdk: Optional[UiPathSDK] = None,
     ):
-        """Initialize the ECSVectorStore.
+        """Initialize the ContextGroundingVectorStore.
 
         Args:
             index_name: Name of the context grounding index to use
@@ -258,13 +258,13 @@ class ECSVectorStore(VectorStore):
         **kwargs: Any,
     ) -> VST:
         """This method is required by the VectorStore abstract class, but is not supported
-        by ECSVectorStore which is read-only.
+        by ContextGroundingVectorStore which is read-only.
 
         Raises:
-            NotImplementedError: This method is not supported by ECSVectorStore
+            NotImplementedError: This method is not supported by ContextGroundingVectorStore
         """
         raise NotImplementedError(
-            "ECSVectorStore is a read-only wrapper for UiPath Context Grounding. "
+            "ContextGroundingVectorStore is a read-only wrapper for UiPath Context Grounding. "
             "Creating a vector store from texts is not supported."
         )
 
@@ -275,13 +275,13 @@ class ECSVectorStore(VectorStore):
         metadatas: Optional[list[dict]] = None,
         **kwargs: Any,
     ) -> list[str]:
-        """Not implemented for ECSVectorStore as this is a read-only wrapper."""
+        """Not implemented for ContextGroundingVectorStore as this is a read-only wrapper."""
         raise NotImplementedError(
-            "ECSVectorStore is a read-only wrapper for UiPath Context Grounding."
+            "ContextGroundingVectorStore is a read-only wrapper for UiPath Context Grounding."
         )
 
     def delete(self, ids: Optional[list[str]] = None, **kwargs: Any) -> Optional[bool]:
-        """Not implemented for ECSVectorStore as this is a read-only wrapper."""
+        """Not implemented for ContextGroundingVectorStore as this is a read-only wrapper."""
         raise NotImplementedError(
-            "ECSVectorStore is a read-only wrapper for UiPath Context Grounding."
+            "ContextGroundingVectorStore is a read-only wrapper for UiPath Context Grounding."
         )
