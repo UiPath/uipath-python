@@ -3,13 +3,13 @@ import sys
 
 import click
 
-from ._auth.cli_auth import auth as auth
-from .cli_deploy import deploy as deploy  # type: ignore
-from .cli_init import init as init  # type: ignore
-from .cli_new import new as new  # type: ignore
-from .cli_pack import pack as pack  # type: ignore
-from .cli_publish import publish as publish  # type: ignore
-from .cli_run import run as run  # type: ignore
+from uipath_sdk._cli.cli_auth import auth as auth  # type: ignore
+from uipath_sdk._cli.cli_deploy import deploy as deploy  # type: ignore
+from uipath_sdk._cli.cli_init import init as init  # type: ignore
+from uipath_sdk._cli.cli_new import new as new  # type: ignore
+from uipath_sdk._cli.cli_pack import pack as pack  # type: ignore
+from uipath_sdk._cli.cli_publish import publish as publish  # type: ignore
+from uipath_sdk._cli.cli_run import run as run  # type: ignore
 
 
 @click.group(invoke_without_command=True)

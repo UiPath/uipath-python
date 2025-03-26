@@ -12,7 +12,7 @@ try:
 except ImportError:
     import tomli as tomllib
 
-from .parse_ast import generate_bindings_json
+from uipath_sdk._cli._utils._parse_ast import generate_bindings_json
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 
@@ -121,7 +121,7 @@ def get_proposed_version(directory):
 
 def generate_content_types_content():
     templates_path = os.path.join(
-        os.path.dirname(__file__), "templates", "[Content_Types].xml.template"
+        os.path.dirname(__file__), "_templates", "[Content_Types].xml.template"
     )
     with open(templates_path, "r") as file:
         content_types_content = file.read()
@@ -136,7 +136,7 @@ def generate_nuspec_content(projectName, packageVersion, description, authors):
         "authors": authors,
     }
     templates_path = os.path.join(
-        os.path.dirname(__file__), "templates", "package.nuspec.template"
+        os.path.dirname(__file__), "_templates", "package.nuspec.template"
     )
     with open(templates_path, "r", encoding="utf-8-sig") as f:
         content = f.read()
@@ -146,7 +146,7 @@ def generate_nuspec_content(projectName, packageVersion, description, authors):
 def generate_rels_content(nuspecPath, psmdcpPath):
     # /package/services/metadata/core-properties/254324ccede240e093a925f0231429a0.psmdcp
     templates_path = os.path.join(
-        os.path.dirname(__file__), "templates", ".rels.template"
+        os.path.dirname(__file__), "_templates", ".rels.template"
     )
     nuspecId = "R" + str(uuid.uuid4()).replace("-", "")[:16]
     psmdcpId = "R" + str(uuid.uuid4()).replace("-", "")[:16]
@@ -163,7 +163,7 @@ def generate_rels_content(nuspecPath, psmdcpPath):
 
 def generate_psmdcp_content(projectName, version, description, authors):
     templates_path = os.path.join(
-        os.path.dirname(__file__), "templates", ".psmdcp.template"
+        os.path.dirname(__file__), "_templates", ".psmdcp.template"
     )
 
     token = str(uuid.uuid4()).replace("-", "")[:32]

@@ -5,8 +5,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .._services import AssetsService, BucketsService, ProcessesService
-from .._utils import get_inferred_bindings_names
+from ..._services import AssetsService, BucketsService, ProcessesService
+from ..._utils import get_inferred_bindings_names
 
 
 @dataclass
