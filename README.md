@@ -152,27 +152,5 @@ To properly use the CLI for packaging and publishing, your project should includ
 
 ### Setting Up a Development Environment
 
-For contributing to the UiPath SDK, follow these steps:
+Please read our [contribution guidelines](CONTRIBUTING.md) before submitting a pull request.
 
-```bash
-# Clone or fork the repository
-git clone https://github.com/UiPath/uipath-python.git
-# OR fork the repository and clone your fork
-
-# Navigate to the core SDK directory
-cd uipath-python/sdk/core
-
-# Create a virtual environment with Python 3.11
-uv venv -p 3.11 .venv
-
-# Activate the virtual environment
-source .venv/bin/activate
-# On Windows: .venv\Scripts\activate
-
-# Install dependencies
-uv sync
-
-# Make your changes to the codebase
-
-# Create a pull request with your changes
-```
