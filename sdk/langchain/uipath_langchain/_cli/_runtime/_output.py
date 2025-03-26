@@ -15,9 +15,8 @@ from uipath_sdk._cli._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
-from uipath_sdk._models.actions import Action
 from uipath_sdk._models._interrupt_models.invoke_process import InvokeProcess
-
+from uipath_sdk._models.actions import Action
 
 from ._context import LangGraphRuntimeContext
 from ._escalation import Escalation
@@ -228,9 +227,17 @@ class LangGraphOutputProcessor:
                                 item_key=action.key,
                             )
 
-                    if self._interrupt_info.type is UiPathResumeTriggerType.JOB:
-                        uipath = UiPathSDK()
-                        job = await uipath.processes.invoke_async(
+                    if (
+                        isinstance(self.interrupt_info, InterruptInfo)
+                        and self.interrupt_info.type is UiPathResumeTriggerType.JOB
+                    ):
+                        if not isinstance(self.interrupt_value, InvokeProcess):
+                            raise Exception(
+                                "Expected 'InvokeProcess' as interrupt value type"
+                            )
+
+                        uipath_sdk = UiPathSDK()
+                        job = await uipath_sdk.processes.invoke_async(
                             name=self.interrupt_value.name,
                             input_arguments=self.interrupt_value.input_arguments,
                         )
