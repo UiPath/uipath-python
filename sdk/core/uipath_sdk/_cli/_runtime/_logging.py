@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from typing import Optional, TextIO, Union
+from typing import Optional, TextIO, Union, cast
 
 
 class PersistentLogsHandler(logging.FileHandler):
@@ -14,7 +14,7 @@ class PersistentLogsHandler(logging.FileHandler):
         Initialize the handler to write logs to a single file, appending always.
 
         Args:
-            dir (str): The directory where logs should be stored.
+            file (str): The file where logs should be stored.
         """
         # Open file in append mode ('a'), so logs are not overwritten
         super().__init__(file, mode="a", encoding="utf8")
@@ -81,6 +81,10 @@ class LogsInterceptor:
         self.logger = logging.getLogger("runtime")
         self.patched_loggers: set[str] = set()
 
+        # Store system stdout/stderr
+        self.sys_stdout = cast(TextIO, sys.__stdout__)
+        self.sys_stderr = cast(TextIO, sys.__stderr__)
+
     def _clean_all_handlers(self, logger: logging.Logger) -> None:
         """Remove ALL handlers from a logger except ours."""
         handlers_to_remove = list(logger.handlers)
@@ -120,11 +124,18 @@ class LogsInterceptor:
         self.original_stderr = sys.stderr
 
         class LoggerWriter:
-            def __init__(self, logger: logging.Logger, level: int, min_level: int):
+            def __init__(
+                self,
+                logger: logging.Logger,
+                level: int,
+                min_level: int,
+                sys_file: TextIO,
+            ):
                 self.logger = logger
                 self.level = level
                 self.min_level = min_level
                 self.buffer = ""
+                self.sys_file = sys_file  # Store reference to system stdout/stderr
 
             def write(self, message: str) -> None:
                 if message and message.strip() and self.level >= self.min_level:
@@ -132,6 +143,10 @@ class LogsInterceptor:
 
             def flush(self) -> None:
                 pass
+
+            def fileno(self) -> int:
+                # Return the file descriptor of the original system stdout/stderr
+                return self.sys_file.fileno()
 
         # Set up stdout and stderr loggers with propagate=False
         stdout_logger = logging.getLogger("stdout")
@@ -143,8 +158,12 @@ class LogsInterceptor:
         self._clean_all_handlers(stderr_logger)
 
         # Use the min_level in the LoggerWriter to filter messages
-        sys.stdout = LoggerWriter(stdout_logger, logging.INFO, self.numeric_min_level)
-        sys.stderr = LoggerWriter(stderr_logger, logging.ERROR, self.numeric_min_level)
+        sys.stdout = LoggerWriter(
+            stdout_logger, logging.INFO, self.numeric_min_level, self.sys_stdout
+        )
+        sys.stderr = LoggerWriter(
+            stderr_logger, logging.ERROR, self.numeric_min_level, self.sys_stderr
+        )
 
     def teardown(self) -> None:
         """Restore original logging configuration."""
