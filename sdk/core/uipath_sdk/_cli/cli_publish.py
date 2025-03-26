@@ -5,8 +5,8 @@ import click
 import requests
 from dotenv import load_dotenv
 
-from ._auth.cli_auth import PortalService
-from ._common_cli_utils import environment_options
+from uipath_sdk._cli._utils._common import environment_options
+from uipath_sdk._cli.cli_auth import PortalService
 
 load_dotenv(os.path.join(os.getcwd(), ".env"))
 

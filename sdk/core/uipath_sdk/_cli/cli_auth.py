@@ -1,14 +1,15 @@
+# type: ignore
 import os
 import webbrowser
 
 import click
 from dotenv import load_dotenv
 
-from .._common_cli_utils import environment_options
-from ._auth_server import HTTPSServer
-from ._oidc_utils import get_auth_config, get_auth_url
-from ._portal_service import PortalService, select_tenant
-from ._utils import update_auth_file, update_env_file
+from uipath_sdk._cli._auth._auth_server import HTTPSServer
+from uipath_sdk._cli._auth._oidc_utils import get_auth_config, get_auth_url
+from uipath_sdk._cli._auth._portal_service import PortalService, select_tenant
+from uipath_sdk._cli._auth._utils import update_auth_file, update_env_file
+from uipath_sdk._cli._utils._common import environment_options
 
 load_dotenv()
 

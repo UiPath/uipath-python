@@ -11,9 +11,7 @@ from dotenv import load_dotenv
 
 from uipath_sdk._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeError
 from uipath_sdk._cli._runtime._runtime import UiPathRuntime
-from uipath_sdk._cli.middlewares import MiddlewareResult
-
-from .middlewares import Middlewares
+from uipath_sdk._cli.middlewares import MiddlewareResult, Middlewares
 
 logger = logging.getLogger(__name__)
 load_dotenv()

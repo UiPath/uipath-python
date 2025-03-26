@@ -5,12 +5,12 @@ import traceback
 
 import click
 
-from .middlewares import Middlewares
+from uipath_sdk._cli.middlewares import Middlewares
 
 
 def generate_script(target_directory):
     template_path = os.path.join(
-        os.path.dirname(__file__), "templates/main.py.template"
+        os.path.dirname(__file__), "_templates/main.py.template"
     )
     target_path = os.path.join(target_directory, "main.py")
 

@@ -38,7 +38,7 @@ class UiPathRuntime(UiPathBaseRuntime):
         Raises:
             UiPathRuntimeError: If execution fails
         """
-        self.validate()
+        await self.validate()
 
         try:
             if self.context.entrypoint is None:
@@ -65,7 +65,7 @@ class UiPathRuntime(UiPathBaseRuntime):
                 UiPathErrorCategory.SYSTEM,
             ) from e
 
-    def validate(self) -> None:
+    async def validate(self) -> None:
         """Validate runtime inputs."""
         if not self.context.entrypoint:
             raise UiPathRuntimeError(
