@@ -30,13 +30,6 @@ def get_file_path(filename):
     return os.path.abspath(os.path.join(os.getcwd(), filename))
 
 
-def print_environment_variables():
-    """Print all environment variables and their values."""
-    print("Environment Variables:")
-    for key, value in os.environ.items():
-        print(f"{key}: {value}")
-
-
 mcp_config = {
     "travel_mcp": {
         "command": "python",
@@ -52,22 +45,36 @@ async def make_graph():
         tools = client.get_tools()
         tool_node = ToolNode(tools)
 
-        def should_continue(state: MessagesState):
-            messages = state["messages"]
-            last_message = messages[-1]
-            if last_message.tool_calls:
-                return "tools"
-            return END
-
         def init(state: GraphInput):
-            print_environment_variables()
-
             return {
                 "messages": [
-                    SystemMessage(content="You are a helpful assistant!"),
+                    SystemMessage(
+                        content="You are a helpful travel planner assistant!. When you are done please write your report in markdown as a single message and begin with `# Final Report`"
+                    ),
                     HumanMessage(content=state.message),
                 ]
             }
+
+        def should_continue(state: MessagesState):
+            messages = state["messages"]
+            last_message = messages[-1]
+
+            # Check if the last message contains a final report indicator
+            if hasattr(last_message, "content") and isinstance(
+                last_message.content, str
+            ):
+                if "# final report" in last_message.content.lower():
+                    return "output_summary"
+
+            if last_message.tool_calls:
+                return "tools"
+
+            return "agent"
+
+        def output_summary(state: MessagesState):
+            messages = state["messages"]
+            last_message = messages[-1]
+            return {"summary": last_message.content}
 
         async def call_model(state: MessagesState):
             messages = state["messages"]
@@ -84,11 +91,15 @@ async def make_graph():
         workflow.add_node("init", init)
         workflow.add_node("agent", call_model)
         workflow.add_node("tools", tool_node)
+        workflow.add_node("output_summary", output_summary)
 
         workflow.add_edge(START, "init")
         workflow.add_edge("init", "agent")
-        workflow.add_conditional_edges("agent", should_continue, ["tools", END])
+        workflow.add_conditional_edges(
+            "agent", should_continue, ["tools", "output_summary", "agent"]
+        )
         workflow.add_edge("tools", "agent")
+        workflow.add_edge("output_summary", END)
 
         graph = workflow.compile()
 

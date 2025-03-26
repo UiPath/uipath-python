@@ -1860,7 +1860,7 @@ wheels = [
 
 [[package]]
 name = "travel-planner-agent"
-version = "0.0.5"
+version = "0.0.17"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1871,6 +1871,7 @@ dependencies = [
     { name = "langchain-openai" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
+    { name = "mcp" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "typing-extensions" },
@@ -1887,11 +1888,12 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=0.3.9" },
     { name = "langgraph", specifier = ">=0.2.70" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0.3" },
+    { name = "mcp", specifier = ">=1.4.1" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
-    { name = "uipath-langchain", specifier = "==0.0.66" },
-    { name = "uipath-sdk", specifier = "==0.0.91" },
+    { name = "uipath-langchain", specifier = ">=0.0.66" },
+    { name = "uipath-sdk", specifier = ">=0.0.91" },
 ]
 
 [[package]]
