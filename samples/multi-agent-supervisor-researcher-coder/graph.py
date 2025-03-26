@@ -71,19 +71,13 @@ def input(state: GraphInput):
         "next": "",
     }
 
-def output(state: State):
-    return {
-        "answer": state["messages"][-1].content,
-    }
-
-def supervisor_node(state: State) -> Command[Literal[*members, "output"]]:
-    print(state["messages"])
+def supervisor_node(state: State) -> Command[Literal[*members]] | GraphOutput:
     response = llm.with_structured_output(Router).invoke(state["messages"])
     goto = response["next"]
     if goto == "FINISH":
-        goto = "output"
-
-    return Command(goto=goto, update={"next": goto})
+        return GraphOutput(answer=state["messages"][-1].content)
+    else:
+        return Command(goto=goto, update={"next": goto})
 
 research_agent = create_react_agent(
     llm, tools=[tavily_tool], prompt="You are a researcher. DO NOT do any math."
@@ -121,11 +115,8 @@ def code_node(state: State) -> Command[Literal["supervisor"]]:
 builder = StateGraph(State, input=GraphInput, output=GraphOutput)
 builder.add_edge(START, "input")
 builder.add_edge("input", "supervisor")
-builder.add_edge("supervisor", "output")
-builder.add_edge("output", END)
 builder.add_node("input", input)
 builder.add_node("supervisor", supervisor_node)
 builder.add_node("researcher", research_node)
 builder.add_node("coder", code_node)
-builder.add_node("output", output)
 graph = builder.compile()
