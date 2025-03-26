@@ -19,15 +19,10 @@ graph TD;
 	__start__([<p>__start__</p>]):::first
 	input(input)
 	supervisor(supervisor)
-	output(output)
-	__end__([<p>__end__</p>]):::last
 	__start__ --> input;
 	input --> supervisor;
-	output --> __end__;
-	supervisor --> output;
 	supervisor -.-> researcher___start__;
 	supervisor -.-> coder___start__;
-	supervisor -.-> output;
 	researcher___end__ -.-> supervisor;
 	coder___end__ -.-> supervisor;
 	subgraph researcher
@@ -66,7 +61,7 @@ graph TD;
 
 ## Features
 
-- **Flexible Routing**: The supervisor dynamically decides which agent is best suited for each step
+- **Routing**: The supervisor dynamically decides which agent is best suited for each step
 - **Web Search**: The researcher agent can search the web for up-to-date information using Tavily
 - **Code Execution**: The coder agent can execute Python code to perform calculations and analysis
 - **Structured I/O**: Uses Pydantic models for clean input/output interfaces

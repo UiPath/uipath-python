@@ -7,15 +7,10 @@ graph TD;
 	__start__([<p>__start__</p>]):::first
 	input(input)
 	supervisor(supervisor)
-	output(output)
-	__end__([<p>__end__</p>]):::last
 	__start__ --> input;
 	input --> supervisor;
-	output --> __end__;
-	supervisor --> output;
 	supervisor -.-> researcher___start__;
 	supervisor -.-> coder___start__;
-	supervisor -.-> output;
 	researcher___end__ -.-> supervisor;
 	coder___end__ -.-> supervisor;
 	subgraph researcher

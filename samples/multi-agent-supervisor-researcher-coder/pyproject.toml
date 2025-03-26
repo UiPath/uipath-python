@@ -1,6 +1,6 @@
 [project]
 name = "multi_agent_supervisor"
-version = "0.0.6"
+version = "0.0.9"
 description = "Multi-agent system where a supervisor coordinates between a researcher and a coder"
 authors = [
     { name = "Cristi Pufu" }
