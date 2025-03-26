@@ -78,8 +78,6 @@ class GraphConfig:
                 and hasattr(graph_obj, "__aenter__")
                 and callable(graph_obj.__aenter__)
             ):
-                # This is an async context manager
-                logger.info(f"Detected async context manager for graph {self.name}")
                 self._context_manager = graph_obj
                 graph = await graph_obj.__aenter__()
 
@@ -118,7 +116,6 @@ class GraphConfig:
         """
         if hasattr(self, "_context_manager") and self._context_manager:
             try:
-                logger.info(f"Cleaning up context for graph {self.name}")
                 await self._context_manager.__aexit__(None, None, None)
             except Exception as e:
                 logger.warning(f"Error during context cleanup: {str(e)}")
