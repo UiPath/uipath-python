@@ -1,7 +1,7 @@
 [project]
 name = "simple-local-mcp"
-version = "0.0.1"
-description = "Math & Weather Local MCP Server Agent"
+version = "0.0.2"
+description = "Math and Weather Local MCP Server Agent"
 authors = [{ name = "Cristi Pufu", email = "cristian.pufu@uipath.com" }]
 dependencies = [
     "langgraph>=0.2.70",
