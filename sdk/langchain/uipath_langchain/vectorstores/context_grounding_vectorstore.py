@@ -15,7 +15,7 @@ from typing import Any, Optional, TypeVar
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
-from langchain_core.vectorstores import VectorStore, VectorStoreRetriever
+from langchain_core.vectorstores import VectorStore
 from uipath_sdk import UiPathSDK
 
 from uipath_langchain.retrievers.context_grounding_retriever import (
