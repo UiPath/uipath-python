@@ -1,9 +1,7 @@
-import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
 
-from fix_logger import patch_logger
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import END, START, MessagesState, StateGraph
@@ -12,9 +10,6 @@ from pydantic import BaseModel
 from uipath_langchain.chat.models import (
     UiPathNormalizedChatModel,
 )
-
-# fix for mcp server
-patch_logger()
 
 
 class GraphInput(BaseModel):
@@ -32,7 +27,7 @@ def get_file_path(filename):
 
 mcp_config = {
     "travel_mcp": {
-        "command": "python",
+        "command": sys.executable,
         "args": [get_file_path("./mcps/travel_mcp.py")],
         "transport": "stdio",
     }
