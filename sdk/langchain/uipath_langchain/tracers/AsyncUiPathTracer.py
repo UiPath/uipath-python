@@ -143,6 +143,26 @@ class AsyncUiPathTracer(AsyncBaseTracer):
             except Exception as e:
                 logger.warning(f"Exception when sending trace: {e}.")
 
+        # wait for a bit to ensure all logs are sent
+        await asyncio.sleep(1)
+
+        # try to send any remaining logs in the queue
+        while True:
+            try:
+                if self.log_queue.empty():
+                    break
+
+                span_data = self.log_queue.get_nowait()
+
+                response = await self.client.post(
+                    f"{self.url}/api/Agent/span/",
+                    headers=self.headers,
+                    json=span_data,
+                    timeout=10,
+                )
+            except Exception as e:
+                logger.warning(f"Exception when sending trace: {e}.")
+
     async def _persist_run(self, run: Run) -> None:
         # Determine if this is a start or end trace based on whether end_time is set
         await self._send_span(run)
