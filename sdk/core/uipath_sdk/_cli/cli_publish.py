@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from uipath_sdk._cli._utils._common import environment_options
 from uipath_sdk._cli.cli_auth import PortalService
 
-load_dotenv(os.path.join(os.getcwd(), ".env"))
+load_dotenv()
 
 
 def get_most_recent_package():
@@ -30,8 +30,6 @@ def get_most_recent_package():
 
 
 def get_env_vars():
-    load_dotenv(os.path.join(os.getcwd(), ".env"))
-
     base_url = os.environ.get("UIPATH_URL")
     token = os.environ.get("UIPATH_ACCESS_TOKEN")
 
