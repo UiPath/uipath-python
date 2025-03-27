@@ -84,8 +84,57 @@ class LangGraphRuntime(UiPathBaseRuntime):
                     "callbacks": callbacks,
                 }
 
-                # Execute the graph
-                self.context.output = await graph.ainvoke(processed_input, graph_config)
+                # Stream the output at debug time
+                if self.context.job_id is None:
+                    # Get final chunk while streaming
+                    final_chunk = None
+                    async for chunk in graph.astream(
+                        processed_input,
+                        graph_config,
+                        stream_mode="values",
+                        subgraphs=True,
+                    ):
+                        logger.info("%s", chunk)
+                        final_chunk = chunk
+
+                    # Extract data from the subgraph tuple format (namespace, data)
+                    if isinstance(final_chunk, tuple) and len(final_chunk) == 2:
+                        final_chunk = final_chunk[1]
+
+                    # Process the final chunk to match ainvoke's output format
+                    if isinstance(final_chunk, dict) and hasattr(
+                        graph, "output_channels"
+                    ):
+                        output_channels = graph.output_channels
+
+                        # Case 1: Single output channel as string
+                        if (
+                            isinstance(output_channels, str)
+                            and output_channels in final_chunk
+                        ):
+                            self.context.output = final_chunk[output_channels]
+
+                        # Case 2: Sequence of output channels
+                        elif hasattr(output_channels, "__iter__") and not isinstance(
+                            output_channels, str
+                        ):
+                            # Check if all channels are present in the chunk
+                            if all(ch in final_chunk for ch in output_channels):
+                                result = {}
+                                for channel in output_channels:
+                                    result[channel] = final_chunk[channel]
+                                self.context.output = result
+                            else:
+                                # Fallback if not all channels are present
+                                self.context.output = final_chunk
+                    else:
+                        # Use the whole chunk as output if we can't determine output channels
+                        self.context.output = final_chunk
+                else:
+                    # Execute the graph normally at runtime
+                    self.context.output = await graph.ainvoke(
+                        processed_input, graph_config
+                    )
 
                 # Get the state if available
                 try:
