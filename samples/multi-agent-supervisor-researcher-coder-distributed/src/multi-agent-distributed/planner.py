@@ -1,4 +1,3 @@
-import json
 from typing import List, Literal
 
 from langchain_anthropic import ChatAnthropic
@@ -184,7 +183,7 @@ def invoke_agent(state: State) -> Command:
         )
     )
 
-    response_content = json.loads(agent_response)["answer"]
+    response_content = agent_response["answer"]
 
     agent_message = HumanMessage(content=response_content, name=agent_name)
 

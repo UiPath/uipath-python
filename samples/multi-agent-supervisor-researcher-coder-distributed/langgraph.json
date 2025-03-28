@@ -1,7 +1,7 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "supervisor": "./src/multi-agent-distributed/supervisor.py:graph",
+    "planner": "./src/multi-agent-distributed/planner.py:graph",
     "researcher": "./src/multi-agent-distributed/researcher.py:graph",
     "coder": "./src/multi-agent-distributed/coder.py:graph"
   },
