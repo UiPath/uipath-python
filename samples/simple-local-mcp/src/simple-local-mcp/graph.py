@@ -14,12 +14,12 @@ async def make_graph():
         {
             "math": {
                 "command": sys.executable,
-                "args": ["math_server.py"],
+                "args": ["src/simple-local-mcp/math_server.py"],
                 "transport": "stdio",
             },
             "weather": {
                 "command": sys.executable,
-                "args": ["weather_server.py"],
+                "args": ["src/simple-local-mcp/weather_server.py"],
                 "transport": "stdio",
             },
         }

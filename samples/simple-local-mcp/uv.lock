@@ -1693,7 +1693,7 @@ wheels = [
 
 [[package]]
 name = "simple-local-mcp"
-version = "0.0.1"
+version = "0.0.3"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1725,8 +1725,8 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
-    { name = "uipath-langchain", specifier = ">=0.0.69" },
-    { name = "uipath-sdk", specifier = ">=0.0.95" },
+    { name = "uipath-langchain", specifier = ">=0.0.72" },
+    { name = "uipath-sdk", specifier = ">=0.0.98" },
 ]
 
 [[package]]
@@ -1963,7 +1963,7 @@ wheels = [
 
 [[package]]
 name = "uipath-langchain"
-version = "0.0.69"
+version = "0.0.73"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -1980,14 +1980,14 @@ dependencies = [
     { name = "types-requests" },
     { name = "uipath-sdk" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7f/82/8b8b555f89b6eec465b25dc83b6fad62540cbe4bff4e72e55295fe7a993c/uipath_langchain-0.0.69.tar.gz", hash = "sha256:8472baa20fc0ad85cff24f162a42567570e7648ec530c8babbb861301126d79a", size = 22961 }
+sdist = { url = "https://files.pythonhosted.org/packages/f0/42/54ccb3df2847c3e96b04766c88ae26dc0bb5e4637d8fd4866730727dc5ce/uipath_langchain-0.0.73.tar.gz", hash = "sha256:0495fd297d335c9c8dd3009f8bb8cc7c92b989adc0d76095266fa7fbc091a0c5", size = 23727 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/4d/16459ed75401144407e70b54a2260cc9d3b5d74b62425000959f9d4b978a/uipath_langchain-0.0.69-py3-none-any.whl", hash = "sha256:e7eeafd4b3e7f69d26173e1af7259c2b520b8dd2061f3d39bcf2b821c764723c", size = 35330 },
+    { url = "https://files.pythonhosted.org/packages/fd/25/9d31565d2e6bf192fd757621689b1c39ccaa9b9d3598ab61b6bb2041602a/uipath_langchain-0.0.73-py3-none-any.whl", hash = "sha256:6b75bf1a27768eedf69d29e4bfe38afe4e1605406d3776150a0c6c3011fa9791", size = 36220 },
 ]
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.95"
+version = "0.0.99"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -2000,9 +2000,9 @@ dependencies = [
     { name = "tomli" },
     { name = "types-requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0a/7c/6a38b0ed4c2601c667b86449053009f2875e1d58bb840b5f278b059518ec/uipath_sdk-0.0.95.tar.gz", hash = "sha256:55ca01cc175d154d712ef67622c17c2459baaea6486ab14308cba944ba8e3e8b", size = 52574 }
+sdist = { url = "https://files.pythonhosted.org/packages/5b/52/780a8a6b7e66d3a1555ac1575f99114f2a874845a976bd25cc1e3d456a90/uipath_sdk-0.0.99.tar.gz", hash = "sha256:5934f13bfe54fa25f20a4319d5bb2333a4110b3e03943d00d0bef542a41786ed", size = 52952 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/06/7664d45d00b387e3225915f2d0fa36653870c7dc0a6c3023591e5e818f27/uipath_sdk-0.0.95-py3-none-any.whl", hash = "sha256:46ec9c31c368dfe1b4baec01c956efc4ff6f2e494ed364c23a3f4c557e68445a", size = 76728 },
+    { url = "https://files.pythonhosted.org/packages/1a/f1/f5aa077c3251dffb5d3a5103367a92202c777f12b4f5639b5841476ec86c/uipath_sdk-0.0.99-py3-none-any.whl", hash = "sha256:0ec5f2bc02c61459540a2c8c47f8905fbf747d2b6cd5c3b986d19a17688b487b", size = 77545 },
 ]
 
 [[package]]
