@@ -48,6 +48,9 @@ class UiPathRuntime(UiPathBaseRuntime):
                 self.context.entrypoint, self.context.input_json
             )
 
+            if self.context.job_id is None:
+                logger.info(script_result)
+
             self.context.result = UiPathRuntimeResult(
                 output=script_result, status=UiPathRuntimeStatus.SUCCESSFUL
             )
@@ -95,6 +98,10 @@ class UiPathRuntime(UiPathBaseRuntime):
                 f"The input data is not valid JSON: {str(e)}",
                 UiPathErrorCategory.USER,
             ) from e
+
+    async def cleanup(self) -> None:
+        """Cleanup runtime resources."""
+        pass
 
     def _execute_python_script(self, script_path: str, input_data: Any) -> Any:
         """Execute the Python script with the given input."""

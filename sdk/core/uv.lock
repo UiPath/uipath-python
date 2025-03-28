@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.9"
 resolution-markers = [
     "python_full_version >= '3.12.4'",
@@ -1579,7 +1578,7 @@ wheels = [
 
 [[package]]
 name = "uipath-sdk"
-version = "0.0.89"
+version = "0.0.97"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -1627,7 +1626,6 @@ requires-dist = [
     { name = "types-requests", specifier = ">=2.32.0.20250306" },
     { name = "uipath-langchain", marker = "extra == 'langchain'", specifier = ">=0.0.16" },
 ]
-provides-extras = ["langchain"]
 
 [package.metadata.requires-dev]
 dev = [
