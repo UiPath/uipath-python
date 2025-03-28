@@ -3,6 +3,14 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
 
+class JobErrorInfo(BaseModel):
+    Code: Optional[str] = None
+    Title: Optional[str] = None
+    Detail: Optional[str] = None
+    Category: Optional[str] = None
+    Status: Optional[str] = None
+
+
 class Job(BaseModel):
     Key: Optional[str] = None
     StartTime: Optional[str] = None
@@ -29,4 +37,5 @@ class Job(BaseModel):
     HostMachineName: Optional[str] = None
     HasErrors: Optional[bool] = None
     HasWarnings: Optional[bool] = None
+    JobError: Optional[JobErrorInfo] = None
     Id: int
