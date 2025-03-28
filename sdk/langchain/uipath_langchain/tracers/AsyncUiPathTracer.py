@@ -6,7 +6,7 @@ import re
 import uuid
 import warnings
 from os import environ as env
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 from langchain_core.tracers.base import AsyncBaseTracer
@@ -14,6 +14,12 @@ from langchain_core.tracers.schemas import Run
 from pydantic import PydanticDeprecationWarning
 
 logger = logging.getLogger(__name__)
+
+
+class Status:
+    SUCCESS = 1
+    ERROR = 2
+    INTERRUPTED = 1  # intentional equal to SUCCESS
 
 
 class AsyncUiPathTracer(AsyncBaseTracer):
@@ -193,7 +199,7 @@ class AsyncUiPathTracer(AsyncBaseTracer):
                 "organizationId": self.orgId,
                 "tenantId": self.tenantId,
                 "spanType": "LangGraphRun",
-                "status": 2 if run.error else 1,
+                "status": self._determine_status(run.error),
                 "jobKey": self.jobKey,
                 "folderKey": self.folderKey,
                 "processKey": self.processKey,
@@ -210,6 +216,15 @@ class AsyncUiPathTracer(AsyncBaseTracer):
     async def _end_trace(self, run: Run) -> None:
         await super()._end_trace(run)
         await self._persist_run(run)
+
+    def _determine_status(self, error: Optional[str]):
+        if error:
+            if error.startswith("GraphInterrupt("):
+                return Status.INTERRUPTED
+
+            return Status.ERROR
+
+        return Status.SUCCESS
 
     def _safe_json_dump(self, obj) -> str:
         try:
