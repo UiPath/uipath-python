@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Optional, cast
 
@@ -6,6 +7,7 @@ from uipath_sdk import UiPathSDK
 from uipath_sdk._cli._runtime._contracts import (
     UiPathErrorCategory,
     UiPathResumeTriggerType,
+    UiPathRuntimeStatus,
 )
 
 from ._context import LangGraphRuntimeContext
@@ -13,6 +15,13 @@ from ._escalation import Escalation
 from ._exception import LangGraphRuntimeError
 
 logger = logging.getLogger(__name__)
+
+
+def try_convert_to_json_format(value: str) -> str:
+    try:
+        return json.loads(value)
+    except json.decoder.JSONDecodeError:
+        return value
 
 
 class LangGraphInputProcessor:
@@ -66,8 +75,22 @@ class LangGraphInputProcessor:
                 return Command(resume=payload)
         elif type == UiPathResumeTriggerType.JOB.value and key:
             job = await self.uipath.jobs.retrieve_async(key)
+            if (
+                job.State
+                and not job.State.lower()
+                == UiPathRuntimeStatus.SUCCESSFUL.value.lower()
+            ):
+                error_code = "INVOKED_PROCESS_FAILURE"
+                error_title = "Invoked process did not finish successfully."
+                error_detail = try_convert_to_json_format(str(job.JobError or job.Info))
+                raise LangGraphRuntimeError(
+                    error_code,
+                    error_title,
+                    error_detail,
+                    UiPathErrorCategory.USER,
+                )
             if job.OutputArguments:
-                return Command(resume=job.OutputArguments)
+                return Command(resume=try_convert_to_json_format(job.OutputArguments))
         return Command(resume=self.context.input_json)
 
     async def _get_latest_trigger(self) -> Optional[tuple[str, str]]:
