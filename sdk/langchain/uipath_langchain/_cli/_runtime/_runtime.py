@@ -6,6 +6,7 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.runnables.config import RunnableConfig
 from langchain_core.tracers.langchain import wait_for_all_tracers
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.errors import EmptyInputError, GraphRecursionError, InvalidUpdateError
 from langgraph.graph.state import CompiledStateGraph
 from uipath_sdk._cli._runtime._contracts import (
     UiPathBaseRuntime,
@@ -158,11 +159,37 @@ class LangGraphRuntime(UiPathBaseRuntime):
             if isinstance(e, LangGraphRuntimeError):
                 raise
 
+            detail = f"Error: {str(e)}"
+
+            if isinstance(e, GraphRecursionError):
+                raise LangGraphRuntimeError(
+                    "GRAPH_RECURSION_ERROR",
+                    "Graph recursion limit exceeded",
+                    detail,
+                    UiPathErrorCategory.USER,
+                ) from e
+
+            if isinstance(e, InvalidUpdateError):
+                raise LangGraphRuntimeError(
+                    "GRAPH_INVALID_UPDATE",
+                    str(e),
+                    detail,
+                    UiPathErrorCategory.USER,
+                ) from e
+
+            if isinstance(e, EmptyInputError):
+                raise LangGraphRuntimeError(
+                    "GRAPH_EMPTY_INPUT",
+                    "The input data is empty",
+                    detail,
+                    UiPathErrorCategory.USER,
+                ) from e
+
             raise LangGraphRuntimeError(
                 "EXECUTION_ERROR",
                 "Graph execution failed",
-                f"Error: {str(e)}",
-                UiPathErrorCategory.SYSTEM,
+                detail,
+                UiPathErrorCategory.USER,
             ) from e
 
     async def validate(self) -> None:
