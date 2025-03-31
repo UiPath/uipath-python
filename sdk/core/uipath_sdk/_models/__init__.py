@@ -1,4 +1,5 @@
 from ._interrupt_models.invoke_process import InvokeProcess
+from .action_schema import ActionSchema
 from .actions import Action
 from .assets import UserAsset
 from .connections import Connection, ConnectionToken
@@ -27,4 +28,5 @@ __all__ = [
     "ConnectionToken",
     "Job",
     "InvokeProcess",
+    "ActionSchema",
 ]
