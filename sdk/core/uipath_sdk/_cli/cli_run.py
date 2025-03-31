@@ -67,6 +67,11 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""",
                 parent_span_id=env.get("UIPATH_PARENT_SPAN_ID"),
                 root_span_id=env.get("UIPATH_ROOT_SPAN_ID"),
                 enabled=env.get("UIPATH_TRACING_ENABLED", True),
+                job_id=env.get("UIPATH_JOB_KEY"),
+                org_id=env.get("UIPATH_ORGANIZATION_ID"),
+                tenant_id=env.get("UIPATH_TENANT_ID"),
+                process_key=env.get("UIPATH_PROCESS_UUID"),
+                folder_key=env.get("UIPATH_FOLDER_KEY"),
             )
             context.logs_min_level = env.get("LOG_LEVEL", "INFO")
 
