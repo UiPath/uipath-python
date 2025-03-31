@@ -7,6 +7,8 @@ import time
 
 from dotenv import load_dotenv
 
+from ._oidc_utils import get_auth_config
+
 load_dotenv()
 
 # Server port
@@ -45,7 +47,26 @@ def make_request_handler_class(state, code_verifier, token_callback):
                 time.sleep(1)
 
                 token_callback(token_data)
+            elif self.path == "/log":
+                content_length = int(self.headers["Content-Length"])
+                post_data = self.rfile.read(content_length)
+                logs = json.loads(post_data.decode("utf-8"))
+                # Write logs to .uipath/.error_log file
+                uipath_dir = os.path.join(os.getcwd(), ".uipath")
+                os.makedirs(uipath_dir, exist_ok=True)
+                error_log_path = os.path.join(uipath_dir, ".error_log")
 
+                with open(error_log_path, "a", encoding="utf-8") as f:
+                    f.write(
+                        f"\n--- Authentication Error Log {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n"
+                    )
+                    json.dump(logs, f, indent=2)
+                    f.write("\n")
+                print(logs)
+                print("Received log data")
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"Log received")
             else:
                 self.send_error(404, "Path not found")
 
@@ -57,8 +78,13 @@ def make_request_handler_class(state, code_verifier, token_callback):
                 with open(index_path, "r") as f:
                     content = f.read()
 
+                # Get the redirect URI from auth config
+                auth_config = get_auth_config()
+                redirect_uri = auth_config["redirect_uri"]
+
                 content = content.replace("__PY_REPLACE_EXPECTED_STATE__", state)
                 content = content.replace("__PY_REPLACE_CODE_VERIFIER__", code_verifier)
+                content = content.replace("__PY_REPLACE_REDIRECT_URI__", redirect_uri)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html")
