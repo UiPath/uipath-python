@@ -129,6 +129,11 @@ class UiPathTraceContext(BaseModel):
     trace_id: Optional[str] = None
     parent_span_id: Optional[str] = None
     root_span_id: Optional[str] = None
+    org_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    job_id: Optional[str] = None
+    folder_key: Optional[str] = None
+    process_key: Optional[str] = None
     enabled: Union[bool, str] = False
 
 
