@@ -46,6 +46,7 @@ class AsyncUiPathTracer(AsyncBaseTracer):
         self.jobKey = env.get("UIPATH_JOB_KEY")
         self.folderKey = env.get("UIPATH_FOLDER_KEY")
         self.processKey = env.get("UIPATH_PROCESS_UUID")
+        self.parent_span_id = env.get("UIPATH_PARENT_SPAN_ID")
 
         self.referenceId = self.jobKey or str(uuid.uuid4())
 
@@ -185,21 +186,27 @@ class AsyncUiPathTracer(AsyncBaseTracer):
                 run.end_time.isoformat() if run.end_time is not None else start_time
             )
 
+            parent_id = (
+                str(run.parent_run_id)
+                if run.parent_run_id is not None
+                else self.parent_span_id
+            )
+            attributes = self._safe_json_dump(self._run_to_dict(run))
+            status = self._determine_status(run.error)
+
             span_data = {
                 "id": run_id,
-                "parentId": str(run.parent_run_id)
-                if run.parent_run_id is not None
-                else None,
+                "parentId": parent_id,
                 "traceId": self.trace_parent,
                 "name": run.name,
                 "startTime": start_time,
                 "endTime": end_time,
                 "referenceId": self.referenceId,
-                "attributes": self._safe_json_dump(self._run_to_dict(run)),
+                "attributes": attributes,
                 "organizationId": self.orgId,
                 "tenantId": self.tenantId,
                 "spanType": "LangGraphRun",
-                "status": self._determine_status(run.error),
+                "status": status,
                 "jobKey": self.jobKey,
                 "folderKey": self.folderKey,
                 "processKey": self.processKey,
