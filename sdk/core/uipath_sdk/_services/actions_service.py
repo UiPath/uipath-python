@@ -1,19 +1,75 @@
 import os
+import uuid
 from json import dumps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._models import Action
+from .._models import Action, ActionSchema
 from .._utils import Endpoint, RequestSpec
 from .._utils.constants import ENV_TENANT_ID, HEADER_TENANT_ID
 from ._base_service import BaseService
 
 
 def _create_spec(
-    title: str, data: Optional[Dict[str, Any]], app_key: str = "", app_version: int = -1
+    title: str,
+    data: Optional[Dict[str, Any]],
+    action_schema: Optional[ActionSchema],
+    app_key: str = "",
+    app_version: int = -1,
 ) -> RequestSpec:
+    field_list = []
+    outcome_list = []
+    if action_schema:
+        if action_schema.inputs:
+            for input_field in action_schema.inputs:
+                field_name = input_field.name
+                field_list.append(
+                    {
+                        "Id": input_field.key,
+                        "Name": field_name,
+                        "Title": field_name,
+                        "Type": "Fact",
+                        "Value": data.get(field_name, "") if data is not None else "",
+                    }
+                )
+        if action_schema.outputs:
+            for output_field in action_schema.outputs:
+                field_name = output_field.name
+                field_list.append(
+                    {
+                        "Id": output_field.key,
+                        "Name": field_name,
+                        "Title": field_name,
+                        "Type": "Fact",
+                        "Value": "",
+                    }
+                )
+        if action_schema.inOuts:
+            for inout_field in action_schema.inOuts:
+                field_name = inout_field.name
+                field_list.append(
+                    {
+                        "Id": inout_field.key,
+                        "Name": field_name,
+                        "Title": field_name,
+                        "Type": "Fact",
+                        "Value": data.get(field_name, "") if data is not None else "",
+                    }
+                )
+        if action_schema.outcomes:
+            for outcome in action_schema.outcomes:
+                outcome_list.append(
+                    {
+                        "Id": action_schema.key,
+                        "Name": outcome.name,
+                        "Title": outcome.name,
+                        "Type": "Action.Http",
+                        "IsPrimary": True,
+                    }
+                )
+
     return RequestSpec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
@@ -23,6 +79,22 @@ def _create_spec(
                 "appVersion": app_version,
                 "title": title,
                 "data": data if data is not None else {},
+                "actionableMessageMetaData": {
+                    "fieldSet": {
+                        "id": str(uuid.uuid4()),
+                        "fields": field_list,
+                    }
+                    if len(field_list) != 0
+                    else {},
+                    "actionSet": {
+                        "id": str(uuid.uuid4()),
+                        "actions": outcome_list,
+                    }
+                    if len(outcome_list) != 0
+                    else {},
+                }
+                if action_schema is not None
+                else {},
             }
         ),
     )
@@ -42,8 +114,8 @@ def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
         raise Exception(f"{ENV_TENANT_ID} env var is not set")
     return RequestSpec(
         method="GET",
-        endpoint=Endpoint("/apps_/default/api/v1/default/action-apps"),
-        params={"search": app_name, "state": "deployed"},
+        endpoint=Endpoint("/apps_/default/api/v1/default/deployed-action-apps-schemas"),
+        params={"search": app_name},
         headers={HEADER_TENANT_ID: tenant_id},
     )
 
@@ -72,9 +144,17 @@ class ActionsService(FolderContext, BaseService):
         app_key: str = "",
         app_version: int = -1,
     ) -> Action:
-        key = app_key if app_key else await self.__get_app_key_async(app_name)
+        (key, action_schema) = (
+            (app_key, None)
+            if app_key
+            else await self.__get_app_key_and_schema_async(app_name)
+        )
         spec = _create_spec(
-            title=title, data=data, app_key=key, app_version=app_version
+            title=title,
+            data=data,
+            app_key=key,
+            app_version=app_version,
+            action_schema=action_schema,
         )
 
         response = await self.request_async(
@@ -92,9 +172,15 @@ class ActionsService(FolderContext, BaseService):
         app_key: str = "",
         app_version: int = -1,
     ) -> Action:
-        key = app_key if app_key else self.__get_app_key(app_name)
+        (key, action_schema) = (
+            (app_key, None) if app_key else self.__get_app_key_and_schema(app_name)
+        )
         spec = _create_spec(
-            title=title, data=data, app_key=key, app_version=app_version
+            title=title,
+            data=data,
+            app_key=key,
+            app_version=app_version,
+            action_schema=action_schema,
         )
 
         response = self.request(spec.method, spec.endpoint, content=spec.content)
@@ -121,7 +207,9 @@ class ActionsService(FolderContext, BaseService):
 
         return Action.model_validate(response.json())
 
-    async def __get_app_key_async(self, app_name: str) -> str:
+    async def __get_app_key_and_schema_async(
+        self, app_name: str
+    ) -> Tuple[str, Optional[ActionSchema]]:
         if not app_name:
             raise Exception("appName or appKey is required")
         spec = _retrieve_app_key_spec(app_name=app_name)
@@ -129,10 +217,12 @@ class ActionsService(FolderContext, BaseService):
         response = await self.request_org_scope_async(
             spec.method, spec.endpoint, params=spec.params, headers=spec.headers
         )
+        deployed_app = response.json()["deployed"][0]
+        return (deployed_app["systemName"], deployed_app["actionSchema"])
 
-        return response.json()["deployed"][0]["systemName"]
-
-    def __get_app_key(self, app_name: str) -> str:
+    def __get_app_key_and_schema(
+        self, app_name: str
+    ) -> Tuple[str, Optional[ActionSchema]]:
         if not app_name:
             raise Exception("appName or appKey is required")
 
@@ -142,7 +232,18 @@ class ActionsService(FolderContext, BaseService):
             spec.method, spec.endpoint, params=spec.params, headers=spec.headers
         )
 
-        return response.json()["deployed"][0]["systemName"]
+        deployed_app = response.json()["deployed"][0]
+        action_schema = deployed_app["actionSchema"]
+        return (
+            deployed_app["systemName"],
+            ActionSchema(
+                key=action_schema["key"],
+                inOuts=action_schema["inOuts"],
+                inputs=action_schema["inputs"],
+                outputs=action_schema["outputs"],
+                outcomes=action_schema["outcomes"],
+            ),
+        )
 
     @property
     def custom_headers(self) -> Dict[str, str]:
