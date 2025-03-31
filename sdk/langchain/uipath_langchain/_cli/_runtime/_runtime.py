@@ -49,6 +49,8 @@ class LangGraphRuntime(UiPathBaseRuntime):
         if self.context.state_graph is None:
             return None
 
+        tracer = None
+
         try:
             async with AsyncSqliteSaver.from_conn_string(
                 self.state_file_path
@@ -68,7 +70,6 @@ class LangGraphRuntime(UiPathBaseRuntime):
                 # Set up tracing if available
                 callbacks: List[BaseCallbackHandler] = []
 
-                tracer = None
                 if self.context.job_id and self.context.tracing_enabled:
                     tracer = AsyncUiPathTracer()
                     await tracer.init_trace(
@@ -143,12 +144,6 @@ class LangGraphRuntime(UiPathBaseRuntime):
                 except Exception:
                     pass
 
-                if tracer is not None:
-                    await tracer.wait_for_all_tracers()
-
-                if self.context.langsmith_tracing_enabled:
-                    wait_for_all_tracers()
-
                 output_processor = LangGraphOutputProcessor(context=self.context)
 
                 self.context.result = await output_processor.process()
@@ -191,6 +186,12 @@ class LangGraphRuntime(UiPathBaseRuntime):
                 detail,
                 UiPathErrorCategory.USER,
             ) from e
+        finally:
+            if tracer is not None:
+                await tracer.wait_for_all_tracers()
+
+            if self.context.langsmith_tracing_enabled:
+                wait_for_all_tracers()
 
     async def validate(self) -> None:
         """Validate runtime inputs."""

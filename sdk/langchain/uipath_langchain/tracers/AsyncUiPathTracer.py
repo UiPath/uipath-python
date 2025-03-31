@@ -6,7 +6,7 @@ import re
 import uuid
 import warnings
 from os import environ as env
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 from langchain_core.tracers.base import AsyncBaseTracer
@@ -14,6 +14,12 @@ from langchain_core.tracers.schemas import Run
 from pydantic import PydanticDeprecationWarning
 
 logger = logging.getLogger(__name__)
+
+
+class Status:
+    SUCCESS = 1
+    ERROR = 2
+    INTERRUPTED = 1  # intentional equal to SUCCESS
 
 
 class AsyncUiPathTracer(AsyncBaseTracer):
@@ -40,6 +46,7 @@ class AsyncUiPathTracer(AsyncBaseTracer):
         self.jobKey = env.get("UIPATH_JOB_KEY")
         self.folderKey = env.get("UIPATH_FOLDER_KEY")
         self.processKey = env.get("UIPATH_PROCESS_UUID")
+        self.parent_span_id = env.get("UIPATH_PARENT_SPAN_ID")
 
         self.referenceId = self.jobKey or str(uuid.uuid4())
 
@@ -179,21 +186,27 @@ class AsyncUiPathTracer(AsyncBaseTracer):
                 run.end_time.isoformat() if run.end_time is not None else start_time
             )
 
+            parent_id = (
+                str(run.parent_run_id)
+                if run.parent_run_id is not None
+                else self.parent_span_id
+            )
+            attributes = self._safe_json_dump(self._run_to_dict(run))
+            status = self._determine_status(run.error)
+
             span_data = {
                 "id": run_id,
-                "parentId": str(run.parent_run_id)
-                if run.parent_run_id is not None
-                else None,
+                "parentId": parent_id,
                 "traceId": self.trace_parent,
                 "name": run.name,
                 "startTime": start_time,
                 "endTime": end_time,
                 "referenceId": self.referenceId,
-                "attributes": self._safe_json_dump(self._run_to_dict(run)),
+                "attributes": attributes,
                 "organizationId": self.orgId,
                 "tenantId": self.tenantId,
                 "spanType": "LangGraphRun",
-                "status": 2 if run.error else 1,
+                "status": status,
                 "jobKey": self.jobKey,
                 "folderKey": self.folderKey,
                 "processKey": self.processKey,
@@ -210,6 +223,15 @@ class AsyncUiPathTracer(AsyncBaseTracer):
     async def _end_trace(self, run: Run) -> None:
         await super()._end_trace(run)
         await self._persist_run(run)
+
+    def _determine_status(self, error: Optional[str]):
+        if error:
+            if error.startswith("GraphInterrupt("):
+                return Status.INTERRUPTED
+
+            return Status.ERROR
+
+        return Status.SUCCESS
 
     def _safe_json_dump(self, obj) -> str:
         try:
