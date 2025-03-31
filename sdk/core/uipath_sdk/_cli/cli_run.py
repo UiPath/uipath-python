@@ -9,7 +9,11 @@ from typing import Optional
 import click
 from dotenv import load_dotenv
 
-from uipath_sdk._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeError
+from uipath_sdk._cli._runtime._contracts import (
+    UiPathRuntimeContext,
+    UiPathRuntimeError,
+    UiPathTraceContext,
+)
 from uipath_sdk._cli._runtime._runtime import UiPathRuntime
 from uipath_sdk._cli.middlewares import MiddlewareResult, Middlewares
 
@@ -58,6 +62,12 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""",
             context.job_id = env.get("UIPATH_JOB_KEY")
             context.trace_id = env.get("UIPATH_TRACE_ID")
             context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
+            context.trace_context = UiPathTraceContext(
+                trace_id=env.get("UIPATH_TRACE_ID"),
+                parent_span_id=env.get("UIPATH_PARENT_SPAN_ID"),
+                root_span_id=env.get("UIPATH_ROOT_SPAN_ID"),
+                enabled=env.get("UIPATH_TRACING_ENABLED", True),
+            )
             context.logs_min_level = env.get("LOG_LEVEL", "INFO")
 
             async with UiPathRuntime.from_context(context) as runtime:

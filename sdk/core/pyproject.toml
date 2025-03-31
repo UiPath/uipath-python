@@ -1,6 +1,6 @@
 [project]
 name = "uipath-sdk"
-version = "0.0.99"
+version = "0.0.100"
 description = "UiPath SDK"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
