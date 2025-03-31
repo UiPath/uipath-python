@@ -123,6 +123,15 @@ class UiPathRuntimeResult(BaseModel):
         return result
 
 
+class UiPathTraceContext(BaseModel):
+    """Trace context information for tracing and debugging."""
+
+    trace_id: Optional[str] = None
+    parent_span_id: Optional[str] = None
+    root_span_id: Optional[str] = None
+    enabled: Union[bool, str] = False
+
+
 class UiPathRuntimeContext(BaseModel):
     """Context information passed throughout the runtime execution."""
 
@@ -131,6 +140,7 @@ class UiPathRuntimeContext(BaseModel):
     input_json: Optional[Any] = None
     job_id: Optional[str] = None
     trace_id: Optional[str] = None
+    trace_context: Optional[UiPathTraceContext] = None
     tracing_enabled: Union[bool, str] = False
     resume: bool = False
     config_path: str = "uipath.json"
