@@ -4,6 +4,7 @@ from os import environ as env
 from typing import Optional
 
 from dotenv import load_dotenv
+from uipath_sdk._cli._runtime._contracts import UiPathTraceContext
 from uipath_sdk._cli.middlewares import MiddlewareResult
 
 from ._runtime._context import LangGraphRuntimeContext
@@ -40,6 +41,17 @@ def langgraph_run_middleware(
             context.job_id = env.get("UIPATH_JOB_KEY")
             context.trace_id = env.get("UIPATH_TRACE_ID")
             context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
+            context.trace_context = UiPathTraceContext(
+                enabled=env.get("UIPATH_TRACING_ENABLED", True),
+                trace_id=env.get("UIPATH_TRACE_ID"),
+                parent_span_id=env.get("UIPATH_PARENT_SPAN_ID"),
+                root_span_id=env.get("UIPATH_ROOT_SPAN_ID"),
+                job_id=env.get("UIPATH_JOB_KEY"),
+                org_id=env.get("UIPATH_ORGANIZATION_ID"),
+                tenant_id=env.get("UIPATH_TENANT_ID"),
+                process_key=env.get("UIPATH_PROCESS_UUID"),
+                folder_key=env.get("UIPATH_FOLDER_KEY"),
+            )
             context.langsmith_tracing_enabled = env.get("LANGSMITH_TRACING", False)
 
             # Add default env variables
