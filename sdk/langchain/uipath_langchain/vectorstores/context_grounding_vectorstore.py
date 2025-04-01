@@ -18,10 +18,6 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
 from uipath_sdk import UiPathSDK
 
-from uipath_langchain.retrievers.context_grounding_retriever import (
-    ContextGroundingRetriever,
-)
-
 VST = TypeVar("VST", bound="ContextGroundingVectorStore")
 
 
@@ -230,24 +226,6 @@ class ContextGroundingVectorStore(VectorStore):
         """
         docs_and_scores = await self.asimilarity_search_with_score(query, k, **kwargs)
         return [doc for doc, _ in docs_and_scores]
-
-    def as_retriever(self, **kwargs: Any) -> ContextGroundingRetriever:
-        """Create a retriever from this vector store.
-
-        Args:
-            **kwargs: Arguments to pass to the ContextGroundingRetriever constructor
-
-        Returns:
-            A ContextGroundingRetriever
-        """
-        number_of_results = kwargs.get(
-            "k", kwargs.get("search_kwargs", {}).get("k", 10)
-        )
-        return ContextGroundingRetriever(
-            index_name=self.index_name,
-            uipath_sdk=self.sdk,
-            number_of_results=number_of_results,
-        )
 
     @classmethod
     def from_texts(
