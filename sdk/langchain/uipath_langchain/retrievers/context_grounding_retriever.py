@@ -1,6 +1,9 @@
 from typing import List, Optional
 
-from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForRetrieverRun,
+    CallbackManagerForRetrieverRun,
+)
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from uipath_sdk import UiPathSDK
@@ -35,7 +38,7 @@ class ContextGroundingRetriever(BaseRetriever):
         ]
 
     async def _aget_relevant_documents(
-        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+        self, query: str, *, run_manager: AsyncCallbackManagerForRetrieverRun
     ) -> List[Document]:
         """Async implementations for retriever calls context_grounding API to search the requested index."""
 
