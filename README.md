@@ -133,6 +133,16 @@ uipath pack
 
 Packages your project into a `.nupkg` file that can be deployed to UiPath.
 
+**Note:** Your `pyproject.toml` must include:
+- A description field (avoid characters: &, <, >, ", ', ;)
+- Author information
+
+Example:
+```toml
+description = "Your package description"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+```
+
 ### Publish a Package
 
 ```bash
