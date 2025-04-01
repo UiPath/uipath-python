@@ -19,8 +19,7 @@ class CreateAction(BaseModel):
     name: Optional[str]
     key: Optional[str]
     title: str
-    request: Optional[Dict[str, Any]]
-    response: Optional[Dict[str, Any]]
+    data: Optional[Dict[str, Any]]
 
 
 class WaitAction(BaseModel):
