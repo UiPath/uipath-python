@@ -10,8 +10,8 @@ from langchain.globals import set_llm_cache
 from langchain.storage import LocalFileStore
 from langchain_community.cache import SQLiteCache
 
+from uipath_langchain._utils._settings import uipath_cached_paths_settings
 from uipath_langchain.embeddings import UiPathOpenAIEmbeddings
-from uipath_langchain.utils._settings import uipath_cached_paths_settings
 
 
 def get_token():

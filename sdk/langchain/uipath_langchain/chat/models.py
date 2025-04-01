@@ -13,8 +13,8 @@ from langchain_core.runnables import Runnable
 from langchain_openai.chat_models import AzureChatOpenAI
 from pydantic import BaseModel
 
-from uipath_langchain.utils._request_mixin import UiPathRequestMixin
-from uipath_langchain.utils._settings import UiPathEndpoints
+from uipath_langchain._utils._request_mixin import UiPathRequestMixin
+from uipath_langchain._utils._settings import UiPathEndpoints
 
 
 class UiPathAzureChatOpenAI(UiPathRequestMixin, AzureChatOpenAI):

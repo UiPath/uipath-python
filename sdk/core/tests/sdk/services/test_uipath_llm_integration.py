@@ -16,7 +16,7 @@ from uipath_sdk._models.llm_gateway import (
 )
 from uipath_sdk._services.llm_gateway_service import (
     ChatModels,
-    UiPathLLMService,
+    UiPathLlmChatService,
 )
 
 
@@ -38,8 +38,9 @@ class TestUiPathLLMIntegration:
 
         config = Config(base_url=base_url, secret=api_key)
         execution_context = ExecutionContext()
-        return UiPathLLMService(config=config, execution_context=execution_context)
+        return UiPathLlmChatService(config=config, execution_context=execution_context)
 
+    @pytest.mark.asyncio
     async def test_basic_chat_completions(self, llm_service):
         """Test basic chat completions functionality."""
         messages = [
@@ -63,6 +64,7 @@ class TestUiPathLLMIntegration:
         assert hasattr(result.choices[0].message, "content")
         assert "Paris" in result.choices[0].message.content
 
+    @pytest.mark.asyncio
     async def test_tool_call_required(self, llm_service):
         """Test the tool call functionality with a specific required tool."""
         messages = [
@@ -117,6 +119,7 @@ class TestUiPathLLMIntegration:
         assert "password" in result.choices[0].message.tool_calls[0].arguments
         assert result.choices[0].message.tool_calls[0].arguments["password"] == "1234"
 
+    @pytest.mark.asyncio
     async def test_chat_with_conversation_history(self, llm_service):
         """Test chat completions with a conversation history including assistant messages."""
         messages = [
@@ -172,6 +175,7 @@ class TestUiPathLLMIntegration:
             or len(result.choices[0].message.tool_calls) == 0
         )
 
+    @pytest.mark.asyncio
     async def test_no_tools(self, llm_service):
         """Test chat completions without any tools."""
         messages = [
@@ -209,14 +213,17 @@ class TestUiPathLLMServiceMocked:
 
     @pytest.fixture
     def llm_service(self, config, execution_context):
-        return UiPathLLMService(config=config, execution_context=execution_context)
+        return UiPathLlmChatService(config=config, execution_context=execution_context)
 
     def test_init(self, config, execution_context):
-        service = UiPathLLMService(config=config, execution_context=execution_context)
+        service = UiPathLlmChatService(
+            config=config, execution_context=execution_context
+        )
         assert service._config == config
         assert service._execution_context == execution_context
 
-    @patch.object(UiPathLLMService, "request_async")
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
     async def test_basic_chat_completions_mocked(self, mock_request, llm_service):
         # Mock response
         mock_response = MagicMock()
@@ -274,7 +281,8 @@ class TestUiPathLLMServiceMocked:
         assert json.loads(kwargs["content"])["max_tokens"] == 50
         assert json.loads(kwargs["content"])["temperature"] == 0
 
-    @patch.object(UiPathLLMService, "request_async")
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
     async def test_tool_call_required_mocked(self, mock_request, llm_service):
         # Mock response
         mock_response = MagicMock()
@@ -362,7 +370,8 @@ class TestUiPathLLMServiceMocked:
         assert result.choices[0].message.tool_calls[0].arguments["name"] == "John"
         assert result.choices[0].message.tool_calls[0].arguments["password"] == "1234"
 
-    @patch.object(UiPathLLMService, "reqrequest_asyncuest")
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
     async def test_chat_with_conversation_history_mocked(
         self, mock_request, llm_service
     ):
@@ -444,7 +453,8 @@ class TestUiPathLLMServiceMocked:
         assert "John" in result.choices[0].message.content
         assert result.choices[0].message.tool_calls is None
 
-    @patch.object(UiPathLLMService, "request_async")
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
     async def test_no_tools_mocked(self, mock_request, llm_service):
         # Mock response
         mock_response = MagicMock()

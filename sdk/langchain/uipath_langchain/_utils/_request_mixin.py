@@ -18,12 +18,12 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from uipath_langchain.utils._settings import (
+from uipath_langchain._utils._settings import (
     UiPathClientFactorySettings,
     UiPathClientSettings,
     get_uipath_token_header,
 )
-from uipath_langchain.utils._sleep_policy import before_sleep_log
+from uipath_langchain._utils._sleep_policy import before_sleep_log
 
 
 def get_from_uipath_url():
@@ -425,9 +425,14 @@ class UiPathRequestMixin(BaseModel):
     @property
     def url(self) -> str:
         if not self._url:
-            self._url = (
-                f"{self.base_url}/{self.org_id}/{self.tenant_id}/{self.endpoint}"
-            )
+            env_uipath_url = os.getenv("UIPATH_URL")
+
+            if env_uipath_url:
+                self._url = f"{env_uipath_url.rstrip('/')}/{self.endpoint}"
+            else:
+                self._url = (
+                    f"{self.base_url}/{self.org_id}/{self.tenant_id}/{self.endpoint}"
+                )
         return self._url
 
     @property
