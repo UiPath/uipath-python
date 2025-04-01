@@ -71,6 +71,9 @@ def publish(feed, domain="alpha"):
     # Find most recent .nupkg file in .uipath directory
     most_recent = get_most_recent_package()
 
+    if not most_recent:
+        click.echo("Error: No package files found in .uipath directory")
+        raise click.Abort()
     click.echo(f"Publishing most recent package: {most_recent}")
 
     package_to_publish_path = os.path.join(".uipath", most_recent)
