@@ -16,10 +16,11 @@ class WaitJob(BaseModel):
 
 
 class CreateAction(BaseModel):
-    name: Optional[str]
-    key: Optional[str]
+    name: Optional[str] = None
+    key: Optional[str] = None
     title: str
-    data: Optional[Dict[str, Any]]
+    data: Optional[Dict[str, Any]] = None
+    app_version: Optional[int] = None
 
 
 class WaitAction(BaseModel):
