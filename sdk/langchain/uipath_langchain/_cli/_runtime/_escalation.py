@@ -162,7 +162,7 @@ class Escalation:
         return current
 
     def extract_response_value(self, action_data: Dict[str, Any]) -> Any:
-        if not self.enabled or not self._config:
+        if not self._config:
             return ""
 
         response_template = self._config.get("response")
@@ -208,7 +208,7 @@ class Escalation:
 
                     return extracted_value
 
-        return ""
+        return action_data
 
     async def create(self, value: Any) -> Optional[Action]:
         """
