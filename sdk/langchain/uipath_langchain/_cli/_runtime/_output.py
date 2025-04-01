@@ -15,7 +15,7 @@ from uipath_sdk._cli._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
-from uipath_sdk._models._interrupt_models.invoke_process import InvokeProcess
+from uipath_sdk._models import InvokeProcess
 from uipath_sdk._models.actions import Action
 
 from ._context import LangGraphRuntimeContext
