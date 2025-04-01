@@ -6,7 +6,6 @@ import requests
 from dotenv import load_dotenv
 
 from uipath_sdk._cli._utils._common import environment_options
-from uipath_sdk._cli.cli_auth import PortalService
 
 load_dotenv()
 
@@ -68,10 +67,7 @@ def publish(feed, domain="alpha"):
         feed = "tenant" if feed_idx == 0 else "personal"
         click.echo(f"Selected feed: {feed}")
     os.makedirs(".uipath", exist_ok=True)
-    portal_service = PortalService(domain)
-    if not portal_service.has_initialized_auth():
-        click.echo("No valid authentication found. Please authenticate.")
-        return
+
     # Find most recent .nupkg file in .uipath directory
     most_recent = get_most_recent_package()
 
