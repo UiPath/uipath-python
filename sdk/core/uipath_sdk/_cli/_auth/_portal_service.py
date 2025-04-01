@@ -156,6 +156,8 @@ def select_tenant(
 
     update_env_file(
         {
-            "UIPATH_URL": f"https://{domain if domain else 'alpha'}.uipath.com/{account_name}/{tenant_name}"
+            "UIPATH_URL": f"https://{domain if domain else 'alpha'}.uipath.com/{account_name}/{tenant_name}",
+            "UIPATH_TENANT_ID": tenants_and_organizations["tenants"][tenant_idx]["id"],
+            "UIPATH_ORG_ID": tenants_and_organizations["organization"]["id"],
         }
     )

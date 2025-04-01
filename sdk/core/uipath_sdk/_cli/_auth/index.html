@@ -17,6 +17,7 @@
     <button type="button" onclick="window.open('', '_self', ''); window.close();">Discard</button>
     <pre id="log"></pre>
     <script>
+        const baseUrl = '__PY_REPLACE_REDIRECT_URI__'.replace('/oidc/login', '');
         const logs = [];
         // Parse URL query parameters
         function getQueryParams() {
@@ -128,7 +129,6 @@
 
                     // Exchange code for token
                     const tokenData = await exchangeCodeForToken(params.code, codeVerifier);
-                    const baseUrl = '__PY_REPLACE_REDIRECT_URI__'.replace('/oidc/login', '');
 
                     await sendLogs(logs);
                     const setTokenResult = await fetch(`${baseUrl}/set_token`, {

@@ -19,7 +19,11 @@ load_dotenv()
 def auth(domain="alpha"):
     """Authenticate with UiPath Cloud Platform"""
     portal_service = PortalService(domain)
-    if os.getenv("UIPATH_URL"):
+    if (
+        os.getenv("UIPATH_URL")
+        and os.getenv("UIPATH_TENANT_ID")
+        and os.getenv("UIPATH_ORGANIZATION_ID")
+    ):
         try:
             portal_service.ensure_valid_token()
             click.echo("Authentication successful")
@@ -34,12 +38,12 @@ def auth(domain="alpha"):
     webbrowser.open(auth_url, 1)
     auth_config = get_auth_config()
 
-    server = HTTPSServer(port=auth_config["port"])
-    token_data = server.start(state, code_verifier)
     print(
         "If a browser window did not open, please open the following URL in your browser:"
     )
     print(auth_url)
+    server = HTTPSServer(port=auth_config["port"])
+    token_data = server.start(state, code_verifier)
     try:
         if token_data:
             portal_service.update_token_data(token_data)
