@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from uipath_sdk._models.llm_gateway import (
     ChatCompletion,
@@ -7,7 +7,6 @@ from uipath_sdk._models.llm_gateway import (
     TextEmbedding,
     ToolChoice,
     ToolDefinition,
-    UiPathToolDefinition,
     UsageInfo,
 )
 
@@ -23,8 +22,8 @@ NORMALIZED_API_VERSION = "2024-08-01-preview"
 # Common headers
 DEFAULT_LLM_HEADERS = {
     "X-UIPATH-STREAMING-ENABLED": "false",
-    "X-UiPath-LlmGateway-RequestingProduct": "agents",
-    "X-UiPath-LlmGateway-RequestingFeature": "helix-prompt",
+    "X-UiPath-LlmGateway-RequestingProduct": "uipath-python-sdk",
+    "X-UiPath-LlmGateway-RequestingFeature": "langgraph-agent",
 }
 
 
@@ -207,7 +206,7 @@ class UiPathOpenAIService(BaseService):
         return UsageInfo.model_validate(response.json())
 
 
-class UiPathLLMService(BaseService):
+class UiPathLlmChatService(BaseService):
     """Service for calling UiPath's normalized LLM Gateway API."""
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
@@ -261,8 +260,7 @@ class UiPathLLMService(BaseService):
         # Add tools if provided - convert to UiPath format
         if tools:
             request_body["tools"] = [
-                UiPathToolDefinition.from_tool_definition(tool).model_dump()
-                for tool in tools
+                self._convert_tool_to_uipath_format(tool) for tool in tools
             ]
 
         # Handle tool_choice
@@ -289,3 +287,26 @@ class UiPathLLMService(BaseService):
         )
 
         return ChatCompletion.model_validate(response.json())
+
+    def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> Dict[str, Any]:
+        """Convert an OpenAI-style tool definition directly to UiPath API format."""
+        parameters = {
+            "type": tool.function.parameters.type,
+            "properties": {
+                name: {
+                    "type": prop.type,
+                    **({"description": prop.description} if prop.description else {}),
+                    **({"enum": prop.enum} if prop.enum else {}),
+                }
+                for name, prop in tool.function.parameters.properties.items()
+            },
+        }
+
+        if tool.function.parameters.required:
+            parameters["required"] = tool.function.parameters.required
+
+        return {
+            "name": tool.function.name,
+            "description": tool.function.description,
+            "parameters": parameters,
+        }

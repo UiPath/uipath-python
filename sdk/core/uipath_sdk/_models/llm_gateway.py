@@ -55,40 +55,6 @@ class ToolDefinition(BaseModel):
     function: ToolFunctionDefinition
 
 
-# UiPath normalized API format for tools - matches exactly what the API expects
-class UiPathToolDefinition(BaseModel):
-    """Tool definition format expected by UiPath LLM Gateway's normalized API."""
-
-    name: str
-    description: Optional[str] = None
-    parameters: Dict[str, Any]
-
-    @classmethod
-    def from_tool_definition(cls, tool: ToolDefinition) -> "UiPathToolDefinition":
-        """Convert from standard OpenAI tool format to UiPath format."""
-        # Create the parameters dictionary in the exact format expected by the API
-        parameters = {
-            "type": tool.function.parameters.type,
-            "properties": {
-                name: {
-                    "type": prop.type,
-                    **({"description": prop.description} if prop.description else {}),
-                    **({"enum": prop.enum} if prop.enum else {}),
-                }
-                for name, prop in tool.function.parameters.properties.items()
-            },
-        }
-
-        if tool.function.parameters.required:
-            parameters["required"] = tool.function.parameters.required
-
-        return cls(
-            name=tool.function.name,
-            description=tool.function.description,
-            parameters=parameters,
-        )
-
-
 class AutoToolChoice(BaseModel):
     type: Literal["auto"] = "auto"
 

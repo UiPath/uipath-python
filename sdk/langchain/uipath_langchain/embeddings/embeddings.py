@@ -6,8 +6,8 @@ from langchain_community.callbacks.manager import openai_callback_var
 from langchain_openai.embeddings import AzureOpenAIEmbeddings, OpenAIEmbeddings
 from pydantic import Field
 
-from uipath_langchain.utils._request_mixin import UiPathRequestMixin
-from uipath_langchain.utils._settings import UiPathEndpoints
+from uipath_langchain._utils._request_mixin import UiPathRequestMixin
+from uipath_langchain._utils._settings import UiPathEndpoints
 
 
 class UiPathAzureOpenAIEmbeddings(UiPathRequestMixin, AzureOpenAIEmbeddings):
