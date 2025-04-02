@@ -174,11 +174,10 @@ class ActionsService(FolderContext, BaseService):
             spec.method, spec.endpoint, content=spec.content
         )
         json_response = response.json()
-        Action.model_validate(json_response)
         if assignee:
             spec = _assign_task_spec(json_response["id"], assignee)
             await self.request_async(spec.method, spec.endpoint, content=spec.content)
-        return json_response
+        return Action.model_validate(json_response)
 
     def create(
         self,
@@ -203,12 +202,11 @@ class ActionsService(FolderContext, BaseService):
 
         response = self.request(spec.method, spec.endpoint, content=spec.content)
         json_response = response.json()
-        Action.model_validate(json_response)
         if assignee:
             spec = _assign_task_spec(json_response["id"], assignee)
             print(spec)
             self.request(spec.method, spec.endpoint, content=spec.content)
-        return json_response
+        return Action.model_validate(json_response)
 
     def retrieve(
         self,
