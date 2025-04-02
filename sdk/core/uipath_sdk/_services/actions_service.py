@@ -108,6 +108,18 @@ def _retrieve_action_spec(action_key: str) -> RequestSpec:
     )
 
 
+def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
+    return RequestSpec(
+        method="POST",
+        endpoint=Endpoint(
+            "/orchestrator_/odata/Tasks/UiPath.Server.Configuration.OData.AssignTasks"
+        ),
+        content=dumps(
+            {"taskAssignments": [{"taskId": task_key, "UserNameOrEmail": assignee}]}
+        ),
+    )
+
+
 def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
     tenant_id = os.getenv(ENV_TENANT_ID, None)
     if not tenant_id:
@@ -143,6 +155,7 @@ class ActionsService(FolderContext, BaseService):
         app_name: str = "",
         app_key: str = "",
         app_version: int = -1,
+        assignee: str = "",
     ) -> Action:
         (key, action_schema) = (
             (app_key, None)
@@ -160,8 +173,12 @@ class ActionsService(FolderContext, BaseService):
         response = await self.request_async(
             spec.method, spec.endpoint, content=spec.content
         )
-
-        return Action.model_validate(response.json())
+        json_response = response.json()
+        Action.model_validate(json_response)
+        if assignee:
+            spec = _assign_task_spec(json_response["id"], assignee)
+            await self.request_async(spec.method, spec.endpoint, content=spec.content)
+        return json_response
 
     def create(
         self,
@@ -171,6 +188,7 @@ class ActionsService(FolderContext, BaseService):
         app_name: str = "",
         app_key: str = "",
         app_version: int = -1,
+        assignee: str = "",
     ) -> Action:
         (key, action_schema) = (
             (app_key, None) if app_key else self.__get_app_key_and_schema(app_name)
@@ -184,8 +202,13 @@ class ActionsService(FolderContext, BaseService):
         )
 
         response = self.request(spec.method, spec.endpoint, content=spec.content)
-
-        return Action.model_validate(response.json())
+        json_response = response.json()
+        Action.model_validate(json_response)
+        if assignee:
+            spec = _assign_task_spec(json_response["id"], assignee)
+            print(spec)
+            self.request(spec.method, spec.endpoint, content=spec.content)
+        return json_response
 
     def retrieve(
         self,
