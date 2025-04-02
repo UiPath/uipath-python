@@ -20,7 +20,8 @@ class CreateAction(BaseModel):
     key: Optional[str] = None
     title: str
     data: Optional[Dict[str, Any]] = None
-    app_version: Optional[int] = None
+    app_version: Optional[int] = 1
+    assignee: Optional[str] = ""
 
 
 class WaitAction(BaseModel):
