@@ -263,6 +263,9 @@ class LangGraphOutputProcessor:
                                     app_version=self.interrupt_value.app_version
                                     if self.interrupt_value.app_version
                                     else 1,
+                                    assignee=self.interrupt_value.assignee
+                                    if self.interrupt_value.assignee
+                                    else "",
                                     data=self.interrupt_value.data,
                                 )
                                 if action:
