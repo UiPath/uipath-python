@@ -11,6 +11,8 @@ from langchain_core.tracers.base import BaseTracer
 from langchain_core.tracers.schemas import Run
 from pydantic import PydanticDeprecationWarning
 
+from ._utils import _simple_serialize_defaults
+
 logger = logging.getLogger(__name__)
 
 
@@ -142,7 +144,7 @@ class UiPathTracer(BaseTracer):
 
     def _safe_json_dump(self, obj) -> str:
         try:
-            json_str = json.dumps(obj, default=str)
+            json_str = json.dumps(obj, default=_simple_serialize_defaults)
             return json_str
         except Exception as e:
             logger.warning(e)
