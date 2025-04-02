@@ -13,13 +13,15 @@ from langchain_core.tracers.base import AsyncBaseTracer
 from langchain_core.tracers.schemas import Run
 from pydantic import PydanticDeprecationWarning
 
+from ._utils import _simple_serialize_defaults
+
 logger = logging.getLogger(__name__)
 
 
 class Status:
     SUCCESS = 1
     ERROR = 2
-    INTERRUPTED = 1  # intentional equal to SUCCESS
+    INTERRUPTED = 3
 
 
 class AsyncUiPathTracer(AsyncBaseTracer):
@@ -235,7 +237,7 @@ class AsyncUiPathTracer(AsyncBaseTracer):
 
     def _safe_json_dump(self, obj) -> str:
         try:
-            json_str = json.dumps(obj, default=str)
+            json_str = json.dumps(obj, default=_simple_serialize_defaults)
             return json_str
         except Exception as e:
             logger.warning(e)
