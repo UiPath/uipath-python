@@ -65,7 +65,7 @@ class LangGraphInputProcessor:
             logger.debug(f"Action: {action}")
             if action.data is None:
                 return Command(resume={})
-            if self.escalation:
+            if self.escalation and self.escalation.enabled:
                 extracted_value = self.escalation.extract_response_value(action.data)
                 return Command(resume=extracted_value)
             return Command(resume=action.data)

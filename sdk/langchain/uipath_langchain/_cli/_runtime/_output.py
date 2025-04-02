@@ -15,7 +15,7 @@ from uipath_sdk._cli._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
-from uipath_sdk._models import InvokeProcess
+from uipath_sdk._models import CreateAction, InvokeProcess, WaitAction, WaitJob
 from uipath_sdk._models.actions import Action
 
 from ._context import LangGraphRuntimeContext
@@ -34,9 +34,13 @@ class InterruptInfo:
     @property
     def type(self) -> Optional[UiPathResumeTriggerType]:
         """Returns the type of the interrupt value."""
-        if isinstance(self.value, Action):
+        if isinstance(self.value, CreateAction):
+            return UiPathResumeTriggerType.ACTION
+        if isinstance(self.value, WaitAction):
             return UiPathResumeTriggerType.ACTION
         if isinstance(self.value, InvokeProcess):
+            return UiPathResumeTriggerType.JOB
+        if isinstance(self.value, WaitJob):
             return UiPathResumeTriggerType.JOB
         return None
 
@@ -218,33 +222,62 @@ class LangGraphOutputProcessor:
 
                 try:
                     default_escalation = Escalation()
-
-                    if default_escalation.enabled:
+                    if default_escalation.enabled and isinstance(
+                        self.interrupt_value, str
+                    ):
                         action = await default_escalation.create(self.interrupt_value)
                         if action:
                             self._resume_trigger = UiPathResumeTrigger(
                                 trigger_type=UiPathResumeTriggerType.ACTION,
                                 item_key=action.key,
                             )
-
-                    if (
-                        isinstance(self.interrupt_info, InterruptInfo)
-                        and self.interrupt_info.type is UiPathResumeTriggerType.JOB
-                    ):
-                        if not isinstance(self.interrupt_value, InvokeProcess):
-                            raise Exception(
-                                "Expected 'InvokeProcess' as interrupt value type"
-                            )
-
+                        return
+                    if isinstance(self.interrupt_info, InterruptInfo):
                         uipath_sdk = UiPathSDK()
-                        job = await uipath_sdk.processes.invoke_async(
-                            name=self.interrupt_value.name,
-                            input_arguments=self.interrupt_value.input_arguments,
-                        )
-                        if job:
-                            self._resume_trigger = UiPathResumeTrigger(
-                                trigger_type=UiPathResumeTriggerType.JOB,
-                                item_key=job.Key,
+                        if self.interrupt_info.type is UiPathResumeTriggerType.JOB:
+                            if isinstance(self.interrupt_value, InvokeProcess):
+                                job = await uipath_sdk.processes.invoke_async(
+                                    name=self.interrupt_value.name,
+                                    input_arguments=self.interrupt_value.input_arguments,
+                                )
+                                if job:
+                                    self._resume_trigger = UiPathResumeTrigger(
+                                        trigger_type=UiPathResumeTriggerType.JOB,
+                                        item_key=job.Key,
+                                    )
+                            elif isinstance(self.interrupt_value, WaitJob):
+                                self._resume_trigger = UiPathResumeTrigger(
+                                    triggerType=UiPathResumeTriggerType.JOB,
+                                    itemKey=self.interrupt_value.job.Key,
+                                )
+                        elif self.interrupt_info.type is UiPathResumeTriggerType.ACTION:
+                            if isinstance(self.interrupt_value, CreateAction):
+                                action = uipath_sdk.actions.create(
+                                    title=self.interrupt_value.title,
+                                    app_name=self.interrupt_value.name
+                                    if self.interrupt_value.name
+                                    else "",
+                                    app_key=self.interrupt_value.key
+                                    if self.interrupt_value.key
+                                    else "",
+                                    app_version=self.interrupt_value.app_version
+                                    if self.interrupt_value.app_version
+                                    else 1,
+                                    data=self.interrupt_value.data,
+                                )
+                                if action:
+                                    self._resume_trigger = UiPathResumeTrigger(
+                                        trigger_type=UiPathResumeTriggerType.ACTION,
+                                        item_key=action.key,
+                                    )
+                            elif isinstance(self.interrupt_value, WaitAction):
+                                self._resume_trigger = UiPathResumeTrigger(
+                                    triggerType=UiPathResumeTriggerType.ACTION,
+                                    itemKey=self.interrupt_value.action.key,
+                                )
+                        else:
+                            raise Exception(
+                                f"Unknown interrupt value type {type(self.interrupt_value)}"
                             )
 
                 except Exception as e:
