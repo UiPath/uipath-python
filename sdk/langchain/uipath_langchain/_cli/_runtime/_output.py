@@ -278,10 +278,6 @@ class LangGraphOutputProcessor:
                                     triggerType=UiPathResumeTriggerType.ACTION,
                                     itemKey=self.interrupt_value.action.key,
                                 )
-                        elif not isinstance(self.interrupt_value, str):
-                            raise Exception(
-                                f"Unknown interrupt value type {type(self.interrupt_value)}"
-                            )
 
                 except Exception as e:
                     raise LangGraphRuntimeError(
