@@ -1,6 +1,6 @@
 # Support Ticket Classification System
 
-Use LangGraph with Azure OpenAI to automatically classify support tickets into predefined categories with confidence scores. UiPath Orchestrator API integration for human approval step.
+Use LangGraph with Azure OpenAI to automatically classify support tickets into predefined categories with confidence scores. UiPath Action Center integration for human approval step.
 
 ## Debug
 
@@ -52,7 +52,8 @@ The input ticket should be in the following format:
 ```json
 {
     "message": "The ticket message or description",
-    "ticket_id": "Unique ticket identifier"
+    "ticket_id": "Unique ticket identifier",
+    "assignee"[optional]: "username or email of the person assigned to handle escalations"
 }
 ```
 

@@ -1,16 +1,19 @@
-%%{init: {'flowchart': {'curve': 'linear'}}}%%
+---
+config:
+  flowchart:
+    curve: linear
+---
 graph TD;
 	__start__([<p>__start__</p>]):::first
 	classify(classify)
-	create_action(create_action)
-	human_approval(human_approval)
+	human_approval_node(human_approval_node)
 	notify_team(notify_team)
 	__end__([<p>__end__</p>]):::last
 	__start__ --> classify;
-	classify --> create_action;
-	create_action --> human_approval;
-	human_approval --> notify_team;
+	classify --> human_approval_node;
 	notify_team --> __end__;
+	human_approval_node -.-> classify;
+	human_approval_node -.-> notify_team;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
 	classDef last fill:#bfb6fc
