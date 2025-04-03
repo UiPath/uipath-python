@@ -1,47 +1,64 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Action(BaseModel):
-    taskDefinitionPropertiesId: Optional[int] = None
-    appTasksMetadata: Optional[Any] = None
-    actionLabel: Optional[str] = None
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+        json_encoders={datetime: lambda v: v.isoformat() if v else None},
+    )
+
+    task_definition_properties_id: Optional[int] = Field(
+        default=None, alias="taskDefinitionPropertiesId"
+    )
+    app_tasks_metadata: Optional[Any] = Field(default=None, alias="appTasksMetadata")
+    action_label: Optional[str] = Field(default=None, alias="actionLabel")
     status: Optional[Union[str, int]] = None
     data: Optional[Dict[str, Any]] = None
     action: Optional[str] = None
-    waitJobState: Optional[str] = None
-    organizationUnitFullyQualifiedName: Optional[str] = None
+    wait_job_state: Optional[str] = Field(default=None, alias="waitJobState")
+    organization_unit_fully_qualified_name: Optional[str] = Field(
+        default=None, alias="organizationUnitFullyQualifiedName"
+    )
     tags: Optional[List[Any]] = None
-    assignedToUser: Optional[Any] = None
-    taskSlaDetails: Optional[List[Any]] = None
-    completedByUser: Optional[Any] = None
-    taskAssignmentCriteria: Optional[str] = None
-    taskAssignees: Optional[List[Any]] = None
+    assigned_to_user: Optional[Any] = Field(default=None, alias="assignedToUser")
+    task_sla_details: Optional[List[Any]] = Field(default=None, alias="taskSlaDetails")
+    completed_by_user: Optional[Any] = Field(default=None, alias="completedByUser")
+    task_assignment_criteria: Optional[str] = Field(
+        default=None, alias="taskAssignmentCriteria"
+    )
+    task_assignees: Optional[List[Any]] = Field(default=None, alias="taskAssignees")
     title: Optional[str] = None
     type: Optional[str] = None
     priority: Optional[str] = None
-    assignedToUserId: Optional[int] = None
-    organizationUnitId: Optional[int] = None
-    externalTag: Optional[str] = None
-    creatorJobKey: Optional[str] = None
-    waitJobKey: Optional[str] = None
-    lastAssignedTime: Optional[datetime] = None
-    completionTime: Optional[datetime] = None
-    parentOperationId: Optional[str] = None
+    assigned_to_user_id: Optional[int] = Field(default=None, alias="assignedToUserId")
+    organization_unit_id: Optional[int] = Field(
+        default=None, alias="organizationUnitId"
+    )
+    external_tag: Optional[str] = Field(default=None, alias="externalTag")
+    creator_job_key: Optional[str] = Field(default=None, alias="creatorJobKey")
+    wait_job_key: Optional[str] = Field(default=None, alias="waitJobKey")
+    last_assigned_time: Optional[datetime] = Field(
+        default=None, alias="lastAssignedTime"
+    )
+    completion_time: Optional[datetime] = Field(default=None, alias="completionTime")
+    parent_operation_id: Optional[str] = Field(default=None, alias="parentOperationId")
     key: Optional[str] = None
-    isDeleted: bool = False
-    deleterUserId: Optional[int] = None
-    deletionTime: Optional[datetime] = None
-    lastModificationTime: Optional[datetime] = None
-    lastModifierUserId: Optional[int] = None
-    creationTime: Optional[datetime] = None
-    creatorUserId: Optional[int] = None
+    is_deleted: bool = Field(default=False, alias="isDeleted")
+    deleter_user_id: Optional[int] = Field(default=None, alias="deleterUserId")
+    deletion_time: Optional[datetime] = Field(default=None, alias="deletionTime")
+    last_modification_time: Optional[datetime] = Field(
+        default=None, alias="lastModificationTime"
+    )
+    last_modifier_user_id: Optional[int] = Field(
+        default=None, alias="lastModifierUserId"
+    )
+    creation_time: Optional[datetime] = Field(default=None, alias="creationTime")
+    creator_user_id: Optional[int] = Field(default=None, alias="creatorUserId")
     id: Optional[int] = None
-
-    class Config:
-        populate_by_name = True
-        extra = "allow"
-        json_encoders = {datetime: lambda v: v.isoformat() if v else None}
-        arbitrary_types_allowed = True

@@ -115,7 +115,7 @@ class AssetsService(FolderContext, BaseService):
 
         user_asset = UserAsset.model_validate(response.json())
 
-        return user_asset.CredentialPassword
+        return user_asset.credential_password
 
     @infer_bindings()
     async def retrieve_credential_async(
@@ -151,7 +151,7 @@ class AssetsService(FolderContext, BaseService):
 
         user_asset = UserAsset.model_validate(response.json())
 
-        return user_asset.CredentialPassword
+        return user_asset.credential_password
 
     def update(
         self,

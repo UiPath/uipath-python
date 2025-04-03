@@ -20,8 +20,12 @@ class CommitType(Enum):
 
 class QueueItem(BaseModel):
     model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
         use_enum_values=True,
-        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
 
     name: str = Field(
@@ -72,8 +76,12 @@ class QueueItem(BaseModel):
 
 class TransactionItem(BaseModel):
     model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
         use_enum_values=True,
-        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
 
     name: str = Field(
@@ -111,8 +119,12 @@ class TransactionItem(BaseModel):
 
 class TransactionItemResult(BaseModel):
     model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
         use_enum_values=True,
-        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
 
     is_successful: Optional[bool] = Field(

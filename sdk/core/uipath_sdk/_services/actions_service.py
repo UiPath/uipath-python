@@ -46,8 +46,8 @@ def _create_spec(
                         "Value": "",
                     }
                 )
-        if action_schema.inOuts:
-            for inout_field in action_schema.inOuts:
+        if action_schema.in_outs:
+            for inout_field in action_schema.in_outs:
                 field_name = inout_field.name
                 field_list.append(
                     {
@@ -259,7 +259,7 @@ class ActionsService(FolderContext, BaseService):
             deployed_app["systemName"],
             ActionSchema(
                 key=action_schema["key"],
-                inOuts=action_schema["inOuts"],
+                in_outs=action_schema["inOuts"],
                 inputs=action_schema["inputs"],
                 outputs=action_schema["outputs"],
                 outcomes=action_schema["outcomes"],

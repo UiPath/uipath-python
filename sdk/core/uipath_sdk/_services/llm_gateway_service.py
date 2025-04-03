@@ -1,7 +1,9 @@
 import json
 from typing import Any, Dict, List, Optional
 
-from uipath_sdk._models.llm_gateway import (
+from .._config import Config
+from .._execution_context import ExecutionContext
+from .._models.llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
     TextEmbedding,
@@ -9,9 +11,6 @@ from uipath_sdk._models.llm_gateway import (
     ToolDefinition,
     UsageInfo,
 )
-
-from .._config import Config
-from .._execution_context import ExecutionContext
 from .._utils import Endpoint
 from ._base_service import BaseService
 
