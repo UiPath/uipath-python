@@ -44,7 +44,7 @@ class ConnectionsService(BaseService):
 
     def __call__(self, connector: Connector[T_co], key: str) -> T_co:
         connection = self.retrieve(key)
-        return connector(client=self.client, instance_id=connection.elementInstanceId)
+        return connector(client=self.client, instance_id=connection.element_instance_id)
 
     def __getattr__(self, name: str) -> Any:
         """Get a plugin by name.

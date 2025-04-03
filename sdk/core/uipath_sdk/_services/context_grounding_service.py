@@ -1,6 +1,8 @@
 import json
 from typing import Any, Dict, List
 
+from pydantic import TypeAdapter
+
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
@@ -137,11 +139,15 @@ class ContextGroundingService(FolderContext, BaseService):
         """
         spec = self._search_spec(name, query, number_of_results)
 
-        return self.request(
+        response = self.request(
             spec.method,
             spec.endpoint,
             content=spec.content,
-        ).json()
+        )
+
+        return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
+            response.json()
+        )
 
     async def search_async(
         self,
@@ -173,7 +179,9 @@ class ContextGroundingService(FolderContext, BaseService):
             content=spec.content,
         )
 
-        return response.json()
+        return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
+            response.json()
+        )
 
     @property
     def custom_headers(self) -> Dict[str, str]:

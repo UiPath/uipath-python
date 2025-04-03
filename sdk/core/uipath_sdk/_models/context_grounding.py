@@ -1,12 +1,12 @@
-from typing import TypedDict
+from pydantic import BaseModel
 
 
-class ContextGroundingMetadata(TypedDict):
+class ContextGroundingMetadata(BaseModel):
     operation_id: str
     strategy: str
 
 
-class ContextGroundingQueryResponse(TypedDict):
+class ContextGroundingQueryResponse(BaseModel):
     id: str
     reference: str
     source: str
