@@ -135,6 +135,7 @@ class UiPathTraceContext(BaseModel):
     folder_key: Optional[str] = None
     process_key: Optional[str] = None
     enabled: Union[bool, str] = False
+    reference_id: Optional[str] = None
 
 
 class UiPathRuntimeContext(BaseModel):

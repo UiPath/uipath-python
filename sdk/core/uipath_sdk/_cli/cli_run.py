@@ -5,6 +5,7 @@ import os
 import traceback
 from os import environ as env
 from typing import Optional
+from uuid import uuid4
 
 import click
 from dotenv import load_dotenv
@@ -72,6 +73,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""",
                 tenant_id=env.get("UIPATH_TENANT_ID"),
                 process_key=env.get("UIPATH_PROCESS_UUID"),
                 folder_key=env.get("UIPATH_FOLDER_KEY"),
+                reference_id=env.get("UIPATH_JOB_KEY") or str(uuid4()),
             )
             context.logs_min_level = env.get("LOG_LEVEL", "INFO")
 
