@@ -76,21 +76,23 @@ class LangGraphInputProcessor:
         elif type == UiPathResumeTriggerType.JOB.value and key:
             job = await self.uipath.jobs.retrieve_async(key)
             if (
-                job.State
-                and not job.State.lower()
+                job.state
+                and not job.state.lower()
                 == UiPathRuntimeStatus.SUCCESSFUL.value.lower()
             ):
                 error_code = "INVOKED_PROCESS_FAILURE"
                 error_title = "Invoked process did not finish successfully."
-                error_detail = try_convert_to_json_format(str(job.JobError or job.Info))
+                error_detail = try_convert_to_json_format(
+                    str(job.job_error or job.info)
+                )
                 raise LangGraphRuntimeError(
                     error_code,
                     error_title,
                     error_detail,
                     UiPathErrorCategory.USER,
                 )
-            if job.OutputArguments:
-                return Command(resume=try_convert_to_json_format(job.OutputArguments))
+            if job.output_arguments:
+                return Command(resume=try_convert_to_json_format(job.output_arguments))
         return Command(resume=self.context.input_json)
 
     async def _get_latest_trigger(self) -> Optional[tuple[str, str]]:

@@ -25,10 +25,10 @@ class ContextGroundingRetriever(BaseRetriever):
 
         return [
             Document(
-                page_content=x["content"],
+                page_content=x.content,
                 metadata={
-                    "source": x["source"],
-                    "page_number": x["page_number"],
+                    "source": x.source,
+                    "page_number": x.page_number,
                 },
             )
             for x in results
