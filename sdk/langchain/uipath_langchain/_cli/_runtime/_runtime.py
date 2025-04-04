@@ -14,6 +14,7 @@ from uipath_sdk._cli._runtime._contracts import (
     UiPathRuntimeResult,
 )
 
+from ..._utils import _instrument_traceable
 from ...tracers import AsyncUiPathTracer
 from ._context import LangGraphRuntimeContext
 from ._exception import LangGraphRuntimeError
@@ -43,6 +44,7 @@ class LangGraphRuntime(UiPathBaseRuntime):
         Raises:
             LangGraphRuntimeError: If execution fails
         """
+        _instrument_traceable()
 
         await self.validate()
 
@@ -71,7 +73,7 @@ class LangGraphRuntime(UiPathBaseRuntime):
                 callbacks: List[BaseCallbackHandler] = []
 
                 if self.context.job_id and self.context.tracing_enabled:
-                    tracer = AsyncUiPathTracer()
+                    tracer = AsyncUiPathTracer(context=self.context.trace_context)
                     await tracer.init_trace(
                         self.context.entrypoint, self.context.job_id
                     )
