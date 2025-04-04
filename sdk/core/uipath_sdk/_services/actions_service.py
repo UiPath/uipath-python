@@ -204,7 +204,6 @@ class ActionsService(FolderContext, BaseService):
         json_response = response.json()
         if assignee:
             spec = _assign_task_spec(json_response["id"], assignee)
-            print(spec)
             self.request(spec.method, spec.endpoint, content=spec.content)
         return Action.model_validate(json_response)
 
