@@ -38,7 +38,7 @@ def dispatch_trace_event(
         inputs=inputs,
         call_uuid=call_uuid,
         output=result,
-        error=str(exception),
+        error=str(exception) if exception else None,
         run_type=run_type,
         tags=tags,
         metadata=metadata,
