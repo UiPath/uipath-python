@@ -1,6 +1,6 @@
 [project]
 name = "uipath-langchain"
-version = "0.0.82"
+version = "0.0.83"
 description = "UiPath Langchain"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"

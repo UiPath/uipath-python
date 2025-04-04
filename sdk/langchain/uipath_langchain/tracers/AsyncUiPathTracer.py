@@ -13,9 +13,11 @@ from langchain_core.tracers.base import AsyncBaseTracer
 from langchain_core.tracers.schemas import Run
 from pydantic import PydanticDeprecationWarning
 
-from ._utils import _simple_serialize_defaults
+from ._utils import _setup_tracer_httpx_logging, _simple_serialize_defaults
 
 logger = logging.getLogger(__name__)
+
+_setup_tracer_httpx_logging("/llmops_/api/Agent/trace/")
 
 
 class Status:
