@@ -17,7 +17,7 @@ class FunctionCallEventData:
         inputs: Dict[str, Any],
         call_uuid: str,
         output: Any,
-        error: str,
+        error: Optional[str] = None,
         run_type: Optional[RUN_TYPE_T] = None,
         tags: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,

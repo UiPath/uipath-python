@@ -79,7 +79,10 @@ class AsyncUiPathTracer(AsyncBaseTracer):
             if data.event_type == "call":
                 run = self.run_map[str(run_id)]
                 child_run = run.create_child(
-                    name=data.function_name, run_type=data.run_type, tags=data.tags
+                    name=data.function_name,
+                    run_type=data.run_type,
+                    tags=data.tags,
+                    inputs=data.inputs,
                 )
 
                 if data.metadata is not None:
