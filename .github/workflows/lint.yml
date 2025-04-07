@@ -3,10 +3,6 @@ name: Reusable Lint Workflow
 on:
   workflow_call:
     inputs:
-      folder_path:
-        description: 'The folder path to run actions in'
-        required: true
-        type: string
       should_skip:
         description: 'Whether to skip the linting step'
         required: false
@@ -18,9 +14,6 @@ jobs:
     name: Lint
     runs-on: "ubuntu-24.04"
     if: inputs.should_skip == false
-    defaults:
-      run:
-        working-directory: ${{ inputs.folder_path }}
 
 
     steps:

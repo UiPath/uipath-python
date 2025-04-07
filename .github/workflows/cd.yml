@@ -1,0 +1,13 @@
+name: CD
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+      uses: ./.github/workflows/build.yml
+      secrets:
+        token: ${{ secrets.PYPI_TOKEN }}
