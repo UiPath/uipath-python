@@ -1,9 +1,0 @@
-[project]
-name = "simple-echo"
-version = "0.0.1"
-description = "Echo script"
-authors = [{ name = "Cristi Pufu", email = "cristian.pufu@uipath.com" }]
-dependencies = [
-    "uipath-sdk==0.0.110"
-]
-requires-python = ">=3.10"
