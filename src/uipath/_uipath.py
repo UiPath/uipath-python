@@ -12,6 +12,7 @@ from ._services import (
     BucketsService,
     ConnectionsService,
     ContextGroundingService,
+    FolderService,
     JobsService,
     ProcessesService,
     QueuesService,
@@ -45,6 +46,7 @@ class UiPath:
             base_url=base_url_value,  # type: ignore
             secret=secret_value,  # type: ignore
         )
+        self._folders_service: Optional[FolderService] = None
 
         setup_logging(debug)
         self._execution_context = ExecutionContext()
@@ -75,7 +77,11 @@ class UiPath:
 
     @property
     def context_grounding(self) -> ContextGroundingService:
-        return ContextGroundingService(self._config, self._execution_context)
+        if not self._folders_service:
+            self._folders_service = FolderService(self._config, self._execution_context)
+        return ContextGroundingService(
+            self._config, self._execution_context, self._folders_service
+        )
 
     @property
     def queues(self) -> QueuesService:
@@ -84,3 +90,9 @@ class UiPath:
     @property
     def jobs(self) -> JobsService:
         return JobsService(self._config, self._execution_context)
+
+    @property
+    def folders(self) -> FolderService:
+        if not self._folders_service:
+            self._folders_service = FolderService(self._config, self._execution_context)
+        return self._folders_service

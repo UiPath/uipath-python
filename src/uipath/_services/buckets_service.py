@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 
 from httpx import request
 
@@ -59,7 +59,9 @@ class BucketsService(FolderContext, BaseService):
 
     def upload(
         self,
-        bucket_key: str,
+        *,
+        bucket_key: Optional[str] = None,
+        bucket_name: Optional[str] = None,
         blob_file_path: str,
         content_type: str,
         source_path: str,
@@ -68,11 +70,18 @@ class BucketsService(FolderContext, BaseService):
 
         Args:
             bucket_key: The key of the bucket
+            bucket_name: The name of the bucket
             blob_file_path: The path where the file will be stored in the bucket
             content_type: The MIME type of the file
             source_path: The local path of the file to upload
         """
-        bucket = self.retrieve_by_key(bucket_key)
+        if bucket_key:
+            bucket = self.retrieve_by_key(bucket_key)
+        elif bucket_name:
+            bucket = self.retrieve(bucket_name)
+        else:
+            raise ValueError("Must specify a bucket name or bucket key")
+
         bucket_id = bucket["Id"]
 
         endpoint = Endpoint(
@@ -98,6 +107,60 @@ class BucketsService(FolderContext, BaseService):
                 self.request("PUT", write_uri, headers=headers, files={"file": file})
             else:
                 request("PUT", write_uri, headers=headers, files={"file": file})
+
+    def upload_from_memory(
+        self,
+        *,
+        bucket_key: Optional[str] = None,
+        bucket_name: Optional[str] = None,
+        blob_file_path: str,
+        content_type: str,
+        content: Union[str, bytes],
+    ) -> None:
+        """Upload content from memory to a bucket.
+
+        Args:
+            bucket_key: The key of the bucket
+            bucket_name: The name of the bucket
+            blob_file_path: The path where the content will be stored in the bucket
+            content_type: The MIME type of the content
+            content: The content to upload (string or bytes)
+        """
+        if bucket_key:
+            bucket = self.retrieve_by_key(bucket_key)
+        elif bucket_name:
+            bucket = self.retrieve(bucket_name)
+        else:
+            raise ValueError("Must specify a bucket name or bucket key")
+
+        bucket_id = bucket["Id"]
+
+        endpoint = Endpoint(
+            f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetWriteUri"
+        )
+
+        result = self.request(
+            "GET",
+            endpoint,
+            params={"path": blob_file_path, "contentType": content_type},
+        ).json()
+        write_uri = result["Uri"]
+
+        headers = {
+            key: value
+            for key, value in zip(
+                result["Headers"]["Keys"], result["Headers"]["Values"]
+            )
+        }
+
+        # Convert string to bytes if needed
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+
+        if result["RequiresAuth"]:
+            self.request("PUT", write_uri, headers=headers, content=content)
+        else:
+            request("PUT", write_uri, headers=headers, content=content)
 
     @infer_bindings()
     def retrieve(self, name: str) -> Any:
@@ -192,7 +255,7 @@ class BucketsService(FolderContext, BaseService):
     def _retrieve_spec(self, name: str) -> RequestSpec:
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint("/odata/Buckets"),
+            endpoint=Endpoint("/orchestrator_/odata/Buckets"),
             params={"$filter": f"Name eq '{name}'", "$top": 1},
         )
 
@@ -200,6 +263,6 @@ class BucketsService(FolderContext, BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
-                f"/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={key})"
+                f"/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={key})"
             ),
         )
