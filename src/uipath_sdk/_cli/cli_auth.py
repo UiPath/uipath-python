@@ -17,7 +17,7 @@ load_dotenv()
 @click.command()
 @environment_options
 def auth(domain="alpha"):
-    """Authenticate with UiPath Cloud Platform"""
+    """Authenticate with UiPath Cloud Platform."""
     portal_service = PortalService(domain)
     if (
         os.getenv("UIPATH_URL")

@@ -1,7 +1,7 @@
 import pydantic_core
 import pytest
 
-from uipath_sdk._uipath_sdk import UiPathSDK
+from uipath_sdk import UiPathSDK
 
 
 class TestSdkConfig:

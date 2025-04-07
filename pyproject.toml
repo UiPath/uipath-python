@@ -1,6 +1,6 @@
 [project]
 name = "uipath-sdk"
-version = "0.0.112"
+version = "0.0.113"
 description = "UiPath SDK"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.9"
@@ -41,10 +41,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["uipath_sdk"]
+packages = ["src/uipath_sdk"]
 
 [tool.hatch.build.targets.sdist]
-packages = ["uipath_sdk"]
+packages = ["src/uipath_sdk"]
 
 [dependency-groups]
 dev = [

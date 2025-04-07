@@ -1,6 +1,4 @@
-"""
-Python script runtime implementation for executing and managing python scripts.
-"""
+"""Python script runtime implementation for executing and managing python scripts."""
 
 import importlib.util
 import inspect
@@ -24,13 +22,10 @@ T = TypeVar("T")
 
 
 class UiPathRuntime(UiPathBaseRuntime):
-    """
-    Runtime for executing Python scripts.
-    """
+    """Runtime for executing Python scripts."""
 
     async def execute(self) -> Optional[UiPathRuntimeResult]:
-        """
-        Execute the Python script with the provided input and configuration.
+        """Execute the Python script with the provided input and configuration.
 
         Returns:
             Dictionary with execution results
@@ -105,7 +100,6 @@ class UiPathRuntime(UiPathBaseRuntime):
 
     def _execute_python_script(self, script_path: str, input_data: Any) -> Any:
         """Execute the Python script with the given input."""
-
         spec = importlib.util.spec_from_file_location("dynamic_module", script_path)
         if not spec or not spec.loader:
             raise UiPathRuntimeError(

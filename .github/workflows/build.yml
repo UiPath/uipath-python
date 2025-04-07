@@ -5,21 +5,12 @@ on:
     secrets:
       token:
         required: true
-    inputs:
-      folder_path:
-        description: 'The folder path to run actions in'
-        required: true
-        type: string
 
 jobs:
   build:
     name: Build and publish
     if: github.ref == 'refs/heads/main'
     runs-on: "ubuntu-24.04"
-    defaults:
-      run:
-        working-directory: ${{ inputs.folder_path }}
-
 
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +30,17 @@ jobs:
         run: |
           uv build
 
+      - name: Check if version in pyproject.toml was modified
+        id: check_version
+        run: |
+          if git diff --name-only ${{ github.sha }} ${{ github.event.before }} | grep -q 'pyproject.toml'; then
+            echo "modified=true" >> $GITHUB_OUTPUT
+          else
+            echo "modified=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: "Publish"
+        if: ${{ steps.check_version.outputs.modified }} == 'true'
         run: |
           uv publish
         env:

@@ -9,7 +9,6 @@ from ._models import AuthConfig
 
 def generate_code_verifier_and_challenge():
     """Generate PKCE code verifier and challenge."""
-
     code_verifier = base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
 
     code_challenge_bytes = hashlib.sha256(code_verifier.encode("utf-8")).digest()

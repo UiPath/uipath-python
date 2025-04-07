@@ -29,7 +29,7 @@ class Middlewares:
 
     @classmethod
     def register(cls, command: str, middleware: MiddlewareFunc) -> None:
-        """Register a middleware for a specific command"""
+        """Register a middleware for a specific command."""
         if command not in cls._middlewares:
             cls._middlewares[command] = []
         cls._middlewares[command].append(middleware)
@@ -39,7 +39,7 @@ class Middlewares:
 
     @classmethod
     def get(cls, command: str) -> List[MiddlewareFunc]:
-        """Get all middlewares for a specific command"""
+        """Get all middlewares for a specific command."""
         return cls._middlewares.get(command, [])
 
     @classmethod
@@ -74,7 +74,7 @@ class Middlewares:
 
     @classmethod
     def load_plugins(cls) -> None:
-        """Load all middlewares registered via entry points"""
+        """Load all middlewares registered via entry points."""
         if cls._plugins_loaded:
             return
 

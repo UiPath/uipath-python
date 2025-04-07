@@ -5,13 +5,10 @@ from typing import Optional, TextIO, Union, cast
 
 
 class PersistentLogsHandler(logging.FileHandler):
-    """
-    A simple log handler that always writes to a single file without rotation.
-    """
+    """A simple log handler that always writes to a single file without rotation."""
 
     def __init__(self, file: str):
-        """
-        Initialize the handler to write logs to a single file, appending always.
+        """Initialize the handler to write logs to a single file, appending always.
 
         Args:
             file (str): The file where logs should be stored.
@@ -24,10 +21,7 @@ class PersistentLogsHandler(logging.FileHandler):
 
 
 class LogsInterceptor:
-    """
-    Intercepts all logging and stdout/stderr, routing to either persistent log files or stdout
-    based on whether it's running as a job or not.
-    """
+    """Intercepts all logging and stdout/stderr, routing to either persistent log files or stdout based on whether it's running as a job or not."""
 
     def __init__(
         self,
@@ -36,8 +30,7 @@ class LogsInterceptor:
         file: Optional[str] = "execution.log",
         job_id: Optional[str] = None,
     ):
-        """
-        Initialize the log interceptor.
+        """Initialize the log interceptor.
 
         Args:
             min_level: Minimum logging level to capture.
@@ -95,9 +88,7 @@ class LogsInterceptor:
         logger.addHandler(self.log_handler)
 
     def setup(self) -> None:
-        """
-        Configure logging to use our persistent handler.
-        """
+        """Configure logging to use our persistent handler."""
         # Use global disable to prevent all logging below our minimum level
         if self.numeric_min_level > logging.NOTSET:
             logging.disable(self.numeric_min_level - 1)

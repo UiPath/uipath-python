@@ -33,7 +33,7 @@ def make_request_handler_class(state, code_verifier, token_callback):
             pass
 
         def do_POST(self):
-            """Handle POST requests to /set_token"""
+            """Handle POST requests to /set_token."""
             if self.path == "/set_token":
                 content_length = int(self.headers["Content-Length"])
                 post_data = self.rfile.read(content_length)
@@ -71,7 +71,7 @@ def make_request_handler_class(state, code_verifier, token_callback):
                 self.send_error(404, "Path not found")
 
         def do_GET(self):
-            """Handle GET requests by serving index.html"""
+            """Handle GET requests by serving index.html."""
             # Always serve index.html regardless of the path
             try:
                 index_path = os.path.join(os.path.dirname(__file__), "index.html")

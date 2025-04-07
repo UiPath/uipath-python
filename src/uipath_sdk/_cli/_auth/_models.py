@@ -2,7 +2,7 @@ from typing import TypedDict
 
 
 class AuthConfig(TypedDict):
-    """TypedDict for auth_config.json structure"""
+    """TypedDict for auth_config.json structure."""
 
     client_id: str
     port: int
@@ -11,7 +11,7 @@ class AuthConfig(TypedDict):
 
 
 class TokenData(TypedDict):
-    """TypedDict for token data structure"""
+    """TypedDict for token data structure."""
 
     access_token: str
     refresh_token: str
@@ -22,7 +22,7 @@ class TokenData(TypedDict):
 
 
 class AccessTokenData(TypedDict):
-    """TypedDict for access token data structure"""
+    """TypedDict for access token data structure."""
 
     sub: str
     prt_id: str
@@ -31,21 +31,21 @@ class AccessTokenData(TypedDict):
 
 
 class TenantInfo(TypedDict):
-    """TypedDict for tenant info structure"""
+    """TypedDict for tenant info structure."""
 
     name: str
     id: str
 
 
 class OrganizationInfo(TypedDict):
-    """TypedDict for organization info structure"""
+    """TypedDict for organization info structure."""
 
     id: str
     name: str
 
 
 class TenantsAndOrganizationInfoResponse(TypedDict):
-    """TypedDict for tenants and organization info response structure"""
+    """TypedDict for tenants and organization info response structure."""
 
     tenants: list[TenantInfo]
     organization: OrganizationInfo

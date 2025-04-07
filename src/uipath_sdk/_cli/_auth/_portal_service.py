@@ -16,7 +16,7 @@ from ._utils import (
 
 
 class PortalService:
-    """Service for interacting with the UiPath Portal API"""
+    """Service for interacting with the UiPath Portal API."""
 
     access_token: Optional[str] = None
     prt_id: Optional[str] = None

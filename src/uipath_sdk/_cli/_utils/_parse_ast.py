@@ -147,8 +147,7 @@ def extract_parameter(
     param_name: str,
     position_index: Optional[int] = None,
 ) -> Optional[Any]:
-    """
-    Extract a parameter from a method call, checking both keyword and positional arguments.
+    """Extract a parameter from a method call, checking both keyword and positional arguments.
 
     Args:
         method_call: The ServiceMethodCall object
@@ -170,8 +169,7 @@ def extract_parameter(
 def parse_local_module(
     module_path: str, base_dir: str
 ) -> Dict[str, List[Dict[str, str]]]:
-    """
-    Parse a local module and extract SDK usage.
+    """Parse a local module and extract SDK usage.
 
     Args:
         module_path: Import path of the module (e.g., 'myapp.utils')
@@ -410,8 +408,7 @@ class UiPathSDKTracker:
 def parse_sdk_usage(
     source_code: str, base_dir: str = ""
 ) -> Dict[str, List[Dict[str, str]]]:
-    """
-    Parse the source code and return UiPathSDK usage information.
+    """Parse the source code and return UiPathSDK usage information.
 
     Args:
         source_code: The Python source code to analyze
@@ -440,8 +437,7 @@ def parse_sdk_usage(
 
 
 def convert_to_bindings_format(sdk_usage_data):
-    """
-    Convert the output of parse_sdk_usage to a structure similar to bindings_v2.json
+    """Convert the output of parse_sdk_usage to a structure similar to bindings_v2.json.
 
     Args:
         sdk_usage_data: Dictionary output from parse_sdk_usage
@@ -524,8 +520,7 @@ def convert_to_bindings_format(sdk_usage_data):
 
 
 def generate_bindings_json(file_path: str) -> str:
-    """
-    Generate bindings JSON from a Python file.
+    """Generate bindings JSON from a Python file.
 
     Args:
         file_path: Path to the Python file to analyze

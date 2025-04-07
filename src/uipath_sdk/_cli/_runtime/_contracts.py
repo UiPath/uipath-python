@@ -1,6 +1,4 @@
-"""
-Core runtime contracts that define the interfaces between components.
-"""
+"""Core runtime contracts that define the interfaces between components."""
 
 import json
 import logging
@@ -20,9 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class UiPathResumeTriggerType(str, Enum):
-    """
-    Constants representing different types of resume job triggers in the system.
-    """
+    """Constants representing different types of resume job triggers in the system."""
 
     NONE = "None"
     QUEUE_ITEM = "QueueItem"
@@ -161,8 +157,7 @@ class UiPathRuntimeContext(BaseModel):
 
     @classmethod
     def from_config(cls, config_path=None):
-        """
-        Load configuration from uipath.json file.
+        """Load configuration from uipath.json file.
 
         Args:
             config_path: Path to the configuration file. If None, uses the default "uipath.json"
@@ -268,8 +263,8 @@ class UiPathRuntimeError(Exception):
 
 
 class UiPathBaseRuntime(ABC):
-    """
-    Base runtime class implementing the async context manager protocol.
+    """Base runtime class implementing the async context manager protocol.
+
     This allows using the class with 'async with' statements.
     """
 
@@ -278,8 +273,7 @@ class UiPathBaseRuntime(ABC):
 
     @classmethod
     def from_context(cls, context: UiPathRuntimeContext):
-        """
-        Factory method to create a runtime instance from a context.
+        """Factory method to create a runtime instance from a context.
 
         Args:
             context: The runtime context with configuration
@@ -291,8 +285,8 @@ class UiPathBaseRuntime(ABC):
         return runtime
 
     async def __aenter__(self):
-        """
-        Async enter method called when entering the 'async with' block.
+        """Async enter method called when entering the 'async with' block.
+
         Initializes and prepares the runtime environment.
 
         Returns:
@@ -313,8 +307,7 @@ class UiPathBaseRuntime(ABC):
 
     @abstractmethod
     async def execute(self) -> Optional[UiPathRuntimeResult]:
-        """
-        Execute with the provided context.
+        """Execute with the provided context.
 
         Returns:
             Dictionary with execution results
@@ -335,8 +328,8 @@ class UiPathBaseRuntime(ABC):
         pass
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """
-        Async exit method called when exiting the 'async with' block.
+        """Async exit method called when exiting the 'async with' block.
+
         Cleans up resources and handles any exceptions.
 
         Always writes output file regardless of whether execution was successful,

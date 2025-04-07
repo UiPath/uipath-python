@@ -25,8 +25,7 @@ load_dotenv()
 def python_run_middleware(
     entrypoint: Optional[str], input: Optional[str], resume: bool
 ) -> MiddlewareResult:
-    """
-    Middleware to handle Python script execution.
+    """Middleware to handle Python script execution.
 
     Args:
         entrypoint: Path to the Python script to execute
@@ -36,7 +35,6 @@ def python_run_middleware(
     Returns:
         MiddlewareResult with execution status and messages
     """
-
     if not entrypoint:
         return MiddlewareResult(
             should_continue=False,
