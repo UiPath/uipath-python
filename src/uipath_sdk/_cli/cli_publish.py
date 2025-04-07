@@ -5,8 +5,6 @@ import click
 import requests
 from dotenv import load_dotenv
 
-from uipath_sdk._cli._utils._common import environment_options
-
 load_dotenv()
 
 
@@ -57,8 +55,7 @@ def get_env_vars():
     flag_value="personal",
     help="Whether to publish to the personal workspace",
 )
-@environment_options
-def publish(feed, domain="alpha"):
+def publish(feed):
     if feed is None:
         click.echo("Select feed type:")
         click.echo("  0: Tenant package feed")
