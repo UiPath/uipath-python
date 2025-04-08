@@ -38,9 +38,15 @@ jobs:
             echo "modified=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: "Publish"
+      - name: Publish
         if: ${{ steps.check_version.outputs.modified }} == 'true'
         run: |
           uv publish
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.token }}
+
+      - name: Publish Docs
+        if: ${{ steps.check_version.outputs.modified }} == 'true'
+        run: |
+          uv run mkdocs gh-deploy --force
+
