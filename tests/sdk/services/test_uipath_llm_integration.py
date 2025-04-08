@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from uipath_sdk._config import Config
-from uipath_sdk._execution_context import ExecutionContext
-from uipath_sdk._models.llm_gateway import (
+from uipath._config import Config
+from uipath._execution_context import ExecutionContext
+from uipath._models.llm_gateway import (
     AutoToolChoice,
     SpecificToolChoice,
     ToolDefinition,
@@ -14,7 +14,7 @@ from uipath_sdk._models.llm_gateway import (
     ToolParametersDefinition,
     ToolPropertyDefinition,
 )
-from uipath_sdk._services.llm_gateway_service import (
+from uipath._services.llm_gateway_service import (
     ChatModels,
     UiPathLlmChatService,
 )

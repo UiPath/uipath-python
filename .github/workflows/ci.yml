@@ -7,13 +7,13 @@ on:
       - main
     paths:
       - "pyproject.toml"
-      - "src/uipath_sdk/**"
+      - "src/**"
   pull_request:
     branches:
       - main
     paths:
       - "pyproject.toml"
-      - "src/uipath_sdk/**"
+      - "src/**"
 
 jobs:
   lint:

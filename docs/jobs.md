@@ -1,1 +1,1 @@
-::: uipath_sdk._services.jobs_service
+::: uipath._services.jobs_service

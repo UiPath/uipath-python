@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from uipath_sdk._cli.cli_init import init  # type: ignore
-from uipath_sdk._cli.middlewares import MiddlewareResult
+from uipath._cli.cli_init import init  # type: ignore
+from uipath._cli.middlewares import MiddlewareResult
 
 
 def test_init_env_file_creation(runner: CliRunner, temp_dir: str) -> None:
@@ -93,7 +93,7 @@ def test_init_with_entrypoint(runner: CliRunner, temp_dir: str) -> None:
 def test_init_middleware_interaction(runner: CliRunner, temp_dir: str) -> None:
     """Test middleware integration."""
     with runner.isolated_filesystem(temp_dir=temp_dir):
-        with patch("uipath_sdk._cli.cli_init.Middlewares.next") as mock_middleware:
+        with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
             # Test middleware stopping execution with error
             mock_middleware.return_value = MiddlewareResult(
                 should_continue=False,
@@ -129,7 +129,7 @@ def test_init_error_handling(runner: CliRunner, temp_dir: str) -> None:
             f.write("def main(input: return input")  # Invalid syntax
 
         # Mock middleware to allow execution
-        with patch("uipath_sdk._cli.cli_init.Middlewares.next") as mock_middleware:
+        with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
             mock_middleware.return_value = MiddlewareResult(should_continue=True)
 
             result = runner.invoke(init, ["invalid.py"])
@@ -138,13 +138,13 @@ def test_init_error_handling(runner: CliRunner, temp_dir: str) -> None:
             assert "SyntaxError" in result.output  # Should show stacktrace
 
         # Test with generate_args raising exception
-        with patch("uipath_sdk._cli.cli_init.generate_args") as mock_generate:
+        with patch("uipath._cli.cli_init.generate_args") as mock_generate:
             mock_generate.side_effect = Exception("Generation error")
             with open("script.py", "w") as f:
                 f.write("def main(input): return input")
 
             # Mock middleware to allow execution
-            with patch("uipath_sdk._cli.cli_init.Middlewares.next") as mock_middleware:
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
                 mock_middleware.return_value = MiddlewareResult(should_continue=True)
 
                 result = runner.invoke(init, ["script.py"])

@@ -10,13 +10,13 @@ from uuid import uuid4
 import click
 from dotenv import load_dotenv
 
-from uipath_sdk._cli._runtime._contracts import (
+from ._runtime._contracts import (
     UiPathRuntimeContext,
     UiPathRuntimeError,
     UiPathTraceContext,
 )
-from uipath_sdk._cli._runtime._runtime import UiPathRuntime
-from uipath_sdk._cli.middlewares import MiddlewareResult, Middlewares
+from ._runtime._runtime import UiPathRuntime
+from .middlewares import MiddlewareResult, Middlewares
 
 logger = logging.getLogger(__name__)
 load_dotenv()

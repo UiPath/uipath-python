@@ -42,9 +42,9 @@ class AssetsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath_sdk import UiPathSDK
+            from uipath import UiPath
 
-            client = UiPathSDK()
+            client = UiPath()
 
             client.assets.retrieve(name="MyAsset")
             ```

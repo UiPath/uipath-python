@@ -7,9 +7,9 @@ from typing import Optional
 
 import click
 
-from uipath_sdk._cli._utils._input_args import generate_args
-from uipath_sdk._cli._utils._parse_ast import generate_bindings_json
-from uipath_sdk._cli.middlewares import Middlewares
+from ._utils._input_args import generate_args
+from ._utils._parse_ast import generate_bindings_json
+from .middlewares import Middlewares
 
 
 def generate_env_file(target_directory):

@@ -1,1 +1,1 @@
-::: uipath_sdk._services.buckets_service
+::: uipath._services.buckets_service

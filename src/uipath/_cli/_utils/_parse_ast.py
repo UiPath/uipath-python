@@ -197,8 +197,8 @@ def parse_local_module(
         return {}
 
 
-class UiPathSDKTracker:
-    """Tracks UiPathSDK usage throughout the code."""
+class UiPathTracker:
+    """Tracks UiPath usage throughout the code."""
 
     def __init__(self, source_code: str, base_dir: str = ""):
         self.source_code = source_code
@@ -224,7 +224,7 @@ class UiPathSDKTracker:
         self._find_method_calls()
 
     def _find_imports(self) -> None:
-        """Find all imports of UiPathSDK and local modules."""
+        """Find all imports of UiPath and local modules."""
 
         class ImportVisitor(ast.NodeVisitor):
             def __init__(self):
@@ -233,7 +233,7 @@ class UiPathSDKTracker:
 
             def visit_Import(self, node):
                 for alias in node.names:
-                    if alias.name == "uipath_sdk":
+                    if alias.name == "uipath":
                         self.imports[alias.asname or alias.name] = alias.name
                     elif (
                         not alias.name.startswith(("__", "builtins", "typing"))
@@ -244,12 +244,10 @@ class UiPathSDKTracker:
                 self.generic_visit(node)
 
             def visit_ImportFrom(self, node):
-                if node.module == "uipath_sdk":
+                if node.module == "uipath":
                     for alias in node.names:
-                        if alias.name == "UiPathSDK":
-                            self.imports[alias.asname or alias.name] = (
-                                "uipath_sdk.UiPathSDK"
-                            )
+                        if alias.name == "UiPath":
+                            self.imports[alias.asname or alias.name] = "uipath.UiPath"
                 elif node.module and not node.module.startswith(
                     ("__", "builtins", "typing")
                 ):
@@ -263,7 +261,7 @@ class UiPathSDKTracker:
         self.local_imports = visitor.local_imports
 
     def _find_instances(self) -> None:
-        """Find all instances created from UiPathSDK."""
+        """Find all instances created from UiPath."""
 
         class InstanceVisitor(ast.NodeVisitor):
             def __init__(self, sdk_imports):
@@ -279,7 +277,7 @@ class UiPathSDKTracker:
                     ):
                         for target in node.targets:
                             if isinstance(target, ast.Name):
-                                self.instances[target.id] = "UiPathSDK"
+                                self.instances[target.id] = "UiPath"
                 self.generic_visit(node)
 
         visitor = InstanceVisitor(self.sdk_imports)
@@ -287,7 +285,7 @@ class UiPathSDKTracker:
         self.sdk_instances = visitor.instances
 
     def _find_method_calls(self) -> None:
-        """Find all method calls on UiPathSDK instances."""
+        """Find all method calls on UiPath instances."""
 
         class MethodCallVisitor(ast.NodeVisitor):
             def __init__(self, source_code, sdk_instances, service_usage):
@@ -408,7 +406,7 @@ class UiPathSDKTracker:
 def parse_sdk_usage(
     source_code: str, base_dir: str = ""
 ) -> Dict[str, List[Dict[str, str]]]:
-    """Parse the source code and return UiPathSDK usage information.
+    """Parse the source code and return UiPath usage information.
 
     Args:
         source_code: The Python source code to analyze
@@ -417,7 +415,7 @@ def parse_sdk_usage(
     Returns:
         Dictionary of SDK usage information
     """
-    tracker = UiPathSDKTracker(source_code, base_dir)
+    tracker = UiPathTracker(source_code, base_dir)
     tracker.analyze()
     results = tracker.get_results()
 

@@ -12,7 +12,7 @@ try:
 except ImportError:
     import tomli as tomllib
 
-from uipath_sdk._cli._utils._parse_ast import generate_bindings_json
+from ._utils._parse_ast import generate_bindings_json
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 

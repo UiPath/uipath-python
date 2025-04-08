@@ -45,9 +45,9 @@ class ProcessesService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath_sdk import UiPathSDK
+            from uipath import UiPath
 
-            client = UiPathSDK()
+            client = UiPath()
 
             client.processes.invoke(name="MyProcess")
             ```
@@ -55,9 +55,9 @@ class ProcessesService(FolderContext, BaseService):
             ```python
             # if you want to execute the process in a specific folder
             # another one than the one set in the SDK config
-            from uipath_sdk import UiPathSDK
+            from uipath import UiPath
 
-            client = UiPathSDK()
+            client = UiPath()
 
             client.processes.invoke(name="MyProcess", folder_path="my-folder-key")
             ```
@@ -104,9 +104,9 @@ class ProcessesService(FolderContext, BaseService):
             ```python
             import asyncio
 
-            from uipath_sdk import UiPathSDK
+            from uipath import UiPath
 
-            sdk = UiPathSDK()
+            sdk = UiPath()
 
             async def main():
                 job = await sdk.processes.invoke_async("testAppAction")
