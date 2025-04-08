@@ -6,7 +6,6 @@ def environment_options(function):
         "--alpha",
         "domain",
         flag_value="alpha",
-        default=True,
         help="Use alpha environment",
     )(function)
     function = click.option(
@@ -19,6 +18,7 @@ def environment_options(function):
         "--cloud",
         "domain",
         flag_value="cloud",
+        default=True,
         help="Use production environment",
     )(function)
     return function
