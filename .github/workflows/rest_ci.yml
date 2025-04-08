@@ -7,11 +7,13 @@ on:
       - main
     paths-ignore:
       - "src/**"
+      - "pyproject.toml"
   pull_request:
     branches:
       - main
     paths-ignore:
       - "src/**"
+      - "pyproject.toml"
 
 jobs:
   lint:

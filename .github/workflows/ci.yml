@@ -6,11 +6,13 @@ on:
     branches:
       - main
     paths:
+      - "pyproject.toml"
       - "src/uipath_sdk/**"
   pull_request:
     branches:
       - main
     paths:
+      - "pyproject.toml"
       - "src/uipath_sdk/**"
 
 jobs:
