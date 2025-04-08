@@ -7,7 +7,7 @@ def user_agent_value(specific_component: str) -> str:
     product = "UiPath.Python.Sdk"
     product_component = f"UiPath.Python.Sdk.Activities.{specific_component}"
 
-    version = importlib.metadata.version("uipath-sdk")
+    version = importlib.metadata.version("uipath")
 
     return f"{product}/{product_component}/{version}"
 

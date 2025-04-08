@@ -5,7 +5,7 @@ import traceback
 
 import click
 
-from uipath_sdk._cli.middlewares import Middlewares
+from .middlewares import Middlewares
 
 
 def generate_script(target_directory):
@@ -25,7 +25,7 @@ version = "0.0.1"
 description = "{project_name}"
 authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
-    "uipath_sdk>=0.0.44"
+    "uipath>=2.0.0"
 ]
 requires-python = ">=3.9"
 """

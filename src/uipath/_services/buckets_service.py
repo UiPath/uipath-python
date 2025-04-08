@@ -2,12 +2,10 @@ from typing import Any, Dict
 
 from httpx import request
 
-from uipath_sdk._utils._endpoint import Endpoint
-
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import RequestSpec, infer_bindings
+from .._utils import Endpoint, RequestSpec, infer_bindings
 from ._base_service import BaseService
 
 

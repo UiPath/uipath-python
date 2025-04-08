@@ -82,15 +82,13 @@ class Middlewares:
             try:
                 entry_points = importlib.metadata.entry_points()
                 if hasattr(entry_points, "select"):
-                    middlewares = list(
-                        entry_points.select(group="uipath_sdk.middlewares")
-                    )
+                    middlewares = list(entry_points.select(group="uipath.middlewares"))
                 else:
-                    middlewares = list(entry_points.get("uipath_sdk.middlewares", []))
+                    middlewares = list(entry_points.get("uipath.middlewares", []))
             except Exception:
                 middlewares = list(importlib.metadata.entry_points())
                 middlewares = [
-                    ep for ep in middlewares if ep.group == "uipath_sdk.middlewares"
+                    ep for ep in middlewares if ep.group == "uipath.middlewares"
                 ]
 
             if middlewares:

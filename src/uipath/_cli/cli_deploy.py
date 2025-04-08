@@ -1,8 +1,8 @@
 # type: ignore
 import click
 
-from uipath_sdk._cli.cli_pack import pack
-from uipath_sdk._cli.cli_publish import publish
+from .cli_pack import pack
+from .cli_publish import publish
 
 
 @click.command()

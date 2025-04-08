@@ -7,11 +7,11 @@ import webbrowser
 import click
 from dotenv import load_dotenv
 
-from uipath_sdk._cli._auth._auth_server import HTTPSServer
-from uipath_sdk._cli._auth._oidc_utils import get_auth_config, get_auth_url
-from uipath_sdk._cli._auth._portal_service import PortalService, select_tenant
-from uipath_sdk._cli._auth._utils import update_auth_file, update_env_file
-from uipath_sdk._cli._utils._common import environment_options
+from ._auth._auth_server import HTTPSServer
+from ._auth._oidc_utils import get_auth_config, get_auth_url
+from ._auth._portal_service import PortalService, select_tenant
+from ._auth._utils import update_auth_file, update_env_file
+from ._utils._common import environment_options
 
 load_dotenv()
 

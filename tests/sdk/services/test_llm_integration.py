@@ -2,9 +2,9 @@ import os
 
 import pytest
 
-from uipath_sdk._config import Config
-from uipath_sdk._execution_context import ExecutionContext
-from uipath_sdk._services.llm_gateway_service import (
+from uipath._config import Config
+from uipath._execution_context import ExecutionContext
+from uipath._services.llm_gateway_service import (
     ChatModels,
     EmbeddingModels,
     UiPathOpenAIService,

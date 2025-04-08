@@ -17,4 +17,4 @@ HEADER_TENANT_ID = "x-uipath-tenantid"
 HEADER_JOB_KEY = "x-uipath-jobkey"
 
 # Entrypoint for plugins
-ENTRYPOINT = "uipath_sdk.connectors"
+ENTRYPOINT = "uipath.connectors"

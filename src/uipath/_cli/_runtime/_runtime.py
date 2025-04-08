@@ -8,7 +8,7 @@ import os
 from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, Optional, Type, TypeVar, cast, get_type_hints
 
-from uipath_sdk._cli._runtime._contracts import (
+from ._contracts import (
     UiPathBaseRuntime,
     UiPathErrorCategory,
     UiPathRuntimeError,

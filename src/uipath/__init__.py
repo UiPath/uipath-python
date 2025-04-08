@@ -3,7 +3,7 @@
 This package provides a Python interface to interact with UiPath's automation platform.
 
 
-The main entry point is the UiPathSDK class, which provides access to all SDK functionality.
+The main entry point is the UiPath class, which provides access to all SDK functionality.
 
 Example:
 ```python
@@ -12,13 +12,13 @@ Example:
     # export UIPATH_ACCESS_TOKEN="your_**_token"
     # export UIPATH_FOLDER_PATH="your/folder/path"
 
-    from uipath_sdk import UiPathSDK
-    sdk = UiPathSDK()
+    from uipath import UiPath
+    sdk = UiPath()
     # Invoke a process by name
     sdk.processes.invoke("MyProcess")
 ```
 """
 
-from ._uipath_sdk import UiPathSDK
+from ._uipath import UiPath
 
-__all__ = ["UiPathSDK"]
+__all__ = ["UiPath"]

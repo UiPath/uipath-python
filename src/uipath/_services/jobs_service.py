@@ -93,9 +93,9 @@ class JobsService(FolderContext, BaseService):
             ```python
             import asyncio
 
-            from uipath_sdk import UiPathSDK
+            from uipath import UiPath
 
-            sdk = UiPathSDK()
+            sdk = UiPath()
 
 
             async def main():  # noqa: D103

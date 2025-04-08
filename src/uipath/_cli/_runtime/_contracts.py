@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from uipath_sdk._cli._runtime._logging import LogsInterceptor
+from ._logging import LogsInterceptor
 
 logger = logging.getLogger(__name__)
 

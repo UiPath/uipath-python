@@ -1,1 +1,1 @@
-::: uipath_sdk._services.context_grounding_service
+::: uipath._services.context_grounding_service

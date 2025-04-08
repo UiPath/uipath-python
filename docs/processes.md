@@ -1,1 +1,1 @@
-::: uipath_sdk._services.processes_service
+::: uipath._services.processes_service

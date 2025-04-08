@@ -26,7 +26,7 @@ from ._utils.constants import (
 load_dotenv()
 
 
-class UiPathSDK:
+class UiPath:
     def __init__(
         self,
         *,

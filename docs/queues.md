@@ -1,1 +1,1 @@
-::: uipath_sdk._services.queues_service
+::: uipath._services.queues_service

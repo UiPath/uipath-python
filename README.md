@@ -48,9 +48,9 @@ UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE
 ## Basic Usage
 
 ```python
-from uipath_sdk import UiPathSDK
+from uipath import UiPath
 # Initialize the SDK
-sdk = UiPathSDK()
+sdk = UiPath()
 # Execute a process
 job = sdk.processes.invoke(
     name="MyProcess",
