@@ -45,7 +45,7 @@ class BucketsService(FolderContext, BaseService):
         headers = {
             key: value
             for key, value in zip(
-                result["Headers"]["Keys"], result["Headers"]["Values"]
+                result["Headers"]["Keys"], result["Headers"]["Values"], strict=False
             )
         }
 
@@ -98,7 +98,7 @@ class BucketsService(FolderContext, BaseService):
         headers = {
             key: value
             for key, value in zip(
-                result["Headers"]["Keys"], result["Headers"]["Values"]
+                result["Headers"]["Keys"], result["Headers"]["Values"], strict=False
             )
         }
 
@@ -149,7 +149,7 @@ class BucketsService(FolderContext, BaseService):
         headers = {
             key: value
             for key, value in zip(
-                result["Headers"]["Keys"], result["Headers"]["Values"]
+                result["Headers"]["Keys"], result["Headers"]["Values"], strict=False
             )
         }
 
