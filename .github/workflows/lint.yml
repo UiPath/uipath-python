@@ -30,7 +30,7 @@ jobs:
           uv venv
           uv sync --all-extras
 
-      - name: "Check static types"
+      - name: Check static types
         run: |
           uv run mypy --config-file pyproject.toml .
 
@@ -38,7 +38,7 @@ jobs:
         run: |
           uv run ruff check .
 
-      - name: "Check formatting"
+      - name: Check formatting
         run: |
           uv run ruff format --check .
 
