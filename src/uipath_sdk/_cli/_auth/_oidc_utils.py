@@ -28,11 +28,15 @@ def get_auth_config() -> AuthConfig:
     with open(os.path.join(os.path.dirname(__file__), "auth_config.json"), "r") as f:
         auth_config = json.load(f)
 
+    port = auth_config.get("port", 8104)
+
+    redirect_uri = auth_config["redirect_uri"].replace("__PY_REPLACE_PORT__", str(port))
+
     return AuthConfig(
         client_id=auth_config["client_id"],
-        redirect_uri=auth_config["redirect_uri"],
+        redirect_uri=redirect_uri,
         scope=auth_config["scope"],
-        port=auth_config.get("port", 6234),
+        port=port,
     )
 
 

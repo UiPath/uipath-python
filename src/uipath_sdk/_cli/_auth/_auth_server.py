@@ -24,7 +24,7 @@ class TokenReceivedSignal(Exception):
         super().__init__("Token received successfully")
 
 
-def make_request_handler_class(state, code_verifier, token_callback):
+def make_request_handler_class(state, code_verifier, token_callback, domain):
     class SimpleHTTPSRequestHandler(http.server.SimpleHTTPRequestHandler):
         """Simple HTTPS request handler that serves static files."""
 
@@ -85,6 +85,10 @@ def make_request_handler_class(state, code_verifier, token_callback):
                 content = content.replace("__PY_REPLACE_EXPECTED_STATE__", state)
                 content = content.replace("__PY_REPLACE_CODE_VERIFIER__", code_verifier)
                 content = content.replace("__PY_REPLACE_REDIRECT_URI__", redirect_uri)
+                content = content.replace(
+                    "__PY_REPLACE_CLIENT_ID__", auth_config["client_id"]
+                )
+                content = content.replace("__PY_REPLACE_DOMAIN__", domain)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html")
@@ -123,7 +127,7 @@ class HTTPSServer:
         self.token_data = token_data
         self.should_shutdown = True
 
-    def create_server(self, state, code_verifier):
+    def create_server(self, state, code_verifier, domain):
         """Create and configure the HTTPS server."""
         # Create SSL context
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -131,17 +135,17 @@ class HTTPSServer:
 
         # Create server
         handler = make_request_handler_class(
-            state, code_verifier, self.token_received_callback
+            state, code_verifier, self.token_received_callback, domain
         )
         self.httpd = socketserver.TCPServer(("", self.port), handler)
         self.httpd.socket = context.wrap_socket(self.httpd.socket, server_side=True)
 
         return self.httpd
 
-    def start(self, state, code_verifier):
+    def start(self, state, code_verifier, domain):
         """Start the server."""
         if not self.httpd:
-            self.create_server(state, code_verifier)
+            self.create_server(state, code_verifier, domain)
 
         try:
             if self.httpd:
