@@ -1,3 +1,3 @@
-# Welcome to UiPath SDK
-
-::: uipath
+--8<--
+README.md
+--8<--
