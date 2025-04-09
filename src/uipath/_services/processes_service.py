@@ -5,9 +5,9 @@ from typing import Any, Dict, Optional
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._models.job import Job
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from .._utils.constants import ENV_JOB_ID, HEADER_JOB_KEY
+from ..models.job import Job
 from ._base_service import BaseService
 
 

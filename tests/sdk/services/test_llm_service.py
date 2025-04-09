@@ -5,13 +5,13 @@ import pytest
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._models.llm_gateway import (
-    TextEmbedding,
-    UsageInfo,
-)
 from uipath._services.llm_gateway_service import (
     EmbeddingModels,
     UiPathOpenAIService,
+)
+from uipath.models.llm_gateway import (
+    TextEmbedding,
+    UsageInfo,
 )
 
 

@@ -4,9 +4,9 @@ from typing import Any, Dict, Protocol, TypeVar, Union
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._models import Connection, ConnectionToken
 from .._utils import Endpoint, RequestSpec
 from .._utils.constants import ENTRYPOINT
+from ..models import Connection, ConnectionToken
 from ._base_service import BaseService
 
 T_co = TypeVar("T_co", covariant=True)

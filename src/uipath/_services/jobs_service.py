@@ -4,8 +4,8 @@ from typing import Any, Dict, Optional, overload
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._models.job import Job
 from .._utils import Endpoint, RequestSpec, header_folder
+from ..models.job import Job
 from ._base_service import BaseService
 
 
