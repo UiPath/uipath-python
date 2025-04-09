@@ -62,8 +62,6 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                     )
                     json.dump(logs, f, indent=2)
                     f.write("\n")
-                print(logs)
-                print("Received log data")
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(b"Log received")
