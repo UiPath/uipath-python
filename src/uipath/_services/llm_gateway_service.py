@@ -3,7 +3,8 @@ from typing import Any, Dict, List, Optional
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._models.llm_gateway import (
+from .._utils import Endpoint
+from ..models.llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
     TextEmbedding,
@@ -11,7 +12,6 @@ from .._models.llm_gateway import (
     ToolDefinition,
     UsageInfo,
 )
-from .._utils import Endpoint
 from ._base_service import BaseService
 
 # Common constants

@@ -6,9 +6,9 @@ from typing import Any, Dict, Optional, Tuple
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._models import Action, ActionSchema
 from .._utils import Endpoint, RequestSpec
 from .._utils.constants import ENV_TENANT_ID, HEADER_TENANT_ID
+from ..models import Action, ActionSchema
 from ._base_service import BaseService
 
 

@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from .._config import Config as Config
 from .._execution_context import ExecutionContext as ExecutionContext
-from .._models import Connection as Connection
-from .._models import ConnectionToken as ConnectionToken
 from .._utils import Endpoint as Endpoint
 from .._utils import RequestSpec as RequestSpec
 from .._utils.constants import ENTRYPOINT as ENTRYPOINT
+from ..models import Connection as Connection
+from ..models import ConnectionToken as ConnectionToken
 from ._base_service import BaseService as BaseService
 
 if TYPE_CHECKING:
