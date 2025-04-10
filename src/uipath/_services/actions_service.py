@@ -19,18 +19,6 @@ def _create_spec(
     app_key: str = "",
     app_version: int = -1,
 ) -> RequestSpec:
-    """Creates a request specification for creating a new action task.
-
-    Args:
-        title: The title of the action task
-        data: Optional dictionary containing input data for the action
-        action_schema: Optional schema defining the action's inputs, outputs, and outcomes
-        app_key: The unique identifier of the application
-        app_version: The version of the application
-
-    Returns:
-        RequestSpec: A specification for creating an action task
-    """
     field_list = []
     outcome_list = []
     if action_schema:
@@ -113,14 +101,6 @@ def _create_spec(
 
 
 def _retrieve_action_spec(action_key: str) -> RequestSpec:
-    """Creates a request specification for retrieving an action by its key.
-
-    Args:
-        action_key: The unique identifier of the action to retrieve
-
-    Returns:
-        RequestSpec: A specification for retrieving an action
-    """
     return RequestSpec(
         method="GET",
         endpoint=Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"),
@@ -129,15 +109,6 @@ def _retrieve_action_spec(action_key: str) -> RequestSpec:
 
 
 def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
-    """Creates a request specification for assigning a task to a user.
-
-    Args:
-        task_key: The unique identifier of the task
-        assignee: The username or email of the user to assign the task to
-
-    Returns:
-        RequestSpec: A specification for assigning a task
-    """
     return RequestSpec(
         method="POST",
         endpoint=Endpoint(
@@ -150,17 +121,6 @@ def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
 
 
 def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
-    """Creates a request specification for retrieving an application's key by its name.
-
-    Args:
-        app_name: The name of the application to retrieve
-
-    Returns:
-        RequestSpec: A specification for retrieving an application key
-
-    Raises:
-        Exception: If the tenant ID environment variable is not set
-    """
     tenant_id = os.getenv(ENV_TENANT_ID, None)
     if not tenant_id:
         raise Exception(f"{ENV_TENANT_ID} env var is not set")
@@ -357,17 +317,6 @@ class ActionsService(FolderContext, BaseService):
     def __get_app_key_and_schema(
         self, app_name: str
     ) -> Tuple[str, Optional[ActionSchema]]:
-        """Retrieves an application's key and schema synchronously.
-
-        Args:
-            app_name: The name of the application to retrieve
-
-        Returns:
-            Tuple[str, Optional[ActionSchema]]: A tuple containing the application key and schema
-
-        Raises:
-            Exception: If app_name is not provided
-        """
         if not app_name:
             raise Exception("appName or appKey is required")
 
@@ -392,9 +341,4 @@ class ActionsService(FolderContext, BaseService):
 
     @property
     def custom_headers(self) -> Dict[str, str]:
-        """Gets the custom headers required for folder context.
-
-        Returns:
-            Dict[str, str]: A dictionary of custom headers
-        """
         return self.folder_headers
