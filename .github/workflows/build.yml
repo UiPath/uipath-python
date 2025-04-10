@@ -47,6 +47,4 @@ jobs:
 
       - name: Publish Docs
         if: ${{ steps.check_version.outputs.modified }} == 'true'
-        run: |
-          uv run mkdocs gh-deploy --force
-
+        uses: ./.github/workflows/deploy_docs.yml
