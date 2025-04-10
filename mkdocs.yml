@@ -35,6 +35,12 @@ theme:
 
 nav:
   - Home: index.md
+  - Langchain:
+      - Intro: plugins/uipath-langchain-python/index.md
+      - Chat models: plugins/uipath-langchain-python/chat_models.md
+      - Context Grounding Chain: plugins/uipath-langchain-python/context_grounding_chain.md
+      - Context Grounding Retriever: plugins/uipath-langchain-python/context_grounding_retriever.md
+      - Interrupt models: plugins/uipath-langchain-python/interrupt_models.md
   - Assets: assets.md
   - Buckets: buckets.md
   - Connections: connections.md
