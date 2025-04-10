@@ -7,6 +7,7 @@
 
 A Python SDK that enables programmatic interaction with UiPath Platform services including processes, assets, buckets, context grounding, data services, jobs, and more. The package also features a CLI for creation, packaging, and deployment of automations to UiPath Platform.
 
+Use the [UiPath LangChain SDK](https://github.com/UiPath/uipath-langchain-python) to pack and publish LangGraph Agents. 
 ## Table of Contents
 
 - [Installation](#installation)
