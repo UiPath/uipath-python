@@ -292,6 +292,21 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
 def read_toml_project(file_path: str) -> dict[str, any]:
     with open(file_path, "rb") as f:
         content = tomllib.load(f)
+        if "project" not in content:
+            raise Exception("pyproject.toml is missing the required field: project")
+        if "name" not in content["project"]:
+            raise Exception(
+                "pyproject.toml is missing the required field: project.name"
+            )
+        if "description" not in content["project"]:
+            raise Exception(
+                "pyproject.toml is missing the required field: project.description"
+            )
+        if "version" not in content["project"]:
+            raise Exception(
+                "pyproject.toml is missing the required field: project.version"
+            )
+
         return {
             "name": content["project"]["name"],
             "description": content["project"]["description"],
@@ -320,6 +335,20 @@ def pack(root):
         )
         return
     config = check_config(root)
+    if not config["project_name"] or config["project_name"].strip() == "":
+        raise Exception("Project name cannot be empty")
+
+    if not config["description"] or config["description"].strip() == "":
+        raise Exception("Project description cannot be empty")
+
+    invalid_chars = ["&", "<", ">", '"', "'", ";"]
+    for char in invalid_chars:
+        if char in config["project_name"]:
+            raise Exception(f"Project name contains invalid character: '{char}'")
+
+    for char in invalid_chars:
+        if char in config["description"]:
+            raise Exception(f"Project description contains invalid character: '{char}'")
     click.echo(
         f"Packaging project {config['project_name']}:{version or config['version']} description {config['description']} authored by {config['authors']}"
     )
