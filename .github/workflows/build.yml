@@ -56,9 +56,10 @@ jobs:
         if: ${{ steps.check_version.outputs.modified }} == 'true'
         run: |
           mkdir -p docs/plugins
-          ln -s ../../plugins/uipath-langchain-python/docs docs/plugins/uipath-langchain-python
+          ln -s ../../plugins/uipath-langchain-python docs/plugins/uipath-langchain-python
 
       - name: Publish Docs
         if: ${{ steps.check_version.outputs.modified }} == 'true'
         run: |
+          ls -la docs
           uv run mkdocs gh-deploy --force
