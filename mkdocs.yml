@@ -36,21 +36,21 @@ theme:
 nav:
   - Home:
       - index.md
-      - How To Contribute: how_to_contribute.md
+      - Actions: actions.md
+      - Assets: assets.md
+      - Buckets: buckets.md
+      - Connections: connections.md
+      - Context Grounding: context_grounding.md
+      - Jobs: jobs.md
+      - Queues: queues.md
+      - Processes: processes.md
   - Langchain:
       - plugins/uipath-langchain-python/README.md
       - Chat models: plugins/uipath-langchain-python/docs/chat_models.md
       - Context Grounding Chain: plugins/uipath-langchain-python/docs/context_grounding_chain.md
       - Context Grounding Retriever: plugins/uipath-langchain-python/docs/context_grounding_retriever.md
       - Interrupt models: plugins/uipath-langchain-python/docs/interrupt_models.md
-  - Actions: actions.md
-  - Assets: assets.md
-  - Buckets: buckets.md
-  - Connections: connections.md
-  - Context Grounding: context_grounding.md
-  - Jobs: jobs.md
-  - Queues: queues.md
-  - Processes: processes.md
+  - How To Contribute: how_to_contribute.md
 
 plugins:
   - search
