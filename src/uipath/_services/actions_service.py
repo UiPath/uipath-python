@@ -19,6 +19,18 @@ def _create_spec(
     app_key: str = "",
     app_version: int = -1,
 ) -> RequestSpec:
+    """Creates a request specification for creating a new action task.
+
+    Args:
+        title: The title of the action task
+        data: Optional dictionary containing input data for the action
+        action_schema: Optional schema defining the action's inputs, outputs, and outcomes
+        app_key: The unique identifier of the application
+        app_version: The version of the application
+
+    Returns:
+        RequestSpec: A specification for creating an action task
+    """
     field_list = []
     outcome_list = []
     if action_schema:
@@ -101,6 +113,14 @@ def _create_spec(
 
 
 def _retrieve_action_spec(action_key: str) -> RequestSpec:
+    """Creates a request specification for retrieving an action by its key.
+
+    Args:
+        action_key: The unique identifier of the action to retrieve
+
+    Returns:
+        RequestSpec: A specification for retrieving an action
+    """
     return RequestSpec(
         method="GET",
         endpoint=Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"),
@@ -109,6 +129,15 @@ def _retrieve_action_spec(action_key: str) -> RequestSpec:
 
 
 def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
+    """Creates a request specification for assigning a task to a user.
+
+    Args:
+        task_key: The unique identifier of the task
+        assignee: The username or email of the user to assign the task to
+
+    Returns:
+        RequestSpec: A specification for assigning a task
+    """
     return RequestSpec(
         method="POST",
         endpoint=Endpoint(
@@ -121,6 +150,17 @@ def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
 
 
 def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
+    """Creates a request specification for retrieving an application's key by its name.
+
+    Args:
+        app_name: The name of the application to retrieve
+
+    Returns:
+        RequestSpec: A specification for retrieving an application key
+
+    Raises:
+        Exception: If the tenant ID environment variable is not set
+    """
     tenant_id = os.getenv(ENV_TENANT_ID, None)
     if not tenant_id:
         raise Exception(f"{ENV_TENANT_ID} env var is not set")
@@ -142,9 +182,17 @@ class ActionsService(FolderContext, BaseService):
     This service provides methods to create and retrieve actions, supporting
     both app-specific and generic actions. It inherits folder context management
     capabilities from FolderContext.
+
+    Reference: https://docs.uipath.com/automation-cloud/docs/actions
     """
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+        """Initializes the ActionsService with configuration and execution context.
+
+        Args:
+            config: The configuration object containing API settings
+            execution_context: The execution context for the service
+        """
         super().__init__(config=config, execution_context=execution_context)
 
     async def create_async(
@@ -157,6 +205,25 @@ class ActionsService(FolderContext, BaseService):
         app_version: int = -1,
         assignee: str = "",
     ) -> Action:
+        """Creates a new action asynchronously.
+
+        This method creates a new action task in UiPath Orchestrator. The action can be
+        either app-specific (using app_name or app_key) or a generic action.
+
+        Args:
+            title: The title of the action
+            data: Optional dictionary containing input data for the action
+            app_name: The name of the application (if creating an app-specific action)
+            app_key: The key of the application (if creating an app-specific action)
+            app_version: The version of the application
+            assignee: Optional username or email to assign the task to
+
+        Returns:
+            Action: The created action object
+
+        Raises:
+            Exception: If neither app_name nor app_key is provided for app-specific actions
+        """
         (key, action_schema) = (
             (app_key, None)
             if app_key
@@ -189,6 +256,25 @@ class ActionsService(FolderContext, BaseService):
         app_version: int = -1,
         assignee: str = "",
     ) -> Action:
+        """Creates a new action synchronously.
+
+        This method creates a new action task in UiPath Orchestrator. The action can be
+        either app-specific (using app_name or app_key) or a generic action.
+
+        Args:
+            title: The title of the action
+            data: Optional dictionary containing input data for the action
+            app_name: The name of the application (if creating an app-specific action)
+            app_key: The key of the application (if creating an app-specific action)
+            app_version: The version of the application
+            assignee: Optional username or email to assign the task to
+
+        Returns:
+            Action: The created action object
+
+        Raises:
+            Exception: If neither app_name nor app_key is provided for app-specific actions
+        """
         (key, action_schema) = (
             (app_key, None) if app_key else self.__get_app_key_and_schema(app_name)
         )
@@ -212,6 +298,14 @@ class ActionsService(FolderContext, BaseService):
         self,
         action_key: str,
     ) -> Action:
+        """Retrieves an action by its key synchronously.
+
+        Args:
+            action_key: The unique identifier of the action to retrieve
+
+        Returns:
+            Action: The retrieved action object
+        """
         spec = _retrieve_action_spec(action_key=action_key)
         response = self.request(spec.method, spec.endpoint, params=spec.params)
 
@@ -221,6 +315,14 @@ class ActionsService(FolderContext, BaseService):
         self,
         action_key: str,
     ) -> Action:
+        """Retrieves an action by its key asynchronously.
+
+        Args:
+            action_key: The unique identifier of the action to retrieve
+
+        Returns:
+            Action: The retrieved action object
+        """
         spec = _retrieve_action_spec(action_key=action_key)
         response = await self.request_async(
             spec.method, spec.endpoint, params=spec.params
@@ -231,6 +333,17 @@ class ActionsService(FolderContext, BaseService):
     async def __get_app_key_and_schema_async(
         self, app_name: str
     ) -> Tuple[str, Optional[ActionSchema]]:
+        """Retrieves an application's key and schema asynchronously.
+
+        Args:
+            app_name: The name of the application to retrieve
+
+        Returns:
+            Tuple[str, Optional[ActionSchema]]: A tuple containing the application key and schema
+
+        Raises:
+            Exception: If app_name is not provided
+        """
         if not app_name:
             raise Exception("appName or appKey is required")
         spec = _retrieve_app_key_spec(app_name=app_name)
@@ -244,6 +357,17 @@ class ActionsService(FolderContext, BaseService):
     def __get_app_key_and_schema(
         self, app_name: str
     ) -> Tuple[str, Optional[ActionSchema]]:
+        """Retrieves an application's key and schema synchronously.
+
+        Args:
+            app_name: The name of the application to retrieve
+
+        Returns:
+            Tuple[str, Optional[ActionSchema]]: A tuple containing the application key and schema
+
+        Raises:
+            Exception: If app_name is not provided
+        """
         if not app_name:
             raise Exception("appName or appKey is required")
 
@@ -268,4 +392,9 @@ class ActionsService(FolderContext, BaseService):
 
     @property
     def custom_headers(self) -> Dict[str, str]:
+        """Gets the custom headers required for folder context.
+
+        Returns:
+            Dict[str, str]: A dictionary of custom headers
+        """
         return self.folder_headers
