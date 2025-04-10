@@ -1,4 +1,4 @@
-name: Reusable Build Workflow
+name: Deploy Docs
 
 on:
   workflow_dispatch: {}

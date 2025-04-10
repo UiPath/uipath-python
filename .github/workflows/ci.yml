@@ -1,4 +1,4 @@
-name: Core CI
+name: CI
 
 on:
   workflow_dispatch: {}
