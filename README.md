@@ -180,4 +180,4 @@ To properly use the CLI for packaging and publishing, your project should includ
 
 ### Setting Up a Development Environment
 
-Please read [CONTRIBUTING.md](https://uipath.github.io/uipath-python/how_to_contribute/) before submitting a pull request.
+Please read [CONTRIBUTING.md](./CONTRIBUTING.md) before submitting a pull request.
