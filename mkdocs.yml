@@ -34,6 +34,7 @@ theme:
   logo: assets/uipath-logo.svg
 
 nav:
+  - Getting Started: getting_started.md
   - Home:
       - index.md
       - Actions: actions.md

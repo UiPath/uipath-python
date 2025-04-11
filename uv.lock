@@ -2320,7 +2320,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.0.4"
+version = "2.0.5"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2366,7 +2366,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "tomli", specifier = ">=2.2.1" },
     { name = "types-requests", specifier = ">=2.32.0.20250306" },
-    { name = "uipath-langchain", marker = "extra == 'langchain'", specifier = "==0.0.85" },
+    { name = "uipath-langchain", marker = "extra == 'langchain'", specifier = ">=0.0.88,<0.1.0" },
 ]
 provides-extras = ["langchain"]
 
@@ -2388,7 +2388,7 @@ dev = [
 
 [[package]]
 name = "uipath-langchain"
-version = "0.0.85"
+version = "0.0.88"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -2403,31 +2403,11 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "types-requests" },
-    { name = "uipath-sdk" },
+    { name = "uipath" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/57/958c044efb2e9af8fea8c83faf6c6629d023de39bd023d7f3fa838ce25f1/uipath_langchain-0.0.85.tar.gz", hash = "sha256:037765b0b11ce0cfa10c55ab3402644f6621981be6c2d746513ea570e9e2d3bc", size = 27712 }
+sdist = { url = "https://files.pythonhosted.org/packages/80/0e/e05ecfc5a5b6b7f277dca18e61724c1a923ae4c9af39f71f2c8dce52343d/uipath_langchain-0.0.88.tar.gz", hash = "sha256:f06cc80c9499ae4309275119a9abf5d74c881aaef6731c6efb5b525a1291ef33", size = 1188502 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3e/91/385e38ba954833f9f1cd39104e43dda8db49c9deb30675c8a6f573c24742/uipath_langchain-0.0.85-py3-none-any.whl", hash = "sha256:6bb89cda147934d14e780685357072308fa597a9746872c3f195a1a6bf73b9e7", size = 41292 },
-]
-
-[[package]]
-name = "uipath-sdk"
-version = "0.0.112"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "click" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "pytest-asyncio" },
-    { name = "python-dotenv" },
-    { name = "requests" },
-    { name = "tenacity" },
-    { name = "tomli" },
-    { name = "types-requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/39/df/5622c2f9f0aef4f1583eb3d02deaf991a00f12a78a1d1a4234679fa9c164/uipath_sdk-0.0.112.tar.gz", hash = "sha256:39c9540df41ae5d6da8240649347a0c0c95fb1200324093603c270598406f20a", size = 55208 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/04/18f01fec3148db875c77e75dd8a5203695b6624b806f8758f01240848f79/uipath_sdk-0.0.112-py3-none-any.whl", hash = "sha256:05361f301f2309cff80c2676e34e8c212a8e1c22fedad383ae2f31decde6e508", size = 81182 },
+    { url = "https://files.pythonhosted.org/packages/3a/7a/68ec6fcb4698af7f27c30a2107c349fb6115b84373dba38413346e8c5a57/uipath_langchain-0.0.88-py3-none-any.whl", hash = "sha256:78c92bebbd4a3651adcf914d3563a551222bef86f54cb3eb270d93a39ede7d28", size = 50641 },
 ]
 
 [[package]]
