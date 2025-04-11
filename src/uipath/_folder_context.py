@@ -46,17 +46,12 @@ class FolderContext:
 
         Returns:
             dict[str, str]: A dictionary containing the appropriate folder
-                header (either folder key or folder path).
-
-        Raises:
-            ValueError: If neither folder key nor folder path is set in
-                the environment.
+                header (either folder key or folder path). If no folder header is
+                set as environment variable, the function returns an empty dictionary.
         """
         if self._folder_key is not None:
             return {HEADER_FOLDER_KEY: self._folder_key}
         elif self._folder_path is not None:
             return {HEADER_FOLDER_PATH: self._folder_path}
         else:
-            raise ValueError(
-                f"Folder key or path is not set ({ENV_FOLDER_KEY} or {ENV_FOLDER_PATH})"
-            )
+            return {}
