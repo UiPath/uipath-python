@@ -34,9 +34,14 @@ theme:
   logo: assets/uipath-logo.svg
 
 nav:
-  - Getting Started: getting_started.md
-  - Home:
+  - Getting Started:
       - index.md
+      - CLI: getting_started_cli.md
+      - SDK: getting_started_sdk.md
+      - Agent: getting_started_agent.md
+      - Cloud: getting_started_cloud.md
+  - UiPath SDK:
+      - sdk.md
       - Actions: actions.md
       - Assets: assets.md
       - Buckets: buckets.md
@@ -45,13 +50,13 @@ nav:
       - Jobs: jobs.md
       - Queues: queues.md
       - Processes: processes.md
-  - Langchain:
+  - UiPathLangchain:
       - plugins/uipath-langchain-python/README.md
       - Chat models: plugins/uipath-langchain-python/docs/chat_models.md
       - Context Grounding Chain: plugins/uipath-langchain-python/docs/context_grounding_chain.md
       - Context Grounding Retriever: plugins/uipath-langchain-python/docs/context_grounding_retriever.md
       - Interrupt models: plugins/uipath-langchain-python/docs/interrupt_models.md
-  - How To Contribute: how_to_contribute.md
+  - How To Contribute: CONTRIBUTING.md
 
 plugins:
   - search
