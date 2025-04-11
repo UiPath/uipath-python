@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "agent": "./src/simple-local-mcp/graph.py:make_graph"
+  }
+}
