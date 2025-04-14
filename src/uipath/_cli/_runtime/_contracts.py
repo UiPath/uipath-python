@@ -46,6 +46,9 @@ class UiPathResumeTrigger(BaseModel):
     )
     item_key: Optional[str] = Field(default=None, alias="itemKey")
     api_resume: Optional[UiPathApiTrigger] = Field(default=None, alias="apiResume")
+    folder_path: Optional[str] = Field(default=None, alias="folderPath")
+    folder_key: Optional[str] = Field(default=None, alias="folderKey")
+    payload: Optional[Any] = Field(default=None, alias="interruptObject")
 
     model_config = {"populate_by_name": True}
 
