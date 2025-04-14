@@ -23,7 +23,7 @@ def test_init_env_file_creation(runner: CliRunner, temp_dir: str) -> None:
             content = f.read()
             assert "UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE" in content
             assert (
-                "UIPATH_URL=https://alpha.uipath.com/ACCOUNT_NAME/TENANT_NAME"
+                "UIPATH_URL=https://cloud.uipath.com/ACCOUNT_NAME/TENANT_NAME"
                 in content
             )
 

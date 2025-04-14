@@ -20,7 +20,7 @@ def generate_env_file(target_directory):
         click.echo(f"Created {relative_path} file.")
         with open(env_path, "w") as f:
             f.write("UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE\n")
-            f.write("UIPATH_URL=https://alpha.uipath.com/ACCOUNT_NAME/TENANT_NAME\n")
+            f.write("UIPATH_URL=https://cloud.uipath.com/ACCOUNT_NAME/TENANT_NAME\n")
 
 
 def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optional[str]:
