@@ -7,17 +7,24 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec
-from .._utils.constants import ENV_TENANT_ID, HEADER_TENANT_ID
+from .._utils.constants import (
+    ENV_TENANT_ID,
+    HEADER_FOLDER_KEY,
+    HEADER_FOLDER_PATH,
+    HEADER_TENANT_ID,
+)
 from ..models import Action, ActionSchema
 from ._base_service import BaseService
 
 
 def _create_spec(
-    title: str,
     data: Optional[Dict[str, Any]],
     action_schema: Optional[ActionSchema],
+    title: str,
     app_key: str = "",
     app_version: int = -1,
+    app_folder_key: str = "",
+    app_folder_path: str = "",
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -97,14 +104,18 @@ def _create_spec(
                 else {},
             }
         ),
+        headers=folder_headers(app_folder_key, app_folder_path),
     )
 
 
-def _retrieve_action_spec(action_key: str) -> RequestSpec:
+def _retrieve_action_spec(
+    action_key: str, app_folder_key: str, app_folder_path: str
+) -> RequestSpec:
     return RequestSpec(
         method="GET",
         endpoint=Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"),
         params={"taskKey": action_key},
+        headers=folder_headers(app_folder_key, app_folder_path),
     )
 
 
@@ -130,6 +141,15 @@ def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
         params={"search": app_name},
         headers={HEADER_TENANT_ID: tenant_id},
     )
+
+
+def folder_headers(app_folder_key: str, app_folder_path: str) -> Dict[str, str]:
+    headers = {}
+    if app_folder_key:
+        headers[HEADER_FOLDER_KEY] = app_folder_key
+    elif app_folder_path:
+        headers[HEADER_FOLDER_PATH] = app_folder_path
+    return headers
 
 
 class ActionsService(FolderContext, BaseService):
@@ -162,6 +182,8 @@ class ActionsService(FolderContext, BaseService):
         *,
         app_name: str = "",
         app_key: str = "",
+        app_folder_path: str = "",
+        app_folder_key: str = "",
         app_version: int = -1,
         assignee: str = "",
     ) -> Action:
@@ -175,6 +197,8 @@ class ActionsService(FolderContext, BaseService):
             data: Optional dictionary containing input data for the action
             app_name: The name of the application (if creating an app-specific action)
             app_key: The key of the application (if creating an app-specific action)
+            app_folder_path: Optional folder path for the action
+            app_folder_key: Optional folder key for the action
             app_version: The version of the application
             assignee: Optional username or email to assign the task to
 
@@ -195,10 +219,12 @@ class ActionsService(FolderContext, BaseService):
             app_key=key,
             app_version=app_version,
             action_schema=action_schema,
+            app_folder_key=app_folder_key,
+            app_folder_path=app_folder_path,
         )
 
         response = await self.request_async(
-            spec.method, spec.endpoint, content=spec.content
+            spec.method, spec.endpoint, content=spec.content, headers=spec.headers
         )
         json_response = response.json()
         if assignee:
@@ -213,6 +239,8 @@ class ActionsService(FolderContext, BaseService):
         *,
         app_name: str = "",
         app_key: str = "",
+        app_folder_path: str = "",
+        app_folder_key: str = "",
         app_version: int = -1,
         assignee: str = "",
     ) -> Action:
@@ -226,6 +254,8 @@ class ActionsService(FolderContext, BaseService):
             data: Optional dictionary containing input data for the action
             app_name: The name of the application (if creating an app-specific action)
             app_key: The key of the application (if creating an app-specific action)
+            app_folder_path: Optional folder path for the action
+            app_folder_key: Optional folder key for the action
             app_version: The version of the application
             assignee: Optional username or email to assign the task to
 
@@ -244,48 +274,63 @@ class ActionsService(FolderContext, BaseService):
             app_key=key,
             app_version=app_version,
             action_schema=action_schema,
+            app_folder_key=app_folder_key,
+            app_folder_path=app_folder_path,
         )
 
-        response = self.request(spec.method, spec.endpoint, content=spec.content)
+        response = self.request(
+            spec.method, spec.endpoint, content=spec.content, headers=spec.headers
+        )
         json_response = response.json()
         if assignee:
             spec = _assign_task_spec(json_response["id"], assignee)
-            print(spec)
             self.request(spec.method, spec.endpoint, content=spec.content)
         return Action.model_validate(json_response)
 
     def retrieve(
-        self,
-        action_key: str,
+        self, action_key: str, app_folder_path: str = "", app_folder_key: str = ""
     ) -> Action:
         """Retrieves an action by its key synchronously.
 
         Args:
             action_key: The unique identifier of the action to retrieve
+            app_folder_path: Optional folder path for the action
+            app_folder_key: Optional folder key for the action
 
         Returns:
             Action: The retrieved action object
         """
-        spec = _retrieve_action_spec(action_key=action_key)
-        response = self.request(spec.method, spec.endpoint, params=spec.params)
+        spec = _retrieve_action_spec(
+            action_key=action_key,
+            app_folder_key=app_folder_key,
+            app_folder_path=app_folder_path,
+        )
+        response = self.request(
+            spec.method, spec.endpoint, params=spec.params, headers=spec.headers
+        )
 
         return Action.model_validate(response.json())
 
     async def retrieve_async(
-        self,
-        action_key: str,
+        self, action_key: str, app_folder_path: str = "", app_folder_key: str = ""
     ) -> Action:
         """Retrieves an action by its key asynchronously.
 
         Args:
             action_key: The unique identifier of the action to retrieve
+            app_folder_path: Optional folder path for the action
+            app_folder_key: Optional folder key for the action
 
         Returns:
             Action: The retrieved action object
         """
-        spec = _retrieve_action_spec(action_key=action_key)
+        spec = _retrieve_action_spec(
+            action_key=action_key,
+            app_folder_key=app_folder_key,
+            app_folder_path=app_folder_path,
+        )
         response = await self.request_async(
-            spec.method, spec.endpoint, params=spec.params
+            spec.method, spec.endpoint, params=spec.params, headers=spec.headers
         )
 
         return Action.model_validate(response.json())
@@ -311,8 +356,25 @@ class ActionsService(FolderContext, BaseService):
         response = await self.request_org_scope_async(
             spec.method, spec.endpoint, params=spec.params, headers=spec.headers
         )
-        deployed_app = response.json()["deployed"][0]
-        return (deployed_app["systemName"], deployed_app["actionSchema"])
+        try:
+            deployed_app = response.json()["deployed"][0]
+            action_schema = deployed_app["actionSchema"]
+            deployed_app_key = deployed_app["systemName"]
+        except (KeyError, IndexError):
+            raise Exception("Action app not found") from None
+        try:
+            return (
+                deployed_app_key,
+                ActionSchema(
+                    key=action_schema["key"],
+                    in_outs=action_schema["inOuts"],
+                    inputs=action_schema["inputs"],
+                    outputs=action_schema["outputs"],
+                    outcomes=action_schema["outcomes"],
+                ),
+            )
+        except KeyError:
+            raise Exception("Failed to deserialize action schema") from KeyError
 
     def __get_app_key_and_schema(
         self, app_name: str
@@ -326,18 +388,25 @@ class ActionsService(FolderContext, BaseService):
             spec.method, spec.endpoint, params=spec.params, headers=spec.headers
         )
 
-        deployed_app = response.json()["deployed"][0]
-        action_schema = deployed_app["actionSchema"]
-        return (
-            deployed_app["systemName"],
-            ActionSchema(
-                key=action_schema["key"],
-                in_outs=action_schema["inOuts"],
-                inputs=action_schema["inputs"],
-                outputs=action_schema["outputs"],
-                outcomes=action_schema["outcomes"],
-            ),
-        )
+        try:
+            deployed_app = response.json()["deployed"][0]
+            action_schema = deployed_app["actionSchema"]
+            deployed_app_key = deployed_app["systemName"]
+        except (KeyError, IndexError):
+            raise Exception("Action app not found") from None
+        try:
+            return (
+                deployed_app_key,
+                ActionSchema(
+                    key=action_schema["key"],
+                    in_outs=action_schema["inOuts"],
+                    inputs=action_schema["inputs"],
+                    outputs=action_schema["outputs"],
+                    outcomes=action_schema["outcomes"],
+                ),
+            )
+        except KeyError:
+            raise Exception("Failed to deserialize action schema") from KeyError
 
     @property
     def custom_headers(self) -> Dict[str, str]:

@@ -9,6 +9,7 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec
 from .._utils.constants import (
     HEADER_FOLDER_KEY,
+    HEADER_FOLDER_PATH,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
 from ..models import IngestionInProgressException
@@ -326,7 +327,9 @@ class ContextGroundingService(FolderContext, BaseService):
         )
 
         if self._folder_key is None:
-            raise ValueError(f"Folder key is not set ({HEADER_FOLDER_KEY})")
+            raise ValueError(
+                f"Neither the folder key nor the folder path is set ({HEADER_FOLDER_KEY}, {HEADER_FOLDER_PATH})"
+            )
 
         return self.folder_headers
 
