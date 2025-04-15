@@ -1,12 +1,26 @@
 name: Commit Lint
 
 on:
-  pull_request:
-    branches:
-      - main
+  workflow_call:
 
 jobs:
   commit-lint:
-    uses: UiPath/.github/.github/workflows/commit-lint.yml@master
-    secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Lint commits
+        uses: wagoid/commitlint-github-action@v3
+
+      - name: Block fixup commits
+        if: ${{ github.event_name != 'merge_group' }}
+        uses: 13rac1/block-fixup-merge-action@v2.0.0
+
+      - name: Block Merge Commits
+        if: ${{ github.event_name != 'merge_group' }}
+        uses: Morishiri/block-merge-commits-action@v1.0.1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
