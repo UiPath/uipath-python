@@ -10,6 +10,9 @@ on:
       - main
 
 jobs:
+  commit-lint:
+    uses: ./.github/workflows/commitlint.yml
+
   lint:
     uses: ./.github/workflows/lint.yml
 
