@@ -158,6 +158,6 @@ def select_tenant(
         {
             "UIPATH_URL": f"https://{domain if domain else 'alpha'}.uipath.com/{account_name}/{tenant_name}",
             "UIPATH_TENANT_ID": tenants_and_organizations["tenants"][tenant_idx]["id"],
-            "UIPATH_ORG_ID": tenants_and_organizations["organization"]["id"],
+            "UIPATH_ORGANIZATION_ID": tenants_and_organizations["organization"]["id"],
         }
     )
