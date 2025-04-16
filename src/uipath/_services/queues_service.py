@@ -7,6 +7,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec
 from ..models import CommitType, QueueItem, TransactionItem, TransactionItemResult
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -20,6 +21,7 @@ class QueuesService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     def list_items(self) -> Response:
         """Retrieves a list of queue items from the Orchestrator.
 
@@ -29,6 +31,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._list_items_spec()
         return self.request(spec.method, url=spec.endpoint)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     async def list_items_async(self) -> Response:
         """Asynchronously retrieves a list of queue items from the Orchestrator.
 
@@ -38,6 +41,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._list_items_spec()
         return await self.request_async(spec.method, url=spec.endpoint)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     def create_item(self, item: Union[Dict[str, Any], QueueItem]) -> Response:
         """Creates a new queue item in the Orchestrator.
 
@@ -52,6 +56,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._create_item_spec(item)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     async def create_item_async(
         self, item: Union[Dict[str, Any], QueueItem]
     ) -> Response:
@@ -68,6 +73,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._create_item_spec(item)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     def create_items(
         self,
         items: List[Union[Dict[str, Any], QueueItem]],
@@ -87,6 +93,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._create_items_spec(items, queue_name, commit_type)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     async def create_items_async(
         self,
         items: List[Union[Dict[str, Any], QueueItem]],
@@ -106,6 +113,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._create_items_spec(items, queue_name, commit_type)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     def create_transaction_item(
         self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
@@ -121,6 +129,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._create_transaction_item_spec(item, no_robot)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     async def create_transaction_item_async(
         self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
@@ -136,6 +145,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._create_transaction_item_spec(item, no_robot)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     def update_progress_of_transaction_item(
         self, transaction_key: str, progress: str
     ) -> Response:
@@ -153,6 +163,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._update_progress_of_transaction_item_spec(transaction_key, progress)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     async def update_progress_of_transaction_item_async(
         self, transaction_key: str, progress: str
     ) -> Response:
@@ -170,6 +181,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._update_progress_of_transaction_item_spec(transaction_key, progress)
         return await self.request_async(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     def complete_transaction_item(
         self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
     ) -> Response:
@@ -187,6 +199,7 @@ class QueuesService(FolderContext, BaseService):
         spec = self._complete_transaction_item_spec(transaction_key, result)
         return self.request(spec.method, url=spec.endpoint, json=spec.json)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     async def complete_transaction_item_async(
         self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
     ) -> Response:
