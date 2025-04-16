@@ -21,7 +21,7 @@
     "titleBar.inactiveBackground": "#0099cc"
   },
   "python.testing.pytestArgs": [
-    "sdk"
+    "tests"
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true
