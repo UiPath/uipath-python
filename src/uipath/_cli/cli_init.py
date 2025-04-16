@@ -3,6 +3,7 @@ import json
 import os
 import traceback
 import uuid
+from pathlib import Path
 from typing import Optional
 
 import click
@@ -75,7 +76,7 @@ def init(entrypoint: str) -> None:
     try:
         args = generate_args(script_path)
 
-        relative_path = os.path.relpath(script_path, current_directory)
+        relative_path = Path(script_path).relative_to(current_directory).as_posix()
 
         config_data = {
             "entryPoints": [

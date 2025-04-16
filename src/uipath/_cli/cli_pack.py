@@ -232,7 +232,7 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
     os.makedirs(".uipath", exist_ok=True)
 
     # Define the allowlist of file extensions to include
-    file_extensions_allowlist = [".py", ".mermaid", ".json"]
+    file_extensions_allowlist = [".py", ".mermaid", ".json", ".yaml", ".yml"]
 
     with zipfile.ZipFile(
         f".uipath/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
