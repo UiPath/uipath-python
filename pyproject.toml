@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.0.10"
+version = "2.0.11"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -15,6 +15,7 @@ dependencies = [
   "tenacity>=9.0.0",
   "tomli>=2.2.1",
   "types-requests>=2.32.0.20250306",
+  "pathlib>=1.0.1"
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
