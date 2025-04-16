@@ -7,6 +7,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from ..models import UserAsset
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -21,6 +22,7 @@ class AssetsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     @infer_bindings()
+    @traced(run_type="uipath")
     def retrieve(
         self,
         name: str,
@@ -56,6 +58,7 @@ class AssetsService(FolderContext, BaseService):
 
         return UserAsset.model_validate(response.json())
 
+    @traced(run_type="uipath")
     async def retrieve_async(
         self,
         name: str,
@@ -83,6 +86,7 @@ class AssetsService(FolderContext, BaseService):
         return UserAsset.model_validate(response.json())
 
     @infer_bindings()
+    # TODO: maybe do not trace
     def retrieve_credential(
         self,
         name: str,
@@ -118,6 +122,7 @@ class AssetsService(FolderContext, BaseService):
         return user_asset.credential_password
 
     @infer_bindings()
+    # TODO: maybe do not trace
     async def retrieve_credential_async(
         self,
         name: str,
@@ -153,6 +158,7 @@ class AssetsService(FolderContext, BaseService):
 
         return user_asset.credential_password
 
+    @traced(run_type="uipath")
     def update(
         self,
         robot_asset: UserAsset,
@@ -181,6 +187,7 @@ class AssetsService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
+    @traced(run_type="uipath")
     async def update_async(
         self,
         robot_asset: UserAsset,

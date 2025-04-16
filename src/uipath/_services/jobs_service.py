@@ -6,6 +6,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from ..models.job import Job
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -26,6 +27,7 @@ class JobsService(FolderContext, BaseService):
     @overload
     def resume(self, *, job_id: str, payload: Any) -> None: ...
 
+    @traced(run_type="uipath")
     def resume(
         self,
         *,

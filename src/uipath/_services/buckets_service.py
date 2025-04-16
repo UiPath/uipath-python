@@ -6,6 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, infer_bindings
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -19,6 +20,7 @@ class BucketsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    @traced(run_type="uipath")
     def download(
         self,
         bucket_key: str,
@@ -57,6 +59,7 @@ class BucketsService(FolderContext, BaseService):
                 file_content = request("GET", read_uri, headers=headers).content
             file.write(file_content)
 
+    @traced(run_type="uipath")
     def upload(
         self,
         *,
@@ -108,6 +111,7 @@ class BucketsService(FolderContext, BaseService):
             else:
                 request("PUT", write_uri, headers=headers, files={"file": file})
 
+    @traced(run_type="uipath")
     def upload_from_memory(
         self,
         *,
@@ -163,6 +167,7 @@ class BucketsService(FolderContext, BaseService):
             request("PUT", write_uri, headers=headers, content=content)
 
     @infer_bindings()
+    @traced(run_type="uipath")
     def retrieve(self, name: str) -> Any:
         """Retrieve bucket information by its name.
 
@@ -187,6 +192,7 @@ class BucketsService(FolderContext, BaseService):
         return response.json()["value"][0]
 
     @infer_bindings()
+    @traced(run_type="uipath")
     async def retrieve_async(self, name: str) -> Any:
         """Asynchronously retrieve bucket information by its name.
 
@@ -210,6 +216,7 @@ class BucketsService(FolderContext, BaseService):
 
         return response.json()["value"][0]
 
+    @traced(run_type="uipath")
     def retrieve_by_key(self, key: str) -> Any:
         """Retrieve bucket information by its key.
 
@@ -229,6 +236,7 @@ class BucketsService(FolderContext, BaseService):
 
         return response.json()
 
+    @traced(run_type="uipath")
     async def retrieve_by_key_async(self, key: str) -> Any:
         """Asynchronously retrieve bucket information by its key.
 

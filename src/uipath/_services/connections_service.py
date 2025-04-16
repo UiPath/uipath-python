@@ -7,6 +7,7 @@ from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec
 from .._utils.constants import ENTRYPOINT
 from ..models import Connection, ConnectionToken
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 T_co = TypeVar("T_co", covariant=True)
@@ -72,6 +73,7 @@ class ConnectionsService(BaseService):
         except AttributeError as e:
             raise PluginNotFoundError(f"Plugin '{name}' is not installed") from e
 
+    @traced(run_type="uipath")
     def retrieve(self, key: str) -> Connection:
         """Retrieve connection details by its key.
 
@@ -89,6 +91,7 @@ class ConnectionsService(BaseService):
         response = self.request(spec.method, url=spec.endpoint)
         return Connection.model_validate(response.json())
 
+    @traced(run_type="uipath")
     async def retrieve_async(self, key: str) -> Connection:
         """Asynchronously retrieve connection details by its key.
 
@@ -106,6 +109,7 @@ class ConnectionsService(BaseService):
         response = await self.request_async(spec.method, url=spec.endpoint)
         return Connection.model_validate(response.json())
 
+    # TODO: maybe do not trace
     def retrieve_token(self, key: str) -> ConnectionToken:
         """Retrieve an authentication token for a connection.
 
@@ -124,6 +128,7 @@ class ConnectionsService(BaseService):
         response = self.request(spec.method, url=spec.endpoint, params=spec.params)
         return ConnectionToken.model_validate(response.json())
 
+    # TODO: do not trace
     async def retrieve_token_async(self, key: str) -> ConnectionToken:
         """Asynchronously retrieve an authentication token for a connection.
 

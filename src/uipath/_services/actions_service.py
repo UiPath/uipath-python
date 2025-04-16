@@ -14,6 +14,7 @@ from .._utils.constants import (
     HEADER_TENANT_ID,
 )
 from ..models import Action, ActionSchema
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -175,6 +176,7 @@ class ActionsService(FolderContext, BaseService):
         """
         super().__init__(config=config, execution_context=execution_context)
 
+    @traced(run_type="uipath")
     async def create_async(
         self,
         title: str,
@@ -232,6 +234,7 @@ class ActionsService(FolderContext, BaseService):
             await self.request_async(spec.method, spec.endpoint, content=spec.content)
         return Action.model_validate(json_response)
 
+    @traced(run_type="uipath")
     def create(
         self,
         title: str,
@@ -287,6 +290,7 @@ class ActionsService(FolderContext, BaseService):
             self.request(spec.method, spec.endpoint, content=spec.content)
         return Action.model_validate(json_response)
 
+    @traced(run_type="uipath")
     def retrieve(
         self, action_key: str, app_folder_path: str = "", app_folder_key: str = ""
     ) -> Action:
@@ -311,6 +315,7 @@ class ActionsService(FolderContext, BaseService):
 
         return Action.model_validate(response.json())
 
+    @traced(run_type="uipath")
     async def retrieve_async(
         self, action_key: str, app_folder_path: str = "", app_folder_key: str = ""
     ) -> Action:

@@ -15,6 +15,7 @@ from .._utils.constants import (
 from ..models import IngestionInProgressException
 from ..models.context_grounding import ContextGroundingQueryResponse
 from ..models.context_grounding_index import ContextGroundingIndex
+from ..tracing._traced import traced
 from ._base_service import BaseService
 from .folder_service import FolderService
 
@@ -41,6 +42,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self._folders_service = folders_service
         super().__init__(config=config, execution_context=execution_context)
 
+    @traced(run_type="uipath")
     def retrieve(self, name: str) -> Optional[ContextGroundingIndex]:
         """Retrieve context grounding index information by its name.
 
@@ -70,6 +72,7 @@ class ContextGroundingService(FolderContext, BaseService):
             None,
         )
 
+    @traced(run_type="uipath")
     async def retrieve_async(self, name: str) -> Optional[ContextGroundingIndex]:
         """Retrieve asynchronously context grounding index information by its name.
 
@@ -102,6 +105,7 @@ class ContextGroundingService(FolderContext, BaseService):
             None,
         )
 
+    @traced(run_type="uipath")
     def retrieve_by_id(self, id: str) -> Any:
         """Retrieve context grounding index information by its ID.
 
@@ -122,6 +126,7 @@ class ContextGroundingService(FolderContext, BaseService):
             params=spec.params,
         ).json()
 
+    @traced(run_type="uipath")
     async def retrieve_by_id_async(self, id: str) -> Any:
         """Retrieve asynchronously context grounding index information by its ID.
 
@@ -145,6 +150,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return response.json()
 
+    @traced(run_type="uipath")
     def search(
         self,
         name: str,
@@ -183,6 +189,7 @@ class ContextGroundingService(FolderContext, BaseService):
             response.json()
         )
 
+    @traced(run_type="uipath")
     async def search_async(
         self,
         name: str,
@@ -220,6 +227,7 @@ class ContextGroundingService(FolderContext, BaseService):
             response.json()
         )
 
+    @traced(run_type="uipath")
     def get_or_create_index(
         self,
         name: str,
@@ -248,6 +256,7 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
         return ContextGroundingIndex.model_validate(response)
 
+    @traced(run_type="uipath")
     async def get_or_create_index_async(
         self,
         name: str,
@@ -278,6 +287,7 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
         return ContextGroundingIndex.model_validate(response)
 
+    @traced(run_type="uipath")
     def ingest_data(self, index: ContextGroundingIndex) -> None:
         if not index.id:
             return
@@ -288,6 +298,7 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
+    @traced(run_type="uipath")
     async def ingest_data_async(self, index: ContextGroundingIndex) -> None:
         if not index.id:
             return
@@ -298,6 +309,7 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
+    @traced(run_type="uipath")
     def delete_index(self, index: ContextGroundingIndex) -> None:
         if not index.id:
             return
@@ -308,6 +320,7 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
+    @traced(run_type="uipath")
     async def delete_index_async(self, index: ContextGroundingIndex) -> None:
         if not index.id:
             return

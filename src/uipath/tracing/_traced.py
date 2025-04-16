@@ -2,7 +2,7 @@ import inspect
 import json
 import logging
 from functools import wraps
-from typing import Any
+from typing import Any, Optional
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -42,12 +42,20 @@ class TracedDecoratorRegistry:
         return cls._decorators.get(cls._active_decorator)
 
 
-def _opentelemetry_traced():
+def _opentelemetry_traced(
+    run_type: Optional[str] = None, span_type: Optional[str] = None
+):
     def decorator(func):
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             with tracer.start_as_current_span(func.__name__) as span:
-                span.set_attribute("span_type", "function_call_sync")
+                default_span_type = "function_call_sync"
+                span.set_attribute(
+                    "span_type",
+                    span_type if span_type is not None else default_span_type,
+                )
+                if run_type is not None:
+                    span.set_attribute("run_type", run_type)
                 span.set_attribute(
                     "inputs",
                     _SpanUtils.format_args_for_trace_json(
@@ -70,7 +78,14 @@ def _opentelemetry_traced():
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             with tracer.start_as_current_span(func.__name__) as span:
-                span.set_attribute("span_type", "function_call_async")
+                default_span_type = "function_call_async"
+                span.set_attribute(
+                    "span_type",
+                    span_type if span_type is not None else default_span_type,
+                )
+                if run_type is not None:
+                    span.set_attribute("run_type", run_type)
+
                 span.set_attribute(
                     "inputs",
                     _SpanUtils.format_args_for_trace_json(
@@ -93,7 +108,13 @@ def _opentelemetry_traced():
         @wraps(func)
         def generator_wrapper(*args, **kwargs):
             with tracer.start_as_current_span(func.__name__) as span:
-                span.set_attribute("span_type", "function_call_generator_sync")
+                default_span_type = "function_call_generator_sync"
+                span.set_attribute(
+                    "span_type",
+                    span_type if span_type is not None else default_span_type,
+                )
+                if run_type is not None:
+                    span.set_attribute("run_type", run_type)
                 span.set_attribute(
                     "inputs",
                     _SpanUtils.format_args_for_trace_json(
@@ -119,7 +140,13 @@ def _opentelemetry_traced():
         @wraps(func)
         async def async_generator_wrapper(*args, **kwargs):
             with tracer.start_as_current_span(func.__name__) as span:
-                span.set_attribute("span_type", "function_call_generator_async")
+                default_span_type = "function_call_generator_async"
+                span.set_attribute(
+                    "span_type",
+                    span_type if span_type is not None else default_span_type,
+                )
+                if run_type is not None:
+                    span.set_attribute("run_type", run_type)
                 span.set_attribute(
                     "inputs",
                     _SpanUtils.format_args_for_trace_json(
@@ -154,7 +181,7 @@ def _opentelemetry_traced():
     return decorator
 
 
-def traced():
+def traced(run_type: Optional[str] = None, span_type: Optional[str] = None):
     """Decorator that will trace function invocations."""
     decorator_factory = TracedDecoratorRegistry.get_decorator()
 
@@ -162,4 +189,4 @@ def traced():
         return decorator_factory()
     else:
         # Fallback to original implementation if no active decorator
-        return _opentelemetry_traced()
+        return _opentelemetry_traced(run_type, span_type)
