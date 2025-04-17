@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.0.15"
+version = "2.0.16"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ dependencies = [
   "tenacity>=9.0.0",
   "tomli>=2.2.1",
   "types-requests>=2.32.0.20250306",
-  "pathlib>=1.0.1"
+  "pathlib>=1.0.1",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -79,7 +79,7 @@ ignore-decorators = []
 # TODO: Remove this once the documentation for CLI is updated
 "uipath/_cli/**" = ["D"]
 # TODO: Remove this once model documentation is added
-"src/uipath/models/**" = ["D101","D100","D104","D102","D107"]
+"src/uipath/models/**" = ["D101", "D100", "D104", "D102", "D107"]
 
 [tool.ruff.format]
 quote-style = "double"
