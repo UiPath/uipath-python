@@ -6,7 +6,7 @@ from pydantic import TypeAdapter
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec
+from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils.constants import (
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
@@ -43,7 +43,12 @@ class ContextGroundingService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(run_type="uipath", hide_input=True, hide_output=True)
-    def retrieve(self, name: str) -> Optional[ContextGroundingIndex]:
+    def retrieve(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[ContextGroundingIndex]:
         """Retrieve context grounding index information by its name.
 
         This method fetches details about a specific context index, which can be
@@ -56,12 +61,17 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             Optional[ContextGroundingIndex]: The index information, including its configuration and metadata if found, otherwise None.
         """
-        spec = self._retrieve_spec(name)
+        spec = self._retrieve_spec(
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         response = self.request(
             spec.method,
             spec.endpoint,
             params=spec.params,
+            headers=spec.headers,
         ).json()
         return next(
             (
@@ -73,7 +83,12 @@ class ContextGroundingService(FolderContext, BaseService):
         )
 
     @traced(run_type="uipath", hide_input=True, hide_output=True)
-    async def retrieve_async(self, name: str) -> Optional[ContextGroundingIndex]:
+    async def retrieve_async(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[ContextGroundingIndex]:
         """Retrieve asynchronously context grounding index information by its name.
 
         This method fetches details about a specific context index, which can be
@@ -87,7 +102,11 @@ class ContextGroundingService(FolderContext, BaseService):
             Optional[ContextGroundingIndex]: The index information, including its configuration and metadata if found, otherwise None.
 
         """
-        spec = self._retrieve_spec(name)
+        spec = self._retrieve_spec(
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         response = (
             await self.request_async(
@@ -106,7 +125,12 @@ class ContextGroundingService(FolderContext, BaseService):
         )
 
     @traced(run_type="uipath", hide_input=True, hide_output=True)
-    def retrieve_by_id(self, id: str) -> Any:
+    def retrieve_by_id(
+        self,
+        id: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Any:
         """Retrieve context grounding index information by its ID.
 
         This method provides direct access to a context index using its unique
@@ -118,7 +142,11 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             Any: The index information, including its configuration and metadata.
         """
-        spec = self._retrieve_by_id_spec(id)
+        spec = self._retrieve_by_id_spec(
+            id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         return self.request(
             spec.method,
@@ -127,7 +155,12 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
 
     @traced(run_type="uipath", hide_input=True, hide_output=True)
-    async def retrieve_by_id_async(self, id: str) -> Any:
+    async def retrieve_by_id_async(
+        self,
+        id: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Any:
         """Retrieve asynchronously context grounding index information by its ID.
 
         This method provides direct access to a context index using its unique
@@ -140,7 +173,11 @@ class ContextGroundingService(FolderContext, BaseService):
             Any: The index information, including its configuration and metadata.
 
         """
-        spec = self._retrieve_by_id_spec(id)
+        spec = self._retrieve_by_id_spec(
+            id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         response = await self.request_async(
             spec.method,
@@ -156,6 +193,8 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> List[ContextGroundingQueryResponse]:
         """Search for contextual information within a specific index.
 
@@ -177,7 +216,13 @@ class ContextGroundingService(FolderContext, BaseService):
         if index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
 
-        spec = self._search_spec(name, query, number_of_results)
+        spec = self._search_spec(
+            name,
+            query,
+            number_of_results,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         response = self.request(
             spec.method,
@@ -195,6 +240,8 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> List[ContextGroundingQueryResponse]:
         """Search asynchronously for contextual information within a specific index.
 
@@ -212,10 +259,20 @@ class ContextGroundingService(FolderContext, BaseService):
             List[ContextGroundingQueryResponse]: A list of search results, each containing
                 relevant contextual information and metadata.
         """
-        index = self.retrieve(name)
+        index = self.retrieve(
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         if index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
-        spec = self._search_spec(name, query, number_of_results)
+        spec = self._search_spec(
+            name,
+            query,
+            number_of_results,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         response = await self.request_async(
             spec.method,
@@ -236,6 +293,8 @@ class ContextGroundingService(FolderContext, BaseService):
         storage_bucket_name: str,
         file_name_glob: Optional[str] = None,
         storage_bucket_folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
         spec = self._create_spec(
             name,
@@ -243,8 +302,14 @@ class ContextGroundingService(FolderContext, BaseService):
             storage_bucket_name,
             file_name_glob,
             storage_bucket_folder_path,
+            folder_key=folder_key,
+            folder_path=folder_path,
         )
-        index = self.retrieve(name=name)
+        index = self.retrieve(
+            name=name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         if index:
             return index
 
@@ -265,8 +330,14 @@ class ContextGroundingService(FolderContext, BaseService):
         storage_bucket_name: str,
         file_name_glob: Optional[str] = None,
         storage_bucket_folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
-        index = await self.retrieve_async(name=name)
+        index = await self.retrieve_async(
+            name=name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         if index:
             return index
 
@@ -276,6 +347,8 @@ class ContextGroundingService(FolderContext, BaseService):
             storage_bucket_name,
             file_name_glob,
             storage_bucket_folder_path,
+            folder_key=folder_key,
+            folder_path=folder_path,
         )
         response = (
             await self.request_async(
@@ -288,10 +361,19 @@ class ContextGroundingService(FolderContext, BaseService):
         return ContextGroundingIndex.model_validate(response)
 
     @traced(run_type="uipath", hide_input=True, hide_output=True)
-    def ingest_data(self, index: ContextGroundingIndex) -> None:
+    def ingest_data(
+        self,
+        index: ContextGroundingIndex,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
         if not index.id:
             return
-        spec = self._ingest_spec(index.id)
+        spec = self._ingest_spec(
+            index.id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         self.request(
             spec.method,
             spec.endpoint,
@@ -299,10 +381,19 @@ class ContextGroundingService(FolderContext, BaseService):
         )
 
     @traced(run_type="uipath", hide_input=True, hide_output=True)
-    async def ingest_data_async(self, index: ContextGroundingIndex) -> None:
+    async def ingest_data_async(
+        self,
+        index: ContextGroundingIndex,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
         if not index.id:
             return
-        spec = self._ingest_spec(index.id)
+        spec = self._ingest_spec(
+            index.id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         await self.request_async(
             spec.method,
             spec.endpoint,
@@ -310,10 +401,19 @@ class ContextGroundingService(FolderContext, BaseService):
         )
 
     @traced(run_type="uipath", hide_input=True, hide_output=True)
-    def delete_index(self, index: ContextGroundingIndex) -> None:
+    def delete_index(
+        self,
+        index: ContextGroundingIndex,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
         if not index.id:
             return
-        spec = self._delete_by_id_spec(index.id)
+        spec = self._delete_by_id_spec(
+            index.id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         self.request(
             spec.method,
             spec.endpoint,
@@ -321,10 +421,19 @@ class ContextGroundingService(FolderContext, BaseService):
         )
 
     @traced(run_type="uipath", hide_input=True, hide_output=True)
-    async def delete_index_async(self, index: ContextGroundingIndex) -> None:
+    async def delete_index_async(
+        self,
+        index: ContextGroundingIndex,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
         if not index.id:
             return
-        spec = self._delete_by_id_spec(index.id)
+        spec = self._delete_by_id_spec(
+            index.id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         await self.request_async(
             spec.method,
             spec.endpoint,
@@ -346,16 +455,42 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return self.folder_headers
 
-    def _ingest_spec(self, key: str) -> RequestSpec:
+    def _ingest_spec(
+        self,
+        key: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        if folder_key is None and folder_path is not None:
+            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+            folder_path = None
+
         return RequestSpec(
-            method="POST", endpoint=Endpoint(f"/ecs_/v2/indexes/{key}/ingest")
+            method="POST",
+            endpoint=Endpoint(f"/ecs_/v2/indexes/{key}/ingest"),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
-    def _retrieve_spec(self, name: str) -> RequestSpec:
+    def _retrieve_spec(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        print(folder_key, folder_path)
+        if folder_key is None and folder_path is not None:
+            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+            folder_path = None
+        print("~~~", name, folder_key, folder_path)
         return RequestSpec(
             method="GET",
             endpoint=Endpoint("/ecs_/v2/indexes"),
             params={"$filter": f"Name eq '{name}'"},
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
     def _create_spec(
@@ -365,7 +500,13 @@ class ContextGroundingService(FolderContext, BaseService):
         storage_bucket_name: Optional[str],
         file_name_glob: Optional[str],
         storage_bucket_folder_path: Optional[str],
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> RequestSpec:
+        if folder_key is None and folder_path is not None:
+            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+            folder_path = None
+
         storage_bucket_folder_path = (
             storage_bucket_folder_path
             if storage_bucket_folder_path
@@ -389,23 +530,59 @@ class ContextGroundingService(FolderContext, BaseService):
                     },
                 }
             ),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
-    def _retrieve_by_id_spec(self, id: str) -> RequestSpec:
+    def _retrieve_by_id_spec(
+        self,
+        id: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        if folder_key is None and folder_path is not None:
+            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+            folder_path = None
+
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
-    def _delete_by_id_spec(self, id: str) -> RequestSpec:
+    def _delete_by_id_spec(
+        self,
+        id: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        if folder_key is None and folder_path is not None:
+            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+            folder_path = None
+
         return RequestSpec(
             method="DELETE",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
     def _search_spec(
-        self, name: str, query: str, number_of_results: int = 10
+        self,
+        name: str,
+        query: str,
+        number_of_results: int = 10,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> RequestSpec:
+        if folder_key is None and folder_path is not None:
+            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+            folder_path = None
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint("/ecs_/v1/search"),
@@ -415,4 +592,7 @@ class ContextGroundingService(FolderContext, BaseService):
                     "schema": {"name": name},
                 }
             ),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
