@@ -1,5 +1,7 @@
 from typing import Optional
 
+from uipath.tracing._traced import traced
+
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec
@@ -31,6 +33,7 @@ class FolderService(BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    @traced(run_type="uipath")
     def retrieve_key_by_folder_path(self, folder_path: str) -> Optional[str]:
         spec = _retrieve_spec(folder_path)
         response = self.request(

@@ -8,6 +8,7 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from .._utils.constants import ENV_JOB_ID, HEADER_JOB_KEY
 from ..models.job import Job
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -22,6 +23,7 @@ class ProcessesService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     def invoke(
         self,
         name: str,
@@ -79,6 +81,7 @@ class ProcessesService(FolderContext, BaseService):
         return Job.model_validate(response.json()["value"][0])
 
     @infer_bindings()
+    @traced(run_type="uipath", hide_input=True, hide_output=True)
     async def invoke_async(
         self,
         name: str,
