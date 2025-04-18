@@ -115,9 +115,9 @@ def run(entrypoint: Optional[str], input: Optional[str], resume: bool) -> None:
 
     # Handle result from middleware
     if result.error_message:
-        click.echo(result.error_message)
+        click.echo(result.error_message, err=True)
         if result.should_include_stacktrace:
-            click.echo(traceback.format_exc())
+            click.echo(traceback.format_exc(), err=True)
         click.get_current_context().exit(1)
 
     if result.info_message:
