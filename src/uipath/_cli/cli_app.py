@@ -27,7 +27,8 @@ def get_env_vars():
     return [base_url, tenant_id, token, package_key, package_version]
 
 @click.command()
-def app() -> None:
+@click.option("--action", is_flag=True, help="Create an action app")
+def app(action: bool = False) -> None:
     """
     Creates a new UiPath App. (Placeholder)
     """
@@ -58,7 +59,7 @@ def app() -> None:
         "title": package_key,
         "version": package_version,
         "context": {
-            "appUsageType": "1"
+            "appUsageType": "1" if action else "0"
         },
         "schema": schema_data
     }
