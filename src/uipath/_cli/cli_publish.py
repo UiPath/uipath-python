@@ -1,9 +1,11 @@
 # type: ignore
 import os
+import json
 
 import click
 import requests
 from dotenv import load_dotenv
+from ._auth._utils import update_env_file
 
 load_dotenv()
 
@@ -108,6 +110,24 @@ def publish(feed):
 
     if response.status_code == 200:
         click.echo("Package published successfully!")
+        try:
+            response_data = response.json()
+            body = response_data.get("value")[0].get("Body")
+            if body:
+                try:
+                    body_data = json.loads(body)
+                    package_key = body_data.get("Id")
+                    package_version = body_data.get("Version")
+                    os.environ["UIPATH_PACKAGE_KEY"] = package_key
+                    os.environ["UIPATH_PACKAGE_VERSION"] = package_version
+                    update_env_file({"UIPATH_PACKAGE_KEY": package_key})
+                    update_env_file({"UIPATH_PACKAGE_VERSION": package_version})
+                except Exception as e:
+                    click.echo(f"Error parsing response JSON: {e}")
+            else:
+                click.echo("Response format unexpected or 'value' list is empty.")
+        except Exception as e:
+            click.echo(f"Error parsing response JSON: {e}")
     else:
         click.echo(f"Failed to publish package. Status code: {response.status_code}")
         click.echo(f"Response: {response.text}")

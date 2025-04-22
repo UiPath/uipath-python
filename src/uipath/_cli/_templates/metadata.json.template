@@ -1,0 +1,33 @@
+{
+    "inputs": [
+        {
+            "name": "Sample Property",
+            "key": "12401570-0b26-4f66-9534-03b87733038b",
+            "required": false,
+            "type": "System.String",
+            "typeNamespace": "system",
+            "isList": false,
+            "collectionDataType": null,
+            "customType": null,
+            "properties": [],
+            "version": 1
+        }
+    ],
+    "outcomes": [
+        {
+            "name": "Submit",
+            "key": "ca561305-8feb-41fe-a455-00b960749898",
+            "required": false,
+            "type": "System.String",
+            "typeNamespace": "system",
+            "isList": false,
+            "collectionDataType": null,
+            "customType": null,
+            "properties": [],
+            "version": 1
+        }
+    ],
+    "version": 1,
+    "outputs": [],
+    "inOuts": []
+}

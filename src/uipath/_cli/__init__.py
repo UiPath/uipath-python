@@ -10,6 +10,7 @@ from .cli_new import new as new  # type: ignore
 from .cli_pack import pack as pack  # type: ignore
 from .cli_publish import publish as publish  # type: ignore
 from .cli_run import run as run  # type: ignore
+from .cli_app import app as app # type: ignore
 
 
 @click.group(invoke_without_command=True)
@@ -52,3 +53,4 @@ cli.add_command(publish)
 cli.add_command(run)
 cli.add_command(deploy)
 cli.add_command(auth)
+cli.add_command(app)
