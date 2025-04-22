@@ -1,8 +1,9 @@
+import importlib
 import inspect
 import json
 import logging
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -18,9 +19,94 @@ trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(LlmOpsHttpExpo
 tracer = trace.get_tracer(__name__)
 
 
-def wait_for_tracers():
-    """Wait for all tracers to finish."""
-    trace.get_tracer_provider().shutdown()  # type: ignore
+class TracingManager:
+    """Static utility class to manage tracing implementations and decorated functions."""
+
+    # Registry to track original functions, decorated functions, and their parameters
+    # Each entry is (original_func, decorated_func, params)
+    _traced_registry: List[Tuple[Callable[..., Any], Callable[..., Any], Any]] = []
+
+    # Custom tracer implementation
+    _custom_tracer_implementation = None
+
+    @classmethod
+    def get_custom_tracer_implementation(cls):
+        """Get the currently set custom tracer implementation."""
+        return cls._custom_tracer_implementation
+
+    @classmethod
+    def register_traced_function(cls, original_func, decorated_func, params):
+        """Register a function decorated with @traced and its parameters.
+
+        Args:
+            original_func: The original function before decoration
+            decorated_func: The function after decoration
+            params: The parameters used for tracing
+        """
+        cls._traced_registry.append((original_func, decorated_func, params))
+
+    @classmethod
+    def reapply_traced_decorator(cls, tracer_implementation):
+        """Reapply a different tracer implementation to all functions previously decorated with @traced.
+
+        Args:
+            tracer_implementation: A function that takes the same parameters as _opentelemetry_traced
+                                 and returns a decorator
+        """
+        cls._custom_tracer_implementation = tracer_implementation
+
+        # Work with a copy of the registry to avoid modifying it during iteration
+        registry_copy = cls._traced_registry.copy()
+
+        for original_func, decorated_func, params in registry_copy:
+            # Apply the new decorator with the same parameters
+            new_decorated_func = tracer_implementation(**params)(original_func)
+
+            logger.debug(
+                f"Reapplying decorator to {original_func.__name__}, from {decorated_func.__name__}"
+            )
+
+            # If this is a method on a class, we need to update the class
+            if hasattr(original_func, "__self__") and hasattr(
+                original_func, "__func__"
+            ):
+                setattr(
+                    original_func.__self__.__class__,
+                    original_func.__name__,
+                    new_decorated_func.__get__(
+                        original_func.__self__, original_func.__self__.__class__
+                    ),
+                )
+            else:
+                # Replace the function in its module
+                if hasattr(original_func, "__module__") and hasattr(
+                    original_func, "__qualname__"
+                ):
+                    try:
+                        module = importlib.import_module(original_func.__module__)
+                        parts = original_func.__qualname__.split(".")
+
+                        # Handle nested objects
+                        obj = module
+                        for part in parts[:-1]:
+                            obj = getattr(obj, part)
+
+                        setattr(obj, parts[-1], new_decorated_func)
+
+                        # Update the registry entry for this function
+                        # Find the index and replace with updated entry
+                        for i, (orig, _dec, _p) in enumerate(cls._traced_registry):
+                            if orig is original_func:
+                                cls._traced_registry[i] = (
+                                    original_func,
+                                    new_decorated_func,
+                                    params,
+                                )
+                                break
+                    except (ImportError, AttributeError) as e:
+                        # Log the error but continue processing other functions
+                        logger.warning(f"Error reapplying decorator: {e}")
+                        continue
 
 
 def _default_input_processor(inputs):
@@ -33,23 +119,9 @@ def _default_output_processor(outputs):
     return {"redacted": "Output data not logged for privacy/security"}
 
 
-class TracedDecoratorRegistry:
-    """Registry for tracing decorators."""
-
-    _decorators: dict[str, Any] = {}
-    _active_decorator = "opentelemetry"
-
-    @classmethod
-    def register_decorator(cls, name, decorator_factory):
-        """Register a decorator factory function with a name."""
-        cls._decorators[name] = decorator_factory
-        cls._active_decorator = name
-        return cls
-
-    @classmethod
-    def get_decorator(cls):
-        """Get the currently active decorator factory."""
-        return cls._decorators.get(cls._active_decorator)
+def wait_for_tracers():
+    """Wait for all tracers to finish."""
+    trace.get_tracer_provider().shutdown()  # type: ignore
 
 
 def _opentelemetry_traced(
@@ -58,6 +130,8 @@ def _opentelemetry_traced(
     input_processor: Optional[Callable[..., Any]] = None,
     output_processor: Optional[Callable[..., Any]] = None,
 ):
+    """Default tracer implementation using OpenTelemetry."""
+
     def decorator(func):
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
@@ -78,9 +152,7 @@ def _opentelemetry_traced(
                 if input_processor is not None:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
-
                 span.set_attribute("inputs", inputs)
-
                 try:
                     result = func(*args, **kwargs)
                     # Process output if processor is provided
@@ -115,9 +187,7 @@ def _opentelemetry_traced(
                 if input_processor is not None:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
-
                 span.set_attribute("inputs", inputs)
-
                 try:
                     result = await func(*args, **kwargs)
                     # Process output if processor is provided
@@ -152,9 +222,7 @@ def _opentelemetry_traced(
                 if input_processor is not None:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
-
                 span.set_attribute("inputs", inputs)
-
                 outputs = []
                 try:
                     for item in func(*args, **kwargs):
@@ -195,9 +263,7 @@ def _opentelemetry_traced(
                 if input_processor is not None:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
-
                 span.set_attribute("inputs", inputs)
-
                 outputs = []
                 try:
                     async for item in func(*args, **kwargs):
@@ -254,16 +320,28 @@ def traced(
     # Apply default processors selectively based on hide flags
     if hide_input:
         input_processor = _default_input_processor
-
     if hide_output:
         output_processor = _default_output_processor
 
-    decorator_factory = TracedDecoratorRegistry.get_decorator()
+    # Store the parameters for later reapplication
+    params = {
+        "run_type": run_type,
+        "span_type": span_type,
+        "input_processor": input_processor,
+        "output_processor": output_processor,
+    }
 
-    if decorator_factory:
-        return decorator_factory(run_type, span_type, input_processor, output_processor)
-    else:
-        # Fallback to original implementation if no active decorator
-        return _opentelemetry_traced(
-            run_type, span_type, input_processor, output_processor
-        )
+    # Check for custom implementation first
+    custom_implementation = TracingManager.get_custom_tracer_implementation()
+    tracer_impl: Any = (
+        custom_implementation if custom_implementation else _opentelemetry_traced
+    )
+
+    def decorator(func):
+        # Decorate the function
+        decorated_func = tracer_impl(**params)(func)
+        # Register both original and decorated function with parameters
+        TracingManager.register_traced_function(func, decorated_func, params)
+        return decorated_func
+
+    return decorator
