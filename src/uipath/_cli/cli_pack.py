@@ -12,8 +12,6 @@ try:
 except ImportError:
     import tomli as tomllib
 
-from ._utils._parse_ast import generate_bindings_json
-
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 
 
@@ -205,17 +203,23 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
 
     # Get bindings from uipath.json if available
     config_path = os.path.join(directory, "uipath.json")
-    if os.path.exists(config_path):
-        with open(config_path, "r") as f:
-            config_data = json.load(f)
-            if "bindings" in config_data:
-                bindings_content = config_data["bindings"]
-            else:
-                # Fall back to generating bindings from the first entry point
-                bindings_content = generate_bindings_json(entryPoints[0]["filePath"])
-    else:
-        # Fall back to generating bindings from the first entry point
-        bindings_content = generate_bindings_json(entryPoints[0]["filePath"])
+    if not os.path.exists(config_path):
+        raise Exception("uipath.json not found, please run `uipath init`")
+
+    # Define the allowlist of file extensions to include
+    file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml"]
+    files_included = []
+
+    with open(config_path, "r") as f:
+        config_data = json.load(f)
+        if "bindings" in config_data:
+            bindings_content = config_data["bindings"]
+        if "settings" in config_data:
+            settings = config_data["settings"]
+            if "fileExtensionsIncluded" in settings:
+                file_extensions_included.extend(settings["fileExtensionsIncluded"])
+            if "filesIncluded" in settings:
+                files_included = settings["filesIncluded"]
 
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
@@ -230,9 +234,6 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
 
     # Create .uipath directory if it doesn't exist
     os.makedirs(".uipath", exist_ok=True)
-
-    # Define the allowlist of file extensions to include
-    file_extensions_allowlist = [".py", ".mermaid", ".json", ".yaml", ".yml"]
 
     with zipfile.ZipFile(
         f".uipath/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
@@ -260,7 +261,7 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
 
             for file in files:
                 file_extension = os.path.splitext(file)[1].lower()
-                if file_extension in file_extensions_allowlist:
+                if file_extension in file_extensions_included or file in files_included:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, directory)
                     try:
