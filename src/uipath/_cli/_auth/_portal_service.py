@@ -149,7 +149,9 @@ def select_tenant(
     click.echo("Available tenants:")
     for idx, name in enumerate(tenant_names):
         click.echo(f"  {idx}: {name}")
-    tenant_idx = click.prompt("Select tenant", type=int)
+    tenant_idx = (
+        0 if len(tenant_names) == 1 else click.prompt("Select tenant", type=int)
+    )
     tenant_name = tenant_names[tenant_idx]
     account_name = tenants_and_organizations["organization"]["name"]
     click.echo(f"Selected tenant: {tenant_name}")
