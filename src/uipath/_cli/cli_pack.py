@@ -214,6 +214,8 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
         config_data = json.load(f)
         if "bindings" in config_data:
             bindings_content = config_data["bindings"]
+        else:
+            bindings_content = generate_bindings_content()
         if "settings" in config_data:
             settings = config_data["settings"]
             if "fileExtensionsIncluded" in settings:
