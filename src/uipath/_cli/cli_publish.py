@@ -5,8 +5,6 @@ import click
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
-
 
 def get_most_recent_package():
     nupkg_files = [f for f in os.listdir(".uipath") if f.endswith(".nupkg")]
@@ -56,6 +54,8 @@ def get_env_vars():
     help="Whether to publish to the personal workspace",
 )
 def publish(feed):
+    current_path = os.getcwd()
+    load_dotenv(os.path.join(current_path, ".env"), override=True)
     if feed is None:
         click.echo("Select feed type:")
         click.echo("  0: Tenant package feed")
