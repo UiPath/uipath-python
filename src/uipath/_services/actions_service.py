@@ -1,7 +1,7 @@
 import os
 import uuid
 from json import dumps
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -213,7 +213,7 @@ class ActionsService(FolderContext, BaseService):
         (key, action_schema) = (
             (app_key, None)
             if app_key
-            else await self.__get_app_key_and_schema_async(app_name)
+            else await self._get_app_key_and_schema_async(app_name, app_folder_path)
         )
         spec = _create_spec(
             title=title,
@@ -269,7 +269,9 @@ class ActionsService(FolderContext, BaseService):
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
         (key, action_schema) = (
-            (app_key, None) if app_key else self.__get_app_key_and_schema(app_name)
+            (app_key, None)
+            if app_key
+            else self._get_app_key_and_schema(app_name, app_folder_path)
         )
         spec = _create_spec(
             title=title,
@@ -340,8 +342,8 @@ class ActionsService(FolderContext, BaseService):
 
         return Action.model_validate(response.json())
 
-    async def __get_app_key_and_schema_async(
-        self, app_name: str
+    async def _get_app_key_and_schema_async(
+        self, app_name: str, app_folder_path: str
     ) -> Tuple[str, Optional[ActionSchema]]:
         """Retrieves an application's key and schema asynchronously.
 
@@ -362,7 +364,9 @@ class ActionsService(FolderContext, BaseService):
             spec.method, spec.endpoint, params=spec.params, headers=spec.headers
         )
         try:
-            deployed_app = response.json()["deployed"][0]
+            deployed_app = self._extract_deployed_app(
+                response.json()["deployed"], app_folder_path
+            )
             action_schema = deployed_app["actionSchema"]
             deployed_app_key = deployed_app["systemName"]
         except (KeyError, IndexError):
@@ -381,8 +385,8 @@ class ActionsService(FolderContext, BaseService):
         except KeyError:
             raise Exception("Failed to deserialize action schema") from KeyError
 
-    def __get_app_key_and_schema(
-        self, app_name: str
+    def _get_app_key_and_schema(
+        self, app_name: str, app_folder_path: str
     ) -> Tuple[str, Optional[ActionSchema]]:
         if not app_name:
             raise Exception("appName or appKey is required")
@@ -394,7 +398,9 @@ class ActionsService(FolderContext, BaseService):
         )
 
         try:
-            deployed_app = response.json()["deployed"][0]
+            deployed_app = self._extract_deployed_app(
+                response.json()["deployed"], app_folder_path
+            )
             action_schema = deployed_app["actionSchema"]
             deployed_app_key = deployed_app["systemName"]
         except (KeyError, IndexError):
@@ -412,6 +418,21 @@ class ActionsService(FolderContext, BaseService):
             )
         except KeyError:
             raise Exception("Failed to deserialize action schema") from KeyError
+
+    # should be removed after folder filtering support is added on apps API
+    def _extract_deployed_app(
+        self, deployed_apps: List[Dict[str, Any]], app_folder_path: Optional[str]
+    ) -> Dict[str, Any]:
+        if len(deployed_apps) > 1 and not app_folder_path:
+            raise Exception("Multiple app schemas found")
+        try:
+            return next(
+                app
+                for app in deployed_apps
+                if app["deploymentFolder"]["fullyQualifiedName"] == app_folder_path
+            )
+        except StopIteration:
+            raise KeyError from StopIteration
 
     @property
     def custom_headers(self) -> Dict[str, str]:
