@@ -1,0 +1,109 @@
+name: Publish Dev Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    secrets:
+      PYPI_TOKEN:
+        required: true
+      TESTPYPI_TOKEN:
+        required: true
+
+
+jobs:
+  publish-dev:
+    runs-on: ubuntu-latest
+    
+    # Only run if PR has the build:dev label
+    if: contains(github.event.pull_request.labels.*.name, 'build:dev')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Setup venv
+        run: |
+          uv venv
+          uv sync --all-extras
+      
+      - name: Set development version
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $pyprojcontent = Get-Content pyproject.toml -Raw
+
+          $PROJECT_NAME    = ($pyprojcontent | Select-String -Pattern '(?m)^\[(project|tool\.poetry)\][^\[]*?name\s*=\s*"([^"]*)"' -AllMatches).Matches[0].Groups[2].Value
+          $CURRENT_VERSION = ($pyprojcontent | Select-String -Pattern '(?m)^\[(project|tool\.poetry)\][^\[]*?version\s*=\s*"([^"]*)"' -AllMatches).Matches[0].Groups[2].Value
+          $NIGHTLY_NAME = "$PROJECT_NAME-nightly"
+
+
+          # Get PR number and run number with proper padding
+          $PR_NUM = [int]"${{ github.event.pull_request.number }}"
+          $PADDED_PR  = "{0:D5}" -f [int]"${{ github.event.pull_request.number }}"
+          $PADDED_RUN = "{0:D4}" -f [int]"${{ github.run_number }}"
+          $PADDED_NEXT_PR = "{0:D5}" -f ($PR_NUM + 1)
+
+          # Create version range strings for PR
+          $MIN_VERSION = "$CURRENT_VERSION.dev1$PADDED_PR" + "0000"
+          $MAX_VERSION = "$CURRENT_VERSION.dev1$PADDED_NEXT_PR" + "0000"
+
+          # Create unique dev version with PR number and run ID
+          $DEV_VERSION = "$CURRENT_VERSION.dev1$PADDED_PR$PADDED_RUN"
+
+          # Update version in pyproject.toml
+          (Get-Content pyproject.toml) -replace "version = `"$CURRENT_VERSION`"", "version = `"$DEV_VERSION`"" | Set-Content pyproject.toml
+          
+          # Update project name in pyproject.toml
+          (Get-Content pyproject.toml) -replace "name = `"$PROJECT_NAME`"", "name = `"$NIGHTLY_NAME`"" | Set-Content pyproject.toml
+
+          
+          Write-Output "Package version set to $DEV_VERSION"
+
+          $dependencyMessage = @"
+          - Add this package as a dependency in your pyproject.toml:
+
+          ``````toml
+          [project]
+          dependencies = [
+            # Exact version:
+            "$NIGHTLY_NAME==$DEV_VERSION",
+            
+            # Any version from PR
+            "$NIGHTLY_NAME>=$MIN_VERSION,<$MAX_VERSION"
+          ]
+          ``````
+          "@
+          Write-Output $dependencyMessage
+
+          # Post comment to GitHub PR
+          $owner = "${{ github.repository_owner }}"
+          $repo = "${{ github.repository }}".Split('/')[1]
+          $issueNumber = $PR_NUM
+
+          $body = @{
+            body = $dependencyMessage
+          } | ConvertTo-Json
+
+          # Create the comment using GitHub REST API
+          $uri = "https://api.github.com/repos/$owner/$repo/issues/$issueNumber/comments"
+          $headers = @{
+            Authorization = "token $env:GITHUB_TOKEN"
+            Accept = "application/vnd.github.v3+json"
+          }
+
+          Invoke-RestMethod -Uri $uri -Method Post -Body $body -Headers $headers -ContentType "application/json"
+      
+      - name: Build package
+        run: uv build
+
+      - name: Publish
+        run: |
+          uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
