@@ -28,14 +28,22 @@ def get_env_vars():
 
 @click.command()
 @click.option("--action", is_flag=True, help="Create an action app")
-def app(action: bool = False) -> None:
+@click.option("--suffix", type=str, help="The suffix to add to the app name")
+def app(action: bool = False, suffix: str = "") -> None:
     """
     Creates a new UiPath App. (Placeholder)
     """
-    click.echo("Placeholder for creating a new UiPath App.")
     # Get base url, token, package key from env variables, make that a function
     base_url, tenant_id, token, package_key, package_version = get_env_vars()
-    url = f"{base_url}/default/api/v1/default/models/tenants/{tenant_id}/publish/extenal/apps"
+
+    index = base_url.rfind("/")
+    tenant_name = base_url[index+1:]
+    base_url = base_url[:index]
+    url = f"{base_url}/apps_/default/api/v1/default/models/tenants/{tenant_id}/publish/extenal/apps"
+
+    click.echo(f"Base URL: {base_url}")
+    click.echo(f"Tenant Name: {tenant_name}")
+    click.echo(f"URL: {url}")
 
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -55,9 +63,11 @@ def app(action: bool = False) -> None:
         raise click.Abort()
 
     payload = {
-        "name": package_key,
-        "title": package_key,
-        "version": package_version,
+        "packageName": package_key,
+        "title": f"{package_key}{suffix}",
+        "tenantId": tenant_id,
+        "tenantName": tenant_name,
+        "packageVersion": package_version,
         "context": {
             "appUsageType": "1" if action else "0"
         },
@@ -70,5 +80,6 @@ def app(action: bool = False) -> None:
         click.echo(response.json())
     else:
         click.echo(f"Failed to create app. Status code: {response.status_code}")
-        click.echo(f"Response: {response.text}")
+        click.echo(f"Request: {url}")
+        click.echo(f"Response: {response.json()}")
     
