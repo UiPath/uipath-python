@@ -5,6 +5,7 @@ import socketserver
 import ssl
 import time
 
+import click
 from dotenv import load_dotenv
 
 from ._oidc_utils import get_auth_config
@@ -38,7 +39,7 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                 content_length = int(self.headers["Content-Length"])
                 post_data = self.rfile.read(content_length)
                 token_data = json.loads(post_data.decode("utf-8"))
-                print("Received authentication information")
+                click.echo("Received authentication information")
 
                 self.send_response(200)
                 self.end_headers()
@@ -179,7 +180,7 @@ class HTTPSServer:
                 while not self.should_shutdown:
                     self.httpd.handle_request()
         except KeyboardInterrupt:
-            print("Process interrupted by user")
+            click.echo("Process interrupted by user")
         finally:
             self.stop()
 

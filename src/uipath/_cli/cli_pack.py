@@ -12,6 +12,8 @@ try:
 except ImportError:
     import tomli as tomllib
 
+from .spinner import Spinner
+
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 
 
@@ -328,7 +330,7 @@ def read_toml_project(file_path: str) -> dict[str, any]:
 def get_project_version(directory):
     toml_path = os.path.join(directory, "pyproject.toml")
     if not os.path.exists(toml_path):
-        click.echo("Warning: No pyproject.toml found. Using default version 0.0.1")
+        click.echo("⚠️ Warning: No pyproject.toml found. Using default version 0.0.1")
         return "0.0.1"
     toml_data = read_toml_project(toml_path)
     return toml_data["version"]
@@ -341,38 +343,50 @@ def pack(root):
 
     while not os.path.isfile(os.path.join(root, "uipath.json")):
         click.echo(
-            "uipath.json not found. Please run `uipath init` in the project directory."
+            "❌ uipath.json not found. Please run `uipath init` in the project directory."
         )
         return
     config = check_config(root)
     if not config["project_name"] or config["project_name"].strip() == "":
-        raise Exception("Project name cannot be empty")
+        raise Exception("❌ Project name cannot be empty")
 
     if not config["description"] or config["description"].strip() == "":
-        raise Exception("Project description cannot be empty")
+        raise Exception("❌ Project description cannot be empty")
 
     if not config["authors"] or config["authors"].strip() == "":
-        raise Exception("Project authors cannot be empty")
+        raise Exception("❌ Project authors cannot be empty")
 
     invalid_chars = ["&", "<", ">", '"', "'", ";"]
     for char in invalid_chars:
         if char in config["project_name"]:
-            raise Exception(f"Project name contains invalid character: '{char}'")
+            raise Exception(f"❌ Project name contains invalid character: '{char}'")
 
     for char in invalid_chars:
         if char in config["description"]:
-            raise Exception(f"Project description contains invalid character: '{char}'")
-    click.echo(
+            raise Exception(
+                f"❌ Project description contains invalid character: '{char}'"
+            )
+    spinner = Spinner(
         f"Packaging project {config['project_name']}:{version or config['version']} description {config['description']} authored by {config['authors']}"
     )
-    pack_fn(
-        config["project_name"],
-        config["description"],
-        config["entryPoints"],
-        version or config["version"],
-        config["authors"],
-        root,
-    )
+    try:
+        spinner.start()
+        pack_fn(
+            config["project_name"],
+            config["description"],
+            config["entryPoints"],
+            version or config["version"],
+            config["authors"],
+            root,
+        )
+        spinner.stop()
+        click.echo(
+            click.style("✓ ", fg="green", bold=True) + "Package created successfully!"
+        )
+    except Exception as e:
+        spinner.stop()
+        click.echo(f"\n❌ Error: {str(e)}")
+        click.Abort()
 
 
 if __name__ == "__main__":

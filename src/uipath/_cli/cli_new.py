@@ -6,6 +6,7 @@ import traceback
 import click
 
 from .middlewares import Middlewares
+from .spinner import Spinner
 
 
 def generate_script(target_directory):
@@ -37,6 +38,7 @@ requires-python = ">=3.9"
 @click.command()
 @click.argument("name", type=str, default="")
 def new(name: str):
+    spinner = Spinner("Creating new project...")
     directory = os.getcwd()
 
     if not name:
@@ -44,12 +46,15 @@ def new(name: str):
             "Please specify a name for your project\n`uipath new hello-world`"
         )
 
-    click.echo(f"Initializing project {name} in current directory..")
+    click.echo(
+        click.style("✓ ", fg="green", bold=True)
+        + f"Initializing project {name} in current directory.."
+    )
 
     result = Middlewares.next("new", name)
 
     if result.error_message:
-        click.echo(result.error_message)
+        click.echo("❌ " + result.error_message)
         if result.should_include_stacktrace:
             click.echo(traceback.format_exc())
         click.get_current_context().exit(1)
@@ -61,13 +66,14 @@ def new(name: str):
         return
 
     generate_script(directory)
-    click.echo("Created main.py file.")
+    click.echo(click.style("✓ ", fg="green", bold=True) + "Created main.py file")
     generate_pyproject(directory, name)
-    click.echo("Created pyproject.toml file.")
-
+    click.echo(click.style("✓ ", fg="green", bold=True) + "Created pyproject.toml file")
+    spinner.start()
     ctx = click.get_current_context()
     init_cmd = ctx.parent.command.get_command(ctx, "init")
     ctx.invoke(init_cmd)
+    spinner.stop()
 
     click.echo("""` uipath run main.py '{"message": "Hello World!"}' `""")
 
