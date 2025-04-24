@@ -6,6 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
+from .._utils._read_overwrites import OverwritesManager, read_resource_overwrites
 from ..models import UserAsset
 from ..tracing._traced import traced
 from ._base_service import BaseService
@@ -20,6 +21,8 @@ class AssetsService(FolderContext, BaseService):
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._overwrites_manager = OverwritesManager()
+        self._base_url = "assets"
 
     @infer_bindings()
     @traced(
@@ -53,12 +56,23 @@ class AssetsService(FolderContext, BaseService):
             client.assets.retrieve(name="MyAsset")
             ```
         """
-        spec = self._retrieve_spec(name, folder_key=folder_key, folder_path=folder_path)
-        response = self.request(
-            spec.method, url=spec.endpoint, content=spec.content, headers=spec.headers
-        )
+        with read_resource_overwrites("asset", name, folder_path) as (
+            overwritten_name,
+            overwritten_folder_path,
+        ):
+            spec = self._retrieve_spec(
+                overwritten_name,
+                folder_key=folder_key,
+                folder_path=overwritten_folder_path,
+            )
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                content=spec.content,
+                headers=spec.headers,
+            )
 
-        return UserAsset.model_validate(response.json())
+            return UserAsset.model_validate(response.json())
 
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
@@ -82,12 +96,23 @@ class AssetsService(FolderContext, BaseService):
         Returns:
             UserAsset: The asset data.
         """
-        spec = self._retrieve_spec(name, folder_key=folder_key, folder_path=folder_path)
-        response = await self.request_async(
-            spec.method, url=spec.endpoint, content=spec.content, headers=spec.headers
-        )
+        with read_resource_overwrites("asset", name, folder_path) as (
+            overwritten_name,
+            overwritten_folder_path,
+        ):
+            spec = self._retrieve_spec(
+                overwritten_name,
+                folder_key=folder_key,
+                folder_path=overwritten_folder_path,
+            )
+            response = await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                content=spec.content,
+                headers=spec.headers,
+            )
 
-        return UserAsset.model_validate(response.json())
+            return UserAsset.model_validate(response.json())
 
     @infer_bindings()
     @traced(
@@ -114,18 +139,26 @@ class AssetsService(FolderContext, BaseService):
         Returns:
             Optional[str]: The decrypted credential password.
         """
-        spec = self._retrieve_spec(name, folder_key=folder_key, folder_path=folder_path)
+        with read_resource_overwrites("asset", name, folder_path) as (
+            overwritten_name,
+            overwritten_folder_path,
+        ):
+            spec = self._retrieve_spec(
+                overwritten_name,
+                folder_key=folder_key,
+                folder_path=overwritten_folder_path,
+            )
 
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            content=spec.content,
-            headers=spec.headers,
-        )
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                content=spec.content,
+                headers=spec.headers,
+            )
 
-        user_asset = UserAsset.model_validate(response.json())
+            user_asset = UserAsset.model_validate(response.json())
 
-        return user_asset.credential_password
+            return user_asset.credential_password
 
     @infer_bindings()
     @traced(
@@ -153,18 +186,26 @@ class AssetsService(FolderContext, BaseService):
             Optional[str]: The decrypted credential password.
 
         """
-        spec = self._retrieve_spec(name, folder_key=folder_key, folder_path=folder_path)
+        with read_resource_overwrites("asset", name, folder_path) as (
+            overwritten_name,
+            overwritten_folder_path,
+        ):
+            spec = self._retrieve_spec(
+                overwritten_name,
+                folder_key=folder_key,
+                folder_path=overwritten_folder_path,
+            )
 
-        response = await self.request_async(
-            spec.method,
-            url=spec.endpoint,
-            content=spec.content,
-            headers=spec.headers,
-        )
+            response = await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                content=spec.content,
+                headers=spec.headers,
+            )
 
-        user_asset = UserAsset.model_validate(response.json())
+            user_asset = UserAsset.model_validate(response.json())
 
-        return user_asset.credential_password
+            return user_asset.credential_password
 
     @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     def update(
@@ -184,18 +225,22 @@ class AssetsService(FolderContext, BaseService):
         Returns:
             Response: The HTTP response confirming the update.
         """
-        spec = self._update_spec(
-            robot_asset, folder_key=folder_key, folder_path=folder_path
-        )
+        with read_resource_overwrites("asset", robot_asset.name or "", folder_path) as (
+            overwritten_name,
+            overwritten_folder_path,
+        ):
+            spec = self._update_spec(
+                robot_asset, folder_key=folder_key, folder_path=overwritten_folder_path
+            )
 
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            content=spec.content,
-            headers=spec.headers,
-        )
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                content=spec.content,
+                headers=spec.headers,
+            )
 
-        return response.json()
+            return response.json()
 
     @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     async def update_async(
@@ -215,18 +260,22 @@ class AssetsService(FolderContext, BaseService):
         Returns:
             Response: The HTTP response confirming the update.
         """
-        spec = self._update_spec(
-            robot_asset, folder_key=folder_key, folder_path=folder_path
-        )
+        with read_resource_overwrites("asset", robot_asset.name or "", folder_path) as (
+            overwritten_name,
+            overwritten_folder_path,
+        ):
+            spec = self._update_spec(
+                robot_asset, folder_key=folder_key, folder_path=overwritten_folder_path
+            )
 
-        response = await self.request_async(
-            spec.method,
-            url=spec.endpoint,
-            content=spec.content,
-            headers=spec.headers,
-        )
+            response = await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                content=spec.content,
+                headers=spec.headers,
+            )
 
-        return response.json()
+            return response.json()
 
     @property
     def custom_headers(self) -> Dict[str, str]:
