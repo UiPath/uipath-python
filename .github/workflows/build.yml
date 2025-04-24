@@ -58,7 +58,6 @@ jobs:
           mkdir -p docs/plugins
           mkdir -p docs/docs
           ln -s ../../plugins/uipath-langchain-python docs/plugins/uipath-langchain-python
-          ln -s ../plugins/uipath-langchain-python/docs docs/docs
 
       - name: Publish Docs
         if: ${{ steps.check_version.outputs.modified }} == 'true'

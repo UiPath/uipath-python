@@ -39,7 +39,6 @@ nav:
       - CLI: getting_started_cli.md
       - SDK: getting_started_sdk.md
       - Agent: getting_started_agent.md
-      - Cloud: getting_started_cloud.md
   - UiPath SDK:
       - sdk.md
       - Actions: actions.md
