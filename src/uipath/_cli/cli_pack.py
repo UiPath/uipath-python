@@ -344,6 +344,9 @@ def pack(root):
     if not config["description"] or config["description"].strip() == "":
         raise Exception("Project description cannot be empty")
 
+    if not config["authors"] or config["authors"].strip() == "":
+        raise Exception("Project authors cannot be empty")
+
     invalid_chars = ["&", "<", ">", '"', "'", ";"]
     for char in invalid_chars:
         if char in config["project_name"]:
