@@ -1,4 +1,10 @@
 site_name: UiPath SDK
+site_url: https://uipath.github.io/uipath-python/
+
+repo_name: UiPath/uipath-python
+repo_url: https://github.com/UiPath/uipath-python
+
+copyright: Copyright &copy; 2025 UiPath
 
 theme:
   name: material
