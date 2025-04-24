@@ -1,5 +1,6 @@
 import http.server
 import json
+import logging
 import os
 import socketserver
 import ssl
@@ -8,6 +9,8 @@ import time
 from dotenv import load_dotenv
 
 from ._oidc_utils import get_auth_config
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -38,7 +41,7 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                 content_length = int(self.headers["Content-Length"])
                 post_data = self.rfile.read(content_length)
                 token_data = json.loads(post_data.decode("utf-8"))
-                print("Received authentication information")
+                logger.info("Received authentication information")
 
                 self.send_response(200)
                 self.end_headers()
@@ -56,6 +59,7 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                 os.makedirs(uipath_dir, exist_ok=True)
                 error_log_path = os.path.join(uipath_dir, ".error_log")
 
+                logger.debug(f"Writing error log to: {error_log_path}")
                 with open(error_log_path, "a", encoding="utf-8") as f:
                     f.write(
                         f"\n--- Authentication Error Log {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n"
@@ -66,6 +70,7 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                 self.end_headers()
                 self.wfile.write(b"Log received")
             else:
+                logger.warning(f"Received request to unknown path: {self.path}")
                 self.send_error(404, "Path not found")
 
         def do_GET(self):
@@ -73,6 +78,8 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
             # Always serve index.html regardless of the path
             try:
                 index_path = os.path.join(os.path.dirname(__file__), "index.html")
+                logger.debug(f"Serving index.html from: {index_path}")
+
                 with open(index_path, "r") as f:
                     content = f.read()
 
@@ -93,7 +100,9 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                 self.send_header("Content-Length", str(len(content)))
                 self.end_headers()
                 self.wfile.write(content.encode("utf-8"))
+                logger.debug("Successfully served index.html")
             except FileNotFoundError:
+                logger.error(f"Index file not found at: {index_path}")
                 self.send_error(404, "File not found")
 
         def end_headers(self):
@@ -105,8 +114,6 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
         def do_OPTIONS(self):
             self.send_response(200)
             self.end_headers()
-
-    return SimpleHTTPSRequestHandler
 
 
 class HTTPSServer:
@@ -125,6 +132,7 @@ class HTTPSServer:
         self.httpd = None
         self.token_data = None
         self.should_shutdown = False
+        logger.debug(f"Initialized HTTPS server on port {port}")
 
     def token_received_callback(self, token_data):
         """Callback for when a token is received.
@@ -134,6 +142,7 @@ class HTTPSServer:
         """
         self.token_data = token_data
         self.should_shutdown = True
+        logger.debug("Token received callback triggered")
 
     def create_server(self, state, code_verifier, domain):
         """Create and configure the HTTPS server.
@@ -146,6 +155,7 @@ class HTTPSServer:
         Returns:
             socketserver.TCPServer: The configured HTTPS server.
         """
+        logger.debug("Creating SSL context")
         # Create SSL context
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(self.cert_file, self.key_file)
@@ -157,6 +167,7 @@ class HTTPSServer:
         )
         self.httpd = socketserver.TCPServer(("", self.port), handler)
         self.httpd.socket = context.wrap_socket(self.httpd.socket, server_side=True)
+        logger.debug("Server created successfully")
 
         return self.httpd
 
@@ -176,10 +187,11 @@ class HTTPSServer:
 
         try:
             if self.httpd:
+                logger.info(f"Starting server on port {self.port}")
                 while not self.should_shutdown:
                     self.httpd.handle_request()
         except KeyboardInterrupt:
-            print("Process interrupted by user")
+            logger.info("Process interrupted by user")
         finally:
             self.stop()
 
@@ -188,5 +200,7 @@ class HTTPSServer:
     def stop(self):
         """Stop the server gracefully and cleanup resources."""
         if self.httpd:
+            logger.debug("Stopping server")
             self.httpd.server_close()
             self.httpd = None
+            logger.debug("Server stopped")
