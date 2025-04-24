@@ -1,4 +1,10 @@
 site_name: UiPath SDK
+site_url: https://uipath.github.io/uipath-python/
+
+repo_name: UiPath/uipath-python
+repo_url: https://github.com/UiPath/uipath-python
+
+copyright: Copyright &copy; 2025 UiPath
 
 theme:
   name: material
@@ -18,12 +24,11 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
-    - content.code.annotate
-    - content.code.copy
     - content.footnote.tooltips
     - content.tabs.link
     - content.tooltips
     - navigation.footer
+    - navigation.indexes
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.top
@@ -39,7 +44,6 @@ nav:
       - CLI: getting_started_cli.md
       - SDK: getting_started_sdk.md
       - Agent: getting_started_agent.md
-      - Cloud: getting_started_cloud.md
   - UiPath SDK:
       - sdk.md
       - Actions: actions.md
