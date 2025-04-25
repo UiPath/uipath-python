@@ -66,6 +66,8 @@ jobs:
           Write-Output "Package version set to $DEV_VERSION"
 
           $dependencyMessage = @"
+          ## Development Package
+
           - Add this package as a dependency in your pyproject.toml:
 
           ``````toml
@@ -79,26 +81,40 @@ jobs:
           ]
           ``````
           "@
-          Write-Output $dependencyMessage
 
-          # Post comment to GitHub PR
+          # Get the owner and repo from the GitHub repository
           $owner = "${{ github.repository_owner }}"
           $repo = "${{ github.repository }}".Split('/')[1]
-          $issueNumber = $PR_NUM
+          $prNumber = $PR_NUM
 
-          $body = @{
-            body = $dependencyMessage
-          } | ConvertTo-Json
-
-          # Create the comment using GitHub REST API
-          $uri = "https://api.github.com/repos/$owner/$repo/issues/$issueNumber/comments"
+          # Get the current PR description
+          $prUri = "https://api.github.com/repos/$owner/$repo/pulls/$prNumber"
           $headers = @{
             Authorization = "token $env:GITHUB_TOKEN"
             Accept = "application/vnd.github.v3+json"
           }
+          
+          $pr = Invoke-RestMethod -Uri $prUri -Method Get -Headers $headers
+          $currentBody = $pr.body
 
-          Invoke-RestMethod -Uri $uri -Method Post -Body $body -Headers $headers -ContentType "application/json"
-      
+          # Check if there's already a development package section
+          if ($currentBody -match '## Development Package') {
+            # Replace the existing section with the new dependency message
+            $newBody = $currentBody -replace '## Development Package(\r?\n|.)*?(?=##|$)', $dependencyMessage
+          } else {
+            # Append the dependency message to the end of the description
+            $newBody = if ($currentBody) { "$currentBody`n`n$dependencyMessage" } else { $dependencyMessage }
+          }
+
+          # Update the PR description
+          $updateBody = @{
+            body = $newBody
+          } | ConvertTo-Json
+
+          Invoke-RestMethod -Uri $prUri -Method Patch -Headers $headers -Body $updateBody -ContentType "application/json"
+          
+          Write-Output "Updated PR description with development package information"
+          
       - name: Build package
         run: uv build
 
