@@ -13,9 +13,18 @@ from .cli_publish import publish as publish  # type: ignore
 from .cli_run import run as run  # type: ignore
 
 
+def _get_safe_version() -> str:
+    """Get the version of the uipath package."""
+    try:
+        version = importlib.metadata.version("uipath")
+        return version
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
 @click.group(invoke_without_command=True)
 @click.version_option(
-    importlib.metadata.version("uipath"),
+    _get_safe_version(),
     prog_name="uipath",
     message="%(prog)s version %(version)s",
 )
