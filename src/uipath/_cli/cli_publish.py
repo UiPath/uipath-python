@@ -118,6 +118,13 @@ def publish(feed):
         )
         if feed == "personal" or feed == personal_workspace_feed_id:
             is_personal_workspace = True
+            if (
+                personal_workspace_feed_id is None
+                or personal_workspace_folder_id is None
+            ):
+                spinner.stop()
+                click.echo("❌ No personal workspace found for user")
+                click.get_current_context().exit(1)
             url = url + "?feedId=" + personal_workspace_feed_id
         else:
             url = url + "?feedId=" + feed
