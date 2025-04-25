@@ -209,6 +209,8 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
     # Define the allowlist of file extensions to include
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml"]
     files_included = []
+    # Binary files that should be read in binary mode
+    binary_extensions = [".exe", ""]
 
     with open(config_path, "r") as f:
         config_data = json.load(f)
@@ -266,19 +268,24 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
                 if file_extension in file_extensions_included or file in files_included:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, directory)
-                    try:
-                        # Try UTF-8 first
-                        with open(file_path, "r", encoding="utf-8") as f:
+                    if file_extension in binary_extensions:
+                        # Read binary files in binary mode
+                        with open(file_path, "rb") as f:
                             z.writestr(f"content/{rel_path}", f.read())
-                    except UnicodeDecodeError:
-                        # If UTF-8 fails, try with utf-8-sig (for files with BOM)
+                    else:
                         try:
-                            with open(file_path, "r", encoding="utf-8-sig") as f:
+                            # Try UTF-8 first
+                            with open(file_path, "r", encoding="utf-8") as f:
                                 z.writestr(f"content/{rel_path}", f.read())
                         except UnicodeDecodeError:
-                            # If that also fails, try with latin-1 as a fallback
-                            with open(file_path, "r", encoding="latin-1") as f:
-                                z.writestr(f"content/{rel_path}", f.read())
+                            # If UTF-8 fails, try with utf-8-sig (for files with BOM)
+                            try:
+                                with open(file_path, "r", encoding="utf-8-sig") as f:
+                                    z.writestr(f"content/{rel_path}", f.read())
+                            except UnicodeDecodeError:
+                                # If that also fails, try with latin-1 as a fallback
+                                with open(file_path, "r", encoding="latin-1") as f:
+                                    z.writestr(f"content/{rel_path}", f.read())
 
         optional_files = ["pyproject.toml", "README.md"]
         for file in optional_files:
