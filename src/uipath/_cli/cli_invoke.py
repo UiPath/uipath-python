@@ -86,15 +86,14 @@ def invoke(entrypoint: Optional[str], input: Optional[str]) -> None:
             click.Abort()
         if job_key:
             job_url = f"{base_url}/orchestrator_/jobs(sidepanel:sidepanel/jobs/{job_key}/details)?fid={personal_workspace_folder_id}"
-            click.echo("\n✨ Job started successfully!")
+            click.echo("✨ Job started successfully!")
             click.echo(
-                "\n🔗 Monitor your job here: "
+                "🔗 Monitor your job here: "
                 + click.style(
                     f"\u001b]8;;{job_url}\u001b\\{job_url}\u001b]8;;\u001b\\",
                     fg="bright_blue",
                     bold=True,
                 )
-                + "\n"
             )
     else:
         click.echo(f"\n❌ Error starting job: {response.text}")
