@@ -12,6 +12,7 @@ from ._auth._oidc_utils import get_auth_config, get_auth_url
 from ._auth._portal_service import PortalService, select_tenant
 from ._auth._utils import update_auth_file, update_env_file
 from ._utils._common import environment_options
+from .spinner import Spinner
 
 load_dotenv()
 
@@ -37,7 +38,7 @@ def set_port():
             if is_port_in_use(port_option_two):
                 if is_port_in_use(port_option_three):
                     raise RuntimeError(
-                        "All configured ports are in use. Please close applications using ports or configure different ports."
+                        "❌ All configured ports are in use. Please close applications using ports or configure different ports."
                     )
                 else:
                     port = port_option_three
@@ -56,6 +57,8 @@ def set_port():
 @environment_options
 def auth(domain="alpha"):
     """Authenticate with UiPath Cloud Platform."""
+    spinner = Spinner("Authenticating with UiPath...")
+    spinner.start()
     portal_service = PortalService(domain)
     if (
         os.getenv("UIPATH_URL")
@@ -64,9 +67,13 @@ def auth(domain="alpha"):
     ):
         try:
             portal_service.ensure_valid_token()
-            click.echo("Authentication successful")
+            spinner.stop()
+            click.echo(
+                click.style("✓ ", fg="green", bold=True) + "Authentication successful"
+            )
             return
         except Exception:
+            spinner.stop()
             click.echo(
                 "Authentication not found or expired. Please authenticate again."
             )
@@ -75,23 +82,26 @@ def auth(domain="alpha"):
 
     webbrowser.open(auth_url, 1)
     auth_config = get_auth_config()
-
+    spinner.stop()
     print(
         "If a browser window did not open, please open the following URL in your browser:"
     )
     print(auth_url)
+
     server = HTTPSServer(port=auth_config["port"])
     token_data = server.start(state, code_verifier, domain)
-    try:
-        if token_data:
-            portal_service.update_token_data(token_data)
-            update_auth_file(token_data)
-            access_token = token_data["access_token"]
-            update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
 
-            tenants_and_organizations = portal_service.get_tenants_and_organizations()
-            select_tenant(domain, tenants_and_organizations)
-        else:
-            click.echo("Authentication failed")
-    except Exception as e:
-        click.echo(f"Authentication failed: {e}")
+    if token_data:
+        portal_service.update_token_data(token_data)
+        update_auth_file(token_data)
+        access_token = token_data["access_token"]
+        update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
+
+        tenants_and_organizations = portal_service.get_tenants_and_organizations()
+        select_tenant(domain, tenants_and_organizations)
+        click.echo(
+            click.style("✓ ", fg="green", bold=True)
+            + "Authentication completed successfully!"
+        )
+    else:
+        click.echo("❌ Authentication failed")

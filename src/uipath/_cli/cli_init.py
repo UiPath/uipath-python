@@ -11,6 +11,7 @@ import click
 from ._utils._input_args import generate_args
 from ._utils._parse_ast import generate_bindings_json
 from .middlewares import Middlewares
+from .spinner import Spinner
 
 
 def generate_env_file(target_directory):
@@ -51,6 +52,7 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
 @click.argument("entrypoint", required=False, default=None)
 def init(entrypoint: str) -> None:
     """Initialize a uipath.json configuration file for the script."""
+    spinner = Spinner("Initializing UiPath project...")
     current_directory = os.getcwd()
     generate_env_file(current_directory)
 
@@ -67,12 +69,11 @@ def init(entrypoint: str) -> None:
 
     if not result.should_continue:
         return
-
     script_path = get_user_script(current_directory, entrypoint=entrypoint)
 
     if not script_path:
         click.get_current_context().exit(1)
-
+    spinner.start()
     try:
         args = generate_args(script_path)
 
@@ -94,21 +95,23 @@ def init(entrypoint: str) -> None:
         # Generate bindings JSON based on the script path
         try:
             bindings_data = generate_bindings_json(script_path)
-
             # Add bindings to the config data
             config_data["bindings"] = bindings_data
-
-            click.echo("Bindings generated successfully.")
         except Exception as e:
-            click.echo(f"Warning: Could not generate bindings: {str(e)}")
+            click.echo(f"⚠️ Warning: Could not generate bindings: {str(e)}")
 
         config_path = "uipath.json"
         with open(config_path, "w") as config_file:
             json.dump(config_data, config_file, indent=4)
 
-        click.echo(f"Configuration file {config_path} created successfully.")
+        spinner.stop()
+        click.echo(
+            click.style("✓ ", fg="green", bold=True)
+            + f"Configuration file {config_path} created successfully."
+        )
 
     except Exception as e:
-        click.echo(f"Error generating configuration: {str(e)}")
+        spinner.stop()
+        click.echo(f"❌ Error generating configuration: {str(e)}")
         click.echo(traceback.format_exc())
         click.get_current_context().exit(1)
