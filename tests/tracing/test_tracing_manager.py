@@ -64,6 +64,30 @@ def custom_tracer_with_counter(call_counter, **kwargs):
     return decorator
 
 
+# Helper function for testing custom tracer without name parameter
+def custom_tracer_without_name_param(
+    run_type=None,
+    span_type=None,
+    input_processor=None,
+    output_processor=None,
+):
+    """Custom tracer implementation that doesn't accept the 'name' parameter."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            if isinstance(result, dict):
+                result["custom_tracer_without_name"] = True
+                if run_type:
+                    result["run_type"] = run_type
+            return result
+
+        return wrapper
+
+    return decorator
+
+
 # Define the test classes
 class TestClassForMethodTest:
     @traced()
@@ -163,3 +187,33 @@ def test_reapply_to_module_level_functions():
 
     # Verify both functions were processed
     assert call_counter["count"] == 2
+
+
+def test_custom_tracer_without_name_param():
+    """Test that a custom tracer without the 'name' parameter works correctly."""
+    TracingManager.reapply_traced_decorator(donothing_custom_tracer)
+
+    # Create a function with @traced
+    @traced(name="explicit_name")
+    def function_with_name():
+        return {"status": "original"}
+
+    # Initial call with default implementation
+    result1 = function_with_name()
+    assert result1 == {"status": "original"}
+
+    # Apply custom implementation that doesn't support 'name'
+    TracingManager.reapply_traced_decorator(custom_tracer_without_name_param)
+
+    # Create a new function with the same decorator
+    # This tests that new decorations use the custom implementation properly
+    @traced(name="this_will_be_ignored", run_type="special_run")
+    def another_function():
+        return {"status": "success"}
+
+    result3 = another_function()
+
+    # Verify parameters are correctly filtered
+    assert "custom_tracer_without_name" in result3
+    assert "run_type" in result3
+    assert result3["run_type"] == "special_run"
