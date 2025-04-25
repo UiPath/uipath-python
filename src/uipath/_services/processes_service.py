@@ -23,7 +23,7 @@ class ProcessesService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="processes_invoke", run_type="uipath")
     def invoke(
         self,
         name: str,
@@ -81,7 +81,7 @@ class ProcessesService(FolderContext, BaseService):
         return Job.model_validate(response.json()["value"][0])
 
     @infer_bindings()
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="processes_invoke", run_type="uipath")
     async def invoke_async(
         self,
         name: str,

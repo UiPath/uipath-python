@@ -125,6 +125,7 @@ def wait_for_tracers():
 
 
 def _opentelemetry_traced(
+    name: Optional[str] = None,
     run_type: Optional[str] = None,
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
@@ -133,9 +134,11 @@ def _opentelemetry_traced(
     """Default tracer implementation using OpenTelemetry."""
 
     def decorator(func):
+        trace_name = name if name is not None else func.__name__
+
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            with tracer.start_as_current_span(func.__name__) as span:
+            with tracer.start_as_current_span(trace_name) as span:
                 default_span_type = "function_call_sync"
                 span.set_attribute(
                     "span_type",
@@ -170,7 +173,7 @@ def _opentelemetry_traced(
 
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            with tracer.start_as_current_span(func.__name__) as span:
+            with tracer.start_as_current_span(trace_name) as span:
                 default_span_type = "function_call_async"
                 span.set_attribute(
                     "span_type",
@@ -205,7 +208,7 @@ def _opentelemetry_traced(
 
         @wraps(func)
         def generator_wrapper(*args, **kwargs):
-            with tracer.start_as_current_span(func.__name__) as span:
+            with tracer.start_as_current_span(trace_name) as span:
                 default_span_type = "function_call_generator_sync"
                 span.set_attribute(
                     "span_type",
@@ -246,7 +249,7 @@ def _opentelemetry_traced(
 
         @wraps(func)
         async def async_generator_wrapper(*args, **kwargs):
-            with tracer.start_as_current_span(func.__name__) as span:
+            with tracer.start_as_current_span(trace_name) as span:
                 default_span_type = "function_call_generator_async"
                 span.set_attribute(
                     "span_type",
@@ -298,6 +301,7 @@ def _opentelemetry_traced(
 
 
 def traced(
+    name: Optional[str] = None,
     run_type: Optional[str] = None,
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
@@ -325,6 +329,7 @@ def traced(
 
     # Store the parameters for later reapplication
     params = {
+        "name": name,
         "run_type": run_type,
         "span_type": span_type,
         "input_processor": input_processor,

@@ -22,7 +22,9 @@ class AssetsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     @infer_bindings()
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
+    )
     def retrieve(
         self,
         name: str,
@@ -58,7 +60,9 @@ class AssetsService(FolderContext, BaseService):
 
         return UserAsset.model_validate(response.json())
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
+    )
     async def retrieve_async(
         self,
         name: str,
@@ -86,7 +90,9 @@ class AssetsService(FolderContext, BaseService):
         return UserAsset.model_validate(response.json())
 
     @infer_bindings()
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
+    )
     def retrieve_credential(
         self,
         name: str,
@@ -122,7 +128,9 @@ class AssetsService(FolderContext, BaseService):
         return user_asset.credential_password
 
     @infer_bindings()
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
+    )
     async def retrieve_credential_async(
         self,
         name: str,
@@ -158,7 +166,7 @@ class AssetsService(FolderContext, BaseService):
 
         return user_asset.credential_password
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     def update(
         self,
         robot_asset: UserAsset,
@@ -187,7 +195,7 @@ class AssetsService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     async def update_async(
         self,
         robot_asset: UserAsset,

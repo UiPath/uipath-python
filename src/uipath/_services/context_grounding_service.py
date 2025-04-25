@@ -42,7 +42,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self._folders_service = folders_service
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_retrieve", run_type="uipath")
     def retrieve(
         self,
         name: str,
@@ -82,7 +82,7 @@ class ContextGroundingService(FolderContext, BaseService):
             None,
         )
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_retrieve", run_type="uipath")
     async def retrieve_async(
         self,
         name: str,
@@ -124,7 +124,7 @@ class ContextGroundingService(FolderContext, BaseService):
             None,
         )
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
     def retrieve_by_id(
         self,
         id: str,
@@ -154,7 +154,7 @@ class ContextGroundingService(FolderContext, BaseService):
             params=spec.params,
         ).json()
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
     async def retrieve_by_id_async(
         self,
         id: str,
@@ -187,7 +187,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return response.json()
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_search", run_type="uipath")
     def search(
         self,
         name: str,
@@ -234,7 +234,7 @@ class ContextGroundingService(FolderContext, BaseService):
             response.json()
         )
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_search", run_type="uipath")
     async def search_async(
         self,
         name: str,
@@ -284,7 +284,7 @@ class ContextGroundingService(FolderContext, BaseService):
             response.json()
         )
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_get_or_create_index", run_type="uipath")
     def get_or_create_index(
         self,
         name: str,
@@ -321,7 +321,7 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
         return ContextGroundingIndex.model_validate(response)
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_get_or_create_index", run_type="uipath")
     async def get_or_create_index_async(
         self,
         name: str,
@@ -360,7 +360,7 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
         return ContextGroundingIndex.model_validate(response)
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_ingest_data", run_type="uipath")
     def ingest_data(
         self,
         index: ContextGroundingIndex,
@@ -380,7 +380,7 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_ingest_data", run_type="uipath")
     async def ingest_data_async(
         self,
         index: ContextGroundingIndex,
@@ -400,7 +400,7 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_delete_index", run_type="uipath")
     def delete_index(
         self,
         index: ContextGroundingIndex,
@@ -420,7 +420,7 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="contextgrounding_delete_index", run_type="uipath")
     async def delete_index_async(
         self,
         index: ContextGroundingIndex,

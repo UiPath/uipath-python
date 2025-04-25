@@ -27,7 +27,7 @@ class JobsService(FolderContext, BaseService):
     @overload
     def resume(self, *, job_id: str, payload: Any) -> None: ...
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="jobs_resume", run_type="uipath")
     def resume(
         self,
         *,

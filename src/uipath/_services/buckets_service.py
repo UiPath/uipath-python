@@ -10,6 +10,11 @@ from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
+def _upload_from_memory_input_processor(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    inputs["content"] = "<Redacted>"
+    return inputs
+
+
 class BucketsService(FolderContext, BaseService):
     """Service for managing UiPath storage buckets.
 
@@ -20,7 +25,7 @@ class BucketsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="buckets_download", run_type="uipath")
     def download(
         self,
         bucket_key: str,
@@ -59,7 +64,7 @@ class BucketsService(FolderContext, BaseService):
                 file_content = request("GET", read_uri, headers=headers).content
             file.write(file_content)
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="buckets_upload", run_type="uipath")
     def upload(
         self,
         *,
@@ -111,7 +116,11 @@ class BucketsService(FolderContext, BaseService):
             else:
                 request("PUT", write_uri, headers=headers, files={"file": file})
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="buckets_upload_from_memory",
+        run_type="uipath",
+        input_processor=_upload_from_memory_input_processor,
+    )
     def upload_from_memory(
         self,
         *,
@@ -167,7 +176,7 @@ class BucketsService(FolderContext, BaseService):
             request("PUT", write_uri, headers=headers, content=content)
 
     @infer_bindings()
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="buckets_retrieve", run_type="uipath")
     def retrieve(self, name: str) -> Any:
         """Retrieve bucket information by its name.
 
@@ -192,7 +201,7 @@ class BucketsService(FolderContext, BaseService):
         return response.json()["value"][0]
 
     @infer_bindings()
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="buckets_retrieve", run_type="uipath")
     async def retrieve_async(self, name: str) -> Any:
         """Asynchronously retrieve bucket information by its name.
 
@@ -216,7 +225,7 @@ class BucketsService(FolderContext, BaseService):
 
         return response.json()["value"][0]
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="buckets_retrieve_by_key", run_type="uipath")
     def retrieve_by_key(self, key: str) -> Any:
         """Retrieve bucket information by its key.
 
@@ -236,7 +245,7 @@ class BucketsService(FolderContext, BaseService):
 
         return response.json()
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(name="buckets_retrieve_by_key", run_type="uipath")
     async def retrieve_by_key_async(self, key: str) -> Any:
         """Asynchronously retrieve bucket information by its key.
 

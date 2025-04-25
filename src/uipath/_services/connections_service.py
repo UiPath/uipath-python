@@ -73,7 +73,11 @@ class ConnectionsService(BaseService):
         except AttributeError as e:
             raise PluginNotFoundError(f"Plugin '{name}' is not installed") from e
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="connections_retrieve",
+        run_type="uipath",
+        hide_output=True,
+    )
     def retrieve(self, key: str) -> Connection:
         """Retrieve connection details by its key.
 
@@ -91,7 +95,11 @@ class ConnectionsService(BaseService):
         response = self.request(spec.method, url=spec.endpoint)
         return Connection.model_validate(response.json())
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="connections_retrieve",
+        run_type="uipath",
+        hide_output=True,
+    )
     async def retrieve_async(self, key: str) -> Connection:
         """Asynchronously retrieve connection details by its key.
 
@@ -109,7 +117,11 @@ class ConnectionsService(BaseService):
         response = await self.request_async(spec.method, url=spec.endpoint)
         return Connection.model_validate(response.json())
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="connections_retrieve_token",
+        run_type="uipath",
+        hide_output=True,
+    )
     def retrieve_token(self, key: str) -> ConnectionToken:
         """Retrieve an authentication token for a connection.
 
@@ -128,7 +140,11 @@ class ConnectionsService(BaseService):
         response = self.request(spec.method, url=spec.endpoint, params=spec.params)
         return ConnectionToken.model_validate(response.json())
 
-    @traced(run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="connections_retrieve_token",
+        run_type="uipath",
+        hide_output=True,
+    )
     async def retrieve_token_async(self, key: str) -> ConnectionToken:
         """Asynchronously retrieve an authentication token for a connection.
 
