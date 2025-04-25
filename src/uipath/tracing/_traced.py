@@ -51,8 +51,9 @@ class TracingManager:
 
         Args:
             tracer_implementation: A function that takes the same parameters as _opentelemetry_traced
-                                 and returns a decorator
+                                 and returns a decorator. If None, reverts to default implementation.
         """
+        tracer_implementation = tracer_implementation or _opentelemetry_traced
         cls._custom_tracer_implementation = tracer_implementation
 
         # Work with a copy of the registry to avoid modifying it during iteration
@@ -60,7 +61,10 @@ class TracingManager:
 
         for original_func, decorated_func, params in registry_copy:
             # Apply the new decorator with the same parameters
-            new_decorated_func = tracer_implementation(**params)(original_func)
+            supported_params = _get_supported_params(tracer_implementation, params)
+            new_decorated_func = tracer_implementation(**supported_params)(
+                original_func
+            )
 
             logger.debug(
                 f"Reapplying decorator to {original_func.__name__}, from {decorated_func.__name__}"
@@ -300,6 +304,36 @@ def _opentelemetry_traced(
     return decorator
 
 
+def _get_supported_params(tracer_impl, params):
+    """Extract the parameters supported by the tracer implementation.
+
+    Args:
+        tracer_impl: The tracer implementation function or callable
+        params: Dictionary of parameters to check
+
+    Returns:
+        Dictionary containing only parameters supported by the tracer implementation
+    """
+    supported_params = {}
+    if hasattr(tracer_impl, "__code__"):
+        # For regular functions
+        impl_signature = inspect.signature(tracer_impl)
+        for param_name, param_value in params.items():
+            if param_name in impl_signature.parameters and param_value is not None:
+                supported_params[param_name] = param_value
+    elif callable(tracer_impl):
+        # For callable objects
+        impl_signature = inspect.signature(tracer_impl.__call__)
+        for param_name, param_value in params.items():
+            if param_name in impl_signature.parameters and param_value is not None:
+                supported_params[param_name] = param_value
+    else:
+        # If we can't inspect, pass all parameters and let the function handle it
+        supported_params = params
+
+    return supported_params
+
+
 def traced(
     name: Optional[str] = None,
     run_type: Optional[str] = None,
@@ -343,8 +377,12 @@ def traced(
     )
 
     def decorator(func):
-        # Decorate the function
-        decorated_func = tracer_impl(**params)(func)
+        # Check which parameters are supported by the tracer_impl
+        supported_params = _get_supported_params(tracer_impl, params)
+
+        # Decorate the function with only supported parameters
+        decorated_func = tracer_impl(**supported_params)(func)
+
         # Register both original and decorated function with parameters
         TracingManager.register_traced_function(func, decorated_func, params)
         return decorated_func
