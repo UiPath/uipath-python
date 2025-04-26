@@ -44,7 +44,7 @@ def test_init_script_detection(runner: CliRunner, temp_dir: str) -> None:
         # Test empty directory
         result = runner.invoke(init)
         assert result.exit_code == 1
-        assert "No Python files found in the directory" in result.output
+        assert "No python files found in the current directory" in result.output
 
         # Test single Python file
         with open("main.py", "w") as f:
@@ -60,7 +60,7 @@ def test_init_script_detection(runner: CliRunner, temp_dir: str) -> None:
 
         result = runner.invoke(init)
         assert result.exit_code == 1
-        assert "Multiple Python files found in the current directory" in result.output
+        assert "Multiple python files found in the current directory" in result.output
         assert "Please specify the entrypoint" in result.output
 
 
@@ -134,8 +134,8 @@ def test_init_error_handling(runner: CliRunner, temp_dir: str) -> None:
 
             result = runner.invoke(init, ["invalid.py"])
             assert result.exit_code == 1
-            assert "Error generating configuration" in result.output
-            assert "SyntaxError" in result.output  # Should show stacktrace
+            assert "Error creating configuration" in result.output
+            assert "invalid syntax" in result.output  # Should show stacktrace
 
         # Test with generate_args raising exception
         with patch("uipath._cli.cli_init.generate_args") as mock_generate:
@@ -150,9 +150,9 @@ def test_init_error_handling(runner: CliRunner, temp_dir: str) -> None:
                 result = runner.invoke(init, ["script.py"])
                 assert result.exit_code == 1
                 assert (
-                    "Error generating configuration: Generation error" in result.output
+                    "Error creating configuration file: Generation error"
+                    in result.output
                 )
-                assert "Traceback" in result.output
 
 
 def test_init_config_generation(runner: CliRunner, temp_dir: str) -> None:

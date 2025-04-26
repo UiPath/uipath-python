@@ -5,6 +5,7 @@ from typing import Optional
 import click
 import requests
 
+from .._utils._console import ConsoleLogger
 from ._models import TenantsAndOrganizationInfoResponse, TokenData
 from ._oidc_utils import get_auth_config
 from ._utils import (
@@ -13,6 +14,8 @@ from ._utils import (
     update_auth_file,
     update_env_file,
 )
+
+console = ConsoleLogger()
 
 
 class PortalService:
@@ -49,18 +52,21 @@ class PortalService:
             self._tenants_and_organizations = result
             return result
         elif response.status_code == 401:
-            raise Exception("Unauthorized")
+            console.error("Unauthorized")
         else:
-            raise Exception(
+            console.error(
                 f"Failed to get tenants and organizations: {response.status_code} {response.text}"
             )
+        # Can't reach here, console.error exits, linting
+        raise Exception("Failed to get tenants")
 
     def get_uipath_orchestrator_url(self) -> str:
         if self._tenants_and_organizations is None:
             self._tenants_and_organizations = self.get_tenants_and_organizations()
         organization = self._tenants_and_organizations.get("organization")
         if organization is None:
-            raise Exception("Organization not found")
+            console.error("Organization not found.")
+            return ""
         account_name = organization.get("name")
         return f"https://{self.domain}.uipath.com/{account_name}/{self.selected_tenant}/orchestrator_"
 
@@ -80,9 +86,11 @@ class PortalService:
         if response.ok:
             return response.json()
         elif response.status_code == 401:
-            raise Exception("Unauthorized")
+            console.error("Unauthorized")
         else:
-            raise Exception(f"Failed to refresh token: {response.status_code}")
+            console.error(f"Failed to refresh token: {response.status_code}")
+        # Can't reach here, console.error exits, linting
+        raise Exception("Failed to refresh get token")
 
     def ensure_valid_token(self):
         """Ensure the access token is valid and refresh it if necessary.
@@ -146,15 +154,15 @@ def select_tenant(
     domain: str, tenants_and_organizations: TenantsAndOrganizationInfoResponse
 ):
     tenant_names = [tenant["name"] for tenant in tenants_and_organizations["tenants"]]
-    click.echo("Available tenants:")
-    for idx, name in enumerate(tenant_names):
-        click.echo(f"  {idx}: {name}")
+    console.display_options(tenant_names, "Select tenant:")
     tenant_idx = (
-        0 if len(tenant_names) == 1 else click.prompt("Select tenant", type=int)
+        0
+        if len(tenant_names) == 1
+        else console.prompt("Select tenant number", type=int)
     )
     tenant_name = tenant_names[tenant_idx]
     account_name = tenants_and_organizations["organization"]["name"]
-    click.echo(f"Selected tenant: {tenant_name}")
+    console.info(f"Selected tenant: {click.style(tenant_name, fg='cyan')}")
 
     update_env_file(
         {

@@ -104,7 +104,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""",
 @click.argument("input", required=False, default="{}")
 @click.option("--resume", is_flag=True, help="Resume execution from a previous state")
 def run(entrypoint: Optional[str], input: Optional[str], resume: bool) -> None:
-    """Execute a Python script with JSON input."""
+    """Execute the project."""
     # Process through middleware chain
     result = Middlewares.next("run", entrypoint, input, resume)
 

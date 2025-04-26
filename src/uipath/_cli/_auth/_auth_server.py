@@ -39,7 +39,6 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                 content_length = int(self.headers["Content-Length"])
                 post_data = self.rfile.read(content_length)
                 token_data = json.loads(post_data.decode("utf-8"))
-                click.echo("Received authentication information")
 
                 self.send_response(200)
                 self.end_headers()

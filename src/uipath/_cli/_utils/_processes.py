@@ -1,19 +1,16 @@
 import json
 import urllib.parse
-from typing import Any, Optional
+from typing import Any
 
-import click
 import requests
 
-from ..spinner import Spinner
+from ._console import ConsoleLogger
+
+console = ConsoleLogger()
 
 
 def get_release_info(
-    base_url: str,
-    token: str,
-    package_name: str,
-    folder_id: str,
-    spinner: Optional[Spinner] = None,
+    base_url: str, token: str, package_name: str, folder_id: str
 ) -> None | tuple[Any, Any] | tuple[None, None]:
     headers = {
         "Authorization": f"Bearer {token}",
@@ -29,21 +26,13 @@ def get_release_info(
             release_key = data["value"][0]["Key"]
             return release_id, release_key
         except KeyError:
-            if spinner:
-                spinner.stop()
-            click.echo("\n⚠️ Warning: Failed to deserialize release data")
+            console.warning("Warning: Failed to deserialize release data")
             return None, None
         except IndexError:
-            if spinner:
-                spinner.stop()
-            click.echo(
-                "\n❌ Process not found in your workspace. Try publishing it first."
+            console.error(
+                "Error: No process found in your workspace. Please publish the process first."
             )
-            click.get_current_context().exit(1)
-
+            return None, None
     else:
-        if spinner:
-            spinner.stop()
-        click.echo("\n⚠️ Warning: Failed to fetch release info")
-        click.echo(f"Status code: {response.status_code}")
+        console.warning(f"Warning: Failed to fetch release info {response.status_code}")
         return None, None

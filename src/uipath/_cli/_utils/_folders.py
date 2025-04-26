@@ -1,22 +1,20 @@
 from typing import Optional, Tuple
 
-import click
 import requests
 
-from ..spinner import Spinner
+from ._console import ConsoleLogger
+
+console = ConsoleLogger()
 
 
 def get_personal_workspace_info(
-    base_url: str, token: str, spinner: Optional[Spinner] = None
+    base_url: str, token: str
 ) -> Tuple[Optional[str], Optional[str]]:
     user_url = f"{base_url}/orchestrator_/odata/Users/UiPath.Server.Configuration.OData.GetCurrentUserExtended?$expand=PersonalWorkspace"
     user_response = requests.get(user_url, headers={"Authorization": f"Bearer {token}"})
 
     if user_response.status_code != 200:
-        if spinner:
-            spinner.stop()
-        click.echo("❌ Failed to get user info. Please try reauthenticating.")
-        click.get_current_context().exit(1)
+        console.error("Error: Failed to fetch user info. Please try reauthenticating.")
 
     user_data = user_response.json()
     feed_id = user_data.get("PersonalWorskpaceFeedId")
