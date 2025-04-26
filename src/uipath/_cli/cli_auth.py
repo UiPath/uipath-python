@@ -12,9 +12,10 @@ from ._auth._oidc_utils import get_auth_config, get_auth_url
 from ._auth._portal_service import PortalService, select_tenant
 from ._auth._utils import update_auth_file, update_env_file
 from ._utils._common import environment_options
-from .spinner import Spinner
+from ._utils._console import ConsoleLogger
 
 load_dotenv()
+console = ConsoleLogger()
 
 
 def is_port_in_use(port: int) -> bool:
@@ -37,8 +38,8 @@ def set_port():
         if is_port_in_use(port_option_one):
             if is_port_in_use(port_option_two):
                 if is_port_in_use(port_option_three):
-                    raise RuntimeError(
-                        "❌ All configured ports are in use. Please close applications using ports or configure different ports."
+                    console.error(
+                        "All configured ports are in use. Please close applications using ports or configure different ports."
                     )
                 else:
                     port = port_option_three
@@ -57,51 +58,49 @@ def set_port():
 @environment_options
 def auth(domain="alpha"):
     """Authenticate with UiPath Cloud Platform."""
-    spinner = Spinner("Authenticating with UiPath...")
-    spinner.start()
-    portal_service = PortalService(domain)
-    if (
-        os.getenv("UIPATH_URL")
-        and os.getenv("UIPATH_TENANT_ID")
-        and os.getenv("UIPATH_ORGANIZATION_ID")
-    ):
-        try:
-            portal_service.ensure_valid_token()
-            spinner.stop()
-            click.echo(
-                click.style("✓ ", fg="green", bold=True) + "Authentication successful"
-            )
-            return
-        except Exception:
-            spinner.stop()
-            click.echo(
-                "Authentication not found or expired. Please authenticate again."
-            )
+    with console.spinner("Authenticating with UiPath ..."):
+        portal_service = PortalService(domain)
+        if (
+            os.getenv("UIPATH_URL")
+            and os.getenv("UIPATH_TENANT_ID")
+            and os.getenv("UIPATH_ORGANIZATION_ID")
+        ):
+            try:
+                portal_service.ensure_valid_token()
+                console.success(
+                    "Authentication successful.",
+                )
+                return
+            except Exception:
+                console.info(
+                    "Authentication token is invalid. Please reauthenticate.",
+                )
 
-    auth_url, code_verifier, state = get_auth_url(domain)
+        auth_url, code_verifier, state = get_auth_url(domain)
 
-    webbrowser.open(auth_url, 1)
-    auth_config = get_auth_config()
-    spinner.stop()
-    print(
-        "If a browser window did not open, please open the following URL in your browser:"
-    )
-    print(auth_url)
+        webbrowser.open(auth_url, 1)
+        auth_config = get_auth_config()
 
-    server = HTTPSServer(port=auth_config["port"])
-    token_data = server.start(state, code_verifier, domain)
-
-    if token_data:
-        portal_service.update_token_data(token_data)
-        update_auth_file(token_data)
-        access_token = token_data["access_token"]
-        update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
-
-        tenants_and_organizations = portal_service.get_tenants_and_organizations()
-        select_tenant(domain, tenants_and_organizations)
-        click.echo(
-            click.style("✓ ", fg="green", bold=True)
-            + "Authentication completed successfully!"
+        console.link(
+            "If a browser window did not open, please open the following URL in your browser:",
+            auth_url,
         )
-    else:
-        click.echo("❌ Authentication failed")
+
+        server = HTTPSServer(port=auth_config["port"])
+        token_data = server.start(state, code_verifier, domain)
+
+        if token_data:
+            portal_service.update_token_data(token_data)
+            update_auth_file(token_data)
+            access_token = token_data["access_token"]
+            update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
+
+            tenants_and_organizations = portal_service.get_tenants_and_organizations()
+            select_tenant(domain, tenants_and_organizations)
+            console.success(
+                "Authentication successful.",
+            )
+        else:
+            console.error(
+                "Authentication failed. Please try again.",
+            )

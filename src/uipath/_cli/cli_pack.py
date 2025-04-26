@@ -12,7 +12,9 @@ try:
 except ImportError:
     import tomli as tomllib
 
-from .spinner import Spinner
+from ._utils._console import ConsoleLogger
+
+console = ConsoleLogger()
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 
@@ -21,7 +23,7 @@ def validate_config_structure(config_data):
     required_fields = ["entryPoints"]
     for field in required_fields:
         if field not in config_data:
-            raise Exception(f"uipath.json is missing the required field: {field}")
+            console.error(f"uipath.json is missing the required field: {field}.")
 
 
 def check_config(directory):
@@ -29,9 +31,9 @@ def check_config(directory):
     toml_path = os.path.join(directory, "pyproject.toml")
 
     if not os.path.isfile(config_path):
-        raise Exception("uipath.json not found, please run `uipath init`")
+        console.error("uipath.json not found, please run `uipath init`.")
     if not os.path.isfile(toml_path):
-        raise Exception("pyproject.toml not found")
+        console.error("pyproject.toml not found.")
 
     with open(config_path, "r") as config_file:
         config_data = json.load(config_file)
@@ -206,7 +208,7 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
     # Get bindings from uipath.json if available
     config_path = os.path.join(directory, "uipath.json")
     if not os.path.exists(config_path):
-        raise Exception("uipath.json not found, please run `uipath init`")
+        console.error("uipath.json not found, please run `uipath init`.")
 
     # Define the allowlist of file extensions to include
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml"]
@@ -305,18 +307,16 @@ def read_toml_project(file_path: str) -> dict[str, any]:
     with open(file_path, "rb") as f:
         content = tomllib.load(f)
         if "project" not in content:
-            raise Exception("pyproject.toml is missing the required field: project")
+            console.error("pyproject.toml is missing the required field: project.")
         if "name" not in content["project"]:
-            raise Exception(
-                "pyproject.toml is missing the required field: project.name"
-            )
+            console.error("pyproject.toml is missing the required field: project.name.")
         if "description" not in content["project"]:
-            raise Exception(
-                "pyproject.toml is missing the required field: project.description"
+            console.error(
+                "pyproject.toml is missing the required field: project.description."
             )
         if "version" not in content["project"]:
-            raise Exception(
-                "pyproject.toml is missing the required field: project.version"
+            console.error(
+                "pyproject.toml is missing the required field: project.version."
             )
 
         return {
@@ -330,63 +330,80 @@ def read_toml_project(file_path: str) -> dict[str, any]:
 def get_project_version(directory):
     toml_path = os.path.join(directory, "pyproject.toml")
     if not os.path.exists(toml_path):
-        click.echo("⚠️ Warning: No pyproject.toml found. Using default version 0.0.1")
+        console.warning("pyproject.toml not found. Using default version 0.0.1")
         return "0.0.1"
     toml_data = read_toml_project(toml_path)
     return toml_data["version"]
 
 
+def display_project_info(config):
+    max_label_length = max(
+        len(label) for label in ["Name", "Version", "Description", "Authors"]
+    )
+
+    max_length = 100
+    description = config["description"]
+    if len(description) >= max_length:
+        description = description[: max_length - 3] + " ..."
+
+    console.log(f"{'Name'.ljust(max_label_length)}: {config['project_name']}")
+    console.log(f"{'Version'.ljust(max_label_length)}: {config['version']}")
+    console.log(f"{'Description'.ljust(max_label_length)}: {description}")
+    console.log(f"{'Authors'.ljust(max_label_length)}: {config['authors']}")
+
+
 @click.command()
 @click.argument("root", type=str, default="./")
 def pack(root):
+    """Pack the project."""
     version = get_project_version(root)
 
     while not os.path.isfile(os.path.join(root, "uipath.json")):
-        click.echo(
-            "❌ uipath.json not found. Please run `uipath init` in the project directory."
+        console.error(
+            "uipath.json not found. Please run `uipath init` in the project directory."
         )
-        return
     config = check_config(root)
     if not config["project_name"] or config["project_name"].strip() == "":
-        raise Exception("❌ Project name cannot be empty")
+        console.error(
+            "Project name cannot be empty. Please specify a name in pyproject.toml."
+        )
 
     if not config["description"] or config["description"].strip() == "":
-        raise Exception("❌ Project description cannot be empty")
+        console.error(
+            "Project description cannot be empty. Please specify a description in pyproject.toml."
+        )
 
     if not config["authors"] or config["authors"].strip() == "":
-        raise Exception("❌ Project authors cannot be empty")
+        console.error(
+            'Project authors cannot be empty. Please specify authors in pyproject.toml:\n    authors = [{ name = "John Doe" }]'
+        )
 
     invalid_chars = ["&", "<", ">", '"', "'", ";"]
     for char in invalid_chars:
         if char in config["project_name"]:
-            raise Exception(f"❌ Project name contains invalid character: '{char}'")
+            console.error(f"Project name contains invalid character: '{char}'")
 
     for char in invalid_chars:
         if char in config["description"]:
-            raise Exception(
-                f"❌ Project description contains invalid character: '{char}'"
+            console.error(f"Project description contains invalid character: '{char}'")
+
+    with console.spinner("Packaging project ..."):
+        try:
+            pack_fn(
+                config["project_name"],
+                config["description"],
+                config["entryPoints"],
+                version or config["version"],
+                config["authors"],
+                root,
             )
-    spinner = Spinner(
-        f"Packaging project {config['project_name']}:{version or config['version']} description {config['description']} authored by {config['authors']}"
-    )
-    try:
-        spinner.start()
-        pack_fn(
-            config["project_name"],
-            config["description"],
-            config["entryPoints"],
-            version or config["version"],
-            config["authors"],
-            root,
-        )
-        spinner.stop()
-        click.echo(
-            click.style("✓ ", fg="green", bold=True) + "Package created successfully!"
-        )
-    except Exception as e:
-        spinner.stop()
-        click.echo(f"\n❌ Error: {str(e)}")
-        click.Abort()
+            display_project_info(config)
+            console.success("Project successfully packaged.")
+
+        except Exception as e:
+            console.error(
+                f"Failed to create package {config['project_name']}.{version or config['version']}: {str(e)}"
+            )
 
 
 if __name__ == "__main__":
