@@ -20,7 +20,7 @@ def generate_env_file(target_directory):
 
     if not os.path.exists(env_path):
         relative_path = os.path.relpath(env_path, target_directory)
-        console.info(f"Created {relative_path} file.")
+        console.success(f"Created {relative_path} file.")
         with open(env_path, "w") as f:
             f.write("UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE\n")
             f.write("UIPATH_URL=https://cloud.uipath.com/ACCOUNT_NAME/TENANT_NAME\n")
