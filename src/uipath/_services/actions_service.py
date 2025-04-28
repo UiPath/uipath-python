@@ -22,10 +22,10 @@ def _create_spec(
     data: Optional[Dict[str, Any]],
     action_schema: Optional[ActionSchema],
     title: str,
-    app_key: str = "",
-    app_version: int = -1,
-    app_folder_key: str = "",
-    app_folder_path: str = "",
+    app_key: Optional[str] = None,
+    app_version: Optional[int] = 1,
+    app_folder_key: Optional[str] = None,
+    app_folder_path: Optional[str] = None,
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -144,7 +144,9 @@ def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
     )
 
 
-def folder_headers(app_folder_key: str, app_folder_path: str) -> Dict[str, str]:
+def folder_headers(
+    app_folder_key: Optional[str], app_folder_path: Optional[str]
+) -> Dict[str, str]:
     headers = {}
     if app_folder_key:
         headers[HEADER_FOLDER_KEY] = app_folder_key
@@ -182,12 +184,12 @@ class ActionsService(FolderContext, BaseService):
         title: str,
         data: Optional[Dict[str, Any]] = None,
         *,
-        app_name: str = "",
-        app_key: str = "",
-        app_folder_path: str = "",
-        app_folder_key: str = "",
-        app_version: int = -1,
-        assignee: str = "",
+        app_name: Optional[str] = None,
+        app_key: Optional[str] = None,
+        app_folder_path: Optional[str] = None,
+        app_folder_key: Optional[str] = None,
+        app_version: Optional[int] = 1,
+        assignee: Optional[str] = None,
     ) -> Action:
         """Creates a new action asynchronously.
 
@@ -210,6 +212,8 @@ class ActionsService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
+        app_folder_path = app_folder_path if app_folder_path else self._folder_path
+
         (key, action_schema) = (
             (app_key, None)
             if app_key
@@ -240,12 +244,12 @@ class ActionsService(FolderContext, BaseService):
         title: str,
         data: Optional[Dict[str, Any]] = None,
         *,
-        app_name: str = "",
-        app_key: str = "",
-        app_folder_path: str = "",
-        app_folder_key: str = "",
-        app_version: int = -1,
-        assignee: str = "",
+        app_name: Optional[str] = None,
+        app_key: Optional[str] = None,
+        app_folder_path: Optional[str] = None,
+        app_folder_key: Optional[str] = None,
+        app_version: Optional[int] = 1,
+        assignee: Optional[str] = None,
     ) -> Action:
         """Creates a new action synchronously.
 
@@ -268,6 +272,8 @@ class ActionsService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
+        app_folder_path = app_folder_path if app_folder_path else self._folder_path
+
         (key, action_schema) = (
             (app_key, None)
             if app_key
@@ -343,7 +349,7 @@ class ActionsService(FolderContext, BaseService):
         return Action.model_validate(response.json())
 
     async def _get_app_key_and_schema_async(
-        self, app_name: str, app_folder_path: str
+        self, app_name: Optional[str], app_folder_path: Optional[str]
     ) -> Tuple[str, Optional[ActionSchema]]:
         """Retrieves an application's key and schema asynchronously.
 
@@ -386,7 +392,7 @@ class ActionsService(FolderContext, BaseService):
             raise Exception("Failed to deserialize action schema") from KeyError
 
     def _get_app_key_and_schema(
-        self, app_name: str, app_folder_path: str
+        self, app_name: Optional[str], app_folder_path: Optional[str]
     ) -> Tuple[str, Optional[ActionSchema]]:
         if not app_name:
             raise Exception("appName or appKey is required")
