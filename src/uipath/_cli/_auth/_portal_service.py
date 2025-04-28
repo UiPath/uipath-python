@@ -145,19 +145,16 @@ class PortalService:
         url_try_enable_first_run = f"{or_base_url}/api/StudioWeb/TryEnableFirstRun"
         url_acquire_license = f"{or_base_url}/api/StudioWeb/AcquireLicense"
 
-        [try_enable_first_run_response, acquire_license_response] = [
-            requests.post(
-                url,
-                headers={"Authorization": f"Bearer {self.access_token}"},
-            )
-            for url in [url_try_enable_first_run, url_acquire_license]
-        ]
-
-        if (
-            try_enable_first_run_response.status_code != 200
-            or acquire_license_response.status_code != 200
-        ):
-            raise Exception("Failed to post auth")
+        try:
+            [try_enable_first_run_response, acquire_license_response] = [
+                requests.post(
+                    url,
+                    headers={"Authorization": f"Bearer {self.access_token}"},
+                )
+                for url in [url_try_enable_first_run, url_acquire_license]
+            ]
+        except Exception:
+            pass
 
     def has_initialized_auth(self):
         try:
