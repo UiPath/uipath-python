@@ -96,10 +96,16 @@ def auth(domain="alpha"):
             update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
 
             tenants_and_organizations = portal_service.get_tenants_and_organizations()
-            select_tenant(domain, tenants_and_organizations)
-            console.success(
-                "Authentication successful.",
-            )
+            base_url = select_tenant(domain, tenants_and_organizations)
+            try:
+                portal_service.post_auth(base_url)
+                console.success(
+                    "Authentication successful.",
+                )
+            except Exception:
+                console.error(
+                    "Could not prepare the environment. Please try again.",
+                )
         else:
             console.error(
                 "Authentication failed. Please try again.",
