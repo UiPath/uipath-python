@@ -17,7 +17,7 @@ def get_release_info(
         "x-uipath-organizationunitid": str(folder_id),
     }
 
-    release_url = f"{base_url}/orchestrator_/odata/Releases/UiPath.Server.Configuration.OData.ListReleases?$select=Id,Key&$top=1&$filter=(contains(Name,%27{urllib.parse.quote(package_name)}%27))&$orderby=Name%20asc"
+    release_url = f"{base_url}/orchestrator_/odata/Releases/UiPath.Server.Configuration.OData.ListReleases?$select=Id,Key&$top=1&$filter=Name%20eq%20%27{urllib.parse.quote(package_name)}%27"
     response = requests.get(release_url, headers=headers)
     if response.status_code == 200:
         try:

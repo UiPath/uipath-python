@@ -16,7 +16,7 @@ def test_init_env_file_creation(runner: CliRunner, temp_dir: str) -> None:
         # Test creation of new .env
         result = runner.invoke(init)
         assert result.exit_code == 0
-        assert "Created .env file" in result.output
+        assert "Created '.env' file" in result.output
 
         # Use relative path instead of temp_dir
         with open(".env", "r") as f:
