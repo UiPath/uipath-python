@@ -29,9 +29,7 @@ theme:
     - content.tooltips
     - navigation.footer
     - navigation.indexes
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.top
+    - navigation.sections
     - search.highlight
     - search.share
     - search.suggest
@@ -40,31 +38,31 @@ theme:
 
 nav:
   - Getting Started:
-      - index.md
-      - CLI: getting_started_cli.md
-      - SDK: getting_started_sdk.md
-      - Agent: getting_started_agent.md
-  - UiPath SDK:
-      - sdk.md
-      - Actions: actions.md
-      - Assets: assets.md
-      - Buckets: buckets.md
-      - Connections: connections.md
-      - Context Grounding: context_grounding.md
-      - Jobs: jobs.md
-      - Queues: queues.md
-      - Processes: processes.md
-  - UiPathLangchain:
+      - getting_started/index.md
+      - CLI: getting_started/cli.md
+      - SDK: getting_started/sdk.md
+      - Agent: getting_started/agent.md
+  - UiPath Langchain:
       - plugins/uipath-langchain-python/README.md
       - Chat models: plugins/uipath-langchain-python/docs/chat_models.md
       - Context Grounding Store: plugins/uipath-langchain-python/docs/context_grounding_vector_store.md
       - Context Grounding Retriever: plugins/uipath-langchain-python/docs/context_grounding_retriever.md
-      - Interrupt models: plugins/uipath-langchain-python/docs/interrupt_models.md
+      - Human In The Loop: plugins/uipath-langchain-python/docs/human_in_the_loop.md
+  - UiPath SDK:
+      - uipath_sdk/index.md
+      - Actions: uipath_sdk/actions.md
+      - Assets: uipath_sdk/assets.md
+      - Buckets: uipath_sdk/buckets.md
+      - Context Grounding: uipath_sdk/context_grounding.md
+      - Jobs: uipath_sdk/jobs.md
+      - Queues: uipath_sdk/queues.md
+      - Processes: uipath_sdk/processes.md
   - How To Contribute: CONTRIBUTING.md
 
 plugins:
   - search
   - mkdocstrings
+  - termynal
 
 markdown_extensions:
   - attr_list

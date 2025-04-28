@@ -12,16 +12,18 @@ To use the UiPath SDK with a LangGraph-based project:
 
 2. Initialize the project by running the following command in your activated virtual environment:
 
+    <!-- termynal -->
     ```shell
-    uipath init
+    $ uipath init
     ```
 
     > **Note:**: The `uipath init` command will execute your code to analyze its structure and collect information about inputs and outputs.
 
 3. Package and publish your project:
+    <!-- termynal -->
     ```shell
-    uipath pack
-    uipath publish
+    $ uipath pack
+    $ uipath publish
     ```
 
 This will create and publish your package to the UiPath platform, making it available for use in your automation workflows.
