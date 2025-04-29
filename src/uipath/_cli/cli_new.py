@@ -68,9 +68,8 @@ def new(name: str):
         ctx = click.get_current_context()
         init_cmd = ctx.parent.command.get_command(ctx, "init")
         ctx.invoke(init_cmd)
-        console.hint(
-            """Run project: uipath run main.py '{"message": "Hello World!"}'"""
-        )
+        run_command = """uipath run main.py '{"message": "Hello World!"}'"""
+        console.hint(f"""Run project: {click.style(run_command, fg="cyan")}""")
 
 
 if __name__ == "__main__":

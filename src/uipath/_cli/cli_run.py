@@ -39,14 +39,14 @@ def python_run_middleware(
         return MiddlewareResult(
             should_continue=False,
             info_message="""Error: No entrypoint specified. Please provide a path to a Python script.
-Usage: `uipath run <entrypoint_path> <input_arguments>`""",
+Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""",
         )
 
     if not os.path.exists(entrypoint):
         return MiddlewareResult(
             should_continue=False,
             error_message=f"""Error: Script not found at path {entrypoint}.
-Usage: `uipath run <entrypoint_path> <input_arguments>`""",
+Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""",
         )
 
     try:
@@ -74,7 +74,6 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""",
                 reference_id=env.get("UIPATH_JOB_KEY") or str(uuid4()),
             )
             context.logs_min_level = env.get("LOG_LEVEL", "INFO")
-
             async with UiPathRuntime.from_context(context) as runtime:
                 await runtime.execute()
 
@@ -91,7 +90,6 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""",
         )
     except Exception as e:
         # Handle unexpected errors
-        console.error("Unexpected error in Python runtime middleware")
         return MiddlewareResult(
             should_continue=False,
             error_message=f"Error: Unexpected error occurred - {str(e)}",
@@ -103,8 +101,23 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""",
 @click.argument("entrypoint", required=False)
 @click.argument("input", required=False, default="{}")
 @click.option("--resume", is_flag=True, help="Resume execution from a previous state")
-def run(entrypoint: Optional[str], input: Optional[str], resume: bool) -> None:
+@click.option(
+    "-f",
+    "--file",
+    required=False,
+    type=click.Path(exists=True),
+    help="File path for the .json input",
+)
+def run(
+    entrypoint: Optional[str], input: Optional[str], resume: bool, file: Optional[str]
+) -> None:
     """Execute the project."""
+    if file:
+        _, file_extension = os.path.splitext(file)
+        if file_extension != ".json":
+            console.error("Input file extension must be '.json'.")
+        with open(file) as f:
+            input = f.read()
     # Process through middleware chain
     result = Middlewares.next("run", entrypoint, input, resume)
 
