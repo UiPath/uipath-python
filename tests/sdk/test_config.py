@@ -1,7 +1,7 @@
-import pydantic_core
 import pytest
 
 from uipath import UiPath
+from uipath.models.errors import BaseUrlMissingError
 
 
 class TestSdkConfig:
@@ -10,23 +10,13 @@ class TestSdkConfig:
         monkeypatch.delenv("UIPATH_ACCESS_TOKEN", raising=False)
         monkeypatch.delenv("UNATTENDED_USER_ACCESS_TOKEN", raising=False)
 
-        with pytest.raises(pydantic_core._pydantic_core.ValidationError) as exc_info:
+        with pytest.raises(BaseUrlMissingError) as exc_info:
             UiPath()
 
-        assert exc_info.value.errors(include_url=False) == [
-            {
-                "type": "string_type",
-                "loc": ("base_url",),
-                "msg": "Input should be a valid string",
-                "input": None,
-            },
-            {
-                "type": "string_type",
-                "loc": ("secret",),
-                "msg": "Input should be a valid string",
-                "input": None,
-            },
-        ]
+        assert (
+            str(exc_info.value)
+            == "Authentication required. Please run \033[1muipath auth\033[22m."
+        )
 
     def test_config_from_env(self, monkeypatch):
         monkeypatch.setenv("UIPATH_URL", "https://example.com")

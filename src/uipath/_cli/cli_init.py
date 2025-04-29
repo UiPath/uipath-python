@@ -109,4 +109,4 @@ def init(entrypoint: str) -> None:
 
             console.success(f"Created '{config_path}' file.")
         except Exception as e:
-            console.error(f"Error creating configuration file: {str(e)}")
+            console.error(f"Error creating configuration file:\n {str(e)}")

@@ -2,6 +2,7 @@ from os import environ as env
 from typing import Optional
 
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 from ._config import Config
 from ._execution_context import ExecutionContext
@@ -23,6 +24,7 @@ from ._utils.constants import (
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
 )
+from .models.errors import BaseUrlMissingError, SecretMissingError
 
 load_dotenv()
 
@@ -42,10 +44,17 @@ class UiPath:
             or env.get(ENV_UIPATH_ACCESS_TOKEN)
         )
 
-        self._config = Config(
-            base_url=base_url_value,  # type: ignore
-            secret=secret_value,  # type: ignore
-        )
+        try:
+            self._config = Config(
+                base_url=base_url_value,  # type: ignore
+                secret=secret_value,  # type: ignore
+            )
+        except ValidationError as e:
+            for error in e.errors():
+                if error["loc"][0] == "base_url":
+                    raise BaseUrlMissingError() from e
+                elif error["loc"][0] == "secret":
+                    raise SecretMissingError() from e
         self._folders_service: Optional[FolderService] = None
 
         setup_logging(debug)

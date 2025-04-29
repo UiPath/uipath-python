@@ -3,6 +3,7 @@ from .actions import Action
 from .assets import UserAsset
 from .connections import Connection, ConnectionToken
 from .context_grounding import ContextGroundingQueryResponse
+from .errors import BaseUrlMissingError, SecretMissingError
 from .exceptions import IngestionInProgressException
 from .interrupt_models import (
     CreateAction,
@@ -39,4 +40,6 @@ __all__ = [
     "WaitAction",
     "CreateAction",
     "IngestionInProgressException",
+    "BaseUrlMissingError",
+    "SecretMissingError",
 ]

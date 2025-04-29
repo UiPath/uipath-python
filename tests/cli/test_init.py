@@ -150,7 +150,7 @@ def test_init_error_handling(runner: CliRunner, temp_dir: str) -> None:
                 result = runner.invoke(init, ["script.py"])
                 assert result.exit_code == 1
                 assert (
-                    "Error creating configuration file: Generation error"
+                    "⠋ Initializing UiPath project ...❌ Error creating configuration file:\n Generation error\n"
                     in result.output
                 )
 
