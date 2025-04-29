@@ -75,7 +75,7 @@ plugins:
       prompt_literal_start:
         - "$"
         - ">"
-
+  - social
 markdown_extensions:
   - attr_list
   - md_in_html
@@ -103,5 +103,8 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.magiclink
   - pymdownx.snippets
+  - pymdownx.fancylists
   - pymdownx.tabbed:
       alternate_style: true
+  - toc:
+      title: On this page

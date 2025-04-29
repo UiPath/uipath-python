@@ -23,3 +23,6 @@ wheels/
 **/docs/plugins/.*
 **/docs/quick_start_images/*
 **/docs/quick_start_images/.*
+
+.cache/*
+.cache
