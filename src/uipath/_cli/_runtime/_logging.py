@@ -51,8 +51,9 @@ class LogsInterceptor:
         self.original_level = self.root_logger.level
         self.original_handlers = list(self.root_logger.handlers)
 
-        self.original_stdout: Optional[TextIO] = None
-        self.original_stderr: Optional[TextIO] = None
+        # Store system stdout/stderr
+        self.original_stdout = cast(TextIO, sys.stdout)
+        self.original_stderr = cast(TextIO, sys.stderr)
 
         self.log_handler: Union[PersistentLogsHandler, logging.StreamHandler[TextIO]]
 
@@ -73,10 +74,6 @@ class LogsInterceptor:
         self.log_handler.setLevel(self.numeric_min_level)
         self.logger = logging.getLogger("runtime")
         self.patched_loggers: set[str] = set()
-
-        # Store system stdout/stderr
-        self.sys_stdout = cast(TextIO, sys.__stdout__)
-        self.sys_stderr = cast(TextIO, sys.__stderr__)
 
     def _clean_all_handlers(self, logger: logging.Logger) -> None:
         """Remove ALL handlers from a logger except ours."""
@@ -111,8 +108,6 @@ class LogsInterceptor:
 
     def _redirect_stdout_stderr(self) -> None:
         """Redirect stdout and stderr to the logging system."""
-        self.original_stdout = sys.stdout
-        self.original_stderr = sys.stderr
 
         class LoggerWriter:
             def __init__(
@@ -129,15 +124,32 @@ class LogsInterceptor:
                 self.sys_file = sys_file  # Store reference to system stdout/stderr
 
             def write(self, message: str) -> None:
-                if message and message.strip() and self.level >= self.min_level:
-                    self.logger.log(self.level, message.rstrip())
+                self.buffer += message
+                while "\n" in self.buffer:
+                    line, self.buffer = self.buffer.split("\n", 1)
+                    # Only log if the message is not empty and the level is sufficient
+                    if line and self.level >= self.min_level:
+                        # Use _log to avoid potential recursive logging if logging methods are overridden
+                        self.logger._log(self.level, line, ())
 
             def flush(self) -> None:
-                pass
+                # Log any remaining content in the buffer on flush
+                if self.buffer and self.level >= self.min_level:
+                    self.logger._log(self.level, self.buffer, ())
+                self.buffer = ""
 
             def fileno(self) -> int:
                 # Return the file descriptor of the original system stdout/stderr
-                return self.sys_file.fileno()
+                try:
+                    return self.sys_file.fileno()
+                except Exception:
+                    return -1
+
+            def isatty(self) -> bool:
+                return hasattr(self.sys_file, "isatty") and self.sys_file.isatty()
+
+            def writable(self) -> bool:
+                return True
 
         # Set up stdout and stderr loggers with propagate=False
         stdout_logger = logging.getLogger("stdout")
@@ -150,10 +162,10 @@ class LogsInterceptor:
 
         # Use the min_level in the LoggerWriter to filter messages
         sys.stdout = LoggerWriter(
-            stdout_logger, logging.INFO, self.numeric_min_level, self.sys_stdout
+            stdout_logger, logging.INFO, self.numeric_min_level, self.original_stdout
         )
         sys.stderr = LoggerWriter(
-            stderr_logger, logging.ERROR, self.numeric_min_level, self.sys_stderr
+            stderr_logger, logging.ERROR, self.numeric_min_level, self.original_stderr
         )
 
     def teardown(self) -> None:
@@ -174,11 +186,11 @@ class LogsInterceptor:
             if handler not in self.root_logger.handlers:
                 self.root_logger.addHandler(handler)
 
+        self.log_handler.close()
+
         if self.original_stdout and self.original_stderr:
             sys.stdout = self.original_stdout
             sys.stderr = self.original_stderr
-
-        self.log_handler.close()
 
     def __enter__(self):
         self.setup()
