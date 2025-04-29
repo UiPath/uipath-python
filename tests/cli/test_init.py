@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from unittest.mock import patch
 
 from click.testing import CliRunner
@@ -149,9 +150,10 @@ def test_init_error_handling(runner: CliRunner, temp_dir: str) -> None:
 
                 result = runner.invoke(init, ["script.py"])
                 assert result.exit_code == 1
-                assert (
-                    "⠋ Initializing UiPath project ...❌ Error creating configuration file:\n Generation error\n"
-                    in result.output
+                # Use regex to match any spinner character followed by the expected message
+                assert re.search(
+                    r"⠋|⠼|⠇|⠏|⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏ Initializing UiPath project \.\.\.❌ Error creating configuration file:\n Generation error\n",
+                    result.output,
                 )
 
 

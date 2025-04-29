@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.0.31"
+version = "2.0.32"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -56,6 +56,8 @@ dev = [
   "mkdocs-material>=9.6.7",
   "mkdocstrings>=0.29.0",
   "mkdocstrings-python>=1.16.5",
+  "termynal>=0.13.0",
+  "mkdocs-simple-hooks>=0.1.5",
 ]
 
 [project.optional-dependencies]
@@ -80,6 +82,7 @@ ignore-decorators = []
 "*" = ["E501"]
 "tests/**" = ["D"]
 "*_test.py" = ["D"]
+"docs/**" = ["D"]
 # TODO: Remove this once the documentation for CLI is updated
 "uipath/_cli/**" = ["D"]
 # TODO: Remove this once model documentation is added

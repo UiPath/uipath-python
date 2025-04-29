@@ -6,6 +6,9 @@ repo_url: https://github.com/UiPath/uipath-python
 
 copyright: Copyright &copy; 2025 UiPath
 
+extra_css:
+  - stylesheets/extra.css
+
 theme:
   name: material
   palette:
@@ -23,15 +26,18 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
   features:
+    - content.code.copy
     - content.footnote.tooltips
     - content.tabs.link
     - content.tooltips
+    - navigation.expand
     - navigation.footer
-    - navigation.indexes
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.top
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.sections
     - search.highlight
     - search.share
     - search.suggest
@@ -39,42 +45,62 @@ theme:
   logo: assets/uipath-logo.svg
 
 nav:
-  - Getting Started:
-      - index.md
-      - CLI: getting_started_cli.md
-      - SDK: getting_started_sdk.md
-      - Agent: getting_started_agent.md
+  - UiPath Langchain SDK:
+      - langchain/index.md
+      - Getting Started: index.md
+      - Chat Models: langchain/chat_models.md
+      - Context Grounding: langchain/context_grounding.md
+      - Human In The Loop: langchain/human_in_the_loop.md
   - UiPath SDK:
-      - sdk.md
-      - Actions: actions.md
-      - Assets: assets.md
-      - Buckets: buckets.md
-      - Connections: connections.md
-      - Context Grounding: context_grounding.md
-      - Jobs: jobs.md
-      - Queues: queues.md
-      - Processes: processes.md
-  - UiPathLangchain:
-      - plugins/uipath-langchain-python/README.md
-      - Chat models: plugins/uipath-langchain-python/docs/chat_models.md
-      - Context Grounding Store: plugins/uipath-langchain-python/docs/context_grounding_vector_store.md
-      - Context Grounding Retriever: plugins/uipath-langchain-python/docs/context_grounding_retriever.md
-      - Interrupt models: plugins/uipath-langchain-python/docs/interrupt_models.md
+      - core/index.md
+      - Getting Started: core/getting_started.md
+      - Services:
+        - Actions: core/actions.md
+        - Assets: core/assets.md
+        - Buckets: core/buckets.md
+        - Context Grounding: core/context_grounding.md
+        - Jobs: core/jobs.md
+        - Queues: core/queues.md
+        - Processes: core/processes.md
   - How To Contribute: CONTRIBUTING.md
 
 plugins:
   - search
   - mkdocstrings
+  - mkdocs-simple-hooks:
+      hooks:
+        on_pre_build: "docs.hooks:redirect_index"
+  - termynal:
+      prompt_literal_start:
+        - "$"
+        - ">"
 
 markdown_extensions:
   - attr_list
   - md_in_html
   - admonition
+  - pymdownx.blocks.tab:
+      alternate_style: true
+  - pymdownx.blocks.admonition:
+      types:
+        - note
+        - attention
+        - caution
+        - danger
+        - error
+        - tip
+        - hint
+        - warning
+        - info
+        - check
   - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
   - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  - pymdownx.magiclink
   - pymdownx.snippets
   - pymdownx.tabbed:
       alternate_style: true

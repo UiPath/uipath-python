@@ -170,12 +170,6 @@ class ActionsService(FolderContext, BaseService):
     """
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
-        """Initializes the ActionsService with configuration and execution context.
-
-        Args:
-            config: The configuration object containing API settings
-            execution_context: The execution context for the service
-        """
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="actions_create", run_type="uipath")
@@ -351,17 +345,6 @@ class ActionsService(FolderContext, BaseService):
     async def _get_app_key_and_schema_async(
         self, app_name: Optional[str], app_folder_path: Optional[str]
     ) -> Tuple[str, Optional[ActionSchema]]:
-        """Retrieves an application's key and schema asynchronously.
-
-        Args:
-            app_name: The name of the application to retrieve
-
-        Returns:
-            Tuple[str, Optional[ActionSchema]]: A tuple containing the application key and schema
-
-        Raises:
-            Exception: If app_name is not provided
-        """
         if not app_name:
             raise Exception("appName or appKey is required")
         spec = _retrieve_app_key_spec(app_name=app_name)

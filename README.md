@@ -8,6 +8,8 @@ A Python SDK that enables programmatic interaction with UiPath Platform services
 
 Use the [UiPath LangChain SDK](https://github.com/UiPath/uipath-langchain-python) to pack and publish LangGraph Agents.
 
+This [quickstart guide](https://uipath.github.io/uipath-python/) walks you through deploying your first agent to UiPath Cloud Platform.
+
 ## Table of Contents
 
 -   [Installation](#installation)
@@ -180,4 +182,4 @@ To properly use the CLI for packaging and publishing, your project should includ
 
 ### Setting Up a Development Environment
 
-Please read [CONTRIBUTING.md](./CONTRIBUTING.md) before submitting a pull request.
+Please read [CONTRIBUTING.md](https://github.com/UiPath/uipath-python/blob/main/CONTRIBUTING.md) before submitting a pull request.
