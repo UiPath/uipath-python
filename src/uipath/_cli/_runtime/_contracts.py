@@ -412,7 +412,7 @@ class UiPathBaseRuntime(ABC):
             raise
         finally:
             # Restore original logging
-            if self.context.job_id and self.logs_interceptor:
+            if self.logs_interceptor:
                 self.logs_interceptor.teardown()
 
             await self.cleanup()
