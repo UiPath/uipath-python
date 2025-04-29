@@ -10,12 +10,17 @@
 :root {
     --md-primary-bg-color: #ffffff;
     --md-primary-fg-color: #182027;
-    --md-typeset-a-color: #0067df;
+    --md-typeset-a-color: #66adff;
 }
 
 
-[data-md-color-scheme=slate] {
+[data-md-color-scheme=default]
+ {
     --md-typeset-a-color: #0067df;
+}
+
+[data-md-color-scheme=slate] {
+    --md-typeset-a-color: #66adff;
 
     .md-header {
         background-color: #182027;
@@ -26,7 +31,6 @@
 body[data-md-color-scheme=slate] {
     background-color: #182027 !important;
 }
-
 
 .md-header {
     --md-primary-bg-color: #182027;
@@ -43,7 +47,7 @@ body[data-md-color-scheme=slate] {
 
         &:hover {
             background-color: #ffffff;
-            border-color: #0067df;
+            border-color: #66adff;
         }
     }
 
@@ -55,7 +59,7 @@ body[data-md-color-scheme=slate] {
 
             &:hover {
                 background-color: #182027;
-                border-color: #0067df;
+                border-color: #66adff;
             }
         }
 
