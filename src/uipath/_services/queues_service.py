@@ -224,9 +224,7 @@ class QueuesService(FolderContext, BaseService):
     def _list_items_spec(self) -> RequestSpec:
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(
-                "/orchestrator_/odata/Queues/UiPathODataSvc.GetQueueItems"
-            ),
+            endpoint=Endpoint("/orchestrator_/odata/QueueItems"),
         )
 
     def _create_item_spec(self, item: Union[Dict[str, Any], QueueItem]) -> RequestSpec:
