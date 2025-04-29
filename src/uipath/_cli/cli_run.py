@@ -1,6 +1,5 @@
 # type: ignore
 import asyncio
-import logging
 import os
 import traceback
 from os import environ as env
@@ -16,9 +15,10 @@ from ._runtime._contracts import (
     UiPathTraceContext,
 )
 from ._runtime._runtime import UiPathRuntime
+from ._utils._console import ConsoleLogger
 from .middlewares import MiddlewareResult, Middlewares
 
-logger = logging.getLogger(__name__)
+console = ConsoleLogger()
 load_dotenv()
 
 
@@ -91,7 +91,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments>`""",
         )
     except Exception as e:
         # Handle unexpected errors
-        logger.exception("Unexpected error in Python runtime middleware")
+        console.error("Unexpected error in Python runtime middleware")
         return MiddlewareResult(
             should_continue=False,
             error_message=f"Error: Unexpected error occurred - {str(e)}",
@@ -115,18 +115,22 @@ def run(entrypoint: Optional[str], input: Optional[str], resume: bool) -> None:
 
     # Handle result from middleware
     if result.error_message:
-        click.echo(result.error_message, err=True)
+        console.error(result.error_message, include_traceback=True)
         if result.should_include_stacktrace:
-            click.echo(traceback.format_exc(), err=True)
+            console.error(traceback.format_exc())
         click.get_current_context().exit(1)
 
     if result.info_message:
-        click.echo(result.info_message)
+        console.info(result.info_message)
 
     # If middleware chain completed but didn't handle the request
     if result.should_continue:
-        click.echo("Error: Could not process the request with any available handler.")
-        click.get_current_context().exit(1)
+        console.error(
+            "Error: Could not process the request with any available handler."
+        )
+
+    if not result.should_continue and not result.error_message:
+        console.success("Successful execution.")
 
 
 if __name__ == "__main__":
