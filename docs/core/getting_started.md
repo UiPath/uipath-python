@@ -4,28 +4,37 @@
 
 -   Python 3.10 or higher
 -   `pip` or `uv` package manager
--   A UiPath Platform account with appropriate permissions
+-   A UiPath Cloud Platform account with appropriate permissions
 
 ## Getting Started with the CLI
+
 //// tab | Linux, macOS, Windows Bash
+
 <!-- termynal -->
+
 ```shell
 > mkdir example
 > cd example
 ```
+
 ////
 
 //// tab | Windows PowerShell
+
 <!-- termynal -->
+
 ```powershell
 > New-Item -ItemType Directory -Path example
 > Set-Location example
 ```
+
 ////
 
 //// tab | uv
     new: true
+
 <!-- termynal -->
+
 ```shell
 # Initialize a new uv project in the current directory
 > uv init . --python 3.10
@@ -49,10 +58,13 @@ Activate with: source .venv/bin/activate
 > uipath --version
 uipath version 2.0.29
 ```
+
 ////
 
 //// tab | pip
+
 <!-- termynal -->
+
 ```shell
 # Create a new virtual environment
 > python -m venv .venv
@@ -72,6 +84,7 @@ uipath version 2.0.29
 > uipath --version
 uipath version 2.0.29
 ```
+
 ////
 
 ### Authentication
@@ -79,6 +92,7 @@ uipath version 2.0.29
 To debug your script locally and publish your project, you need to authenticate with UiPath:
 
 <!-- termynal -->
+
 ```shell
 > uipath auth
 ⠋ Authenticating with UiPath ...
@@ -132,6 +146,7 @@ def main(input: EchoIn) -> EchoOut:
 To create a UiPath project, run the following command in your terminal:
 
 <!-- termynal -->
+
 ```shell
 > uipath init
 ⠋ Initializing UiPath project ...
@@ -147,6 +162,7 @@ The `uipath init` command executes your `main.py` file to analyze its structure 
 This command creates a `uipath.json` file containing the project metadata.
 
 <!-- termynal -->
+
 ```shell
 # Debug your project
 > uipath run main.py '{"message": "test"}'
@@ -164,6 +180,7 @@ authors = [{ name = "Your Name", email = "your.email@uipath.com" }]
 Then, package your project:
 
 <!-- termynal -->
+
 ```shell
 > uipath pack
 ⠋ Packaging project ...
@@ -177,6 +194,7 @@ Authors    : Your Name
 Finally, publish your package:
 
 <!-- termynal -->
+
 ```shell
 > uipath publish
 ⠋ Fetching available package feeds...
@@ -216,6 +234,7 @@ def main():
 ### Verifying the Execution
 
 <!-- termynal -->
+
 ```shell
 > uipath run main.py
 ```
