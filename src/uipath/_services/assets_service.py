@@ -188,12 +188,14 @@ class AssetsService(FolderContext, BaseService):
             robot_asset, folder_key=folder_key, folder_path=folder_path
         )
 
-        return self.request(
+        response = self.request(
             spec.method,
             url=spec.endpoint,
             content=spec.content,
             headers=spec.headers,
         )
+
+        return response.json()
 
     @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     async def update_async(
@@ -217,12 +219,14 @@ class AssetsService(FolderContext, BaseService):
             robot_asset, folder_key=folder_key, folder_path=folder_path
         )
 
-        return await self.request_async(
+        response = await self.request_async(
             spec.method,
             url=spec.endpoint,
             content=spec.content,
             headers=spec.headers,
         )
+
+        return response.json()
 
     @property
     def custom_headers(self) -> Dict[str, str]:
