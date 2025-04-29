@@ -17,3 +17,9 @@ wheels/
 
 **/playground.py
 **/.idea
+
+**/docs/index.md
+**/docs/plugins/*
+**/docs/plugins/.*
+**/docs/quick_start_images/*
+**/docs/quick_start_images/.*

@@ -57,6 +57,7 @@ dev = [
   "mkdocstrings>=0.29.0",
   "mkdocstrings-python>=1.16.5",
   "termynal>=0.13.0",
+  "mkdocs-simple-hooks>=0.1.5",
 ]
 
 [project.optional-dependencies]
@@ -81,6 +82,7 @@ ignore-decorators = []
 "*" = ["E501"]
 "tests/**" = ["D"]
 "*_test.py" = ["D"]
+"docs/**" = ["D"]
 # TODO: Remove this once the documentation for CLI is updated
 "uipath/_cli/**" = ["D"]
 # TODO: Remove this once model documentation is added
