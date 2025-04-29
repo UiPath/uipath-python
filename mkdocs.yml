@@ -43,6 +43,7 @@ theme:
     - search.suggest
     - toc.follow
   logo: assets/uipath-logo.svg
+  favicon: assets/favicon.png
 
 nav:
   - UiPath Langchain SDK:
