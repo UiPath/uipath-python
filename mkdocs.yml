@@ -48,7 +48,7 @@ theme:
 
 nav:
   - UiPath Langchain SDK:
-      - Getting Started: langchain/getting_started.md
+      - Getting Started: index.md
       - Sample agents: https://github.com/UiPath/uipath-langchain-python/tree/main/samples
       - Chat Models: langchain/chat_models.md
       - Context Grounding: langchain/context_grounding.md
