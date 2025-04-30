@@ -30,7 +30,7 @@ def get_release_info(
             return None, None
         except IndexError:
             console.error(
-                "Error: No process found in your workspace. Please publish the process first."
+                f"Error: No process with name '{package_name}' found in your workspace. Please publish the process first."
             )
             return None, None
     else:
