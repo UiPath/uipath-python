@@ -64,6 +64,7 @@ nav:
         - Queues: core/queues.md
         - Processes: core/processes.md
   - How To Contribute: CONTRIBUTING.md
+  - Release Policy: release_policy.md
 
 plugins:
   - search
