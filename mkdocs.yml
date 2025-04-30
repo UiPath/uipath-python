@@ -47,13 +47,11 @@ theme:
 
 nav:
   - UiPath Langchain SDK:
-      - langchain/index.md
       - Getting Started: index.md
       - Chat Models: langchain/chat_models.md
       - Context Grounding: langchain/context_grounding.md
       - Human In The Loop: langchain/human_in_the_loop.md
   - UiPath SDK:
-      - core/index.md
       - Getting Started: core/getting_started.md
       - Services:
         - Actions: core/actions.md
