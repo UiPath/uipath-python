@@ -9,6 +9,9 @@ copyright: Copyright &copy; 2025 UiPath
 extra_css:
   - stylesheets/extra.css
 
+extra_javascript:
+  - javascripts/extra.js
+
 theme:
   name: material
   palette:
