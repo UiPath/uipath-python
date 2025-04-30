@@ -1,0 +1,38 @@
+name: Publish Docs
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish-docs:
+    runs-on: "ubuntu-24.04"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Setup venv
+        run: |
+          uv venv
+          uv sync --all-extras
+
+      - name: Clone plugins
+        run: |
+          git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-langchain-python plugins/uipath-langchain-python
+
+      - name: Symlink plugin docs
+        run: |
+          mkdir -p docs/plugins
+          ln -s ../../plugins/uipath-langchain-python docs/plugins/uipath-langchain-python
+
+      - name: Publish Docs
+        run: |
+          ls -la docs
+          uv run mkdocs gh-deploy --force
