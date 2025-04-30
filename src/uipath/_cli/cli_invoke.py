@@ -43,7 +43,7 @@ def _read_project_name() -> str:
 @click.argument("entrypoint", required=False)
 @click.argument("input", required=False, default="{}")
 def invoke(entrypoint: Optional[str], input: Optional[str]) -> None:
-    """Invoke a published agent."""
+    """Invoke an agent published in my workspace."""
     with console.spinner("Loading configuration ..."):
         current_path = os.getcwd()
         load_dotenv(os.path.join(current_path, ".env"), override=True)
