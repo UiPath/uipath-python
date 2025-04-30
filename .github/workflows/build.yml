@@ -46,20 +46,3 @@ jobs:
           uv publish
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.token }}
-
-      - name: Clone plugins
-        if: ${{ steps.check_version.outputs.modified }} == 'true'
-        run: |
-          git clone https://x-access-token:${{ secrets.repo_access }}@github.com/UiPath/uipath-langchain-python plugins/uipath-langchain-python
-
-      - name: Symlink plugin docs
-        if: ${{ steps.check_version.outputs.modified }} == 'true'
-        run: |
-          mkdir -p docs/plugins
-          ln -s ../../plugins/uipath-langchain-python docs/plugins/uipath-langchain-python
-
-      - name: Publish Docs
-        if: ${{ steps.check_version.outputs.modified }} == 'true'
-        run: |
-          ls -la docs
-          uv run mkdocs gh-deploy --force
