@@ -58,6 +58,7 @@ dev = [
   "mkdocstrings-python>=1.16.5",
   "termynal>=0.13.0",
   "mkdocs-simple-hooks>=0.1.5",
+  "mkdocs-click>=0.9.0",
 ]
 
 [project.optional-dependencies]

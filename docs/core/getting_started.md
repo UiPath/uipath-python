@@ -153,8 +153,7 @@ To create a UiPath project, run the following command in your terminal:
 ✓  Created 'uipath.json' file.
 ```
 
-/// admonition
-    type: warning
+/// warning
 
 The `uipath init` command executes your `main.py` file to analyze its structure and collect information about inputs and outputs.
 ///
