@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 import click
-import requests
+import httpx
 
 from .._utils._console import ConsoleLogger
 from ._models import TenantsAndOrganizationInfoResponse, TokenData
@@ -16,6 +16,7 @@ from ._utils import (
 )
 
 console = ConsoleLogger()
+client = httpx.Client(follow_redirects=True)
 
 
 class PortalService:
@@ -44,10 +45,10 @@ class PortalService:
 
     def get_tenants_and_organizations(self) -> TenantsAndOrganizationInfoResponse:
         url = f"https://{self.domain}.uipath.com/{self.prt_id}/portal_/api/filtering/leftnav/tenantsAndOrganizationInfo"
-        response = requests.get(
+        response = client.get(
             url, headers={"Authorization": f"Bearer {self.access_token}"}
         )
-        if response.ok:
+        if response.status_code < 400:
             result = response.json()
             self._tenants_and_organizations = result
             return result
@@ -82,8 +83,8 @@ class PortalService:
 
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-        response = requests.post(url, data=data, headers=headers)
-        if response.ok:
+        response = client.post(url, data=data, headers=headers)
+        if response.status_code < 400:
             return response.json()
         elif response.status_code == 401:
             console.error("Unauthorized")
@@ -147,7 +148,7 @@ class PortalService:
 
         try:
             [try_enable_first_run_response, acquire_license_response] = [
-                requests.post(
+                client.post(
                     url,
                     headers={"Authorization": f"Bearer {self.access_token}"},
                 )

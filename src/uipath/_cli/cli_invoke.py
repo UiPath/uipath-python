@@ -4,7 +4,7 @@ import os
 from typing import Optional
 
 import click
-import requests
+import httpx
 from dotenv import load_dotenv
 
 from ._utils._console import ConsoleLogger
@@ -21,6 +21,7 @@ from ._utils._processes import get_release_info
 logger = logging.getLogger(__name__)
 load_dotenv()
 console = ConsoleLogger()
+client = httpx.Client(follow_redirects=True)
 
 
 def _read_project_name() -> str:
@@ -74,7 +75,7 @@ def invoke(entrypoint: Optional[str], input: Optional[str]) -> None:
             "x-uipath-organizationunitid": str(personal_workspace_folder_id),
         }
 
-        response = requests.post(url, json=payload, headers=headers)
+        response = client.post(url, json=payload, headers=headers)
 
     if response.status_code == 201:
         job_key = None

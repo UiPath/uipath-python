@@ -2,11 +2,12 @@ import json
 import urllib.parse
 from typing import Any
 
-import requests
+import httpx
 
 from ._console import ConsoleLogger
 
 console = ConsoleLogger()
+client = httpx.Client(follow_redirects=True)
 
 
 def get_release_info(
@@ -18,7 +19,7 @@ def get_release_info(
     }
 
     release_url = f"{base_url}/orchestrator_/odata/Releases/UiPath.Server.Configuration.OData.ListReleases?$select=Id,Key&$top=1&$filter=Name%20eq%20%27{urllib.parse.quote(package_name)}%27"
-    response = requests.get(release_url, headers=headers)
+    response = client.get(release_url, headers=headers)
     if response.status_code == 200:
         try:
             data = json.loads(response.text)
