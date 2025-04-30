@@ -3,7 +3,7 @@ import json
 import os
 
 import click
-import requests
+import httpx
 from dotenv import load_dotenv
 
 from ._utils._common import get_env_vars
@@ -12,6 +12,7 @@ from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
 
 console = ConsoleLogger()
+client = httpx.Client(follow_redirects=True)
 
 
 def get_most_recent_package():
@@ -33,7 +34,7 @@ def get_available_feeds(
     base_url: str, headers: dict[str, str]
 ) -> list[tuple[str, str]]:
     url = f"{base_url}/orchestrator_/api/PackageFeeds/GetFeeds"
-    response = requests.get(url, headers=headers)
+    response = httpx.get(url, headers=headers)
     if response.status_code != 200:
         console.error(
             f"Failed to fetch available feeds. Please check your connection. Status code: {response.status_code} {response.text}"
@@ -122,7 +123,7 @@ def publish(feed):
 
         with open(package_to_publish_path, "rb") as f:
             files = {"file": (package_to_publish_path, f, "application/octet-stream")}
-            response = requests.post(url, headers=headers, files=files)
+            response = client.post(url, headers=headers, files=files)
 
     if response.status_code == 200:
         console.success("Package published successfully!")
