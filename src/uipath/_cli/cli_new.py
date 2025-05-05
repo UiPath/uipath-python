@@ -65,10 +65,9 @@ def new(name: str):
         console.success("Created 'main.py' file.")
         generate_pyproject(directory, name)
         console.success("Created 'pyproject.toml' file.")
-        ctx = click.get_current_context()
-        init_cmd = ctx.parent.command.get_command(ctx, "init")
-        ctx.invoke(init_cmd)
+        init_command = """uipath init"""
         run_command = """uipath run main.py '{"message": "Hello World!"}'"""
+        console.hint(f""" Initialize project: {click.style(init_command, fg="cyan")}""")
         console.hint(f"""Run project: {click.style(run_command, fg="cyan")}""")
 
 
