@@ -5,6 +5,7 @@ from typing import Optional
 import click
 import httpx
 
+from ..._utils._errors import handle_errors
 from .._utils._console import ConsoleLogger
 from ._models import TenantsAndOrganizationInfoResponse, TokenData
 from ._oidc_utils import get_auth_config
@@ -49,21 +50,15 @@ class PortalService:
 
     def get_tenants_and_organizations(self) -> TenantsAndOrganizationInfoResponse:
         url = f"https://{self.domain}.uipath.com/{self.prt_id}/portal_/api/filtering/leftnav/tenantsAndOrganizationInfo"
-        response = client.get(
-            url, headers={"Authorization": f"Bearer {self.access_token}"}
-        )
-        if response.status_code < 400:
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+
+        with handle_errors():
+            response = client.get(url, headers=headers)
+
             result = response.json()
             self._tenants_and_organizations = result
+
             return result
-        elif response.status_code == 401:
-            console.error("Unauthorized")
-        else:
-            console.error(
-                f"Failed to get tenants and organizations: {response.status_code} {response.text}"
-            )
-        # Can't reach here, console.error exits, linting
-        raise Exception("Failed to get tenants")
 
     def get_uipath_orchestrator_url(self) -> str:
         if self._tenants_and_organizations is None:
