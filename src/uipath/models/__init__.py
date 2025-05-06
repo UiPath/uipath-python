@@ -3,6 +3,7 @@ from .actions import Action
 from .assets import UserAsset
 from .connections import Connection, ConnectionToken
 from .context_grounding import ContextGroundingQueryResponse
+from .context_grounding_index import ContextGroundingIndex
 from .errors import BaseUrlMissingError, SecretMissingError
 from .exceptions import IngestionInProgressException
 from .interrupt_models import (
@@ -25,6 +26,7 @@ __all__ = [
     "Action",
     "UserAsset",
     "ContextGroundingQueryResponse",
+    "ContextGroundingIndex",
     "Process",
     "QueueItem",
     "CommitType",

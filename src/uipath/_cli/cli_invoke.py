@@ -43,8 +43,23 @@ def _read_project_name() -> str:
 @click.command()
 @click.argument("entrypoint", required=False)
 @click.argument("input", required=False, default="{}")
-def invoke(entrypoint: Optional[str], input: Optional[str]) -> None:
+@click.option(
+    "-f",
+    "--file",
+    required=False,
+    type=click.Path(exists=True),
+    help="File path for the .json input",
+)
+def invoke(
+    entrypoint: Optional[str], input: Optional[str], file: Optional[str]
+) -> None:
     """Invoke an agent published in my workspace."""
+    if file:
+        _, file_extension = os.path.splitext(file)
+        if file_extension != ".json":
+            console.error("Input file extension must be '.json'.")
+        with open(file) as f:
+            input = f.read()
     with console.spinner("Loading configuration ..."):
         current_path = os.getcwd()
         load_dotenv(os.path.join(current_path, ".env"), override=True)
