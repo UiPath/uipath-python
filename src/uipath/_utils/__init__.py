@@ -1,4 +1,5 @@
 from ._endpoint import Endpoint
+from ._errors import handle_errors
 from ._infer_bindings import get_inferred_bindings_names, infer_bindings
 from ._logs import setup_logging
 from ._request_override import header_folder
@@ -16,4 +17,5 @@ __all__ = [
     "header_user_agent",
     "user_agent_value",
     "UiPathUrl",
+    "handle_errors",
 ]
