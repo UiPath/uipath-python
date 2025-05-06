@@ -20,7 +20,7 @@ from tenacity import (
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._utils import user_agent_value
+from .._utils import handle_errors, user_agent_value
 from .._utils.constants import HEADER_USER_AGENT
 
 
@@ -38,17 +38,29 @@ class BaseService:
         self._config = config
         self._execution_context = execution_context
         self._tenant_scope_client = Client(
-            base_url=self._config.base_url, headers=Headers(self.default_headers)
+            base_url=self._config.base_url,
+            headers=Headers(self.default_headers),
+            proxy="https://127.0.0.1:8080",
+            verify=False,
         )
         self._tenant_scope_client_async = AsyncClient(
-            base_url=self._config.base_url, headers=Headers(self.default_headers)
+            base_url=self._config.base_url,
+            headers=Headers(self.default_headers),
+            proxy="https://127.0.0.1:8080",
+            verify=False,
         )
         org_scope_base_url = self.__get_org_scope_base_url()
         self._org_scope_client = Client(
-            base_url=org_scope_base_url, headers=self.default_headers
+            base_url=org_scope_base_url,
+            headers=self.default_headers,
+            proxy="https://127.0.0.1:8080",
+            verify=False,
         )
         self._org_scope_client_async = AsyncClient(
-            base_url=org_scope_base_url, headers=self.default_headers
+            base_url=org_scope_base_url,
+            headers=self.default_headers,
+            proxy="https://127.0.0.1:8080",
+            verify=False,
         )
 
         self._logger.debug(f"HEADERS: {self.default_headers}")
@@ -96,8 +108,9 @@ class BaseService:
         headers = kwargs.get("headers", {})
         headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = self._tenant_scope_client.request(method, url, **kwargs)
-        response.raise_for_status()
+        with handle_errors():
+            response = self._tenant_scope_client.request(method, url, **kwargs)
+            response.raise_for_status()
 
         return response
 
@@ -142,8 +155,11 @@ class BaseService:
         headers = kwargs.get("headers", {})
         headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = await self._tenant_scope_client_async.request(method, url, **kwargs)
-        response.raise_for_status()
+        with handle_errors():
+            response = await self._tenant_scope_client_async.request(
+                method, url, **kwargs
+            )
+            response.raise_for_status()
 
         return response
 
@@ -181,8 +197,9 @@ class BaseService:
         headers = kwargs.get("headers", {})
         headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = self._org_scope_client.request(method, url, **kwargs)
-        response.raise_for_status()
+        with handle_errors():
+            response = self._org_scope_client.request(method, url, **kwargs)
+            response.raise_for_status()
 
         return response
 
@@ -220,8 +237,9 @@ class BaseService:
         headers = kwargs.get("headers", {})
         headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = await self._org_scope_client_async.request(method, url, **kwargs)
-        response.raise_for_status()
+        with handle_errors():
+            response = await self._org_scope_client_async.request(method, url, **kwargs)
+            response.raise_for_status()
 
         return response
 

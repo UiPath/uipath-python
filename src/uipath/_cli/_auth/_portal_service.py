@@ -16,7 +16,11 @@ from ._utils import (
 )
 
 console = ConsoleLogger()
-client = httpx.Client(follow_redirects=True)
+client = httpx.Client(
+    follow_redirects=True,
+    proxy="http://127.0.0.1:8080",
+    verify=False,
+)
 
 
 class PortalService:
