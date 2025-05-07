@@ -64,6 +64,7 @@ nav:
         - Actions: core/actions.md
         - Assets: core/assets.md
         - Buckets: core/buckets.md
+        - Connections: core/connections.md
         - Context Grounding: core/context_grounding.md
         - Jobs: core/jobs.md
         - Queues: core/queues.md
