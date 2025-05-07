@@ -201,6 +201,14 @@ def generate_package_descriptor_content(entryPoints):
     return package_descriptor_content
 
 
+def is_venv_dir(d):
+    return (
+        os.path.exists(os.path.join(d, "Scripts", "activate"))
+        if os.name == "nt"
+        else os.path.exists(os.path.join(d, "bin", "activate"))
+    )
+
+
 def pack_fn(projectName, description, entryPoints, version, authors, directory):
     operate_file = generate_operate_file(entryPoints)
     entrypoints_file = generate_entrypoints_file(entryPoints)
@@ -264,8 +272,12 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
 
         # Walk through directory and add all files with extensions in the allowlist
         for root, dirs, files in os.walk(directory):
-            # Skip all directories that start with .
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            # Skip all directories that start with . or are a venv
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".") and not is_venv_dir(os.path.join(root, d))
+            ]
 
             for file in files:
                 file_extension = os.path.splitext(file)[1].lower()
