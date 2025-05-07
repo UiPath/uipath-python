@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from pydantic import TypeAdapter
 
@@ -8,8 +8,6 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils.constants import (
-    HEADER_FOLDER_KEY,
-    HEADER_FOLDER_PATH,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
 from ..models import IngestionInProgressException
@@ -440,36 +438,19 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-    @property
-    def custom_headers(self) -> Dict[str, str]:
-        self._folder_key = self._folder_key or (
-            self._folders_service.retrieve_key_by_folder_path(self._folder_path)
-            if self._folder_path
-            else None
-        )
-
-        if self._folder_key is None:
-            raise ValueError(
-                f"Neither the folder key nor the folder path is set ({HEADER_FOLDER_KEY}, {HEADER_FOLDER_PATH})"
-            )
-
-        return self.folder_headers
-
     def _ingest_spec(
         self,
         key: str,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
-            folder_path = None
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
 
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{key}/ingest"),
             headers={
-                **header_folder(folder_key, folder_path),
+                **header_folder(folder_key, None),
             },
         )
 
@@ -479,17 +460,14 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        print(folder_key, folder_path)
-        if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
-            folder_path = None
-        print("~~~", name, folder_key, folder_path)
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
         return RequestSpec(
             method="GET",
             endpoint=Endpoint("/ecs_/v2/indexes"),
             params={"$filter": f"Name eq '{name}'"},
             headers={
-                **header_folder(folder_key, folder_path),
+                **header_folder(folder_key, None),
             },
         )
 
@@ -503,9 +481,7 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
-            folder_path = None
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
 
         storage_bucket_folder_path = (
             storage_bucket_folder_path
@@ -531,7 +507,7 @@ class ContextGroundingService(FolderContext, BaseService):
                 }
             ),
             headers={
-                **header_folder(folder_key, folder_path),
+                **header_folder(folder_key, None),
             },
         )
 
@@ -541,15 +517,13 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
-            folder_path = None
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
 
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
             headers={
-                **header_folder(folder_key, folder_path),
+                **header_folder(folder_key, None),
             },
         )
 
@@ -559,15 +533,13 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
-            folder_path = None
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
 
         return RequestSpec(
             method="DELETE",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
             headers={
-                **header_folder(folder_key, folder_path),
+                **header_folder(folder_key, None),
             },
         )
 
@@ -579,9 +551,7 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
-            folder_path = None
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
 
         return RequestSpec(
             method="POST",
@@ -593,6 +563,22 @@ class ContextGroundingService(FolderContext, BaseService):
                 }
             ),
             headers={
-                **header_folder(folder_key, folder_path),
+                **header_folder(folder_key, None),
             },
         )
+
+    def _resolve_folder_key(self, folder_key, folder_path):
+        if folder_key is None and folder_path is not None:
+            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+
+        if folder_key is None and folder_path is None:
+            folder_key = self._folder_key or (
+                self._folders_service.retrieve_key_by_folder_path(self._folder_path)
+                if self._folder_path
+                else None
+            )
+
+        if folder_key is None:
+            raise ValueError("Folder key or folder path is required")
+
+        return folder_key
