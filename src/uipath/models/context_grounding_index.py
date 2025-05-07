@@ -25,6 +25,7 @@ class ContextGroundingDataSource(BaseModel):
     )
     id: Optional[str] = Field(default=None, alias="id")
     folder: Optional[str] = Field(default=None, alias="folder")
+    bucketName: Optional[str] = Field(default=None, alias="bucketName")
 
 
 class ContextGroundingIndex(BaseModel):
