@@ -415,11 +415,18 @@ class ActionsService(FolderContext, BaseService):
         if len(deployed_apps) > 1 and not app_folder_path:
             raise Exception("Multiple app schemas found")
         try:
-            return next(
-                app
-                for app in deployed_apps
-                if app["deploymentFolder"]["fullyQualifiedName"] == app_folder_path
-            )
+            if app_folder_path:
+                return next(
+                    app
+                    for app in deployed_apps
+                    if app["deploymentFolder"]["fullyQualifiedName"] == app_folder_path
+                )
+            else:
+                return next(
+                    app
+                    for app in deployed_apps
+                    if app["deploymentFolder"]["key"] == self._folder_key
+                )
         except StopIteration:
             raise KeyError from StopIteration
 
