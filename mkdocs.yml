@@ -132,3 +132,4 @@ markdown_extensions:
       alternate_style: true
   - toc:
       title: On this page
+      permalink: true
