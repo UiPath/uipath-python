@@ -1221,6 +1221,18 @@ wheels = [
 ]
 
 [[package]]
+name = "mkdocs-open-in-new-tab"
+version = "1.0.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mkdocs" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0a/0e/f72a506a21bdb27b807124e00c688226848a388d1fd3980b80ae3cc27203/mkdocs_open_in_new_tab-1.0.8.tar.gz", hash = "sha256:3e0dad08cc9938b0b13097be8e0aa435919de1eeb2d1a648e66b5dee8d57e048", size = 5791 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/21/94/44f3c868495481c868d08eea065c82803f1affd8553d3383b782f497613c/mkdocs_open_in_new_tab-1.0.8-py3-none-any.whl", hash = "sha256:051d767a4467b12d89827e1fea0ec660b05b027c726317fe4fceee5456e36ad2", size = 7717 },
+]
+
+[[package]]
 name = "mkdocs-simple-hooks"
 version = "0.1.5"
 source = { registry = "https://pypi.org/simple" }
@@ -2586,6 +2598,7 @@ dev = [
     { name = "mkdocs" },
     { name = "mkdocs-click" },
     { name = "mkdocs-material", extra = ["imaging"] },
+    { name = "mkdocs-open-in-new-tab" },
     { name = "mkdocs-simple-hooks" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "mypy" },
@@ -2619,6 +2632,7 @@ dev = [
     { name = "mkdocs", specifier = ">=1.6.1" },
     { name = "mkdocs-click", specifier = ">=0.9.0" },
     { name = "mkdocs-material", extras = ["imaging"], specifier = ">=9.6.7" },
+    { name = "mkdocs-open-in-new-tab", specifier = ">=1.0.8" },
     { name = "mkdocs-simple-hooks", specifier = ">=0.1.5" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.18" },
     { name = "mypy", specifier = ">=1.14.1" },

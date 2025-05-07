@@ -33,3 +33,9 @@ observer.observe(document.body, {
     attributes: true,
     attributeFilter: ["data-md-color-media"],
 });
+
+document$.subscribe(() => {
+    document.querySelectorAll(".headerlink").forEach((link) => {
+        link.setAttribute("data-clipboard-text", link.href);
+    });
+});

@@ -99,6 +99,8 @@ plugins:
         - "$"
         - ">"
   - social
+  - open-in-new-tab
+
 markdown_extensions:
   - attr_list
   - md_in_html
@@ -132,3 +134,4 @@ markdown_extensions:
       alternate_style: true
   - toc:
       title: On this page
+      permalink: true
