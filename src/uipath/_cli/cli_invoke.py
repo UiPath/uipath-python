@@ -21,7 +21,7 @@ from ._utils._processes import get_release_info
 logger = logging.getLogger(__name__)
 load_dotenv()
 console = ConsoleLogger()
-client = httpx.Client(follow_redirects=True)
+client = httpx.Client(follow_redirects=True, timeout=30.0)
 
 
 def _read_project_name() -> str:

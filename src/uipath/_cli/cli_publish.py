@@ -12,7 +12,7 @@ from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
 
 console = ConsoleLogger()
-client = httpx.Client(follow_redirects=True)
+client = httpx.Client(follow_redirects=True, timeout=30.0)
 
 
 def get_most_recent_package():
