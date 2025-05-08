@@ -4,18 +4,23 @@ on:
   workflow_dispatch: {}
   push:
     branches:
-      - main
-  pull_request:
+      - 'refs/heads/main'
+  pull_request_target:
     branches:
-      - main
+      - 'refs/heads/main'
+
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   commit-lint:
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.event_name == 'pull_request_target' }}
     uses: ./.github/workflows/commitlint.yml
 
   lint:
+    if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'push' }}
     uses: ./.github/workflows/lint.yml
 
   test:
+    if: ${{ (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') || github.event_name == 'push' }}
     uses: ./.github/workflows/test.yml
