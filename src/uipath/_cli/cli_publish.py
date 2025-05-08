@@ -6,6 +6,7 @@ import click
 import httpx
 from dotenv import load_dotenv
 
+from .._utils._errors import handle_errors
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info
@@ -121,7 +122,7 @@ def publish(feed):
             else:
                 url = url + "?feedId=" + feed
 
-        with open(package_to_publish_path, "rb") as f:
+        with open(package_to_publish_path, "rb") as f, handle_errors():
             files = {"file": (package_to_publish_path, f, "application/octet-stream")}
             response = client.post(url, headers=headers, files=files)
 
