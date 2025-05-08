@@ -51,7 +51,7 @@ class BucketsService(FolderContext, BaseService):
             Exception: If the bucket with the specified key is not found.
         """
         bucket = self.retrieve(
-            name, key, folder_key=folder_key, folder_path=folder_path
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
         spec = self._retrieve_readUri_spec(
             bucket, blob_file_path, folder_key=folder_key, folder_path=folder_path
@@ -108,7 +108,7 @@ class BucketsService(FolderContext, BaseService):
             Exception: If the bucket with the specified key or name is not found.
         """
         bucket = self.retrieve(
-            name, key, folder_key=folder_key, folder_path=folder_path
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
         bucket_id = bucket["Id"]
@@ -171,7 +171,7 @@ class BucketsService(FolderContext, BaseService):
             Exception: If the bucket with the specified key or name is not found.
         """
         bucket = await self.retrieve_async(
-            name, key, folder_key=folder_key, folder_path=folder_path
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
         bucket_id = bucket["Id"]
@@ -242,7 +242,7 @@ class BucketsService(FolderContext, BaseService):
             Exception: If the bucket with the specified key or name is not found.
         """
         bucket = self.retrieve(
-            name, key, folder_key=folder_key, folder_path=folder_path
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
         bucket_id = bucket["Id"]
 
@@ -306,7 +306,7 @@ class BucketsService(FolderContext, BaseService):
             Exception: If the bucket with the specified key or name is not found.
         """
         bucket = await self.retrieve_async(
-            name, key, folder_key=folder_key, folder_path=folder_path
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
         bucket_id = bucket["Id"]
