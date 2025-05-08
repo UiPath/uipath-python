@@ -3,23 +3,17 @@ name: Publish Dev Build
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-    secrets:
-      PYPI_TOKEN:
-        required: true
-      TESTPYPI_TOKEN:
-        required: true
-
 
 jobs:
   publish-dev:
     runs-on: ubuntu-latest
-    
+
     # Only run if PR has the build:dev label
     if: contains(github.event.pull_request.labels.*.name, 'build:dev')
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: astral-sh/setup-uv@v5
 
       - uses: actions/setup-python@v5
@@ -30,7 +24,7 @@ jobs:
         run: |
           uv venv
           uv sync --all-extras
-      
+
       - name: Set development version
         shell: pwsh
         env:
@@ -58,11 +52,11 @@ jobs:
 
           # Update version in pyproject.toml
           (Get-Content pyproject.toml) -replace "version = `"$CURRENT_VERSION`"", "version = `"$DEV_VERSION`"" | Set-Content pyproject.toml
-          
+
           # Update project name in pyproject.toml
           (Get-Content pyproject.toml) -replace "name = `"$PROJECT_NAME`"", "name = `"$NIGHTLY_NAME`"" | Set-Content pyproject.toml
 
-          
+
           Write-Output "Package version set to $DEV_VERSION"
 
           $dependencyMessage = @"
@@ -75,7 +69,7 @@ jobs:
           dependencies = [
             # Exact version:
             "$NIGHTLY_NAME==$DEV_VERSION",
-            
+
             # Any version from PR
             "$NIGHTLY_NAME>=$MIN_VERSION,<$MAX_VERSION"
           ]
@@ -93,7 +87,7 @@ jobs:
             Authorization = "token $env:GITHUB_TOKEN"
             Accept = "application/vnd.github.v3+json"
           }
-          
+
           $pr = Invoke-RestMethod -Uri $prUri -Method Get -Headers $headers
           $currentBody = $pr.body
 
@@ -112,9 +106,9 @@ jobs:
           } | ConvertTo-Json
 
           Invoke-RestMethod -Uri $prUri -Method Patch -Headers $headers -Body $updateBody -ContentType "application/json"
-          
+
           Write-Output "Updated PR description with development package information"
-          
+
       - name: Build package
         run: uv build
 
