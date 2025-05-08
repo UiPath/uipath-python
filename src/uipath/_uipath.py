@@ -56,6 +56,7 @@ class UiPath:
                 elif error["loc"][0] == "secret":
                     raise SecretMissingError() from e
         self._folders_service: Optional[FolderService] = None
+        self._buckets_service: Optional[BucketsService] = None
 
         setup_logging(debug)
         self._execution_context = ExecutionContext()
@@ -78,6 +79,10 @@ class UiPath:
 
     @property
     def buckets(self) -> BucketsService:
+        if not self._buckets_service:
+            self._buckets_service = BucketsService(
+                self._config, self._execution_context
+            )
         return BucketsService(self._config, self._execution_context)
 
     @property
@@ -88,8 +93,15 @@ class UiPath:
     def context_grounding(self) -> ContextGroundingService:
         if not self._folders_service:
             self._folders_service = FolderService(self._config, self._execution_context)
+        if not self._buckets_service:
+            self._buckets_service = BucketsService(
+                self._config, self._execution_context
+            )
         return ContextGroundingService(
-            self._config, self._execution_context, self._folders_service
+            self._config,
+            self._execution_context,
+            self._folders_service,
+            self._buckets_service,
         )
 
     @property
