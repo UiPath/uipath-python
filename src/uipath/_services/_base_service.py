@@ -104,8 +104,9 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        headers = kwargs.get("headers", {})
-        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
         response = self._tenant_scope_client.request(method, url, **kwargs)
         response.raise_for_status()
@@ -150,14 +151,21 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        headers = kwargs.get("headers", {})
-        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
         response = await self._tenant_scope_client_async.request(method, url, **kwargs)
         response.raise_for_status()
 
         return response
 
+    @retry(
+        retry=(
+            retry_if_exception(is_retryable_exception)
+            | retry_if_result(is_retryable_status_code)
+        ),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     def request_org_scope(
         self,
         method: str,
@@ -189,14 +197,21 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        headers = kwargs.get("headers", {})
-        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
         response = self._org_scope_client.request(method, url, **kwargs)
         response.raise_for_status()
 
         return response
 
+    @retry(
+        retry=(
+            retry_if_exception(is_retryable_exception)
+            | retry_if_result(is_retryable_status_code)
+        ),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     async def request_org_scope_async(
         self,
         method: str,
@@ -228,8 +243,8 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        headers = kwargs.get("headers", {})
-        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
         response = await self._org_scope_client_async.request(method, url, **kwargs)
         response.raise_for_status()
