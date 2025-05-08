@@ -7,6 +7,7 @@ import webbrowser
 import click
 from dotenv import load_dotenv
 
+from ..telemetry import track
 from ._auth._auth_server import HTTPSServer
 from ._auth._oidc_utils import get_auth_config, get_auth_url
 from ._auth._portal_service import PortalService, select_tenant
@@ -56,6 +57,7 @@ def set_port():
 
 @click.command()
 @environment_options
+@track
 def auth(domain="alpha"):
     """Authenticate with UiPath Cloud Platform."""
     with console.spinner("Authenticating with UiPath ..."):

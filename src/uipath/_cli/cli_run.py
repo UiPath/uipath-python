@@ -9,6 +9,7 @@ from uuid import uuid4
 import click
 from dotenv import load_dotenv
 
+from ..telemetry import track
 from ._runtime._contracts import (
     UiPathRuntimeContext,
     UiPathRuntimeError,
@@ -108,6 +109,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
     type=click.Path(exists=True),
     help="File path for the .json input",
 )
+@track
 def run(
     entrypoint: Optional[str], input: Optional[str], resume: bool, file: Optional[str]
 ) -> None:
