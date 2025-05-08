@@ -14,6 +14,7 @@ try:
 except ImportError:
     import tomli as tomllib
 
+from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
@@ -50,6 +51,7 @@ def _read_project_details() -> [str, str]:
     type=click.Path(exists=True),
     help="File path for the .json input",
 )
+@track
 def invoke(
     entrypoint: Optional[str], input: Optional[str], file: Optional[str]
 ) -> None:

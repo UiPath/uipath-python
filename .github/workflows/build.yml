@@ -26,6 +26,17 @@ jobs:
           uv venv
           uv sync --all-extras
 
+      - name: Replace connection string placeholder
+        run: |
+          originalfile="src/uipath/telemetry/_constants.py"
+          tmpfile=$(mktemp)
+          trap 'rm -f "$tmpfile"' EXIT
+
+          rsync -a --no-whole-file --ignore-existing "$originalfile" "$tmpfile"
+          envsubst '$CONNECTION_STRING' < "$originalfile" > "$tmpfile" && mv "$tmpfile" "$originalfile"
+        env:
+          CONNECTION_STRING: ${{ secrets.APPINS_CONNECTION_STRING }}
+
       - name: Build
         run: |
           uv build
