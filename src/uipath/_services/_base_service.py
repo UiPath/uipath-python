@@ -18,6 +18,8 @@ from tenacity import (
     wait_exponential,
 )
 
+from uipath._utils._read_overwrites import OverwritesManager
+
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import user_agent_value
@@ -51,6 +53,7 @@ class BaseService:
             base_url=org_scope_base_url, headers=self.default_headers
         )
 
+        self._overwrites_manager = OverwritesManager()
         self._logger.debug(f"HEADERS: {self.default_headers}")
 
         super().__init__()
