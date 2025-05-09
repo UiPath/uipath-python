@@ -6,6 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
+from ..models import Bucket
 from ..tracing._traced import traced
 from ._base_service import BaseService
 
@@ -355,7 +356,7 @@ class BucketsService(FolderContext, BaseService):
         key: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> Any:
+    ) -> Bucket:
         """Retrieve bucket information by its name.
 
         Args:
@@ -391,9 +392,13 @@ class BucketsService(FolderContext, BaseService):
                 headers=spec.headers,
             )
         except Exception as e:
-            raise Exception(f"Bucket with name {name} not found") from e
-
-        return response.json()["value"][0]
+            raise Exception(f"Bucket with name '{name}' not found") from e
+        try:
+            return Bucket.model_validate(response.json()["value"][0])
+        except KeyError as e:
+            raise Exception(
+                f"Error while deserializing bucket with name '{name}'"
+            ) from e
 
     @infer_bindings()
     @traced(name="buckets_retrieve", run_type="uipath")
@@ -404,7 +409,7 @@ class BucketsService(FolderContext, BaseService):
         key: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> Any:
+    ) -> Bucket:
         """Asynchronously retrieve bucket information by its name.
 
         Args:
@@ -443,7 +448,12 @@ class BucketsService(FolderContext, BaseService):
         except Exception as e:
             raise Exception(f"Bucket with name {name} not found") from e
 
-        return response.json()["value"][0]
+        try:
+            return Bucket.model_validate(response.json()["value"][0])
+        except KeyError as e:
+            raise Exception(
+                f"Error while deserializing bucket with name '{name}'"
+            ) from e
 
     @property
     def custom_headers(self) -> Dict[str, str]:

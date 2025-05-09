@@ -1,6 +1,7 @@
 from .action_schema import ActionSchema
 from .actions import Action
 from .assets import UserAsset
+from .buckets import Bucket
 from .connections import Connection, ConnectionToken
 from .context_grounding import ContextGroundingQueryResponse
 from .context_grounding_index import ContextGroundingIndex
@@ -44,4 +45,5 @@ __all__ = [
     "IngestionInProgressException",
     "BaseUrlMissingError",
     "SecretMissingError",
+    "Bucket",
 ]
