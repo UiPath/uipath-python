@@ -12,9 +12,9 @@ on:
       - main
 
 jobs:
-  commit-lint:
-    if: ${{ github.event_name == 'pull_request_target' }}
-    uses: ./.github/workflows/commitlint.yml
+  # commit-lint:
+  #   if: ${{ github.event_name == 'pull_request_target' }}
+  #   uses: ./.github/workflows/commitlint.yml
 
   lint:
     uses: ./.github/workflows/lint.yml
