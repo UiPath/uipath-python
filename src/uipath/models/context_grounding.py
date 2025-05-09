@@ -1,18 +1,36 @@
-from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ContextGroundingMetadata(BaseModel):
-    operation_id: str
-    strategy: str
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+        json_encoders={datetime: lambda v: v.isoformat() if v else None},
+    )
+    operation_id: str = Field(alias="operation_id")
+    strategy: str = Field(alias="strategy")
 
 
 class ContextGroundingQueryResponse(BaseModel):
-    id: str
-    reference: str
-    source: str
-    page_number: str
-    source_document_id: str
-    caption: str
-    score: float
-    content: str
-    metadata: ContextGroundingMetadata
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+        json_encoders={datetime: lambda v: v.isoformat() if v else None},
+    )
+    source: str = Field(alias="source")
+    page_number: str = Field(alias="page_number")
+    content: str = Field(alias="content")
+    metadata: ContextGroundingMetadata = Field(alias="metadata")
+    source_document_id: Optional[str] = Field(default=None, alias="source_document_id")
+    caption: Optional[str] = Field(default=None, alias="caption")
+    score: Optional[float] = Field(default=None, alias="score")
+    reference: Optional[str] = Field(default=None, alias="reference")
