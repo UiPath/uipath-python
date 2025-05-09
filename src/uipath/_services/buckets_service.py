@@ -390,15 +390,10 @@ class BucketsService(FolderContext, BaseService):
                 url=spec.endpoint,
                 params=spec.params,
                 headers=spec.headers,
-            )
-        except Exception as e:
+            ).json()["value"][0]
+        except (KeyError, IndexError) as e:
             raise Exception(f"Bucket with name '{name}' not found") from e
-        try:
-            return Bucket.model_validate(response.json()["value"][0])
-        except KeyError as e:
-            raise Exception(
-                f"Error while deserializing bucket with name '{name}'"
-            ) from e
+        return Bucket.model_validate(response)
 
     @infer_bindings()
     @traced(name="buckets_retrieve", run_type="uipath")
@@ -439,21 +434,17 @@ class BucketsService(FolderContext, BaseService):
             )
 
         try:
-            response = await self.request_async(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-                headers=spec.headers,
-            )
-        except Exception as e:
-            raise Exception(f"Bucket with name {name} not found") from e
-
-        try:
-            return Bucket.model_validate(response.json()["value"][0])
-        except KeyError as e:
-            raise Exception(
-                f"Error while deserializing bucket with name '{name}'"
-            ) from e
+            response = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                )
+            ).json()["value"][0]
+        except (KeyError, IndexError) as e:
+            raise Exception(f"Bucket with name '{name}' not found") from e
+        return Bucket.model_validate(response)
 
     @property
     def custom_headers(self) -> Dict[str, str]:
