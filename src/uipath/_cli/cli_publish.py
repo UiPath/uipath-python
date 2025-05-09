@@ -6,6 +6,7 @@ import click
 import httpx
 from dotenv import load_dotenv
 
+from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info
@@ -63,6 +64,7 @@ def get_available_feeds(
     flag_value="personal",
     help="Whether to publish to the personal workspace",
 )
+@track
 def publish(feed):
     """Publish the package."""
     current_path = os.getcwd()

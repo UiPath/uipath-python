@@ -12,6 +12,7 @@ try:
 except ImportError:
     import tomli as tomllib
 
+from ..telemetry import track
 from ._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
@@ -366,6 +367,7 @@ def display_project_info(config):
 
 @click.command()
 @click.argument("root", type=str, default="./")
+@track
 def pack(root):
     """Pack the project."""
     version = get_project_version(root)

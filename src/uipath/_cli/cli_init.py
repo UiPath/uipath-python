@@ -7,6 +7,7 @@ from typing import Optional
 
 import click
 
+from ..telemetry import track
 from ._utils._console import ConsoleLogger
 from ._utils._input_args import generate_args
 from ._utils._parse_ast import generate_bindings_json
@@ -52,6 +53,7 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
 
 @click.command()
 @click.argument("entrypoint", required=False, default=None)
+@track
 def init(entrypoint: str) -> None:
     """Create uipath.json with input/output schemas and bindings."""
     with console.spinner("Initializing UiPath project ..."):
