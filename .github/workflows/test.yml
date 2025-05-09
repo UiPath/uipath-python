@@ -1,19 +1,11 @@
-name: Reusable Test Workflow
+name: Test
 
 on:
-  workflow_call:
-    inputs:
-      should_skip:
-          description: 'Whether to skip the linting step'
-          required: false
-          type: boolean
-          default: false
+  workflow_call
 
 jobs:
   test:
-    name: Test
-    runs-on: "ubuntu-24.04"
-    if: inputs.should_skip == false
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
