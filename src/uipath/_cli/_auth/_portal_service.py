@@ -16,7 +16,7 @@ from ._utils import (
 )
 
 console = ConsoleLogger()
-client = httpx.Client(follow_redirects=True)
+client = httpx.Client(follow_redirects=True, timeout=30.0)
 
 
 class PortalService:

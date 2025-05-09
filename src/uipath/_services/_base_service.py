@@ -40,17 +40,25 @@ class BaseService:
         self._config = config
         self._execution_context = execution_context
         self._tenant_scope_client = Client(
-            base_url=self._config.base_url, headers=Headers(self.default_headers)
+            base_url=self._config.base_url,
+            headers=Headers(self.default_headers),
+            timeout=30.0,
         )
         self._tenant_scope_client_async = AsyncClient(
-            base_url=self._config.base_url, headers=Headers(self.default_headers)
+            base_url=self._config.base_url,
+            headers=Headers(self.default_headers),
+            timeout=30.0,
         )
         org_scope_base_url = self.__get_org_scope_base_url()
         self._org_scope_client = Client(
-            base_url=org_scope_base_url, headers=self.default_headers
+            base_url=org_scope_base_url,
+            headers=Headers(self.default_headers),
+            timeout=30.0,
         )
         self._org_scope_client_async = AsyncClient(
-            base_url=org_scope_base_url, headers=self.default_headers
+            base_url=org_scope_base_url,
+            headers=Headers(self.default_headers),
+            timeout=30.0,
         )
 
         self._overwrites_manager = OverwritesManager()

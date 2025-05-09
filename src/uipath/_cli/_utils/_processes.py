@@ -7,7 +7,7 @@ import httpx
 from ._console import ConsoleLogger
 
 console = ConsoleLogger()
-client = httpx.Client(follow_redirects=True)
+client = httpx.Client(follow_redirects=True, timeout=30.0)
 
 
 def get_release_info(
