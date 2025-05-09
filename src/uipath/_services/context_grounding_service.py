@@ -324,7 +324,7 @@ class ContextGroundingService(FolderContext, BaseService):
             List[ContextGroundingQueryResponse]: A list of search results, each containing
                 relevant contextual information and metadata.
         """
-        index = self.retrieve(name)
+        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
         if index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
 
