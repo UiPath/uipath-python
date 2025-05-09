@@ -1,6 +1,6 @@
 import inspect
 from logging import getLogger
-from typing import Any, Union
+from typing import Any, Literal, Union
 
 from httpx import (
     URL,
@@ -22,7 +22,7 @@ from uipath._utils._read_overwrites import OverwritesManager
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._utils import user_agent_value
+from .._utils import UiPathUrl, user_agent_value
 from .._utils.constants import HEADER_USER_AGENT
 
 
@@ -39,24 +39,17 @@ class BaseService:
         self._logger = getLogger("uipath")
         self._config = config
         self._execution_context = execution_context
-        self._tenant_scope_client = Client(
-            base_url=self._config.base_url,
+
+        self._url = UiPathUrl(self._config.base_url)
+
+        self._client = Client(
+            base_url=self._url.base_url,
             headers=Headers(self.default_headers),
             timeout=30.0,
         )
-        self._tenant_scope_client_async = AsyncClient(
-            base_url=self._config.base_url,
-            headers=Headers(self.default_headers),
-            timeout=30.0,
-        )
-        org_scope_base_url = self.__get_org_scope_base_url()
-        self._org_scope_client = Client(
-            base_url=org_scope_base_url,
-            headers=Headers(self.default_headers),
-            timeout=30.0,
-        )
-        self._org_scope_client_async = AsyncClient(
-            base_url=org_scope_base_url,
+
+        self._client_async = AsyncClient(
+            base_url=self._url.base_url,
             headers=Headers(self.default_headers),
             timeout=30.0,
         )
@@ -77,12 +70,12 @@ class BaseService:
         self,
         method: str,
         url: Union[URL, str],
+        *,
+        scoped: Literal["org", "tenant"] = "tenant",
         **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
-        self._logger.debug(
-            f"HEADERS: {kwargs.get('headers', self._tenant_scope_client.headers)}"
-        )
+        self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
 
         try:
             stack = inspect.stack()
@@ -104,10 +97,13 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        headers = kwargs.get("headers", {})
-        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = self._tenant_scope_client.request(method, url, **kwargs)
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
+
+        response = self._client.request(
+            method, self._url.scope_url(str(url), scoped), **kwargs
+        )
         response.raise_for_status()
 
         return response
@@ -123,11 +119,13 @@ class BaseService:
         self,
         method: str,
         url: Union[URL, str],
+        *,
+        scoped: Literal["org", "tenant"] = "tenant",
         **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
         self._logger.debug(
-            f"HEADERS: {kwargs.get('headers', self._tenant_scope_client.headers)}"
+            f"HEADERS: {kwargs.get('headers', self._client_async.headers)}"
         )
 
         try:
@@ -150,14 +148,23 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        headers = kwargs.get("headers", {})
-        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = await self._tenant_scope_client_async.request(method, url, **kwargs)
+        response = await self._client_async.request(
+            method, self._url.scope_url(str(url), scoped), **kwargs
+        )
         response.raise_for_status()
 
         return response
 
+    @retry(
+        retry=(
+            retry_if_exception(is_retryable_exception)
+            | retry_if_result(is_retryable_status_code)
+        ),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     def request_org_scope(
         self,
         method: str,
@@ -165,9 +172,7 @@ class BaseService:
         **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
-        self._logger.debug(
-            f"HEADERS: {kwargs.get('headers', self._tenant_scope_client.headers)}"
-        )
+        self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
 
         try:
             stack = inspect.stack()
@@ -189,14 +194,23 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        headers = kwargs.get("headers", {})
-        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = self._org_scope_client.request(method, url, **kwargs)
+        response = self._client.request(
+            method, self._url.scope_url(str(url), "org"), **kwargs
+        )
         response.raise_for_status()
 
         return response
 
+    @retry(
+        retry=(
+            retry_if_exception(is_retryable_exception)
+            | retry_if_result(is_retryable_status_code)
+        ),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     async def request_org_scope_async(
         self,
         method: str,
@@ -204,9 +218,7 @@ class BaseService:
         **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
-        self._logger.debug(
-            f"HEADERS: {kwargs.get('headers', self._tenant_scope_client.headers)}"
-        )
+        self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
 
         try:
             stack = inspect.stack()
@@ -228,10 +240,12 @@ class BaseService:
         specific_component = (
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
-        headers = kwargs.get("headers", {})
-        headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+        kwargs.setdefault("headers", {})
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = await self._org_scope_client_async.request(method, url, **kwargs)
+        response = await self._client_async.request(
+            method, self._url.scope_url(str(url), "org"), **kwargs
+        )
         response.raise_for_status()
 
         return response
@@ -253,9 +267,3 @@ class BaseService:
     @property
     def custom_headers(self) -> dict[str, str]:
         return {}
-
-    def __get_org_scope_base_url(self) -> str:
-        base_url = str(self._config.base_url)
-        if base_url.endswith("/"):
-            base_url = base_url[:-1]
-        return base_url.rsplit("/", 1)[0] + "/"
