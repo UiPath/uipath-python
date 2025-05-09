@@ -16,10 +16,21 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install Git
+        run: |
+          if ! command -v git &> /dev/null; then
+              echo "Git is not installed. Installing..."
+              sudo apt-get update
+              sudo apt-get install -y git
+          else
+              echo "Git is already installed."
+          fi
+
       - name: Install commitlint
         run: |
           npm install conventional-changelog-conventionalcommits
           npm install commitlint@latest
+          npm install @commitlint/config-conventional
 
       - name: Configure
         run: |
@@ -27,7 +38,6 @@ jobs:
 
 
       - name: Validate current commit (last commit) with commitlint
-        if: github.event_name == 'push'
         run: npx commitlint --last --verbose
 
       - name: Validate PR commits with commitlint
