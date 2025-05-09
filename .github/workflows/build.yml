@@ -1,16 +1,16 @@
 name: Build and publish
 
 on:
-  workflow_call:
-    secrets:
-      token:
-        required: true
-      repo_access:
-        required: true
+  workflow_call
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/uipath/
+    permissions:
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
 
       - name: Build
         run: |
-          uv build
+          uv build --sdist --wheel
 
       - name: Check if version in pyproject.toml was modified
         id: check_version
@@ -39,9 +39,6 @@ jobs:
             echo "modified=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Publish
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
         if: ${{ steps.check_version.outputs.modified }} == 'true'
-        run: |
-          uv publish
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.token }}
