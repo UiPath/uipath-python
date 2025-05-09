@@ -1,0 +1,18 @@
+[project]
+name = "ticket-classification-agent"
+version = "0.0.1"
+description = "Ticket classification system"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "langgraph>=0.2.70",
+    "langchain-core>=0.3.34",
+    "langchain-openai>=0.3.9",
+    "langgraph-checkpoint-sqlite>=2.0.3",
+    "python-dotenv>=1.0.1",
+    "uipath-langchain==0.0.100",
+    "pydantic>=2.10.6",
+    "aiohttp>=3.11.12",
+    "typing-extensions>=4.12.2",
+    "ipython>=8.32.0"
+]
+requires-python = ">=3.10"
