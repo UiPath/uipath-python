@@ -18,7 +18,7 @@ class Bucket(BaseModel):
     storage_parameters: Optional[str] = Field(default=None, alias="StorageParameters")
     storage_container: Optional[str] = Field(default=None, alias="StorageContainer")
     options: Optional[str] = Field(default=None, alias="Options")
-    credential_storeId: Optional[str] = Field(default=None, alias="CredentialStoreId")
+    credential_store_id: Optional[str] = Field(default=None, alias="CredentialStoreId")
     external_name: Optional[str] = Field(default=None, alias="ExternalName")
     password: Optional[str] = Field(default=None, alias="Password")
     folders_count: Optional[int] = Field(default=None, alias="FoldersCount")
