@@ -4,6 +4,7 @@ import shutil
 
 import click
 
+from ..telemetry import track
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -38,6 +39,7 @@ requires-python = ">=3.10"
 
 @click.command()
 @click.argument("name", type=str, default="")
+@track
 def new(name: str):
     """Generate a quick-start project."""
     directory = os.getcwd()
