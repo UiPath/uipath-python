@@ -129,15 +129,22 @@ def publish(feed):
         console.success("Package published successfully!")
 
         if is_personal_workspace:
+            package_name = None
+            package_version = None
             try:
-                data = json.loads(response.text)
-                package_name = json.loads(data["value"][0]["Body"])["Id"]
+                data = json.loads(response.text)["value"][0]["Body"]
+                package_name = json.loads(data)["Id"]
+                package_version = json.loads(data)["Version"]
             except json.decoder.JSONDecodeError:
                 console.warning("Failed to deserialize package name")
             if package_name is not None:
                 with console.spinner("Getting process information ..."):
                     release_id, _ = get_release_info(
-                        base_url, token, package_name, personal_workspace_feed_id
+                        base_url,
+                        token,
+                        package_name,
+                        package_version,
+                        personal_workspace_feed_id,
                     )
                 if release_id:
                     process_url = f"{base_url}/orchestrator_/processes/{release_id}/edit?fid={personal_workspace_folder_id}"
