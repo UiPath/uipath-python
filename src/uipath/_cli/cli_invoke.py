@@ -24,7 +24,7 @@ console = ConsoleLogger()
 client = httpx.Client(follow_redirects=True, timeout=30.0)
 
 
-def _read_project_name() -> str:
+def _read_project_details() -> [str, str]:
     current_path = os.getcwd()
     toml_path = os.path.join(current_path, "pyproject.toml")
     if not os.path.isfile(toml_path):
@@ -37,7 +37,7 @@ def _read_project_name() -> str:
         if "name" not in content["project"]:
             console.error("pyproject.toml is missing the required field: project.name.")
 
-        return content["project"]["name"]
+        return content["project"]["name"], content["project"]["version"]
 
 
 @click.command()
@@ -67,7 +67,7 @@ def invoke(
 
         url = f"{base_url}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
         _, personal_workspace_folder_id = get_personal_workspace_info(base_url, token)
-        project_name = _read_project_name()
+        project_name, project_version = _read_project_details()
 
         if not personal_workspace_folder_id:
             console.error(
@@ -75,7 +75,7 @@ def invoke(
             )
 
         _, release_key = get_release_info(
-            base_url, token, project_name, personal_workspace_folder_id
+            base_url, token, project_name, project_version, personal_workspace_folder_id
         )
         payload = {
             "StartInfo": {

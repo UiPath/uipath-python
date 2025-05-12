@@ -56,25 +56,34 @@ def set_port():
 
 @click.command()
 @environment_options
-def auth(domain="alpha"):
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    required=False,
+    help="Force new token",
+)
+def auth(domain, force: None | bool = False):
     """Authenticate with UiPath Cloud Platform."""
     with console.spinner("Authenticating with UiPath ..."):
         portal_service = PortalService(domain)
-        if (
-            os.getenv("UIPATH_URL")
-            and os.getenv("UIPATH_TENANT_ID")
-            and os.getenv("UIPATH_ORGANIZATION_ID")
-        ):
-            try:
-                portal_service.ensure_valid_token()
-                console.success(
-                    "Authentication successful.",
-                )
-                return
-            except Exception:
-                console.info(
-                    "Authentication token is invalid. Please reauthenticate.",
-                )
+
+        if not force:
+            if (
+                os.getenv("UIPATH_URL")
+                and os.getenv("UIPATH_TENANT_ID")
+                and os.getenv("UIPATH_ORGANIZATION_ID")
+            ):
+                try:
+                    portal_service.ensure_valid_token()
+                    console.success(
+                        "Authentication successful.",
+                    )
+                    return
+                except Exception:
+                    console.info(
+                        "Authentication token is invalid. Please reauthenticate.",
+                    )
 
         auth_url, code_verifier, state = get_auth_url(domain)
 
