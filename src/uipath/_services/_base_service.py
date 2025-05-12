@@ -101,9 +101,9 @@ class BaseService:
         kwargs.setdefault("headers", {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
-        response = self._client.request(
-            method, self._url.scope_url(str(url), scoped), **kwargs
-        )
+        scoped_url = self._url.scope_url(str(url), scoped)
+
+        response = self._client.request(method, scoped_url, **kwargs)
         response.raise_for_status()
 
         return response
@@ -128,124 +128,14 @@ class BaseService:
             f"HEADERS: {kwargs.get('headers', self._client_async.headers)}"
         )
 
-        try:
-            stack = inspect.stack()
-
-            # use the third frame because of the retry decorator
-            caller_frame = stack[3].frame
-            function_name = caller_frame.f_code.co_name
-
-            if "self" in caller_frame.f_locals:
-                module_name = type(caller_frame.f_locals["self"]).__name__
-            elif "cls" in caller_frame.f_locals:
-                module_name = caller_frame.f_locals["cls"].__name__
-            else:
-                module_name = ""
-        except Exception:
-            function_name = ""
-            module_name = ""
-
-        specific_component = (
-            f"{module_name}.{function_name}" if module_name and function_name else ""
-        )
         kwargs.setdefault("headers", {})
-        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
-
-        response = await self._client_async.request(
-            method, self._url.scope_url(str(url), scoped), **kwargs
+        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(
+            self._specific_component
         )
-        response.raise_for_status()
 
-        return response
+        scoped_url = self._url.scope_url(str(url), scoped)
 
-    @retry(
-        retry=(
-            retry_if_exception(is_retryable_exception)
-            | retry_if_result(is_retryable_status_code)
-        ),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-    )
-    def request_org_scope(
-        self,
-        method: str,
-        url: Union[URL, str],
-        **kwargs: Any,
-    ) -> Response:
-        self._logger.debug(f"Request: {method} {url}")
-        self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
-
-        try:
-            stack = inspect.stack()
-
-            # use the third frame because of the retry decorator
-            caller_frame = stack[3].frame
-            function_name = caller_frame.f_code.co_name
-
-            if "self" in caller_frame.f_locals:
-                module_name = type(caller_frame.f_locals["self"]).__name__
-            elif "cls" in caller_frame.f_locals:
-                module_name = caller_frame.f_locals["cls"].__name__
-            else:
-                module_name = ""
-        except Exception:
-            function_name = ""
-            module_name = ""
-
-        specific_component = (
-            f"{module_name}.{function_name}" if module_name and function_name else ""
-        )
-        kwargs.setdefault("headers", {})
-        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
-
-        response = self._client.request(
-            method, self._url.scope_url(str(url), "org"), **kwargs
-        )
-        response.raise_for_status()
-
-        return response
-
-    @retry(
-        retry=(
-            retry_if_exception(is_retryable_exception)
-            | retry_if_result(is_retryable_status_code)
-        ),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-    )
-    async def request_org_scope_async(
-        self,
-        method: str,
-        url: Union[URL, str],
-        **kwargs: Any,
-    ) -> Response:
-        self._logger.debug(f"Request: {method} {url}")
-        self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
-
-        try:
-            stack = inspect.stack()
-
-            # use the third frame because of the retry decorator
-            caller_frame = stack[3].frame
-            function_name = caller_frame.f_code.co_name
-
-            if "self" in caller_frame.f_locals:
-                module_name = type(caller_frame.f_locals["self"]).__name__
-            elif "cls" in caller_frame.f_locals:
-                module_name = caller_frame.f_locals["cls"].__name__
-            else:
-                module_name = ""
-        except Exception:
-            function_name = ""
-            module_name = ""
-
-        specific_component = (
-            f"{module_name}.{function_name}" if module_name and function_name else ""
-        )
-        kwargs.setdefault("headers", {})
-        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
-
-        response = await self._client_async.request(
-            method, self._url.scope_url(str(url), "org"), **kwargs
-        )
+        response = await self._client_async.request(method, scoped_url, **kwargs)
         response.raise_for_status()
 
         return response
@@ -267,3 +157,27 @@ class BaseService:
     @property
     def custom_headers(self) -> dict[str, str]:
         return {}
+
+    @property
+    def _specific_component(self) -> str:
+        try:
+            stack = inspect.stack()
+
+            caller_frame = stack[4].frame
+            function_name = caller_frame.f_code.co_name
+
+            if "self" in caller_frame.f_locals:
+                module_name = type(caller_frame.f_locals["self"]).__name__
+            elif "cls" in caller_frame.f_locals:
+                module_name = caller_frame.f_locals["cls"].__name__
+            else:
+                module_name = ""
+        except Exception:
+            function_name = ""
+            module_name = ""
+
+        specific_component = (
+            f"{module_name}.{function_name}" if module_name and function_name else ""
+        )
+
+        return specific_component

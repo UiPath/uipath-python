@@ -349,8 +349,12 @@ class ActionsService(FolderContext, BaseService):
             raise Exception("appName or appKey is required")
         spec = _retrieve_app_key_spec(app_name=app_name)
 
-        response = await self.request_org_scope_async(
-            spec.method, spec.endpoint, params=spec.params, headers=spec.headers
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+            scoped="org",
         )
         try:
             deployed_app = self._extract_deployed_app(
@@ -382,8 +386,12 @@ class ActionsService(FolderContext, BaseService):
 
         spec = _retrieve_app_key_spec(app_name=app_name)
 
-        response = self.request_org_scope(
-            spec.method, spec.endpoint, params=spec.params, headers=spec.headers
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+            scoped="org",
         )
 
         try:
