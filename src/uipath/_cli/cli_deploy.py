@@ -1,6 +1,7 @@
 # type: ignore
 import click
 
+from ..telemetry import track
 from .cli_pack import pack
 from .cli_publish import publish
 
@@ -21,6 +22,7 @@ from .cli_publish import publish
     help="Whether to publish to the personal workspace",
 )
 @click.argument("root", type=str, default="./")
+@track
 def deploy(root, feed):
     """Pack and publish the project."""
     ctx = click.get_current_context()
