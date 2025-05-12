@@ -1,10 +1,12 @@
 import json
-from typing import Any, Dict, Optional, overload
+import uuid
+from typing import Any, Dict, List, Optional, overload
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
+from ..models import Attachment
 from ..models.job import Job
 from ..tracing._traced import traced
 from ._base_service import BaseService
@@ -264,4 +266,256 @@ class JobsService(FolderContext, BaseService):
             endpoint=Endpoint(
                 f"/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_key})"
             ),
+        )
+
+    @traced(name="jobs_list_attachments", run_type="uipath")
+    def list_attachments(
+        self,
+        *,
+        job_key: uuid.UUID,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[Attachment]:
+        """List attachments associated with a specific job.
+
+        This method retrieves all attachments linked to a job by its key.
+
+        Args:
+            job_key (uuid.UUID): The key of the job to retrieve attachments for.
+            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            List[Attachment]: A list of attachment objects associated with the job.
+
+        Raises:
+            Exception: If the retrieval fails.
+
+        Examples:
+            ```python
+            from uipath import UiPath
+
+            client = UiPath()
+
+            attachments = client.jobs.list_attachments(
+                job_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
+            )
+            for attachment in attachments:
+                print(f"Attachment: {attachment.Name}, Key: {attachment.Key}")
+            ```
+        """
+        spec = self._list_job_attachments_spec(
+            job_key=job_key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+
+        return [Attachment.model_validate(item) for item in response]
+
+    @traced(name="jobs_list_attachments", run_type="uipath")
+    async def list_attachments_async(
+        self,
+        *,
+        job_key: uuid.UUID,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[Attachment]:
+        """List attachments associated with a specific job asynchronously.
+
+        This method asynchronously retrieves all attachments linked to a job by its key.
+
+        Args:
+            job_key (uuid.UUID): The key of the job to retrieve attachments for.
+            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            List[Attachment]: A list of attachment objects associated with the job.
+
+        Raises:
+            Exception: If the retrieval fails.
+
+        Examples:
+            ```python
+            import asyncio
+            from uipath import UiPath
+
+            client = UiPath()
+
+            async def main():
+                attachments = await client.jobs.list_attachments_async(
+                    job_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
+                )
+                for attachment in attachments:
+                    print(f"Attachment: {attachment.Name}, Key: {attachment.Key}")
+            ```
+        """
+        spec = self._list_job_attachments_spec(
+            job_key=job_key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+
+        return [Attachment.model_validate(item) for item in response]
+
+    @traced(name="jobs_link_attachment", run_type="uipath")
+    def link_attachment(
+        self,
+        *,
+        attachment_key: uuid.UUID,
+        job_key: uuid.UUID,
+        category: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Link an attachment to a job.
+
+        This method links an existing attachment to a specific job.
+
+        Args:
+            attachment_key (uuid.UUID): The key of the attachment to link.
+            job_key (uuid.UUID): The key of the job to link the attachment to.
+            category (Optional[str]): Optional category for the attachment in the context of this job.
+            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+
+        Raises:
+            Exception: If the link operation fails.
+
+        Examples:
+            ```python
+            from uipath import UiPath
+
+            client = UiPath()
+
+            client.jobs.link_attachment(
+                attachment_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000"),
+                job_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174001"),
+                category="Result"
+            )
+            print("Attachment linked to job successfully")
+            ```
+        """
+        spec = self._link_job_attachment_spec(
+            attachment_key=attachment_key,
+            job_key=job_key,
+            category=category,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        return self.request(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+            json=spec.json,
+        )
+
+    @traced(name="jobs_link_attachment", run_type="uipath")
+    async def link_attachment_async(
+        self,
+        *,
+        attachment_key: uuid.UUID,
+        job_key: uuid.UUID,
+        category: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Link an attachment to a job asynchronously.
+
+        This method asynchronously links an existing attachment to a specific job.
+
+        Args:
+            attachment_key (uuid.UUID): The key of the attachment to link.
+            job_key (uuid.UUID): The key of the job to link the attachment to.
+            category (Optional[str]): Optional category for the attachment in the context of this job.
+            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+
+        Raises:
+            Exception: If the link operation fails.
+
+        Examples:
+            ```python
+            import asyncio
+            from uipath import UiPath
+
+            client = UiPath()
+
+            async def main():
+                await client.jobs.link_attachment_async(
+                    attachment_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000"),
+                    job_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174001"),
+                    category="Result"
+                )
+                print("Attachment linked to job successfully")
+            ```
+        """
+        spec = self._link_job_attachment_spec(
+            attachment_key=attachment_key,
+            job_key=job_key,
+            category=category,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        return await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+            json=spec.json,
+        )
+
+    def _list_job_attachments_spec(
+        self,
+        job_key: uuid.UUID,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/api/JobAttachments/GetByJobKey"),
+            params={
+                "jobKey": job_key,
+            },
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _link_job_attachment_spec(
+        self,
+        attachment_key: uuid.UUID,
+        job_key: uuid.UUID,
+        category: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint("/orchestrator_/api/JobAttachments/Post"),
+            json={
+                "attachmentId": str(attachment_key),
+                "jobKey": str(job_key),
+                "category": category,
+            },
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )

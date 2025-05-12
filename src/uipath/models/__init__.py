@@ -1,6 +1,7 @@
 from .action_schema import ActionSchema
 from .actions import Action
 from .assets import Asset, UserAsset
+from .attachment import Attachment
 from .buckets import Bucket
 from .connections import Connection, ConnectionToken
 from .context_grounding import ContextGroundingQueryResponse
@@ -26,6 +27,7 @@ from .queues import (
 __all__ = [
     "Action",
     "Asset",
+    "Attachment",
     "UserAsset",
     "ContextGroundingQueryResponse",
     "ContextGroundingIndex",
