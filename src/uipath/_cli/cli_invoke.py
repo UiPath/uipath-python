@@ -20,7 +20,7 @@ from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
 
 logger = logging.getLogger(__name__)
-load_dotenv()
+load_dotenv(override=True)
 console = ConsoleLogger()
 client = httpx.Client(follow_redirects=True, timeout=30.0)
 

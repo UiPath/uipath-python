@@ -23,7 +23,7 @@ from ._utils._console import ConsoleLogger
 from .middlewares import MiddlewareResult, Middlewares
 
 console = ConsoleLogger()
-load_dotenv()
+load_dotenv(override=True)
 
 
 def python_run_middleware(

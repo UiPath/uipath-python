@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from ._oidc_utils import get_auth_config
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Server port
 PORT = 6234
