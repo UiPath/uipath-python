@@ -87,6 +87,14 @@ uipath version 2.0.29
 
 ////
 
+### Telemetry
+
+To help us improve the developer experience, the CLI collects basic usage data about commands invocation. For more details about UiPath’s privacy practices, please review the [privacy statement](https://www.uipath.com/legal/privacy-policy).
+
+#### Disabling telemetry data
+
+Telemetry is enabled by default, yet it is possible to opt-out by setting to `false` the `UIPATH_TELEMETRY_ENABLED` environment variable.
+
 ### Authentication
 
 To debug your script locally and publish your project, you need to authenticate with UiPath:
