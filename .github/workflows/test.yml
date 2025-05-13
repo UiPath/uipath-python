@@ -27,6 +27,7 @@ jobs:
           uv run pytest
         env:
           UIPATH_URL: ${{ secrets.UIPATH_URL }}
+          UIPATH_BASE_URL: ${{ secrets.UIPATH_BASE_URL }}
           UIPATH_CLIENT_ID: ${{ secrets.UIPATH_CLIENT_ID }}
           UIPATH_CLIENT_SECRET: ${{ secrets.UIPATH_CLIENT_SECRET }}
           UIPATH_ORGANIZATION_ID: ${{ vars.UIPATH_ORGANIZATION_ID }}
