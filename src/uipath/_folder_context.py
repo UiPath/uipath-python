@@ -10,7 +10,7 @@ from ._utils.constants import (
     HEADER_FOLDER_PATH,
 )
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 class FolderContext:

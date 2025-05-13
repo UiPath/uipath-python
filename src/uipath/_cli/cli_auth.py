@@ -15,7 +15,7 @@ from ._auth._utils import update_auth_file, update_env_file
 from ._utils._common import environment_options
 from ._utils._console import ConsoleLogger
 
-load_dotenv()
+load_dotenv(override=True)
 console = ConsoleLogger()
 
 

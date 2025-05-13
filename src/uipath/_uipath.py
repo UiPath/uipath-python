@@ -26,7 +26,7 @@ from ._utils.constants import (
 )
 from .models.errors import BaseUrlMissingError, SecretMissingError
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 class UiPath:
