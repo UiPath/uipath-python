@@ -5,6 +5,24 @@ from typing import Generator
 import pytest
 from click.testing import CliRunner
 
+from tests.cli.utils.project_details import ProjectDetails
+from tests.cli.utils.uipath_json import UiPathJson
+
+
+@pytest.fixture
+def mock_env_vars() -> dict[str, str]:
+    """Fixture to provide mock environment variables."""
+    return {
+        "UIPATH_URL": "https://cloud.uipath.com",
+        "UIPATH_ACCESS_TOKEN": "mock_token",
+    }
+
+
+@pytest.fixture
+def mock_personal_workspace_info() -> tuple[str, str]:
+    """Fixture to provide mock personal workspace info."""
+    return ("tenant_feed", "my-workspace-feed")
+
 
 @pytest.fixture
 def runner() -> CliRunner:
@@ -27,3 +45,17 @@ def mock_project(temp_dir: str) -> str:
         f.write("def main(input): return input")
 
     return temp_dir
+
+
+@pytest.fixture
+def project_details() -> ProjectDetails:
+    with open("mocks/pyproject.toml", "r") as file:
+        data = file.read()
+    return ProjectDetails.from_toml(data)
+
+
+@pytest.fixture
+def uipath_json() -> UiPathJson:
+    with open("mocks/uipath.json", "r") as file:
+        data = file.read()
+    return UiPathJson.from_json(data)
