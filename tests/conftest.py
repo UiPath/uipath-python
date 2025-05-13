@@ -49,13 +49,21 @@ def mock_project(temp_dir: str) -> str:
 
 @pytest.fixture
 def project_details() -> ProjectDetails:
-    with open("mocks/pyproject.toml", "r") as file:
-        data = file.read()
+    if os.path.isfile("mocks/pyproject.toml"):
+        with open("mocks/pyproject.toml", "r") as file:
+            data = file.read()
+    else:
+        with open("tests/cli/mocks/pyproject.toml", "r") as file:
+            data = file.read()
     return ProjectDetails.from_toml(data)
 
 
 @pytest.fixture
 def uipath_json() -> UiPathJson:
-    with open("mocks/uipath.json", "r") as file:
-        data = file.read()
+    if os.path.isfile("mocks/uipath-mock.json"):
+        with open("mocks/uipath-mock.json", "r") as file:
+            data = file.read()
+    else:
+        with open("tests/cli/mocks/uipath-mock.json", "r") as file:
+            data = file.read()
     return UiPathJson.from_json(data)
