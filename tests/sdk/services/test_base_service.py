@@ -1,5 +1,3 @@
-import importlib
-
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -8,63 +6,57 @@ from uipath._execution_context import ExecutionContext
 from uipath._services._base_service import BaseService
 from uipath._utils.constants import HEADER_USER_AGENT
 
-BASE_URL = "https://test.uipath.com"
-ORG = "/org"
-TENANT = "/tenant"
-ENDPOINT = "/endpoint"
-SECRET = "test_secret"
 
-
-def config() -> Config:
-    """Create a test configuration."""
-    return Config(base_url=f"{BASE_URL}{ORG}{TENANT}", secret=SECRET)
-
-
-try:
-    version = importlib.metadata.version("uipath")
-except importlib.metadata.PackageNotFoundError:
-    version = "unknown"
+@pytest.fixture
+def service(config: Config, execution_context: ExecutionContext) -> BaseService:
+    return BaseService(config=config, execution_context=execution_context)
 
 
 class TestBaseService:
-    def test_init_base_service(self):
-        service = BaseService(config(), ExecutionContext())
-
+    def test_init_base_service(self, service: BaseService):
         assert service is not None
 
-    def test_base_service_default_headers(self):
-        service = BaseService(config(), ExecutionContext())
-
+    def test_base_service_default_headers(self, service: BaseService, secret: str):
         assert service.default_headers == {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {SECRET}",
+            "Authorization": f"Bearer {secret}",
         }
 
     class TestRequest:
-        def test_simple_request(self, httpx_mock: HTTPXMock):
+        def test_simple_request(
+            self,
+            httpx_mock: HTTPXMock,
+            service: BaseService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            version: str,
+            secret: str,
+        ):
+            endpoint = "/endpoint"
+
             httpx_mock.add_response(
-                url=f"{BASE_URL}{ORG}{TENANT}{ENDPOINT}",
+                url=f"{base_url}{org}{tenant}{endpoint}",
                 status_code=200,
                 json={"test": "test"},
             )
 
-            service = BaseService(config(), ExecutionContext())
-            response = service.request("GET", ENDPOINT)
+            response = service.request("GET", endpoint)
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
                 raise Exception("No request was sent")
 
             assert sent_request.method == "GET"
-            assert sent_request.url == f"{BASE_URL}{ORG}{TENANT}{ENDPOINT}"
+            assert sent_request.url == f"{base_url}{org}{tenant}{endpoint}"
 
             assert HEADER_USER_AGENT in sent_request.headers
             assert (
                 sent_request.headers[HEADER_USER_AGENT]
                 == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.TestRequest.test_simple_request/{version}"
             )
-            assert sent_request.headers["Authorization"] == f"Bearer {SECRET}"
+            assert sent_request.headers["Authorization"] == f"Bearer {secret}"
 
             assert response is not None
             assert response.status_code == 200
@@ -72,29 +64,38 @@ class TestBaseService:
 
     class TestRequestAsync:
         @pytest.mark.anyio
-        async def test_simple_request_async(self, httpx_mock: HTTPXMock):
+        async def test_simple_request_async(
+            self,
+            httpx_mock: HTTPXMock,
+            service: BaseService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            version: str,
+            secret: str,
+        ):
+            endpoint = "/endpoint"
             httpx_mock.add_response(
-                url=f"{BASE_URL}{ORG}{TENANT}{ENDPOINT}",
+                url=f"{base_url}{org}{tenant}{endpoint}",
                 status_code=200,
                 json={"test": "test"},
             )
 
-            service = BaseService(config(), ExecutionContext())
-            response = await service.request_async("GET", ENDPOINT)
+            response = await service.request_async("GET", endpoint)
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
                 raise Exception("No request was sent")
 
             assert sent_request.method == "GET"
-            assert sent_request.url == f"{BASE_URL}{ORG}{TENANT}{ENDPOINT}"
+            assert sent_request.url == f"{base_url}{org}{tenant}{endpoint}"
 
             assert HEADER_USER_AGENT in sent_request.headers
             assert (
                 sent_request.headers[HEADER_USER_AGENT]
                 == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.TestRequestAsync.test_simple_request_async/{version}"
             )
-            assert sent_request.headers["Authorization"] == f"Bearer {SECRET}"
+            assert sent_request.headers["Authorization"] == f"Bearer {secret}"
 
             assert response is not None
             assert response.status_code == 200
