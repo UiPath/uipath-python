@@ -59,6 +59,11 @@ dev = [
   "mkdocs-click>=0.9.0",
   "pytest-asyncio>=0.26.0",
   "mkdocs-open-in-new-tab>=1.0.8",
+  "toml>=0.10.2",
+  "inflection>=0.5.1",
+  "pytest-httpx>=0.35.0",
+  "pytest-trio>=0.8.0",
+  "types-toml>=0.10.8",
 ]
 
 [project.optional-dependencies]
@@ -116,4 +121,5 @@ warn_required_dynamic_aliases = true
 testpaths = ["tests"]
 python_files = "test_*.py"
 addopts = "-ra -q"
+asyncio_default_fixture_loop_scope="function"
 
