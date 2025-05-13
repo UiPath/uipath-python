@@ -59,6 +59,7 @@ nav:
       - Sample Agents: https://github.com/UiPath/uipath-langchain-python/tree/main/samples
   - UiPath SDK:
       - Getting Started: core/getting_started.md
+      - Environment Variables: core/environment_variables.md
       - CLI Reference: cli/index.md
       - Services:
         - Actions: core/actions.md
