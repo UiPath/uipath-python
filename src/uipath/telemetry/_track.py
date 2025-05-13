@@ -16,6 +16,10 @@ from .._utils.constants import (
 )
 from ._constants import (
     _APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE,
+    _APP_NAME,
+    _CLOUD_ORG_ID,
+    _CLOUD_TENANT_ID,
+    _CLOUD_URL,
     _CODE_FILEPATH,
     _CODE_FUNCTION,
     _CODE_LINENO,
@@ -34,9 +38,10 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
     def _get_attributes(record: LogRecord) -> Attributes:
         attributes = dict(LoggingHandler._get_attributes(record) or {})
         attributes[_APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE] = True
-        attributes[ENV_TENANT_ID] = os.getenv(ENV_TENANT_ID, _UNKNOWN)
-        attributes[ENV_ORGANIZATION_ID] = os.getenv(ENV_ORGANIZATION_ID, _UNKNOWN)
-        attributes[ENV_BASE_URL] = os.getenv(ENV_BASE_URL, _UNKNOWN)
+        attributes[_CLOUD_TENANT_ID] = os.getenv(ENV_TENANT_ID, _UNKNOWN)
+        attributes[_CLOUD_ORG_ID] = os.getenv(ENV_ORGANIZATION_ID, _UNKNOWN)
+        attributes[_CLOUD_URL] = os.getenv(ENV_BASE_URL, _UNKNOWN)
+        attributes[_APP_NAME] = "UiPath.Sdk"
         attributes[_SDK_VERSION] = version("uipath")
 
         if _CODE_FILEPATH in attributes:
@@ -87,7 +92,7 @@ class _TelemetryClient:
 
         _TelemetryClient._initialize()
 
-        _logger.info(name, extra=attrs)
+        _logger.info(f"Sdk.{name.capitalize()}", extra=attrs)
 
 
 def track(
