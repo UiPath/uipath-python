@@ -7,7 +7,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from .._utils._read_overwrites import OverwritesManager, read_resource_overwrites
-from ..models import UserAsset
+from ..models import Asset, UserAsset
 from ..tracing._traced import traced
 from ._base_service import BaseService
 
@@ -34,7 +34,7 @@ class AssetsService(FolderContext, BaseService):
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> UserAsset:
+    ) -> UserAsset | Asset:
         """Retrieve an asset by its name.
 
         Related Activity: [Get Asset](https://docs.uipath.com/activities/other/latest/workflow/get-robot-asset)
@@ -56,6 +56,11 @@ class AssetsService(FolderContext, BaseService):
             client.assets.retrieve(name="MyAsset")
             ```
         """
+        try:
+            is_user = self._execution_context.robot_key is not None
+        except ValueError:
+            is_user = False
+
         with read_resource_overwrites("asset", name, folder_path) as (
             overwritten_name,
             overwritten_folder_path,
@@ -68,11 +73,15 @@ class AssetsService(FolderContext, BaseService):
             response = self.request(
                 spec.method,
                 url=spec.endpoint,
+                params=spec.params,
                 content=spec.content,
                 headers=spec.headers,
             )
 
-            return UserAsset.model_validate(response.json())
+            if is_user:
+                return UserAsset.model_validate(response.json())
+            else:
+                return Asset.model_validate(response.json()["value"][0])
 
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
@@ -83,7 +92,7 @@ class AssetsService(FolderContext, BaseService):
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> UserAsset:
+    ) -> UserAsset | Asset:
         """Asynchronously retrieve an asset by its name.
 
         Related Activity: [Get Asset](https://docs.uipath.com/activities/other/latest/workflow/get-robot-asset)
@@ -96,6 +105,11 @@ class AssetsService(FolderContext, BaseService):
         Returns:
             UserAsset: The asset data.
         """
+        try:
+            is_user = self._execution_context.robot_key is not None
+        except ValueError:
+            is_user = False
+
         with read_resource_overwrites("asset", name, folder_path) as (
             overwritten_name,
             overwritten_folder_path,
@@ -108,11 +122,15 @@ class AssetsService(FolderContext, BaseService):
             response = await self.request_async(
                 spec.method,
                 url=spec.endpoint,
+                params=spec.params,
                 content=spec.content,
                 headers=spec.headers,
             )
 
-            return UserAsset.model_validate(response.json())
+            if is_user:
+                return UserAsset.model_validate(response.json())
+            else:
+                return Asset.model_validate(response.json()["value"][0])
 
     @infer_bindings()
     @traced(
@@ -138,7 +156,18 @@ class AssetsService(FolderContext, BaseService):
 
         Returns:
             Optional[str]: The decrypted credential password.
+
+        Raises:
+            ValueError: If the method is called for a user asset.
         """
+        try:
+            is_user = self._execution_context.robot_key is not None
+        except ValueError:
+            is_user = False
+
+        if not is_user:
+            raise ValueError("This method can only be used for robot assets.")
+
         with read_resource_overwrites("asset", name, folder_path) as (
             overwritten_name,
             overwritten_folder_path,
@@ -185,7 +214,17 @@ class AssetsService(FolderContext, BaseService):
         Returns:
             Optional[str]: The decrypted credential password.
 
+        Raises:
+            ValueError: If the method is called for a user asset.
         """
+        try:
+            is_user = self._execution_context.robot_key is not None
+        except ValueError:
+            is_user = False
+
+        if not is_user:
+            raise ValueError("This method can only be used for robot assets.")
+
         with read_resource_overwrites("asset", name, folder_path) as (
             overwritten_name,
             overwritten_folder_path,
@@ -224,7 +263,18 @@ class AssetsService(FolderContext, BaseService):
 
         Returns:
             Response: The HTTP response confirming the update.
+
+        Raises:
+            ValueError: If the method is called for a user asset.
         """
+        try:
+            is_user = self._execution_context.robot_key is not None
+        except ValueError:
+            is_user = False
+
+        if not is_user:
+            raise ValueError("This method can only be used for robot assets.")
+
         with read_resource_overwrites("asset", robot_asset.name or "", folder_path) as (
             overwritten_name,
             overwritten_folder_path,
@@ -288,14 +338,29 @@ class AssetsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
+        try:
+            robot_key = self._execution_context.robot_key
+        except ValueError:
+            robot_key = None
+
+        if robot_key is None:
+            return RequestSpec(
+                method="GET",
+                endpoint=Endpoint(
+                    "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered",
+                ),
+                params={"$filter": f"Name eq '{name}'", "$top": 1},
+                headers={
+                    **header_folder(folder_key, folder_path),
+                },
+            )
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
             ),
-            content=str(
-                {"assetName": name, "robotKey": self._execution_context.robot_key}
-            ),
+            content=str({"assetName": name, "robotKey": robot_key}),
             headers={
                 **header_folder(folder_key, folder_path),
             },
