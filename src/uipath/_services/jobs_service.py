@@ -262,6 +262,6 @@ class JobsService(FolderContext, BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
-                f"orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_key})"
+                f"/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_key})"
             ),
         )
