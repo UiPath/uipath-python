@@ -10,9 +10,9 @@ def header_folder(
         raise ValueError("Only one of folder_key or folder_path can be provided")
 
     headers = {}
-    if folder_key is not None:
+    if folder_key is not None and folder_key != "":
         headers[HEADER_FOLDER_KEY] = folder_key
-    if folder_path is not None:
+    if folder_path is not None and folder_path != "":
         headers[HEADER_FOLDER_PATH] = folder_path
 
     return headers
