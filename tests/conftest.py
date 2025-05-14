@@ -5,23 +5,7 @@ from typing import Generator
 import pytest
 from click.testing import CliRunner
 
-from tests.cli.utils.project_details import ProjectDetails
-from tests.cli.utils.uipath_json import UiPathJson
-
-
-@pytest.fixture
-def mock_env_vars() -> dict[str, str]:
-    """Fixture to provide mock environment variables."""
-    return {
-        "UIPATH_URL": "https://cloud.uipath.com",
-        "UIPATH_ACCESS_TOKEN": "mock_token",
-    }
-
-
-@pytest.fixture
-def mock_personal_workspace_info() -> tuple[str, str]:
-    """Fixture to provide mock personal workspace info."""
-    return ("tenant_feed", "my-workspace-feed")
+from uipath._execution_context import ExecutionContext
 
 
 @pytest.fixture
@@ -36,6 +20,17 @@ def temp_dir() -> Generator[str, None, None]:
     with tempfile.TemporaryDirectory() as tmp_dir:
         yield tmp_dir
 
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clean environment variables before each test."""
+    monkeypatch.delenv("UIPATH_URL", raising=False)
+    monkeypatch.delenv("UIPATH_ACCESS_TOKEN", raising=False)
+
+@pytest.fixture
+def execution_context(monkeypatch: pytest.MonkeyPatch) -> ExecutionContext:
+    monkeypatch.setenv("UIPATH_ROBOT_KEY", "test-robot-key")
+    return ExecutionContext()
+
 
 @pytest.fixture
 def mock_project(temp_dir: str) -> str:
@@ -45,25 +40,3 @@ def mock_project(temp_dir: str) -> str:
         f.write("def main(input): return input")
 
     return temp_dir
-
-
-@pytest.fixture
-def project_details() -> ProjectDetails:
-    if os.path.isfile("mocks/pyproject.toml"):
-        with open("mocks/pyproject.toml", "r") as file:
-            data = file.read()
-    else:
-        with open("tests/cli/mocks/pyproject.toml", "r") as file:
-            data = file.read()
-    return ProjectDetails.from_toml(data)
-
-
-@pytest.fixture
-def uipath_json() -> UiPathJson:
-    if os.path.isfile("mocks/uipath-mock.json"):
-        with open("mocks/uipath-mock.json", "r") as file:
-            data = file.read()
-    else:
-        with open("tests/cli/mocks/uipath-mock.json", "r") as file:
-            data = file.read()
-    return UiPathJson.from_json(data)

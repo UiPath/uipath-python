@@ -42,14 +42,14 @@ def python_run_middleware(
     if not entrypoint:
         return MiddlewareResult(
             should_continue=False,
-            info_message="""Error: No entrypoint specified. Please provide a path to a Python script.
+            error_message="""No entrypoint specified. Please provide a path to a Python script.
 Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""",
         )
 
     if not os.path.exists(entrypoint):
         return MiddlewareResult(
             should_continue=False,
-            error_message=f"""Error: Script not found at path {entrypoint}.
+            error_message=f"""Script not found at path {entrypoint}.
 Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""",
         )
 

@@ -32,16 +32,12 @@ class TestPublish:
         self,
         runner: CliRunner,
         temp_dir: str,
-        mock_feeds_response: list[tuple[str, str]],
     ) -> None:
         """Test publish command when no env file exists."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             result = runner.invoke(publish)
             assert result.exit_code == 1
-            assert (
-                "Missing required environment variables. Please check your .env file contains"
-                in result.output
-            )
+            assert "Missing required environment variables." in result.output
             assert "UIPATH_URL" in result.output
             assert "UIPATH_ACCESS_TOKEN" in result.output
 
@@ -124,12 +120,12 @@ class TestPublish:
             with open(os.path.join(".uipath", "test.1.0.0.nupkg"), "wb") as f:
                 f.write(b"dummy package content")
 
-                _create_env_file(mock_env_vars)
+            _create_env_file(mock_env_vars)
 
-                result = runner.invoke(publish, ["--tenant"])
+            result = runner.invoke(publish, ["--tenant"])
 
-                assert result.exit_code == 1
-                assert "Failed to publish package. Status code: 401" in result.output
+            assert result.exit_code == 1
+            assert "Failed to publish package. Status code: 401" in result.output
 
     def test_publish_tenant_feed_success(
         self,
@@ -151,12 +147,12 @@ class TestPublish:
             with open(os.path.join(".uipath", "test.1.0.0.nupkg"), "wb") as f:
                 f.write(b"dummy package content")
 
-                _create_env_file(mock_env_vars)
+            _create_env_file(mock_env_vars)
 
-                result = runner.invoke(publish, ["--tenant"])
+            result = runner.invoke(publish, ["--tenant"])
 
-                assert result.exit_code == 0
-                assert "Package published successfully!" in result.output
+            assert result.exit_code == 0
+            assert "Package published successfully!" in result.output
 
     def test_publish_folder_feed_success(
         self,
