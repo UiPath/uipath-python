@@ -71,6 +71,7 @@ nav:
         - Queues: core/queues.md
         - Processes: core/processes.md
   - How To Contribute: CONTRIBUTING.md
+  - FAQ: FAQ.md
   - Release Policy: release_policy.md
 
 plugins:
@@ -92,14 +93,10 @@ plugins:
             show_root_toc_entry: false
             show_symbol_type_toc: true
             show_bases: false
-  - mkdocs-simple-hooks:
-      hooks:
-        on_pre_build: "docs.hooks:redirect_index"
   - termynal:
       prompt_literal_start:
         - "$"
         - ">"
-  - social
   - open-in-new-tab
 
 markdown_extensions:
