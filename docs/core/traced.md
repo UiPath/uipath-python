@@ -8,7 +8,7 @@ You can view the traces of an Orchestrator job by going to the Jobs page, click 
 
 Apply the `@traced()` decorator to any function (sync, async, generator, or async generator) to automatically record its execution as a trace span.
 
-```python
+```python hl_lines="3 7"
 from uipath.tracing._traced import traced
 
 @traced()
@@ -36,7 +36,7 @@ async def my_async_function(a, b):
 
 Processors allow you to mask, redact, or transform sensitive data before it is recorded in the trace. For example:
 
-```python
+```python hl_lines="13"
 def mask_inputs(inputs):
     inputs = inputs.copy()
     if 'password' in inputs:
@@ -60,7 +60,7 @@ def login(user, password):
 - Set `hide_input=True` to prevent input data from being logged.
 - Set `hide_output=True` to prevent output data from being logged.
 
-```python
+```python hl_lines="1"
 @traced(hide_input=True, hide_output=True)
 def sensitive_operation(secret):
     ...
@@ -75,7 +75,7 @@ def sensitive_operation(secret):
 
 When used with plain python agents please call `wait_for_tracers()` at the end of the script to ensure all traces are sent, if this is not called the agent could end without sending all the traces.
 
-```python
+```python hl_lines="3 8"
 
 from uipath.tracing import traced, wait_for_tracers
 
@@ -94,7 +94,7 @@ def main_wait_traces():
     finally:
         # this needs to be called after the last `traced` function is done
         # to ensure the trace associated with main is saved
-        wait_for_tracers() 
+        wait_for_tracers()
 
 if __name__ == "__main__":
     main_wait_traces()
@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
 When using `uipath-langchain` there is no need to call wait_for_tracers our framework will ensure that is called.
 
-```python
+```python hl_lines="1"
 @traced()
 def my_custom_traced_function(input: str) -> str:
     return { "x": "some-output" }
@@ -113,8 +113,8 @@ def my_custom_traced_function(input: str) -> str:
 
 You can also use `@traceable()` attribute from langchain, but we recommend using `@traced()` attribute instead.
 
-```python
-@traceable() 
+```python hl_lines="1"
+@traceable()
 # @traced()  ---> do not use both at the same time or it will duplicate spans.
 def my_custom_traced_function(input: str) -> str:
     return { "x": "some-output" }
