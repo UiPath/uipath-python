@@ -55,7 +55,7 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
         spec = self._retrieve_readUri_spec(
-            bucket, blob_file_path, folder_key=folder_key, folder_path=folder_path
+            bucket.id, blob_file_path, folder_key=folder_key, folder_path=folder_path
         )
         result = self.request(
             spec.method,
@@ -112,10 +112,8 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
-        bucket_id = bucket["Id"]
-
         spec = self._retrieve_writeri_spec(
-            bucket_id,
+            bucket.id,
             content_type,
             blob_file_path,
             folder_key=folder_key,
@@ -175,10 +173,8 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
-        bucket_id = bucket["Id"]
-
         spec = self._retrieve_writeri_spec(
-            bucket_id,
+            bucket.id,
             content_type,
             blob_file_path,
             folder_key=folder_key,
@@ -245,10 +241,9 @@ class BucketsService(FolderContext, BaseService):
         bucket = self.retrieve(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
-        bucket_id = bucket["Id"]
 
         spec = self._retrieve_writeri_spec(
-            bucket_id,
+            bucket.id,
             content_type,
             blob_file_path,
             folder_key=folder_key,
