@@ -120,5 +120,11 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "-ra -q"
+addopts = "-ra -q --cov"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.coverage.run]
+source = ["src"]

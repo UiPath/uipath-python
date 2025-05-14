@@ -24,7 +24,7 @@ jobs:
 
       - name: Run tests
         run: |
-          uv run pytest
+          uv run pytest --cov-report xml:./coverage/coverage.xml
         env:
           UIPATH_URL: ${{ secrets.UIPATH_URL }}
           UIPATH_BASE_URL: ${{ secrets.UIPATH_BASE_URL }}
@@ -32,4 +32,11 @@ jobs:
           UIPATH_CLIENT_SECRET: ${{ secrets.UIPATH_CLIENT_SECRET }}
           UIPATH_ORGANIZATION_ID: ${{ vars.UIPATH_ORGANIZATION_ID }}
           UIPATH_TENANT_ID: ${{ vars.UIPATH_TENANT_ID }}
+
+      - name: Get Cover
+        uses: orgoro/coverage@v3.2
+        with:
+          coverageFile: ./coverage/coverage.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ github.event_name == 'pull_request_target' }}
 
