@@ -1,6 +1,6 @@
-from datetime import datetime
 import uuid
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,5 +22,7 @@ class Attachment(BaseModel):
 
     name: str = Field(alias="Name")
     creation_time: Optional[datetime] = Field(default=None, alias="CreationTime")
-    last_modification_time: Optional[datetime] = Field(default=None, alias="LastModificationTime")
+    last_modification_time: Optional[datetime] = Field(
+        default=None, alias="LastModificationTime"
+    )
     key: uuid.UUID = Field(alias="Key")

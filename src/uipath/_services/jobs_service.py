@@ -383,7 +383,7 @@ class JobsService(FolderContext, BaseService):
         category: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> None:
+    ):
         """Link an attachment to a job.
 
         This method links an existing attachment to a specific job.
@@ -436,7 +436,7 @@ class JobsService(FolderContext, BaseService):
         category: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> None:
+    ):
         """Link an attachment to a job asynchronously.
 
         This method asynchronously links an existing attachment to a specific job.

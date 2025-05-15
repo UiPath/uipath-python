@@ -231,7 +231,7 @@ class TestAttachmentsService:
         """
         # Test missing both content and source_path
         with pytest.raises(ValueError, match="Content or source_path is required"):
-            service.upload(name="test.txt")
+            service.upload(name="test.txt")  # type: ignore
 
         # Test providing both content and source_path
         with pytest.raises(
@@ -239,7 +239,7 @@ class TestAttachmentsService:
         ):
             service.upload(
                 name="test.txt", content="test content", source_path="/path/to/file.txt"
-            )
+            )  # type: ignore
 
     @pytest.mark.asyncio
     async def test_upload_async_with_content(
@@ -471,6 +471,9 @@ class TestAttachmentsService:
 
         # Verify the request
         request = httpx_mock.get_request()
+        if request is None:
+            raise Exception("No request was sent")
+
         assert request.method == "DELETE"
         assert (
             request.url
@@ -516,6 +519,9 @@ class TestAttachmentsService:
 
         # Verify the request
         request = httpx_mock.get_request()
+        if request is None:
+            raise Exception("No request was sent")
+
         assert request.method == "DELETE"
         assert (
             request.url
