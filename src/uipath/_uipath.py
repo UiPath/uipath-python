@@ -10,6 +10,7 @@ from ._services import (
     ActionsService,
     ApiClient,
     AssetsService,
+    AttachmentsService,
     BucketsService,
     ConnectionsService,
     ContextGroundingService,
@@ -68,6 +69,10 @@ class UiPath:
     @property
     def assets(self) -> AssetsService:
         return AssetsService(self._config, self._execution_context)
+
+    @property
+    def attachments(self) -> AttachmentsService:
+        return AttachmentsService(self._config, self._execution_context)
 
     @property
     def processes(self) -> ProcessesService:

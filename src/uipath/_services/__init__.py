@@ -1,6 +1,7 @@
 from .actions_service import ActionsService
 from .api_client import ApiClient
 from .assets_service import AssetsService
+from .attachments_service import AttachmentsService
 from .buckets_service import BucketsService
 from .connections_service import ConnectionsService
 from .context_grounding_service import ContextGroundingService
@@ -13,6 +14,7 @@ from .queues_service import QueuesService
 __all__ = [
     "ActionsService",
     "AssetsService",
+    "AttachmentsService",
     "BucketsService",
     "ConnectionsService",
     "ContextGroundingService",

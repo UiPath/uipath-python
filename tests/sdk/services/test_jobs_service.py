@@ -1,4 +1,5 @@
 import json
+import uuid
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -7,6 +8,7 @@ from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._services.jobs_service import JobsService
 from uipath._utils.constants import HEADER_USER_AGENT
+from uipath.models import Attachment
 from uipath.models.job import Job
 
 
@@ -269,3 +271,195 @@ class TestJobsService:
             sent_requests[1].headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.JobsService.resume_async/{version}"
         )
+
+    def test_list_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        # Arrange
+        job_key = uuid.uuid4()
+
+        # Mock with query parameters
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/JobAttachments/GetByJobKey?jobKey={job_key}",
+            method="GET",
+            status_code=200,
+            json=[
+                {
+                    "Name": "document1.pdf",
+                    "Key": "12345678-1234-1234-1234-123456789012",
+                    "CreationTime": "2023-01-01T12:00:00Z",
+                    "LastModificationTime": "2023-01-02T12:00:00Z",
+                },
+                {
+                    "Name": "document2.pdf",
+                    "Key": "87654321-1234-1234-1234-123456789012",
+                    "CreationTime": "2023-01-03T12:00:00Z",
+                    "LastModificationTime": "2023-01-04T12:00:00Z",
+                },
+            ],
+        )
+
+        # Act
+        attachments = service.list_attachments(job_key=job_key)
+
+        # Assert
+        assert len(attachments) == 2
+        assert isinstance(attachments[0], Attachment)
+        assert attachments[0].name == "document1.pdf"
+        assert attachments[0].key == uuid.UUID("12345678-1234-1234-1234-123456789012")
+        assert isinstance(attachments[1], Attachment)
+        assert attachments[1].name == "document2.pdf"
+        assert attachments[1].key == uuid.UUID("87654321-1234-1234-1234-123456789012")
+
+        # Verify the request
+        request = httpx_mock.get_request()
+        assert request.method == "GET"
+        assert (
+            request.url.path
+            == f"{org}{tenant}/orchestrator_/api/JobAttachments/GetByJobKey"
+        )
+        assert request.url.params.get("jobKey") == str(job_key)
+        assert HEADER_USER_AGENT in request.headers
+
+    @pytest.mark.asyncio
+    async def test_list_attachments_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        # Arrange
+        job_key = uuid.uuid4()
+
+        # Mock with query parameters
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/JobAttachments/GetByJobKey?jobKey={job_key}",
+            method="GET",
+            status_code=200,
+            json=[
+                {
+                    "Name": "document1.pdf",
+                    "Key": "12345678-1234-1234-1234-123456789012",
+                    "CreationTime": "2023-01-01T12:00:00Z",
+                    "LastModificationTime": "2023-01-02T12:00:00Z",
+                },
+                {
+                    "Name": "document2.pdf",
+                    "Key": "87654321-1234-1234-1234-123456789012",
+                    "CreationTime": "2023-01-03T12:00:00Z",
+                    "LastModificationTime": "2023-01-04T12:00:00Z",
+                },
+            ],
+        )
+
+        # Act
+        attachments = await service.list_attachments_async(job_key=job_key)
+
+        # Assert
+        assert len(attachments) == 2
+        assert isinstance(attachments[0], Attachment)
+        assert attachments[0].name == "document1.pdf"
+        assert attachments[0].key == uuid.UUID("12345678-1234-1234-1234-123456789012")
+        assert isinstance(attachments[1], Attachment)
+        assert attachments[1].name == "document2.pdf"
+        assert attachments[1].key == uuid.UUID("87654321-1234-1234-1234-123456789012")
+
+        # Verify the request
+        request = httpx_mock.get_request()
+        assert request.method == "GET"
+        assert (
+            request.url.path
+            == f"{org}{tenant}/orchestrator_/api/JobAttachments/GetByJobKey"
+        )
+        assert request.url.params.get("jobKey") == str(job_key)
+        assert HEADER_USER_AGENT in request.headers
+
+    def test_link_attachment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        # Arrange
+        attachment_key = uuid.uuid4()
+        job_key = uuid.uuid4()
+        category = "Result"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/JobAttachments/Post",
+            method="POST",
+            status_code=200,
+        )
+
+        # Act
+        service.link_attachment(
+            attachment_key=attachment_key, job_key=job_key, category=category
+        )
+
+        # Verify the request
+        request = httpx_mock.get_request()
+        assert request.method == "POST"
+        assert (
+            request.url
+            == f"{base_url}{org}{tenant}/orchestrator_/api/JobAttachments/Post"
+        )
+        assert HEADER_USER_AGENT in request.headers
+
+        # Verify request JSON body
+        body = json.loads(request.content)
+        assert body["attachmentId"] == str(attachment_key)
+        assert body["jobKey"] == str(job_key)
+        assert body["category"] == category
+
+    @pytest.mark.asyncio
+    async def test_link_attachment_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        # Arrange
+        attachment_key = uuid.uuid4()
+        job_key = uuid.uuid4()
+        category = "Result"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/JobAttachments/Post",
+            method="POST",
+            status_code=200,
+        )
+
+        # Act
+        await service.link_attachment_async(
+            attachment_key=attachment_key, job_key=job_key, category=category
+        )
+
+        # Verify the request
+        request = httpx_mock.get_request()
+        assert request.method == "POST"
+        assert (
+            request.url
+            == f"{base_url}{org}{tenant}/orchestrator_/api/JobAttachments/Post"
+        )
+        assert HEADER_USER_AGENT in request.headers
+
+        # Verify request JSON body
+        body = json.loads(request.content)
+        assert body["attachmentId"] == str(attachment_key)
+        assert body["jobKey"] == str(job_key)
+        assert body["category"] == category
