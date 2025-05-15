@@ -53,6 +53,10 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
 Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""",
         )
 
+
+    with open("/tmp/test", "a") as f:
+            f.write("some extra stuff!")
+
     try:
 
         async def execute():
