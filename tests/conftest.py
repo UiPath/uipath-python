@@ -20,11 +20,13 @@ def temp_dir() -> Generator[str, None, None]:
     with tempfile.TemporaryDirectory() as tmp_dir:
         yield tmp_dir
 
+
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clean environment variables before each test."""
     monkeypatch.delenv("UIPATH_URL", raising=False)
     monkeypatch.delenv("UIPATH_ACCESS_TOKEN", raising=False)
+
 
 @pytest.fixture
 def execution_context(monkeypatch: pytest.MonkeyPatch) -> ExecutionContext:
