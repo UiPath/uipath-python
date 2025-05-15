@@ -18,6 +18,10 @@
         color: #182027 !important;
     }
 
+    .report-issue-link {
+        color: #182027 !important;
+    }
+
     .md-nav__item--section {
         &:after {
             background-color: #182027 !important;
@@ -51,6 +55,10 @@
         color: #ffffff !important;
     }
 
+    .report-issue-link {
+        color: #ffffff !important;
+    }
+
     .md-nav__item--section {
         &:after {
             background-color: #ffffff !important;
@@ -77,7 +85,7 @@
     opacity: 1 !important;
 }
 
-a[href^="https://"]:not(.md-source) {
+a[href^="https://"]:not(.md-source):not(.skip-link-icon) {
     &::after {
         content: "↗";
         font-size: 1em;
@@ -139,4 +147,9 @@ a[href^="https://"]:not(.md-source) {
             width: 25%;
         }
     }
+}
+
+.report-issue-link {
+    text-decoration: underline;
+    text-decoration-style: wavy;
 }
