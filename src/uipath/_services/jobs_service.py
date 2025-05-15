@@ -1,15 +1,20 @@
 import json
+import os
+import shutil
+import tempfile
 import uuid
-from typing import Any, Dict, List, Optional, overload
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union, cast, overload
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
-from ..models import Attachment
+from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ..models.job import Job
 from ..tracing._traced import traced
 from ._base_service import BaseService
+from .attachments_service import AttachmentsService
 
 
 class JobsService(FolderContext, BaseService):
@@ -22,6 +27,10 @@ class JobsService(FolderContext, BaseService):
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._attachments_service = AttachmentsService(config, execution_context)
+        # Define the temp directory path for local attachments
+        self._temp_dir = os.path.join(tempfile.gettempdir(), TEMP_ATTACHMENTS_FOLDER)
+        os.makedirs(self._temp_dir, exist_ok=True)
 
     @overload
     def resume(self, *, inbox_id: str, payload: Any) -> None: ...
@@ -212,7 +221,6 @@ class JobsService(FolderContext, BaseService):
 
     def _extract_first_inbox_id(self, response: Any) -> str:
         if len(response["value"]) > 0:
-            # FIXME: is this correct?
             return response["value"][0]["ItemKey"]
         else:
             raise Exception("No inbox found")
@@ -275,7 +283,7 @@ class JobsService(FolderContext, BaseService):
         job_key: uuid.UUID,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> List[Attachment]:
+    ) -> List[str]:
         """List attachments associated with a specific job.
 
         This method retrieves all attachments linked to a job by its key.
@@ -286,23 +294,10 @@ class JobsService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
-            List[Attachment]: A list of attachment objects associated with the job.
+            List[str]: A list of attachment IDs associated with the job.
 
         Raises:
             Exception: If the retrieval fails.
-
-        Examples:
-            ```python
-            from uipath import UiPath
-
-            client = UiPath()
-
-            attachments = client.jobs.list_attachments(
-                job_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
-            )
-            for attachment in attachments:
-                print(f"Attachment: {attachment.Name}, Key: {attachment.Key}")
-            ```
         """
         spec = self._list_job_attachments_spec(
             job_key=job_key,
@@ -317,7 +312,7 @@ class JobsService(FolderContext, BaseService):
             headers=spec.headers,
         ).json()
 
-        return [Attachment.model_validate(item) for item in response]
+        return [item.get("attachmentId") for item in response]
 
     @traced(name="jobs_list_attachments", run_type="uipath")
     async def list_attachments_async(
@@ -326,7 +321,7 @@ class JobsService(FolderContext, BaseService):
         job_key: uuid.UUID,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> List[Attachment]:
+    ) -> List[str]:
         """List attachments associated with a specific job asynchronously.
 
         This method asynchronously retrieves all attachments linked to a job by its key.
@@ -337,7 +332,7 @@ class JobsService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
-            List[Attachment]: A list of attachment objects associated with the job.
+            List[str]: A list of attachment IDs associated with the job.
 
         Raises:
             Exception: If the retrieval fails.
@@ -353,8 +348,8 @@ class JobsService(FolderContext, BaseService):
                 attachments = await client.jobs.list_attachments_async(
                     job_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
                 )
-                for attachment in attachments:
-                    print(f"Attachment: {attachment.Name}, Key: {attachment.Key}")
+                for attachment_id in attachments:
+                    print(f"Attachment ID: {attachment_id}")
             ```
         """
         spec = self._list_job_attachments_spec(
@@ -372,7 +367,7 @@ class JobsService(FolderContext, BaseService):
             )
         ).json()
 
-        return [Attachment.model_validate(item) for item in response]
+        return [item.get("attachmentId") for item in response]
 
     @traced(name="jobs_link_attachment", run_type="uipath")
     def link_attachment(
@@ -397,20 +392,6 @@ class JobsService(FolderContext, BaseService):
 
         Raises:
             Exception: If the link operation fails.
-
-        Examples:
-            ```python
-            from uipath import UiPath
-
-            client = UiPath()
-
-            client.jobs.link_attachment(
-                attachment_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000"),
-                job_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174001"),
-                category="Result"
-            )
-            print("Attachment linked to job successfully")
-            ```
         """
         spec = self._link_job_attachment_spec(
             attachment_key=attachment_key,
@@ -419,8 +400,7 @@ class JobsService(FolderContext, BaseService):
             folder_key=folder_key,
             folder_path=folder_path,
         )
-
-        return self.request(
+        self.request(
             spec.method,
             url=spec.endpoint,
             headers=spec.headers,
@@ -450,22 +430,6 @@ class JobsService(FolderContext, BaseService):
 
         Raises:
             Exception: If the link operation fails.
-
-        Examples:
-            ```python
-            import asyncio
-            from uipath import UiPath
-
-            client = UiPath()
-
-            async def main():
-                await client.jobs.link_attachment_async(
-                    attachment_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000"),
-                    job_key=uuid.UUID("123e4567-e89b-12d3-a456-426614174001"),
-                    category="Result"
-                )
-                print("Attachment linked to job successfully")
-            ```
         """
         spec = self._link_job_attachment_spec(
             attachment_key=attachment_key,
@@ -474,8 +438,7 @@ class JobsService(FolderContext, BaseService):
             folder_key=folder_key,
             folder_path=folder_path,
         )
-
-        return await self.request_async(
+        await self.request_async(
             spec.method,
             url=spec.endpoint,
             headers=spec.headers,
@@ -519,3 +482,275 @@ class JobsService(FolderContext, BaseService):
                 **header_folder(folder_key, folder_path),
             },
         )
+
+    @traced(name="jobs_create_attachment", run_type="uipath")
+    def create_attachment(
+        self,
+        *,
+        name: str,
+        content: Optional[Union[str, bytes]] = None,
+        source_path: Optional[Union[str, Path]] = None,
+        job_key: Optional[Union[str, uuid.UUID]] = None,
+        category: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> uuid.UUID:
+        """Create and upload an attachment, optionally linking it to a job.
+
+        This method handles creating an attachment from a file or memory data.
+        If a job key is provided or available in the execution context, the attachment
+        will be created in UiPath and linked to the job. If no job is available,
+        the file will be saved to a temporary storage folder.
+
+        Note:
+            The local storage functionality (when no job is available) is intended for
+            local development and debugging purposes only.
+
+        Args:
+            name (str): The name of the attachment file.
+            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
+            source_path (Optional[Union[str, Path]]): The local path of the file to upload.
+            job_key (Optional[Union[str, uuid.UUID]]): The key of the job to link the attachment to.
+            category (Optional[str]): Optional category for the attachment in the context of the job.
+            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            uuid.UUID: The unique identifier for the created attachment, regardless of whether it was
+                uploaded to UiPath or stored locally.
+
+        Raises:
+            ValueError: If neither content nor source_path is provided, or if both are provided.
+            Exception: If the upload fails.
+
+        Examples:
+            ```python
+            from uipath import UiPath
+
+            client = UiPath()
+
+            # Create attachment from file and link to job
+            attachment_id = client.jobs.create_attachment(
+                name="document.pdf",
+                source_path="path/to/local/document.pdf",
+                job_key="38073051"
+            )
+            print(f"Created and linked attachment: {attachment_id}")
+
+            # Create attachment from memory content (no job available - saves to temp storage)
+            attachment_id = client.jobs.create_attachment(
+                name="report.txt",
+                content="This is a text report"
+            )
+            print(f"Created attachment: {attachment_id}")
+            ```
+        """
+        # Validate input parameters
+        if not (content or source_path):
+            raise ValueError("Content or source_path is required")
+        if content and source_path:
+            raise ValueError("Content and source_path are mutually exclusive")
+
+        # Get job key from context if not explicitly provided
+        context_job_key = None
+        if job_key is None and hasattr(self._execution_context, "job_key"):
+            context_job_key = self._execution_context.job_key
+
+        # Check if a job is available
+        if job_key is not None or context_job_key is not None:
+            # Job is available - create attachment in UiPath and link to job
+            actual_job_key = job_key if job_key is not None else context_job_key
+
+            # Create the attachment using the attachments service
+            if content is not None:
+                attachment_key = self._attachments_service.upload(
+                    name=name,
+                    content=content,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+            else:
+                # source_path must be provided due to validation check above
+                attachment_key = self._attachments_service.upload(
+                    name=name,
+                    source_path=cast(str, source_path),
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+
+            # Convert to UUID if string
+            if isinstance(actual_job_key, str):
+                actual_job_key = uuid.UUID(actual_job_key)
+
+            # Link attachment to job
+            self.link_attachment(
+                attachment_key=attachment_key,
+                job_key=cast(uuid.UUID, actual_job_key),
+                category=category,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+
+            return attachment_key
+        else:
+            # No job available - save to temp folder
+            # Generate a UUID to use as identifier
+            attachment_id = uuid.uuid4()
+
+            # Create destination file path
+            dest_path = os.path.join(self._temp_dir, f"{attachment_id}_{name}")
+
+            # If we have source_path, copy the file
+            if source_path is not None:
+                source_path_str = (
+                    source_path if isinstance(source_path, str) else str(source_path)
+                )
+                shutil.copy2(source_path_str, dest_path)
+            # If we have content, write it to a file
+            elif content is not None:
+                # Convert string to bytes if needed
+                if isinstance(content, str):
+                    content = content.encode("utf-8")
+
+                with open(dest_path, "wb") as f:
+                    f.write(content)
+
+            # Return only the UUID
+            return attachment_id
+
+    @traced(name="jobs_create_attachment", run_type="uipath")
+    async def create_attachment_async(
+        self,
+        *,
+        name: str,
+        content: Optional[Union[str, bytes]] = None,
+        source_path: Optional[Union[str, Path]] = None,
+        job_key: Optional[Union[str, uuid.UUID]] = None,
+        category: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> uuid.UUID:
+        """Create and upload an attachment asynchronously, optionally linking it to a job.
+
+        This method asynchronously handles creating an attachment from a file or memory data.
+        If a job key is provided or available in the execution context, the attachment
+        will be created in UiPath and linked to the job. If no job is available,
+        the file will be saved to a temporary storage folder.
+
+        Note:
+            The local storage functionality (when no job is available) is intended for
+            local development and debugging purposes only.
+
+        Args:
+            name (str): The name of the attachment file.
+            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
+            source_path (Optional[Union[str, Path]]): The local path of the file to upload.
+            job_key (Optional[Union[str, uuid.UUID]]): The key of the job to link the attachment to.
+            category (Optional[str]): Optional category for the attachment in the context of the job.
+            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            uuid.UUID: The unique identifier for the created attachment, regardless of whether it was
+                uploaded to UiPath or stored locally.
+
+        Raises:
+            ValueError: If neither content nor source_path is provided, or if both are provided.
+            Exception: If the upload fails.
+
+        Examples:
+            ```python
+            import asyncio
+            from uipath import UiPath
+
+            client = UiPath()
+
+            async def main():
+                # Create attachment from file and link to job
+                attachment_id = await client.jobs.create_attachment_async(
+                    name="document.pdf",
+                    source_path="path/to/local/document.pdf",
+                    job_key="38073051"
+                )
+                print(f"Created and linked attachment: {attachment_id}")
+
+                # Create attachment from memory content (no job available - saves to temp storage)
+                attachment_id = await client.jobs.create_attachment_async(
+                    name="report.txt",
+                    content="This is a text report"
+                )
+                print(f"Created attachment: {attachment_id}")
+            ```
+        """
+        # Validate input parameters
+        if not (content or source_path):
+            raise ValueError("Content or source_path is required")
+        if content and source_path:
+            raise ValueError("Content and source_path are mutually exclusive")
+
+        # Get job key from context if not explicitly provided
+        context_job_key = None
+        if job_key is None and hasattr(self._execution_context, "job_key"):
+            context_job_key = self._execution_context.job_key
+
+        # Check if a job is available
+        if job_key is not None or context_job_key is not None:
+            # Job is available - create attachment in UiPath and link to job
+            actual_job_key = job_key if job_key is not None else context_job_key
+
+            # Create the attachment using the attachments service
+            if content is not None:
+                attachment_key = await self._attachments_service.upload_async(
+                    name=name,
+                    content=content,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+            else:
+                # source_path must be provided due to validation check above
+                attachment_key = await self._attachments_service.upload_async(
+                    name=name,
+                    source_path=cast(str, source_path),
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+
+            # Convert to UUID if string
+            if isinstance(actual_job_key, str):
+                actual_job_key = uuid.UUID(actual_job_key)
+
+            # Link attachment to job
+            await self.link_attachment_async(
+                attachment_key=attachment_key,
+                job_key=cast(uuid.UUID, actual_job_key),
+                category=category,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+
+            return attachment_key
+        else:
+            # No job available - save to temp folder
+            # Generate a UUID to use as identifier
+            attachment_id = uuid.uuid4()
+
+            # Create destination file path
+            dest_path = os.path.join(self._temp_dir, f"{attachment_id}_{name}")
+
+            # If we have source_path, copy the file
+            if source_path is not None:
+                source_path_str = (
+                    source_path if isinstance(source_path, str) else str(source_path)
+                )
+                shutil.copy2(source_path_str, dest_path)
+            # If we have content, write it to a file
+            elif content is not None:
+                # Convert string to bytes if needed
+                if isinstance(content, str):
+                    content = content.encode("utf-8")
+
+                with open(dest_path, "wb") as f:
+                    f.write(content)
+
+            # Return only the UUID
+            return attachment_id

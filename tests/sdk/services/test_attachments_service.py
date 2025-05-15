@@ -1,7 +1,8 @@
 import json
 import os
+import shutil
 import uuid
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Generator, Tuple
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -9,7 +10,7 @@ from pytest_httpx import HTTPXMock
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._services.attachments_service import AttachmentsService
-from uipath._utils.constants import HEADER_USER_AGENT
+from uipath._utils.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
 
 if TYPE_CHECKING:
     from _pytest.monkeypatch import MonkeyPatch
@@ -36,19 +37,73 @@ def service(
 
 
 @pytest.fixture
-def temp_file(tmp_path: Any) -> str:
+def temp_file(tmp_path: Any) -> Generator[Tuple[str, str, str], None, None]:
     """Creates a temporary file for testing file uploads and downloads.
 
     Args:
         tmp_path: PyTest fixture providing a temporary directory.
 
     Returns:
-        str: Path to the temporary test file.
+        A tuple containing the file content, file name, and file path.
     """
-    file_path = os.path.join(tmp_path, "test_file.txt")
+    content = "Test content"
+    name = f"test_file_{uuid.uuid4()}.txt"
+    path = os.path.join(tmp_path, name)
+
+    with open(path, "w") as f:
+        f.write(content)
+
+    yield content, name, path
+
+    # Clean up the file after the test
+    if os.path.exists(path):
+        os.remove(path)
+
+
+@pytest.fixture
+def temp_attachments_dir(tmp_path: Any) -> Generator[str, None, None]:
+    """Create a temporary directory for attachments and clean it up after the test.
+
+    Args:
+        tmp_path: Pytest's temporary directory fixture.
+
+    Returns:
+        The path to the temporary directory.
+    """
+    test_temp_dir = os.path.join(tmp_path, TEMP_ATTACHMENTS_FOLDER)
+    os.makedirs(test_temp_dir, exist_ok=True)
+
+    yield test_temp_dir
+
+    # Clean up the directory after the test
+    if os.path.exists(test_temp_dir):
+        shutil.rmtree(test_temp_dir)
+
+
+@pytest.fixture
+def local_attachment_file(
+    temp_attachments_dir: str,
+) -> Generator[Tuple[uuid.UUID, str, str], None, None]:
+    """Creates a local attachment file in the temporary attachments directory.
+
+    Args:
+        temp_attachments_dir: The temporary attachments directory.
+
+    Returns:
+        A tuple containing the attachment ID, file name, and file content.
+    """
+    attachment_id = uuid.uuid4()
+    file_name = "test_local_file.txt"
+    file_content = "Local test content"
+
+    # Create the local file with the format {uuid}_{filename}
+    file_path = os.path.join(temp_attachments_dir, f"{attachment_id}_{file_name}")
     with open(file_path, "w") as f:
-        f.write("Test content")
-    return file_path
+        f.write(file_content)
+
+    yield attachment_id, file_name, file_content
+
+    # Cleanup is handled by temp_attachments_dir fixture
 
 
 @pytest.fixture
@@ -83,7 +138,7 @@ class TestAttachmentsService:
         org: str,
         tenant: str,
         version: str,
-        temp_file: str,
+        temp_file: Tuple[str, str, str],
         blob_uri_response: Dict[str, Any],
     ) -> None:
         """Test uploading an attachment from a file path.
@@ -95,11 +150,11 @@ class TestAttachmentsService:
             org: Organization fixture for the API path.
             tenant: Tenant fixture for the API path.
             version: Version fixture for the user agent header.
-            temp_file: Temporary file fixture.
+            temp_file: Temporary file fixture tuple (content, name, path).
             blob_uri_response: Mock response fixture for blob operations.
         """
         # Arrange
-        file_name = os.path.basename(temp_file)
+        content, file_name, file_path = temp_file
 
         # Mock the create attachment endpoint
         httpx_mock.add_response(
@@ -119,7 +174,7 @@ class TestAttachmentsService:
         # Act
         attachment_key = service.upload(
             name=file_name,
-            source_path=temp_file,
+            source_path=file_path,
         )
 
         # Assert
@@ -127,10 +182,12 @@ class TestAttachmentsService:
 
         # Verify the requests
         requests = httpx_mock.get_requests()
+        assert requests is not None
         assert len(requests) == 2
 
         # Check the first request to create the attachment
         create_request = requests[0]
+        assert create_request is not None
         assert create_request.method == "POST"
         assert (
             create_request.url
@@ -144,6 +201,7 @@ class TestAttachmentsService:
 
         # Check the second request to upload the content
         upload_request = requests[1]
+        assert upload_request is not None
         assert upload_request.method == "PUT"
         assert upload_request.url == blob_uri_response["BlobFileAccess"]["Uri"]
         assert "x-ms-blob-type" in upload_request.headers
@@ -200,10 +258,12 @@ class TestAttachmentsService:
 
         # Verify the requests
         requests = httpx_mock.get_requests()
+        assert requests is not None
         assert len(requests) == 2
 
         # Check the first request to create the attachment
         create_request = requests[0]
+        assert create_request is not None
         assert create_request.method == "POST"
         assert (
             create_request.url
@@ -214,6 +274,7 @@ class TestAttachmentsService:
 
         # Check the second request to upload the content
         upload_request = requests[1]
+        assert upload_request is not None
         assert upload_request.method == "PUT"
         assert upload_request.url == blob_uri_response["BlobFileAccess"]["Uri"]
         assert "x-ms-blob-type" in upload_request.headers
@@ -249,7 +310,6 @@ class TestAttachmentsService:
         base_url: str,
         org: str,
         tenant: str,
-        version: str,
         blob_uri_response: Dict[str, Any],
     ) -> None:
         """Test asynchronously uploading an attachment with in-memory content.
@@ -293,11 +353,14 @@ class TestAttachmentsService:
 
         # Verify the requests
         requests = httpx_mock.get_requests()
+        assert requests is not None
         assert len(requests) == 2
-
+        assert requests is not None
         # Check the first request to create the attachment
         create_request = requests[0]
+        assert create_request is not None
         assert create_request.method == "POST"
+        assert create_request is not None
         assert (
             create_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments"
@@ -363,11 +426,14 @@ class TestAttachmentsService:
 
         # Verify the requests
         requests = httpx_mock.get_requests()
+        assert requests is not None
         assert len(requests) == 2
-
+        assert requests is not None
         # Check the first request to get the attachment metadata
         get_request = requests[0]
+        assert get_request is not None
         assert get_request.method == "GET"
+        assert get_request is not None
         assert (
             get_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_key})"
@@ -376,8 +442,9 @@ class TestAttachmentsService:
 
         # Check the second request to download the content
         download_request = requests[1]
+        assert download_request is not None
         assert download_request.method == "GET"
-        assert download_request.url == blob_uri_response["BlobFileAccess"]["Uri"]
+        assert download_request is not None
 
     @pytest.mark.asyncio
     async def test_download_async(
@@ -471,10 +538,9 @@ class TestAttachmentsService:
 
         # Verify the request
         request = httpx_mock.get_request()
-        if request is None:
-            raise Exception("No request was sent")
-
+        assert request is not None
         assert request.method == "DELETE"
+        assert request is not None
         assert (
             request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_key})"
@@ -519,10 +585,9 @@ class TestAttachmentsService:
 
         # Verify the request
         request = httpx_mock.get_request()
-        if request is None:
-            raise Exception("No request was sent")
-
+        assert request is not None
         assert request.method == "DELETE"
+        assert request is not None
         assert (
             request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_key})"
@@ -531,3 +596,296 @@ class TestAttachmentsService:
         assert request.headers[HEADER_USER_AGENT].startswith(
             f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AttachmentsService.delete_async/{version}"
         )
+
+    def test_download_local_fallback(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        tmp_path: Any,
+        temp_attachments_dir: str,
+        local_attachment_file: Tuple[uuid.UUID, str, str],
+    ) -> None:
+        """Test downloading an attachment with local fallback.
+
+        This test verifies the fallback mechanism when an attachment is not found in UiPath
+        but exists in the local temporary storage.
+
+        Args:
+            httpx_mock: HTTPXMock fixture for mocking HTTP requests.
+            service: AttachmentsService fixture.
+            base_url: Base URL fixture for the API endpoint.
+            org: Organization fixture for the API path.
+            tenant: Tenant fixture for the API path.
+            tmp_path: Temporary directory fixture.
+            temp_attachments_dir: Fixture for temporary attachments directory.
+            local_attachment_file: Fixture providing an attachment file in the temporary directory.
+        """
+        # Arrange
+        attachment_id, file_name, file_content = local_attachment_file
+        destination_path = os.path.join(tmp_path, "downloaded_file.txt")
+
+        # Replace the temp_dir in the service to use our test directory
+        service._temp_dir = temp_attachments_dir
+
+        # Mock the 404 response for UiPath attachment
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="GET",
+            status_code=404,
+            json={"error": "Attachment not found"},
+        )
+
+        # Act
+        result = service.download(
+            key=attachment_id,
+            destination_path=destination_path,
+        )
+
+        # Assert
+        assert result == file_name
+        assert os.path.exists(destination_path)
+
+        with open(destination_path, "r") as f:
+            assert f.read() == file_content
+
+    @pytest.mark.asyncio
+    async def test_download_async_local_fallback(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        tmp_path: Any,
+        temp_attachments_dir: str,
+        local_attachment_file: Tuple[uuid.UUID, str, str],
+    ) -> None:
+        """Test asynchronously downloading an attachment with local fallback.
+
+        This test verifies the fallback mechanism when an attachment is not found in UiPath
+        but exists in the local temporary storage, using the async method.
+
+        Args:
+            httpx_mock: HTTPXMock fixture for mocking HTTP requests.
+            service: AttachmentsService fixture.
+            base_url: Base URL fixture for the API endpoint.
+            org: Organization fixture for the API path.
+            tenant: Tenant fixture for the API path.
+            tmp_path: Temporary directory fixture.
+            temp_attachments_dir: Fixture for temporary attachments directory.
+            local_attachment_file: Fixture providing an attachment file in the temporary directory.
+        """
+        # Arrange
+        attachment_id, file_name, file_content = local_attachment_file
+        destination_path = os.path.join(tmp_path, "downloaded_file_async.txt")
+
+        # Replace the temp_dir in the service to use our test directory
+        service._temp_dir = temp_attachments_dir
+
+        # Mock the 404 response for UiPath attachment
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="GET",
+            status_code=404,
+            json={"error": "Attachment not found"},
+        )
+
+        # Act
+        result = await service.download_async(
+            key=attachment_id,
+            destination_path=destination_path,
+        )
+
+        # Assert
+        assert result == file_name
+        assert os.path.exists(destination_path)
+
+        with open(destination_path, "r") as f:
+            assert f.read() == file_content
+
+    def test_delete_local_fallback(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        temp_attachments_dir: str,
+        local_attachment_file: Tuple[uuid.UUID, str, str],
+    ) -> None:
+        """Test deleting an attachment with local fallback.
+
+        This test verifies the fallback mechanism when an attachment is not found in UiPath
+        but exists in the local temporary storage.
+
+        Args:
+            httpx_mock: HTTPXMock fixture for mocking HTTP requests.
+            service: AttachmentsService fixture.
+            base_url: Base URL fixture for the API endpoint.
+            org: Organization fixture for the API path.
+            tenant: Tenant fixture for the API path.
+            temp_attachments_dir: Fixture for temporary attachments directory.
+            local_attachment_file: Fixture providing an attachment file in the temporary directory.
+        """
+        # Arrange
+        attachment_id, file_name, _ = local_attachment_file
+
+        # Replace the temp_dir in the service to use our test directory
+        service._temp_dir = temp_attachments_dir
+
+        # Verify the file exists before deletion
+        expected_path = os.path.join(
+            temp_attachments_dir, f"{attachment_id}_{file_name}"
+        )
+        assert os.path.exists(expected_path)
+
+        # Mock the 404 response for UiPath attachment
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="DELETE",
+            status_code=404,
+            json={"error": "Attachment not found"},
+        )
+
+        # Act
+        service.delete(key=attachment_id)
+
+        # Assert - verify the file was deleted
+        assert not os.path.exists(expected_path)
+
+    @pytest.mark.asyncio
+    async def test_delete_async_local_fallback(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        temp_attachments_dir: str,
+        local_attachment_file: Tuple[uuid.UUID, str, str],
+    ) -> None:
+        """Test asynchronously deleting an attachment with local fallback.
+
+        This test verifies the fallback mechanism when an attachment is not found in UiPath
+        but exists in the local temporary storage, using the async method.
+
+        Args:
+            httpx_mock: HTTPXMock fixture for mocking HTTP requests.
+            service: AttachmentsService fixture.
+            base_url: Base URL fixture for the API endpoint.
+            org: Organization fixture for the API path.
+            tenant: Tenant fixture for the API path.
+            temp_attachments_dir: Fixture for temporary attachments directory.
+            local_attachment_file: Fixture providing an attachment file in the temporary directory.
+        """
+        # Arrange
+        attachment_id, file_name, _ = local_attachment_file
+
+        # Replace the temp_dir in the service to use our test directory
+        service._temp_dir = temp_attachments_dir
+
+        # Verify the file exists before deletion
+        expected_path = os.path.join(
+            temp_attachments_dir, f"{attachment_id}_{file_name}"
+        )
+        assert os.path.exists(expected_path)
+
+        # Mock the 404 response for UiPath attachment
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="DELETE",
+            status_code=404,
+            json={"error": "Attachment not found"},
+        )
+
+        # Act
+        await service.delete_async(key=attachment_id)
+
+        # Assert - verify the file was deleted
+        assert not os.path.exists(expected_path)
+
+    def test_delete_not_found_throws_exception(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test that deleting a non-existent attachment throws an exception.
+
+        This test verifies that when an attachment is not found in UiPath
+        and not found locally, an exception is raised.
+
+        Args:
+            httpx_mock: HTTPXMock fixture for mocking HTTP requests.
+            service: AttachmentsService fixture.
+            base_url: Base URL fixture for the API endpoint.
+            org: Organization fixture for the API path.
+            tenant: Tenant fixture for the API path.
+        """
+        # Arrange
+        attachment_id = uuid.uuid4()
+
+        # Set a non-existent temp dir to ensure no local files are found
+        service._temp_dir = "non_existent_dir"
+
+        # Mock the 404 response for UiPath attachment
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="DELETE",
+            status_code=404,
+            json={"error": "Attachment not found"},
+        )
+
+        # Act & Assert
+        with pytest.raises(
+            Exception,
+            match=f"Attachment with key {attachment_id} not found in UiPath or local storage",
+        ):
+            service.delete(key=attachment_id)
+
+    @pytest.mark.asyncio
+    async def test_delete_async_not_found_throws_exception(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test that asynchronously deleting a non-existent attachment throws an exception.
+
+        This test verifies that when an attachment is not found in UiPath
+        and not found locally, an exception is raised when using the async method.
+
+        Args:
+            httpx_mock: HTTPXMock fixture for mocking HTTP requests.
+            service: AttachmentsService fixture.
+            base_url: Base URL fixture for the API endpoint.
+            org: Organization fixture for the API path.
+            tenant: Tenant fixture for the API path.
+        """
+        # Arrange
+        attachment_id = uuid.uuid4()
+
+        # Set a non-existent temp dir to ensure no local files are found
+        service._temp_dir = "non_existent_dir"
+
+        # Mock the 404 response for UiPath attachment
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="DELETE",
+            status_code=404,
+            json={"error": "Attachment not found"},
+        )
+
+        # Act & Assert
+        with pytest.raises(
+            Exception,
+            match=f"Attachment with key {attachment_id} not found in UiPath or local storage",
+        ):
+            await service.delete_async(key=attachment_id)

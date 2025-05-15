@@ -1,15 +1,21 @@
 import json
+import os
+import shutil
 import uuid
+from typing import TYPE_CHECKING, Any, Generator, Tuple
 
 import pytest
 from pytest_httpx import HTTPXMock
+from pytest_mock import MockerFixture
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._services.jobs_service import JobsService
-from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models import Attachment
+from uipath._utils.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
 from uipath.models.job import Job
+
+if TYPE_CHECKING:
+    from _pytest.monkeypatch import MonkeyPatch
 
 
 @pytest.fixture
@@ -19,7 +25,80 @@ def service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> JobsService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
-    return JobsService(config=config, execution_context=execution_context)
+    jobs_service = JobsService(config=config, execution_context=execution_context)
+    # We'll leave the real AttachmentsService for HTTP tests,
+    # and mock it in specific tests as needed
+    return jobs_service
+
+
+@pytest.fixture
+def temp_attachments_dir(tmp_path: Any) -> Generator[str, None, None]:
+    """Create a temporary directory for attachments and clean it up after the test.
+
+    Args:
+        tmp_path: Pytest's temporary directory fixture.
+
+    Returns:
+        The path to the temporary directory.
+    """
+    test_temp_dir = os.path.join(tmp_path, TEMP_ATTACHMENTS_FOLDER)
+    os.makedirs(test_temp_dir, exist_ok=True)
+
+    yield test_temp_dir
+
+    # Clean up the directory after the test
+    if os.path.exists(test_temp_dir):
+        shutil.rmtree(test_temp_dir)
+
+
+@pytest.fixture
+def temp_file(tmp_path: Any) -> Generator[Tuple[str, str, str], None, None]:
+    """Create a temporary file and clean it up after the test.
+
+    Args:
+        tmp_path: Pytest's temporary directory fixture.
+
+    Returns:
+        A tuple containing the file content, file name, and file path.
+    """
+    content = "Test source file content"
+    name = f"test_file_{uuid.uuid4()}.txt"
+    path = os.path.join(tmp_path, name)
+
+    with open(path, "w") as f:
+        f.write(content)
+
+    yield content, name, path
+
+    # Clean up the file after the test
+    if os.path.exists(path):
+        os.remove(path)
+
+
+@pytest.fixture
+def local_attachment_file(
+    temp_attachments_dir: str,
+) -> Generator[Tuple[uuid.UUID, str, str], None, None]:
+    """Creates a local attachment file in the temporary attachments directory.
+
+    Args:
+        temp_attachments_dir: The temporary attachments directory.
+
+    Returns:
+        A tuple containing the attachment ID, file name, and file content.
+    """
+    attachment_id = uuid.uuid4()
+    file_name = "test_local_file.txt"
+    file_content = "Local test content"
+
+    # Create the local file with the format {uuid}_{filename}
+    file_path = os.path.join(temp_attachments_dir, f"{attachment_id}_{file_name}")
+    with open(file_path, "w") as f:
+        f.write(file_content)
+
+    yield attachment_id, file_name, file_content
+
+    # Cleanup is handled by temp_attachments_dir fixture
 
 
 class TestJobsService:
@@ -53,9 +132,7 @@ class TestJobsService:
         assert job.id == 123
 
         sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
-
+        assert sent_request is not None
         assert sent_request.method == "GET"
         assert (
             sent_request.url
@@ -99,9 +176,7 @@ class TestJobsService:
         assert job.id == 123
 
         sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
-
+        assert sent_request is not None
         assert sent_request.method == "GET"
         assert (
             sent_request.url
@@ -133,9 +208,7 @@ class TestJobsService:
         service.resume(inbox_id=inbox_id, payload=payload)
 
         sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
-
+        assert sent_request is not None
         assert sent_request.method == "POST"
         assert (
             sent_request.url
@@ -176,9 +249,7 @@ class TestJobsService:
         service.resume(job_id=job_id, payload=payload)
 
         sent_requests = httpx_mock.get_requests()
-        if sent_requests is None:
-            raise Exception("No request was sent")
-
+        assert sent_requests is not None
         assert sent_requests[1].method == "POST"
         assert (
             sent_requests[1].url
@@ -212,9 +283,7 @@ class TestJobsService:
         await service.resume_async(inbox_id=inbox_id, payload=payload)
 
         sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
-
+        assert sent_request is not None
         assert sent_request.method == "POST"
         assert (
             sent_request.url
@@ -256,9 +325,7 @@ class TestJobsService:
         await service.resume_async(job_id=job_id, payload=payload)
 
         sent_requests = httpx_mock.get_requests()
-        if sent_requests is None:
-            raise Exception("No request was sent")
-
+        assert sent_requests is not None
         assert sent_requests[1].method == "POST"
         assert (
             sent_requests[1].url
@@ -279,49 +346,37 @@ class TestJobsService:
         base_url: str,
         org: str,
         tenant: str,
-        version: str,
     ) -> None:
-        # Arrange
         job_key = uuid.uuid4()
 
-        # Mock with query parameters
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/api/JobAttachments/GetByJobKey?jobKey={job_key}",
             method="GET",
             status_code=200,
             json=[
                 {
-                    "Name": "document1.pdf",
-                    "Key": "12345678-1234-1234-1234-123456789012",
-                    "CreationTime": "2023-01-01T12:00:00Z",
-                    "LastModificationTime": "2023-01-02T12:00:00Z",
+                    "attachmentId": "12345678-1234-1234-1234-123456789012",
+                    "creationTime": "2023-01-01T12:00:00Z",
+                    "lastModificationTime": "2023-01-02T12:00:00Z",
                 },
                 {
-                    "Name": "document2.pdf",
-                    "Key": "87654321-1234-1234-1234-123456789012",
-                    "CreationTime": "2023-01-03T12:00:00Z",
-                    "LastModificationTime": "2023-01-04T12:00:00Z",
+                    "attachmentId": "87654321-1234-1234-1234-123456789012",
+                    "creationTime": "2023-01-03T12:00:00Z",
+                    "lastModificationTime": "2023-01-04T12:00:00Z",
                 },
             ],
         )
 
-        # Act
         attachments = service.list_attachments(job_key=job_key)
 
-        # Assert
         assert len(attachments) == 2
-        assert isinstance(attachments[0], Attachment)
-        assert attachments[0].name == "document1.pdf"
-        assert attachments[0].key == uuid.UUID("12345678-1234-1234-1234-123456789012")
-        assert isinstance(attachments[1], Attachment)
-        assert attachments[1].name == "document2.pdf"
-        assert attachments[1].key == uuid.UUID("87654321-1234-1234-1234-123456789012")
+        assert isinstance(attachments[0], str)
+        assert attachments[0] == "12345678-1234-1234-1234-123456789012"
+        assert isinstance(attachments[1], str)
+        assert attachments[1] == "87654321-1234-1234-1234-123456789012"
 
-        # Verify the request
         request = httpx_mock.get_request()
-        if request is None:
-            raise Exception("No request was sent")
-
+        assert request is not None
         assert request.method == "GET"
         assert (
             request.url.path
@@ -340,46 +395,36 @@ class TestJobsService:
         tenant: str,
         version: str,
     ) -> None:
-        # Arrange
         job_key = uuid.uuid4()
 
-        # Mock with query parameters
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/api/JobAttachments/GetByJobKey?jobKey={job_key}",
             method="GET",
             status_code=200,
             json=[
                 {
-                    "Name": "document1.pdf",
-                    "Key": "12345678-1234-1234-1234-123456789012",
-                    "CreationTime": "2023-01-01T12:00:00Z",
-                    "LastModificationTime": "2023-01-02T12:00:00Z",
+                    "attachmentId": "12345678-1234-1234-1234-123456789012",
+                    "creationTime": "2023-01-01T12:00:00Z",
+                    "lastModificationTime": "2023-01-02T12:00:00Z",
                 },
                 {
-                    "Name": "document2.pdf",
-                    "Key": "87654321-1234-1234-1234-123456789012",
-                    "CreationTime": "2023-01-03T12:00:00Z",
-                    "LastModificationTime": "2023-01-04T12:00:00Z",
+                    "attachmentId": "87654321-1234-1234-1234-123456789012",
+                    "creationTime": "2023-01-03T12:00:00Z",
+                    "lastModificationTime": "2023-01-04T12:00:00Z",
                 },
             ],
         )
 
-        # Act
         attachments = await service.list_attachments_async(job_key=job_key)
 
-        # Assert
         assert len(attachments) == 2
-        assert isinstance(attachments[0], Attachment)
-        assert attachments[0].name == "document1.pdf"
-        assert attachments[0].key == uuid.UUID("12345678-1234-1234-1234-123456789012")
-        assert isinstance(attachments[1], Attachment)
-        assert attachments[1].name == "document2.pdf"
-        assert attachments[1].key == uuid.UUID("87654321-1234-1234-1234-123456789012")
+        assert isinstance(attachments[0], str)
+        assert attachments[0] == "12345678-1234-1234-1234-123456789012"
+        assert isinstance(attachments[1], str)
+        assert attachments[1] == "87654321-1234-1234-1234-123456789012"
 
-        # Verify the request
         request = httpx_mock.get_request()
-        if request is None:
-            raise Exception("No request was sent")
+        assert request is not None
         assert request.method == "GET"
         assert (
             request.url.path
@@ -397,7 +442,6 @@ class TestJobsService:
         tenant: str,
         version: str,
     ) -> None:
-        # Arrange
         attachment_key = uuid.uuid4()
         job_key = uuid.uuid4()
         category = "Result"
@@ -408,15 +452,12 @@ class TestJobsService:
             status_code=200,
         )
 
-        # Act
         service.link_attachment(
             attachment_key=attachment_key, job_key=job_key, category=category
         )
 
-        # Verify the request
         request = httpx_mock.get_request()
-        if request is None:
-            raise Exception("No request was sent")
+        assert request is not None
         assert request.method == "POST"
         assert (
             request.url
@@ -424,7 +465,6 @@ class TestJobsService:
         )
         assert HEADER_USER_AGENT in request.headers
 
-        # Verify request JSON body
         body = json.loads(request.content)
         assert body["attachmentId"] == str(attachment_key)
         assert body["jobKey"] == str(job_key)
@@ -440,7 +480,6 @@ class TestJobsService:
         tenant: str,
         version: str,
     ) -> None:
-        # Arrange
         attachment_key = uuid.uuid4()
         job_key = uuid.uuid4()
         category = "Result"
@@ -451,16 +490,12 @@ class TestJobsService:
             status_code=200,
         )
 
-        # Act
         await service.link_attachment_async(
             attachment_key=attachment_key, job_key=job_key, category=category
         )
 
-        # Verify the request
         request = httpx_mock.get_request()
-        if request is None:
-            raise Exception("No request was sent")
-
+        assert request is not None
         assert request.method == "POST"
         assert (
             request.url
@@ -468,8 +503,429 @@ class TestJobsService:
         )
         assert HEADER_USER_AGENT in request.headers
 
-        # Verify request JSON body
         body = json.loads(request.content)
         assert body["attachmentId"] == str(attachment_key)
         assert body["jobKey"] == str(job_key)
         assert body["category"] == category
+
+    def test_create_job_attachment_with_job(
+        self,
+        service: JobsService,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test creating a job attachment when a job is available.
+
+        This tests that the attachment is created in UiPath and linked to the job
+        when a job key is provided.
+
+        Args:
+            service: JobsService fixture.
+            mocker: MockerFixture for mocking dependencies.
+        """
+        # Arrange
+        job_key = str(uuid.uuid4())
+        attachment_key = uuid.uuid4()
+        content = "Test attachment content"
+        name = "test_attachment.txt"
+
+        # Mock the attachment service's upload method
+        mock_upload = mocker.patch.object(
+            service._attachments_service, "upload", return_value=attachment_key
+        )
+
+        # Mock the link_attachment method
+        mock_link = mocker.patch.object(service, "link_attachment")
+
+        # Act
+        result = service.create_attachment(name=name, content=content, job_key=job_key)
+
+        # Assert
+        assert result == attachment_key
+        mock_upload.assert_called_once_with(
+            name=name,
+            content=content,
+            folder_key=None,
+            folder_path=None,
+        )
+        mock_link.assert_called_once_with(
+            attachment_key=attachment_key,
+            job_key=uuid.UUID(job_key),
+            category=None,
+            folder_key=None,
+            folder_path=None,
+        )
+
+    def test_create_job_attachment_with_job_context(
+        self,
+        config: Config,
+        execution_context: ExecutionContext,
+        monkeypatch: "MonkeyPatch",
+        mocker: MockerFixture,
+    ) -> None:
+        """Test creating a job attachment when a job is available in the context.
+
+        This tests that the attachment is created in UiPath and linked to the job
+        when a job key is available in the execution context.
+
+        Args:
+            config: Config fixture.
+            execution_context: ExecutionContext fixture.
+            monkeypatch: MonkeyPatch fixture.
+            mocker: MockerFixture for mocking dependencies.
+        """
+        # Arrange
+        job_key = uuid.uuid4()
+        attachment_key = uuid.uuid4()
+        content = "Test attachment content"
+        name = "test_attachment.txt"
+
+        # Set job key in execution context - add attribute if it doesn't exist
+        if not hasattr(execution_context, "job_key"):
+            # Add job_key attribute to ExecutionContext
+            execution_context.__dict__["job_key"] = job_key
+        else:
+            execution_context.job_key = job_key
+
+        # Create service with our execution context
+        monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
+        service = JobsService(config=config, execution_context=execution_context)
+
+        # Mock the attachment service's upload method
+        mock_upload = mocker.patch.object(
+            service._attachments_service, "upload", return_value=attachment_key
+        )
+
+        # Mock the link_attachment method
+        mock_link = mocker.patch.object(service, "link_attachment")
+
+        # Act
+        result = service.create_attachment(name=name, content=content)
+
+        # Assert
+        assert result == attachment_key
+        mock_upload.assert_called_once_with(
+            name=name,
+            content=content,
+            folder_key=None,
+            folder_path=None,
+        )
+        mock_link.assert_called_once_with(
+            attachment_key=attachment_key,
+            job_key=job_key,
+            category=None,
+            folder_key=None,
+            folder_path=None,
+        )
+
+    def test_create_job_attachment_no_job(
+        self,
+        service: JobsService,
+        temp_attachments_dir: str,
+    ) -> None:
+        """Test creating a job attachment when no job is available.
+
+        This tests that the attachment is stored locally when no job key is provided
+        or available in the context.
+
+        Args:
+            service: JobsService fixture.
+            temp_attachments_dir: Temporary directory fixture that handles cleanup.
+        """
+        # Arrange
+        content = "Test local attachment content"
+        name = "test_local_attachment.txt"
+
+        # Use the temporary directory provided by the fixture
+        service._temp_dir = temp_attachments_dir
+
+        # Act
+        result = service.create_attachment(name=name, content=content)
+
+        # Assert
+        assert isinstance(result, uuid.UUID)
+        # Verify file was created
+        expected_path = os.path.join(temp_attachments_dir, f"{result}_{name}")
+        assert os.path.exists(expected_path)
+
+        # Check content
+        with open(expected_path, "r") as f:
+            assert f.read() == content
+
+    def test_create_job_attachment_from_file(
+        self,
+        service: JobsService,
+        temp_attachments_dir: str,
+        temp_file: Tuple[str, str, str],
+    ) -> None:
+        """Test creating a job attachment from a file when no job is available.
+
+        Args:
+            service: JobsService fixture.
+            temp_attachments_dir: Temporary directory fixture that handles cleanup.
+            temp_file: Temporary file fixture that handles cleanup.
+        """
+        # Arrange
+        source_content, source_name, source_path = temp_file
+
+        # Use the temporary directory provided by the fixture
+        service._temp_dir = temp_attachments_dir
+
+        # Act
+        result = service.create_attachment(name=source_name, source_path=source_path)
+
+        # Assert
+        assert isinstance(result, uuid.UUID)
+        # Verify file was created
+        expected_path = os.path.join(temp_attachments_dir, f"{result}_{source_name}")
+        assert os.path.exists(expected_path)
+
+        # Check content
+        with open(expected_path, "r") as f:
+            assert f.read() == source_content
+
+    def test_create_job_attachment_validation_errors(
+        self,
+        service: JobsService,
+    ) -> None:
+        """Test validation errors in create_job_attachment.
+
+        Args:
+            service: JobsService fixture.
+        """
+        # Test missing both content and source_path
+        with pytest.raises(ValueError, match="Content or source_path is required"):
+            service.create_attachment(name="test.txt")
+
+        # Test providing both content and source_path
+        with pytest.raises(
+            ValueError, match="Content and source_path are mutually exclusive"
+        ):
+            service.create_attachment(
+                name="test.txt", content="test content", source_path="/path/to/file.txt"
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_job_attachment_async_with_job(
+        self,
+        service: JobsService,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test creating a job attachment asynchronously when a job is available.
+
+        Args:
+            service: JobsService fixture.
+            mocker: MockerFixture for mocking dependencies.
+        """
+        # Arrange
+        job_key = str(uuid.uuid4())
+        attachment_key = uuid.uuid4()
+        content = "Test attachment content"
+        name = "test_attachment.txt"
+
+        # Mock the attachment service's upload_async method
+        # Create a mock that returns a coroutine returning a UUID
+        async_mock = mocker.AsyncMock(return_value=attachment_key)
+        mocker.patch.object(
+            service._attachments_service, "upload_async", side_effect=async_mock
+        )
+
+        # Mock the link_attachment_async method
+        mock_link = mocker.patch.object(
+            service, "link_attachment_async", side_effect=mocker.AsyncMock()
+        )
+
+        # Act
+        result = await service.create_attachment_async(
+            name=name, content=content, job_key=job_key
+        )
+
+        # Assert
+        assert result == attachment_key
+        async_mock.assert_called_once_with(
+            name=name,
+            content=content,
+            folder_key=None,
+            folder_path=None,
+        )
+        mock_link.assert_called_once_with(
+            attachment_key=attachment_key,
+            job_key=uuid.UUID(job_key),
+            category=None,
+            folder_key=None,
+            folder_path=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_job_attachment_async_no_job(
+        self,
+        service: JobsService,
+        temp_attachments_dir: str,
+    ) -> None:
+        """Test creating a job attachment asynchronously when no job is available.
+
+        Args:
+            service: JobsService fixture.
+            temp_attachments_dir: Temporary directory fixture that handles cleanup.
+        """
+        # Arrange
+        content = "Test local attachment content async"
+        name = "test_local_attachment_async.txt"
+
+        # Use the temporary directory provided by the fixture
+        service._temp_dir = temp_attachments_dir
+
+        # Act
+        result = await service.create_attachment_async(name=name, content=content)
+
+        # Assert
+        assert isinstance(result, uuid.UUID)
+
+        # Verify file was created
+        expected_path = os.path.join(temp_attachments_dir, f"{result}_{name}")
+        assert os.path.exists(expected_path)
+
+        # Check content
+        with open(expected_path, "r") as f:
+            assert f.read() == content
+
+    def test_create_job_attachment_with_job_from_file(
+        self,
+        service: JobsService,
+        mocker: MockerFixture,
+        temp_file: Tuple[str, str, str],
+    ) -> None:
+        """Test creating a job attachment from a file when a job is available.
+
+        This tests that the attachment is created in UiPath from a file and linked to the job
+        when a job key is provided.
+
+        Args:
+            service: JobsService fixture.
+            mocker: MockerFixture for mocking dependencies.
+            temp_file: Temporary file fixture that handles cleanup.
+        """
+        # Arrange
+        job_key = str(uuid.uuid4())
+        attachment_key = uuid.uuid4()
+
+        # Get file details from fixture
+        source_content, source_name, source_path = temp_file
+
+        # Mock the attachment service's upload method
+        mock_upload = mocker.patch.object(
+            service._attachments_service, "upload", return_value=attachment_key
+        )
+
+        # Mock the link_attachment method
+        mock_link = mocker.patch.object(service, "link_attachment")
+
+        # Act
+        result = service.create_attachment(
+            name=source_name, source_path=source_path, job_key=job_key
+        )
+
+        # Assert
+        assert result == attachment_key
+        mock_upload.assert_called_once_with(
+            name=source_name,
+            source_path=source_path,
+            folder_key=None,
+            folder_path=None,
+        )
+        mock_link.assert_called_once_with(
+            attachment_key=attachment_key,
+            job_key=uuid.UUID(job_key),
+            category=None,
+            folder_key=None,
+            folder_path=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_job_attachment_async_with_job_from_file(
+        self,
+        service: JobsService,
+        mocker: MockerFixture,
+        temp_file: Tuple[str, str, str],
+    ) -> None:
+        """Test creating a job attachment asynchronously from a file when a job is available.
+
+        Args:
+            service: JobsService fixture.
+            mocker: MockerFixture for mocking dependencies.
+            temp_file: Temporary file fixture that handles cleanup.
+        """
+        # Arrange
+        job_key = str(uuid.uuid4())
+        attachment_key = uuid.uuid4()
+
+        # Get file details from fixture
+        source_content, source_name, source_path = temp_file
+
+        # Mock the attachment service's upload_async method
+        async_mock = mocker.AsyncMock(return_value=attachment_key)
+        mocker.patch.object(
+            service._attachments_service, "upload_async", side_effect=async_mock
+        )
+
+        # Mock the link_attachment_async method
+        mock_link = mocker.patch.object(
+            service, "link_attachment_async", side_effect=mocker.AsyncMock()
+        )
+
+        # Act
+        result = await service.create_attachment_async(
+            name=source_name, source_path=source_path, job_key=job_key
+        )
+
+        # Assert
+        assert result == attachment_key
+        async_mock.assert_called_once_with(
+            name=source_name,
+            source_path=source_path,
+            folder_key=None,
+            folder_path=None,
+        )
+        mock_link.assert_called_once_with(
+            attachment_key=attachment_key,
+            job_key=uuid.UUID(job_key),
+            category=None,
+            folder_key=None,
+            folder_path=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_job_attachment_async_from_file(
+        self,
+        service: JobsService,
+        temp_attachments_dir: str,
+        temp_file: Tuple[str, str, str],
+    ) -> None:
+        """Test creating a job attachment asynchronously from a file when no job is available.
+
+        Args:
+            service: JobsService fixture.
+            temp_attachments_dir: Temporary directory fixture that handles cleanup.
+            temp_file: Temporary file fixture that handles cleanup.
+        """
+        # Arrange
+        # Get file details from fixture
+        source_content, source_name, source_path = temp_file
+
+        # Use the temporary directory provided by the fixture
+        service._temp_dir = temp_attachments_dir
+
+        # Act
+        result = await service.create_attachment_async(
+            name=source_name, source_path=source_path
+        )
+
+        # Assert
+        assert isinstance(result, uuid.UUID)
+
+        # Verify file was created
+        expected_path = os.path.join(temp_attachments_dir, f"{result}_{source_name}")
+        assert os.path.exists(expected_path)
+
+        # Check content
+        with open(expected_path, "r") as f:
+            assert f.read() == source_content
