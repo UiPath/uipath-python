@@ -319,6 +319,9 @@ class TestJobsService:
 
         # Verify the request
         request = httpx_mock.get_request()
+        if request is None:
+            raise Exception("No request was sent")
+
         assert request.method == "GET"
         assert (
             request.url.path
@@ -375,6 +378,8 @@ class TestJobsService:
 
         # Verify the request
         request = httpx_mock.get_request()
+        if request is None:
+            raise Exception("No request was sent")
         assert request.method == "GET"
         assert (
             request.url.path
@@ -410,6 +415,8 @@ class TestJobsService:
 
         # Verify the request
         request = httpx_mock.get_request()
+        if request is None:
+            raise Exception("No request was sent")
         assert request.method == "POST"
         assert (
             request.url
@@ -451,6 +458,9 @@ class TestJobsService:
 
         # Verify the request
         request = httpx_mock.get_request()
+        if request is None:
+            raise Exception("No request was sent")
+
         assert request.method == "POST"
         assert (
             request.url
