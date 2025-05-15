@@ -25,3 +25,6 @@ ENTRYPOINT = "uipath.connectors"
 ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (
     "#UiPath.Vdbs.Domain.Api.V20Models.StorageBucketDataSourceRequest"
 )
+
+# Local storage
+TEMP_ATTACHMENTS_FOLDER = "uipath_attachments"
