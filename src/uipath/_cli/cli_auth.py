@@ -8,7 +8,7 @@ import click
 from dotenv import load_dotenv
 
 from ..telemetry import track
-from ._auth._auth_server import HTTPSServer
+from ._auth._auth_server import HTTPServer
 from ._auth._oidc_utils import get_auth_config, get_auth_url
 from ._auth._portal_service import PortalService, select_tenant
 from ._auth._utils import update_auth_file, update_env_file
@@ -97,7 +97,7 @@ def auth(domain, force: None | bool = False):
             auth_url,
         )
 
-        server = HTTPSServer(port=auth_config["port"])
+        server = HTTPServer(port=auth_config["port"])
         token_data = server.start(state, code_verifier, domain)
 
         if token_data:
