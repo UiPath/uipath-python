@@ -15,8 +15,8 @@ from ..models import IngestionInProgressException
 from ..models.context_grounding import ContextGroundingQueryResponse
 from ..models.context_grounding_index import ContextGroundingIndex
 from ..tracing._traced import traced
-from . import BucketsService
 from ._base_service import BaseService
+from .buckets_service import BucketsService
 from .folder_service import FolderService
 
 
@@ -85,7 +85,7 @@ class ContextGroundingService(FolderContext, BaseService):
                 content_type=content_type,
             )
         else:
-            self._buckets_service.upload_from_memory(
+            self._buckets_service.upload(
                 name=bucket_name,
                 content=content,
                 blob_file_path=blob_file_path,
@@ -137,9 +137,9 @@ class ContextGroundingService(FolderContext, BaseService):
                 content_type=content_type,
             )
         else:
-            await self._buckets_service.upload_from_memory_async(
+            await self._buckets_service.upload_async(
                 name=bucket_name,
-                content=content,  # type: ignore
+                content=content,
                 blob_file_path=blob_file_path,
                 folder_path=bucket_folder_path,
                 content_type=content_type,
