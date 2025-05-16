@@ -7,23 +7,29 @@ on:
 jobs:
   publish-dev:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     # Only run if PR has the build:dev label
     if: contains(github.event.pull_request.labels.*.name, 'build:dev')
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version-file: ".python-version"
 
-      - name: Setup venv
-        run: |
-          uv venv
-          uv sync --all-extras
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Replace connection string placeholder
         run: |
@@ -124,7 +130,6 @@ jobs:
         run: uv build
 
       - name: Publish
-        run: |
-          uv publish
+        run: uv publish
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
