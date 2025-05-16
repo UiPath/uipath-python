@@ -261,7 +261,7 @@ class TestBucketsService:
                 content=b"test content",
             )
 
-            service.upload_from_memory(
+            service.upload(
                 key=bucket_key,
                 blob_file_path="test-file.txt",
                 content_type="text/plain",

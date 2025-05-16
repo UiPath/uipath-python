@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Union
 
-from httpx import request
+import httpx
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -25,6 +25,8 @@ class BucketsService(FolderContext, BaseService):
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self.custom_client = httpx.Client()
+        self.custom_client_async = httpx.AsyncClient()
 
     @traced(name="buckets_download", run_type="uipath")
     def download(
@@ -78,7 +80,7 @@ class BucketsService(FolderContext, BaseService):
             if result["RequiresAuth"]:
                 file_content = self.request("GET", read_uri, headers=headers).content
             else:
-                file_content = request("GET", read_uri, headers=headers).content
+                file_content = self.custom_client.get(read_uri, headers=headers).content
             file.write(file_content)
 
     @traced(name="buckets_upload", run_type="uipath")
@@ -89,7 +91,8 @@ class BucketsService(FolderContext, BaseService):
         name: Optional[str] = None,
         blob_file_path: str,
         content_type: str,
-        source_path: str,
+        source_path: Optional[str] = None,
+        content: Optional[Union[str, bytes]] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> None:
@@ -100,7 +103,8 @@ class BucketsService(FolderContext, BaseService):
             name (Optional[str]): The name of the bucket.
             blob_file_path (str): The path where the file will be stored in the bucket.
             content_type (str): The MIME type of the file.
-            source_path (str): The local path of the file to upload.
+            source_path (Optional[str]): The local path of the file to upload.
+            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
             folder_key (Optional[str]): The key of the folder where the bucket resides.
             folder_path (Optional[str]): The path of the folder where the bucket resides.
 
@@ -108,6 +112,11 @@ class BucketsService(FolderContext, BaseService):
             ValueError: If neither key nor name is provided.
             Exception: If the bucket with the specified key or name is not found.
         """
+        if content is not None and source_path is not None:
+            raise ValueError("Content and source_path are mutually exclusive")
+        if content is None and source_path is None:
+            raise ValueError("Either content or source_path must be provided")
+
         bucket = self.retrieve(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
@@ -136,11 +145,25 @@ class BucketsService(FolderContext, BaseService):
             )
         }
 
-        with open(source_path, "rb") as file:
+        if content is not None:
+            if isinstance(content, str):
+                content = content.encode("utf-8")
+
             if result["RequiresAuth"]:
-                self.request("PUT", write_uri, headers=headers, files={"file": file})
+                self.request("PUT", write_uri, headers=headers, content=content)
             else:
-                request("PUT", write_uri, headers=headers, files={"file": file})
+                self.custom_client.put(write_uri, headers=headers, content=content)
+
+        if source_path is not None:
+            with open(source_path, "rb") as file:
+                if result["RequiresAuth"]:
+                    self.request(
+                        "PUT", write_uri, headers=headers, files={"file": file}
+                    )
+                else:
+                    self.custom_client.put(
+                        write_uri, headers=headers, files={"file": file}
+                    )
 
     @traced(name="buckets_upload", run_type="uipath")
     async def upload_async(
@@ -150,7 +173,8 @@ class BucketsService(FolderContext, BaseService):
         name: Optional[str] = None,
         blob_file_path: str,
         content_type: str,
-        source_path: str,
+        source_path: Optional[str] = None,
+        content: Optional[Union[str, bytes]] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> None:
@@ -169,6 +193,11 @@ class BucketsService(FolderContext, BaseService):
             ValueError: If neither key nor name is provided.
             Exception: If the bucket with the specified key or name is not found.
         """
+        if content is not None and source_path is not None:
+            raise ValueError("Content and source_path are mutually exclusive")
+        if content is None and source_path is None:
+            raise ValueError("Either content or source_path must be provided")
+
         bucket = await self.retrieve_async(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
@@ -199,148 +228,29 @@ class BucketsService(FolderContext, BaseService):
             )
         }
 
-        with open(source_path, "rb") as file:
+        if content is not None:
+            if isinstance(content, str):
+                content = content.encode("utf-8")
+
             if result["RequiresAuth"]:
                 await self.request_async(
-                    "PUT", write_uri, headers=headers, files={"file": file}
+                    "PUT", write_uri, headers=headers, content=content
                 )
             else:
-                request("PUT", write_uri, headers=headers, files={"file": file})
+                await self.custom_client_async.put(
+                    write_uri, headers=headers, content=content
+                )
 
-    @traced(
-        name="buckets_upload_from_memory",
-        run_type="uipath",
-        input_processor=_upload_from_memory_input_processor,
-    )
-    def upload_from_memory(
-        self,
-        *,
-        key: Optional[str] = None,
-        name: Optional[str] = None,
-        blob_file_path: str,
-        content_type: str,
-        content: Union[str, bytes],
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> None:
-        """Upload content from memory to a bucket.
-
-        Args:
-            key (Optional[str]): The key of the bucket.
-            name (Optional[str]): The name of the bucket.
-            blob_file_path (str): The path where the content will be stored in the bucket.
-            content_type (str): The MIME type of the content.
-            content (Union[str, bytes]): The content to upload (string or bytes).
-            folder_key (Optional[str]): The key of the folder where the bucket resides.
-            folder_path (Optional[str]): The path of the folder where the bucket resides.
-
-        Raises:
-            ValueError: If neither key nor name is provided.
-            Exception: If the bucket with the specified key or name is not found.
-        """
-        bucket = self.retrieve(
-            name=name, key=key, folder_key=folder_key, folder_path=folder_path
-        )
-
-        spec = self._retrieve_writeri_spec(
-            bucket.id,
-            content_type,
-            blob_file_path,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
-
-        result = self.request(
-            spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-            headers=spec.headers,
-        ).json()
-
-        write_uri = result["Uri"]
-
-        headers = {
-            key: value
-            for key, value in zip(
-                result["Headers"]["Keys"], result["Headers"]["Values"], strict=False
-            )
-        }
-
-        # Convert string to bytes if needed
-        if isinstance(content, str):
-            content = content.encode("utf-8")
-
-        if result["RequiresAuth"]:
-            self.request("PUT", write_uri, headers=headers, content=content)
-        else:
-            request("PUT", write_uri, headers=headers, content=content)
-
-    async def upload_from_memory_async(
-        self,
-        *,
-        key: Optional[str] = None,
-        name: Optional[str] = None,
-        blob_file_path: str,
-        content_type: str,
-        content: Union[str, bytes],
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> None:
-        """Asynchronously upload content from memory to a bucket.
-
-        Args:
-            key (Optional[str]): The key of the bucket.
-            name (Optional[str]): The name of the bucket.
-            blob_file_path (str): The path where the content will be stored in the bucket.
-            content_type (str): The MIME type of the content.
-            content (Union[str, bytes]): The content to upload (string or bytes).
-            folder_key (Optional[str]): The key of the folder where the bucket resides.
-            folder_path (Optional[str]): The path of the folder where the bucket resides.
-
-        Raises:
-            ValueError: If neither key nor name is provided.
-            Exception: If the bucket with the specified key or name is not found.
-        """
-        bucket = await self.retrieve_async(
-            name=name, key=key, folder_key=folder_key, folder_path=folder_path
-        )
-
-        bucket_id = bucket["Id"]
-
-        spec = self._retrieve_writeri_spec(
-            bucket_id,
-            content_type,
-            blob_file_path,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
-
-        result = (
-            await self.request_async(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-                headers=spec.headers,
-            )
-        ).json()
-
-        write_uri = result["Uri"]
-
-        headers = {
-            key: value
-            for key, value in zip(
-                result["Headers"]["Keys"], result["Headers"]["Values"], strict=False
-            )
-        }
-
-        # Convert string to bytes if needed
-        if isinstance(content, str):
-            content = content.encode("utf-8")
-
-        if result["RequiresAuth"]:
-            await self.request_async("PUT", write_uri, headers=headers, content=content)
-        else:
-            request("PUT", write_uri, headers=headers, content=content)
+        if source_path is not None:
+            with open(source_path, "rb") as file:
+                if result["RequiresAuth"]:
+                    await self.request_async(
+                        "PUT", write_uri, headers=headers, files={"file": file}
+                    )
+                else:
+                    await self.custom_client_async.put(
+                        write_uri, headers=headers, files={"file": file}
+                    )
 
     @infer_bindings()
     @traced(name="buckets_retrieve", run_type="uipath")
