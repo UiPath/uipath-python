@@ -4,16 +4,15 @@ on:
   push:
     branches:
       - main
-  pull_request_target:
-    types:
-      - opened
-      - synchronize
+    paths-ignore:
+      - pyproject.toml
+  pull_request:
     branches:
       - main
 
 jobs:
   commit-lint:
-    if: ${{ github.event_name == 'pull_request_target' }}
+    if: ${{ github.event_name == 'pull_request' }}
     uses: ./.github/workflows/commitlint.yml
 
   lint:

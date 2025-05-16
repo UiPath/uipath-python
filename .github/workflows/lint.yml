@@ -7,30 +7,32 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version-file: ".python-version"
 
-      - name: Setup venv
-        run: |
-          uv venv
-          uv sync --all-extras
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Check static types
-        run: |
-          uv run mypy --config-file pyproject.toml .
+        run: uv run mypy --config-file pyproject.toml .
 
-      - name: "Check linting"
-        run: |
-          uv run ruff check .
+      - name: Check linting
+        run: uv run ruff check .
 
       - name: Check formatting
-        run: |
-          uv run ruff format --check .
+        run: uv run ruff format --check .
 

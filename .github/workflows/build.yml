@@ -10,21 +10,29 @@ on:
 
 jobs:
   build:
+    name: Build
     runs-on: ubuntu-latest
+    if: ${{ github.repository == 'UiPath/uipath-python' }}
+    permissions:
+      contents: read
+      actions: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version-file: ".python-version"
 
-      - name: Setup venv
-        run: |
-          uv venv
-          uv sync --all-extras
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Replace connection string placeholder
         run: |
@@ -38,21 +46,32 @@ jobs:
           CONNECTION_STRING: ${{ secrets.APPINS_CONNECTION_STRING }}
 
       - name: Build
-        run: |
-          uv build
+        run: uv build
 
-      - name: Check if version in pyproject.toml was modified
-        id: check_version
-        run: |
-          if git diff --name-only ${{ github.sha }} ${{ github.event.before }} | grep -q 'pyproject.toml'; then
-            echo "modified=true" >> $GITHUB_OUTPUT
-          else
-            echo "modified=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
 
-      - name: Publish
-        if: ${{ steps.check_version.outputs.modified }} == 'true'
-        run: |
-          uv publish
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.token }}
+
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    needs:
+      - build
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
