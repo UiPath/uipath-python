@@ -1,0 +1,6 @@
+{% set title = ("[" + (page.title or config.site_name) + "] Your title here") | urlencode %}
+{% set body = ("Page link:: " + config.site_url + page.url + "\n\n ## My Issue/Suggestion") | urlencode %}
+<a href="https://github.com/UiPath/uipath-python/issues/new?title={{ title }}&body={{ body }}"
+    class="md-content__button skip-link-icon report-issue-link">
+    Report an issue
+</a>

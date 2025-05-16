@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Deep Research App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            padding-bottom: 20px;
+        }
+        .navbar {
+            margin-bottom: 20px;
+        }
+        .message-pending {
+            background-color: #fff3cd;
+        }
+        .message-approved {
+            background-color: #d1e7dd;
+        }
+        .message-content {
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .view {
+            display: none;
+        }
+        .view.active {
+            display: block;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        #jobDetails {
+            margin-top: 20px;
+        }
+        .feedback-textarea {
+            min-height: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light rounded">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#" id="nav-logo">Research App</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" id="nav-home">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" id="nav-inbox">Inbox</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" id="nav-jobs">Agents</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Home View -->
+        <div id="home-view" class="view active">
+            <div class="px-4 py-5 my-5 text-center">
+                <h1 class="display-5 fw-bold">Open Deep Research</h1>
+                <div class="col-lg-6 mx-auto">
+                    <p class="lead mb-4">
+                        Tell us what you want to research, and our AI agent will handle the rest and notify you when it's complete.
+                    </p>
+                    <div class="card">
+                        <div class="card-header">
+                            New Research Submission
+                        </div>
+                        <div class="card-body">
+                            <form id="job-form">
+                                <div class="mb-3">
+                                    <label for="topic" class="form-label">Topic</label>
+                                    <input type="text" class="form-control" id="topic" name="topic" required
+                                        placeholder="Enter the topic for your agent">
+                                </div>
+                                <button type="submit" class="btn btn-primary">Submit</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job Submission Result -->
+            <div id="submission-result" style="display: none;">
+                <div class="alert alert-success" role="alert">
+                    <h4 class="alert-heading">Request Submitted Successfully!</h4>
+                    <p>Your request has been submitted and is being processed. You can check the status using the Agent Instance Id below.</p>
+                    <hr>
+                    <p class="mb-0">Agent Instance Id: <strong id="submitted-job-id"></strong></p>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" id="view-job-btn">View Agent Status</button>
+                    <button class="btn btn-secondary" id="submit-another-btn">Submit Another Topic</button>
+                </div>
+
+                <div id="jobDetails"></div>
+            </div>
+        </div>
+
+        <!-- Inbox View -->
+        <div id="inbox-view" class="view">
+            <h2>Inbox</h2>
+
+            <div class="row mb-4">
+                <div class="col">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary inbox-filter" data-status="all">All Messages</button>
+                        <button type="button" class="btn btn-outline-warning inbox-filter" data-status="pending">Pending</button>
+                        <button type="button" class="btn btn-outline-success inbox-filter" data-status="approved">Approved</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="inbox-loading" class="loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+
+            <div id="inbox-content"></div>
+        </div>
+
+        <!-- Jobs View -->
+        <div id="jobs-view" class="view">
+            <h2>Agents</h2>
+
+            <div class="row mb-4">
+                <div class="col">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary job-filter" data-status="all">All</button>
+                        <button type="button" class="btn btn-outline-warning job-filter" data-status="pending">Pending</button>
+                        <button type="button" class="btn btn-outline-primary job-filter" data-status="running">Running</button>
+                        <button type="button" class="btn btn-outline-info job-filter" data-status="suspended">Suspended</button>
+                        <button type="button" class="btn btn-outline-primary job-filter" data-status="resumed">Resumed</button>
+                        <button type="button" class="btn btn-outline-success job-filter" data-status="completed">Completed</button>
+                        <button type="button" class="btn btn-outline-danger job-filter" data-status="faulted">Faulted</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="jobs-loading" class="loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+
+            <div id="jobs-content"></div>
+        </div>
+
+        <!-- Job Detail View -->
+        <div id="job-detail-view" class="view">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Agent Details</h2>
+                <button class="btn btn-secondary" id="back-to-jobs">Back to Agents</button>
+            </div>
+
+            <div id="job-detail-loading" class="loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+
+            <div id="job-detail-content"></div>
+        </div>
+
+        <footer class="pt-4 my-md-5 pt-md-5 border-top">
+            <div class="row">
+                <div class="col-12 col-md text-center">
+                    <small class="d-block mb-3 text-muted">&copy; 2025 Research App</small>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Approval Modal -->
+    <div class="modal fade" id="approvalModal" tabindex="-1" aria-labelledby="approvalModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="approvalModalLabel">Approve Message</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="approvalForm">
+                        <input type="hidden" id="message-id-input">
+                        <div class="mb-3">
+                            <label for="human-feedback" class="form-label">Your Feedback</label>
+                            <textarea class="form-control feedback-textarea" id="human-feedback" rows="6" placeholder="Enter your feedback or instructions for the job to continue..."></textarea>
+                            <div class="form-text">This feedback will be sent to the external service when the job is resumed.</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="submit-approval">Approve & Resume Job</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let currentJobId = null;
+        let activeView = 'home-view';
+        const refreshIntervals = {};
+        let approvalModal;
+
+        // DOM elements
+        const views = {
+            home: document.getElementById('home-view'),
+            inbox: document.getElementById('inbox-view'),
+            jobs: document.getElementById('jobs-view'),
+            jobDetail: document.getElementById('job-detail-view')
+        };
+
+        // Show a specific view and clear irrelevant intervals
+        function showView(viewId) {
+            // Clear all existing intervals when changing views
+            Object.keys(refreshIntervals).forEach(key => {
+                clearInterval(refreshIntervals[key]);
+                delete refreshIntervals[key];
+            });
+
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+            document.getElementById(viewId).classList.add('active');
+            activeView = viewId;
+
+            // Start appropriate polling only for the active view
+            if (viewId === 'inbox-view') {
+                // Initial load with loading indicator (showLoading = true)
+                loadInbox(null, true);
+            } else if (viewId === 'jobs-view') {
+                loadJobs();
+            } else if (viewId === 'job-detail-view' && currentJobId) {
+                loadJobDetails(currentJobId);
+            }
+        }
+
+        // Navigation
+        document.getElementById('nav-logo').addEventListener('click', function(e) {
+            e.preventDefault();
+            showView('home-view');
+        });
+
+        document.getElementById('nav-home').addEventListener('click', function(e) {
+            e.preventDefault();
+            showView('home-view');
+        });
+
+        document.getElementById('nav-inbox').addEventListener('click', function(e) {
+            e.preventDefault();
+            showView('inbox-view');
+        });
+
+        document.getElementById('nav-jobs').addEventListener('click', function(e) {
+            e.preventDefault();
+            showView('jobs-view');
+        });
+
+        document.getElementById('back-to-jobs').addEventListener('click', function(e) {
+            e.preventDefault();
+            showView('jobs-view');
+        });
+
+        // Initialize the approval modal
+        document.addEventListener('DOMContentLoaded', function() {
+            approvalModal = new bootstrap.Modal(document.getElementById('approvalModal'));
+
+            // Add event listener to the submit approval button
+            document.getElementById('submit-approval').addEventListener('click', function() {
+                const messageId = document.getElementById('message-id-input').value;
+                const humanFeedback = document.getElementById('human-feedback').value;
+
+                approveMessage(messageId, humanFeedback);
+            });
+
+            // Set up event delegation for report plan buttons
+            document.addEventListener('click', function(event) {
+                // Handle approve report plan button
+                if (event.target.classList.contains('approve-report-plan')) {
+                    const messageId = event.target.dataset.messageId;
+                    if (messageId) {
+                        // Pass "true" as the feedback to indicate approval
+                        approveMessage(messageId, "true");
+                    }
+                }
+
+                // Handle submit feedback button
+                if (event.target.classList.contains('submit-report-feedback')) {
+                    const messageId = event.target.dataset.messageId;
+                    if (messageId) {
+                        const feedbackTextarea = document.getElementById(`report-plan-feedback-${messageId}`);
+
+                        if (feedbackTextarea && feedbackTextarea.value.trim()) {
+                            approveMessage(messageId, feedbackTextarea.value.trim());
+                        } else {
+                            alert('Please enter feedback before submitting.');
+                        }
+                    }
+                }
+            });
+        });
+
+        // Job Submission
+        document.getElementById('job-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const topic = document.getElementById('topic').value;
+            if (!topic) return;
+
+            fetch('/api/submit-job', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ topic })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('submitted-job-id').textContent = data.job_id;
+                document.getElementById('submission-result').style.display = 'block';
+
+                // Set the current job id
+                currentJobId = data.job_id;
+
+                // Start polling for job status
+                pollJobStatus(data.job_id);
+            })
+            .catch(error => {
+                console.error('Error submitting job:', error);
+                alert('Failed to submit job. Please try again.');
+            });
+        });
+
+        // View button event - using event delegation since these are dynamically created
+        document.addEventListener('click', function(e) {
+            // View job button in submission result
+            if (e.target && e.target.id === 'view-job-btn') {
+                if (currentJobId) {
+                    showView('job-detail-view');
+                }
+            }
+
+            // Submit another job button
+            if (e.target && e.target.id === 'submit-another-btn') {
+                document.getElementById('job-form').style.display = 'block';
+                document.getElementById('submission-result').style.display = 'none';
+                document.getElementById('topic').value = '';
+
+                // Clear any existing job status polling
+                if (refreshIntervals.jobStatus) {
+                    clearInterval(refreshIntervals.jobStatus);
+                    delete refreshIntervals.jobStatus;
+                }
+            }
+
+            // View job button in message list or jobs table
+            if (e.target && (e.target.classList.contains('view-job-btn') ||
+                        (e.target.parentElement && e.target.parentElement.classList.contains('view-job-btn')))) {
+                const button = e.target.classList.contains('view-job-btn') ? e.target : e.target.parentElement;
+                const jobId = button.dataset.id;
+                if (jobId) {
+                    currentJobId = jobId;
+                    showView('job-detail-view');
+                }
+            }
+        });
+
+        // Using event delegation for filter buttons
+        document.addEventListener('click', function(e) {
+            // Inbox filter buttons
+            if (e.target && e.target.classList.contains('inbox-filter')) {
+                const status = e.target.dataset.status;
+
+                // Clear any existing inbox interval
+                if (refreshIntervals.inbox) {
+                    clearInterval(refreshIntervals.inbox);
+                    delete refreshIntervals.inbox;
+                }
+
+                // Initial load with loading indicator for filter change
+                loadInbox(status === 'all' ? null : status, true);
+
+                // Update active button
+                document.querySelectorAll('.inbox-filter').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                e.target.classList.add('active');
+            }
+
+            // Job filter buttons
+            if (e.target && e.target.classList.contains('job-filter')) {
+                const status = e.target.dataset.status;
+
+                // Clear any existing jobs interval
+                if (refreshIntervals.jobs) {
+                    clearInterval(refreshIntervals.jobs);
+                    delete refreshIntervals.jobs;
+                }
+
+                loadJobs(status === 'all' ? null : status);
+
+                // Update active button
+                document.querySelectorAll('.job-filter').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                e.target.classList.add('active');
+            }
+        });
+
+        // Show Approval Modal
+        function showApprovalModal(messageId) {
+            // Clear previous values
+            document.getElementById('message-id-input').value = messageId;
+            document.getElementById('human-feedback').value = '';
+
+            // Show the modal
+            approvalModal.show();
+        }
+
+        // Approve Message
+        function approveMessage(messageId, humanFeedback) {
+            // Hide any open modals
+            if (approvalModal) {
+                approvalModal.hide();
+            }
+
+            // Show loading indicator
+            const messageElement = document.getElementById(`message-${messageId}`);
+            if (messageElement) {
+                // Disable regular approve button if present
+                const approveBtn = messageElement.querySelector('.approve-btn');
+                if (approveBtn) {
+                    approveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+                    approveBtn.disabled = true;
+                }
+
+                // Disable report plan buttons if present
+                const reportPlanBtns = messageElement.querySelectorAll('.approve-report-plan, .submit-report-feedback');
+                reportPlanBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+                });
+            }
+
+            // Send approval request
+            fetch(`/api/approve-message/${messageId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    human_feedback: humanFeedback
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (messageElement) {
+                    // Update the message status
+                    messageElement.classList.remove('message-pending');
+                    messageElement.classList.add('message-approved');
+
+                    // Update status badge
+                    const statusBadge = messageElement.querySelector('.badge');
+                    if (statusBadge) {
+                        statusBadge.className = 'badge bg-success';
+                        statusBadge.textContent = 'Approved';
+                    }
+
+                    // Remove approve button
+                    const approveBtn = messageElement.querySelector('.approve-btn');
+                    if (approveBtn) {
+                        approveBtn.remove();
+                    }
+
+                    // Remove report plan interactive elements
+                    const feedbackContainer = messageElement.querySelector('.feedback-container');
+                    if (feedbackContainer) {
+                        feedbackContainer.remove();
+                    }
+
+                    // Add human feedback display
+                    const reportPlan = messageElement.querySelector('.report-plan');
+                    const targetElement = reportPlan || messageElement;
+
+                    const feedbackHtml = `
+                        <div class="mt-3">
+                            <strong>Your Feedback:</strong>
+                            <div class="message-content">${humanFeedback}</div>
+                        </div>
+                    `;
+
+                    targetElement.insertAdjacentHTML('beforeend', feedbackHtml);
+                }
+
+                // Reload the current view to show updated data
+                if (activeView === 'inbox-view') {
+                    loadInbox();
+                } else if (activeView === 'job-detail-view') {
+                    loadJobDetails(currentJobId);
+                }
+            })
+            .catch(error => {
+                console.error('Error approving message:', error);
+                alert('Failed to approve message: ' + error.message);
+
+                // Reset the buttons
+                if (messageElement) {
+                    const approveBtn = messageElement.querySelector('.approve-btn');
+                    if (approveBtn) {
+                        approveBtn.innerHTML = 'Approve';
+                        approveBtn.disabled = false;
+                    }
+
+                    // Reset report plan buttons
+                    const submitFeedbackBtn = messageElement.querySelector('.submit-report-feedback');
+                    if (submitFeedbackBtn) {
+                        submitFeedbackBtn.innerHTML = 'Submit Feedback';
+                        submitFeedbackBtn.disabled = false;
+                    }
+
+                    const approveReportBtn = messageElement.querySelector('.approve-report-plan');
+                    if (approveReportBtn) {
+                        approveReportBtn.innerHTML = 'Approve Plan (true)';
+                        approveReportBtn.disabled = false;
+                    }
+                }
+            });
+        }
+
+        // Load Job Details
+        function loadJobDetails(jobId) {
+            // Only proceed if we're in the job detail view
+            if (activeView !== 'job-detail-view') return;
+
+            // Save the current job id
+            currentJobId = jobId;
+
+            fetch(`/api/job/${jobId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(job => {
+                // Stop any existing polling
+                if (refreshIntervals.jobDetail) {
+                    clearInterval(refreshIntervals.jobDetail);
+                    delete refreshIntervals.jobDetail;
+                }
+
+                // Generate the job detail HTML
+                const jobHtml = renderJobDetail(job);
+
+                // Only update DOM if we're still in job detail view
+                if (activeView === 'job-detail-view') {
+                    document.getElementById('job-detail-content').innerHTML = jobHtml;
+
+                    // Add event listeners to approve buttons in job detail view
+                    document.querySelectorAll('.approve-btn').forEach(button => {
+                        button.addEventListener('click', function() {
+                            showApprovalModal(this.dataset.id);
+                        });
+                    });
+
+                    document.getElementById('job-detail-loading').style.display = 'none';
+
+                    // Start polling if job is pending or processing
+                    if (activeView === 'job-detail-view') {
+                        refreshIntervals.jobDetail = setInterval(() => {
+                            if (activeView === 'job-detail-view') {
+                                loadJobDetails(jobId);
+                            } else {
+                                // Clear interval if view has changed
+                                clearInterval(refreshIntervals.jobDetail);
+                                delete refreshIntervals.jobDetail;
+                            }
+                        }, 5000);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error loading job details:', error);
+                if (activeView === 'job-detail-view') {
+                    document.getElementById('job-detail-content').innerHTML = `
+                        <div class="alert alert-danger">
+                            Failed to load job details: ${error.message}
+                        </div>
+                    `;
+                    document.getElementById('job-detail-loading').style.display = 'none';
+                }
+            });
+        }
+
+        // Get Status Badge
+        function getStatusBadge(status) {
+            switch(status) {
+                case 'pending':
+                    return '<span class="badge bg-warning text-dark">Pending</span>';
+                case 'suspended':
+                    return '<span class="badge bg-info text-dark">Suspended</span>';
+                case 'completed':
+                    return '<span class="badge bg-success">Completed</span>';
+                case 'faulted':
+                    return '<span class="badge bg-danger">Faulted</span>';
+                case 'resumed':
+                    return '<span class="badge bg-primary">Resumed</span>';
+                case 'running':
+                    return '<span class="badge bg-primary">Running</span>';
+                default:
+                    return `<span class="badge bg-secondary">${status}</span>`;
+            }
+        }
+
+        // Render Job Detail
+        function renderJobDetail(job) {
+            const statusBadge = getStatusBadge(job.status);
+
+            let messagesHtml = '';
+            if (job.messages && job.messages.length > 0) {
+                messagesHtml = `
+                    <h4 class="mt-4">Messages</h4>
+                    <div class="list-group">
+                        ${job.messages.map(msg => renderMessage(msg, true)).join('')}
+                    </div>
+                `;
+            } else {
+                messagesHtml = `
+                    <div class="alert alert-info mt-4">
+                        No messages associated with this job yet.
+                    </div>
+                `;
+            }
+
+            // Format job.output if it looks like a report plan
+            let outputHtml = '';
+            if (job.output) {
+                const isReportPlan = job.output.includes('report plan') &&
+                                job.output.includes('Section:') &&
+                                job.output.includes('Research needed:');
+
+                if (isReportPlan) {
+                    // Use the parseReportPlan function and format it
+                    const reportPlan = parseReportPlan(job.output);
+
+                    let sectionsHtml = '';
+                    if (reportPlan.sections && reportPlan.sections.length > 0) {
+                        sectionsHtml = reportPlan.sections.map(section => {
+                            return `
+                                <div class="report-section card mb-2 p-2">
+                                    <h5 class="card-title">${section.title.replace(/\\n|\\r/g, '').trim()}</h5>
+                                    <p class="card-text">${section.description.replace(/\\n|\\r/g, '').trim()}</p>
+                                    <p class="mb-0">
+                                        <span class="badge ${section.researchNeeded ? 'bg-primary' : 'bg-secondary'}">
+                                            Research ${section.researchNeeded ? 'Needed' : 'Not Needed'}
+                                        </span>
+                                    </p>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    outputHtml = `
+                        <div class="mt-3">
+                            <strong>Agent Output:</strong>
+                            <div class="report-plan">
+                                <p class="lead">${reportPlan.intro.replace(/\\n|\\r/g, '').trim()}</p>
+                                <div class="report-sections">
+                                    ${sectionsHtml}
+                                </div>
+                                ${reportPlan.question ? `
+                                    <div class="mt-3 p-2 bg-light border rounded">
+                                        <p class="fw-bold mb-1">${reportPlan.question}</p>
+                                    </div>` : ''
+                                }
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Regular output display
+                    outputHtml = `
+                        <div class="mt-3">
+                            <strong>Agent Output:</strong>
+                            <div class="message-content">${job.output}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            return `
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Agent Details
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">Topic: ${job.topic}</h5>
+
+                        <p><strong>Status:</strong> ${statusBadge}</p>
+
+                        <p><strong>Created:</strong> ${new Date(job.created_at).toLocaleString()}</p>
+
+                        ${job.completed_at ? `<p><strong>Completed:</strong> ${new Date(job.completed_at).toLocaleString()}</p>` : ''}
+
+                        ${job.agent_job_id ? `<p><strong>Orchestrator Job Id:</strong> ${job.agent_job_id}</p>` : ''}
+
+                        ${job.error_message ? `
+                            <div class="alert alert-danger">
+                                <strong>Error:</strong> ${job.error_message}
+                            </div>
+                        ` : ''}
+
+                        ${job.human_feedback ? `
+                            <div class="mt-3">
+                                <strong>Human Feedback:</strong>
+                                <div class="message-content">${job.human_feedback}</div>
+                            </div>
+                        ` : ''}
+
+                        ${outputHtml}
+                    </div>
+                </div>
+
+                ${messagesHtml}
+            `;
+        }
+
+        // Load Inbox
+        function loadInbox(status = null, showLoading = true) {
+            // Only proceed if we're in the inbox view
+            if (activeView !== 'inbox-view') return;
+
+            // Only show loading on first load or explicit request
+            if (showLoading) {
+                document.getElementById('inbox-loading').style.display = 'flex';
+            }
+
+            let url = '/api/inbox';
+            if (status && status !== 'all') {
+                url += `?status=${status}`;
+            }
+
+            fetch(url)
+            .then(response => response.json())
+            .then(messages => {
+                // Only update DOM if we're still in inbox view
+                if (activeView === 'inbox-view') {
+                    if (messages.length === 0) {
+                        document.getElementById('inbox-content').innerHTML = `
+                            <div class="alert alert-info">
+                                No messages in your inbox.
+                            </div>
+                        `;
+                    } else {
+                        const messagesHtml = messages.map(message => renderMessage(message)).join('');
+                        document.getElementById('inbox-content').innerHTML = `
+                            <div class="list-group">
+                                ${messagesHtml}
+                            </div>
+                        `;
+
+                        // Add event listeners to approve buttons
+                        document.querySelectorAll('.approve-btn').forEach(button => {
+                            button.addEventListener('click', function() {
+                                showApprovalModal(this.dataset.id);
+                            });
+                        });
+                    }
+
+                    // Only hide loading if it was shown initially
+                    if (showLoading) {
+                        document.getElementById('inbox-loading').style.display = 'none';
+                    }
+
+                    // Set up auto-refresh (only when in inbox view)
+                    // Clear any existing refresh interval first
+                    if (refreshIntervals.inbox) {
+                        clearInterval(refreshIntervals.inbox);
+                    }
+
+                    refreshIntervals.inbox = setInterval(() => {
+                        if (activeView === 'inbox-view') {
+                            // Call loadInbox with showLoading=false for silent refresh
+                            loadInbox(status, false);
+                        } else {
+                            // Clear interval if view changed
+                            clearInterval(refreshIntervals.inbox);
+                            delete refreshIntervals.inbox;
+                        }
+                    }, 5000); // Refresh every 5 seconds
+                }
+            })
+            .catch(error => {
+                console.error('Error loading inbox:', error);
+                if (activeView === 'inbox-view') {
+                    // Only update error message if loading was shown
+                    if (showLoading) {
+                        document.getElementById('inbox-content').innerHTML = `
+                            <div class="alert alert-danger">
+                                Failed to load inbox: ${error.message}
+                            </div>
+                        `;
+                        document.getElementById('inbox-loading').style.display = 'none';
+                    }
+                }
+            });
+}
+
+        function parseReportPlan(messageText) {
+            // Step 1: Remove any quotes
+            let text = messageText;
+            if (text.startsWith('"')) text = text.substring(1);
+            if (text.endsWith('"')) text = text.substring(0, text.length - 1);
+
+            // Step 2: Directly split the string by "Section:" to get all parts
+            const parts = text.split('Section:');
+
+            // Step 3: First part is the intro
+            const intro = parts[0].trim();
+
+            // Step 4: Extract sections
+            const sections = [];
+            for (let i = 1; i < parts.length; i++) {
+                const part = parts[i].trim();
+
+                // Extract title - everything before "Description:"
+                const titleEnd = part.indexOf('Description:');
+                if (titleEnd === -1) continue;
+
+                const title = part.substring(0, titleEnd).trim();
+
+                // Extract description - between "Description:" and "Research needed:"
+                const descStart = part.indexOf('Description:') + 'Description:'.length;
+                const descEnd = part.indexOf('Research needed:');
+                if (descEnd === -1) continue;
+
+                const description = part.substring(descStart, descEnd).trim();
+
+                // Extract research needed
+                const researchNeeded = part.includes('Research needed: Yes');
+
+                sections.push({
+                title,
+                description,
+                researchNeeded
+                });
+            }
+
+            // Step 5: Extract question
+            const questionIndex = text.indexOf('Does the report plan meet your needs?');
+            const question = questionIndex >= 0 ? text.substring(questionIndex).trim() : '';
+
+            return {
+                intro,
+                sections,
+                question
+            };
+        }
+
+        // Function to format a report plan message into nice HTML
+        function formatReportPlan(messageText, messageId) {
+            // Parse the report plan with our ultra-simple parser
+            const reportPlan = parseReportPlan(messageText);
+
+            // Add CSS for styling
+            const css = `
+                <style>
+                .report-section {
+                    border-left: 4px solid #007bff;
+                }
+                .report-section .card-title {
+                    color: #007bff;
+                    margin-bottom: 0.5rem;
+                }
+                .report-plan .lead {
+                    font-size: 1.1rem;
+                    margin-bottom: 1.5rem;
+                }
+                .report-sections {
+                    margin-bottom: 1rem;
+                }
+                </style>
+            `;
+
+            // Generate sections HTML
+            let sectionsHtml = '';
+            if (reportPlan.sections && reportPlan.sections.length > 0) {
+                sectionsHtml = reportPlan.sections.map(section => {
+                return `
+                    <div class="report-section card mb-2 p-2">
+                    <h5 class="card-title">${section.title.replace(/\\n|\\r/g, '').trim()}</h5>
+                    <p class="card-text">${section.description.replace(/\\n|\\r/g, '').trim()}</p>
+                    <p class="mb-0">
+                        <span class="badge ${section.researchNeeded ? 'bg-primary' : 'bg-secondary'}">
+                        Research ${section.researchNeeded ? 'Needed' : 'Not Needed'}
+                        </span>
+                    </p>
+                    </div>
+                `;
+                }).join('');
+            } else {
+                // Fallback if no sections were found
+                sectionsHtml = `
+                <div class="alert alert-warning">
+                    <strong>Note:</strong> The sections couldn't be properly parsed from this message.
+                    Please see the original content below.
+                </div>
+                <div class="message-content">${messageText}</div>
+                `;
+            }
+
+            // Build the HTML output
+            let html = `${css}
+            <div class="report-plan">
+                <p class="lead">${reportPlan.intro.replace(/\\n|\\r/g, '').trim()}</p>
+
+                <div class="report-sections">
+                ${sectionsHtml}
+                </div>`;
+
+            // Add the question and feedback controls
+            if (reportPlan.question) {
+                html += `
+                <div class="mt-3 p-2 bg-light border rounded">
+                <p class="fw-bold mb-1">${reportPlan.question}</p>
+
+                <div class="feedback-container mt-3">
+                    <div class="mb-3">
+                    <label for="report-plan-feedback-${messageId}" class="form-label">Your Feedback:</label>
+                    <textarea class="form-control feedback-textarea report-plan-feedback"
+                        id="report-plan-feedback-${messageId}"
+                        data-message-id="${messageId}"
+                        rows="4" placeholder="Enter your feedback or suggestions for the report plan..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary btn-sm submit-report-feedback" data-message-id="${messageId}">Submit Feedback</button>
+                    <button type="button" class="btn btn-success btn-sm approve-report-plan" data-message-id="${messageId}">Approve Plan (true)</button>
+                    </div>
+                </div>
+                </div>`;
+            }
+
+            html += `</div>`;
+
+            return html;
+        }
+
+        function renderMessage(message, isInJobDetail = false) {
+            const status = message.status === 'pending' ?
+                '<span class="badge bg-warning text-dark">Pending Approval</span>' :
+                '<span class="badge bg-success">Approved</span>';
+
+            const approveButton = message.status === 'pending' ?
+                `<button class="btn btn-success btn-sm approve-btn" data-id="${message.id}">Approve</button>` :
+                '';
+
+            const humanFeedbackDisplay = message.human_feedback ?
+                `<div class="mt-2">
+                <strong>Your Feedback:</strong>
+                <div class="message-content">${message.human_feedback}</div>
+                </div>` : '';
+
+            const jobButton = isInJobDetail ? '' :
+                `<a href="#" class="btn btn-outline-secondary btn-sm view-job-btn" data-id="${message.job_id}">View Agent Details</a>`;
+
+            // Check if this is a report plan message - very simple check
+            const isReportPlan = message.content &&
+                                message.content.includes('report plan') &&
+                                message.content.includes('Section:') &&
+                                message.content.includes('Research needed:');
+
+            // Format message content based on type - ALWAYS format report plans, not just pending ones
+            let formattedContent = '';
+            if (isReportPlan) {
+                // For approved messages, we don't need the feedback controls
+                if (message.status === 'approved') {
+                // This is a modified version of formatReportPlan that doesn't include feedback controls
+                const reportPlan = parseReportPlan(message.content);
+
+                const css = `
+                    <style>
+                    .report-section {
+                        border-left: 4px solid #007bff;
+                    }
+                    .report-section .card-title {
+                        color: #007bff;
+                        margin-bottom: 0.5rem;
+                    }
+                    .report-plan .lead {
+                        font-size: 1.1rem;
+                        margin-bottom: 1.5rem;
+                    }
+                    .report-sections {
+                        margin-bottom: 1rem;
+                    }
+                    .list-group-item {
+                        margin-bottom: 1rem;
+                    }
+                    </style>
+                `;
+
+                let sectionsHtml = '';
+                if (reportPlan.sections && reportPlan.sections.length > 0) {
+                    sectionsHtml = reportPlan.sections.map(section => {
+                    return `
+                        <div class="report-section card mb-2 p-2">
+                        <h5 class="card-title">${section.title.replace(/\\n|\\r/g, '').trim()}</h5>
+                        <p class="card-text">${section.description.replace(/\\n|\\r/g, '').trim()}</p>
+                        <p class="mb-0">
+                            <span class="badge ${section.researchNeeded ? 'bg-primary' : 'bg-secondary'}">
+                            Research ${section.researchNeeded ? 'Needed' : 'Not Needed'}
+                            </span>
+                        </p>
+                        </div>
+                    `;
+                    }).join('');
+                } else {
+                    // Fallback if no sections were found
+                    sectionsHtml = `
+                    <div class="alert alert-warning">
+                        <strong>Note:</strong> The sections couldn't be properly parsed from this message.
+                        Please see the original content below.
+                    </div>
+                    <div class="message-content">${message.content}</div>
+                    `;
+                }
+
+                formattedContent = `${css}
+                <div class="report-plan">
+                    <p class="lead">${reportPlan.intro.replace(/\\n|\\r/g, '').trim()}</p>
+
+                    <div class="report-sections">
+                    ${sectionsHtml}
+                    </div>`;
+
+                if (reportPlan.question) {
+                    formattedContent += `
+                    <div class="mt-3 p-2 bg-light border rounded">
+                    <p class="fw-bold mb-1">${reportPlan.question}</p>
+                    </div>`;
+                }
+
+                formattedContent += `</div>`;
+                } else {
+                // For pending messages, use the regular formatReportPlan with controls
+                formattedContent = formatReportPlan(message.content, message.id);
+                }
+            } else {
+                // For non-report plan messages, display as usual
+                formattedContent = `<div class="message-content">${message.content}</div>`;
+            }
+
+            return `
+                <div class="list-group-item ${message.status === 'pending' ? 'message-pending' : 'message-approved'}" id="message-${message.id}">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">Message from Agent Instance: ${message.job_id.substring(0, 8)}...</h5>
+                    <small>${new Date(message.received_at).toLocaleString()}</small>
+                </div>
+
+                ${formattedContent}
+
+                ${humanFeedbackDisplay}
+
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                    <strong>Status:</strong> ${status}
+                    ${message.approved_at ? `<small class="text-muted">approved on ${new Date(message.approved_at).toLocaleString()}</small>` : ''}
+                    </div>
+
+                    ${isReportPlan && message.status === 'pending' ? '' : approveButton}
+                </div>
+
+                ${jobButton}
+                </div>
+            `;
+        }
+
+        // Load Jobs
+        function loadJobs(status = null) {
+            // Only proceed if we're in the jobs view
+            if (activeView !== 'jobs-view') return;
+
+            // Clear any existing interval
+            if (refreshIntervals.jobs) {
+                clearInterval(refreshIntervals.jobs);
+                delete refreshIntervals.jobs;
+            }
+
+            let url = '/api/jobs';
+            if (status && status !== 'all') {
+                url += `?status=${status}`;
+            }
+
+            fetch(url)
+            .then(response => response.json())
+            .then(jobs => {
+                // Only update DOM if we're still in jobs view
+                if (activeView === 'jobs-view') {
+                    if (jobs.length === 0) {
+                        document.getElementById('jobs-content').innerHTML = `
+                            <div class="alert alert-info">
+                                No jobs found.
+                            </div>
+                        `;
+                    } else {
+                        const jobsHtml = `
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Topic</th>
+                                            <th>Status</th>
+                                            <th>Created</th>
+                                            <th>Completed</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${jobs.map(job => `
+                                            <tr>
+                                                <td>${job.topic}</td>
+                                                <td>${getStatusBadge(job.status)}</td>
+                                                <td>${new Date(job.created_at).toLocaleString()}</td>
+                                                <td>${job.completed_at ? new Date(job.completed_at).toLocaleString() : '-'}</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-primary view-job-btn" data-id="${job.id}">View Details</button>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                        document.getElementById('jobs-content').innerHTML = jobsHtml;
+                    }
+
+                    document.getElementById('jobs-loading').style.display = 'none';
+
+                    // Start polling for job updates only if we're in jobs view
+                    refreshIntervals.jobs = setInterval(() => {
+                        if (activeView === 'jobs-view') {
+                            loadJobs(status);
+                        } else {
+                            // Clear interval if view has changed
+                            clearInterval(refreshIntervals.jobs);
+                            delete refreshIntervals.jobs;
+                        }
+                    }, 10000);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading jobs:', error);
+                if (activeView === 'jobs-view') {
+                    document.getElementById('jobs-content').innerHTML = `
+                        <div class="alert alert-danger">
+                            Failed to load jobs: ${error.message}
+                        </div>
+                    `;
+                    document.getElementById('jobs-loading').style.display = 'none';
+                }
+            });
+        }
+
+        // Poll Job Status (only for the submission result on home page)
+        function pollJobStatus(jobId) {
+            // Clear any existing interval
+            if (refreshIntervals.jobStatus) {
+                clearInterval(refreshIntervals.jobStatus);
+                delete refreshIntervals.jobStatus;
+            }
+
+            // Create a function to check the job status
+            const checkStatus = () => {
+                // Only proceed if we're still in home view with submission result visible
+                if (activeView !== 'home-view' || document.getElementById('submission-result').style.display !== 'block') {
+                    if (refreshIntervals.jobStatus) {
+                        clearInterval(refreshIntervals.jobStatus);
+                        delete refreshIntervals.jobStatus;
+                    }
+                    return;
+                }
+
+                fetch(`/api/job/${jobId}`)
+                .then(response => response.json())
+                .then(job => {
+                    // Only update if we're still in home view
+                    if (activeView === 'home-view' && document.getElementById('submission-result').style.display === 'block') {
+                        // Update the job details section
+                        document.getElementById('jobDetails').innerHTML = `
+                            <div class="card mt-4">
+                                <div class="card-header">
+                                    Agent Status: ${getStatusBadge(job.status)}
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Topic:</strong> ${job.topic}</p>
+                                    <p><strong>Created:</strong> ${new Date(job.created_at).toLocaleString()}</p>
+                                    ${job.completed_at ? `<p><strong>Completed:</strong> ${new Date(job.completed_at).toLocaleString()}</p>` : ''}
+                                    ${job.error_message ? `
+                                        <div class="alert alert-danger">
+                                            <strong>Error:</strong> ${job.error_message}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+
+                        // If the job is no longer pending or processing, stop polling
+                        if (job.status !== 'creating' && job.status !== 'pending' && job.status !== 'processing') {
+                            clearInterval(refreshIntervals.jobStatus);
+                                                    delete refreshIntervals.jobStatus;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error polling job status:', error);
+                clearInterval(refreshIntervals.jobStatus);
+                delete refreshIntervals.jobStatus;
+            });
+        };
+
+        // Check immediately and then set up interval
+        checkStatus();
+        refreshIntervals.jobStatus = setInterval(checkStatus, 5000);
+    }
+</script>
+</body>
+</html>
