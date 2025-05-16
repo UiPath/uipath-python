@@ -2,7 +2,6 @@ import http.server
 import json
 import os
 import socketserver
-import ssl
 import time
 
 import click
@@ -109,19 +108,15 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
     return SimpleHTTPSRequestHandler
 
 
-class HTTPSServer:
-    def __init__(self, port=6234, cert_file="localhost.crt", key_file="localhost.key"):
-        """Initialize HTTPS server with configurable parameters.
+class HTTPServer:
+    def __init__(self, port=6234):
+        """Initialize HTTP server with configurable parameters.
 
         Args:
             port (int, optional): Port number to run the server on. Defaults to 6234.
-            cert_file (str, optional): SSL certificate file. Defaults to "localhost.crt".
-            key_file (str, optional): SSL key file. Defaults to "localhost.key".
         """
         self.current_path = os.path.dirname(os.path.abspath(__file__))
         self.port = port
-        self.cert_file = os.path.join(self.current_path, "localhost.crt")
-        self.key_file = os.path.join(self.current_path, "localhost.key")
         self.httpd = None
         self.token_data = None
         self.should_shutdown = False
@@ -136,7 +131,7 @@ class HTTPSServer:
         self.should_shutdown = True
 
     def create_server(self, state, code_verifier, domain):
-        """Create and configure the HTTPS server.
+        """Create and configure the HTTP server.
 
         Args:
             state (str): The OAuth state parameter.
@@ -144,20 +139,14 @@ class HTTPSServer:
             domain (str): The domain for authentication.
 
         Returns:
-            socketserver.TCPServer: The configured HTTPS server.
+            socketserver.TCPServer: The configured HTTP server.
         """
-        # Create SSL context
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(self.cert_file, self.key_file)
-
         # Create server with address reuse
         socketserver.TCPServer.allow_reuse_address = True
         handler = make_request_handler_class(
             state, code_verifier, self.token_received_callback, domain
         )
         self.httpd = socketserver.TCPServer(("", self.port), handler)
-        self.httpd.socket = context.wrap_socket(self.httpd.socket, server_side=True)
-
         return self.httpd
 
     def start(self, state, code_verifier, domain):
