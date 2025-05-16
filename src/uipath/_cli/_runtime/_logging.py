@@ -68,7 +68,7 @@ class LogsInterceptor:
         else:
             # Use stdout handler when not running as a job
             self.log_handler = logging.StreamHandler(sys.stdout)
-            formatter = logging.Formatter("[%(asctime)s][%(levelname)s] %(message)s")
+            formatter = logging.Formatter("%(message)s")
             self.log_handler.setFormatter(formatter)
 
         self.log_handler.setLevel(self.numeric_min_level)
