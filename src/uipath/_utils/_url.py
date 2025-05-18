@@ -80,6 +80,23 @@ class UiPathUrl:
         return org_name, tenant_name
 
     def _is_relative_url(self, url: str) -> bool:
+        # Empty URLs are considered relative
+        if not url:
+            return True
+
         parsed = urlparse(url)
 
-        return parsed.hostname is None and parsed.path == url
+        # Protocol-relative URLs (starting with //) are not relative
+        if url.startswith("//"):
+            return False
+
+        # URLs with schemes are not relative (http:, https:, mailto:, etc.)
+        if parsed.scheme:
+            return False
+
+        # URLs with network locations are not relative
+        if parsed.netloc:
+            return False
+
+        # If we've passed all the checks, it's a relative URL
+        return True
