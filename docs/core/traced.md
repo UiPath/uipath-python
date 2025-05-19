@@ -9,7 +9,7 @@ You can view the traces of an Orchestrator job by going to the Jobs page, click 
 Apply the `@traced()` decorator to any function (sync, async, generator, or async generator) to automatically record its execution as a trace span.
 
 ```python hl_lines="3 7"
-from uipath.tracing._traced import traced
+from uipath.tracing import traced
 
 @traced()
 def my_function(x, y):
