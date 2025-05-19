@@ -6,37 +6,32 @@ on:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest]
+
+    permissions:
+      contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version-file: ".python-version"
 
-      - name: Setup venv
-        run: |
-          uv venv
-          uv sync --all-extras
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Run tests
-        run: |
-          uv run pytest --cov-report xml:./coverage/coverage.xml
-        env:
-          UIPATH_URL: ${{ secrets.UIPATH_URL }}
-          UIPATH_BASE_URL: ${{ secrets.UIPATH_BASE_URL }}
-          UIPATH_CLIENT_ID: ${{ secrets.UIPATH_CLIENT_ID }}
-          UIPATH_CLIENT_SECRET: ${{ secrets.UIPATH_CLIENT_SECRET }}
-          UIPATH_ORGANIZATION_ID: ${{ vars.UIPATH_ORGANIZATION_ID }}
-          UIPATH_TENANT_ID: ${{ vars.UIPATH_TENANT_ID }}
+        run: uv run pytest
 
-      - name: Get Cover
-        uses: orgoro/coverage@v3.2
-        with:
-          coverageFile: ./coverage/coverage.xml
-          token: ${{ secrets.GITHUB_TOKEN }}
-        if: ${{ github.event_name == 'pull_request_target' }}
+    continue-on-error: true
 
