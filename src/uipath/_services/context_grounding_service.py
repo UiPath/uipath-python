@@ -3,6 +3,7 @@ from typing import Any, List, Optional, Tuple, Union
 
 import httpx
 from pydantic import TypeAdapter
+from typing_extensions import deprecated
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -234,6 +235,7 @@ class ContextGroundingService(FolderContext, BaseService):
             raise Exception("ContextGroundingIndex not found") from e
 
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
+    @deprecated("Use retrieve instead")
     def retrieve_by_id(
         self,
         id: str,
@@ -266,6 +268,7 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
 
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
+    @deprecated("Use retrieve_async instead")
     async def retrieve_by_id_async(
         self,
         id: str,
@@ -656,11 +659,11 @@ class ContextGroundingService(FolderContext, BaseService):
 
     def _resolve_folder_key(self, folder_key, folder_path):
         if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+            folder_key = self._folders_service.retrieve_key(folder_path=folder_path)
 
         if folder_key is None and folder_path is None:
             folder_key = self._folder_key or (
-                self._folders_service.retrieve_key_by_folder_path(self._folder_path)
+                self._folders_service.retrieve_key(folder_path=self._folder_path)
                 if self._folder_path
                 else None
             )

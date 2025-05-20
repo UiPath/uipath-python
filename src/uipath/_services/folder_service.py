@@ -1,25 +1,13 @@
 from typing import Optional
 
+from typing_extensions import deprecated
+
 from uipath.tracing._traced import traced
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec
 from ._base_service import BaseService
-
-
-def _retrieve_spec(folder_path: str) -> RequestSpec:
-    folder_name = folder_path.split("/")[-1]
-    return RequestSpec(
-        method="GET",
-        endpoint=Endpoint(
-            "orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser"
-        ),
-        params={
-            "searchText": folder_name,
-            "take": 1,
-        },
-    )
 
 
 class FolderService(BaseService):
@@ -34,8 +22,13 @@ class FolderService(BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="folder_retrieve_key_by_folder_path", run_type="uipath")
+    @deprecated("Use retrieve_key instead")
     def retrieve_key_by_folder_path(self, folder_path: str) -> Optional[str]:
-        spec = _retrieve_spec(folder_path)
+        return self.retrieve_key(folder_path=folder_path)
+
+    @traced(name="folder_retrieve_key", run_type="uipath")
+    def retrieve_key(self, *, folder_path: str) -> Optional[str]:
+        spec = self._retrieve_spec(folder_path)
         response = self.request(
             spec.method,
             url=spec.endpoint,
@@ -49,4 +42,17 @@ class FolderService(BaseService):
                 if item["FullyQualifiedName"] == folder_path
             ),
             None,
+        )
+
+    def _retrieve_spec(self, folder_path: str) -> RequestSpec:
+        folder_name = folder_path.split("/")[-1]
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                "orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser"
+            ),
+            params={
+                "searchText": folder_name,
+                "take": 1,
+            },
         )
