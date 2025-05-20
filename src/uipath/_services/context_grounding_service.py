@@ -3,6 +3,7 @@ from typing import Any, List, Optional, Tuple, Union
 
 import httpx
 from pydantic import TypeAdapter
+from typing_extensions import deprecated
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -234,6 +235,7 @@ class ContextGroundingService(FolderContext, BaseService):
             raise Exception("ContextGroundingIndex not found") from e
 
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
+    @deprecated("Use retrieve instead")
     def retrieve_by_id(
         self,
         id: str,
@@ -266,6 +268,7 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
 
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
+    @deprecated("Use retrieve_async instead")
     async def retrieve_by_id_async(
         self,
         id: str,
