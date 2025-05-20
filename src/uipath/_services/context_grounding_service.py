@@ -656,11 +656,11 @@ class ContextGroundingService(FolderContext, BaseService):
 
     def _resolve_folder_key(self, folder_key, folder_path):
         if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key_by_folder_path(folder_path)
+            folder_key = self._folders_service.retrieve_key(folder_path=folder_path)
 
         if folder_key is None and folder_path is None:
             folder_key = self._folder_key or (
-                self._folders_service.retrieve_key_by_folder_path(self._folder_path)
+                self._folders_service.retrieve_key(folder_path=self._folder_path)
                 if self._folder_path
                 else None
             )
