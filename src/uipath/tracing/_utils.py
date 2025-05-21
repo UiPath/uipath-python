@@ -134,15 +134,16 @@ class _SpanUtils:
         if otel_span.parent is not None:
             parent_id = _SpanUtils.span_id_to_uuid4(otel_span.parent.span_id)
 
-        # Map status
-        status = 1  # Default to OK
-        if otel_span.status.status_code == StatusCode.ERROR:
-            status = 2  # Error
-
         # Convert attributes to a format compatible with UiPathSpan
         attributes_dict: dict[str, Any] = (
             dict(otel_span.attributes) if otel_span.attributes else {}
         )
+
+        # Map status
+        status = 1  # Default to OK
+        if otel_span.status.status_code == StatusCode.ERROR:
+            status = 2  # Error
+            attributes_dict["error"] = otel_span.status.description
 
         original_inputs = attributes_dict.get("inputs", None)
         original_outputs = attributes_dict.get("outputs", None)
