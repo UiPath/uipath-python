@@ -1,12 +1,17 @@
+import os
+import shutil
+import tempfile
 import uuid
+from pathlib import Path
 from typing import Any, Dict, Optional, Union, overload
 
-from httpx import request
+import httpx
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
+from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ..tracing._traced import traced
 from ._base_service import BaseService
 
@@ -35,6 +40,7 @@ class AttachmentsService(FolderContext, BaseService):
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._temp_dir = os.path.join(tempfile.gettempdir(), TEMP_ATTACHMENTS_FOLDER)
 
     @traced(name="attachments_download", run_type="uipath")
     def download(
@@ -48,6 +54,12 @@ class AttachmentsService(FolderContext, BaseService):
         """Download an attachment.
 
         This method downloads an attachment from UiPath to a local file.
+        If the attachment is not found in UiPath (404 error), it will check
+        for a local file in the temporary directory that matches the UUID.
+
+        Note:
+            The local file fallback functionality is intended for local development
+            and debugging purposes only.
 
         Args:
             key (uuid.UUID): The key of the attachment to download.
@@ -59,7 +71,7 @@ class AttachmentsService(FolderContext, BaseService):
             str: The name of the downloaded attachment.
 
         Raises:
-            Exception: If the download fails.
+            Exception: If the download fails and no local file is found.
 
         Examples:
             ```python
@@ -74,42 +86,75 @@ class AttachmentsService(FolderContext, BaseService):
             print(f"Downloaded attachment: {attachment_name}")
             ```
         """
-        spec = self._retrieve_download_uri_spec(
-            key=key,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
-
-        result = self.request(
-            spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-            headers=spec.headers,
-        ).json()
-
-        # Get the attachment name
-        attachment_name = result["Name"]
-
-        download_uri = result["BlobFileAccess"]["Uri"]
-        headers = {
-            key: value
-            for key, value in zip(
-                result["BlobFileAccess"]["Headers"]["Keys"],
-                result["BlobFileAccess"]["Headers"]["Values"],
-                strict=False,
+        try:
+            spec = self._retrieve_download_uri_spec(
+                key=key,
+                folder_key=folder_key,
+                folder_path=folder_path,
             )
-        }
 
-        with open(destination_path, "wb") as file:
-            if result["BlobFileAccess"]["RequiresAuth"]:
-                file_content = self.request(
-                    "GET", download_uri, headers=headers
-                ).content
-            else:
-                file_content = request("GET", download_uri, headers=headers).content
-            file.write(file_content)
+            result = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            ).json()
 
-        return attachment_name
+            # Get the attachment name
+            attachment_name = result["Name"]
+
+            download_uri = result["BlobFileAccess"]["Uri"]
+            headers = {
+                key: value
+                for key, value in zip(
+                    result["BlobFileAccess"]["Headers"]["Keys"],
+                    result["BlobFileAccess"]["Headers"]["Values"],
+                    strict=False,
+                )
+            }
+
+            with open(destination_path, "wb") as file:
+                if result["BlobFileAccess"]["RequiresAuth"]:
+                    response = self.request(
+                        "GET", download_uri, headers=headers, stream=True
+                    )
+                    for chunk in response.iter_bytes(chunk_size=8192):
+                        file.write(chunk)
+                else:
+                    with httpx.Client() as client:
+                        with client.stream(
+                            "GET", download_uri, headers=headers
+                        ) as response:
+                            for chunk in response.iter_bytes(chunk_size=8192):
+                                file.write(chunk)
+
+            return attachment_name
+        except Exception as e:
+            # If not found in UiPath, check local storage
+            if "404" in str(e):
+                # Check if file exists in temp directory
+                if os.path.exists(self._temp_dir):
+                    # Look for any file starting with our UUID
+                    pattern = f"{key}_*"
+                    matching_files = list(Path(self._temp_dir).glob(pattern))
+
+                    if matching_files:
+                        # Get the full filename
+                        local_file = matching_files[0]
+
+                        # Extract the original name from the filename (part after UUID_)
+                        file_name = os.path.basename(local_file)
+                        original_name = file_name[len(f"{key}_") :]
+
+                        # Copy the file to the destination
+                        shutil.copy2(local_file, destination_path)
+
+                        return original_name
+
+            # Re-raise the original exception if we can't find it locally
+            raise Exception(
+                f"Attachment with key {key} not found in UiPath or local storage"
+            ) from e
 
     @traced(name="attachments_download", run_type="uipath")
     async def download_async(
@@ -123,6 +168,12 @@ class AttachmentsService(FolderContext, BaseService):
         """Download an attachment asynchronously.
 
         This method asynchronously downloads an attachment from UiPath to a local file.
+        If the attachment is not found in UiPath (404 error), it will check
+        for a local file in the temporary directory that matches the UUID.
+
+        Note:
+            The local file fallback functionality is intended for local development
+            and debugging purposes only.
 
         Args:
             key (uuid.UUID): The key of the attachment to download.
@@ -134,7 +185,7 @@ class AttachmentsService(FolderContext, BaseService):
             str: The name of the downloaded attachment.
 
         Raises:
-            Exception: If the download fails.
+            Exception: If the download fails and no local file is found.
 
         Examples:
             ```python
@@ -151,44 +202,77 @@ class AttachmentsService(FolderContext, BaseService):
                 print(f"Downloaded attachment: {attachment_name}")
             ```
         """
-        spec = self._retrieve_download_uri_spec(
-            key=key,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
-
-        result = (
-            await self.request_async(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-                headers=spec.headers,
+        try:
+            spec = self._retrieve_download_uri_spec(
+                key=key,
+                folder_key=folder_key,
+                folder_path=folder_path,
             )
-        ).json()
 
-        # Get the attachment name
-        attachment_name = result["Name"]
-
-        download_uri = result["BlobFileAccess"]["Uri"]
-        headers = {
-            key: value
-            for key, value in zip(
-                result["BlobFileAccess"]["Headers"]["Keys"],
-                result["BlobFileAccess"]["Headers"]["Values"],
-                strict=False,
-            )
-        }
-
-        with open(destination_path, "wb") as file:
-            if result["BlobFileAccess"]["RequiresAuth"]:
-                response = await self.request_async(
-                    "GET", download_uri, headers=headers
+            result = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
                 )
-                file.write(response.content)
-            else:
-                file.write(request("GET", download_uri, headers=headers).content)
+            ).json()
 
-        return attachment_name
+            # Get the attachment name
+            attachment_name = result["Name"]
+
+            download_uri = result["BlobFileAccess"]["Uri"]
+            headers = {
+                key: value
+                for key, value in zip(
+                    result["BlobFileAccess"]["Headers"]["Keys"],
+                    result["BlobFileAccess"]["Headers"]["Values"],
+                    strict=False,
+                )
+            }
+
+            with open(destination_path, "wb") as file:
+                if result["BlobFileAccess"]["RequiresAuth"]:
+                    response = await self.request_async(
+                        "GET", download_uri, headers=headers, stream=True
+                    )
+                    async for chunk in response.aiter_bytes(chunk_size=8192):
+                        file.write(chunk)
+                else:
+                    async with httpx.AsyncClient() as client:
+                        async with client.stream(
+                            "GET", download_uri, headers=headers
+                        ) as response:
+                            async for chunk in response.aiter_bytes(chunk_size=8192):
+                                file.write(chunk)
+
+            return attachment_name
+        except Exception as e:
+            # If not found in UiPath, check local storage
+            if "404" in str(e):
+                # Check if file exists in temp directory
+                if os.path.exists(self._temp_dir):
+                    # Look for any file starting with our UUID
+                    pattern = f"{key}_*"
+                    matching_files = list(Path(self._temp_dir).glob(pattern))
+
+                    if matching_files:
+                        # Get the full filename
+                        local_file = matching_files[0]
+
+                        # Extract the original name from the filename (part after UUID_)
+                        file_name = os.path.basename(local_file)
+                        original_name = file_name[len(f"{key}_") :]
+
+                        # Copy the file to the destination
+                        shutil.copy2(local_file, destination_path)
+
+                        return original_name
+
+            # Re-raise the original exception if we can't find it locally
+            raise Exception(
+                f"Attachment with key {key} not found in UiPath or local storage"
+            ) from e
 
     @overload
     def upload(
@@ -305,7 +389,8 @@ class AttachmentsService(FolderContext, BaseService):
                         "PUT", upload_uri, headers=headers, files={"file": file}
                     )
                 else:
-                    request("PUT", upload_uri, headers=headers, files={"file": file})
+                    with httpx.Client() as client:
+                        client.put(upload_uri, headers=headers, files={"file": file})
         else:
             # Upload from memory
             # Convert string to bytes if needed
@@ -315,7 +400,8 @@ class AttachmentsService(FolderContext, BaseService):
             if result["BlobFileAccess"]["RequiresAuth"]:
                 self.request("PUT", upload_uri, headers=headers, content=content)
             else:
-                request("PUT", upload_uri, headers=headers, content=content)
+                with httpx.Client() as client:
+                    client.put(upload_uri, headers=headers, content=content)
 
         return attachment_key
 
@@ -438,7 +524,8 @@ class AttachmentsService(FolderContext, BaseService):
                         "PUT", upload_uri, headers=headers, files={"file": file}
                     )
                 else:
-                    request("PUT", upload_uri, headers=headers, files={"file": file})
+                    with httpx.Client() as client:
+                        client.put(upload_uri, headers=headers, files={"file": file})
         else:
             # Upload from memory
             # Convert string to bytes if needed
@@ -450,7 +537,8 @@ class AttachmentsService(FolderContext, BaseService):
                     "PUT", upload_uri, headers=headers, content=content
                 )
             else:
-                request("PUT", upload_uri, headers=headers, content=content)
+                with httpx.Client() as client:
+                    client.put(upload_uri, headers=headers, content=content)
 
         return attachment_key
 
@@ -465,6 +553,12 @@ class AttachmentsService(FolderContext, BaseService):
         """Delete an attachment.
 
         This method deletes an attachment from UiPath.
+        If the attachment is not found in UiPath (404 error), it will check
+        for a local file in the temporary directory that matches the UUID.
+
+        Note:
+            The local file fallback functionality is intended for local development
+            and debugging purposes only.
 
         Args:
             key (uuid.UUID): The key of the attachment to delete.
@@ -472,7 +566,7 @@ class AttachmentsService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
 
         Raises:
-            Exception: If the deletion fails.
+            Exception: If the deletion fails and no local file is found.
 
         Examples:
             ```python
@@ -486,17 +580,37 @@ class AttachmentsService(FolderContext, BaseService):
             print("Attachment deleted successfully")
             ```
         """
-        spec = self._delete_attachment_spec(
-            key=key,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
+        try:
+            spec = self._delete_attachment_spec(
+                key=key,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
 
-        self.request(
-            spec.method,
-            url=spec.endpoint,
-            headers=spec.headers,
-        )
+            self.request(
+                spec.method,
+                url=spec.endpoint,
+                headers=spec.headers,
+            )
+        except Exception as e:
+            # If not found in UiPath, check local storage
+            if "404" in str(e):
+                # Check if file exists in temp directory
+                if os.path.exists(self._temp_dir):
+                    # Look for any file starting with our UUID
+                    pattern = f"{key}_*"
+                    matching_files = list(Path(self._temp_dir).glob(pattern))
+
+                    if matching_files:
+                        # Delete all matching files
+                        for file_path in matching_files:
+                            os.remove(file_path)
+                        return
+
+            # Re-raise the original exception if we can't find it locally
+            raise Exception(
+                f"Attachment with key {key} not found in UiPath or local storage"
+            ) from e
 
     @traced(name="attachments_delete", run_type="uipath")
     async def delete_async(
@@ -509,6 +623,12 @@ class AttachmentsService(FolderContext, BaseService):
         """Delete an attachment asynchronously.
 
         This method asynchronously deletes an attachment from UiPath.
+        If the attachment is not found in UiPath (404 error), it will check
+        for a local file in the temporary directory that matches the UUID.
+
+        Note:
+            The local file fallback functionality is intended for local development
+            and debugging purposes only.
 
         Args:
             key (uuid.UUID): The key of the attachment to delete.
@@ -516,7 +636,7 @@ class AttachmentsService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
 
         Raises:
-            Exception: If the deletion fails.
+            Exception: If the deletion fails and no local file is found.
 
         Examples:
             ```python
@@ -532,17 +652,37 @@ class AttachmentsService(FolderContext, BaseService):
                 print("Attachment deleted successfully")
             ```
         """
-        spec = self._delete_attachment_spec(
-            key=key,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
+        try:
+            spec = self._delete_attachment_spec(
+                key=key,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
 
-        await self.request_async(
-            spec.method,
-            url=spec.endpoint,
-            headers=spec.headers,
-        )
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                headers=spec.headers,
+            )
+        except Exception as e:
+            # If not found in UiPath, check local storage
+            if "404" in str(e):
+                # Check if file exists in temp directory
+                if os.path.exists(self._temp_dir):
+                    # Look for any file starting with our UUID
+                    pattern = f"{key}_*"
+                    matching_files = list(Path(self._temp_dir).glob(pattern))
+
+                    if matching_files:
+                        # Delete all matching files
+                        for file_path in matching_files:
+                            os.remove(file_path)
+                        return
+
+            # Re-raise the original exception if we can't find it locally
+            raise Exception(
+                f"Attachment with key {key} not found in UiPath or local storage"
+            ) from e
 
     @property
     def custom_headers(self) -> Dict[str, str]:
