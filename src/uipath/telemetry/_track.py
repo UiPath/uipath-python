@@ -1,4 +1,6 @@
+import logging
 import os
+import sys
 from functools import wraps
 from importlib.metadata import version
 from logging import INFO, LogRecord, getLogger
@@ -31,6 +33,21 @@ from ._constants import (
 
 _logger = getLogger(__name__)
 _logger.propagate = False
+
+noisy_loggers = [
+    "opentelemetry",
+    "opentelemetry.sdk",
+    "opentelemetry.sdk.trace",
+    "opentelemetry.exporter",
+    "opentelemetry.exporter.otlp",
+    "opentelemetry.exporter.otlp.proto.grpc.trace_exporter",
+    "opentelemetry.exporter.otlp.proto.http.trace_exporter",
+]
+
+for logger_name in noisy_loggers:
+    logger = logging.getLogger(logger_name)
+    logger.removeHandler(logging.StreamHandler(sys.stdout))
+    logger.removeHandler(logging.StreamHandler(sys.stderr))
 
 
 class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
@@ -117,8 +134,11 @@ def track(
 
             should_track = when(*args, **kwargs) if callable(when) else when
 
-            if should_track:
-                _TelemetryClient._track_method(event_name, extra)
+            try:
+                if should_track:
+                    _TelemetryClient._track_method(event_name, extra)
+            except Exception:
+                pass
 
             return func(*args, **kwargs)
 
