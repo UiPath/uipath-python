@@ -114,6 +114,7 @@ class TestSpanUtils:
         assert attributes["key2"] == 123
 
         # Test with error status
+        mock_span.status.description = "Test error description"
         mock_span.status.status_code = StatusCode.ERROR
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         assert uipath_span.status == 2  # Error
