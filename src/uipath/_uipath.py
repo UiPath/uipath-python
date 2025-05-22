@@ -25,7 +25,7 @@ from ._utils.constants import (
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
 )
-from .models.errors import BaseUrlMissingError, SecretMissingError
+from .models.errors import AccessTokenMissingError, BaseUrlMissingError
 
 load_dotenv(override=True)
 
@@ -55,7 +55,7 @@ class UiPath:
                 if error["loc"][0] == "base_url":
                     raise BaseUrlMissingError() from e
                 elif error["loc"][0] == "secret":
-                    raise SecretMissingError() from e
+                    raise AccessTokenMissingError() from e
         self._folders_service: Optional[FolderService] = None
         self._buckets_service: Optional[BucketsService] = None
 
