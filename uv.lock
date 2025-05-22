@@ -3111,7 +3111,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.0.57"
+version = "2.0.58"
 source = { editable = "." }
 dependencies = [
     { name = "azure-monitor-opentelemetry" },
@@ -3170,6 +3170,7 @@ requires-dist = [
     { name = "tomli", specifier = ">=2.2.1" },
     { name = "uipath-langchain", marker = "extra == 'langchain'", specifier = ">=0.0.88,<0.1.0" },
 ]
+provides-extras = ["langchain"]
 
 [package.metadata.requires-dev]
 dev = [

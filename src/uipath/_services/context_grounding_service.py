@@ -8,7 +8,7 @@ from typing_extensions import deprecated
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder
+from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from .._utils.constants import (
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
@@ -45,6 +45,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self._buckets_service = buckets_service
         super().__init__(config=config, execution_context=execution_context)
 
+    @infer_bindings()
     @traced(name="add_to_index", run_type="uipath")
     def add_to_index(
         self,
@@ -95,6 +96,7 @@ class ContextGroundingService(FolderContext, BaseService):
             )
         self.ingest_data(index, folder_key=folder_key, folder_path=folder_path)
 
+    @infer_bindings()
     @traced(name="add_to_index", run_type="uipath")
     async def add_to_index_async(
         self,
@@ -150,6 +152,7 @@ class ContextGroundingService(FolderContext, BaseService):
             index, folder_key=folder_key, folder_path=folder_path
         )
 
+    @infer_bindings()
     @traced(name="contextgrounding_retrieve", run_type="uipath")
     def retrieve(
         self,
@@ -191,6 +194,7 @@ class ContextGroundingService(FolderContext, BaseService):
         except StopIteration as e:
             raise Exception("ContextGroundingIndex not found") from e
 
+    @infer_bindings()
     @traced(name="contextgrounding_retrieve", run_type="uipath")
     async def retrieve_async(
         self,

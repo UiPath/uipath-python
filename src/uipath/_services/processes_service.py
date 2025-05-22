@@ -23,6 +23,7 @@ class ProcessesService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    @infer_bindings()
     @traced(name="processes_invoke", run_type="uipath")
     def invoke(
         self,

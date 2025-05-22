@@ -3,10 +3,16 @@
 import ast
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..._services import AssetsService, BucketsService, ProcessesService
+from ..._services import (
+    AssetsService,
+    BucketsService,
+    ContextGroundingService,
+    ProcessesService,
+)
 from ..._utils import get_inferred_bindings_names
+from ._constants import BINDINGS_VERSION
 
 
 @dataclass
@@ -33,6 +39,14 @@ service_name_resource_mapping = {
     "processes": "process",
     "buckets": "bucket",
     "connections": "connection",
+    "context_grounding": "index",
+}
+
+supported_bindings_by_service = {
+    "assets": AssetsService,
+    "processes": ProcessesService,
+    "buckets": BucketsService,
+    "context_grounding": ContextGroundingService,
 }
 
 
@@ -67,10 +81,10 @@ class ServiceUsage:
     def get_component_info(self) -> List[Dict[str, str]]:
         """Extract component names and folders based on the service type."""
         result = []
-
-        if self.service_name == "assets":
+        has_support, service_cls = self._support_for_bindings_inference()
+        if has_support:
             for call in self.method_calls:
-                inferred_bindings = get_inferred_bindings_names(AssetsService)
+                inferred_bindings = get_inferred_bindings_names(service_cls)
                 if call.method_name in inferred_bindings:
                     name = extract_parameter(
                         call, inferred_bindings[call.method_name]["name"], 0
@@ -87,47 +101,9 @@ class ServiceUsage:
                             }
                         )
 
-        elif self.service_name == "processes":
-            for call in self.method_calls:
-                inferred_bindings = get_inferred_bindings_names(ProcessesService)
-                if call.method_name in inferred_bindings:
-                    name = extract_parameter(
-                        call, inferred_bindings[call.method_name]["name"], 0
-                    )
-                    folder_path = extract_parameter(
-                        call, inferred_bindings[call.method_name]["folder_path"]
-                    )
-                    if name:
-                        result.append(
-                            {
-                                "name": name,
-                                "folder": folder_path or "",
-                                "method": call.method_name,
-                            }
-                        )
-
-        elif self.service_name == "buckets":
-            for call in self.method_calls:
-                inferred_bindings = get_inferred_bindings_names(BucketsService)
-                if call.method_name in inferred_bindings:
-                    name = extract_parameter(
-                        call, inferred_bindings[call.method_name]["name"], 0
-                    )
-                    folder_path = extract_parameter(
-                        call, inferred_bindings[call.method_name]["folder_path"]
-                    )
-                    if name:
-                        result.append(
-                            {
-                                "name": name,
-                                "folder": folder_path or "",
-                                "method": call.method_name,
-                            }
-                        )
-
+        # custom logic for connections bindings
         elif self.service_name == "connections":
             for call in self.method_calls:
-                connection_id = None
                 if len(call.args) > 0:
                     connection_id = call.args[0]
                     if connection_id:
@@ -140,6 +116,12 @@ class ServiceUsage:
                         )
 
         return result
+
+    def _support_for_bindings_inference(self) -> Tuple[bool, Any]:
+        return (
+            self.service_name in supported_bindings_by_service,
+            supported_bindings_by_service.get(self.service_name, None),
+        )
 
 
 def extract_parameter(
@@ -462,11 +444,10 @@ def convert_to_bindings_format(sdk_usage_data):
                             "defaultValue": connection_id,
                             "isExpression": is_connection_id_expression,
                             "displayName": "Connection",
-                            "description": "The connection to be used",
                         }
                     },
                     "metadata": {
-                        "BindingsVersion": "2.1",
+                        "BindingsVersion": BINDINGS_VERSION,
                         "Connector": connector_name,
                         "UseConnectionService": "True",
                     },
@@ -500,7 +481,7 @@ def convert_to_bindings_format(sdk_usage_data):
                 },
                 "metadata": {
                     "ActivityName": method_name,
-                    "BindingsVersion": "2.1",
+                    "BindingsVersion": BINDINGS_VERSION,
                     "DisplayLabel": "FullName",
                 },
             }

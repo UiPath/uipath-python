@@ -83,6 +83,7 @@ class AssetsService(FolderContext, BaseService):
             else:
                 return Asset.model_validate(response.json()["value"][0])
 
+    @infer_bindings()
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
     )
