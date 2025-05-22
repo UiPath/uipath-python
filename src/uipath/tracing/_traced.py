@@ -6,16 +6,11 @@ from functools import wraps
 from typing import Any, Callable, List, Optional, Tuple
 
 from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from ._otel_exporters import LlmOpsHttpExporter
 from ._utils import _SpanUtils
 
 logger = logging.getLogger(__name__)
 
-trace.set_tracer_provider(TracerProvider())
-trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(LlmOpsHttpExporter()))  # type: ignore
 tracer = trace.get_tracer(__name__)
 
 
