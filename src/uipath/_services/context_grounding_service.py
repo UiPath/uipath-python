@@ -45,8 +45,8 @@ class ContextGroundingService(FolderContext, BaseService):
         self._buckets_service = buckets_service
         super().__init__(config=config, execution_context=execution_context)
 
-    @infer_bindings()
     @traced(name="add_to_index", run_type="uipath")
+    @infer_bindings(resource_type="index")
     def add_to_index(
         self,
         name: str,
@@ -96,8 +96,8 @@ class ContextGroundingService(FolderContext, BaseService):
             )
         self.ingest_data(index, folder_key=folder_key, folder_path=folder_path)
 
-    @infer_bindings()
     @traced(name="add_to_index", run_type="uipath")
+    @infer_bindings(resource_type="index")
     async def add_to_index_async(
         self,
         name: str,
@@ -152,8 +152,8 @@ class ContextGroundingService(FolderContext, BaseService):
             index, folder_key=folder_key, folder_path=folder_path
         )
 
-    @infer_bindings()
     @traced(name="contextgrounding_retrieve", run_type="uipath")
+    @infer_bindings(resource_type="index")
     def retrieve(
         self,
         name: str,
@@ -194,8 +194,8 @@ class ContextGroundingService(FolderContext, BaseService):
         except StopIteration as e:
             raise Exception("ContextGroundingIndex not found") from e
 
-    @infer_bindings()
     @traced(name="contextgrounding_retrieve", run_type="uipath")
+    @infer_bindings(resource_type="index")
     async def retrieve_async(
         self,
         name: str,

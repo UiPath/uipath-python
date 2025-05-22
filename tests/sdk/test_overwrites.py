@@ -11,26 +11,25 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def mock_overwrites_file(mocker: "MockerFixture", tmp_path: Path) -> Path:
-    """Create a temporary overwrites file with test data.
-
-    Args:
-        mocker: Pytest mocker fixture.
-        tmp_path: Pytest temporary path fixture.
-
-    Returns:
-        Path to the temporary overwrites file.
-    """
+def mock_overwrites_file(tmp_path: Path) -> Path:
     overwrites_data = {
-        "resourceOverwrites": {
-            "asset.MyAsset": {"name": "NewAssetName", "folderPath": "Root/Dev/Assets"},
-            "process.MyProcess": {
-                "name": "NewProcessName",
-                "folderPath": "Root/Dev/Processes",
-            },
-            "library.MyLibrary": {
-                "name": "NewLibraryName",
-                "folderPath": "Root/Dev/Libraries",
+        "runtime": {
+            "outputFile": "output.json",
+            "internalArguments": {
+                "resourceOverwrites": {
+                    "asset.MyAsset": {
+                        "name": "NewAssetName",
+                        "folderPath": "Root/Dev/Assets",
+                    },
+                    "process.MyProcess": {
+                        "name": "NewProcessName",
+                        "folderPath": "Root/Dev/Processes",
+                    },
+                    "library.MyLibrary": {
+                        "name": "NewLibraryName",
+                        "folderPath": "Root/Dev/Libraries",
+                    },
+                }
             },
         }
     }

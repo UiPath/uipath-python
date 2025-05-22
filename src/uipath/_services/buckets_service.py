@@ -28,8 +28,8 @@ class BucketsService(FolderContext, BaseService):
         self.custom_client = httpx.Client()
         self.custom_client_async = httpx.AsyncClient()
 
-    @infer_bindings()
     @traced(name="buckets_download", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     def download(
         self,
         *,
@@ -84,8 +84,8 @@ class BucketsService(FolderContext, BaseService):
                 file_content = self.custom_client.get(read_uri, headers=headers).content
             file.write(file_content)
 
-    @infer_bindings()
     @traced(name="buckets_download", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     async def download_async(
         self,
         *,
@@ -146,8 +146,8 @@ class BucketsService(FolderContext, BaseService):
                 ).content
             file.write(file_content)
 
-    @infer_bindings()
     @traced(name="buckets_upload", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     def upload(
         self,
         *,
@@ -229,8 +229,8 @@ class BucketsService(FolderContext, BaseService):
                         write_uri, headers=headers, files={"file": file}
                     )
 
-    @infer_bindings()
     @traced(name="buckets_upload", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     async def upload_async(
         self,
         *,
@@ -317,8 +317,8 @@ class BucketsService(FolderContext, BaseService):
                         write_uri, headers=headers, files={"file": file}
                     )
 
-    @infer_bindings()
     @traced(name="buckets_retrieve", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     def retrieve(
         self,
         *,
@@ -365,8 +365,8 @@ class BucketsService(FolderContext, BaseService):
             raise Exception(f"Bucket with name '{name}' not found") from e
         return Bucket.model_validate(response)
 
-    @infer_bindings()
     @traced(name="buckets_retrieve", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     async def retrieve_async(
         self,
         *,
