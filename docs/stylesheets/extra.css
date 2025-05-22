@@ -150,6 +150,15 @@ a[href^="https://"]:not(.md-source):not(.skip-link-icon) {
 }
 
 .report-issue-link {
-    text-decoration: underline;
-    text-decoration-style: wavy;
+    margin-block: 0.8rem;
+    font-size: 0.7rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+
+    svg {
+        margin-top: -0.1rem;
+        width: 0.7rem;
+        height: 0.7rem;
+    }
 }
