@@ -1,12 +1,25 @@
 import json
 import os
 import re
+from typing import Any
 from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner
 
 from uipath._cli.cli_init import init  # type: ignore
 from uipath._cli.middlewares import MiddlewareResult
+
+
+@pytest.fixture
+def bindings_script() -> str:
+    if os.path.isfile("mocks/bindings_script.py"):
+        with open("mocks/bindings_script.py", "r") as file:
+            data = file.read()
+    else:
+        with open("tests/cli/mocks/bindings_script.py", "r") as file:
+            data = file.read()
+    return data
 
 
 class TestInit:
@@ -194,3 +207,130 @@ def main(input: Input) -> Output:
                 assert "output" in entry
                 output_schema = entry["output"]
                 assert "result" in output_schema["properties"]
+
+    def test_bindings_inference(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        mock_env_vars: dict[str, str],
+        bindings_script: str,
+    ) -> None:
+        """Test the inference of UiPath bindings from the code."""
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open(".env", "w") as f:
+                for key, value in mock_env_vars.items():
+                    f.write(f"{key}={value}\n")
+
+            with open("bindings.py", "w") as f:
+                f.write(bindings_script)
+            print(1)
+            result = runner.invoke(init, ["bindings.py"])
+            assert result.exit_code == 0
+            assert "Created 'uipath.json' file" in result.output
+            assert os.path.exists("uipath.json")
+            with open("uipath.json", "r") as f:
+                config = json.load(f)
+                assert "bindings" in config
+                bindings = config["bindings"]
+                assert len(bindings) > 0
+                assert "resources" in config["bindings"]
+                resources = config["bindings"]["resources"]
+                assert len(resources) == 12
+
+                # Helper function to find resource by key
+                def find_resource(key: str) -> dict[str, Any]:
+                    return next((r for r in resources if r["key"] == key), {})
+
+                assert all(r["metadata"]["BindingsVersion"] == "2.2" for r in resources)
+
+                # Test resources with and without async for each type
+                retrieve_resource_types = ["asset", "bucket", "index"]
+                for resource_type in retrieve_resource_types:
+                    # Test async variant
+                    async_key = f"{resource_type}_from_retrieve_async"
+                    async_resource = find_resource(async_key)
+                    assert async_resource["resource"] == resource_type
+                    assert (
+                        async_resource["metadata"]["ActivityName"] == "retrieve_async"
+                    )
+                    assert async_resource["value"]["name"]["defaultValue"] == async_key
+                    assert "folderPath" not in async_resource["value"]
+
+                    # Test non-async variant
+                    non_async_key = f"{resource_type}_from_retrieve"
+                    non_async_resource = find_resource(non_async_key)
+                    assert non_async_resource["resource"] == resource_type
+                    assert non_async_resource["metadata"]["ActivityName"] == "retrieve"
+                    assert (
+                        non_async_resource["value"]["name"]["defaultValue"]
+                        == non_async_key
+                    )
+                    assert "folderPath" not in non_async_resource["value"]
+
+                    # Test folder path variant
+                    folder_key = (
+                        f"{resource_type}_folder_path.{resource_type}_with_folder_path"
+                    )
+                    folder_resource = find_resource(folder_key)
+                    assert folder_resource["resource"] == resource_type
+                    assert folder_resource["metadata"]["ActivityName"] == "retrieve"
+                    assert (
+                        folder_resource["value"]["folderPath"]["defaultValue"]
+                        == f"{resource_type}_folder_path"
+                    )
+                    assert (
+                        folder_resource["value"]["name"]["defaultValue"]
+                        == f"{resource_type}_with_folder_path"
+                    )
+
+                # Test process resources
+                # Test async variant
+                process_async = find_resource("process_name_from_invoke_async")
+                assert process_async["resource"] == "process"
+                assert process_async["metadata"]["ActivityName"] == "invoke_async"
+                assert (
+                    process_async["value"]["name"]["defaultValue"]
+                    == "process_name_from_invoke_async"
+                )
+                assert "folderPath" not in process_async["value"]
+
+                # Test non-async variant
+                process_non_async = find_resource("process_name_from_invoke")
+                assert process_non_async["resource"] == "process"
+                assert process_non_async["metadata"]["ActivityName"] == "invoke"
+                assert (
+                    process_non_async["value"]["name"]["defaultValue"]
+                    == "process_name_from_invoke"
+                )
+                assert "folderPath" not in process_non_async["value"]
+
+                # Test folder path variant
+                process_folder = find_resource(
+                    "process_folder_path.process_with_folder_path"
+                )
+                assert process_folder["resource"] == "process"
+                assert process_folder["metadata"]["ActivityName"] == "invoke"
+                assert (
+                    process_folder["value"]["folderPath"]["defaultValue"]
+                    == "process_folder_path"
+                )
+                assert (
+                    process_folder["value"]["name"]["defaultValue"]
+                    == "process_with_folder_path"
+                )
+
+                # Verify common metadata fields
+                for resource in resources:
+                    assert "metadata" in resource
+                    assert "DisplayLabel" in resource["metadata"]
+                    assert resource["metadata"]["DisplayLabel"] == "FullName"
+                    assert "value" in resource
+                    if "folderPath" in resource["value"]:
+                        assert (
+                            resource["value"]["folderPath"]["displayName"]
+                            == "Folder Path"
+                        )
+                        assert not resource["value"]["folderPath"]["isExpression"]
+                    assert resource["value"]["name"]["displayName"] == "Name"
+                    assert not resource["value"]["name"]["isExpression"]

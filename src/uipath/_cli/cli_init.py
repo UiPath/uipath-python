@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from dotenv import load_dotenv
 
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
@@ -56,6 +57,9 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
 @track
 def init(entrypoint: str) -> None:
     """Create uipath.json with input/output schemas and bindings."""
+    current_path = os.getcwd()
+    load_dotenv(os.path.join(current_path, ".env"), override=True)
+
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
         generate_env_file(current_directory)
