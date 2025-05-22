@@ -29,6 +29,7 @@ class BucketsService(FolderContext, BaseService):
         self.custom_client_async = httpx.AsyncClient()
 
     @traced(name="buckets_download", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     def download(
         self,
         *,
@@ -83,7 +84,70 @@ class BucketsService(FolderContext, BaseService):
                 file_content = self.custom_client.get(read_uri, headers=headers).content
             file.write(file_content)
 
+    @traced(name="buckets_download", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    async def download_async(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        blob_file_path: str,
+        destination_path: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Download a file from a bucket asynchronously.
+
+        Args:
+            key (Optional[str]): The key of the bucket.
+            name (Optional[str]): The name of the bucket.
+            blob_file_path (str): The path to the file in the bucket.
+            destination_path (str): The local path where the file will be saved.
+            folder_key (Optional[str]): The key of the folder where the bucket resides.
+            folder_path (Optional[str]): The path of the folder where the bucket resides.
+
+        Raises:
+            ValueError: If neither key nor name is provided.
+            Exception: If the bucket with the specified key is not found.
+        """
+        bucket = await self.retrieve_async(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._retrieve_readUri_spec(
+            bucket.id, blob_file_path, folder_key=folder_key, folder_path=folder_path
+        )
+        result = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+
+        read_uri = result["Uri"]
+
+        headers = {
+            key: value
+            for key, value in zip(
+                result["Headers"]["Keys"], result["Headers"]["Values"], strict=False
+            )
+        }
+
+        with open(destination_path, "wb") as file:
+            # the self.request adds auth bearer token
+            if result["RequiresAuth"]:
+                file_content = (
+                    await self.request_async("GET", read_uri, headers=headers)
+                ).content
+            else:
+                file_content = (
+                    await self.custom_client_async.get(read_uri, headers=headers)
+                ).content
+            file.write(file_content)
+
     @traced(name="buckets_upload", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     def upload(
         self,
         *,
@@ -166,6 +230,7 @@ class BucketsService(FolderContext, BaseService):
                     )
 
     @traced(name="buckets_upload", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     async def upload_async(
         self,
         *,
@@ -252,8 +317,8 @@ class BucketsService(FolderContext, BaseService):
                         write_uri, headers=headers, files={"file": file}
                     )
 
-    @infer_bindings()
     @traced(name="buckets_retrieve", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     def retrieve(
         self,
         *,
@@ -300,8 +365,8 @@ class BucketsService(FolderContext, BaseService):
             raise Exception(f"Bucket with name '{name}' not found") from e
         return Bucket.model_validate(response)
 
-    @infer_bindings()
     @traced(name="buckets_retrieve", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
     async def retrieve_async(
         self,
         *,
@@ -372,7 +437,7 @@ class BucketsService(FolderContext, BaseService):
 
     def _retrieve_readUri_spec(
         self,
-        bucket_id: str,
+        bucket_id: int,
         blob_file_path: str,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -390,7 +455,7 @@ class BucketsService(FolderContext, BaseService):
 
     def _retrieve_writeri_spec(
         self,
-        bucket_id: str,
+        bucket_id: int,
         content_type: str,
         blob_file_path: str,
         folder_key: Optional[str] = None,

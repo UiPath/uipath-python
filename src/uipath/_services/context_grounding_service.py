@@ -8,7 +8,7 @@ from typing_extensions import deprecated
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder
+from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from .._utils.constants import (
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
@@ -46,6 +46,7 @@ class ContextGroundingService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="add_to_index", run_type="uipath")
+    @infer_bindings(resource_type="index")
     def add_to_index(
         self,
         name: str,
@@ -96,6 +97,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self.ingest_data(index, folder_key=folder_key, folder_path=folder_path)
 
     @traced(name="add_to_index", run_type="uipath")
+    @infer_bindings(resource_type="index")
     async def add_to_index_async(
         self,
         name: str,
@@ -151,6 +153,7 @@ class ContextGroundingService(FolderContext, BaseService):
         )
 
     @traced(name="contextgrounding_retrieve", run_type="uipath")
+    @infer_bindings(resource_type="index")
     def retrieve(
         self,
         name: str,
@@ -192,6 +195,7 @@ class ContextGroundingService(FolderContext, BaseService):
             raise Exception("ContextGroundingIndex not found") from e
 
     @traced(name="contextgrounding_retrieve", run_type="uipath")
+    @infer_bindings(resource_type="index")
     async def retrieve_async(
         self,
         name: str,

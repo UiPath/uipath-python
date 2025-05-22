@@ -30,6 +30,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def execution_context(monkeypatch: pytest.MonkeyPatch) -> ExecutionContext:
+    """Provide an execution context for testing."""
     monkeypatch.setenv("UIPATH_ROBOT_KEY", "test-robot-key")
     return ExecutionContext()
 

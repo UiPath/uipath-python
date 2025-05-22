@@ -18,9 +18,6 @@ HEADER_USER_AGENT = "x-uipath-user-agent"
 HEADER_TENANT_ID = "x-uipath-tenantid"
 HEADER_JOB_KEY = "x-uipath-jobkey"
 
-# Entrypoint for plugins
-ENTRYPOINT = "uipath.connectors"
-
 # Data sources
 ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (
     "#UiPath.Vdbs.Domain.Api.V20Models.StorageBucketDataSourceRequest"

@@ -16,8 +16,8 @@ class OverwritesManager:
     """
 
     _instance = None
-    _overwrites_file_path: Path = Path("uipath.json")
-    _overwrites: Dict[str, Any] = {}
+    _overwrites_file_path: Path = Path("__uipath/uipath.json")
+    _runtime_overwrites: Dict[str, Any] = {}
 
     def __new__(
         cls, overwrites_file_path: Optional[Path] = None
@@ -56,12 +56,17 @@ class OverwritesManager:
         """
         try:
             with open(self._overwrites_file_path, "r") as f:
-                self._overwrites = json.load(f)
+                data = json.load(f)
+                self._runtime_overwrites = (
+                    data.get("runtime", {})
+                    .get("internalArguments", {})
+                    .get("resourceOverwrites", {})
+                )
         except FileNotFoundError:
-            self._overwrites = {}
+            self._runtime_overwrites = {}
 
     def get_overwrite(
-        self, resource_type: str, resource_name: str
+        self, resource_type: str, resource_name: str, folder_path: Optional[str] = None
     ) -> Optional[Tuple[str, str]]:
         """Get an overwrite value for a specific resource.
 
@@ -72,13 +77,15 @@ class OverwritesManager:
         Returns:
             A tuple of (name, folder_path) if found, None otherwise.
         """
-        overwrites = self._overwrites.get("resourceOverwrites", {})
-        key = f"{resource_type}.{resource_name}"
+        if folder_path:
+            key = f"{resource_type}.{resource_name}.{folder_path}"
+        else:
+            key = f"{resource_type}.{resource_name}"
 
-        if key not in overwrites:
+        if key not in self._runtime_overwrites:
             return None
 
-        overwrite = overwrites[key]
+        overwrite = self._runtime_overwrites[key]
         return (
             overwrite.get("name", resource_name),
             overwrite.get("folderPath", ""),
@@ -86,7 +93,7 @@ class OverwritesManager:
 
     def get_and_apply_overwrite(
         self, resource_type: str, resource_name: str, folder_path: Optional[str] = None
-    ) -> Tuple[str, str]:
+    ) -> Tuple[Any, Any]:
         """Get and apply overwrites for a resource, falling back to provided values if no overwrites exist.
 
         Args:
@@ -98,14 +105,10 @@ class OverwritesManager:
             A tuple of (name, folder_path) with overwritten values if available,
             otherwise the original values.
         """
-        overwrite = self.get_overwrite(resource_type, resource_name)
+        overwrite = self.get_overwrite(resource_type, resource_name, folder_path)
         if overwrite:
-            name, overwrite_folder_path = overwrite
-            # Only use overwrite folder path if no folder_path was provided
-            if folder_path is None:
-                folder_path = overwrite_folder_path
-            return name, folder_path
-        return resource_name, folder_path or ""
+            resource_name, folder_path = overwrite
+        return resource_name, folder_path or None
 
 
 @contextmanager
