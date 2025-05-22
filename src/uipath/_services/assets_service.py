@@ -128,7 +128,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="bucket")
+    @infer_bindings(resource_type="asset")
     def retrieve_credential(
         self,
         name: str,
@@ -181,7 +181,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="bucket")
+    @infer_bindings(resource_type="asset")
     async def retrieve_credential_async(
         self,
         name: str,
