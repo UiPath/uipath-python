@@ -12,6 +12,8 @@ extra_css:
 extra_javascript:
   - javascripts/extra.js
 
+google_tag_manager_id: GTM-PLLP8P
+
 theme:
   name: material
   custom_dir: docs/overrides
@@ -96,7 +98,8 @@ plugins:
             show_bases: false
   - mkdocs-simple-hooks:
       hooks:
-        on_pre_build: "docs.hooks:redirect_index"
+        on_pre_build: "docs.hooks:on_pre_build"
+        on_post_page: "docs.hooks:on_post_page"
   - termynal:
       prompt_literal_start:
         - "$"
