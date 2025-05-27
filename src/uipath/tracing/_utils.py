@@ -134,6 +134,11 @@ class _SpanUtils:
         if otel_span.parent is not None:
             parent_id = _SpanUtils.span_id_to_uuid4(otel_span.parent.span_id)
 
+        parent_span_id_str = env.get("UIPATH_PARENT_SPAN_ID")
+
+        if parent_span_id_str:
+            parent_id = uuid.UUID(parent_span_id_str)
+
         # Convert attributes to a format compatible with UiPathSpan
         attributes_dict: dict[str, Any] = (
             dict(otel_span.attributes) if otel_span.attributes else {}
