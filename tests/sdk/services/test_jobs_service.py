@@ -579,16 +579,13 @@ class TestJobsService:
         content = "Test attachment content"
         name = "test_attachment.txt"
 
-        # Set job key in execution context - add attribute if it doesn't exist
-        if not hasattr(execution_context, "job_key"):
-            # Add job_key attribute to ExecutionContext
-            execution_context.__dict__["job_key"] = job_key
-        else:
-            execution_context.job_key = job_key
-
-        # Create service with our execution context
+        # Set job key in environment - must be string
+        monkeypatch.setenv("UIPATH_JOB_KEY", str(job_key))
         monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
-        service = JobsService(config=config, execution_context=execution_context)
+
+        # Create fresh execution context after setting environment variables
+        fresh_execution_context = ExecutionContext()
+        service = JobsService(config=config, execution_context=fresh_execution_context)
 
         # Mock the attachment service's upload method
         mock_upload = mocker.patch.object(

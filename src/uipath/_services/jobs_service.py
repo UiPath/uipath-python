@@ -553,8 +553,12 @@ class JobsService(FolderContext, BaseService):
 
         # Get job key from context if not explicitly provided
         context_job_key = None
-        if job_key is None and hasattr(self._execution_context, "job_key"):
-            context_job_key = self._execution_context.job_key
+        if job_key is None:
+            try:
+                context_job_key = self._execution_context.instance_key
+            except ValueError:
+                # Instance key is not set in environment
+                context_job_key = None
 
         # Check if a job is available
         if job_key is not None or context_job_key is not None:
@@ -690,8 +694,12 @@ class JobsService(FolderContext, BaseService):
 
         # Get job key from context if not explicitly provided
         context_job_key = None
-        if job_key is None and hasattr(self._execution_context, "job_key"):
-            context_job_key = self._execution_context.job_key
+        if job_key is None:
+            try:
+                context_job_key = self._execution_context.instance_key
+            except ValueError:
+                # Instance key is not set in environment
+                context_job_key = None
 
         # Check if a job is available
         if job_key is not None or context_job_key is not None:
