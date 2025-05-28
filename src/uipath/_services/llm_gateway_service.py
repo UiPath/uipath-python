@@ -54,7 +54,19 @@ class UiPathOpenAIService(BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="llm_embeddings_usage", run_type="uipath")
+    @traced(
+        name="llm_embeddings_usage",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s,
+            input,
+            embedding_model,
+            **_kwargs: f"LLMGateway:OpenAI:EmbeddingModel:{embedding_model}",
+            "operationName": "GET Embedding Usage",
+        },
+    )
     async def embeddings_usage(
         self, input: str, embedding_model: str = EmbeddingModels.text_embedding_ada_002
     ):
@@ -81,7 +93,19 @@ class UiPathOpenAIService(BaseService):
 
         return UsageInfo.model_validate(response.json())
 
-    @traced(name="llm_embeddings", run_type="uipath")
+    @traced(
+        name="llm_embeddings",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s,
+            input,
+            embedding_model,
+            **_kwargs: f"LLMGateway:OpenAI:EmbeddingModel:{embedding_model}",
+            "operationName": "GET Embedding",
+        },
+    )
     async def embeddings(
         self, input: str, embedding_model: str = EmbeddingModels.text_embedding_ada_002
     ):
@@ -107,7 +131,19 @@ class UiPathOpenAIService(BaseService):
 
         return TextEmbedding.model_validate(response.json())
 
-    @traced(name="llm_chat_completions", run_type="uipath")
+    @traced(
+        name="llm_chat_completions",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s,
+            messages,
+            model,
+            **_kwargs: f"LLMGateway:OpenAI:ChatModel:{model}",
+            "operationName": "GET Chat Completion",
+        },
+    )
     async def chat_completions(
         self,
         messages: List[Dict[str, str]],
@@ -157,7 +193,19 @@ class UiPathOpenAIService(BaseService):
 
         return ChatCompletion.model_validate(response.json())
 
-    @traced(name="llm_chat_completions_usage", run_type="uipath")
+    @traced(
+        name="llm_chat_completions_usage",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s,
+            messages,
+            model,
+            **_kwargs: f"LLMGateway:OpenAI:ChatModel:{model}",
+            "operationName": "GET Chat Completion Usage",
+        },
+    )
     async def chat_completions_usage(
         self,
         messages: List[Dict[str, str]],
@@ -216,7 +264,19 @@ class UiPathLlmChatService(BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="llm_chat_completions", run_type="uipath")
+    @traced(
+        name="llm_chat_completions",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s,
+            messages,
+            model,
+            **_kwargs: f"LLMGateway:Normalized:ChatModel:{model}",
+            "operationName": "GET Normalized Chat Completion",
+        },
+    )
     async def chat_completions(
         self,
         messages: List[Dict[str, str]],

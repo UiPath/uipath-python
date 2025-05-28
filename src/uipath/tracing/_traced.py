@@ -2,8 +2,9 @@ import importlib
 import inspect
 import json
 import logging
+import os
 from functools import wraps
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, TypedDict, Union
 
 from opentelemetry import trace
 
@@ -12,6 +13,14 @@ from ._utils import _SpanUtils
 logger = logging.getLogger(__name__)
 
 tracer = trace.get_tracer(__name__)
+
+
+class DependencyInfo(TypedDict, total=False):
+    """Type definition for dependency tracking information."""
+
+    sourceName: Union[str, Callable[..., str]]
+    targetName: Union[str, Callable[..., str]]
+    operationName: Union[str, Callable[..., str]]
 
 
 class TracingManager:
@@ -129,6 +138,7 @@ def _opentelemetry_traced(
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
     output_processor: Optional[Callable[..., Any]] = None,
+    dependency: Optional[DependencyInfo] = None,
 ):
     """Default tracer implementation using OpenTelemetry."""
 
@@ -155,6 +165,21 @@ def _opentelemetry_traced(
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
                 span.set_attribute("inputs", inputs)
+
+                # Add dependency information as a JSON attribute if provided
+                if dependency is not None:
+                    # Process any callable dependency values using function args/kwargs
+                    processed_dependency = {}
+                    for key, value in dependency.items():
+                        if callable(value):
+                            # Call the function with the same arguments as the decorated function
+                            processed_dependency[key] = value(*args, **kwargs)
+                        else:
+                            processed_dependency[key] = value
+
+                    dependency_json = json.dumps(processed_dependency, default=str)
+                    span.set_attribute("dependency", dependency_json)
+
                 try:
                     result = func(*args, **kwargs)
                     # Process output if processor is provided
@@ -190,6 +215,21 @@ def _opentelemetry_traced(
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
                 span.set_attribute("inputs", inputs)
+
+                # Add dependency information as a JSON attribute if provided
+                if dependency is not None:
+                    # Process any callable dependency values using function args/kwargs
+                    processed_dependency = {}
+                    for key, value in dependency.items():
+                        if callable(value):
+                            # Call the function with the same arguments as the decorated function
+                            processed_dependency[key] = value(*args, **kwargs)
+                        else:
+                            processed_dependency[key] = value
+
+                    dependency_json = json.dumps(processed_dependency, default=str)
+                    span.set_attribute("dependency", dependency_json)
+
                 try:
                     result = await func(*args, **kwargs)
                     # Process output if processor is provided
@@ -225,6 +265,21 @@ def _opentelemetry_traced(
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
                 span.set_attribute("inputs", inputs)
+
+                # Add dependency information as a JSON attribute if provided
+                if dependency is not None:
+                    # Process any callable dependency values using function args/kwargs
+                    processed_dependency = {}
+                    for key, value in dependency.items():
+                        if callable(value):
+                            # Call the function with the same arguments as the decorated function
+                            processed_dependency[key] = value(*args, **kwargs)
+                        else:
+                            processed_dependency[key] = value
+
+                    dependency_json = json.dumps(processed_dependency, default=str)
+                    span.set_attribute("dependency", dependency_json)
+
                 outputs = []
                 try:
                     for item in func(*args, **kwargs):
@@ -266,6 +321,21 @@ def _opentelemetry_traced(
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
                 span.set_attribute("inputs", inputs)
+
+                # Add dependency information as a JSON attribute if provided
+                if dependency is not None:
+                    # Process any callable dependency values using function args/kwargs
+                    processed_dependency = {}
+                    for key, value in dependency.items():
+                        if callable(value):
+                            # Call the function with the same arguments as the decorated function
+                            processed_dependency[key] = value(*args, **kwargs)
+                        else:
+                            processed_dependency[key] = value
+
+                    dependency_json = json.dumps(processed_dependency, default=str)
+                    span.set_attribute("dependency", dependency_json)
+
                 outputs = []
                 try:
                     async for item in func(*args, **kwargs):
@@ -337,10 +407,12 @@ def traced(
     output_processor: Optional[Callable[..., Any]] = None,
     hide_input: bool = False,
     hide_output: bool = False,
+    dependency: Optional[DependencyInfo] = None,
 ):
     """Decorator that will trace function invocations.
 
     Args:
+        name: Optional name for the span (defaults to function name)
         run_type: Optional string to categorize the run type
         span_type: Optional string to categorize the span type
         input_processor: Optional function to process function inputs before recording
@@ -349,12 +421,27 @@ def traced(
             Should accept the function output and return a processed value
         hide_input: If True, don't log any input data
         hide_output: If True, don't log any output data
+        dependency: Optional dictionary with dependency tracking information:
+            sourceName: The source system/component (str or callable returning str)
+            targetName: The target system/component (str or callable returning str)
+            operationName: The operation being performed (str or callable returning str)
+
+            For sourceName, targetName, and operationName:
+            - If a string is provided, it's used directly
+            - If a callable is provided, it's called with the same args/kwargs as the
+              decorated function and should return a string
     """
     # Apply default processors selectively based on hide flags
     if hide_input:
         input_processor = _default_input_processor
     if hide_output:
         output_processor = _default_output_processor
+
+    if dependency is not None:
+        if dependency.get("sourceName") is None:
+            dependency["sourceName"] = lambda *args: os.environ.get(
+                "UIPATH_PROCESS_KEY", "Unknown source"
+            )
 
     # Store the parameters for later reapplication
     params = {
@@ -363,6 +450,7 @@ def traced(
         "span_type": span_type,
         "input_processor": input_processor,
         "output_processor": output_processor,
+        "dependency": dependency,
     }
 
     # Check for custom implementation first

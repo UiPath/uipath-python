@@ -23,7 +23,16 @@ class ProcessesService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="processes_invoke", run_type="uipath")
+    @traced(
+        name="processes_invoke",
+        run_type="uipath",
+        hide_input=True,  # Input arguments can be sensitive
+        hide_output=True,  # Job details might contain sensitive info
+        dependency={
+            "targetName": lambda _s, name, **_kwargs: f"Process:{name}",
+            "operationName": "INVOKE Process",
+        },
+    )
     @infer_bindings(resource_type="process")
     def invoke(
         self,
@@ -81,7 +90,16 @@ class ProcessesService(FolderContext, BaseService):
 
         return Job.model_validate(response.json()["value"][0])
 
-    @traced(name="processes_invoke", run_type="uipath")
+    @traced(
+        name="processes_invoke",
+        run_type="uipath",
+        hide_input=True,  # Input arguments can be sensitive
+        hide_output=True,  # Job details might contain sensitive info
+        dependency={
+            "targetName": lambda _s, name, **_kwargs: f"Process:{name}",
+            "operationName": "INVOKE Process",
+        },
+    )
     @infer_bindings(resource_type="process")
     async def invoke_async(
         self,

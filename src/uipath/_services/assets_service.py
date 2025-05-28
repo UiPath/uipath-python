@@ -25,7 +25,14 @@ class AssetsService(FolderContext, BaseService):
         self._base_url = "assets"
 
     @traced(
-        name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
+        name="assets_retrieve",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda name, **_kwargs: f"Asset:{name}",
+            "operationName": "GET Asset",
+        },
     )
     @infer_bindings(resource_type="asset")
     def retrieve(
@@ -80,7 +87,14 @@ class AssetsService(FolderContext, BaseService):
             return Asset.model_validate(response.json()["value"][0])
 
     @traced(
-        name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
+        name="assets_retrieve",  # Assuming this should be assets_retrieve_async or similar
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s, name, **_kwargs: f"Asset:{name}",
+            "operationName": "GET Asset",
+        },
     )
     @infer_bindings(resource_type="asset")
     async def retrieve_async(
@@ -126,7 +140,14 @@ class AssetsService(FolderContext, BaseService):
             return Asset.model_validate(response.json()["value"][0])
 
     @traced(
-        name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
+        name="assets_credential",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s, name, **_kwargs: f"Asset:{name}",
+            "operationName": "GET Credential",
+        },
     )
     @infer_bindings(resource_type="asset")
     def retrieve_credential(
@@ -179,7 +200,14 @@ class AssetsService(FolderContext, BaseService):
         return user_asset.credential_password
 
     @traced(
-        name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
+        name="assets_credential",  # Assuming this should be assets_credential_async or similar
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s, name, **_kwargs: f"Asset:{name}",
+            "operationName": "GET Credential",
+        },
     )
     @infer_bindings(resource_type="asset")
     async def retrieve_credential_async(
@@ -231,7 +259,18 @@ class AssetsService(FolderContext, BaseService):
 
         return user_asset.credential_password
 
-    @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="assets_update",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s,
+            robot_asset,
+            **_kwargs: f"Asset:{robot_asset.name}",
+            "operationName": "UPDATE Asset",
+        },
+    )
     def update(
         self,
         robot_asset: UserAsset,
@@ -273,7 +312,18 @@ class AssetsService(FolderContext, BaseService):
 
         return response.json()
 
-    @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
+    @traced(
+        name="assets_update",  # Assuming this should be assets_update_async or similar
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda _s,
+            robot_asset,
+            **_kwargs: f"Asset:{robot_asset.name}",
+            "operationName": "UPDATE Asset",
+        },
+    )
     async def update_async(
         self,
         robot_asset: UserAsset,
