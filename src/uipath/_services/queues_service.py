@@ -72,7 +72,7 @@ class QueuesService(FolderContext, BaseService):
         dependency={
             "targetName": lambda _s,
             item,
-            **_kwargs: f"Queue:{(item.queue_name if hasattr(item, 'queue_name') else item.get('queue_name', 'UnknownQueue'))}",
+            **_kwargs: f"Queue:{(item.name if hasattr(item, 'name') else item.get('name', 'UnknownQueue'))}",
             "operationName": "CREATE QueueItem",
         },
     )
@@ -99,7 +99,7 @@ class QueuesService(FolderContext, BaseService):
         dependency={
             "targetName": lambda _s,
             item,
-            **_kwargs: f"Queue:{(item.queue_name if hasattr(item, 'queue_name') else item.get('queue_name', 'UnknownQueue'))}",
+            **_kwargs: f"Queue:{(item.name if hasattr(item, 'name') else item.get('name', 'UnknownQueue'))}",
             "operationName": "CREATE QueueItem",
         },
     )

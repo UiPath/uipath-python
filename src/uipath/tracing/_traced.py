@@ -439,7 +439,7 @@ def traced(
 
     if dependency is not None:
         if dependency.get("sourceName") is None:
-            dependency["sourceName"] = lambda *args: os.environ.get(
+            dependency["sourceName"] = lambda *args, **kwargs: os.environ.get(
                 "UIPATH_PROCESS_KEY", "Unknown source"
             )
 
