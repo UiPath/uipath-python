@@ -11,6 +11,20 @@ from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
+def _get_queue_item_name_for_tracing(
+    inputs: Dict[str, Any], primary: str, secondary: str
+) -> str:
+    item = inputs.get("item")
+    if not item:
+        return "UnknownItem"
+    name_val = (
+        item.get(primary, item.get(secondary, "UnknownQueue"))
+        if isinstance(item, dict)
+        else getattr(item, primary, getattr(item, secondary, "UnknownQueue"))
+    )
+    return name_val
+
+
 class QueuesService(FolderContext, BaseService):
     """Service for managing UiPath queues and queue items.
 
@@ -21,7 +35,17 @@ class QueuesService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="queues_list_items", run_type="uipath")
+    @traced(
+        name="queues_list_items",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": "All",
+            "targetType": "Queue",
+            "operationName": "LIST QueueItems",
+        },
+    )
     def list_items(self) -> Response:
         """Retrieves a list of queue items from the Orchestrator.
 
@@ -33,7 +57,17 @@ class QueuesService(FolderContext, BaseService):
 
         return response.json()
 
-    @traced(name="queues_list_items", run_type="uipath")
+    @traced(
+        name="queues_list_items",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": "All",
+            "targetType": "Queue",
+            "operationName": "LIST QueueItems",
+        },
+    )
     async def list_items_async(self) -> Response:
         """Asynchronously retrieves a list of queue items from the Orchestrator.
 
@@ -44,7 +78,25 @@ class QueuesService(FolderContext, BaseService):
         response = await self.request_async(spec.method, url=spec.endpoint)
         return response.json()
 
-    @traced(name="queues_create_item", run_type="uipath")
+    @traced(
+        name="queues_create_item",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: _get_queue_item_name_for_tracing(
+                inputs, "name", "Name"
+            ),
+            "targetType": "Queue",
+            "targetId": lambda inputs: (
+                _get_queue_item_name_for_tracing(inputs, "key", "Key")
+                if _get_queue_item_name_for_tracing(inputs, "key", "Key")
+                != "UnknownQueue"
+                else _get_queue_item_name_for_tracing(inputs, "name", "Name")
+            ),
+            "operationName": "ADD QueueItem",
+        },
+    )
     def create_item(self, item: Union[Dict[str, Any], QueueItem]) -> Response:
         """Creates a new queue item in the Orchestrator.
 
@@ -60,7 +112,25 @@ class QueuesService(FolderContext, BaseService):
         response = self.request(spec.method, url=spec.endpoint, json=spec.json)
         return response.json()
 
-    @traced(name="queues_create_item", run_type="uipath")
+    @traced(
+        name="queues_create_item",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: _get_queue_item_name_for_tracing(
+                inputs, "name", "Name"
+            ),
+            "targetType": "Queue",
+            "targetId": lambda inputs: (
+                _get_queue_item_name_for_tracing(inputs, "key", "Key")
+                if _get_queue_item_name_for_tracing(inputs, "key", "Key")
+                != "UnknownQueue"
+                else _get_queue_item_name_for_tracing(inputs, "name", "Name")
+            ),
+            "operationName": "ADD QueueItem",
+        },
+    )
     async def create_item_async(
         self, item: Union[Dict[str, Any], QueueItem]
     ) -> Response:
@@ -80,7 +150,18 @@ class QueuesService(FolderContext, BaseService):
         )
         return response.json()
 
-    @traced(name="queues_create_items", run_type="uipath")
+    @traced(
+        name="queues_create_items",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: inputs["queue_name"],  # Changed
+            "targetType": "Queue",
+            "targetId": lambda inputs: inputs["queue_name"],
+            "operationName": "ADD QueueItems",
+        },
+    )
     def create_items(
         self,
         items: List[Union[Dict[str, Any], QueueItem]],
@@ -101,7 +182,18 @@ class QueuesService(FolderContext, BaseService):
         response = self.request(spec.method, url=spec.endpoint, json=spec.json)
         return response.json()
 
-    @traced(name="queues_create_items", run_type="uipath")
+    @traced(
+        name="queues_create_items",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: inputs["queue_name"],  # Changed
+            "targetType": "Queue",
+            "targetId": lambda inputs: inputs["queue_name"],
+            "operationName": "ADD QueueItems",
+        },
+    )
     async def create_items_async(
         self,
         items: List[Union[Dict[str, Any], QueueItem]],
@@ -124,7 +216,22 @@ class QueuesService(FolderContext, BaseService):
         )
         return response.json()
 
-    @traced(name="queues_create_transaction_item", run_type="uipath")
+    @traced(
+        name="queues_create_transaction_item",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: _get_queue_item_name_for_tracing(
+                inputs, "name", "Name"
+            ),
+            "targetType": "Queue",
+            "targetId": lambda inputs: _get_queue_item_name_for_tracing(  # Added
+                inputs, "name", "Name"
+            ),
+            "operationName": "ADD QueueItem",
+        },
+    )
     def create_transaction_item(
         self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
@@ -141,7 +248,22 @@ class QueuesService(FolderContext, BaseService):
         response = self.request(spec.method, url=spec.endpoint, json=spec.json)
         return response.json()
 
-    @traced(name="queues_create_transaction_item", run_type="uipath")
+    @traced(
+        name="queues_create_transaction_item",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: _get_queue_item_name_for_tracing(
+                inputs, "name", "Name"
+            ),
+            "targetType": "Queue",  # Added
+            "targetId": lambda inputs: _get_queue_item_name_for_tracing(  # Added
+                inputs, "name", "Name"
+            ),
+            "operationName": "ADD QueueItem",
+        },
+    )
     async def create_transaction_item_async(
         self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
@@ -160,7 +282,16 @@ class QueuesService(FolderContext, BaseService):
         )
         return response.json()
 
-    @traced(name="queues_update_progress_of_transaction_item", run_type="uipath")
+    @traced(
+        name="queues_update_progress_of_transaction_item",
+        run_type="uipath",
+        dependency={
+            "targetName": "QueueItem",
+            "targetType": "QueueItem",  # Added
+            "targetId": lambda inputs: inputs.get("transaction_key"),  # Added
+            "operationName": "UPDATE QueueItem",
+        },
+    )
     def update_progress_of_transaction_item(
         self, transaction_key: str, progress: str
     ) -> Response:
@@ -179,7 +310,16 @@ class QueuesService(FolderContext, BaseService):
         response = self.request(spec.method, url=spec.endpoint, json=spec.json)
         return response.json()
 
-    @traced(name="queues_update_progress_of_transaction_item", run_type="uipath")
+    @traced(
+        name="queues_update_progress_of_transaction_item",
+        run_type="uipath",
+        dependency={
+            "targetName": "QueueItem",
+            "targetType": "QueueItem",  # Added
+            "targetId": lambda inputs: inputs.get("transaction_key"),  # Added
+            "operationName": "UPDATE QueueItem",
+        },
+    )
     async def update_progress_of_transaction_item_async(
         self, transaction_key: str, progress: str
     ) -> Response:
@@ -200,7 +340,16 @@ class QueuesService(FolderContext, BaseService):
         )
         return response.json()
 
-    @traced(name="queues_complete_transaction_item", run_type="uipath")
+    @traced(
+        name="queues_complete_transaction_item",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("result").get("name"),
+            "targetType": "Queue",
+            "targetId": lambda inputs: inputs.get("transaction_key"),
+            "operationName": "UPDATE QueueItem",
+        },
+    )
     def complete_transaction_item(
         self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
     ) -> Response:
@@ -217,9 +366,18 @@ class QueuesService(FolderContext, BaseService):
         """
         spec = self._complete_transaction_item_spec(transaction_key, result)
         response = self.request(spec.method, url=spec.endpoint, json=spec.json)
-        return response.json()
+        return response
 
-    @traced(name="queues_complete_transaction_item", run_type="uipath")
+    @traced(
+        name="queues_complete_transaction_item",
+        run_type="uipath",
+        dependency={
+            "targetName": "QueueItem",
+            "targetType": "QueueItem",
+            "targetId": lambda inputs: inputs.get("transaction_key"),
+            "operationName": "UPDATE QueueItem",
+        },
+    )
     async def complete_transaction_item_async(
         self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
     ) -> Response:
@@ -238,6 +396,32 @@ class QueuesService(FolderContext, BaseService):
         response = await self.request_async(
             spec.method, url=spec.endpoint, json=spec.json
         )
+        return response.json()
+
+    @traced(
+        name="queues_get_queue_item",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("queue_name", "UnknownQueueItem"),
+            "targetType": "Queue",
+            "targetId": lambda inputs: inputs.get("key"),
+            "operationName": "GET QueueItem",
+        },
+    )
+    def get_queue_item(self, key: int, queue_name: str) -> Response:
+        """Retrieves a queue item by its key from the Orchestrator.
+
+        Args:
+            key: The unique integer key of the queue item.
+
+        Returns:
+            Response: HTTP response containing the queue item details.
+        """
+        spec = RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/orchestrator_/odata/QueueItems({key})"),
+        )
+        response = self.request(spec.method, url=spec.endpoint)
         return response.json()
 
     @property

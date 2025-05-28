@@ -2,8 +2,9 @@ import importlib
 import inspect
 import json
 import logging
+import os
 from functools import wraps
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, TypedDict, Union
 
 from opentelemetry import trace
 
@@ -12,6 +13,17 @@ from ._utils import _SpanUtils
 logger = logging.getLogger(__name__)
 
 tracer = trace.get_tracer(__name__)
+
+
+class DependencyInfo(TypedDict, total=False):
+    """Type definition for dependency tracking information."""
+
+    sourceName: Union[str, Callable[..., str]]
+    sourceType: Union[str, Callable[..., str]]  # Added
+    targetName: Union[str, Callable[..., str]]
+    targetType: Union[str, Callable[..., str]]  # Added
+    targetId: Union[str, Callable[..., str]]  # Added
+    operationName: Union[str, Callable[..., str]]
 
 
 class TracingManager:
@@ -129,6 +141,7 @@ def _opentelemetry_traced(
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
     output_processor: Optional[Callable[..., Any]] = None,
+    dependency: Optional[DependencyInfo] = None,
 ):
     """Default tracer implementation using OpenTelemetry."""
 
@@ -147,14 +160,40 @@ def _opentelemetry_traced(
                     span.set_attribute("run_type", run_type)
 
                 # Format arguments for tracing
-                inputs = _SpanUtils.format_args_for_trace_json(
+                inputs_json_str = _SpanUtils.format_args_for_trace_json(  # Store the raw JSON string of args
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
+
+                # Determine the value for the 'inputs' attribute
                 if input_processor is not None:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-                span.set_attribute("inputs", inputs)
+                    processed_inputs_val = input_processor(json.loads(inputs_json_str))
+                    inputs_attribute_value = json.dumps(
+                        processed_inputs_val, default=str
+                    )
+                else:
+                    inputs_attribute_value = (
+                        inputs_json_str  # Use raw JSON string if no processor
+                    )
+                span.set_attribute("inputs", inputs_attribute_value)
+
+                # Add dependency information as a JSON attribute if provided
+                if dependency is not None:
+                    processed_dependency = {}
+                    parsed_args_dict = None
+                    # Check if any dependency value is callable to decide if we need to parse args
+                    if any(callable(v) for v in dependency.values()):
+                        parsed_args_dict = json.loads(inputs_json_str)
+
+                    for key, value in dependency.items():
+                        if callable(value):
+                            # We've already ensured parsed_args_dict is populated if any value is callable
+                            processed_dependency[key] = value(parsed_args_dict)
+                        else:
+                            processed_dependency[key] = value
+
+                    dependency_json = json.dumps(processed_dependency, default=str)
+                    span.set_attribute("dependency", dependency_json)
+
                 try:
                     result = func(*args, **kwargs)
                     # Process output if processor is provided
@@ -182,14 +221,38 @@ def _opentelemetry_traced(
                     span.set_attribute("run_type", run_type)
 
                 # Format arguments for tracing
-                inputs = _SpanUtils.format_args_for_trace_json(
+                inputs_json_str = _SpanUtils.format_args_for_trace_json(  # Store the raw JSON string of args
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
+
+                # Determine the value for the 'inputs' attribute
                 if input_processor is not None:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-                span.set_attribute("inputs", inputs)
+                    processed_inputs_val = input_processor(json.loads(inputs_json_str))
+                    inputs_attribute_value = json.dumps(
+                        processed_inputs_val, default=str
+                    )
+                else:
+                    inputs_attribute_value = (
+                        inputs_json_str  # Use raw JSON string if no processor
+                    )
+                span.set_attribute("inputs", inputs_attribute_value)
+
+                # Add dependency information as a JSON attribute if provided
+                if dependency is not None:
+                    processed_dependency = {}
+                    parsed_args_dict = None
+                    if any(callable(v) for v in dependency.values()):
+                        parsed_args_dict = json.loads(inputs_json_str)
+
+                    for key, value in dependency.items():
+                        if callable(value):
+                            processed_dependency[key] = value(parsed_args_dict)
+                        else:
+                            processed_dependency[key] = value
+
+                    dependency_json = json.dumps(processed_dependency, default=str)
+                    span.set_attribute("dependency", dependency_json)
+
                 try:
                     result = await func(*args, **kwargs)
                     # Process output if processor is provided
@@ -217,14 +280,38 @@ def _opentelemetry_traced(
                     span.set_attribute("run_type", run_type)
 
                 # Format arguments for tracing
-                inputs = _SpanUtils.format_args_for_trace_json(
+                inputs_json_str = _SpanUtils.format_args_for_trace_json(  # Store the raw JSON string of args
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
+
+                # Determine the value for the 'inputs' attribute
                 if input_processor is not None:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-                span.set_attribute("inputs", inputs)
+                    processed_inputs_val = input_processor(json.loads(inputs_json_str))
+                    inputs_attribute_value = json.dumps(
+                        processed_inputs_val, default=str
+                    )
+                else:
+                    inputs_attribute_value = (
+                        inputs_json_str  # Use raw JSON string if no processor
+                    )
+                span.set_attribute("inputs", inputs_attribute_value)
+
+                # Add dependency information as a JSON attribute if provided
+                if dependency is not None:
+                    processed_dependency = {}
+                    parsed_args_dict = None
+                    if any(callable(v) for v in dependency.values()):
+                        parsed_args_dict = json.loads(inputs_json_str)
+
+                    for key, value in dependency.items():
+                        if callable(value):
+                            processed_dependency[key] = value(parsed_args_dict)
+                        else:
+                            processed_dependency[key] = value
+
+                    dependency_json = json.dumps(processed_dependency, default=str)
+                    span.set_attribute("dependency", dependency_json)
+
                 outputs = []
                 try:
                     for item in func(*args, **kwargs):
@@ -258,14 +345,38 @@ def _opentelemetry_traced(
                     span.set_attribute("run_type", run_type)
 
                 # Format arguments for tracing
-                inputs = _SpanUtils.format_args_for_trace_json(
+                inputs_json_str = _SpanUtils.format_args_for_trace_json(  # Store the raw JSON string of args
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
+
+                # Determine the value for the 'inputs' attribute
                 if input_processor is not None:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-                span.set_attribute("inputs", inputs)
+                    processed_inputs_val = input_processor(json.loads(inputs_json_str))
+                    inputs_attribute_value = json.dumps(
+                        processed_inputs_val, default=str
+                    )
+                else:
+                    inputs_attribute_value = (
+                        inputs_json_str  # Use raw JSON string if no processor
+                    )
+                span.set_attribute("inputs", inputs_attribute_value)
+
+                # Add dependency information as a JSON attribute if provided
+                if dependency is not None:
+                    processed_dependency = {}
+                    parsed_args_dict = None
+                    if any(callable(v) for v in dependency.values()):
+                        parsed_args_dict = json.loads(inputs_json_str)
+
+                    for key, value in dependency.items():
+                        if callable(value):
+                            processed_dependency[key] = value(parsed_args_dict)
+                        else:
+                            processed_dependency[key] = value
+
+                    dependency_json = json.dumps(processed_dependency, default=str)
+                    span.set_attribute("dependency", dependency_json)
+
                 outputs = []
                 try:
                     async for item in func(*args, **kwargs):
@@ -337,10 +448,12 @@ def traced(
     output_processor: Optional[Callable[..., Any]] = None,
     hide_input: bool = False,
     hide_output: bool = False,
+    dependency: Optional[DependencyInfo] = None,
 ):
     """Decorator that will trace function invocations.
 
     Args:
+        name: Optional name for the span (defaults to function name)
         run_type: Optional string to categorize the run type
         span_type: Optional string to categorize the span type
         input_processor: Optional function to process function inputs before recording
@@ -349,12 +462,33 @@ def traced(
             Should accept the function output and return a processed value
         hide_input: If True, don't log any input data
         hide_output: If True, don't log any output data
+        dependency: Optional dictionary with dependency tracking information:
+            sourceName: The source system/component (str or callable returning str)
+            targetName: The target system/component (str or callable returning str)
+            operationName: The operation being performed (str or callable returning str)
+
+            For sourceName, targetName, and operationName:
+            - If a string is provided, it's used directly
+            - If a callable is provided, it's called with the same args/kwargs as the
+              decorated function and should return a string
     """
     # Apply default processors selectively based on hide flags
     if hide_input:
         input_processor = _default_input_processor
     if hide_output:
         output_processor = _default_output_processor
+
+    if dependency is not None:
+        if dependency.get("sourceName") is None:
+            # Updated to accept a single dictionary argument, though it's not used by default
+            dependency["sourceName"] = lambda _dep_args_dict: os.environ.get(
+                "UIPATH_PROCESS_KEY", "Unknown source"
+            )
+
+        if dependency.get("sourceType") is None:
+            dependency["sourceType"] = (
+                "Agent"  # Corrected from sourceName to sourceType
+            )
 
     # Store the parameters for later reapplication
     params = {
@@ -363,6 +497,7 @@ def traced(
         "span_type": span_type,
         "input_processor": input_processor,
         "output_processor": output_processor,
+        "dependency": dependency,
     }
 
     # Check for custom implementation first

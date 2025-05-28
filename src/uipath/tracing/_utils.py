@@ -11,8 +11,16 @@ from typing import Any, Dict, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+def _custom_encoder(obj):
+    if isinstance(obj, BaseModel):
+        return obj.model_dump()  # Convert Pydantic models to dictionaries
+
+    return str(obj)  # Fallback for other types
 
 
 @dataclass
@@ -150,30 +158,10 @@ class _SpanUtils:
             status = 2  # Error
             attributes_dict["error"] = otel_span.status.description
 
-        original_inputs = attributes_dict.get("inputs", None)
-        original_outputs = attributes_dict.get("outputs", None)
-
-        if original_inputs:
-            try:
-                if isinstance(original_inputs, str):
-                    json_inputs = json.loads(original_inputs)
-                    attributes_dict["inputs"] = json_inputs
-                else:
-                    attributes_dict["inputs"] = original_inputs
-            except Exception as e:
-                print(f"Error parsing inputs: {e}")
-                attributes_dict["inputs"] = str(original_inputs)
-
-        if original_outputs:
-            try:
-                if isinstance(original_outputs, str):
-                    json_outputs = json.loads(original_outputs)
-                    attributes_dict["outputs"] = json_outputs
-                else:
-                    attributes_dict["outputs"] = original_outputs
-            except Exception as e:
-                print(f"Error parsing outputs: {e}")
-                attributes_dict["outputs"] = str(original_outputs)
+        # Parse JSON attributes using the helper method
+        for attr_name in ["inputs", "outputs", "dependency"]:
+            if attr_name in attributes_dict:
+                _SpanUtils._process_json_attribute(attributes_dict, attr_name)
 
         # Add events as additional attributes if they exist
         if otel_span.events:
@@ -208,12 +196,21 @@ class _SpanUtils:
         ).isoformat()
 
         end_time_str = None
+        duration = None  # Initialize duration as None
+
         if otel_span.end_time is not None:
             end_time_str = datetime.fromtimestamp(
                 (otel_span.end_time or 0) / 1e9
             ).isoformat()
+            # Calculate duration in seconds if both start and end times are available
+            if otel_span.start_time is not None:
+                duration = (otel_span.end_time - otel_span.start_time) / 1e9
         else:
             end_time_str = datetime.now().isoformat()
+
+        # Add duration to attributes if available
+        if duration is not None:
+            attributes_dict["duration"] = duration
 
         return UiPathSpan(
             id=span_id,
@@ -233,7 +230,7 @@ class _SpanUtils:
     ) -> str:
         """Return a JSON string of inputs from the function signature."""
         result = _SpanUtils.format_args_for_trace(signature, *args, **kwargs)
-        return json.dumps(result, default=str)
+        return json.dumps(result, default=_custom_encoder)
 
     @staticmethod
     def format_args_for_trace(
@@ -271,3 +268,18 @@ class _SpanUtils:
                 f"Error formatting arguments for trace: {e}. Using args and kwargs directly."
             )
             return {"args": args, "kwargs": kwargs}
+
+    @staticmethod
+    def _process_json_attribute(attributes_dict, attr_name):
+        original_value = attributes_dict.get(attr_name)
+
+        if not original_value:
+            return original_value
+
+        try:
+            if isinstance(original_value, str):
+                json_data = json.loads(original_value)
+                attributes_dict[attr_name] = json_data
+
+        except Exception as e:
+            logger.warning(f"Error parsing {attr_name}: {e}")
