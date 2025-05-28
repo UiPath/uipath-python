@@ -113,8 +113,6 @@ class JobsService(FolderContext, BaseService):
 
             async def main():  # noqa: D103
                 payload = await sdk.jobs.resume_async(job_id="38073051", payload="The response")
-                print(payload)
-
 
             asyncio.run(main())
             ```
@@ -154,11 +152,35 @@ class JobsService(FolderContext, BaseService):
     def retrieve(
         self,
         job_key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Job:
-        spec = self._retrieve_spec(job_key=job_key)
+        """Retrieve a job identified by its key.
+
+        Args:
+            job_key (str): The job unique identifier.
+            folder_key (Optional[str]): The key of the folder in which the job was executed.
+            folder_path (Optional[str]): The path of the folder in which the job was executed.
+
+        Returns:
+            Job: The retrieved job.
+
+        Examples:
+            ```python
+            from uipath import UiPath
+
+            sdk = UiPath()
+            job = sdk.jobs.retrieve(job_key="ee9327fd-237d-419e-86ef-9946b34461e3", folder_path="Shared")
+            ```
+        """
+        spec = self._retrieve_spec(
+            job_key=job_key, folder_key=folder_key, folder_path=folder_path
+        )
         response = self.request(
             spec.method,
             url=spec.endpoint,
+            headers=spec.headers,
         )
 
         return Job.model_validate(response.json())
@@ -166,11 +188,42 @@ class JobsService(FolderContext, BaseService):
     async def retrieve_async(
         self,
         job_key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Job:
-        spec = self._retrieve_spec(job_key=job_key)
+        """Asynchronously retrieve a job identified by its key.
+
+        Args:
+            job_key (str): The job unique identifier.
+            folder_key (Optional[str]): The key of the folder in which the job was executed.
+            folder_path (Optional[str]): The path of the folder in which the job was executed.
+
+        Returns:
+            Job: The retrieved job.
+
+        Examples:
+            ```python
+            import asyncio
+
+            from uipath import UiPath
+
+            sdk = UiPath()
+
+
+            async def main():  # noqa: D103
+                job = await sdk.jobs.retrieve_async(job_key="ee9327fd-237d-419e-86ef-9946b34461e3", folder_path="Shared")
+
+            asyncio.run(main())
+            ```
+        """
+        spec = self._retrieve_spec(
+            job_key=job_key, folder_key=folder_key, folder_path=folder_path
+        )
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
+            headers=spec.headers,
         )
 
         return Job.model_validate(response.json())
@@ -268,12 +321,17 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         job_key: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
                 f"/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_key})"
             ),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
     @traced(name="jobs_list_attachments", run_type="uipath")
