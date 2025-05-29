@@ -11,6 +11,20 @@ from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
+def _get_queue_item_name_for_tracing(
+    inputs: Dict[str, Any], primary: str, secondary: str
+) -> str:
+    item = inputs.get("item")
+    if not item:
+        return "Queue:UnknownItem"
+    name_val = (
+        item.get(primary, item.get(secondary, "UnknownQueue"))
+        if isinstance(item, dict)
+        else getattr(item, primary, getattr(item, secondary, "UnknownQueue"))
+    )
+    return f"Queue:{name_val}"
+
+
 class QueuesService(FolderContext, BaseService):
     """Service for managing UiPath queues and queue items.
 
@@ -68,7 +82,9 @@ class QueuesService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Queue:{(inputs['item'].name if hasattr(inputs['item'], 'name') else inputs['item'].get('name', 'UnknownQueue'))}",
+            "targetName": lambda inputs: _get_queue_item_name_for_tracing(
+                inputs, "name", "Name"
+            ),
             "operationName": "CREATE QueueItem",
         },
     )
@@ -93,7 +109,9 @@ class QueuesService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Queue:{(inputs['item'].name if hasattr(inputs['item'], 'name') else inputs['item'].get('name', 'UnknownQueue'))}",
+            "targetName": lambda inputs: _get_queue_item_name_for_tracing(
+                inputs, "name", "Name"
+            ),
             "operationName": "CREATE QueueItem",
         },
     )
@@ -184,7 +202,9 @@ class QueuesService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Queue:{(inputs['item'].queue_name if hasattr(inputs['item'], 'queue_name') else inputs['item'].get('queue_name', 'UnknownQueue'))}",
+            "targetName": lambda inputs: _get_queue_item_name_for_tracing(
+                inputs, "queue_name", "QueueName"
+            ),
             "operationName": "CREATE TransactionItem",
         },
     )
@@ -210,7 +230,9 @@ class QueuesService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Queue:{(inputs['item'].queue_name if hasattr(inputs['item'], 'queue_name') else inputs['item'].get('queue_name', 'UnknownQueue'))}",
+            "targetName": lambda inputs: _get_queue_item_name_for_tracing(
+                inputs, "queue_name", "QueueName"
+            ),
             "operationName": "CREATE TransactionItem",
         },
     )
