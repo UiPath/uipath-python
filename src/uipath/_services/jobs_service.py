@@ -44,10 +44,7 @@ class JobsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            inbox_id=None,
-            job_id=None,
-            **_kwargs: f"Job:{job_id or inbox_id}",
+            "targetName": lambda inputs: f"Job:{inputs.get('job_id') or inputs.get('inbox_id')}",
             "operationName": "RESUME Job",
         },
     )
@@ -97,15 +94,12 @@ class JobsService(FolderContext, BaseService):
         )
 
     @traced(
-        name="jobs_resume",  # Matches sync version
+        name="jobs_resume",
         run_type="uipath",
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            inbox_id=None,
-            job_id=None,
-            **_kwargs: f"Job:{job_id or inbox_id}",
+            "targetName": lambda inputs: f"Job:{inputs.get('job_id') or inputs.get('inbox_id')}",
             "operationName": "RESUME Job",
         },
     )
@@ -180,7 +174,7 @@ class JobsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s, job_key, **_kwargs: f"Job:{job_key}",
+            "targetName": lambda inputs: f"Job:{inputs['job_key']}",
             "operationName": "GET Job",
         },
     )
@@ -221,12 +215,12 @@ class JobsService(FolderContext, BaseService):
         return Job.model_validate(response.json())
 
     @traced(
-        name="jobs_retrieve",  # Matches sync version
+        name="jobs_retrieve",
         run_type="uipath",
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s, job_key, **_kwargs: f"Job:{job_key}",
+            "targetName": lambda inputs: f"Job:{inputs['job_key']}",
             "operationName": "GET Job",
         },
     )

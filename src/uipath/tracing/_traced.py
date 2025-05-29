@@ -157,23 +157,34 @@ def _opentelemetry_traced(
                     span.set_attribute("run_type", run_type)
 
                 # Format arguments for tracing
-                inputs = _SpanUtils.format_args_for_trace_json(
+                inputs_json_str = _SpanUtils.format_args_for_trace_json(  # Store the raw JSON string of args
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
+
+                # Determine the value for the 'inputs' attribute
                 if input_processor is not None:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-                span.set_attribute("inputs", inputs)
+                    processed_inputs_val = input_processor(json.loads(inputs_json_str))
+                    inputs_attribute_value = json.dumps(
+                        processed_inputs_val, default=str
+                    )
+                else:
+                    inputs_attribute_value = (
+                        inputs_json_str  # Use raw JSON string if no processor
+                    )
+                span.set_attribute("inputs", inputs_attribute_value)
 
                 # Add dependency information as a JSON attribute if provided
                 if dependency is not None:
-                    # Process any callable dependency values using function args/kwargs
                     processed_dependency = {}
+                    parsed_args_dict = None
+                    # Check if any dependency value is callable to decide if we need to parse args
+                    if any(callable(v) for v in dependency.values()):
+                        parsed_args_dict = json.loads(inputs_json_str)
+
                     for key, value in dependency.items():
                         if callable(value):
-                            # Call the function with the same arguments as the decorated function
-                            processed_dependency[key] = value(*args, **kwargs)
+                            # We've already ensured parsed_args_dict is populated if any value is callable
+                            processed_dependency[key] = value(parsed_args_dict)
                         else:
                             processed_dependency[key] = value
 
@@ -207,23 +218,32 @@ def _opentelemetry_traced(
                     span.set_attribute("run_type", run_type)
 
                 # Format arguments for tracing
-                inputs = _SpanUtils.format_args_for_trace_json(
+                inputs_json_str = _SpanUtils.format_args_for_trace_json(  # Store the raw JSON string of args
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
+
+                # Determine the value for the 'inputs' attribute
                 if input_processor is not None:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-                span.set_attribute("inputs", inputs)
+                    processed_inputs_val = input_processor(json.loads(inputs_json_str))
+                    inputs_attribute_value = json.dumps(
+                        processed_inputs_val, default=str
+                    )
+                else:
+                    inputs_attribute_value = (
+                        inputs_json_str  # Use raw JSON string if no processor
+                    )
+                span.set_attribute("inputs", inputs_attribute_value)
 
                 # Add dependency information as a JSON attribute if provided
                 if dependency is not None:
-                    # Process any callable dependency values using function args/kwargs
                     processed_dependency = {}
+                    parsed_args_dict = None
+                    if any(callable(v) for v in dependency.values()):
+                        parsed_args_dict = json.loads(inputs_json_str)
+
                     for key, value in dependency.items():
                         if callable(value):
-                            # Call the function with the same arguments as the decorated function
-                            processed_dependency[key] = value(*args, **kwargs)
+                            processed_dependency[key] = value(parsed_args_dict)
                         else:
                             processed_dependency[key] = value
 
@@ -257,23 +277,32 @@ def _opentelemetry_traced(
                     span.set_attribute("run_type", run_type)
 
                 # Format arguments for tracing
-                inputs = _SpanUtils.format_args_for_trace_json(
+                inputs_json_str = _SpanUtils.format_args_for_trace_json(  # Store the raw JSON string of args
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
+
+                # Determine the value for the 'inputs' attribute
                 if input_processor is not None:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-                span.set_attribute("inputs", inputs)
+                    processed_inputs_val = input_processor(json.loads(inputs_json_str))
+                    inputs_attribute_value = json.dumps(
+                        processed_inputs_val, default=str
+                    )
+                else:
+                    inputs_attribute_value = (
+                        inputs_json_str  # Use raw JSON string if no processor
+                    )
+                span.set_attribute("inputs", inputs_attribute_value)
 
                 # Add dependency information as a JSON attribute if provided
                 if dependency is not None:
-                    # Process any callable dependency values using function args/kwargs
                     processed_dependency = {}
+                    parsed_args_dict = None
+                    if any(callable(v) for v in dependency.values()):
+                        parsed_args_dict = json.loads(inputs_json_str)
+
                     for key, value in dependency.items():
                         if callable(value):
-                            # Call the function with the same arguments as the decorated function
-                            processed_dependency[key] = value(*args, **kwargs)
+                            processed_dependency[key] = value(parsed_args_dict)
                         else:
                             processed_dependency[key] = value
 
@@ -313,23 +342,32 @@ def _opentelemetry_traced(
                     span.set_attribute("run_type", run_type)
 
                 # Format arguments for tracing
-                inputs = _SpanUtils.format_args_for_trace_json(
+                inputs_json_str = _SpanUtils.format_args_for_trace_json(  # Store the raw JSON string of args
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
+
+                # Determine the value for the 'inputs' attribute
                 if input_processor is not None:
-                    processed_inputs = input_processor(json.loads(inputs))
-                    inputs = json.dumps(processed_inputs, default=str)
-                span.set_attribute("inputs", inputs)
+                    processed_inputs_val = input_processor(json.loads(inputs_json_str))
+                    inputs_attribute_value = json.dumps(
+                        processed_inputs_val, default=str
+                    )
+                else:
+                    inputs_attribute_value = (
+                        inputs_json_str  # Use raw JSON string if no processor
+                    )
+                span.set_attribute("inputs", inputs_attribute_value)
 
                 # Add dependency information as a JSON attribute if provided
                 if dependency is not None:
-                    # Process any callable dependency values using function args/kwargs
                     processed_dependency = {}
+                    parsed_args_dict = None
+                    if any(callable(v) for v in dependency.values()):
+                        parsed_args_dict = json.loads(inputs_json_str)
+
                     for key, value in dependency.items():
                         if callable(value):
-                            # Call the function with the same arguments as the decorated function
-                            processed_dependency[key] = value(*args, **kwargs)
+                            processed_dependency[key] = value(parsed_args_dict)
                         else:
                             processed_dependency[key] = value
 
@@ -439,7 +477,8 @@ def traced(
 
     if dependency is not None:
         if dependency.get("sourceName") is None:
-            dependency["sourceName"] = lambda *args, **kwargs: os.environ.get(
+            # Updated to accept a single dictionary argument, though it's not used by default
+            dependency["sourceName"] = lambda _dep_args_dict: os.environ.get(
                 "UIPATH_PROCESS_KEY", "Unknown source"
             )
 

@@ -27,8 +27,7 @@ class QueuesService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            **_kwargs: f"QueueItems:Context:{_s.folder_path or _s.folder_id or 'Global'}",
+            "targetName": lambda inputs: f"QueueItems:Context:{inputs['self']._folder_path or inputs['self']._folder_id or 'Global'}",
             "operationName": "LIST QueueItems",
         },
     )
@@ -49,8 +48,7 @@ class QueuesService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            **_kwargs: f"QueueItems:Context:{_s.folder_path or _s.folder_id or 'Global'}",
+            "targetName": lambda inputs: f"QueueItems:Context:{inputs['self']._folder_path or inputs['self']._folder_id or 'Global'}",
             "operationName": "LIST QueueItems",
         },
     )
@@ -70,9 +68,7 @@ class QueuesService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            item,
-            **_kwargs: f"Queue:{(item.name if hasattr(item, 'name') else item.get('name', 'UnknownQueue'))}",
+            "targetName": lambda inputs: f"Queue:{(inputs['item'].name if hasattr(inputs['item'], 'name') else inputs['item'].get('name', 'UnknownQueue'))}",
             "operationName": "CREATE QueueItem",
         },
     )
@@ -97,9 +93,7 @@ class QueuesService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            item,
-            **_kwargs: f"Queue:{(item.name if hasattr(item, 'name') else item.get('name', 'UnknownQueue'))}",
+            "targetName": lambda inputs: f"Queue:{(inputs['item'].name if hasattr(inputs['item'], 'name') else inputs['item'].get('name', 'UnknownQueue'))}",
             "operationName": "CREATE QueueItem",
         },
     )
@@ -128,7 +122,7 @@ class QueuesService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s, queue_name, **_kwargs: f"Queue:{queue_name}",
+            "targetName": lambda inputs: f"Queue:{inputs['queue_name']}",
             "operationName": "CREATE QueueItems",
         },
     )
@@ -158,7 +152,7 @@ class QueuesService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s, queue_name, **_kwargs: f"Queue:{queue_name}",
+            "targetName": lambda inputs: f"Queue:{inputs['queue_name']}",
             "operationName": "CREATE QueueItems",
         },
     )
@@ -190,9 +184,7 @@ class QueuesService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            item,
-            **_kwargs: f"Queue:{(item.queue_name if hasattr(item, 'queue_name') else item.get('queue_name', 'UnknownQueue'))}",
+            "targetName": lambda inputs: f"Queue:{(inputs['item'].queue_name if hasattr(inputs['item'], 'queue_name') else inputs['item'].get('queue_name', 'UnknownQueue'))}",
             "operationName": "CREATE TransactionItem",
         },
     )
@@ -218,9 +210,7 @@ class QueuesService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            item,
-            **_kwargs: f"Queue:{(item.queue_name if hasattr(item, 'queue_name') else item.get('queue_name', 'UnknownQueue'))}",
+            "targetName": lambda inputs: f"Queue:{(inputs['item'].queue_name if hasattr(inputs['item'], 'queue_name') else inputs['item'].get('queue_name', 'UnknownQueue'))}",
             "operationName": "CREATE TransactionItem",
         },
     )

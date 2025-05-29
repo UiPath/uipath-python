@@ -609,11 +609,11 @@ def test_traced_with_callable_dependency_info(setup_tracer):
     """Test traced decorator with callable dependency information."""
     exporter, provider = setup_tracer
 
-    def get_source_name(x, y):
-        return f"Source_{x}"
+    def get_source_name(inputs: Dict[str, Any]):
+        return f"Source_{inputs['x']}"
 
-    def get_target_name(*args, **kwargs):
-        return f"Target_{kwargs.get('y')}"
+    def get_target_name(inputs: Dict[str, Any]):
+        return f"Target_{inputs['y']}"
 
     dependency_info = {
         "sourceName": get_source_name,
@@ -683,7 +683,7 @@ async def test_traced_async_with_dependency_info(setup_tracer):
     dependency_info = {
         "sourceName": "AsyncSource",
         "targetName": "AsyncTarget",
-        "operationName": lambda msg: f"AsyncOp_{msg}",
+        "operationName": lambda inputs: f"AsyncOp_{inputs['msg']}",
     }
 
     @traced(dependency=dependency_info)
@@ -716,7 +716,7 @@ def test_traced_generator_with_dependency_info(setup_tracer):
     dependency_info = {
         "sourceName": "GeneratorSource",
         "targetName": "GeneratorTarget",
-        "operationName": lambda n_items: f"GenOp_Count_{n_items}",
+        "operationName": lambda inputs: f"GenOp_Count_{inputs['n_items']}",
     }
 
     @traced(dependency=dependency_info)

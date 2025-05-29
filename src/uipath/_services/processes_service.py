@@ -29,7 +29,7 @@ class ProcessesService(FolderContext, BaseService):
         hide_input=True,  # Input arguments can be sensitive
         hide_output=True,  # Job details might contain sensitive info
         dependency={
-            "targetName": lambda _s, name, **_kwargs: f"Process:{name}",
+            "targetName": lambda inputs: f"Process:{inputs['name']}",
             "operationName": "INVOKE Process",
         },
     )
@@ -96,7 +96,7 @@ class ProcessesService(FolderContext, BaseService):
         hide_input=True,  # Input arguments can be sensitive
         hide_output=True,  # Job details might contain sensitive info
         dependency={
-            "targetName": lambda _s, name, **_kwargs: f"Process:{name}",
+            "targetName": lambda inputs: f"Process:{inputs['name']}",
             "operationName": "INVOKE Process",
         },
     )

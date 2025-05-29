@@ -30,7 +30,7 @@ class AssetsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda name, **_kwargs: f"Asset:{name}",
+            "targetName": lambda inputs: f"Asset:{inputs['name']}",
             "operationName": "GET Asset",
         },
     )
@@ -87,12 +87,12 @@ class AssetsService(FolderContext, BaseService):
             return Asset.model_validate(response.json()["value"][0])
 
     @traced(
-        name="assets_retrieve",  # Assuming this should be assets_retrieve_async or similar
+        name="assets_retrieve",
         run_type="uipath",
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s, name, **_kwargs: f"Asset:{name}",
+            "targetName": lambda inputs: f"Asset:{inputs['name']}",
             "operationName": "GET Asset",
         },
     )
@@ -145,7 +145,7 @@ class AssetsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s, name, **_kwargs: f"Asset:{name}",
+            "targetName": lambda inputs: f"Asset:{inputs['name']}",
             "operationName": "GET Credential",
         },
     )
@@ -200,12 +200,12 @@ class AssetsService(FolderContext, BaseService):
         return user_asset.credential_password
 
     @traced(
-        name="assets_credential",  # Assuming this should be assets_credential_async or similar
+        name="assets_credential",
         run_type="uipath",
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s, name, **_kwargs: f"Asset:{name}",
+            "targetName": lambda inputs: f"Asset:{inputs['name']}",
             "operationName": "GET Credential",
         },
     )
@@ -265,9 +265,7 @@ class AssetsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            robot_asset,
-            **_kwargs: f"Asset:{robot_asset.name}",
+            "targetName": lambda inputs: f"Asset:{inputs['robot_asset'].name}",
             "operationName": "UPDATE Asset",
         },
     )
@@ -313,14 +311,12 @@ class AssetsService(FolderContext, BaseService):
         return response.json()
 
     @traced(
-        name="assets_update",  # Assuming this should be assets_update_async or similar
+        name="assets_update",
         run_type="uipath",
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            robot_asset,
-            **_kwargs: f"Asset:{robot_asset.name}",
+            "targetName": lambda inputs: f"Asset:{inputs['robot_asset'].name}",
             "operationName": "UPDATE Asset",
         },
     )

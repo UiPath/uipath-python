@@ -60,10 +60,7 @@ class UiPathOpenAIService(BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            input,
-            embedding_model,
-            **_kwargs: f"LLMGateway:OpenAI:EmbeddingModel:{embedding_model}",
+            "targetName": lambda inputs: f"LLMGateway:OpenAI:EmbeddingModel:{inputs['embedding_model']}",
             "operationName": "GET Embedding Usage",
         },
     )
@@ -99,10 +96,7 @@ class UiPathOpenAIService(BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            input,
-            embedding_model,
-            **_kwargs: f"LLMGateway:OpenAI:EmbeddingModel:{embedding_model}",
+            "targetName": lambda inputs: f"LLMGateway:OpenAI:EmbeddingModel:{inputs['embedding_model']}",
             "operationName": "GET Embedding",
         },
     )
@@ -137,10 +131,7 @@ class UiPathOpenAIService(BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            messages,
-            model,
-            **_kwargs: f"LLMGateway:OpenAI:ChatModel:{model}",
+            "targetName": lambda inputs: f"LLMGateway:OpenAI:ChatModel:{inputs['model']}",
             "operationName": "GET Chat Completion",
         },
     )
@@ -199,10 +190,7 @@ class UiPathOpenAIService(BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            messages,
-            model,
-            **_kwargs: f"LLMGateway:OpenAI:ChatModel:{model}",
+            "targetName": lambda inputs: f"LLMGateway:OpenAI:ChatModel:{inputs['model']}",
             "operationName": "GET Chat Completion Usage",
         },
     )
