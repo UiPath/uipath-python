@@ -26,10 +26,9 @@ class ProcessesService(FolderContext, BaseService):
     @traced(
         name="processes_invoke",
         run_type="uipath",
-        hide_input=False,  # Input arguments can be sensitive
-        hide_output=False,  # Job details might contain sensitive info
         dependency={
-            "targetName": lambda inputs: f"Process:{inputs['name']}",
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Process",
             "operationName": "INVOKE Process",
         },
     )
@@ -93,10 +92,9 @@ class ProcessesService(FolderContext, BaseService):
     @traced(
         name="processes_invoke",
         run_type="uipath",
-        hide_input=False,  # Input arguments can be sensitive
-        hide_output=False,  # Job details might contain sensitive info
         dependency={
-            "targetName": lambda inputs: f"Process:{inputs['name']}",
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Process",
             "operationName": "INVOKE Process",
         },
     )

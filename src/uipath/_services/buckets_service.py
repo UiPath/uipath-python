@@ -34,7 +34,9 @@ class BucketsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
             "operationName": "DOWNLOAD File",
         },
     )
@@ -99,7 +101,9 @@ class BucketsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
             "operationName": "DOWNLOAD File",
         },
     )
@@ -171,7 +175,9 @@ class BucketsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
             "operationName": "UPLOAD File",
         },
     )
@@ -264,7 +270,9 @@ class BucketsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
             "operationName": "UPLOAD File",
         },
     )
@@ -361,7 +369,9 @@ class BucketsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
             "operationName": "GET Bucket",
         },
     )
@@ -418,7 +428,9 @@ class BucketsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
             "operationName": "GET Bucket",
         },
     )

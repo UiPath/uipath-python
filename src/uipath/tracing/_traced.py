@@ -19,7 +19,10 @@ class DependencyInfo(TypedDict, total=False):
     """Type definition for dependency tracking information."""
 
     sourceName: Union[str, Callable[..., str]]
+    sourceType: Union[str, Callable[..., str]]  # Added
     targetName: Union[str, Callable[..., str]]
+    targetType: Union[str, Callable[..., str]]  # Added
+    targetId: Union[str, Callable[..., str]]  # Added
     operationName: Union[str, Callable[..., str]]
 
 
@@ -480,6 +483,11 @@ def traced(
             # Updated to accept a single dictionary argument, though it's not used by default
             dependency["sourceName"] = lambda _dep_args_dict: os.environ.get(
                 "UIPATH_PROCESS_KEY", "Unknown source"
+            )
+
+        if dependency.get("sourceType") is None:
+            dependency["sourceType"] = (
+                "Agent"  # Corrected from sourceName to sourceType
             )
 
     # Store the parameters for later reapplication

@@ -30,7 +30,8 @@ class AssetsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Asset:{inputs['name']}",
+            "targetName": lambda inputs: inputs["name"],
+            "targetType": "Asset",
             "operationName": "GET Asset",
         },
     )
@@ -92,7 +93,8 @@ class AssetsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Asset:{inputs['name']}",
+            "targetName": lambda inputs: inputs["name"],
+            "targetType": "Asset",
             "operationName": "GET Asset",
         },
     )
@@ -145,7 +147,8 @@ class AssetsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=True,
         dependency={
-            "targetName": lambda inputs: f"Asset:{inputs['name']}",
+            "targetName": lambda inputs: inputs["name"],
+            "targetType": "Asset",
             "operationName": "GET Credential",
         },
     )
@@ -205,7 +208,8 @@ class AssetsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=True,
         dependency={
-            "targetName": lambda inputs: f"Asset:{inputs['name']}",
+            "targetName": lambda inputs: inputs["name"],
+            "targetType": "Asset",
             "operationName": "GET Credential",
         },
     )
@@ -265,7 +269,8 @@ class AssetsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=True,
         dependency={
-            "targetName": lambda inputs: f"Asset:{inputs['robot_asset'].name}",
+            "targetName": lambda inputs: inputs["robot_asset"].name,
+            "targetType": "Asset",
             "operationName": "UPDATE Asset",
         },
     )
@@ -316,7 +321,8 @@ class AssetsService(FolderContext, BaseService):
         hide_input=False,
         hide_output=True,
         dependency={
-            "targetName": lambda inputs: f"Asset:{inputs['robot_asset'].name}",
+            "targetName": lambda inputs: inputs["robot_asset"].name,
+            "targetType": "Asset",
             "operationName": "UPDATE Asset",
         },
     )

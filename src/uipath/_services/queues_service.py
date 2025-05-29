@@ -16,13 +16,13 @@ def _get_queue_item_name_for_tracing(
 ) -> str:
     item = inputs.get("item")
     if not item:
-        return "Queue:UnknownItem"
+        return "UnknownItem"
     name_val = (
         item.get(primary, item.get(secondary, "UnknownQueue"))
         if isinstance(item, dict)
         else getattr(item, primary, getattr(item, secondary, "UnknownQueue"))
     )
-    return f"Queue:{name_val}"
+    return name_val
 
 
 class QueuesService(FolderContext, BaseService):
@@ -41,8 +41,10 @@ class QueuesService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"QueueItems:Context:{inputs['self']._folder_path or inputs['self']._folder_id or 'Global'}",
-            "operationName": "LIST QueueItems",
+            "targetName": "All",  # Changed
+            "targetType": "QueueCollection",
+            "targetId": "All",
+            "operationName": "UiPath.Queues.GetItems",
         },
     )
     def list_items(self) -> Response:
@@ -62,8 +64,10 @@ class QueuesService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"QueueItems:Context:{inputs['self']._folder_path or inputs['self']._folder_id or 'Global'}",
-            "operationName": "LIST QueueItems",
+            "targetName": "All",  # Changed
+            "targetType": "QueueCollection",
+            "targetId": "All",
+            "operationName": "UiPath.Queues.GetItems",
         },
     )
     async def list_items_async(self) -> Response:
@@ -85,7 +89,14 @@ class QueuesService(FolderContext, BaseService):
             "targetName": lambda inputs: _get_queue_item_name_for_tracing(
                 inputs, "name", "Name"
             ),
-            "operationName": "CREATE QueueItem",
+            "targetType": "Queue",
+            "targetId": lambda inputs: (
+                _get_queue_item_name_for_tracing(inputs, "key", "Key")
+                if _get_queue_item_name_for_tracing(inputs, "key", "Key")
+                != "UnknownQueue"
+                else _get_queue_item_name_for_tracing(inputs, "name", "Name")
+            ),
+            "operationName": "UiPath.Queues.AddItem",
         },
     )
     def create_item(self, item: Union[Dict[str, Any], QueueItem]) -> Response:
@@ -112,7 +123,14 @@ class QueuesService(FolderContext, BaseService):
             "targetName": lambda inputs: _get_queue_item_name_for_tracing(
                 inputs, "name", "Name"
             ),
-            "operationName": "CREATE QueueItem",
+            "targetType": "Queue",
+            "targetId": lambda inputs: (
+                _get_queue_item_name_for_tracing(inputs, "key", "Key")
+                if _get_queue_item_name_for_tracing(inputs, "key", "Key")
+                != "UnknownQueue"
+                else _get_queue_item_name_for_tracing(inputs, "name", "Name")
+            ),
+            "operationName": "UiPath.Queues.AddItem",
         },
     )
     async def create_item_async(
@@ -140,8 +158,10 @@ class QueuesService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Queue:{inputs['queue_name']}",
-            "operationName": "CREATE QueueItems",
+            "targetName": lambda inputs: inputs["queue_name"],  # Changed
+            "targetType": "Queue",
+            "targetId": lambda inputs: inputs["queue_name"],
+            "operationName": "UiPath.Queues.AddItem",
         },
     )
     def create_items(
@@ -170,8 +190,10 @@ class QueuesService(FolderContext, BaseService):
         hide_input=False,
         hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Queue:{inputs['queue_name']}",
-            "operationName": "CREATE QueueItems",
+            "targetName": lambda inputs: inputs["queue_name"],  # Changed
+            "targetType": "Queue",
+            "targetId": lambda inputs: inputs["queue_name"],
+            "operationName": "UiPath.Queues.AddItem",
         },
     )
     async def create_items_async(
@@ -205,7 +227,11 @@ class QueuesService(FolderContext, BaseService):
             "targetName": lambda inputs: _get_queue_item_name_for_tracing(
                 inputs, "queue_name", "QueueName"
             ),
-            "operationName": "CREATE TransactionItem",
+            "targetType": "Queue",  # Added
+            "targetId": lambda inputs: _get_queue_item_name_for_tracing(  # Added
+                inputs, "queue_name", "QueueName"
+            ),
+            "operationName": "UiPath.Queues.CreateTransaction",
         },
     )
     def create_transaction_item(
@@ -233,7 +259,11 @@ class QueuesService(FolderContext, BaseService):
             "targetName": lambda inputs: _get_queue_item_name_for_tracing(
                 inputs, "queue_name", "QueueName"
             ),
-            "operationName": "CREATE TransactionItem",
+            "targetType": "Queue",  # Added
+            "targetId": lambda inputs: _get_queue_item_name_for_tracing(  # Added
+                inputs, "queue_name", "QueueName"
+            ),
+            "operationName": "UiPath.Queues.CreateTransaction",
         },
     )
     async def create_transaction_item_async(
@@ -261,7 +291,9 @@ class QueuesService(FolderContext, BaseService):
         hide_output=True,
         dependency={
             "targetName": "QueueItem",
-            "operationName": "UPDATE TransactionProgress",
+            "targetType": "QueueItem",  # Added
+            "targetId": lambda inputs: inputs.get("transaction_key"),  # Added
+            "operationName": "UiPath.Queues.UpdateTransactionProgress",
         },
     )
     def update_progress_of_transaction_item(
@@ -289,7 +321,9 @@ class QueuesService(FolderContext, BaseService):
         hide_output=True,
         dependency={
             "targetName": "QueueItem",
-            "operationName": "UPDATE TransactionProgress",
+            "targetType": "QueueItem",  # Added
+            "targetId": lambda inputs: inputs.get("transaction_key"),  # Added
+            "operationName": "UiPath.Queues.UpdateTransactionProgress",
         },
     )
     async def update_progress_of_transaction_item_async(
@@ -319,7 +353,9 @@ class QueuesService(FolderContext, BaseService):
         hide_output=True,
         dependency={
             "targetName": "QueueItem",
-            "operationName": "COMPLETE TransactionItem",
+            "targetType": "QueueItem",  # Added
+            "targetId": lambda inputs: inputs.get("transaction_key"),  # Added
+            "operationName": "UiPath.Queues.CompleteTransaction",
         },
     )
     def complete_transaction_item(
@@ -347,7 +383,9 @@ class QueuesService(FolderContext, BaseService):
         hide_output=True,
         dependency={
             "targetName": "QueueItem",
-            "operationName": "COMPLETE TransactionItem",
+            "targetType": "QueueItem",  # Added
+            "targetId": lambda inputs: inputs.get("transaction_key"),  # Added
+            "operationName": "UiPath.Queues.CompleteTransaction",
         },
     )
     async def complete_transaction_item_async(

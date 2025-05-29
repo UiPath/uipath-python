@@ -61,6 +61,8 @@ class UiPathOpenAIService(BaseService):
         hide_output=False,
         dependency={
             "targetName": lambda inputs: f"LLMGateway:OpenAI:EmbeddingModel:{inputs['embedding_model']}",
+            "targetType": "LLMGateway",
+            "targetId": lambda inputs: inputs["embedding_model"],
             "operationName": "GET Embedding Usage",
         },
     )
@@ -97,6 +99,8 @@ class UiPathOpenAIService(BaseService):
         hide_output=False,
         dependency={
             "targetName": lambda inputs: f"LLMGateway:OpenAI:EmbeddingModel:{inputs['embedding_model']}",
+            "targetType": "LLMGateway",
+            "targetId": lambda inputs: inputs["embedding_model"],
             "operationName": "GET Embedding",
         },
     )
@@ -132,6 +136,8 @@ class UiPathOpenAIService(BaseService):
         hide_output=False,
         dependency={
             "targetName": lambda inputs: f"LLMGateway:OpenAI:ChatModel:{inputs['model']}",
+            "targetType": "LLMGateway",
+            "targetId": lambda inputs: inputs["model"],
             "operationName": "GET Chat Completion",
         },
     )
@@ -191,6 +197,8 @@ class UiPathOpenAIService(BaseService):
         hide_output=False,
         dependency={
             "targetName": lambda inputs: f"LLMGateway:OpenAI:ChatModel:{inputs['model']}",
+            "targetType": "LLMGateway",
+            "targetId": lambda inputs: inputs["model"],
             "operationName": "GET Chat Completion Usage",
         },
     )
@@ -258,10 +266,9 @@ class UiPathLlmChatService(BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            messages,
-            model,
-            **_kwargs: f"LLMGateway:Normalized:ChatModel:{model}",
+            "targetName": lambda inputs: f"LLMGateway:Normalized:ChatModel:{inputs['model']}",
+            "targetType": "LLMGateway",
+            "targetId": lambda inputs: inputs["model"],
             "operationName": "GET Normalized Chat Completion",
         },
     )

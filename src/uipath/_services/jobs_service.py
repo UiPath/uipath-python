@@ -41,10 +41,10 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_resume",
         run_type="uipath",
-        hide_input=False,
-        hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Job:{inputs.get('job_id') or inputs.get('inbox_id')}",
+            "targetName": lambda inputs: inputs.get("job_id"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_id"),
             "operationName": "RESUME Job",
         },
     )
@@ -96,10 +96,10 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_resume",
         run_type="uipath",
-        hide_input=False,
-        hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Job:{inputs.get('job_id') or inputs.get('inbox_id')}",
+            "targetName": lambda inputs: inputs.get("job_id"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_id"),
             "operationName": "RESUME Job",
         },
     )
@@ -171,10 +171,10 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_retrieve",
         run_type="uipath",
-        hide_input=False,
-        hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Job:{inputs['job_key']}",
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
             "operationName": "GET Job",
         },
     )
@@ -217,10 +217,10 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_retrieve",
         run_type="uipath",
-        hide_input=False,
-        hide_output=False,
         dependency={
-            "targetName": lambda inputs: f"Job:{inputs['job_key']}",
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
             "operationName": "GET Job",
         },
     )
@@ -376,10 +376,10 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_list_attachments",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
         dependency={
-            "targetName": lambda _s, job_key, **_kwargs: f"Job:{job_key}:Attachments",
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
             "operationName": "LIST JobAttachments",
         },
     )
@@ -423,10 +423,10 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_list_attachments",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
         dependency={
-            "targetName": lambda _s, job_key, **_kwargs: f"Job:{job_key}:Attachments",
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
             "operationName": "LIST JobAttachments",
         },
     )
@@ -490,10 +490,9 @@ class JobsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            attachment_key,
-            job_key,
-            **_kwargs: f"Job:{job_key}:Attachment:{attachment_key}",
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
             "operationName": "LINK JobAttachment",
         },
     )
@@ -540,10 +539,9 @@ class JobsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            attachment_key,
-            job_key,
-            **_kwargs: f"Job:{job_key}:Attachment:{attachment_key}",
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
             "operationName": "LINK JobAttachment",
         },
     )
@@ -628,12 +626,9 @@ class JobsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            name,
-            job_key=None,
-            **_kwargs: f"Job:{job_key}:Attachment:{name}"
-            if job_key
-            else f"Attachment:{name}",
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
             "operationName": "CREATE Attachment",
         },
     )
@@ -781,12 +776,9 @@ class JobsService(FolderContext, BaseService):
         hide_input=True,
         hide_output=True,
         dependency={
-            "targetName": lambda _s,
-            name,
-            job_key=None,
-            **_kwargs: f"Job:{job_key}:Attachment:{name}"
-            if job_key
-            else f"Attachment:{name}",
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
             "operationName": "CREATE Attachment",
         },
     )
