@@ -41,8 +41,8 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_resume",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Job:{inputs.get('job_id') or inputs.get('inbox_id')}",
             "operationName": "RESUME Job",
@@ -96,8 +96,8 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_resume",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Job:{inputs.get('job_id') or inputs.get('inbox_id')}",
             "operationName": "RESUME Job",
@@ -171,8 +171,8 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_retrieve",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Job:{inputs['job_key']}",
             "operationName": "GET Job",
@@ -217,8 +217,8 @@ class JobsService(FolderContext, BaseService):
     @traced(
         name="jobs_retrieve",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Job:{inputs['job_key']}",
             "operationName": "GET Job",

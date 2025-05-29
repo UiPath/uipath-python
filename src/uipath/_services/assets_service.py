@@ -27,8 +27,8 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_retrieve",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Asset:{inputs['name']}",
             "operationName": "GET Asset",
@@ -89,8 +89,8 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_retrieve",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Asset:{inputs['name']}",
             "operationName": "GET Asset",
@@ -142,7 +142,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_credential",
         run_type="uipath",
-        hide_input=True,
+        hide_input=False,
         hide_output=True,
         dependency={
             "targetName": lambda inputs: f"Asset:{inputs['name']}",
@@ -202,7 +202,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_credential",
         run_type="uipath",
-        hide_input=True,
+        hide_input=False,
         hide_output=True,
         dependency={
             "targetName": lambda inputs: f"Asset:{inputs['name']}",
@@ -262,7 +262,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_update",
         run_type="uipath",
-        hide_input=True,
+        hide_input=False,
         hide_output=True,
         dependency={
             "targetName": lambda inputs: f"Asset:{inputs['robot_asset'].name}",
@@ -313,7 +313,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_update",
         run_type="uipath",
-        hide_input=True,
+        hide_input=False,
         hide_output=True,
         dependency={
             "targetName": lambda inputs: f"Asset:{inputs['robot_asset'].name}",

@@ -31,8 +31,8 @@ class BucketsService(FolderContext, BaseService):
     @traced(
         name="buckets_download",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
             "operationName": "DOWNLOAD File",
@@ -96,8 +96,8 @@ class BucketsService(FolderContext, BaseService):
     @traced(
         name="buckets_download_async",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
             "operationName": "DOWNLOAD File",
@@ -168,7 +168,8 @@ class BucketsService(FolderContext, BaseService):
         name="buckets_upload",
         run_type="uipath",
         input_processor=_upload_from_memory_input_processor,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
             "operationName": "UPLOAD File",
@@ -260,7 +261,8 @@ class BucketsService(FolderContext, BaseService):
         name="buckets_upload_async",
         run_type="uipath",
         input_processor=_upload_from_memory_input_processor,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
             "operationName": "UPLOAD File",
@@ -356,8 +358,8 @@ class BucketsService(FolderContext, BaseService):
     @traced(
         name="buckets_retrieve",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
             "operationName": "GET Bucket",
@@ -413,8 +415,8 @@ class BucketsService(FolderContext, BaseService):
     @traced(
         name="buckets_retrieve_async",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Bucket:{inputs.get('name') or inputs.get('key')}",
             "operationName": "GET Bucket",

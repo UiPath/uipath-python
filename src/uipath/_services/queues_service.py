@@ -24,8 +24,8 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_list_items",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"QueueItems:Context:{inputs['self']._folder_path or inputs['self']._folder_id or 'Global'}",
             "operationName": "LIST QueueItems",
@@ -45,8 +45,8 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_list_items",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"QueueItems:Context:{inputs['self']._folder_path or inputs['self']._folder_id or 'Global'}",
             "operationName": "LIST QueueItems",
@@ -65,8 +65,8 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_create_item",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Queue:{(inputs['item'].name if hasattr(inputs['item'], 'name') else inputs['item'].get('name', 'UnknownQueue'))}",
             "operationName": "CREATE QueueItem",
@@ -90,8 +90,8 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_create_item",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Queue:{(inputs['item'].name if hasattr(inputs['item'], 'name') else inputs['item'].get('name', 'UnknownQueue'))}",
             "operationName": "CREATE QueueItem",
@@ -119,8 +119,8 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_create_items",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Queue:{inputs['queue_name']}",
             "operationName": "CREATE QueueItems",
@@ -149,8 +149,8 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_create_items",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Queue:{inputs['queue_name']}",
             "operationName": "CREATE QueueItems",
@@ -181,8 +181,8 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_create_transaction_item",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Queue:{(inputs['item'].queue_name if hasattr(inputs['item'], 'queue_name') else inputs['item'].get('queue_name', 'UnknownQueue'))}",
             "operationName": "CREATE TransactionItem",
@@ -207,8 +207,8 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_create_transaction_item",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
+        hide_input=False,
+        hide_output=False,
         dependency={
             "targetName": lambda inputs: f"Queue:{(inputs['item'].queue_name if hasattr(inputs['item'], 'queue_name') else inputs['item'].get('queue_name', 'UnknownQueue'))}",
             "operationName": "CREATE TransactionItem",
