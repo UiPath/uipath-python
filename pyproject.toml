@@ -93,6 +93,7 @@ ignore-decorators = []
 "uipath/_cli/**" = ["D"]
 # TODO: Remove this once model documentation is added
 "src/uipath/models/**" = ["D101", "D100", "D104", "D102", "D107"]
+"src/uipath/runtime_commons/**" = ["D101", "D100", "D104", "D102", "D107", "D103"]
 
 [tool.ruff.format]
 quote-style = "double"
