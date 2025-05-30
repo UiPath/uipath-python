@@ -384,13 +384,14 @@ class AttachmentsService(FolderContext, BaseService):
         if source_path:
             # Upload from file
             with open(source_path, "rb") as file:
+                file_content = file.read()
                 if result["BlobFileAccess"]["RequiresAuth"]:
                     self.request(
-                        "PUT", upload_uri, headers=headers, files={"file": file}
+                        "PUT", upload_uri, headers=headers, content=file_content
                     )
                 else:
                     with httpx.Client() as client:
-                        client.put(upload_uri, headers=headers, files={"file": file})
+                        client.put(upload_uri, headers=headers, content=file_content)
         else:
             # Upload from memory
             # Convert string to bytes if needed
@@ -519,13 +520,14 @@ class AttachmentsService(FolderContext, BaseService):
         if source_path:
             # Upload from file
             with open(source_path, "rb") as file:
+                file_content = file.read()
                 if result["BlobFileAccess"]["RequiresAuth"]:
                     await self.request_async(
-                        "PUT", upload_uri, headers=headers, files={"file": file}
+                        "PUT", upload_uri, headers=headers, content=file_content
                     )
                 else:
                     with httpx.Client() as client:
-                        client.put(upload_uri, headers=headers, files={"file": file})
+                        client.put(upload_uri, headers=headers, content=file_content)
         else:
             # Upload from memory
             # Convert string to bytes if needed
