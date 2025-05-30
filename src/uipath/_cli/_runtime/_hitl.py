@@ -15,6 +15,7 @@ from .._runtime._contracts import (
     UiPathRuntimeError,
     UiPathRuntimeStatus,
 )
+from .._utils._common import serialize_object
 
 
 def _try_convert_to_json_format(value: str) -> str:
@@ -22,35 +23,6 @@ def _try_convert_to_json_format(value: str) -> str:
         return json.loads(value)
     except json.decoder.JSONDecodeError:
         return value
-
-
-async def _get_api_payload(inbox_id: str) -> Any:
-    """Fetch payload data for API triggers.
-
-    Args:
-        inbox_id: The Id of the inbox to fetch the payload for.
-
-    Returns:
-        The value field from the API response payload, or None if an error occurs.
-    """
-    response = None
-    try:
-        uipath = UiPath()
-        response = uipath.api_client.request(
-            "GET",
-            f"/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
-            include_folder_headers=True,
-        )
-        data = response.json()
-        return data.get("payload")
-    except Exception as e:
-        raise UiPathRuntimeError(
-            "API_CONNECTION_ERROR",
-            "Failed to get trigger payload",
-            f"Error fetching API trigger payload for inbox {inbox_id}: {str(e)}",
-            UiPathErrorCategory.SYSTEM,
-            response.status_code if response else None,
-        ) from e
 
 
 class HitlReader:
@@ -88,8 +60,17 @@ class HitlReader:
 
             case UiPathResumeTriggerType.API:
                 if resume_trigger.api_resume and resume_trigger.api_resume.inbox_id:
-                    return await _get_api_payload(resume_trigger.api_resume.inbox_id)
-
+                    try:
+                        return await uipath.jobs.get_api_payload_async(
+                            resume_trigger.api_resume.inbox_id
+                        )
+                    except Exception as e:
+                        raise UiPathRuntimeError(
+                            "API_CONNECTION_ERROR",
+                            "Failed to get trigger payload",
+                            f"Error fetching API trigger payload for inbox {resume_trigger.api_resume.inbox_id}: {str(e)}",
+                            UiPathErrorCategory.SYSTEM,
+                        ) from e
             case _:
                 raise UiPathRuntimeError(
                     "UNKNOWN_TRIGGER_TYPE",
@@ -128,7 +109,7 @@ class HitlProcessor:
         try:
             hitl_input = self.value
             resume_trigger = UiPathResumeTrigger(
-                trigger_type=self.type, payload=hitl_input.model_dump_json()
+                trigger_type=self.type, payload=serialize_object(hitl_input)
             )
             match self.type:
                 case UiPathResumeTriggerType.ACTION:
@@ -173,7 +154,7 @@ class HitlProcessor:
 
                 case UiPathResumeTriggerType.API:
                     resume_trigger.api_resume = UiPathApiTrigger(
-                        inbox_id=str(uuid.uuid4()), request=hitl_input.prefix
+                        inbox_id=str(uuid.uuid4()), request=serialize_object(hitl_input)
                     )
                 case _:
                     raise UiPathRuntimeError(
