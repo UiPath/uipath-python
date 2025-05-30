@@ -1,0 +1,16 @@
+[project]
+name = "hitl-inbox-server"
+version = "0.0.1"
+description = "HITL Inbox"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "fastapi>=0.115.11",
+    "uvicorn>=0.34.0",
+    "gunicorn>=23.0.0",
+    "sqlalchemy>=2.0.38",
+    "jinja2>=3.1.6",
+    "httpx>=0.28.1",
+    "python-multipart>=0.0.20",
+    "uipath==2.0.31"
+]
+requires-python = ">=3.10"

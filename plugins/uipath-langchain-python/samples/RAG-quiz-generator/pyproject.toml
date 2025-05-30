@@ -1,0 +1,14 @@
+[project]
+name = "RAG-agents"
+version = "0.0.1"
+description = "Project containing two agents: quiz-generator-RAG-agent and researcher-RAG-agent."
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "langgraph>=0.2.55",
+    "langchain-community>=0.3.9",
+    "langchain-anthropic>=0.3.8",
+    "langchain-experimental>=0.3.4",
+    "tavily-python>=0.5.0",
+    "uipath-langchain==0.0.105",
+]
+requires-python = ">=3.10"

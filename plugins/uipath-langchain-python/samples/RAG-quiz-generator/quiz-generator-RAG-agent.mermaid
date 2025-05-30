@@ -1,0 +1,21 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	invoke_researcher(invoke_researcher)
+	create_quiz(create_quiz)
+	return_quiz(return_quiz)
+	prepare_input(prepare_input)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> prepare_input;
+	invoke_researcher --> create_quiz;
+	prepare_input --> create_quiz;
+	return_quiz --> __end__;
+	create_quiz -.-> invoke_researcher;
+	create_quiz -.-> return_quiz;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
