@@ -15,6 +15,8 @@ from .._runtime._contracts import (
     UiPathRuntimeError,
     UiPathRuntimeStatus,
 )
+from .._utils._common import serialize_object
+from ._escalation import Escalation
 
 
 def _try_convert_to_json_format(value: str) -> str:
@@ -24,33 +26,7 @@ def _try_convert_to_json_format(value: str) -> str:
         return value
 
 
-async def _get_api_payload(inbox_id: str) -> Any:
-    """Fetch payload data for API triggers.
-
-    Args:
-        inbox_id: The Id of the inbox to fetch the payload for.
-
-    Returns:
-        The value field from the API response payload, or None if an error occurs.
-    """
-    response = None
-    try:
-        uipath = UiPath()
-        response = uipath.api_client.request(
-            "GET",
-            f"/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
-            include_folder_headers=True,
-        )
-        data = response.json()
-        return data.get("payload")
-    except Exception as e:
-        raise UiPathRuntimeError(
-            "API_CONNECTION_ERROR",
-            "Failed to get trigger payload",
-            f"Error fetching API trigger payload for inbox {inbox_id}: {str(e)}",
-            UiPathErrorCategory.SYSTEM,
-            response.status_code if response else None,
-        ) from e
+default_escalation = Escalation()
 
 
 class HitlReader:
@@ -65,6 +41,10 @@ class HitlReader:
                         app_folder_key=resume_trigger.folder_key,
                         app_folder_path=resume_trigger.folder_path,
                     )
+
+                    if default_escalation.enabled:
+                        return default_escalation.extract_response_value(action.data)
+
                     return action.data
 
             case UiPathResumeTriggerType.JOB:
@@ -88,8 +68,17 @@ class HitlReader:
 
             case UiPathResumeTriggerType.API:
                 if resume_trigger.api_resume and resume_trigger.api_resume.inbox_id:
-                    return await _get_api_payload(resume_trigger.api_resume.inbox_id)
-
+                    try:
+                        return await uipath.jobs.retrieve_api_payload_async(
+                            resume_trigger.api_resume.inbox_id
+                        )
+                    except Exception as e:
+                        raise UiPathRuntimeError(
+                            "API_CONNECTION_ERROR",
+                            "Failed to get trigger payload",
+                            f"Error fetching API trigger payload for inbox {resume_trigger.api_resume.inbox_id}: {str(e)}",
+                            UiPathErrorCategory.SYSTEM,
+                        ) from e
             case _:
                 raise UiPathRuntimeError(
                     "UNKNOWN_TRIGGER_TYPE",
@@ -122,14 +111,24 @@ class HitlProcessor:
         # default to API trigger
         return UiPathResumeTriggerType.API
 
-    async def create_resume_trigger(self) -> Optional[UiPathResumeTrigger]:
+    async def create_resume_trigger(self) -> UiPathResumeTrigger:
         """Returns the resume trigger."""
         uipath = UiPath()
         try:
             hitl_input = self.value
             resume_trigger = UiPathResumeTrigger(
-                trigger_type=self.type, payload=hitl_input.model_dump_json()
+                trigger_type=self.type, payload=serialize_object(hitl_input)
             )
+
+            # check for default escalation config
+            if default_escalation.enabled and isinstance(hitl_input, str):
+                resume_trigger.trigger_type = UiPathResumeTriggerType.ACTION
+                action = await default_escalation.create(hitl_input)
+                if not action:
+                    raise Exception("Failed to create default escalation")
+                resume_trigger.item_key = action.key
+                return resume_trigger
+
             match self.type:
                 case UiPathResumeTriggerType.ACTION:
                     resume_trigger.folder_path = hitl_input.app_folder_path
@@ -153,8 +152,9 @@ class HitlProcessor:
                             assignee=hitl_input.assignee if hitl_input.assignee else "",
                             data=hitl_input.data,
                         )
-                        if action:
-                            resume_trigger.item_key = action.key
+                        if not action:
+                            raise Exception("Failed to create action")
+                        resume_trigger.item_key = action.key
 
                 case UiPathResumeTriggerType.JOB:
                     resume_trigger.folder_path = hitl_input.process_folder_path
@@ -168,12 +168,13 @@ class HitlProcessor:
                             folder_path=hitl_input.process_folder_path,
                             folder_key=hitl_input.process_folder_key,
                         )
-                        if job:
-                            resume_trigger.item_key = job.key
+                        if not job:
+                            raise Exception("Failed to invoke process")
+                        resume_trigger.item_key = job.key
 
                 case UiPathResumeTriggerType.API:
                     resume_trigger.api_resume = UiPathApiTrigger(
-                        inbox_id=str(uuid.uuid4()), request=hitl_input.prefix
+                        inbox_id=str(uuid.uuid4()), request=serialize_object(hitl_input)
                     )
                 case _:
                     raise UiPathRuntimeError(

@@ -272,6 +272,59 @@ class JobsService(FolderContext, BaseService):
         response = response.json()
         return self._extract_first_inbox_id(response)
 
+    def retrieve_api_payload(self, inbox_id: str) -> Any:
+        """Fetch payload data for API triggers.
+
+        Args:
+            inbox_id: The Id of the inbox to fetch the payload for.
+
+        Returns:
+            The value field from the API response payload.
+        """
+        spec = self._retrieve_api_payload_spec(inbox_id=inbox_id)
+
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+        )
+
+        data = response.json()
+        return data.get("payload")
+
+    async def retrieve_api_payload_async(self, inbox_id: str) -> Any:
+        """Asynchronously fetch payload data for API triggers.
+
+        Args:
+            inbox_id: The Id of the inbox to fetch the payload for.
+
+        Returns:
+            The value field from the API response payload.
+        """
+        spec = self._retrieve_api_payload_spec(inbox_id=inbox_id)
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+        )
+
+        data = response.json()
+        return data.get("payload")
+
+    def _retrieve_api_payload_spec(
+        self,
+        *,
+        inbox_id: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}"),
+            headers={
+                **self.folder_headers,
+            },
+        )
+
     def _extract_first_inbox_id(self, response: Any) -> str:
         if len(response["value"]) > 0:
             return response["value"][0]["ItemKey"]
