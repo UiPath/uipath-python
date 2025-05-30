@@ -128,3 +128,9 @@ show_missing = true
 
 [tool.coverage.run]
 source = ["src"]
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
