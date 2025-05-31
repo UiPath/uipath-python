@@ -38,7 +38,16 @@ class JobsService(FolderContext, BaseService):
     @overload
     def resume(self, *, job_id: str, payload: Any) -> None: ...
 
-    @traced(name="jobs_resume", run_type="uipath")
+    @traced(
+        name="jobs_resume",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_id"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_id"),
+            "operationName": "RESUME Job",
+        },
+    )
     def resume(
         self,
         *,
@@ -84,6 +93,16 @@ class JobsService(FolderContext, BaseService):
             content=spec.content,
         )
 
+    @traced(
+        name="jobs_resume",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_id"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_id"),
+            "operationName": "RESUME Job",
+        },
+    )
     async def resume_async(
         self,
         *,
@@ -149,6 +168,16 @@ class JobsService(FolderContext, BaseService):
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
+    @traced(
+        name="jobs_retrieve",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
+            "operationName": "GET Job",
+        },
+    )
     def retrieve(
         self,
         job_key: str,
@@ -185,6 +214,16 @@ class JobsService(FolderContext, BaseService):
 
         return Job.model_validate(response.json())
 
+    @traced(
+        name="jobs_retrieve",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
+            "operationName": "GET Job",
+        },
+    )
     async def retrieve_async(
         self,
         job_key: str,
@@ -334,7 +373,16 @@ class JobsService(FolderContext, BaseService):
             },
         )
 
-    @traced(name="jobs_list_attachments", run_type="uipath")
+    @traced(
+        name="jobs_list_attachments",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
+            "operationName": "LIST JobAttachments",
+        },
+    )
     def list_attachments(
         self,
         *,
@@ -372,7 +420,16 @@ class JobsService(FolderContext, BaseService):
 
         return [item.get("attachmentId") for item in response]
 
-    @traced(name="jobs_list_attachments", run_type="uipath")
+    @traced(
+        name="jobs_list_attachments",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
+            "operationName": "LIST JobAttachments",
+        },
+    )
     async def list_attachments_async(
         self,
         *,
@@ -427,7 +484,18 @@ class JobsService(FolderContext, BaseService):
 
         return [item.get("attachmentId") for item in response]
 
-    @traced(name="jobs_link_attachment", run_type="uipath")
+    @traced(
+        name="jobs_link_attachment",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
+            "operationName": "LINK JobAttachment",
+        },
+    )
     def link_attachment(
         self,
         *,
@@ -465,7 +533,18 @@ class JobsService(FolderContext, BaseService):
             json=spec.json,
         )
 
-    @traced(name="jobs_link_attachment", run_type="uipath")
+    @traced(
+        name="jobs_link_attachment",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
+            "operationName": "LINK JobAttachment",
+        },
+    )
     async def link_attachment_async(
         self,
         *,
@@ -541,7 +620,18 @@ class JobsService(FolderContext, BaseService):
             },
         )
 
-    @traced(name="jobs_create_attachment", run_type="uipath")
+    @traced(
+        name="jobs_create_attachment",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
+            "operationName": "CREATE Attachment",
+        },
+    )
     def create_attachment(
         self,
         *,
@@ -680,7 +770,18 @@ class JobsService(FolderContext, BaseService):
             # Return only the UUID
             return attachment_id
 
-    @traced(name="jobs_create_attachment", run_type="uipath")
+    @traced(
+        name="jobs_create_attachment",
+        run_type="uipath",
+        hide_input=True,
+        hide_output=True,
+        dependency={
+            "targetName": lambda inputs: inputs.get("job_key"),
+            "targetType": "Job",
+            "targetId": lambda inputs: inputs.get("job_key"),
+            "operationName": "CREATE Attachment",
+        },
+    )
     async def create_attachment_async(
         self,
         *,

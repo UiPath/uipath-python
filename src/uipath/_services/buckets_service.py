@@ -28,7 +28,18 @@ class BucketsService(FolderContext, BaseService):
         self.custom_client = httpx.Client()
         self.custom_client_async = httpx.AsyncClient()
 
-    @traced(name="buckets_download", run_type="uipath")
+    @traced(
+        name="buckets_download",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
+            "operationName": "DOWNLOAD File",
+        },
+    )
     @infer_bindings(resource_type="bucket")
     def download(
         self,
@@ -84,7 +95,18 @@ class BucketsService(FolderContext, BaseService):
                 file_content = self.custom_client.get(read_uri, headers=headers).content
             file.write(file_content)
 
-    @traced(name="buckets_download", run_type="uipath")
+    @traced(
+        name="buckets_download_async",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
+            "operationName": "DOWNLOAD File",
+        },
+    )
     @infer_bindings(resource_type="bucket")
     async def download_async(
         self,
@@ -146,7 +168,19 @@ class BucketsService(FolderContext, BaseService):
                 ).content
             file.write(file_content)
 
-    @traced(name="buckets_upload", run_type="uipath")
+    @traced(
+        name="buckets_upload",
+        run_type="uipath",
+        input_processor=_upload_from_memory_input_processor,
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
+            "operationName": "UPLOAD File",
+        },
+    )
     @infer_bindings(resource_type="bucket")
     def upload(
         self,
@@ -229,7 +263,19 @@ class BucketsService(FolderContext, BaseService):
                         write_uri, headers=headers, files={"file": file}
                     )
 
-    @traced(name="buckets_upload", run_type="uipath")
+    @traced(
+        name="buckets_upload_async",
+        run_type="uipath",
+        input_processor=_upload_from_memory_input_processor,
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
+            "operationName": "UPLOAD File",
+        },
+    )
     @infer_bindings(resource_type="bucket")
     async def upload_async(
         self,
@@ -317,7 +363,18 @@ class BucketsService(FolderContext, BaseService):
                         write_uri, headers=headers, files={"file": file}
                     )
 
-    @traced(name="buckets_retrieve", run_type="uipath")
+    @traced(
+        name="buckets_retrieve",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
+            "operationName": "GET Bucket",
+        },
+    )
     @infer_bindings(resource_type="bucket")
     def retrieve(
         self,
@@ -365,7 +422,18 @@ class BucketsService(FolderContext, BaseService):
             raise Exception(f"Bucket with name '{name}' not found") from e
         return Bucket.model_validate(response)
 
-    @traced(name="buckets_retrieve", run_type="uipath")
+    @traced(
+        name="buckets_retrieve_async",
+        run_type="uipath",
+        hide_input=False,
+        hide_output=False,
+        dependency={
+            "targetName": lambda inputs: inputs.get("name"),
+            "targetType": "Bucket",
+            "targetId": lambda inputs: inputs.get("key"),
+            "operationName": "GET Bucket",
+        },
+    )
     @infer_bindings(resource_type="bucket")
     async def retrieve_async(
         self,

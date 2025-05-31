@@ -72,7 +72,81 @@ def test_traced_sync_function(setup_tracer):
     assert span.attributes["span_type"] == "function_call_sync"
     assert "inputs" in span.attributes
     assert "output" in span.attributes
+    # No dependency attribute by default
+    assert "dependency" not in span.attributes
     assert span.attributes["output"] == "5"
+
+
+@traced(
+    dependency={
+        "targetName": "TestTarget",
+        "targetType": "TestType",
+        "targetId": "TestId",
+        "operationName": "TestOperation",
+    }
+)
+def sample_function_with_dependency(x, y):
+    return x + y
+
+
+def test_traced_sync_function_with_dependency(setup_tracer):
+    exporter, provider = setup_tracer
+
+    result = sample_function_with_dependency(2, 3)
+    assert result == 5
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_function_with_dependency"
+    assert span.attributes["span_type"] == "function_call_sync"
+    assert "inputs" in span.attributes
+    assert "output" in span.attributes
+    assert span.attributes["output"] == "5"
+    assert "dependency" in span.attributes
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["targetName"] == "TestTarget"
+    assert dependency_attr["targetType"] == "TestType"
+    assert dependency_attr["targetId"] == "TestId"
+    assert dependency_attr["operationName"] == "TestOperation"
+    assert dependency_attr["sourceName"] == "Unknown source"  # Default
+    assert dependency_attr["sourceType"] == "Agent"  # Default
+
+
+@traced(
+    dependency={
+        "targetName": lambda inputs: inputs["target"],
+        "targetType": lambda inputs: inputs["type"],
+        "targetId": lambda inputs: inputs["id"],
+        "operationName": "DynamicOperation",
+    }
+)
+def sample_function_with_callable_dependency(target, type, id):
+    return f"{target}-{type}-{id}"
+
+
+def test_traced_sync_function_with_callable_dependency(setup_tracer):
+    exporter, provider = setup_tracer
+
+    result = sample_function_with_callable_dependency("MyTarget", "MyType", "MyId")
+    assert result == "MyTarget-MyType-MyId"
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_function_with_callable_dependency"
+    assert "dependency" in span.attributes
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["targetName"] == "MyTarget"
+    assert dependency_attr["targetType"] == "MyType"
+    assert dependency_attr["targetId"] == "MyId"
+    assert dependency_attr["operationName"] == "DynamicOperation"
+    assert dependency_attr["sourceName"] == "Unknown source"
+    assert dependency_attr["sourceType"] == "Agent"
 
 
 @pytest.mark.asyncio
@@ -97,7 +171,45 @@ async def test_traced_async_function(setup_tracer):
     assert span.attributes["span_type"] == "function_call_async"
     assert "inputs" in span.attributes
     assert "output" in span.attributes
+    # No dependency attribute by default
+    assert "dependency" not in span.attributes
     assert span.attributes["output"] == "6"
+
+
+@traced(
+    dependency={
+        "targetName": "AsyncTarget",
+        "targetType": "AsyncType",
+        "targetId": "AsyncId",
+        "operationName": "AsyncOperation",
+    }
+)
+async def sample_async_function_with_dependency(x, y):
+    return x * y
+
+
+@pytest.mark.asyncio
+async def test_traced_async_function_with_dependency(setup_tracer):
+    exporter, provider = setup_tracer
+
+    result = await sample_async_function_with_dependency(2, 3)
+    assert result == 6
+
+    provider.shutdown()
+    await sleep(0.1)  # allow time for export
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_async_function_with_dependency"
+    assert "dependency" in span.attributes
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["targetName"] == "AsyncTarget"
+    assert dependency_attr["targetType"] == "AsyncType"
+    assert dependency_attr["targetId"] == "AsyncId"
+    assert dependency_attr["operationName"] == "AsyncOperation"
+    assert dependency_attr["sourceName"] == "Unknown source"
+    assert dependency_attr["sourceType"] == "Agent"
 
 
 def test_traced_generator_function(setup_tracer):
@@ -120,7 +232,44 @@ def test_traced_generator_function(setup_tracer):
     assert span.attributes["span_type"] == "function_call_generator_sync"
     assert "inputs" in span.attributes
     assert "output" in span.attributes
+    # No dependency attribute by default
+    assert "dependency" not in span.attributes
     assert span.attributes["output"] == "[0, 1, 2]"
+
+
+@traced(
+    dependency={
+        "targetName": "GenTarget",
+        "targetType": "GenType",
+        "targetId": "GenId",
+        "operationName": "GenOperation",
+    }
+)
+def sample_generator_function_with_dependency(n):
+    for i in range(n):
+        yield i
+
+
+def test_traced_generator_function_with_dependency(setup_tracer):
+    exporter, provider = setup_tracer
+
+    results = list(sample_generator_function_with_dependency(3))
+    assert results == [0, 1, 2]
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_generator_function_with_dependency"
+    assert "dependency" in span.attributes
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["targetName"] == "GenTarget"
+    assert dependency_attr["targetType"] == "GenType"
+    assert dependency_attr["targetId"] == "GenId"
+    assert dependency_attr["operationName"] == "GenOperation"
+    assert dependency_attr["sourceName"] == "Unknown source"
+    assert dependency_attr["sourceType"] == "Agent"
 
 
 @pytest.mark.asyncio
@@ -144,7 +293,47 @@ async def test_traced_async_generator_function(setup_tracer):
     assert span.attributes["span_type"] == "function_call_generator_async"
     assert "inputs" in span.attributes
     assert "output" in span.attributes
+    # No dependency attribute by default
+    assert "dependency" not in span.attributes
     assert span.attributes["output"] == "[0, 1, 2]"
+
+
+@traced(
+    dependency={
+        "targetName": "AsyncGenTarget",
+        "targetType": "AsyncGenType",
+        "targetId": "AsyncGenId",
+        "operationName": "AsyncGenOperation",
+    }
+)
+async def sample_async_generator_function_with_dependency(n):
+    for i in range(n):
+        yield i
+
+
+@pytest.mark.asyncio
+async def test_traced_async_generator_function_with_dependency(setup_tracer):
+    exporter, provider = setup_tracer
+
+    results = [
+        item async for item in sample_async_generator_function_with_dependency(3)
+    ]
+    assert results == [0, 1, 2]
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "sample_async_generator_function_with_dependency"
+    assert "dependency" in span.attributes
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["targetName"] == "AsyncGenTarget"
+    assert dependency_attr["targetType"] == "AsyncGenType"
+    assert dependency_attr["targetId"] == "AsyncGenId"
+    assert dependency_attr["operationName"] == "AsyncGenOperation"
+    assert dependency_attr["sourceName"] == "Unknown source"
+    assert dependency_attr["sourceType"] == "Agent"
 
 
 def test_traced_with_basic_processors(setup_tracer):
@@ -572,3 +761,170 @@ def test_traced_with_hide_input_outputs(setup_tracer):
     output_json = span.attributes["output"]
     output = json.loads(output_json)
     assert output == {"redacted": "Output data not logged for privacy/security"}
+
+
+def test_traced_with_static_dependency_info(setup_tracer):
+    """Test traced decorator with static dependency information."""
+    exporter, provider = setup_tracer
+
+    dependency_info = {
+        "sourceName": "TestSource",
+        "targetName": "TestTarget",
+        "operationName": "TestOperation",
+    }
+
+    @traced(dependency=dependency_info)
+    def function_with_dependency(x, y):
+        return x + y
+
+    result = function_with_dependency(10, 20)
+    assert result == 30
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "function_with_dependency"
+    assert "dependency" in span.attributes
+
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["sourceName"] == "TestSource"
+    assert dependency_attr["targetName"] == "TestTarget"
+    assert dependency_attr["operationName"] == "TestOperation"
+
+
+def test_traced_with_callable_dependency_info(setup_tracer):
+    """Test traced decorator with callable dependency information."""
+    exporter, provider = setup_tracer
+
+    def get_source_name(inputs: Dict[str, Any]):
+        return f"Source_{inputs['x']}"
+
+    def get_target_name(inputs: Dict[str, Any]):
+        return f"Target_{inputs['y']}"
+
+    dependency_info = {
+        "sourceName": get_source_name,
+        "targetName": get_target_name,
+        "operationName": "CallableOperation",
+    }
+
+    @traced(dependency=dependency_info)
+    def function_with_callable_dependency(x, y):
+        return x * y
+
+    result = function_with_callable_dependency(
+        5, y=4
+    )  # Use keyword arg for get_target_name
+    assert result == 20
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "function_with_callable_dependency"
+    assert "dependency" in span.attributes
+
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["sourceName"] == "Source_5"
+    assert dependency_attr["targetName"] == "Target_4"
+    assert dependency_attr["operationName"] == "CallableOperation"
+
+
+def test_traced_with_dependency_and_env_var(setup_tracer, monkeypatch):
+    """Test traced decorator with dependency using UIPATH_PROCESS_KEY env var."""
+    exporter, provider = setup_tracer
+    monkeypatch.setenv("UIPATH_PROCESS_KEY", "EnvProcessKey")
+
+    dependency_info = {
+        "targetName": "EnvTarget",
+        "operationName": "EnvOperation",
+    }  # sourceName will be picked from env var
+
+    @traced(dependency=dependency_info)
+    def function_with_env_dependency(a):
+        return f"Processed {a}"
+
+    result = function_with_env_dependency("data")
+    assert result == "Processed data"
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "function_with_env_dependency"
+    assert "dependency" in span.attributes
+
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["sourceName"] == "EnvProcessKey"
+    assert dependency_attr["targetName"] == "EnvTarget"
+    assert dependency_attr["operationName"] == "EnvOperation"
+
+
+@pytest.mark.asyncio
+async def test_traced_async_with_dependency_info(setup_tracer):
+    """Test traced decorator with dependency information for async functions."""
+    exporter, provider = setup_tracer
+
+    dependency_info = {
+        "sourceName": "AsyncSource",
+        "targetName": "AsyncTarget",
+        "operationName": lambda inputs: f"AsyncOp_{inputs['msg']}",
+    }
+
+    @traced(dependency=dependency_info)
+    async def async_function_with_dependency(msg):
+        await sleep(0.01)
+        return f"Async says: {msg}"
+
+    result = await async_function_with_dependency("hello")
+    assert result == "Async says: hello"
+
+    provider.shutdown()
+    await sleep(0.1)  # ensure spans are processed
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "async_function_with_dependency"
+    assert "dependency" in span.attributes
+
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["sourceName"] == "AsyncSource"
+    assert dependency_attr["targetName"] == "AsyncTarget"
+    assert dependency_attr["operationName"] == "AsyncOp_hello"
+
+
+def test_traced_generator_with_dependency_info(setup_tracer):
+    """Test traced decorator with dependency information for generator functions."""
+    exporter, provider = setup_tracer
+
+    dependency_info = {
+        "sourceName": "GeneratorSource",
+        "targetName": "GeneratorTarget",
+        "operationName": lambda inputs: f"GenOp_Count_{inputs['n_items']}",
+    }
+
+    @traced(dependency=dependency_info)
+    def generator_with_dependency(n_items):
+        for i in range(n_items):
+            yield f"Item {i}"
+
+    results = list(generator_with_dependency(2))
+    assert results == ["Item 0", "Item 1"]
+
+    provider.shutdown()
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "generator_with_dependency"
+    assert "dependency" in span.attributes
+
+    dependency_attr = json.loads(span.attributes["dependency"])
+    assert dependency_attr["sourceName"] == "GeneratorSource"
+    assert dependency_attr["targetName"] == "GeneratorTarget"
+    assert dependency_attr["operationName"] == "GenOp_Count_2"
