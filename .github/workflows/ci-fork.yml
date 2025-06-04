@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  pull_request_target:
+    branches:
+      - main
+
+jobs:
+  commit-lint:
+    if: ${{ github.event.pull_request.head.repo.fork }}
+    uses: ./.github/workflows/commitlint.yml
+
+  lint:
+    if: ${{ github.event.pull_request.head.repo.fork }}
+    uses: ./.github/workflows/lint.yml
+
+  test:
+    if: ${{ github.event.pull_request.head.repo.fork }}
+    uses: ./.github/workflows/test.yml

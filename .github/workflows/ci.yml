@@ -12,11 +12,13 @@ on:
 
 jobs:
   commit-lint:
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork }}
     uses: ./.github/workflows/commitlint.yml
 
   lint:
+    if: ${{ (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork) || github.event_name == 'push' }}
     uses: ./.github/workflows/lint.yml
 
   test:
+    if: ${{ (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork) || github.event_name == 'push' }}
     uses: ./.github/workflows/test.yml
