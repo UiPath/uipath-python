@@ -285,8 +285,6 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_update_progress_of_transaction_item",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
         dependency={
             "targetName": "QueueItem",
             "targetType": "QueueItem",  # Added
@@ -315,8 +313,6 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_update_progress_of_transaction_item",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
         dependency={
             "targetName": "QueueItem",
             "targetType": "QueueItem",  # Added
@@ -347,8 +343,6 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_complete_transaction_item",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
         dependency={
             "targetName": "QueueItem",
             "targetType": "QueueItem",  # Added
@@ -377,8 +371,6 @@ class QueuesService(FolderContext, BaseService):
     @traced(
         name="queues_complete_transaction_item",
         run_type="uipath",
-        hide_input=True,
-        hide_output=True,
         dependency={
             "targetName": "QueueItem",
             "targetType": "QueueItem",  # Added
