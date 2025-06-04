@@ -372,7 +372,7 @@ class QueuesService(FolderContext, BaseService):
         """
         spec = self._complete_transaction_item_spec(transaction_key, result)
         response = self.request(spec.method, url=spec.endpoint, json=spec.json)
-        return response.json()
+        return response
 
     @traced(
         name="queues_complete_transaction_item",
