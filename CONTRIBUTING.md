@@ -53,6 +53,51 @@ For additional commands related to linting, formatting, and building, run `just 
 
 > **Note:** Instead of cloning the project into `.venv/lib/python3.10/site-packages/uipath`, this mode creates a file named `_uipath.pth` inside `.venv/lib/python3.10/site-packages`. This file contains the value of `PATH_TO_SDK`, which is added to `sys.path`—the list of directories where Python searches for packages. To view the entries, run `python -c 'import sys; print(sys.path)'`.
 
+## Commit Messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification for commit messages. This convention helps maintain a clear and structured commit history, enables automated changelog generation, and supports semantic versioning.
+
+### Commit Message Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Common Types
+
+- **feat:** A new feature for the user
+- **fix:** A bug fix
+- **docs:** Documentation changes
+- **style:** Code style changes (formatting, missing semicolons, etc.)
+- **refactor:** Code refactoring without changing functionality
+- **test:** Adding or updating tests
+- **chore:** Changes to build process, auxiliary tools, or maintenance tasks
+- **ci:** Changes to CI/CD configuration
+
+### Examples
+
+```
+feat(auth): add OAuth2 authentication support
+
+fix: resolve connection timeout issues in HTTP client
+
+docs: update API documentation for user management
+
+test(utils): add unit tests for validation helpers
+
+chore: update dependencies to latest versions
+```
+
+### Breaking Changes
+
+For breaking changes, either:
+- Add `!` after the type: `feat!: change API response structure`
+- Add a `BREAKING CHANGE:` footer with description
+
 ## API Style Guide
 
 ### General Rule
