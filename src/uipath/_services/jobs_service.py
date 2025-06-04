@@ -921,3 +921,57 @@ class JobsService(FolderContext, BaseService):
 
             # Return only the UUID
             return attachment_id
+
+    @traced(
+        name="jobs_list",
+        run_type="uipath",
+        dependency={
+            "targetType": "Job",
+            "operationName": "LIST Jobs",
+        },
+    )
+    def list_jobs(
+        self,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        top: Optional[int] = None,
+        skip: Optional[int] = None,
+        filters: Optional[dict] = None,
+    ) -> List[Job]:
+        """List all jobs in a folder.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list jobs from.
+            folder_path (Optional[str]): The path of the folder to list jobs from.
+            top (Optional[int]): Max number of jobs to return.
+            skip (Optional[int]): Number of jobs to skip (for paging).
+            filters (Optional[dict]): Additional OData filters as a dict.
+
+        Returns:
+            List[Job]: List of Job objects in the folder.
+        """
+        params = {}
+        if top is not None:
+            params["$top"] = top
+        if skip is not None:
+            params["$skip"] = skip
+        if filters:
+            # Merge filters into OData $filter string
+            filter_str = " and ".join(f"{k} eq '{v}'" for k, v in filters.items())
+            params["$filter"] = filter_str
+        headers = {**header_folder(folder_key, folder_path)}
+        spec = RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/odata/Jobs"),
+            params=params,
+            headers=headers,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
+        jobs_data = response.json().get("value", [])
+        return [Job.model_validate(job) for job in jobs_data]
