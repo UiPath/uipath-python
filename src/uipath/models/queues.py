@@ -127,6 +127,11 @@ class TransactionItemResult(BaseModel):
         json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
 
+    name: str = Field(
+        description="The name of the queue in which to search for the next item or in which to insert the item before marking it as InProgress and sending it to the robot.",
+        alias="Name",
+    )
+
     is_successful: Optional[bool] = Field(
         default=None,
         description="States if the processing was successful or not.",
