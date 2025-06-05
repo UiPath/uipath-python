@@ -344,7 +344,7 @@ class QueuesService(FolderContext, BaseService):
         name="queues_complete_transaction_item",
         run_type="uipath",
         dependency={
-            "targetName": lambda inputs: inputs.get("result"),  # Added
+            "targetName": lambda inputs: inputs.get("result").get("name"),
             "targetType": "Queue",
             "targetId": lambda inputs: inputs.get("transaction_key"),
             "operationName": "UPDATE QueueItem",
@@ -374,7 +374,7 @@ class QueuesService(FolderContext, BaseService):
         dependency={
             "targetName": "QueueItem",
             "targetType": "QueueItem",
-            "targetId": lambda inputs: inputs.get("transaction_key").name,
+            "targetId": lambda inputs: inputs.get("transaction_key"),
             "operationName": "UPDATE QueueItem",
         },
     )
