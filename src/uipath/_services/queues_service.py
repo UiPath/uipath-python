@@ -398,6 +398,32 @@ class QueuesService(FolderContext, BaseService):
         )
         return response.json()
 
+    @traced(
+        name="queues_get_queue_item",
+        run_type="uipath",
+        dependency={
+            "targetName": lambda inputs: inputs.get("queue_name", "UnknownQueueItem"),
+            "targetType": "Queue",
+            "targetId": lambda inputs: inputs.get("key"),
+            "operationName": "GET QueueItem",
+        },
+    )
+    def get_queue_item(self, key: int, queue_name: str) -> Response:
+        """Retrieves a queue item by its key from the Orchestrator.
+
+        Args:
+            key: The unique integer key of the queue item.
+
+        Returns:
+            Response: HTTP response containing the queue item details.
+        """
+        spec = RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/orchestrator_/odata/QueueItems({key})"),
+        )
+        response = self.request(spec.method, url=spec.endpoint)
+        return response.json()
+
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
