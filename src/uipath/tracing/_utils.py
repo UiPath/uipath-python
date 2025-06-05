@@ -230,7 +230,7 @@ class _SpanUtils:
     ) -> str:
         """Return a JSON string of inputs from the function signature."""
         result = _SpanUtils.format_args_for_trace(signature, *args, **kwargs)
-        return json.dumps(result, default=str)
+        return json.dumps(result, default=_custom_encoder)
 
     @staticmethod
     def format_args_for_trace(
