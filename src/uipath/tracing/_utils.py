@@ -11,8 +11,16 @@ from typing import Any, Dict, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+def _custom_encoder(obj):
+    if isinstance(obj, BaseModel):
+        return obj.model_dump()  # Convert Pydantic models to dictionaries
+
+    return str(obj)  # Fallback for other types
 
 
 @dataclass

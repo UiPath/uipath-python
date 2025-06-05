@@ -255,11 +255,11 @@ class QueuesService(FolderContext, BaseService):
         hide_output=False,
         dependency={
             "targetName": lambda inputs: _get_queue_item_name_for_tracing(
-                inputs, "queue_name", "QueueName"
+                inputs, "name", "Name"
             ),
             "targetType": "Queue",  # Added
             "targetId": lambda inputs: _get_queue_item_name_for_tracing(  # Added
-                inputs, "queue_name", "QueueName"
+                inputs, "name", "Name"
             ),
             "operationName": "ADD QueueItem",
         },
