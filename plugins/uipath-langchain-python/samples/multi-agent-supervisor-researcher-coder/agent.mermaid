@@ -1,0 +1,38 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	input(input)
+	supervisor(supervisor)
+	__start__ --> input;
+	input --> supervisor;
+	supervisor -.-> researcher___start__;
+	supervisor -.-> coder___start__;
+	researcher___end__ -.-> supervisor;
+	coder___end__ -.-> supervisor;
+	subgraph researcher
+	researcher___start__(<p>__start__</p>)
+	researcher_agent(agent)
+	researcher_tools(tools)
+	researcher___end__(<p>__end__</p>)
+	researcher___start__ --> researcher_agent;
+	researcher_tools --> researcher_agent;
+	researcher_agent -.-> researcher_tools;
+	researcher_agent -.-> researcher___end__;
+	end
+	subgraph coder
+	coder___start__(<p>__start__</p>)
+	coder_agent(agent)
+	coder_tools(tools)
+	coder___end__(<p>__end__</p>)
+	coder___start__ --> coder_agent;
+	coder_tools --> coder_agent;
+	coder_agent -.-> coder_tools;
+	coder_agent -.-> coder___end__;
+	end
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
