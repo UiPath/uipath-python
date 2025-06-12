@@ -19,20 +19,47 @@ from .._utils._common import serialize_object
 from ._escalation import Escalation
 
 
-def _try_convert_to_json_format(value: str) -> str:
+def _try_convert_to_json_format(value: str | None) -> str | None:
+    """Attempts to parse a string as JSON and returns the parsed object or original string.
+
+    Args:
+        value: The string value to attempt JSON parsing on.
+
+    Returns:
+        The parsed JSON object if successful, otherwise the original string value.
+    """
     try:
+        if not value:
+            return None
         return json.loads(value)
     except json.decoder.JSONDecodeError:
         return value
 
 
-default_escalation = Escalation()
-
-
 class HitlReader:
+    """Handles reading and retrieving Human-In-The-Loop (HITL) data from UiPath services."""
+
     @classmethod
     async def read(cls, resume_trigger: UiPathResumeTrigger) -> Optional[str]:
+        """Reads data from a UiPath resume trigger based on its type.
+
+        This method handles different types of resume triggers (ACTION, JOB, API) and retrieves
+        the appropriate data from UiPath services. For actions, it retrieves action data with
+        optional escalation processing. For jobs, it retrieves job output and validates success.
+        For API triggers, it retrieves the API payload.
+
+        Args:
+            resume_trigger: The UiPath resume trigger containing the trigger type and metadata.
+
+        Returns:
+            The retrieved data as a string, or None if no data is available.
+
+        Raises:
+            UiPathRuntimeError: If the job failed, API connection failed, trigger type is unknown,
+                or HITL feedback retrieval failed.
+        """
         uipath = UiPath()
+        default_escalation = Escalation()
         match resume_trigger.trigger_type:
             case UiPathResumeTriggerType.ACTION:
                 if resume_trigger.item_key:
@@ -62,9 +89,10 @@ class HitlReader:
                         raise UiPathRuntimeError(
                             "INVOKED_PROCESS_FAILURE",
                             "Invoked process did not finish successfully.",
-                            _try_convert_to_json_format(str(job.job_error or job.info)),
+                            _try_convert_to_json_format(str(job.job_error or job.info))
+                            or "Job error unavailable.",
                         )
-                    return job.output_arguments
+                    return _try_convert_to_json_format(job.output_arguments)
 
             case UiPathResumeTriggerType.API:
                 if resume_trigger.api_resume and resume_trigger.api_resume.inbox_id:
@@ -97,13 +125,30 @@ class HitlReader:
 
 @dataclass
 class HitlProcessor:
-    """Processes events in a Human-(Robot/Agent)-In-The-Loop scenario."""
+    """Processes events in a Human-(Robot/Agent)-In-The-Loop scenario.
+
+    This class handles the creation and processing of HITL resume triggers for different
+    types of UiPath operations including actions, jobs, and API calls. It determines the
+    appropriate trigger type based on the input value and creates the corresponding
+    resume trigger with proper configuration.
+
+    Attributes:
+        value: The input value to be processed, can be various UiPath model types or strings.
+    """
 
     value: Any
 
     @cached_property
     def type(self) -> UiPathResumeTriggerType:
-        """Returns the type of the interrupt value."""
+        """Determines the resume trigger type based on the input value.
+
+        Analyzes the input value type and returns the corresponding UiPath resume trigger type.
+        Actions (CreateAction, WaitAction) map to ACTION type, jobs (InvokeProcess, WaitJob)
+        map to JOB type, and all other values default to API type.
+
+        Returns:
+            The appropriate UiPathResumeTriggerType based on the input value type.
+        """
         if isinstance(self.value, CreateAction) or isinstance(self.value, WaitAction):
             return UiPathResumeTriggerType.ACTION
         if isinstance(self.value, InvokeProcess) or isinstance(self.value, WaitJob):
@@ -112,8 +157,26 @@ class HitlProcessor:
         return UiPathResumeTriggerType.API
 
     async def create_resume_trigger(self) -> UiPathResumeTrigger:
-        """Returns the resume trigger."""
+        """Creates a UiPath resume trigger based on the input value and its type.
+
+        This method processes the input value and creates an appropriate resume trigger
+        for HITL scenarios. It handles different input types:
+        - Actions: Creates or references UiPath actions with folder information
+        - Jobs: Invokes processes or references existing jobs with folder information
+        - API: Creates API triggers with generated inbox IDs
+        - String with escalation: Creates escalated actions
+
+        Returns:
+            A configured UiPathResumeTrigger ready for HITL processing.
+
+        Raises:
+            UiPathRuntimeError: If action/job creation fails, escalation fails, or an
+                unknown model type is encountered.
+            Exception: If any underlying UiPath service calls fail.
+        """
         uipath = UiPath()
+        default_escalation = Escalation()
+
         try:
             hitl_input = self.value
             resume_trigger = UiPathResumeTrigger(
