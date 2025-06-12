@@ -27,8 +27,6 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_retrieve",
         run_type="uipath",
-        hide_input=False,
-        hide_output=False,
         dependency={
             "targetName": lambda inputs: inputs["name"],
             "targetType": "Asset",

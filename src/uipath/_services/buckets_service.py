@@ -555,3 +555,33 @@ class BucketsService(FolderContext, BaseService):
                 **header_folder(folder_key, folder_path),
             },
         )
+
+    def retrieve_read_uri(
+        self,
+        *,
+        bucket_id: int,
+        blob_file_path: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> dict:
+        """Get the read URI and headers for a file in a bucket.
+
+        Args:
+            bucket_id (int): The ID of the bucket.
+            blob_file_path (str): The path to the file in the bucket.
+            folder_key (Optional[str]): The key of the folder where the bucket resides.
+            folder_path (Optional[str]): The path of the folder where the bucket resides.
+
+        Returns:
+            dict: Contains 'Uri', 'Headers', and 'RequiresAuth'.
+        """
+        spec = self._retrieve_readUri_spec(
+            bucket_id, blob_file_path, folder_key=folder_key, folder_path=folder_path
+        )
+        result = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+        return result
