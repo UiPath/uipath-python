@@ -26,13 +26,13 @@ def _try_convert_to_json_format(value: str) -> str:
         return value
 
 
-default_escalation = Escalation()
 
 
 class HitlReader:
     @classmethod
     async def read(cls, resume_trigger: UiPathResumeTrigger) -> Optional[str]:
         uipath = UiPath()
+        default_escalation = Escalation()
         match resume_trigger.trigger_type:
             case UiPathResumeTriggerType.ACTION:
                 if resume_trigger.item_key:
@@ -64,7 +64,7 @@ class HitlReader:
                             "Invoked process did not finish successfully.",
                             _try_convert_to_json_format(str(job.job_error or job.info)),
                         )
-                    return job.output_arguments
+                    return _try_convert_to_json_format(job.output_arguments)
 
             case UiPathResumeTriggerType.API:
                 if resume_trigger.api_resume and resume_trigger.api_resume.inbox_id:
@@ -114,6 +114,8 @@ class HitlProcessor:
     async def create_resume_trigger(self) -> UiPathResumeTrigger:
         """Returns the resume trigger."""
         uipath = UiPath()
+        default_escalation = Escalation()
+
         try:
             hitl_input = self.value
             resume_trigger = UiPathResumeTrigger(
