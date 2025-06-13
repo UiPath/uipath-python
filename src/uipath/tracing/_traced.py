@@ -11,7 +11,18 @@ from ._utils import _SpanUtils
 
 logger = logging.getLogger(__name__)
 
-tracer = trace.get_tracer(__name__)
+_tracer_instance: Optional[trace.Tracer] = None
+
+
+def get_tracer() -> trace.Tracer:
+    """Lazily initializes and returns the tracer instance."""
+    global _tracer_instance
+    if _tracer_instance is None:
+        logger.warning(
+            "Initializing tracer instance. This should only be done once per process."
+        )
+        _tracer_instance = trace.get_tracer(__name__)
+    return _tracer_instance
 
 
 class TracingManager:
@@ -22,12 +33,44 @@ class TracingManager:
     _traced_registry: List[Tuple[Callable[..., Any], Callable[..., Any], Any]] = []
 
     # Custom tracer implementation
-    _custom_tracer_implementation = None
+    _custom_tracer_implementation = None  # Custom span provider function
+    _current_span_provider: Optional[Callable[[], Any]] = None
 
     @classmethod
     def get_custom_tracer_implementation(cls):
         """Get the currently set custom tracer implementation."""
         return cls._custom_tracer_implementation
+
+    @classmethod
+    def register_current_span_provider(
+        cls, current_span_provider: Optional[Callable[[], Any]]
+    ):
+        """Register a custom current span provider function.
+
+        Args:
+            current_span_provider: A function that returns the current span from an external
+                                 tracing framework. If None, no custom span parenting will be used.
+        """
+        cls._current_span_provider = current_span_provider
+
+    @classmethod
+    def get_parent_context(cls):
+        """Get the parent context using the registered current span provider.
+
+        Returns:
+            Context object with the current span set, or None if no provider is registered.
+        """
+        if cls._current_span_provider is not None:
+            try:
+                current_span = cls._current_span_provider()
+                if current_span is not None:
+                    from opentelemetry.trace import set_span_in_context
+
+                    return set_span_in_context(current_span)
+            except Exception as e:
+                logger.warning(f"Error getting current span from provider: {e}")
+                return None
+        return None
 
     @classmethod
     def register_traced_function(cls, original_func, decorated_func, params):
@@ -137,7 +180,11 @@ def _opentelemetry_traced(
 
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            with tracer.start_as_current_span(trace_name) as span:
+            context = TracingManager.get_parent_context()
+
+            with get_tracer().start_as_current_span(
+                trace_name, context=context
+            ) as span:
                 default_span_type = "function_call_sync"
                 span.set_attribute(
                     "span_type",
@@ -172,7 +219,11 @@ def _opentelemetry_traced(
 
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            with tracer.start_as_current_span(trace_name) as span:
+            context = TracingManager.get_parent_context()
+
+            with get_tracer().start_as_current_span(
+                trace_name, context=context
+            ) as span:
                 default_span_type = "function_call_async"
                 span.set_attribute(
                     "span_type",
@@ -207,7 +258,12 @@ def _opentelemetry_traced(
 
         @wraps(func)
         def generator_wrapper(*args, **kwargs):
-            with tracer.start_as_current_span(trace_name) as span:
+            context = TracingManager.get_parent_context()
+
+            with get_tracer().start_as_current_span(
+                trace_name, context=context
+            ) as span:
+                span.get_span_context()
                 default_span_type = "function_call_generator_sync"
                 span.set_attribute(
                     "span_type",
@@ -248,7 +304,11 @@ def _opentelemetry_traced(
 
         @wraps(func)
         async def async_generator_wrapper(*args, **kwargs):
-            with tracer.start_as_current_span(trace_name) as span:
+            context = TracingManager.get_parent_context()
+
+            with get_tracer().start_as_current_span(
+                trace_name, context=context
+            ) as span:
                 default_span_type = "function_call_generator_async"
                 span.set_attribute(
                     "span_type",
