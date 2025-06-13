@@ -1,0 +1,33 @@
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from langgraph.graph import START, StateGraph, END
+from pydantic import BaseModel
+import os
+
+class GraphInput(BaseModel):
+    topic: str
+
+class GraphOutput(BaseModel):
+    report: str
+
+async def generate_report(state: GraphInput) -> GraphOutput:
+    if os.getenv("ANTHROPIC_API_KEY"):
+        llm_model = ChatAnthropic(model="claude-3-5-sonnet-latest")
+    elif os.getenv("OPENAI_API_KEY"):
+        llm_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    else:
+        raise Exception("Missing API Key. Please define either ANTHROPIC_API_KEY or OPENAI_API_KEY.")
+
+    system_prompt = "You are a report generator. Please provide a brief report based on the given topic."
+    output = await llm_model.ainvoke([SystemMessage(system_prompt), HumanMessage(state.topic)])
+    return GraphOutput(report=output.content)
+
+builder = StateGraph(input=GraphInput, output=GraphOutput)
+
+builder.add_node("generate_report", generate_report)
+
+builder.add_edge(START, "generate_report")
+builder.add_edge("generate_report", END)
+
+graph = builder.compile()
