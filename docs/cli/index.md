@@ -46,6 +46,27 @@ The `uipath init` command executes your `main.py` file to analyze its structure 
     :depth: 1
     :style: table
 
+/// tip
+For step-by-step debugging with breakpoints and variable inspection (supported from `2.0.66` onward):
+```console
+# Install debugpy package
+[uv] pip install debugpy
+# Run agent with debugging enabled
+uipath run [ENTRYPOINT] [INPUT] --debug
+```
+For vscode: add the [debug configuration](https://github.com/UiPath/uipath-python/blob/main/.vscode/launch.json) in your .vscode/launch.json file.
+Place breakpoints in your code where needed.
+Use the shortcut `F5`, or navigate to Run -> Start Debugging -> Python Debugger: Attach
+
+Upon starting the debugging process, one should see the following logs in terminal:
+```console
+🐛 Debug server started on port 5678
+📌 Waiting for debugger to attach...
+  - VS Code: Run -> Start Debugging -> Python Debugger: Attach
+✓  Debugger attached successfully!
+```
+///
+
 /// warning
 Depending on the shell you are using, it may be necessary to escape the input json:
 
