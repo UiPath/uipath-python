@@ -54,9 +54,10 @@ For step-by-step debugging with breakpoints and variable inspection (supported f
 # Run agent with debugging enabled
 uipath run [ENTRYPOINT] [INPUT] --debug
 ```
-For vscode: add the [debug configuration](https://github.com/UiPath/uipath-python/blob/main/.vscode/launch.json) in your .vscode/launch.json file.
-Place breakpoints in your code where needed.
-Use the shortcut `F5`, or navigate to Run -> Start Debugging -> Python Debugger: Attach
+For vscode:
+1. add the [debug configuration](https://github.com/UiPath/uipath-python/blob/main/.vscode/launch.json) in your `.vscode/launch.json` file.
+2. Place breakpoints in your code where needed.
+3. Use the shortcut `F5`, or navigate to Run -> Start Debugging -> Python Debugger: Attach.
 
 Upon starting the debugging process, one should see the following logs in terminal:
 ```console
@@ -105,6 +106,38 @@ uipath run agent '{\"topic\":\"uipath\"}'
     :style: table
 
 Packages your project into a `.nupkg` file that can be deployed to UiPath.
+
+/// info
+### Default Files Included in `.nupkg`
+
+By default, the following file types are included in the `.nupkg` file:
+
+- `.py`
+- `.mermaid`
+- `.json`
+- `.yaml`
+- `.yml`
+
+---
+
+### Including Extra Files
+
+To include additional files, update the `uipath.json` file by adding a `settings` section. Use the following configuration format:
+
+```json
+{
+    "settings": {
+        "filesIncluded": [
+            "<file here>"
+        ],
+        "fileExtensionsIncluded": [
+            "<new file extension to include (e.g., 'go')>"
+        ]
+    }
+}
+```
+
+///
 
 /// warning
 Your `pyproject.toml` must include:
