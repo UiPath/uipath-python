@@ -9,6 +9,8 @@ from uuid import uuid4
 import click
 from dotenv import load_dotenv
 
+from uipath._cli._utils._debug import setup_debugging
+
 from .._utils.constants import (
     ENV_JOB_ID,
 )
@@ -27,7 +29,9 @@ load_dotenv(override=True)
 
 
 def python_run_middleware(
-    entrypoint: Optional[str], input: Optional[str], resume: bool
+    entrypoint: Optional[str],
+    input: Optional[str],
+    resume: bool,
 ) -> MiddlewareResult:
     """Middleware to handle Python script execution.
 
@@ -35,6 +39,8 @@ def python_run_middleware(
         entrypoint: Path to the Python script to execute
         input: JSON string with input data
         resume: Flag indicating if this is a resume execution
+        debug: Enable debugging with debugpy
+        debug_port: Port for debug server (default: 5678)
 
     Returns:
         MiddlewareResult with execution status and messages
@@ -112,9 +118,25 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
     type=click.Path(exists=True),
     help="File path for the .json input",
 )
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debugging with debugpy. The process will wait for a debugger to attach.",
+)
+@click.option(
+    "--debug-port",
+    type=int,
+    default=5678,
+    help="Port for the debug server (default: 5678)",
+)
 @track(when=lambda *_a, **_kw: env.get(ENV_JOB_ID) is None)
 def run(
-    entrypoint: Optional[str], input: Optional[str], resume: bool, file: Optional[str]
+    entrypoint: Optional[str],
+    input: Optional[str],
+    resume: bool,
+    file: Optional[str],
+    debug: bool,
+    debug_port: int,
 ) -> None:
     """Execute the project."""
     if file:
@@ -123,12 +145,19 @@ def run(
             console.error("Input file extension must be '.json'.")
         with open(file) as f:
             input = f.read()
+    # Setup debugging if requested
+
+    if not setup_debugging(debug, debug_port):
+        console.error(f"Failed to start debug server on port {debug_port}")
+
     # Process through middleware chain
     result = Middlewares.next("run", entrypoint, input, resume)
 
     if result.should_continue:
         result = python_run_middleware(
-            entrypoint=entrypoint, input=input, resume=resume
+            entrypoint=entrypoint,
+            input=input,
+            resume=resume,
         )
 
     # Handle result from middleware
