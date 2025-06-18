@@ -28,25 +28,58 @@ class FolderService(BaseService):
 
     @traced(name="folder_retrieve_key", run_type="uipath")
     def retrieve_key(self, *, folder_path: str) -> Optional[str]:
-        spec = self._retrieve_spec(folder_path)
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-        ).json()
-        try:
-            return response["value"][0]["Key"]
-        except KeyError:
-            return None
+        """Retrieve the folder key by folder path with pagination support.
 
-    def _retrieve_spec(self, folder_path: str) -> RequestSpec:
+        Args:
+            folder_path: The fully qualified folder path to search for.
+
+        Returns:
+            The folder key if found, None otherwise.
+        """
+        skip = 0
+        take = 20
+
+        while True:
+            spec = self._retrieve_spec(folder_path, skip=skip, take=take)
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+            ).json()
+
+            # Search for the folder in current page
+            folder_key = next(
+                (
+                    item["Key"]
+                    for item in response["PageItems"]
+                    if item["FullyQualifiedName"] == folder_path
+                ),
+                None,
+            )
+
+            if folder_key is not None:
+                return folder_key
+
+            page_items = response["PageItems"]
+            if len(page_items) < take:
+                break
+
+            skip += take
+
+        return None
+
+    def _retrieve_spec(
+        self, folder_path: str, *, skip: int = 0, take: int = 20
+    ) -> RequestSpec:
         folder_name = folder_path.split("/")[-1]
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint("orchestrator_/odata/Folders"),
+            endpoint=Endpoint(
+                "orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser"
+            ),
             params={
-                "$filter": f"DisplayName eq '{folder_name}'",
-                "$top": 1,
-                "$select": "Key",
+                "searchText": folder_name,
+                "skip": skip,
+                "take": take,
             },
         )

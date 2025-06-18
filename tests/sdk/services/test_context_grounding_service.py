@@ -38,12 +38,13 @@ class TestContextGroundingService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test-folder-path%27&%24top=1&%24select=Key",
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
             status_code=200,
             json={
-                "value": [
+                "PageItems": [
                     {
                         "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
                     }
                 ]
             },
@@ -67,12 +68,13 @@ class TestContextGroundingService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test-folder-path%27&%24top=1&%24select=Key",
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
             status_code=200,
             json={
-                "value": [
+                "PageItems": [
                     {
                         "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
                     }
                 ]
             },
@@ -130,12 +132,13 @@ class TestContextGroundingService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test-folder-path%27&%24top=1&%24select=Key",
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
             status_code=200,
             json={
-                "value": [
+                "PageItems": [
                     {
                         "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
                     }
                 ]
             },
@@ -159,12 +162,13 @@ class TestContextGroundingService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test-folder-path%27&%24top=1&%24select=Key",
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
             status_code=200,
             json={
-                "value": [
+                "PageItems": [
                     {
                         "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
                     }
                 ]
             },
@@ -221,12 +225,13 @@ class TestContextGroundingService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test-folder-path%27&%24top=1&%24select=Key",
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
             status_code=200,
             json={
-                "value": [
+                "PageItems": [
                     {
                         "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
                     }
                 ]
             },
@@ -280,17 +285,17 @@ class TestContextGroundingService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test-folder-path%27&%24top=1&%24select=Key",
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
             status_code=200,
             json={
-                "value": [
+                "PageItems": [
                     {
                         "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
                     }
                 ]
             },
         )
-
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
             status_code=200,
