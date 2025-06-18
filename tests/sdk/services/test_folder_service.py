@@ -28,20 +28,19 @@ class TestFolderService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&take=1",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test_folder_path%27&%24top=1&%24select=Key",
             status_code=200,
             json={
-                "PageItems": [
+                "value": [
                     {
                         "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
                     }
                 ]
             },
         )
 
         with pytest.warns(DeprecationWarning, match="Use retrieve_key instead"):
-            folder_key = service.retrieve_key_by_folder_path("test-folder-path")
+            folder_key = service.retrieve_key_by_folder_path("test_folder_path")
 
         assert folder_key == "test-folder-key"
 
@@ -52,7 +51,7 @@ class TestFolderService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&take=1"
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test_folder_path%27&%24top=1&%24select=Key"
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -71,9 +70,9 @@ class TestFolderService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=non-existent-folder&take=1",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27non-existent-folder%27&%24top=1&%24select=Key",
             status_code=200,
-            json={"PageItems": []},
+            json={},
         )
 
         with pytest.warns(DeprecationWarning, match="Use retrieve_key instead"):
@@ -88,7 +87,7 @@ class TestFolderService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=non-existent-folder&take=1"
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27non-existent-folder%27&%24top=1&%24select=Key"
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -107,13 +106,12 @@ class TestFolderService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&take=1",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test-folder-path%27&%24top=1&%24select=Key",
             status_code=200,
             json={
-                "PageItems": [
+                "value": [
                     {
                         "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
                     }
                 ]
             },
@@ -130,7 +128,7 @@ class TestFolderService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&take=1"
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27test-folder-path%27&%24top=1&%24select=Key"
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -149,9 +147,9 @@ class TestFolderService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=non-existent-folder&take=1",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27non-existent-folder%27&%24top=1&%24select=Key",
             status_code=200,
-            json={"PageItems": []},
+            json={},
         )
 
         folder_key = service.retrieve_key_by_folder_path("non-existent-folder")
@@ -165,7 +163,7 @@ class TestFolderService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=non-existent-folder&take=1"
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/Folders?%24filter=DisplayName+eq+%27non-existent-folder%27&%24top=1&%24select=Key"
         )
 
         assert HEADER_USER_AGENT in sent_request.headers

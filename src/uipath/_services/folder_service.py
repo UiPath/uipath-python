@@ -34,25 +34,19 @@ class FolderService(BaseService):
             url=spec.endpoint,
             params=spec.params,
         ).json()
-
-        return next(
-            (
-                item["Key"]
-                for item in response["PageItems"]
-                if item["FullyQualifiedName"] == folder_path
-            ),
-            None,
-        )
+        try:
+            return response["value"][0]["Key"]
+        except KeyError:
+            return None
 
     def _retrieve_spec(self, folder_path: str) -> RequestSpec:
         folder_name = folder_path.split("/")[-1]
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(
-                "orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser"
-            ),
+            endpoint=Endpoint("orchestrator_/odata/Folders"),
             params={
-                "searchText": folder_name,
-                "take": 1,
+                "$filter": f"DisplayName eq '{folder_name}'",
+                "$top": 1,
+                "$select": "Key",
             },
         )

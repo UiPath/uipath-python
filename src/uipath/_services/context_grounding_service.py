@@ -673,7 +673,7 @@ class ContextGroundingService(FolderContext, BaseService):
             )
 
         if folder_key is None:
-            raise ValueError("Folder key or folder path is required")
+            raise ValueError("ContextGrounding: Failed to resolve folder key")
 
         return folder_key
 
@@ -681,4 +681,6 @@ class ContextGroundingService(FolderContext, BaseService):
         try:
             return index.data_source.bucketName, index.data_source.folder  # type: ignore
         except AttributeError as e:
-            raise Exception("Cannot extract bucket data from index") from e
+            raise Exception(
+                "ContextGrounding: Cannot extract bucket data from index"
+            ) from e
