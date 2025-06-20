@@ -50,8 +50,8 @@ class ContextGroundingService(FolderContext, BaseService):
     def add_to_index(
         self,
         name: str,
-        content_type: str,
         blob_file_path: str,
+        content_type: Optional[str] = None,
         content: Optional[Union[str, bytes]] = None,
         source_path: Optional[str] = None,
         folder_key: Optional[str] = None,
@@ -62,7 +62,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the index to add content to.
-            content_type (str): The type of content being added.
+            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
             blob_file_path (str): The path where the blob will be stored in the storage bucket.
             content (Optional[Union[str, bytes]]): The content to be added, either as a string or bytes.
             source_path (Optional[str]): The source path of the content if it is being uploaded from a file.
@@ -105,8 +105,8 @@ class ContextGroundingService(FolderContext, BaseService):
     async def add_to_index_async(
         self,
         name: str,
-        content_type: str,
         blob_file_path: str,
+        content_type: Optional[str] = None,
         content: Optional[Union[str, bytes]] = None,
         source_path: Optional[str] = None,
         folder_key: Optional[str] = None,
@@ -117,7 +117,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the index to add content to.
-            content_type (str): The type of content being added.
+            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
             blob_file_path (str): The path where the blob will be stored in the storage bucket.
             content (Optional[Union[str, bytes]]): The content to be added, either as a string or bytes.
             source_path (Optional[str]): The source path of the content if it is being uploaded from a file.
