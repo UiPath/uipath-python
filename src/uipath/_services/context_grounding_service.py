@@ -56,6 +56,7 @@ class ContextGroundingService(FolderContext, BaseService):
         source_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        ingest_data: bool = True,
     ) -> None:
         """Add content to the index.
 
@@ -67,6 +68,7 @@ class ContextGroundingService(FolderContext, BaseService):
             source_path (Optional[str]): The source path of the content if it is being uploaded from a file.
             folder_key (Optional[str]): The key of the folder where the index resides.
             folder_path (Optional[str]): The path of the folder where the index resides.
+            ingest_data (bool): Whether to ingest data in the index after content is uploaded. Defaults to True.
 
         Raises:
             ValueError: If neither content nor source_path is provided, or if both are provided.
@@ -94,7 +96,9 @@ class ContextGroundingService(FolderContext, BaseService):
                 folder_path=bucket_folder_path,
                 content_type=content_type,
             )
-        self.ingest_data(index, folder_key=folder_key, folder_path=folder_path)
+
+        if ingest_data:
+            self.ingest_data(index, folder_key=folder_key, folder_path=folder_path)
 
     @traced(name="add_to_index", run_type="uipath")
     @infer_bindings(resource_type="index")
@@ -107,6 +111,7 @@ class ContextGroundingService(FolderContext, BaseService):
         source_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        ingest_data: bool = True,
     ) -> None:
         """Asynchronously add content to the index.
 
@@ -118,6 +123,7 @@ class ContextGroundingService(FolderContext, BaseService):
             source_path (Optional[str]): The source path of the content if it is being uploaded from a file.
             folder_key (Optional[str]): The key of the folder where the index resides.
             folder_path (Optional[str]): The path of the folder where the index resides.
+            ingest_data (bool): Whether to ingest data in the index after content is uploaded. Defaults to True.
 
         Raises:
             ValueError: If neither content nor source_path is provided, or if both are provided.
@@ -148,9 +154,10 @@ class ContextGroundingService(FolderContext, BaseService):
                 content_type=content_type,
             )
 
-        await self.ingest_data_async(
-            index, folder_key=folder_key, folder_path=folder_path
-        )
+        if ingest_data:
+            await self.ingest_data_async(
+                index, folder_key=folder_key, folder_path=folder_path
+            )
 
     @traced(name="contextgrounding_retrieve", run_type="uipath")
     @infer_bindings(resource_type="index")
