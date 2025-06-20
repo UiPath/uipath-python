@@ -9,6 +9,8 @@ from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from ..models import Bucket
 from ..tracing._traced import traced
 from ._base_service import BaseService
+import os
+import mimetypes
 
 
 def _upload_from_memory_input_processor(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -154,7 +156,7 @@ class BucketsService(FolderContext, BaseService):
         key: Optional[str] = None,
         name: Optional[str] = None,
         blob_file_path: str,
-        content_type: str,
+        content_type: Optional[str] = None,
         source_path: Optional[str] = None,
         content: Optional[Union[str, bytes]] = None,
         folder_key: Optional[str] = None,
@@ -166,7 +168,7 @@ class BucketsService(FolderContext, BaseService):
             key (Optional[str]): The key of the bucket.
             name (Optional[str]): The name of the bucket.
             blob_file_path (str): The path where the file will be stored in the bucket.
-            content_type (str): The MIME type of the file.
+            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
             source_path (Optional[str]): The local path of the file to upload.
             content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
             folder_key (Optional[str]): The key of the folder where the bucket resides.
@@ -185,9 +187,17 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
+        # if source_path, dynamically detect the mime type
+        # default to application/octet-stream
+        if source_path:
+            _content_type, _ = mimetypes.guess_type(source_path)
+        else:
+            _content_type = content_type
+        _content_type = _content_type or "application/octet-stream"
+
         spec = self._retrieve_writeri_spec(
             bucket.id,
-            content_type,
+            _content_type,
             blob_file_path,
             folder_key=folder_key,
             folder_path=folder_path,
@@ -208,6 +218,8 @@ class BucketsService(FolderContext, BaseService):
                 result["Headers"]["Keys"], result["Headers"]["Values"], strict=False
             )
         }
+
+        headers["Content-Type"] = _content_type
 
         if content is not None:
             if isinstance(content, str):
@@ -237,7 +249,7 @@ class BucketsService(FolderContext, BaseService):
         key: Optional[str] = None,
         name: Optional[str] = None,
         blob_file_path: str,
-        content_type: str,
+        content_type: Optional[str] = None,
         source_path: Optional[str] = None,
         content: Optional[Union[str, bytes]] = None,
         folder_key: Optional[str] = None,
@@ -249,8 +261,9 @@ class BucketsService(FolderContext, BaseService):
             key (Optional[str]): The key of the bucket.
             name (Optional[str]): The name of the bucket.
             blob_file_path (str): The path where the file will be stored in the bucket.
-            content_type (str): The MIME type of the file.
+            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
             source_path (str): The local path of the file to upload.
+            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
             folder_key (Optional[str]): The key of the folder where the bucket resides.
             folder_path (Optional[str]): The path of the folder where the bucket resides.
 
@@ -267,9 +280,17 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
+        # if source_path, dynamically detect the mime type
+        # default to application/octet-stream
+        if source_path:
+            _content_type, _ = mimetypes.guess_type(source_path)
+        else:
+            _content_type = content_type
+        _content_type = _content_type or "application/octet-stream"
+
         spec = self._retrieve_writeri_spec(
             bucket.id,
-            content_type,
+            _content_type,
             blob_file_path,
             folder_key=folder_key,
             folder_path=folder_path,
@@ -292,6 +313,8 @@ class BucketsService(FolderContext, BaseService):
                 result["Headers"]["Keys"], result["Headers"]["Values"], strict=False
             )
         }
+
+        headers["Content-Type"] = _content_type
 
         if content is not None:
             if isinstance(content, str):
