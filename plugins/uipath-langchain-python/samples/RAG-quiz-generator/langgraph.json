@@ -1,0 +1,8 @@
+{
+    "dependencies": ["."],
+    "graphs": {
+      "researcher-RAG-agent": "./src/agents/researcher-RAG-agent.py:graph",
+      "quiz-generator-RAG-agent": "./src/agents/quiz-generator-RAG-agent.py:graph"
+    },
+    "env": ".env"
+  }
