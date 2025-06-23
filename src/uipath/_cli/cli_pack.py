@@ -223,7 +223,7 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml"]
     files_included = []
     # Binary files that should be read in binary mode
-    binary_extensions = [".exe", ""]
+    binary_extensions = [".exe", "", ".xlsx", ".xls"]
 
     with open(config_path, "r") as f:
         config_data = json.load(f)

@@ -224,7 +224,6 @@ class TestBucketsService:
             assert sent_requests[2].url == "https://test-storage.com/test-file.txt"
 
             assert b"test content" in sent_requests[2].content
-            assert b"Content-Disposition: form-data;" in sent_requests[2].content
 
         def test_upload_from_memory(
             self,

@@ -1,3 +1,4 @@
+import mimetypes
 from typing import Any, Dict, Optional, Union
 
 import httpx
@@ -154,7 +155,7 @@ class BucketsService(FolderContext, BaseService):
         key: Optional[str] = None,
         name: Optional[str] = None,
         blob_file_path: str,
-        content_type: str,
+        content_type: Optional[str] = None,
         source_path: Optional[str] = None,
         content: Optional[Union[str, bytes]] = None,
         folder_key: Optional[str] = None,
@@ -166,7 +167,7 @@ class BucketsService(FolderContext, BaseService):
             key (Optional[str]): The key of the bucket.
             name (Optional[str]): The name of the bucket.
             blob_file_path (str): The path where the file will be stored in the bucket.
-            content_type (str): The MIME type of the file.
+            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
             source_path (Optional[str]): The local path of the file to upload.
             content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
             folder_key (Optional[str]): The key of the folder where the bucket resides.
@@ -185,9 +186,17 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
+        # if source_path, dynamically detect the mime type
+        # default to application/octet-stream
+        if source_path:
+            _content_type, _ = mimetypes.guess_type(source_path)
+        else:
+            _content_type = content_type
+        _content_type = _content_type or "application/octet-stream"
+
         spec = self._retrieve_writeri_spec(
             bucket.id,
-            content_type,
+            _content_type,
             blob_file_path,
             folder_key=folder_key,
             folder_path=folder_path,
@@ -209,6 +218,8 @@ class BucketsService(FolderContext, BaseService):
             )
         }
 
+        headers["Content-Type"] = _content_type
+
         if content is not None:
             if isinstance(content, str):
                 content = content.encode("utf-8")
@@ -220,13 +231,14 @@ class BucketsService(FolderContext, BaseService):
 
         if source_path is not None:
             with open(source_path, "rb") as file:
+                file_content = file.read()
                 if result["RequiresAuth"]:
                     self.request(
-                        "PUT", write_uri, headers=headers, files={"file": file}
+                        "PUT", write_uri, headers=headers, content=file_content
                     )
                 else:
                     self.custom_client.put(
-                        write_uri, headers=headers, files={"file": file}
+                        write_uri, headers=headers, content=file_content
                     )
 
     @traced(name="buckets_upload", run_type="uipath")
@@ -237,7 +249,7 @@ class BucketsService(FolderContext, BaseService):
         key: Optional[str] = None,
         name: Optional[str] = None,
         blob_file_path: str,
-        content_type: str,
+        content_type: Optional[str] = None,
         source_path: Optional[str] = None,
         content: Optional[Union[str, bytes]] = None,
         folder_key: Optional[str] = None,
@@ -249,8 +261,9 @@ class BucketsService(FolderContext, BaseService):
             key (Optional[str]): The key of the bucket.
             name (Optional[str]): The name of the bucket.
             blob_file_path (str): The path where the file will be stored in the bucket.
-            content_type (str): The MIME type of the file.
+            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
             source_path (str): The local path of the file to upload.
+            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
             folder_key (Optional[str]): The key of the folder where the bucket resides.
             folder_path (Optional[str]): The path of the folder where the bucket resides.
 
@@ -267,9 +280,17 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
+        # if source_path, dynamically detect the mime type
+        # default to application/octet-stream
+        if source_path:
+            _content_type, _ = mimetypes.guess_type(source_path)
+        else:
+            _content_type = content_type
+        _content_type = _content_type or "application/octet-stream"
+
         spec = self._retrieve_writeri_spec(
             bucket.id,
-            content_type,
+            _content_type,
             blob_file_path,
             folder_key=folder_key,
             folder_path=folder_path,
@@ -293,6 +314,8 @@ class BucketsService(FolderContext, BaseService):
             )
         }
 
+        headers["Content-Type"] = _content_type
+
         if content is not None:
             if isinstance(content, str):
                 content = content.encode("utf-8")
@@ -308,13 +331,14 @@ class BucketsService(FolderContext, BaseService):
 
         if source_path is not None:
             with open(source_path, "rb") as file:
+                file_content = file.read()
                 if result["RequiresAuth"]:
                     await self.request_async(
-                        "PUT", write_uri, headers=headers, files={"file": file}
+                        "PUT", write_uri, headers=headers, content=file_content
                     )
                 else:
                     await self.custom_client_async.put(
-                        write_uri, headers=headers, files={"file": file}
+                        write_uri, headers=headers, content=file_content
                     )
 
     @traced(name="buckets_retrieve", run_type="uipath")
