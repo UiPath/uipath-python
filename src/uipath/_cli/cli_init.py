@@ -3,7 +3,7 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import click
 from dotenv import load_dotenv
@@ -16,6 +16,8 @@ from .middlewares import Middlewares
 
 console = ConsoleLogger()
 
+CONFIG_PATH = "uipath.json"
+
 
 def generate_env_file(target_directory):
     env_path = os.path.join(target_directory, ".env")
@@ -25,6 +27,26 @@ def generate_env_file(target_directory):
         with open(env_path, "w"):
             pass
         console.success(f" Created '{relative_path}' file.")
+
+
+def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
+    """Read existing settings from uipath.json if it exists.
+
+    Args:
+        config_path: Path to the uipath.json file.
+
+    Returns:
+        The settings dictionary if it exists, None otherwise.
+    """
+    if not os.path.exists(config_path):
+        return None
+
+    try:
+        with open(config_path, "r") as config_file:
+            existing_config = json.load(config_file)
+            return existing_config.get("settings")
+    except (json.JSONDecodeError, IOError):
+        return None
 
 
 def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optional[str]:
@@ -52,10 +74,28 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
         return None
 
 
+def write_config_file(config_data: Dict[str, Any]) -> None:
+    existing_settings = get_existing_settings(CONFIG_PATH)
+    if existing_settings is not None:
+        config_data["settings"] = existing_settings
+
+    with open(CONFIG_PATH, "w") as config_file:
+        json.dump(config_data, config_file, indent=4)
+
+    return CONFIG_PATH
+
+
 @click.command()
 @click.argument("entrypoint", required=False, default=None)
+@click.option(
+    "--infer-bindings/--no-infer-bindings",
+    is_flag=True,
+    required=False,
+    default=True,
+    help="Infer bindings from the script.",
+)
 @track
-def init(entrypoint: str) -> None:
+def init(entrypoint: str, infer_bindings: bool) -> None:
     """Create uipath.json with input/output schemas and bindings."""
     current_path = os.getcwd()
     load_dotenv(os.path.join(current_path, ".env"), override=True)
@@ -64,7 +104,12 @@ def init(entrypoint: str) -> None:
         current_directory = os.getcwd()
         generate_env_file(current_directory)
 
-        result = Middlewares.next("init", entrypoint)
+        result = Middlewares.next(
+            "init",
+            entrypoint,
+            options={"infer_bindings": infer_bindings},
+            write_config=write_config_file,
+        )
 
         if result.error_message:
             console.error(
@@ -102,16 +147,16 @@ def init(entrypoint: str) -> None:
 
             # Generate bindings JSON based on the script path
             try:
-                bindings_data = generate_bindings_json(script_path)
+                if infer_bindings:
+                    bindings_data = generate_bindings_json(script_path)
+                else:
+                    bindings_data = {}
                 # Add bindings to the config data
                 config_data["bindings"] = bindings_data
             except Exception as e:
                 console.warning(f"Warning: Could not generate bindings: {str(e)}")
 
-            config_path = "uipath.json"
-            with open(config_path, "w") as config_file:
-                json.dump(config_data, config_file, indent=4)
-
+            config_path = write_config_file(config_data)
             console.success(f"Created '{config_path}' file.")
         except Exception as e:
             console.error(f"Error creating configuration file:\n {str(e)}")

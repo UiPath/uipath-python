@@ -27,6 +27,10 @@ Selected tenant: Tenant1
     :depth: 1
     :style: table
 
+Package requirements (bindings) are dependencies that are required by the automation package for successful execution.
+
+For more information about package requirements, see  [the official documentation](https://docs.uipath.com/orchestrator/automation-cloud/latest/user-guide/managing-package-requirements)
+
 /// warning
 
 The `uipath init` command executes your `main.py` file to analyze its structure and collect information about inputs and outputs.
