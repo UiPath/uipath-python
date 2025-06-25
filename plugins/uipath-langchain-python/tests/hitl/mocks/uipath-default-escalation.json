@@ -1,0 +1,30 @@
+{  "defaultEscalation":
+  {
+    "appName": "HITL APP",
+    "title": "Action Required: Report Review",
+    "request": {
+      "Question": "$VALUE"
+    },
+    "response": {
+      "Answer": "$VALUE"
+    }
+  },
+    "name": "test-api-agent",
+    "version": "1.0.0",
+    "description": "Test agent for HITL API trigger testing",
+    "entryPoints": [
+        {
+            "filePath": "api_agent",
+            "uniqueId": "test-api-agent-id",
+            "type": "agent",
+            "input": {},
+            "output": {
+                "message": "str"
+            }
+        }
+    ],
+    "bindings": {
+    "version": "2.0",
+    "resources": []
+  }
+}

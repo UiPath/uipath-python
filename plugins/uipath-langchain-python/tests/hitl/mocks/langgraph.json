@@ -1,0 +1,7 @@
+{
+    "dependencies": ["."],
+    "graphs": {
+      "agent": "./hitl.py:graph"
+    },
+    "env": ".env"
+}

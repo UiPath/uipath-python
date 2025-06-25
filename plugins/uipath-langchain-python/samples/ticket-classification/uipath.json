@@ -1,0 +1,50 @@
+{
+  "entryPoints": [
+    {
+      "filePath": "agent",
+      "uniqueId": "50da3849-733d-499c-b7cb-e6ff0f2dbc36",
+      "type": "agent",
+      "input": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "ticket_id": {
+            "title": "Ticket Id",
+            "type": "string"
+          },
+          "assignee": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "ticket_id"
+        ]
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "confidence"
+        ]
+      }
+    }
+  ],
+  "bindings": {
+    "version": "2.0",
+    "resources": []
+  }
+}

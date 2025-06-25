@@ -1,0 +1,108 @@
+[project]
+name = "uipath-langchain"
+version = "0.0.113"
+description = "UiPath Langchain"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+dependencies = [
+    "uipath>=2.0.71, <2.1.0",
+    "langgraph>=0.2.70",
+    "langchain-core>=0.3.34",
+    "langgraph-checkpoint-sqlite>=2.0.3",
+    "langchain-community>=0.3.21",
+    "langchain-openai>=0.3.3",
+    "langchain>=0.3.4",
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.1",
+    "httpx>=0.27.0",
+    "openai>=1.65.5",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+maintainers = [
+    { name = "Marius Cosareanu", email = "marius.cosareanu@uipath.com" },
+    { name = "Cristian Pufu", email = "cristian.pufu@uipath.com" }
+]
+
+[project.entry-points."uipath.middlewares"]
+register = "uipath_langchain.middlewares:register_middleware"
+
+[project.urls]
+Homepage = "https://uipath.com"
+Repository = "https://github.com/UiPath/uipath-langchain-python"
+Documentation = "https://uipath.github.io/uipath-python/"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.1",
+    "ruff>=0.9.4",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+    "pre-commit>=4.1.0",
+    "numpy>=1.24.0",
+    "pytest_httpx>=0.35.0"
+]
+
+[project.optional-dependencies]
+langchain = [
+  "uipath-langchain>=0.0.2"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uipath_langchain"]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+exclude = ["samples/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"*" = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+plugins = [
+  "pydantic.mypy"
+]
+exclude = [
+    "samples/.*"
+]
+
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-ra -q"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
