@@ -119,7 +119,7 @@ class TestConnectionsService:
     ) -> None:
         connection_key = "test-connection"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}/token?type=direct",
+            url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}/token?tokenType=direct",
             status_code=200,
             json={
                 "accessToken": "test-token",
@@ -142,7 +142,7 @@ class TestConnectionsService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}/token?type=direct"
+            == f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}/token?tokenType=direct"
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -163,7 +163,7 @@ class TestConnectionsService:
     ) -> None:
         connection_key = "test-connection"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}/token?type=direct",
+            url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}/token?tokenType=direct",
             status_code=200,
             json={
                 "accessToken": "test-token",
@@ -186,7 +186,7 @@ class TestConnectionsService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}/token?type=direct"
+            == f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}/token?tokenType=direct"
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
