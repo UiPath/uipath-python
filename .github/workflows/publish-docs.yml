@@ -39,11 +39,13 @@ jobs:
       - name: Clone plugins
         run: |
           git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-langchain-python plugins/uipath-langchain-python
+          git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-llamaindex-python plugins/uipath-llamaindex-python
 
       - name: Symlink plugin docs
         run: |
           mkdir -p docs/plugins
           ln -s ../../plugins/uipath-langchain-python docs/plugins/uipath-langchain-python
+          ln -s ../../plugins/uipath-llamaindex-python docs/plugins/uipath-llamaindex-python
 
       - name: Publish Docs
         run: uv run mkdocs gh-deploy --force
