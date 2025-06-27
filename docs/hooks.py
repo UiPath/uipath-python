@@ -1,17 +1,4 @@
-import os
 import re
-import shutil
-
-
-def on_pre_build(config):
-    if not os.path.exists("docs/quick_start_images"):
-        shutil.copy(
-            "docs/plugins/uipath-langchain-python/docs/quick_start.md", "docs/index.md"
-        )
-        shutil.copytree(
-            "docs/plugins/uipath-langchain-python/docs/quick_start_images",
-            "docs/quick_start_images",
-        )
 
 
 def on_post_page(output, page, config):

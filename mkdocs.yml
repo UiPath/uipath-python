@@ -54,11 +54,16 @@ theme:
 
 nav:
   - UiPath Langchain SDK:
-      - Getting Started: index.md
+      - Getting Started: langchain/index.md
       - Chat Models: langchain/chat_models.md
       - Context Grounding: langchain/context_grounding.md
       - Human In The Loop: langchain/human_in_the_loop.md
       - Sample Agents: https://github.com/UiPath/uipath-langchain-python/tree/main/samples
+  - UiPath LLamaIndex SDK:
+      - Getting Started: llamaindex/index.md
+      - Context Grounding: llamaindex/context_grounding.md
+      - Human In The Loop: llamaindex/human_in_the_loop.md
+      - Sample Agents: https://github.com/UiPath/uipath-llamaindex-python/tree/main/samples
   - UiPath SDK:
       - Getting Started: core/getting_started.md
       - Environment Variables: core/environment_variables.md
@@ -98,7 +103,6 @@ plugins:
             show_bases: false
   - mkdocs-simple-hooks:
       hooks:
-        on_pre_build: "docs.hooks:on_pre_build"
         on_post_page: "docs.hooks:on_post_page"
   - termynal:
       prompt_literal_start:
