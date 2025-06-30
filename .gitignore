@@ -24,6 +24,8 @@ wheels/
 
 **/docs/plugins/*
 **/docs/plugins/.*
+**/docs/langchain/*
+**/docs/llamaindex/*
 
 .cache/*
 .cache

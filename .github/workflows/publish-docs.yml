@@ -44,8 +44,8 @@ jobs:
       - name: Symlink plugin docs
         run: |
           mkdir -p docs/plugins
-          ln -s ../../plugins/uipath-langchain-python docs/plugins/uipath-langchain-python
-          ln -s ../../plugins/uipath-llamaindex-python docs/plugins/uipath-llamaindex-python
+          ln -s ../plugins/uipath-langchain-python/docs docs/langchain
+          ln -s ../plugins/uipath-llamaindex-python/docs docs/llamaindex
 
       - name: Publish Docs
         run: uv run mkdocs gh-deploy --force

@@ -9,7 +9,7 @@ title: UiPath SDK
 
     Set up, create, publish, and run your first UiPath-LangChain Agent
 
-    [Getting started](./langchain)
+    [Getting started](./langchain/quick_start.md)
 
 -   __UiPath LLamaIndex SDK__
 
@@ -17,6 +17,6 @@ title: UiPath SDK
 
     Set up, create, publish, and run your first UiPath-LLamaIndex Agent
 
-    [Getting started](./llamaindex)
+    [Getting started](./llamaindex/quick_start.md)
 
 </div>
