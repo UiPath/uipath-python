@@ -45,7 +45,8 @@ jobs:
         run: |
           ln -s ../plugins/uipath-langchain-python/docs docs/langchain
           ln -s ../plugins/uipath-llamaindex-python/docs docs/llamaindex
-
+          ls -a docs/langchain
+          ls -a docs/llamaindex
 
       - name: Publish Docs
         run: uv run mkdocs gh-deploy --force
