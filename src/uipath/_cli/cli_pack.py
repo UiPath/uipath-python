@@ -304,7 +304,7 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
                                 with open(file_path, "r", encoding="latin-1") as f:
                                     z.writestr(f"content/{rel_path}", f.read())
 
-        optional_files = ["pyproject.toml", "README.md"]
+        optional_files = ["pyproject.toml", "README.md", "uv.lock"]
         for file in optional_files:
             file_path = os.path.join(directory, file)
             if os.path.exists(file_path):
