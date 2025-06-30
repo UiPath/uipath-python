@@ -54,13 +54,13 @@ theme:
 
 nav:
   - UiPath Langchain SDK:
-      - Getting Started: langchain/index.md
+      - Getting Started: langchain/quick_start.md
       - Chat Models: langchain/chat_models.md
       - Context Grounding: langchain/context_grounding.md
       - Human In The Loop: langchain/human_in_the_loop.md
       - Sample Agents: https://github.com/UiPath/uipath-langchain-python/tree/main/samples
   - UiPath LLamaIndex SDK:
-      - Getting Started: llamaindex/index.md
+      - Getting Started: llamaindex/quick_start.md
       - Context Grounding: llamaindex/context_grounding.md
       - Human In The Loop: llamaindex/human_in_the_loop.md
       - Sample Agents: https://github.com/UiPath/uipath-llamaindex-python/tree/main/samples
