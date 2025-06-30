@@ -61,6 +61,7 @@ nav:
       - Sample Agents: https://github.com/UiPath/uipath-langchain-python/tree/main/samples
   - UiPath LLamaIndex SDK:
       - Getting Started: llamaindex/quick_start.md
+      - LLMs and Embeddings: llamaindex/llms_and_embeddings.md
       - Context Grounding: llamaindex/context_grounding.md
       - Human In The Loop: llamaindex/human_in_the_loop.md
       - Sample Agents: https://github.com/UiPath/uipath-llamaindex-python/tree/main/samples
