@@ -2,15 +2,7 @@ import inspect
 from logging import getLogger
 from typing import Any, Literal, Union
 
-from httpx import (
-    URL,
-    AsyncClient,
-    Client,
-    ConnectTimeout,
-    Headers,
-    Response,
-    TimeoutException,
-)
+from httpx import URL, AsyncClient, Client, Headers, Response, TimeoutException
 from tenacity import (
     retry,
     retry_if_exception,
@@ -22,12 +14,12 @@ from uipath._utils._read_overwrites import OverwritesManager
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._utils import UiPathUrl, user_agent_value
+from .._utils import UiPathUrl, handle_errors, user_agent_value
 from .._utils.constants import HEADER_USER_AGENT
 
 
 def is_retryable_exception(exception: BaseException) -> bool:
-    return isinstance(exception, (ConnectTimeout, TimeoutException))
+    return isinstance(exception, (TimeoutException))
 
 
 def is_retryable_status_code(response: Response) -> bool:
@@ -46,12 +38,16 @@ class BaseService:
             base_url=self._url.base_url,
             headers=Headers(self.default_headers),
             timeout=30.0,
+            proxy="https://127.0.0.1:8080",
+            verify=False,
         )
 
         self._client_async = AsyncClient(
             base_url=self._url.base_url,
             headers=Headers(self.default_headers),
             timeout=30.0,
+            proxy="https://127.0.0.1:8080",
+            verify=False,
         )
 
         self._overwrites_manager = OverwritesManager()
@@ -59,6 +55,7 @@ class BaseService:
 
         super().__init__()
 
+    @handle_errors()
     @retry(
         retry=(
             retry_if_exception(is_retryable_exception)
@@ -108,6 +105,7 @@ class BaseService:
 
         return response
 
+    @handle_errors()
     @retry(
         retry=(
             retry_if_exception(is_retryable_exception)
