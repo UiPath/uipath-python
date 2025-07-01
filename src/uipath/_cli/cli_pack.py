@@ -1,6 +1,7 @@
 # type: ignore
 import json
 import os
+import subprocess
 import uuid
 import zipfile
 from string import Template
@@ -50,6 +51,66 @@ def check_config(directory):
         "version": toml_data["version"],
         "authors": toml_data["authors"],
     }
+
+
+def is_uv_available():
+    """Check if uv command is available in the system."""
+    try:
+        subprocess.run(["uv", "--version"], capture_output=True, check=True, timeout=20)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+    except Exception as e:
+        console.warning(
+            f"An unexpected error occurred while checking uv availability: {str(e)}"
+        )
+        return False
+
+
+def is_uv_project(directory):
+    """Check if this is a uv project by looking for the uv.lock file."""
+    uv_lock_path = os.path.join(directory, "uv.lock")
+
+    # If uv.lock exists, it's definitely a uv project
+    if os.path.exists(uv_lock_path):
+        return True
+
+    return False
+
+
+def run_uv_lock(directory):
+    """Run uv lock to update the lock file."""
+    try:
+        subprocess.run(
+            ["uv", "lock"],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        console.warning(f"uv lock failed: {e.stderr}")
+        return False
+    except FileNotFoundError:
+        console.warning("uv command not found. Skipping lock file update.")
+        return False
+    except Exception as e:
+        console.warning(f"An unexpected error occurred while running uv lock: {str(e)}")
+        return False
+
+
+def handle_uv_operations(directory):
+    """Handle uv operations if uv is detected and available."""
+    if not is_uv_available():
+        return
+
+    if not is_uv_project(directory):
+        return
+
+    # Always run uv lock to ensure lock file is up to date
+    run_uv_lock(directory)
 
 
 def generate_operate_file(entryPoints):
@@ -210,7 +271,15 @@ def is_venv_dir(d):
     )
 
 
-def pack_fn(projectName, description, entryPoints, version, authors, directory):
+def pack_fn(
+    projectName,
+    description,
+    entryPoints,
+    version,
+    authors,
+    directory,
+    include_uv_lock=True,
+):
     operate_file = generate_operate_file(entryPoints)
     entrypoints_file = generate_entrypoints_file(entryPoints)
 
@@ -304,7 +373,11 @@ def pack_fn(projectName, description, entryPoints, version, authors, directory):
                                 with open(file_path, "r", encoding="latin-1") as f:
                                     z.writestr(f"content/{rel_path}", f.read())
 
-        optional_files = ["pyproject.toml", "README.md", "uv.lock"]
+        # Handle optional files, conditionally including uv.lock
+        optional_files = ["pyproject.toml", "README.md"]
+        if include_uv_lock:
+            optional_files.append("uv.lock")
+
         for file in optional_files:
             file_path = os.path.join(directory, file)
             if os.path.exists(file_path):
@@ -367,8 +440,13 @@ def display_project_info(config):
 
 @click.command()
 @click.argument("root", type=str, default="./")
+@click.option(
+    "--nolock",
+    is_flag=True,
+    help="Skip running uv lock and exclude uv.lock from the package",
+)
 @track
-def pack(root):
+def pack(root, nolock):
     """Pack the project."""
     version = get_project_version(root)
 
@@ -403,6 +481,10 @@ def pack(root):
 
     with console.spinner("Packaging project ..."):
         try:
+            # Handle uv operations before packaging, unless nolock is specified
+            if not nolock:
+                handle_uv_operations(root)
+
             pack_fn(
                 config["project_name"],
                 config["description"],
@@ -410,6 +492,7 @@ def pack(root):
                 version or config["version"],
                 config["authors"],
                 root,
+                include_uv_lock=not nolock,
             )
             display_project_info(config)
             console.success("Project successfully packaged.")
