@@ -324,3 +324,150 @@ class TestPack:
                 }
                 assert f"Authors    : {', '.join(authors_dict.keys())}" in result.output
                 assert "Project successfully packaged." in result.output
+
+    def test_dependencies_version_formats(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that all dependency version formats are parsed correctly and included in operate.json."""
+
+        # Update project details with comprehensive dependency examples
+        project_details.dependencies = [
+            # Simple package name
+            "click",
+            # Single version constraints
+            "django>=4.0",
+            "flask==2.3.0",
+            "numpy>1.20.0",
+            "pandas<=2.0.0",
+            "scipy<1.11.0",
+            "matplotlib~=3.5.0",
+            "pytest!=7.1.0",
+            # Complex version constraints
+            "tensorflow>=2.10.0,<2.13.0",
+            "torch>=1.12.0,<=1.13.1",
+            # Package with extras
+            "requests[security]>=2.28.0",
+            "sqlalchemy[postgresql,mysql]>=1.4.0",
+            # Environment markers (should be stripped)
+            "pywin32>=227; sys_platform=='win32'",
+            "uvloop>=0.17.0; python_version>='3.8' and sys_platform!='win32'",
+            # Complex combination
+            "cryptography[ssh]>=3.4.8,<4.0.0; python_version>='3.7'",
+            # Edge cases
+            "some-package_with.dots_and-dashes>=1.0.0",
+            "CamelCasePackage==2.1.0",
+        ]
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create necessary files
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create entry point files
+            for entry in uipath_json.entry_points:
+                with open(f"{entry.file_path}.py", "w") as f:
+                    f.write("# agent content")
+
+            # Run pack command
+            result = runner.invoke(pack, ["./"])
+
+            # Assert pack was successful
+            assert result.exit_code == 0, f"Pack failed with output: {result.output}"
+            assert "Project successfully packaged." in result.output
+
+            # Verify package was created
+            package_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            assert os.path.exists(package_path)
+
+            # Extract and verify operate.json content
+            with zipfile.ZipFile(package_path, "r") as z:
+                # Read operate.json
+                operate_content = z.read("content/operate.json").decode("utf-8")
+                operate_data = json.loads(operate_content)
+
+                # Verify dependencies exist in operate.json
+                assert "dependencies" in operate_data, (
+                    "Dependencies should be present in operate.json"
+                )
+
+                dependencies = operate_data["dependencies"]
+
+                # Expected parsed dependencies (name -> version_spec)
+                expected_dependencies = {
+                    # Simple package name
+                    "click": "*",
+                    # Single version constraints
+                    "django": ">=4.0",
+                    "flask": "==2.3.0",
+                    "numpy": ">1.20.0",
+                    "pandas": "<=2.0.0",
+                    "scipy": "<1.11.0",
+                    "matplotlib": "~=3.5.0",
+                    "pytest": "!=7.1.0",
+                    # Complex version constraints
+                    "tensorflow": ">=2.10.0,<2.13.0",
+                    "torch": ">=1.12.0,<=1.13.1",
+                    # Package with extras (extras should be stripped)
+                    "requests": ">=2.28.0",
+                    "sqlalchemy": ">=1.4.0",
+                    # Environment markers (markers should be stripped)
+                    "pywin32": ">=227",
+                    "uvloop": ">=0.17.0",
+                    # Complex combination (extras and markers stripped)
+                    "cryptography": ">=3.4.8,<4.0.0",
+                    # Edge cases
+                    "some-package_with.dots_and-dashes": ">=1.0.0",
+                    "CamelCasePackage": "==2.1.0",
+                }
+
+                # Verify all expected dependencies are present
+                for package_name, expected_version in expected_dependencies.items():
+                    assert package_name in dependencies, (
+                        f"Package '{package_name}' should be in dependencies"
+                    )
+                    actual_version = dependencies[package_name]
+                    assert actual_version == expected_version, (
+                        f"Package '{package_name}' should have version '{expected_version}', "
+                        f"but got '{actual_version}'"
+                    )
+
+                # Verify no unexpected dependencies
+                for package_name in dependencies:
+                    assert package_name in expected_dependencies, (
+                        f"Unexpected package '{package_name}' found in dependencies"
+                    )
+
+                # Verify specific edge cases
+                assert len(dependencies) == len(expected_dependencies), (
+                    f"Expected {len(expected_dependencies)} dependencies, "
+                    f"but got {len(dependencies)}"
+                )
+
+                # Test that environment markers were properly stripped
+                assert "pywin32" in dependencies
+                assert dependencies["pywin32"] == ">=227"
+
+                # Test that extras were properly stripped but version preserved
+                assert "sqlalchemy" in dependencies
+                assert dependencies["sqlalchemy"] == ">=1.4.0"
+
+                # Test complex version constraints are preserved
+                assert "tensorflow" in dependencies
+                assert dependencies["tensorflow"] == ">=2.10.0,<2.13.0"
+
+                # Verify operate.json structure is still correct
+                assert (
+                    operate_data["$schema"]
+                    == "https://cloud.uipath.com/draft/2024-12/entry-point"
+                )
+                assert "projectId" in operate_data
+                assert operate_data["targetRuntime"] == "python"
+                assert operate_data["targetFramework"] == "Portable"
