@@ -1,10 +1,12 @@
 # type: ignore
 import json
 import os
+import re
 import subprocess
 import uuid
 import zipfile
 from string import Template
+from typing import Dict, Tuple
 
 import click
 
@@ -50,6 +52,7 @@ def check_config(directory):
         "entryPoints": config_data["entryPoints"],
         "version": toml_data["version"],
         "authors": toml_data["authors"],
+        "dependencies": toml_data.get("dependencies", {}),
     }
 
 
@@ -113,7 +116,7 @@ def handle_uv_operations(directory):
     run_uv_lock(directory)
 
 
-def generate_operate_file(entryPoints):
+def generate_operate_file(entryPoints, dependencies=None):
     project_id = str(uuid.uuid4())
 
     first_entry = entryPoints[0]
@@ -129,6 +132,10 @@ def generate_operate_file(entryPoints):
         "targetRuntime": "python",
         "runtimeOptions": {"requiresUserInteraction": False, "isAttended": False},
     }
+
+    # Add dependencies if provided
+    if dependencies:
+        operate_json_data["dependencies"] = dependencies
 
     return operate_json_data
 
@@ -147,40 +154,6 @@ def generate_bindings_content():
     bindings_content = {"version": "2.0", "resources": []}
 
     return bindings_content
-
-
-def get_proposed_version(directory):
-    output_dir = os.path.join(directory, ".uipath")
-    if not os.path.exists(output_dir):
-        return None
-
-    # Get all .nupkg files
-    nupkg_files = [f for f in os.listdir(output_dir) if f.endswith(".nupkg")]
-    if not nupkg_files:
-        return None
-
-    # Sort by modification time to get most recent
-    latest_file = max(
-        nupkg_files, key=lambda f: os.path.getmtime(os.path.join(output_dir, f))
-    )
-
-    # Extract version from filename
-    # Remove .nupkg extension first
-    name_version = latest_file[:-6]
-    # Find 3rd last occurrence of . by splitting and joining parts
-    parts = name_version.split(".")
-    if len(parts) >= 3:
-        version = ".".join(parts[-3:])
-    else:
-        version = name_version
-
-    # Increment patch version by 1
-    try:
-        major, minor, patch = version.split(".")
-        new_version = f"{major}.{minor}.{int(patch) + 1}"
-        return new_version
-    except Exception:
-        return "0.0.1"
 
 
 def generate_content_types_content():
@@ -278,9 +251,10 @@ def pack_fn(
     version,
     authors,
     directory,
+    dependencies=None,
     include_uv_lock=True,
 ):
-    operate_file = generate_operate_file(entryPoints)
+    operate_file = generate_operate_file(entryPoints, dependencies)
     entrypoints_file = generate_entrypoints_file(entryPoints)
 
     # Get bindings from uipath.json if available
@@ -389,28 +363,166 @@ def pack_fn(
                         z.writestr(f"content/{file}", f.read())
 
 
-def read_toml_project(file_path: str) -> dict[str, any]:
-    with open(file_path, "rb") as f:
-        content = tomllib.load(f)
-        if "project" not in content:
-            console.error("pyproject.toml is missing the required field: project.")
-        if "name" not in content["project"]:
-            console.error("pyproject.toml is missing the required field: project.name.")
-        if "description" not in content["project"]:
+def parse_dependency_string(dependency: str) -> Tuple[str, str]:
+    """Parse a dependency string into package name and version specifier.
+
+    Handles PEP 508 dependency specifications including:
+    - Simple names: "requests"
+    - Version specifiers: "requests>=2.28.0"
+    - Complex specifiers: "requests>=2.28.0,<3.0.0"
+    - Extras: "requests[security]>=2.28.0"
+    - Environment markers: "requests>=2.28.0; python_version>='3.8'"
+
+    Args:
+        dependency: Raw dependency string from pyproject.toml
+
+    Returns:
+        Tuple of (package_name, version_specifier)
+
+    Examples:
+        "requests" -> ("requests", "*")
+        "requests>=2.28.0" -> ("requests", ">=2.28.0")
+        "requests>=2.28.0,<3.0.0" -> ("requests", ">=2.28.0,<3.0.0")
+        "requests[security]>=2.28.0" -> ("requests", ">=2.28.0")
+    """
+    # Remove whitespace
+    dependency = dependency.strip()
+
+    # Handle environment markers (everything after semicolon)
+    if ";" in dependency:
+        dependency = dependency.split(";")[0].strip()
+
+    # Pattern to match package name with optional extras and version specifiers
+    # Matches: package_name[extras] version_specs
+    pattern = r"^([a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?)(\[[^\]]+\])?(.*)"
+    match = re.match(pattern, dependency)
+
+    if not match:
+        # Fallback for edge cases
+        return dependency, "*"
+
+    package_name = match.group(1)
+    version_part = match.group(4).strip() if match.group(4) else ""
+
+    # If no version specifier, return wildcard
+    if not version_part:
+        return package_name, "*"
+
+    # Clean up version specifier
+    version_spec = version_part.strip()
+
+    # Validate that version specifier starts with a valid operator
+    valid_operators = [">=", "<=", "==", "!=", "~=", ">", "<"]
+    if not any(version_spec.startswith(op) for op in valid_operators):
+        # If it doesn't start with an operator, treat as exact version
+        if version_spec:
+            version_spec = f"=={version_spec}"
+        else:
+            version_spec = "*"
+
+    return package_name, version_spec
+
+
+def extract_dependencies_from_toml(project_data: Dict) -> Dict[str, str]:
+    """Extract and parse dependencies from pyproject.toml project data.
+
+    Args:
+        project_data: The "project" section from pyproject.toml
+
+    Returns:
+        Dictionary mapping package names to version specifiers
+    """
+    dependencies = {}
+
+    if "dependencies" not in project_data:
+        return dependencies
+
+    deps_list = project_data["dependencies"]
+    if not isinstance(deps_list, list):
+        console.warning("dependencies should be a list in pyproject.toml")
+        return dependencies
+
+    for dep in deps_list:
+        if not isinstance(dep, str):
+            console.warning(f"Skipping non-string dependency: {dep}")
+            continue
+
+        try:
+            name, version_spec = parse_dependency_string(dep)
+            if name:  # Only add if we got a valid name
+                dependencies[name] = version_spec
+        except Exception as e:
+            console.warning(f"Failed to parse dependency '{dep}': {e}")
+            continue
+
+    return dependencies
+
+
+def read_toml_project(file_path: str) -> dict:
+    """Read and parse pyproject.toml file with improved error handling and validation.
+
+    Args:
+        file_path: Path to pyproject.toml file
+
+    Returns:
+        Dictionary containing project metadata and dependencies
+    """
+    try:
+        with open(file_path, "rb") as f:
+            content = tomllib.load(f)
+    except Exception as e:
+        console.error(f"Failed to read or parse pyproject.toml: {e}")
+
+    # Validate required sections
+    if "project" not in content:
+        console.error("pyproject.toml is missing the required field: project.")
+
+    project = content["project"]
+
+    # Validate required fields with better error messages
+    required_fields = {
+        "name": "Project name is required in pyproject.toml",
+        "description": "Project description is required in pyproject.toml",
+        "version": "Project version is required in pyproject.toml",
+    }
+
+    for field, error_msg in required_fields.items():
+        if field not in project:
             console.error(
-                "pyproject.toml is missing the required field: project.description."
-            )
-        if "version" not in content["project"]:
-            console.error(
-                "pyproject.toml is missing the required field: project.version."
+                f"pyproject.toml is missing the required field: project.{field}. {error_msg}"
             )
 
-        return {
-            "name": content["project"]["name"],
-            "description": content["project"]["description"],
-            "version": content["project"]["version"],
-            "authors": content["project"].get("authors", [{"name": ""}])[0]["name"],
-        }
+        # Check for empty values only if field exists
+        if field in project and (
+            not project[field]
+            or (isinstance(project[field], str) and not project[field].strip())
+        ):
+            console.error(
+                f"Project {field} cannot be empty. Please specify a {field} in pyproject.toml."
+            )
+
+    # Extract author information safely
+    authors = project.get("authors", [])
+    author_name = ""
+
+    if authors and isinstance(authors, list) and len(authors) > 0:
+        first_author = authors[0]
+        if isinstance(first_author, dict):
+            author_name = first_author.get("name", "")
+        elif isinstance(first_author, str):
+            # Handle case where authors is a list of strings
+            author_name = first_author
+
+    # Extract dependencies with improved parsing
+    dependencies = extract_dependencies_from_toml(project)
+
+    return {
+        "name": project["name"].strip(),
+        "description": project["description"].strip(),
+        "version": project["version"].strip(),
+        "authors": author_name.strip(),
+        "dependencies": dependencies,
+    }
 
 
 def get_project_version(directory):
@@ -492,6 +604,7 @@ def pack(root, nolock):
                 version or config["version"],
                 config["authors"],
                 root,
+                config.get("dependencies"),
                 include_uv_lock=not nolock,
             )
             display_project_info(config)
