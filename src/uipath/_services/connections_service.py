@@ -122,5 +122,5 @@ class ConnectionsService(BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/connections_/api/v1/Connections/{key}/token"),
-            params={"type": "direct"},
+            params={"tokenType": "direct"},
         )
