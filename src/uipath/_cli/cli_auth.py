@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from ..telemetry import track
 from ._auth._auth_server import HTTPServer
+from ._auth._client_credentials import ClientCredentialsService
 from ._auth._oidc_utils import get_auth_config, get_auth_url
 from ._auth._portal_service import PortalService, select_tenant
 from ._auth._utils import update_auth_file, update_env_file
@@ -64,9 +65,67 @@ def set_port():
     required=False,
     help="Force new token",
 )
+@click.option(
+    "--client-id",
+    required=False,
+    help="Client ID for client credentials authentication (unattended mode)",
+)
+@click.option(
+    "--client-secret",
+    required=False,
+    help="Client secret for client credentials authentication (unattended mode)",
+)
+@click.option(
+    "--base-url",
+    required=False,
+    help="Base URL for the UiPath tenant instance (required for client credentials)",
+)
 @track
-def auth(domain, force: None | bool = False):
-    """Authenticate with UiPath Cloud Platform."""
+def auth(
+    domain,
+    force: None | bool = False,
+    client_id: str = None,
+    client_secret: str = None,
+    base_url: str = None,
+):
+    """Authenticate with UiPath Cloud Platform.
+
+    Interactive mode (default): Opens browser for OAuth authentication.
+    Unattended mode: Use --client-id, --client-secret and --base-url for client credentials flow.
+    """
+    # Check if client credentials are provided for unattended authentication
+    if client_id and client_secret:
+        if not base_url:
+            console.error(
+                "--base-url is required when using client credentials authentication."
+            )
+            return
+
+        with console.spinner("Authenticating with client credentials ..."):
+            # Create service instance
+            credentials_service = ClientCredentialsService(domain)
+
+            # If base_url is provided, extract domain from it to override the CLI domain parameter
+            if base_url:
+                extracted_domain = credentials_service.extract_domain_from_base_url(
+                    base_url
+                )
+                credentials_service.domain = extracted_domain
+
+            token_data = credentials_service.authenticate(client_id, client_secret)
+
+            if token_data:
+                credentials_service.setup_environment(token_data, base_url)
+                console.success(
+                    "Client credentials authentication successful.",
+                )
+            else:
+                console.error(
+                    "Client credentials authentication failed. Please check your credentials.",
+                )
+        return
+
+    # Interactive authentication flow (existing logic)
     with console.spinner("Authenticating with UiPath ..."):
         portal_service = PortalService(domain)
 
