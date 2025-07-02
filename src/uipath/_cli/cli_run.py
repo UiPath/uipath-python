@@ -6,6 +6,7 @@ from os import environ as env
 from typing import Optional
 from uuid import uuid4
 
+from ._utils._common import serialize_object
 import click
 from dotenv import load_dotenv
 
@@ -32,6 +33,7 @@ def python_run_middleware(
     entrypoint: Optional[str],
     input: Optional[str],
     resume: bool,
+    **kwargs,
 ) -> MiddlewareResult:
     """Middleware to handle Python script execution.
 
@@ -85,12 +87,12 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
             )
             context.logs_min_level = env.get("LOG_LEVEL", "INFO")
             async with UiPathRuntime.from_context(context) as runtime:
-                await runtime.execute()
+                return await runtime.execute()
 
-        asyncio.run(execute())
-
+        result = asyncio.run(execute())
+        output = result.output or "No output was produced."
         # Return success
-        return MiddlewareResult(should_continue=False)
+        return MiddlewareResult(should_continue=False, output=serialize_object(output))
 
     except UiPathRuntimeError as e:
         return MiddlewareResult(
@@ -119,6 +121,13 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
     help="File path for the .json input",
 )
 @click.option(
+    "-o",
+    "--output-file",
+    required=False,
+    type=click.Path(exists=False),
+    help="File path where the output will be written",
+)
+@click.option(
     "--debug",
     is_flag=True,
     help="Enable debugging with debugpy. The process will wait for a debugger to attach.",
@@ -135,6 +144,7 @@ def run(
     input: Optional[str],
     resume: bool,
     file: Optional[str],
+    output_file: Optional[str],
     debug: bool,
     debug_port: int,
 ) -> None:
@@ -159,6 +169,12 @@ def run(
             input=input,
             resume=resume,
         )
+    if output_file:
+        if not result.output:
+            console.warning("Cannot write output to file. Please update the uipath sdk extensions.")
+        else:
+            with open(output_file, "w") as f:
+                f.write(str(result.output))
 
     # Handle result from middleware
     if result.error_message:

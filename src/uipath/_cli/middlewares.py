@@ -16,6 +16,7 @@ class MiddlewareResult:
     info_message: Optional[str] = None
     error_message: Optional[str] = None
     should_include_stacktrace: bool = False
+    output: Optional[str] = None
 
 
 MiddlewareFunc = Callable[..., MiddlewareResult]
