@@ -32,6 +32,7 @@ def python_run_middleware(
     entrypoint: Optional[str],
     input: Optional[str],
     resume: bool,
+    **kwargs,
 ) -> MiddlewareResult:
     """Middleware to handle Python script execution.
 
@@ -70,6 +71,8 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
             context.resume = resume
             context.job_id = env.get("UIPATH_JOB_KEY")
             context.trace_id = env.get("UIPATH_TRACE_ID")
+            context.input_file = kwargs.get("input_file", None)
+            context.execution_output_file = kwargs.get("execution_output_file", None)
             context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
             context.trace_context = UiPathTraceContext(
                 trace_id=env.get("UIPATH_TRACE_ID"),
@@ -119,6 +122,18 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
     help="File path for the .json input",
 )
 @click.option(
+    "--input-file",
+    required=False,
+    type=click.Path(exists=True),
+    help="Alias for '-f/--file' arguments",
+)
+@click.option(
+    "--output-file",
+    required=False,
+    type=click.Path(exists=False),
+    help="File path where the output will be written",
+)
+@click.option(
     "--debug",
     is_flag=True,
     help="Enable debugging with debugpy. The process will wait for a debugger to attach.",
@@ -135,29 +150,36 @@ def run(
     input: Optional[str],
     resume: bool,
     file: Optional[str],
+    input_file: Optional[str],
+    output_file: Optional[str],
     debug: bool,
     debug_port: int,
 ) -> None:
     """Execute the project."""
-    if file:
-        _, file_extension = os.path.splitext(file)
-        if file_extension != ".json":
-            console.error("Input file extension must be '.json'.")
-        with open(file) as f:
-            input = f.read()
+    input_file = file or input_file
     # Setup debugging if requested
-
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
 
     # Process through middleware chain
-    result = Middlewares.next("run", entrypoint, input, resume)
+    result = Middlewares.next(
+        "run",
+        entrypoint,
+        input,
+        resume,
+        debug=debug,
+        debug_port=debug_port,
+        input_file=input_file,
+        execution_output_file=output_file,
+    )
 
     if result.should_continue:
         result = python_run_middleware(
             entrypoint=entrypoint,
             input=input,
             resume=resume,
+            input_file=input_file,
+            execution_output_file=output_file,
         )
 
     # Handle result from middleware

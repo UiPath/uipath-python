@@ -42,6 +42,10 @@ def setup_debugging(debug: bool, debug_port: int = 5678) -> bool:
         console.info(f"🐛 Debug server started on port {debug_port}")
         console.info("📌 Waiting for debugger to attach...")
         console.info("  - VS Code: Run -> Start Debugging -> Python: Remote Attach")
+        console.link(
+            " CLI Documentation reference: ",
+            "https://uipath.github.io/uipath-python/cli/#run",
+        )
 
         debugpy.wait_for_client()
         console.success("Debugger attached successfully!")
