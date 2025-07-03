@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.0.73"
+version = "3.0.0"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -66,8 +66,7 @@ dev = [
   "types-toml>=0.10.8",
 ]
 
-[project.optional-dependencies]
-langchain = ["uipath-langchain>=0.0.88,<0.1.0"]
+# TODO: add the uipath-langchain and uipath-llamaindex optional dependencies here
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/uipath"]
