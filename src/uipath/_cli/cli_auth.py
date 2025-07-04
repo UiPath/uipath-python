@@ -92,6 +92,11 @@ def auth(
 
     Interactive mode (default): Opens browser for OAuth authentication.
     Unattended mode: Use --client-id, --client-secret and --base-url for client credentials flow.
+
+    Network options:
+    - Set HTTP_PROXY/HTTPS_PROXY/NO_PROXY environment variables for proxy configuration
+    - Set REQUESTS_CA_BUNDLE to specify a custom CA bundle for SSL verification
+    - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)
     """
     # Check if client credentials are provided for unattended authentication
     if client_id and client_secret:
@@ -102,7 +107,6 @@ def auth(
             return
 
         with console.spinner("Authenticating with client credentials ..."):
-            # Create service instance
             credentials_service = ClientCredentialsService(domain)
 
             # If base_url is provided, extract domain from it to override the CLI domain parameter
@@ -127,56 +131,57 @@ def auth(
 
     # Interactive authentication flow (existing logic)
     with console.spinner("Authenticating with UiPath ..."):
-        portal_service = PortalService(domain)
+        with PortalService(domain) as portal_service:
+            if not force:
+                if (
+                    os.getenv("UIPATH_URL")
+                    and os.getenv("UIPATH_TENANT_ID")
+                    and os.getenv("UIPATH_ORGANIZATION_ID")
+                ):
+                    try:
+                        portal_service.ensure_valid_token()
+                        console.success(
+                            "Authentication successful.",
+                        )
+                        return
+                    except Exception:
+                        console.info(
+                            "Authentication token is invalid. Please reauthenticate.",
+                        )
 
-        if not force:
-            if (
-                os.getenv("UIPATH_URL")
-                and os.getenv("UIPATH_TENANT_ID")
-                and os.getenv("UIPATH_ORGANIZATION_ID")
-            ):
+            auth_url, code_verifier, state = get_auth_url(domain)
+
+            webbrowser.open(auth_url, 1)
+            auth_config = get_auth_config()
+
+            console.link(
+                "If a browser window did not open, please open the following URL in your browser:",
+                auth_url,
+            )
+
+            server = HTTPServer(port=auth_config["port"])
+            token_data = server.start(state, code_verifier, domain)
+
+            if token_data:
+                portal_service.update_token_data(token_data)
+                update_auth_file(token_data)
+                access_token = token_data["access_token"]
+                update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
+
+                tenants_and_organizations = (
+                    portal_service.get_tenants_and_organizations()
+                )
+                base_url = select_tenant(domain, tenants_and_organizations)
                 try:
-                    portal_service.ensure_valid_token()
+                    portal_service.post_auth(base_url)
                     console.success(
                         "Authentication successful.",
                     )
-                    return
                 except Exception:
-                    console.info(
-                        "Authentication token is invalid. Please reauthenticate.",
+                    console.error(
+                        "Could not prepare the environment. Please try again.",
                     )
-
-        auth_url, code_verifier, state = get_auth_url(domain)
-
-        webbrowser.open(auth_url, 1)
-        auth_config = get_auth_config()
-
-        console.link(
-            "If a browser window did not open, please open the following URL in your browser:",
-            auth_url,
-        )
-
-        server = HTTPServer(port=auth_config["port"])
-        token_data = server.start(state, code_verifier, domain)
-
-        if token_data:
-            portal_service.update_token_data(token_data)
-            update_auth_file(token_data)
-            access_token = token_data["access_token"]
-            update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
-
-            tenants_and_organizations = portal_service.get_tenants_and_organizations()
-            base_url = select_tenant(domain, tenants_and_organizations)
-            try:
-                portal_service.post_auth(base_url)
-                console.success(
-                    "Authentication successful.",
-                )
-            except Exception:
+            else:
                 console.error(
-                    "Could not prepare the environment. Please try again.",
+                    "Authentication failed. Please try again.",
                 )
-        else:
-            console.error(
-                "Authentication failed. Please try again.",
-            )

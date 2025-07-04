@@ -1,5 +1,5 @@
 import mimetypes
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional, Union
 
 import httpx
 
@@ -7,14 +7,10 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
+from .._utils._ssl_context import get_httpx_client_kwargs
 from ..models import Bucket
 from ..tracing._traced import traced
 from ._base_service import BaseService
-
-
-def _upload_from_memory_input_processor(inputs: Dict[str, Any]) -> Dict[str, Any]:
-    inputs["content"] = "<Redacted>"
-    return inputs
 
 
 class BucketsService(FolderContext, BaseService):
@@ -26,8 +22,8 @@ class BucketsService(FolderContext, BaseService):
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
-        self.custom_client = httpx.Client()
-        self.custom_client_async = httpx.AsyncClient()
+        self.custom_client = httpx.Client(**get_httpx_client_kwargs())
+        self.custom_client_async = httpx.AsyncClient(**get_httpx_client_kwargs())
 
     @traced(name="buckets_download", run_type="uipath")
     @infer_bindings(resource_type="bucket")
