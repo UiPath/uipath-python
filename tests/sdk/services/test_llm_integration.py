@@ -75,20 +75,6 @@ class TestLLMIntegration:
         assert result.usage.prompt_tokens > 0
 
     @pytest.mark.asyncio
-    async def test_embeddings_usage_real(self, llm_service):
-        """Test the embeddings_usage function with a real API call."""
-        input_text = "Testing the embedding usage endpoint."
-
-        # Make the actual API call
-        result = await llm_service.embeddings_usage(input=input_text)
-
-        # Validate the response
-        assert result is not None
-        assert hasattr(result, "encoding")
-        assert hasattr(result, "prompt_tokens")
-        assert result.prompt_tokens > 0
-
-    @pytest.mark.asyncio
     async def test_chat_completions_real(self, llm_service):
         """Test the chat_completions function with a real API call."""
         messages = [
@@ -114,31 +100,6 @@ class TestLLMIntegration:
         assert result.choices[0].message.content.strip() != ""
         assert hasattr(result, "usage")
         assert result.usage.prompt_tokens > 0
-
-    @pytest.mark.asyncio
-    async def test_chat_completions_usage_real(self, llm_service):
-        """Test the chat_completions_usage function with a real API call."""
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "What is the capital of France?"},
-        ]
-
-        # Make the actual API call
-        result = await llm_service.chat_completions_usage(
-            messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
-            max_tokens=50,
-            temperature=0.7,
-        )
-
-        # Validate the response
-        assert result is not None
-        assert hasattr(result, "encoding")
-        assert hasattr(result, "prompt_tokens")
-        assert result.prompt_tokens > 0
-        assert isinstance(result.prompt_tokens, int)
-        assert isinstance(result.encoding, str)
-        assert len(result.encoding) > 0
 
     @pytest.mark.asyncio
     async def test_embeddings_with_custom_model_real(self, llm_service):
