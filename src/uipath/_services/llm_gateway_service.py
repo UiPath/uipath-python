@@ -10,9 +10,9 @@ from ..models.llm_gateway import (
     TextEmbedding,
     ToolChoice,
     ToolDefinition,
-    UsageInfo,
 )
 from ..tracing._traced import traced
+from ..utils import EndpointManager
 from ._base_service import BaseService
 
 # Common constants
@@ -54,36 +54,12 @@ class UiPathOpenAIService(BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="llm_embeddings_usage", run_type="uipath")
-    async def embeddings_usage(
-        self, input: str, embedding_model: str = EmbeddingModels.text_embedding_ada_002
-    ):
-        """Embedd the input text using llm gateway service.
-
-        Args:
-            input (str): The input text to embedd.
-            embedding_model (str, optional): The embedding model to use. Defaults to text-embedding-ada-002.
-
-        Returns:
-            EmbeddingUsageInfo: The embedding usage information.
-        """
-        endpoint = Endpoint(
-            f"/llmgateway_/openai/deployments/{embedding_model}/embeddings/usage"
-        )
-
-        response = await self.request_async(
-            "POST",
-            endpoint,
-            content=json.dumps({"input": input}),
-            params={"api-version": API_VERSION},
-            headers=DEFAULT_LLM_HEADERS,
-        )
-
-        return UsageInfo.model_validate(response.json())
-
     @traced(name="llm_embeddings", run_type="uipath")
     async def embeddings(
-        self, input: str, embedding_model: str = EmbeddingModels.text_embedding_ada_002
+        self,
+        input: str,
+        embedding_model: str = EmbeddingModels.text_embedding_ada_002,
+        openai_api_version: str = API_VERSION,
     ):
         """Embed the input text using llm gateway service.
 
@@ -93,9 +69,10 @@ class UiPathOpenAIService(BaseService):
         Returns:
             TextEmbedding: The embedding response.
         """
-        endpoint = Endpoint(
-            f"/llmgateway_/openai/deployments/{embedding_model}/embeddings"
+        endpoint = EndpointManager.get_embeddings_endpoint().format(
+            model=embedding_model, api_version=openai_api_version
         )
+        endpoint = Endpoint("/" + endpoint)
 
         response = await self.request_async(
             "POST",
@@ -114,6 +91,7 @@ class UiPathOpenAIService(BaseService):
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 50,
         temperature: float = 0,
+        api_version: str = API_VERSION,
     ):
         """Get chat completions using llm gateway service.
 
@@ -139,7 +117,10 @@ class UiPathOpenAIService(BaseService):
         Returns:
             ChatCompletion: The chat completion response.
         """
-        endpoint = Endpoint(f"/llmgateway_/openai/deployments/{model}/chat/completions")
+        endpoint = EndpointManager.get_passthrough_endpoint().format(
+            model=model, api_version=api_version
+        )
+        endpoint = Endpoint("/" + endpoint)
 
         request_body = {
             "messages": messages,
@@ -156,58 +137,6 @@ class UiPathOpenAIService(BaseService):
         )
 
         return ChatCompletion.model_validate(response.json())
-
-    @traced(name="llm_chat_completions_usage", run_type="uipath")
-    async def chat_completions_usage(
-        self,
-        messages: List[Dict[str, str]],
-        model: str = ChatModels.gpt_4o_mini_2024_07_18,
-        max_tokens: int = 50,
-        temperature: float = 0,
-    ):
-        """Get chat completions usage using llm gateway service.
-
-        Args:
-            messages (List[Dict[str, str]]): List of message dictionaries with 'role' and 'content' keys.
-                The supported roles are 'system', 'user', and 'assistant'.
-
-        Example:
-                ```
-                [
-                    {"role": "system", "content": "You are a helpful Python programming assistant."},
-                    {"role": "user", "content": "How do I read a file in Python?"},
-                    {"role": "assistant", "content": "You can use the built-in open() function."},
-                    {"role": "user", "content": "Can you show an example?"}
-                ]
-                ```
-                The conversation history can be included to provide context to the model.
-            model (str, optional): The model to use for chat completion. Defaults to ChatModels.gpt_4o_mini_2024_07_18.
-            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to 50.
-            temperature (float, optional): Temperature for sampling, between 0 and 1.
-                Lower values make output more deterministic. Defaults to 0.
-
-        Returns:
-            ChatCompletion: The chat completion usage response.
-        """
-        endpoint = Endpoint(
-            f"/llmgateway_/openai/deployments/{model}/chat/completions/usage"
-        )
-
-        request_body = {
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-
-        response = await self.request_async(
-            "POST",
-            endpoint,
-            content=json.dumps(request_body),
-            params={"api-version": API_VERSION},
-            headers=DEFAULT_LLM_HEADERS,
-        )
-
-        return UsageInfo.model_validate(response.json())
 
 
 class UiPathLlmChatService(BaseService):
@@ -229,6 +158,7 @@ class UiPathLlmChatService(BaseService):
         top_p: float = 1,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[ToolChoice] = None,
+        api_version: str = NORMALIZED_API_VERSION,
     ):
         """Get chat completions using UiPath's normalized LLM Gateway API.
 
@@ -250,7 +180,10 @@ class UiPathLlmChatService(BaseService):
         Returns:
             ChatCompletion: The chat completion response.
         """
-        endpoint = Endpoint("/llmgateway_/api/chat/completions")
+        endpoint = EndpointManager.get_normalized_endpoint().format(
+            model=model, api_version=api_version
+        )
+        endpoint = Endpoint("/" + endpoint)
 
         request_body = {
             "messages": messages,
