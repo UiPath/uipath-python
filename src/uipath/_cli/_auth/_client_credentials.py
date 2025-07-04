@@ -5,7 +5,7 @@ import httpx
 
 from .._utils._console import ConsoleLogger
 from ._models import TokenData
-from ._utils import parse_access_token, update_env_file
+from ._utils import get_httpx_client_kwargs, parse_access_token, update_env_file
 
 console = ConsoleLogger()
 
@@ -13,8 +13,17 @@ console = ConsoleLogger()
 class ClientCredentialsService:
     """Service for client credentials authentication flow."""
 
-    def __init__(self, domain: str):
+    def __init__(
+        self,
+        domain: str,
+        verify_ssl: bool = True,
+        cert: Optional[str] = None,
+        proxy: Optional[str] = None,
+    ):
         self.domain = domain
+        self.verify_ssl = verify_ssl
+        self.cert = cert
+        self.proxy = proxy
 
     def get_token_url(self) -> str:
         """Get the token URL for the specified domain."""
@@ -91,13 +100,13 @@ class ClientCredentialsService:
         }
 
         try:
-            with httpx.Client(timeout=30.0) as client:
+            with httpx.Client(
+                **get_httpx_client_kwargs(self.verify_ssl, self.cert, self.proxy)
+            ) as client:
                 response = client.post(token_url, data=data)
-
                 match response.status_code:
                     case 200:
                         token_data = response.json()
-                        # Convert to our TokenData format
                         return {
                             "access_token": token_data["access_token"],
                             "token_type": token_data.get("token_type", "Bearer"),

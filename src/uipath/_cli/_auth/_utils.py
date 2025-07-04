@@ -2,7 +2,7 @@ import base64
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from ._models import AccessTokenData, TokenData
 
@@ -49,3 +49,47 @@ def update_env_file(env_contents):
     lines = [f"{key}={value}\n" for key, value in env_contents.items()]
     with open(env_path, "w") as f:
         f.writelines(lines)
+
+
+def normalize_cert_path(cert_path: Optional[str]) -> Optional[str]:
+    """Normalize certificate path for cross-platform compatibility."""
+    if not cert_path:
+        return None
+
+    # Expand user home directory (~)
+    cert_path = os.path.expanduser(cert_path)
+
+    # Expand environment variables ($VAR, %VAR%)
+    cert_path = os.path.expandvars(cert_path)
+
+    # Convert to absolute path
+    cert_path = os.path.abspath(cert_path)
+
+    # Check if file exists
+    if not os.path.exists(cert_path):
+        raise FileNotFoundError(f"Certificate file not found: {cert_path}")
+
+    if not os.path.isfile(cert_path):
+        raise ValueError(f"Certificate path is not a file: {cert_path}")
+
+    return cert_path
+
+
+def get_httpx_client_kwargs(
+    verify_ssl: bool = True,
+    cert: Optional[str] = None,
+    proxy: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Get standardized httpx client configuration."""
+    client_kwargs: Dict[str, Any] = {"follow_redirects": True, "timeout": 30.0}
+
+    if not verify_ssl:
+        client_kwargs["verify"] = False
+    elif cert:
+        normalized_cert = normalize_cert_path(cert)
+        client_kwargs["verify"] = normalized_cert
+
+    if proxy:
+        client_kwargs["proxies"] = proxy
+
+    return client_kwargs
