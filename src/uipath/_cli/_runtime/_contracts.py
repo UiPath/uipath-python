@@ -148,11 +148,13 @@ class UiPathRuntimeContext(BaseModel):
     trace_context: Optional[UiPathTraceContext] = None
     tracing_enabled: Union[bool, str] = False
     resume: bool = False
+    debug: bool = False
     config_path: str = "uipath.json"
     runtime_dir: Optional[str] = "__uipath"
     logs_file: Optional[str] = "execution.log"
     logs_min_level: Optional[str] = "INFO"
     output_file: str = "output.json"
+    execution_output_file: str = "execution_output.json"
     state_file: str = "state.db"
     result: Optional[UiPathRuntimeResult] = None
 
@@ -187,6 +189,7 @@ class UiPathRuntimeContext(BaseModel):
             mapping = {
                 "dir": "runtime_dir",
                 "outputFile": "output_file",
+                "executionOutputFile": "execution_output_file",
                 "stateFile": "state_file",
                 "logsFile": "logs_file",
             }
@@ -365,10 +368,13 @@ class UiPathBaseRuntime(ABC):
             content = execution_result.to_dict()
             logger.debug(content)
 
-            # Always write output file at runtime
+            # Always write output and execution_output files at runtime
             if self.context.job_id:
                 with open(self.output_file_path, "w") as f:
                     json.dump(content, f, indent=2, default=str)
+
+                with open(self.execution_output_file_path, "w") as f:
+                    json.dump(execution_result.output or "", f, indent=2, default=str)
 
             # Don't suppress exceptions
             return False
@@ -423,6 +429,13 @@ class UiPathBaseRuntime(ABC):
             os.makedirs(self.context.runtime_dir, exist_ok=True)
             return os.path.join(self.context.runtime_dir, self.context.output_file)
         return os.path.join("__uipath", "output.json")
+
+    @cached_property
+    def execution_output_file_path(self) -> str:
+        if self.context.runtime_dir and self.context.execution_output_file:
+            os.makedirs(self.context.runtime_dir, exist_ok=True)
+            return os.path.join(self.context.runtime_dir, self.context.execution_output_file)
+        return os.path.join("__uipath", "execution_output.json")
 
     @cached_property
     def state_file_path(self) -> str:

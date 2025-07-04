@@ -16,7 +16,7 @@ class MiddlewareResult:
     info_message: Optional[str] = None
     error_message: Optional[str] = None
     should_include_stacktrace: bool = False
-
+    output: Optional[str] = None
 
 MiddlewareFunc = Callable[..., MiddlewareResult]
 
@@ -54,30 +54,8 @@ class Middlewares:
 
         middlewares = cls.get(command)
         for middleware in middlewares:
-            sig = inspect.signature(middleware)
-
-            # handle older versions of plugins that don't support the new signature
             try:
-                bound = sig.bind(*args, **kwargs)
-                new_args = bound.args
-                new_kwargs = bound.kwargs
-            except TypeError:
-                console.warning("Install the latest version for uipath packages")
-                accepted_args = [
-                    name
-                    for name, param in sig.parameters.items()
-                    if param.kind
-                    in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
-                ]
-
-                trimmed_args = args[: len(accepted_args)]
-                trimmed_kwargs = {k: v for k, v in kwargs.items() if k in accepted_args}
-
-                new_args = trimmed_args
-                new_kwargs = trimmed_kwargs
-
-            try:
-                result = middleware(*new_args, **new_kwargs)
+                result = middleware(*args, **kwargs)
                 if not result.should_continue:
                     logger.debug(
                         f"Command '{command}' stopped by {middleware.__name__}"
