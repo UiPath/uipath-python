@@ -1,4 +1,3 @@
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,10 +8,7 @@ from uipath._services.llm_gateway_service import (
     EmbeddingModels,
     UiPathOpenAIService,
 )
-from uipath.models.llm_gateway import (
-    TextEmbedding,
-    UsageInfo,
-)
+from uipath.models.llm_gateway import TextEmbedding
 
 
 class TestOpenAIService:
@@ -37,26 +33,6 @@ class TestOpenAIService:
 
     @patch.object(UiPathOpenAIService, "request_async")
     @pytest.mark.asyncio
-    async def test_embeddings_usage(self, mock_request, openai_service):
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "encoding": "cl100k_base",
-            "prompt_tokens": 4,
-        }
-        mock_request.return_value = mock_response
-
-        # Call the method
-        result = await openai_service.embeddings_usage(input="Test input")
-
-        # Assertions
-        mock_request.assert_called_once()
-        assert isinstance(result, UsageInfo)
-        assert result.encoding == "cl100k_base"
-        assert result.prompt_tokens == 4
-
-    @patch.object(UiPathOpenAIService, "request_async")
-    @pytest.mark.asyncio
     async def test_embeddings(self, mock_request, openai_service):
         # Mock response
         mock_response = MagicMock()
@@ -77,40 +53,6 @@ class TestOpenAIService:
         assert result.data[0].embedding == [0.1, 0.2, 0.3]
         assert result.model == "text-embedding-ada-002"
         assert result.usage.prompt_tokens == 4
-
-    @patch.object(UiPathOpenAIService, "request_async")
-    @pytest.mark.asyncio
-    async def test_chat_completions_usage(self, mock_request, openai_service):
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "encoding": "cl100k_base",
-            "prompt_tokens": 10,
-        }
-        mock_request.return_value = mock_response
-
-        # Test messages
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant"},
-            {"role": "user", "content": "Hello"},
-        ]
-
-        # Call the method
-        result = await openai_service.chat_completions_usage(
-            messages=messages, max_tokens=50, temperature=0.5
-        )
-
-        # Assertions
-        mock_request.assert_called_once()
-        assert isinstance(result, UsageInfo)
-        assert result.encoding == "cl100k_base"
-        assert result.prompt_tokens == 10
-
-        # Verify the correct endpoint was called
-        args, kwargs = mock_request.call_args
-        assert json.loads(kwargs["content"])["messages"] == messages
-        assert json.loads(kwargs["content"])["max_tokens"] == 50
-        assert json.loads(kwargs["content"])["temperature"] == 0.5
 
     @patch.object(UiPathOpenAIService, "request_async")
     @pytest.mark.asyncio

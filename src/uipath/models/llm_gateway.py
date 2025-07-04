@@ -21,11 +21,6 @@ class TextEmbedding(BaseModel):
     usage: EmbeddingUsage
 
 
-class UsageInfo(BaseModel):
-    encoding: str
-    prompt_tokens: int
-
-
 class ToolCall(BaseModel):
     id: str
     name: str
