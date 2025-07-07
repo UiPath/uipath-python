@@ -1,5 +1,11 @@
 BINDINGS_VERSION = "2.2"
 
+# Agent.json constants
+AGENT_VERSION = "1.0.0"
+AGENT_STORAGE_VERSION = "1.0.0"
+AGENT_INITIAL_CODE_VERSION = "1.0.0"
+AGENT_TARGET_RUNTIME = "python"
+
 # Binary file extension categories
 IMAGE_EXTENSIONS = {
     ".png",
