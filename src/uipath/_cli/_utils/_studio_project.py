@@ -1,5 +1,6 @@
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -136,3 +137,62 @@ class ProjectStructure(BaseModel):
         if isinstance(v, int):
             return str(v)
         return v
+
+
+def get_project_structure(
+    project_id: str,
+    base_url: str,
+    token: str,
+    client: httpx.Client,
+) -> ProjectStructure:
+    """Retrieve the project's file structure from UiPath Cloud.
+
+    Makes an API call to fetch the complete file structure of a project,
+    including all files and folders. The response is validated against
+    the ProjectStructure model.
+
+    Args:
+        project_id: The ID of the project
+        base_url: The base URL for the API
+        token: Authentication token
+        client: HTTP client to use for requests
+
+    Returns:
+        ProjectStructure: The complete project structure
+
+    Raises:
+        httpx.HTTPError: If the API request fails
+    """
+    headers = {"Authorization": f"Bearer {token}"}
+    url = (
+        f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure"
+    )
+
+    response = client.get(url, headers=headers)
+    response.raise_for_status()
+    return ProjectStructure.model_validate(response.json())
+
+
+def download_file(base_url: str, file_id: str, client: httpx.Client, token: str) -> Any:
+    file_url = f"{base_url}/File/{file_id}"
+    response = client.get(file_url, headers={"Authorization": f"Bearer {token}"})
+    response.raise_for_status()
+    return response
+
+
+def get_folder_by_name(
+    structure: ProjectStructure, folder_name: str
+) -> Optional[ProjectFolder]:
+    """Get a folder from the project structure by name.
+
+    Args:
+        structure: The project structure
+        folder_name: Name of the folder to find
+
+    Returns:
+        Optional[ProjectFolder]: The found folder or None
+    """
+    for folder in structure.folders:
+        if folder.name == folder_name:
+            return folder
+    return None
