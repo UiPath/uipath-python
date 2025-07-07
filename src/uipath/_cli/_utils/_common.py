@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from urllib.parse import urlparse
 
 import click
 
@@ -29,7 +30,7 @@ def environment_options(function):
     return function
 
 
-def get_env_vars(spinner: Optional[Spinner] = None) -> list[str | None]:
+def get_env_vars(spinner: Optional[Spinner] = None) -> list[str]:
     base_url = os.environ.get("UIPATH_URL")
     token = os.environ.get("UIPATH_ACCESS_TOKEN")
 
@@ -42,7 +43,8 @@ def get_env_vars(spinner: Optional[Spinner] = None) -> list[str | None]:
         click.echo("UIPATH_URL, UIPATH_ACCESS_TOKEN")
         click.get_current_context().exit(1)
 
-    return [base_url, token]
+    # at this step we know for sure that both base_url and token exist. type checking can be disabled
+    return [base_url, token]  # type: ignore
 
 
 def serialize_object(obj):
@@ -69,3 +71,18 @@ def serialize_object(obj):
     # Return primitive types as is
     else:
         return obj
+
+
+def get_org_scoped_url(base_url: str) -> str:
+    """Get organization scoped URL from base URL.
+
+    Args:
+        base_url: The base URL to scope
+
+    Returns:
+        str: The organization scoped URL
+    """
+    parsed = urlparse(base_url)
+    org_name, *_ = parsed.path.strip("/").split("/")
+    org_scoped_url = f"{parsed.scheme}://{parsed.netloc}/{org_name}"
+    return org_scoped_url

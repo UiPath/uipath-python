@@ -10,6 +10,7 @@ from pytest_httpx import HTTPXMock
 from utils.project_details import ProjectDetails
 from utils.uipath_json import UiPathJson
 
+from tests.cli.utils.common import configure_env_vars
 from uipath._cli.cli_push import push
 
 
@@ -46,10 +47,16 @@ class TestPush:
     """Test push command."""
 
     def test_push_without_uipath_json(
-        self, runner: CliRunner, temp_dir: str, project_details: ProjectDetails
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: Dict[str, str],
     ) -> None:
         """Test push when uipath.json is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = "123"
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             result = runner.invoke(push, ["./"])
@@ -65,9 +72,11 @@ class TestPush:
         temp_dir: str,
         project_details: ProjectDetails,
         uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
     ) -> None:
         """Test push when UIPATH_PROJECT_ID is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            configure_env_vars(mock_env_vars)
             with open("uipath.json", "w") as f:
                 f.write(uipath_json.to_json())
             with open("pyproject.toml", "w") as f:
@@ -203,7 +212,7 @@ class TestPush:
                 f.write('version = 1 \n requires-python = ">=3.11"')
 
             # Set environment variables
-            os.environ.update(mock_env_vars)
+            configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run push
@@ -320,7 +329,7 @@ class TestPush:
                 f.write('version = 1 \n requires-python = ">=3.11"')
 
             # Set environment variables
-            os.environ.update(mock_env_vars)
+            configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run push
@@ -399,7 +408,7 @@ class TestPush:
                 f.write("")
 
             # Set environment variables
-            os.environ.update(mock_env_vars)
+            configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             result = runner.invoke(push, ["./"])
@@ -499,7 +508,7 @@ class TestPush:
             with open("uv.lock", "w") as f:
                 f.write("")
             # Set environment variables
-            os.environ.update(mock_env_vars)
+            configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run push with --nolock flag

@@ -18,8 +18,8 @@ taking into account:
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional, Set, Tuple
-from urllib.parse import urlparse
 
 import click
 import httpx
@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
-from ._utils._common import get_env_vars
+from ._utils._common import get_env_vars, get_org_scoped_url
 from ._utils._console import ConsoleLogger
 from ._utils._constants import (
     AGENT_INITIAL_CODE_VERSION,
@@ -42,53 +42,18 @@ from ._utils._project_files import (
     read_toml_project,
     validate_config,
 )
-from ._utils._studio_project import ProjectFile, ProjectFolder, ProjectStructure
+from ._utils._studio_project import (
+    ProjectFile,
+    ProjectFolder,
+    ProjectStructure,
+    download_file,
+    get_folder_by_name,
+    get_project_structure,
+)
 from ._utils._uv_helpers import handle_uv_operations
 
 console = ConsoleLogger()
 load_dotenv(override=True)
-
-
-def get_org_scoped_url(base_url: str) -> str:
-    parsed = urlparse(base_url)
-    org_name, *_ = parsed.path.strip("/").split("/")
-
-    # Construct the new scoped URL (scheme + domain + org_name)
-    org_scoped_url = f"{parsed.scheme}://{parsed.netloc}/{org_name}"
-    return org_scoped_url
-
-
-def get_project_structure(
-    project_id: str,
-    base_url: str,
-    token: str,
-    client: httpx.Client,
-) -> ProjectStructure:
-    """Retrieve the project's file structure from UiPath Cloud.
-
-    Makes an API call to fetch the complete file structure of a project,
-    including all files and folders. The response is validated against
-    the ProjectStructure model.
-
-    Args:
-        project_id: The ID of the project
-        base_url: The base URL for the API
-        token: Authentication token
-        client: HTTP client to use for requests
-
-    Returns:
-        ProjectStructure: The complete project structure
-
-    Raises:
-        httpx.HTTPError: If the API request fails
-    """
-    url = get_org_scoped_url(base_url)
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure"
-
-    response = client.get(url, headers=headers)
-    response.raise_for_status()
-    return ProjectStructure.model_validate(response.json())
 
 
 def collect_all_files(
@@ -106,24 +71,6 @@ def collect_all_files(
     # Recursively process subfolders
     for subfolder in folder.folders:
         collect_all_files(subfolder, files_dict)
-
-
-def get_folder_by_name(
-    structure: ProjectStructure, folder_name: str
-) -> Optional[ProjectFolder]:
-    """Get a folder from the project structure by name.
-
-    Args:
-        structure: The project structure
-        folder_name: Name of the folder to find
-
-    Returns:
-        Optional[ProjectFolder]: The found folder or None
-    """
-    for folder in structure.folders:
-        if folder.name == folder_name:
-            return folder
-    return None
 
 
 def get_all_remote_files(
@@ -252,15 +199,19 @@ def update_agent_json(
 
     base_api_url = f"{url}/studio_/backend/api/Project/{project_id}/FileOperations"
     if agent_json_file:
-        # Download existing agent.json
-        file_url = f"{base_api_url}/File/{agent_json_file.id}"
-        response = client.get(file_url, headers=headers)
-        response.raise_for_status()
-
         try:
-            existing_agent = response.json()
+            # Download existing agent.json
+
+            existing_agent_json = (
+                download_file(
+                    base_url=base_api_url,
+                    file_id=agent_json_file.id,
+                    client=client,
+                    token=token,
+                )
+            ).json()
             # Get current version and increment patch version
-            version_parts = existing_agent["metadata"]["codeVersion"].split(".")
+            version_parts = existing_agent_json["metadata"]["codeVersion"].split(".")
             if len(version_parts) >= 3:
                 version_parts[-1] = str(int(version_parts[-1]) + 1)
                 agent_json["metadata"]["codeVersion"] = ".".join(version_parts)
@@ -325,6 +276,22 @@ def create_project_folder(
     return ProjectFolder(name="source_code", id=response.content.decode("utf-8"))
 
 
+def is_evals_path(file_path: str) -> bool:
+    """Check if a file path is within the evals directory.
+
+    Args:
+        file_path: The file path to check
+
+    Returns:
+        bool: True if the path is within evals directory, False otherwise
+    """
+    path = Path(file_path)
+    try:
+        return "evals" in path.parts
+    except Exception:
+        return False
+
+
 def upload_source_files_to_project(
     project_id: str,
     config_data: dict[Any, str],
@@ -340,10 +307,12 @@ def upload_source_files_to_project(
     - Uploads new files that don't exist remotely
     - Deletes remote files that no longer exist locally
     - Optionally includes the UV lock file
+    - Ignores files in the evals folder
     """
     files = [
         file.file_path.replace("./", "", 1)
         for file in files_to_include(config_data, directory)
+        if not is_evals_path(file.file_path)
     ]
     optional_files = ["pyproject.toml"]
 
@@ -361,7 +330,9 @@ def upload_source_files_to_project(
     with httpx.Client(**get_httpx_client_kwargs()) as client:
         # get existing project structure
         try:
-            structure = get_project_structure(project_id, base_url, token, client)
+            structure = get_project_structure(
+                project_id, get_org_scoped_url(base_url), token, client
+            )
             source_code_folder = get_folder_by_name(structure, "source_code")
             root_files, source_code_files = get_all_remote_files(
                 structure, source_code_folder
@@ -390,7 +361,6 @@ def upload_source_files_to_project(
                         "Resource is locked. Unable to create 'source_code' folder."
                     )
                 raise
-
             except Exception as e:
                 console.error(f"Failed to create 'source_code' folder: {str(e)}")
                 raise
@@ -502,13 +472,13 @@ def push(root: str, nolock: bool) -> None:
         $ uipath push
         $ uipath push --nolock
     """
+    if not os.getenv("UIPATH_PROJECT_ID", False):
+        console.error("UIPATH_PROJECT_ID environment variable not found.")
+
+    [base_url, token] = get_env_vars()
     ensure_config_file(root)
     config = get_project_config(root)
     validate_config(config)
-
-    if not os.getenv("UIPATH_PROJECT_ID", False):
-        console.error("UIPATH_PROJECT_ID environment variable not found.")
-    [base_url, token] = get_env_vars()
 
     with console.spinner("Pushing coded UiPath project to Studio Web..."):
         try:
