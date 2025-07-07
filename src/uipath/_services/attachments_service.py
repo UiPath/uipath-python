@@ -11,6 +11,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
+from .._utils._ssl_context import get_httpx_client_kwargs
 from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ..tracing._traced import traced
 from ._base_service import BaseService
@@ -121,7 +122,7 @@ class AttachmentsService(FolderContext, BaseService):
                     for chunk in response.iter_bytes(chunk_size=8192):
                         file.write(chunk)
                 else:
-                    with httpx.Client() as client:
+                    with httpx.Client(**get_httpx_client_kwargs()) as client:
                         with client.stream(
                             "GET", download_uri, headers=headers
                         ) as response:
@@ -390,7 +391,7 @@ class AttachmentsService(FolderContext, BaseService):
                         "PUT", upload_uri, headers=headers, content=file_content
                     )
                 else:
-                    with httpx.Client() as client:
+                    with httpx.Client(**get_httpx_client_kwargs()) as client:
                         client.put(upload_uri, headers=headers, content=file_content)
         else:
             # Upload from memory
@@ -401,7 +402,7 @@ class AttachmentsService(FolderContext, BaseService):
             if result["BlobFileAccess"]["RequiresAuth"]:
                 self.request("PUT", upload_uri, headers=headers, content=content)
             else:
-                with httpx.Client() as client:
+                with httpx.Client(**get_httpx_client_kwargs()) as client:
                     client.put(upload_uri, headers=headers, content=content)
 
         return attachment_key
@@ -526,7 +527,7 @@ class AttachmentsService(FolderContext, BaseService):
                         "PUT", upload_uri, headers=headers, content=file_content
                     )
                 else:
-                    with httpx.Client() as client:
+                    with httpx.Client(**get_httpx_client_kwargs()) as client:
                         client.put(upload_uri, headers=headers, content=file_content)
         else:
             # Upload from memory
@@ -539,7 +540,7 @@ class AttachmentsService(FolderContext, BaseService):
                     "PUT", upload_uri, headers=headers, content=content
                 )
             else:
-                with httpx.Client() as client:
+                with httpx.Client(**get_httpx_client_kwargs()) as client:
                     client.put(upload_uri, headers=headers, content=content)
 
         return attachment_key

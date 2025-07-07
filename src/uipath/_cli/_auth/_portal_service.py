@@ -5,6 +5,7 @@ from typing import Optional
 import click
 import httpx
 
+from ..._utils._ssl_context import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import TenantsAndOrganizationInfoResponse, TokenData
 from ._oidc_utils import get_auth_config
@@ -16,7 +17,6 @@ from ._utils import (
 )
 
 console = ConsoleLogger()
-client = httpx.Client(follow_redirects=True, timeout=30.0)
 
 
 class PortalService:
@@ -26,6 +26,8 @@ class PortalService:
     prt_id: Optional[str] = None
     domain: Optional[str] = None
     selected_tenant: Optional[str] = None
+
+    _client: Optional[httpx.Client] = None
 
     _tenants_and_organizations: Optional[TenantsAndOrganizationInfoResponse] = None
 
@@ -39,13 +41,32 @@ class PortalService:
         self.access_token = access_token
         self.prt_id = prt_id
 
+        self._client = httpx.Client(**get_httpx_client_kwargs())
+
+    def close(self):
+        """Explicitly close the HTTP client."""
+        if self._client:
+            self._client.close()
+            self._client = None
+
+    def __enter__(self):
+        """Enter the runtime context related to this object."""
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the runtime context and close the HTTP client."""
+        self.close()
+
     def update_token_data(self, token_data: TokenData):
         self.access_token = token_data["access_token"]
         self.prt_id = get_parsed_token_data(token_data).get("prt_id")
 
     def get_tenants_and_organizations(self) -> TenantsAndOrganizationInfoResponse:
+        if self._client is None:
+            raise RuntimeError("HTTP client is not initialized")
+
         url = f"https://{self.domain}.uipath.com/{self.prt_id}/portal_/api/filtering/leftnav/tenantsAndOrganizationInfo"
-        response = client.get(
+        response = self._client.get(
             url, headers={"Authorization": f"Bearer {self.access_token}"}
         )
         if response.status_code < 400:
@@ -72,6 +93,9 @@ class PortalService:
         return f"https://{self.domain}.uipath.com/{account_name}/{self.selected_tenant}/orchestrator_"
 
     def post_refresh_token_request(self, refresh_token: str) -> TokenData:
+        if self._client is None:
+            raise RuntimeError("HTTP client is not initialized")
+
         url = f"https://{self.domain}.uipath.com/identity_/connect/token"
         client_id = get_auth_config().get("client_id")
 
@@ -83,7 +107,7 @@ class PortalService:
 
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-        response = client.post(url, data=data, headers=headers)
+        response = self._client.post(url, data=data, headers=headers)
         if response.status_code < 400:
             return response.json()
         elif response.status_code == 401:
@@ -137,6 +161,9 @@ class PortalService:
         update_env_file(updated_env_contents)
 
     def post_auth(self, base_url: str) -> None:
+        if self._client is None:
+            raise RuntimeError("HTTP client is not initialized")
+
         or_base_url = (
             f"{base_url}/orchestrator_"
             if base_url
@@ -148,7 +175,7 @@ class PortalService:
 
         try:
             [try_enable_first_run_response, acquire_license_response] = [
-                client.post(
+                self._client.post(
                     url,
                     headers={"Authorization": f"Bearer {self.access_token}"},
                 )

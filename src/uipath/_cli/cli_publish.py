@@ -6,6 +6,7 @@ import click
 import httpx
 from dotenv import load_dotenv
 
+from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
@@ -13,7 +14,6 @@ from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
 
 console = ConsoleLogger()
-client = httpx.Client(follow_redirects=True, timeout=30.0)
 
 
 def get_most_recent_package():
@@ -35,7 +35,10 @@ def get_available_feeds(
     base_url: str, headers: dict[str, str]
 ) -> list[tuple[str, str]]:
     url = f"{base_url}/orchestrator_/api/PackageFeeds/GetFeeds"
-    response = httpx.get(url, headers=headers)
+
+    with httpx.Client(**get_httpx_client_kwargs()) as client:
+        response = client.get(url, headers=headers)
+
     if response.status_code != 200:
         console.error(
             f"Failed to fetch available feeds. Please check your connection. Status code: {response.status_code} {response.text}"
@@ -123,40 +126,43 @@ def publish(feed):
             else:
                 url = url + "?feedId=" + feed
 
-        with open(package_to_publish_path, "rb") as f:
-            files = {"file": (package_to_publish_path, f, "application/octet-stream")}
-            response = client.post(url, headers=headers, files=files)
+        with httpx.Client(**get_httpx_client_kwargs()) as client:
+            with open(package_to_publish_path, "rb") as f:
+                files = {
+                    "file": (package_to_publish_path, f, "application/octet-stream")
+                }
+                response = client.post(url, headers=headers, files=files)
 
-    if response.status_code == 200:
-        console.success("Package published successfully!")
+                if response.status_code == 200:
+                    console.success("Package published successfully!")
 
-        if is_personal_workspace:
-            package_name = None
-            package_version = None
-            try:
-                data = json.loads(response.text)["value"][0]["Body"]
-                package_name = json.loads(data)["Id"]
-                package_version = json.loads(data)["Version"]
-            except json.decoder.JSONDecodeError:
-                console.warning("Failed to deserialize package name")
-            if package_name is not None:
-                with console.spinner("Getting process information ..."):
-                    release_id, _ = get_release_info(
-                        base_url,
-                        token,
-                        package_name,
-                        package_version,
-                        personal_workspace_feed_id,
-                    )
-                if release_id:
-                    process_url = f"{base_url}/orchestrator_/processes/{release_id}/edit?fid={personal_workspace_folder_id}"
-                    console.link("Process configuration link:", process_url)
-                    console.hint(
-                        "Use the link above to configure any environment variables"
-                    )
+                    if is_personal_workspace:
+                        package_name = None
+                        package_version = None
+                        try:
+                            data = json.loads(response.text)["value"][0]["Body"]
+                            package_name = json.loads(data)["Id"]
+                            package_version = json.loads(data)["Version"]
+                        except json.decoder.JSONDecodeError:
+                            console.warning("Failed to deserialize package name")
+                        if package_name is not None:
+                            with console.spinner("Getting process information ..."):
+                                release_id, _ = get_release_info(
+                                    base_url,
+                                    token,
+                                    package_name,
+                                    package_version,
+                                    personal_workspace_feed_id,
+                                )
+                            if release_id:
+                                process_url = f"{base_url}/orchestrator_/processes/{release_id}/edit?fid={personal_workspace_folder_id}"
+                                console.link("Process configuration link:", process_url)
+                                console.hint(
+                                    "Use the link above to configure any environment variables"
+                                )
+                            else:
+                                console.warning("Failed to compose process url")
                 else:
-                    console.warning("Failed to compose process url")
-    else:
-        console.error(
-            f"Failed to publish package. Status code: {response.status_code} {response.text}"
-        )
+                    console.error(
+                        f"Failed to publish package. Status code: {response.status_code} {response.text}"
+                    )

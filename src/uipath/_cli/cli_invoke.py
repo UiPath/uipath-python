@@ -14,6 +14,7 @@ try:
 except ImportError:
     import tomli as tomllib
 
+from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._folders import get_personal_workspace_info
@@ -22,7 +23,6 @@ from ._utils._processes import get_release_info
 logger = logging.getLogger(__name__)
 load_dotenv(override=True)
 console = ConsoleLogger()
-client = httpx.Client(follow_redirects=True, timeout=30.0)
 
 
 def _read_project_details() -> [str, str]:
@@ -92,23 +92,24 @@ def invoke(
             "x-uipath-organizationunitid": str(personal_workspace_folder_id),
         }
 
-        response = client.post(url, json=payload, headers=headers)
+        with httpx.Client(**get_httpx_client_kwargs()) as client:
+            response = client.post(url, json=payload, headers=headers)
 
-    if response.status_code == 201:
-        job_key = None
-        try:
-            job_key = response.json()["value"][0]["Key"]
-        except KeyError:
-            console.error("Error: Failed to get job key from response")
-        if job_key:
-            with console.spinner("Starting job ..."):
-                job_url = f"{base_url}/orchestrator_/jobs(sidepanel:sidepanel/jobs/{job_key}/details)?fid={personal_workspace_folder_id}"
-                console.magic("Job started successfully!")
-                console.link("Monitor your job here: ", job_url)
-    else:
-        console.error(
-            f"Error: Failed to start job. Status code: {response.status_code} {response.text}"
-        )
+            if response.status_code == 201:
+                job_key = None
+                try:
+                    job_key = response.json()["value"][0]["Key"]
+                except KeyError:
+                    console.error("Error: Failed to get job key from response")
+                if job_key:
+                    with console.spinner("Starting job ..."):
+                        job_url = f"{base_url}/orchestrator_/jobs(sidepanel:sidepanel/jobs/{job_key}/details)?fid={personal_workspace_folder_id}"
+                        console.magic("Job started successfully!")
+                        console.link("Monitor your job here: ", job_url)
+            else:
+                console.error(
+                    f"Error: Failed to start job. Status code: {response.status_code} {response.text}"
+                )
 
 
 if __name__ == "__main__":

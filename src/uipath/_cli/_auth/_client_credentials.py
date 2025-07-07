@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from ..._utils._ssl_context import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import TokenData
 from ._utils import parse_access_token, update_env_file
@@ -91,13 +92,11 @@ class ClientCredentialsService:
         }
 
         try:
-            with httpx.Client(timeout=30.0) as client:
+            with httpx.Client(**get_httpx_client_kwargs()) as client:
                 response = client.post(token_url, data=data)
-
                 match response.status_code:
                     case 200:
                         token_data = response.json()
-                        # Convert to our TokenData format
                         return {
                             "access_token": token_data["access_token"],
                             "token_type": token_data.get("token_type", "Bearer"),
