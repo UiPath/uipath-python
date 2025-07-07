@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.1.22"
+version = "2.1.23"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ dependencies = [
   "pathlib>=1.0.1",
   "rich>=13.0.0",
   "azure-monitor-opentelemetry>=1.6.8",
-  "truststore>=0.10.1"
+  "truststore>=0.10.1",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
