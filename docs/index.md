@@ -7,9 +7,9 @@ title: Getting Started
 
     ---
 
-    Set up, create, publish, and run your first UiPath Agent
+    Code with full UiPath context to build custom automations and agents from the ground up.
 
-    [Getting started](./core/getting_started.md)
+    [Start Building](./core/getting_started.md)
 
 </div>
 
@@ -19,16 +19,16 @@ title: Getting Started
 
     ---
 
-    Set up, create, publish, and run your first UiPath-LangChain Agent
+    Build enterprise-grade UiPath agents using the LangChain framework, with seamless integration from build to run.
 
-    [Getting started](./langchain/quick_start.md)
+    [Get Started](./langchain/quick_start.md)
 
 -   __UiPath LLamaIndex SDK__
 
     ---
 
-    Set up, create, publish, and run your first UiPath-LLamaIndex Agent
+    Build enterprise-grade UiPath agents using the LLamaIndex framework, with seamless integration from build to run.
 
-    [Getting started](./llamaindex/quick_start.md)
+    [Get Started](./llamaindex/quick_start.md)
 
 </div>
