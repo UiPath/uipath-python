@@ -37,7 +37,7 @@ class UiPathSpan:
     )
     expiry_time_utc: Optional[str] = None
     folder_key: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_FOLDER_KEY_XYZ", "")
+        default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
     )
     source: Optional[str] = None
     span_type: str = "Coded Agents"
