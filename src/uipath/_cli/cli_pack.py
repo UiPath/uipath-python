@@ -17,6 +17,7 @@ except ImportError:
 
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
+from ._utils._constants import is_binary_file
 
 console = ConsoleLogger()
 
@@ -265,8 +266,6 @@ def pack_fn(
     # Define the allowlist of file extensions to include
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml"]
     files_included = []
-    # Binary files that should be read in binary mode
-    binary_extensions = [".exe", "", ".xlsx", ".xls"]
 
     with open(config_path, "r") as f:
         config_data = json.load(f)
@@ -328,7 +327,7 @@ def pack_fn(
                 if file_extension in file_extensions_included or file in files_included:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, directory)
-                    if file_extension in binary_extensions:
+                    if is_binary_file(file_extension):
                         # Read binary files in binary mode
                         with open(file_path, "rb") as f:
                             z.writestr(f"content/{rel_path}", f.read())
