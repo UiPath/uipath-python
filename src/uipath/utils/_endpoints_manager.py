@@ -5,6 +5,8 @@ from typing import Optional
 
 import httpx
 
+from uipath._utils._ssl_context import get_httpx_client_kwargs
+
 loggger = logging.getLogger(__name__)
 
 
@@ -56,7 +58,7 @@ class EndpointManager:
     def _check_agenthub(cls) -> bool:
         """Perform the actual check for AgentHub capabilities."""
         try:
-            with httpx.Client() as http_client:
+            with httpx.Client(**get_httpx_client_kwargs()) as http_client:
                 base_url = os.getenv("UIPATH_URL", "")
                 capabilities_url = f"{base_url.rstrip('/')}/{UiPathEndpoints.AH_CAPABILITIES_ENDPOINT.value}"
                 loggger.debug(f"Checking AgentHub capabilities at {capabilities_url}")

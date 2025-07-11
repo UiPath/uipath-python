@@ -240,7 +240,7 @@ class AttachmentsService(FolderContext, BaseService):
                     async for chunk in response.aiter_bytes(chunk_size=8192):
                         file.write(chunk)
                 else:
-                    async with httpx.AsyncClient() as client:
+                    async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
                         async with client.stream(
                             "GET", download_uri, headers=headers
                         ) as response:
