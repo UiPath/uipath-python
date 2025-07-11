@@ -59,6 +59,22 @@ class BaseService:
 
         super().__init__()
 
+    def _prepare_request_headers(
+        self, specific_component: str, extra_headers: dict = None
+    ) -> dict:
+        """Prepare headers for a request by merging default headers with any additional headers."""
+        # Start with client's default headers
+        merged_headers = dict(self._client.headers)
+
+        # Add/override with any headers passed in
+        if extra_headers:
+            merged_headers.update(extra_headers)
+
+        # Always set the user agent
+        merged_headers[HEADER_USER_AGENT] = user_agent_value(specific_component)
+
+        return merged_headers
+
     @retry(
         retry=(
             retry_if_exception(is_retryable_exception)
@@ -75,11 +91,9 @@ class BaseService:
         **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
-        self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
 
         try:
             stack = inspect.stack()
-
             # use the third frame because of the retry decorator
             caller_frame = stack[3].frame
             function_name = caller_frame.f_code.co_name
@@ -98,8 +112,11 @@ class BaseService:
             f"{module_name}.{function_name}" if module_name and function_name else ""
         )
 
-        kwargs.setdefault("headers", {})
-        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
+        kwargs["headers"] = self._prepare_request_headers(
+            specific_component, kwargs.get("headers")
+        )
+
+        self._logger.debug(f"HEADERS: {kwargs['headers']}")
 
         scoped_url = self._url.scope_url(str(url), scoped)
 
@@ -124,14 +141,12 @@ class BaseService:
         **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
-        self._logger.debug(
-            f"HEADERS: {kwargs.get('headers', self._client_async.headers)}"
+
+        kwargs["headers"] = self._prepare_request_headers(
+            self._specific_component, kwargs.get("headers")
         )
 
-        kwargs.setdefault("headers", {})
-        kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(
-            self._specific_component
-        )
+        self._logger.debug(f"HEADERS: {kwargs['headers']}")
 
         scoped_url = self._url.scope_url(str(url), scoped)
 
