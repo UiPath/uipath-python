@@ -4,12 +4,14 @@ import os
 import time
 from typing import Any, Dict, Sequence
 
-from httpx import Client
+import httpx
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import (
     SpanExporter,
     SpanExportResult,
 )
+
+from uipath._utils._ssl_context import get_httpx_client_kwargs
 
 from ._utils import _SpanUtils
 
@@ -19,9 +21,9 @@ logger = logging.getLogger(__name__)
 class LlmOpsHttpExporter(SpanExporter):
     """An OpenTelemetry span exporter that sends spans to UiPath LLM Ops."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **client_kwargs):
         """Initialize the exporter with the base URL and authentication token."""
-        super().__init__(**kwargs)
+        super().__init__(**client_kwargs)
         self.base_url = self._get_base_url()
         self.auth_token = os.environ.get("UIPATH_ACCESS_TOKEN")
         self.headers = {
@@ -29,7 +31,9 @@ class LlmOpsHttpExporter(SpanExporter):
             "Authorization": f"Bearer {self.auth_token}",
         }
 
-        self.http_client = Client(headers=self.headers)
+        client_kwargs = get_httpx_client_kwargs()
+
+        self.http_client = httpx.Client(**client_kwargs, headers=self.headers)
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to UiPath LLM Ops."""

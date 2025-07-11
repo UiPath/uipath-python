@@ -42,7 +42,7 @@ def mock_span():
 @pytest.fixture
 def exporter(mock_env_vars):
     """Create an exporter instance for testing."""
-    with patch("uipath.tracing._otel_exporters.Client"):
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
         exporter = LlmOpsHttpExporter()
         # Mock _build_url to include query parameters as in the actual implementation
         exporter._build_url = MagicMock(  # type: ignore
@@ -53,7 +53,7 @@ def exporter(mock_env_vars):
 
 def test_init_with_env_vars(mock_env_vars):
     """Test initialization with environment variables."""
-    with patch("uipath.tracing._otel_exporters.Client"):
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
         exporter = LlmOpsHttpExporter()
 
         assert exporter.base_url == "https://test.uipath.com/org/tenant"
@@ -67,7 +67,7 @@ def test_init_with_env_vars(mock_env_vars):
 def test_init_with_default_url():
     """Test initialization with default URL when environment variable is not set."""
     with (
-        patch("uipath.tracing._otel_exporters.Client"),
+        patch("uipath.tracing._otel_exporters.httpx.Client"),
         patch.dict(os.environ, {"UIPATH_ACCESS_TOKEN": "test-token"}, clear=True),
     ):
         exporter = LlmOpsHttpExporter()
@@ -154,7 +154,7 @@ def test_get_base_url():
     with patch.dict(
         os.environ, {"UIPATH_URL": "https://custom.uipath.com/org/tenant/"}, clear=True
     ):
-        with patch("uipath.tracing._otel_exporters.Client"):
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
             assert exporter.base_url == "https://custom.uipath.com/org/tenant"
 
@@ -162,20 +162,20 @@ def test_get_base_url():
     with patch.dict(
         os.environ, {"UIPATH_URL": "https://custom.uipath.com/org/tenant"}, clear=True
     ):
-        with patch("uipath.tracing._otel_exporters.Client"):
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
             assert exporter.base_url == "https://custom.uipath.com/org/tenant"
 
     # Test with no environment variable
     with patch.dict(os.environ, {}, clear=True):
-        with patch("uipath.tracing._otel_exporters.Client"):
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
             assert exporter.base_url == "https://cloud.uipath.com/dummyOrg/dummyTennant"
 
 
 def test_send_with_retries_success():
     """Test _send_with_retries method with successful response."""
-    with patch("uipath.tracing._otel_exporters.Client"):
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
         exporter = LlmOpsHttpExporter()
 
         mock_response = MagicMock()
