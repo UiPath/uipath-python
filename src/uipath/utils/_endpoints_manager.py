@@ -63,7 +63,18 @@ class EndpointManager:
                 capabilities_url = f"{base_url.rstrip('/')}/{UiPathEndpoints.AH_CAPABILITIES_ENDPOINT.value}"
                 loggger.debug(f"Checking AgentHub capabilities at {capabilities_url}")
                 response = http_client.get(capabilities_url)
-                return response.status_code == 200
+
+                if response.status_code != 200:
+                    return False
+
+                capabilities = response.json()
+
+                # Validate structure and required fields
+                if not isinstance(capabilities, dict) or "version" not in capabilities:
+                    return False
+
+                return True
+
         except Exception as e:
             loggger.error(f"Error checking AgentHub capabilities: {e}", exc_info=True)
             return False
