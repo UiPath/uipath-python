@@ -111,7 +111,7 @@ class ClientCredentialsService:
                         try:
                             error_details = response.json()
                             console.info(f"DEBUG: Error details: {error_details}")
-                        except:
+                        except Exception:
                             console.info(f"DEBUG: Raw error response: {response.text}")
                         
                         console.error(
