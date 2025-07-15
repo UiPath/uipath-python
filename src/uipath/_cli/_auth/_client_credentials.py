@@ -108,15 +108,16 @@ class ClientCredentialsService:
                         }
                     
                     case 400:
+                        try:
+                            error_details = response.json()
+                            console.info(f"DEBUG: Error details: {error_details}")
+                        except:
+                            console.info(f"DEBUG: Raw error response: {response.text}")
                         
                         console.error(
                             "Invalid client credentials or request parameters."
                         )
-                        try:
-                            error_details = response.json()
-                            console.error(f"DEBUG: Error details: {error_details}")
-                        except:
-                            console.error(f"DEBUG: Raw error response: {response.text}")
+                        
                         return None
                     
                     case 401:
