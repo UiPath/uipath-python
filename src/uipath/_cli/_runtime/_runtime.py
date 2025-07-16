@@ -50,7 +50,7 @@ class UiPathRuntime(UiPathBaseRuntime):
             if self.context.entrypoint is None:
                 return None
 
-            script_result = self._execute_python_script(
+            script_result = await self._execute_python_script(
                 self.context.entrypoint, self.context.input_json
             )
 
@@ -111,7 +111,7 @@ class UiPathRuntime(UiPathBaseRuntime):
         """Cleanup runtime resources."""
         pass
 
-    def _execute_python_script(self, script_path: str, input_data: Any) -> Any:
+    async def _execute_python_script(self, script_path: str, input_data: Any) -> Any:
         """Execute the Python script with the given input."""
         spec = importlib.util.spec_from_file_location("dynamic_module", script_path)
         if not spec or not spec.loader:
@@ -139,10 +139,13 @@ class UiPathRuntime(UiPathBaseRuntime):
                 sig = inspect.signature(main_func)
                 params = list(sig.parameters.values())
 
+                # Check if the function is asynchronous
+                is_async = inspect.iscoroutinefunction(main_func)
+
                 # Case 1: No parameters
                 if not params:
                     try:
-                        result = main_func()
+                        result = await main_func() if is_async else main_func()
                         return (
                             self._convert_from_class(result)
                             if result is not None
@@ -166,7 +169,11 @@ class UiPathRuntime(UiPathBaseRuntime):
                     try:
                         valid_type = cast(Type[Any], input_type)
                         typed_input = self._convert_to_class(input_data, valid_type)
-                        result = main_func(typed_input)
+                        result = (
+                            await main_func(typed_input)
+                            if is_async
+                            else main_func(typed_input)
+                        )
                         return (
                             self._convert_from_class(result)
                             if result is not None
@@ -183,7 +190,11 @@ class UiPathRuntime(UiPathBaseRuntime):
                 # Case 3: Dict parameter
                 else:
                     try:
-                        result = main_func(input_data)
+                        result = (
+                            await main_func(input_data)
+                            if is_async
+                            else main_func(input_data)
+                        )
                         return (
                             self._convert_from_class(result)
                             if result is not None
