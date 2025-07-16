@@ -23,11 +23,11 @@ title: Getting Started
 
     [Get Started](./langchain/quick_start.md)
 
--   __UiPath LLamaIndex SDK__
+-   __UiPath LlamaIndex SDK__
 
     ---
 
-    Build enterprise-grade UiPath agents using the LLamaIndex framework, with seamless integration from build to run.
+    Build enterprise-grade UiPath agents using the LlamaIndex framework, with seamless integration from build to run.
 
     [Get Started](./llamaindex/quick_start.md)
 
