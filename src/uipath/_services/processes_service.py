@@ -71,7 +71,6 @@ class ProcessesService(FolderContext, BaseService):
             folder_key=folder_key,
             folder_path=folder_path,
         )
-
         response = self.request(
             spec.method,
             url=spec.endpoint,
