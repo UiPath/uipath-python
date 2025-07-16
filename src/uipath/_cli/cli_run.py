@@ -45,14 +45,20 @@ def python_run_middleware(
     Returns:
         MiddlewareResult with execution status and messages
     """
+    console.info(f"[DEBUG] Entry point argument: {entrypoint}")
     if not entrypoint:
+        console.info("[DEBUG] No entrypoint specified.")
         return MiddlewareResult(
             should_continue=False,
             error_message="""No entrypoint specified. Please provide a path to a Python script.
 Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""",
         )
 
+    console.info(f"[DEBUG] Absolute path resolved: {os.path.abspath(entrypoint)}")
+    console.info(f"[DEBUG] File exists: {os.path.exists(entrypoint)}")
+
     if not os.path.exists(entrypoint):
+        console.info(f"[DEBUG] Script not found at path: {entrypoint}")
         return MiddlewareResult(
             should_continue=False,
             error_message=f"""Script not found at path {entrypoint}.
@@ -62,9 +68,15 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
     try:
 
         async def execute():
-            context = UiPathRuntimeContext.from_config(
-                env.get("UIPATH_CONFIG_PATH", "uipath.json")
-            )
+            
+            config_path = env.get("UIPATH_CONFIG_PATH", "uipath.json")
+            console.info(f"[DEBUG] Using config path: {config_path}")
+            console.info(f"[DEBUG] Entrypoint argument: {entrypoint}")
+            console.info(f"[DEBUG] Entrypoint absolute path: {os.path.abspath(entrypoint) if entrypoint else None}")
+            console.info(f"[DEBUG] Entrypoint exists: {os.path.exists(entrypoint) if entrypoint else None}")
+            console.info(f"[DEBUG] Input: {input}")
+            context = UiPathRuntimeContext.from_config(config_path)
+            
             context.entrypoint = entrypoint
             context.input = input
             context.resume = resume
@@ -93,6 +105,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
         return MiddlewareResult(should_continue=False)
 
     except UiPathRuntimeError as e:
+        console.info(f"[DEBUG][UiPathRuntimeError] {type(e).__name__}: {e}")
         return MiddlewareResult(
             should_continue=False,
             error_message=f"Error: {e.error_info.title} - {e.error_info.detail}",
@@ -100,6 +113,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
         )
     except Exception as e:
         # Handle unexpected errors
+        console.info(f"[DEBUG][Exception] {type(e).__name__}: {e}")
         return MiddlewareResult(
             should_continue=False,
             error_message=f"Error: Unexpected error occurred - {str(e)}",
