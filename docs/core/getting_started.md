@@ -13,8 +13,8 @@
 <!-- termynal -->
 
 ```shell
-> mkdir example
-> cd example
+> mkdir uipath_coded_process
+> cd uipath_coded_process
 ```
 
 ////
@@ -24,8 +24,8 @@
 <!-- termynal -->
 
 ```powershell
-> New-Item -ItemType Directory -Path example
-> Set-Location example
+> New-Item -ItemType Directory -Path uipath_coded_process
+> Set-Location uipath_coded_process
 ```
 
 ////
@@ -191,7 +191,7 @@ Then, package your project:
 ```shell
 > uipath pack
 ⠋ Packaging project ...
-Name       : test
+Name       : uipath_coded_process
 Version    : 0.1.0
 Description: Add your description here
 Authors    : Your Name
@@ -210,7 +210,7 @@ Finally, publish your package:
   1: Orchestrator Personal Workspace Feed
 Select feed number: 0
 Selected feed: Orchestrator Tenant Processes Feed
-⠸ Publishing most recent package: test.0.1.0.nupkg ...
+⠸ Publishing most recent package: uipath_coded_process.0.1.0.nupkg ...
 ✓  Package published successfully!
 ```
 
@@ -229,12 +229,13 @@ from uipath import UiPath
 def main():
     sdk = UiPath()
     sdk.processes.invoke(
-        "test",
+        "uipath_coded_process",
         input_arguments={
             "message": "Hello, World!",
             "repeat": 3,
             "prefix": "[Echo]"
-        }
+        },
+        folder_path="PROCESS_FOLDER_PATH_HERE"
     )
 ```
 
@@ -246,7 +247,7 @@ def main():
 > uipath run main.py
 ```
 
-Open your browser and navigate to UiPath. Go to the specified folder, where you'll see a new job for `test` has been executed. The output will be:
+Open your browser and navigate to UiPath. Go to the specified folder, where you'll see a new job for `uipath_coded_process` has been executed. The output will be:
 
 ```
 [Echo]: Hello, World! Echo: Hello, World! Echo: Hello, World!
