@@ -1,0 +1,11 @@
+[project]
+name = "google-adk-agent"
+version = "0.0.1"
+description = "UiPath - Google ADK agent"
+authors = [{ name = "John Doe" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "google-adk>=1.4.2",
+    "uipath>=2.0.79",
+]
