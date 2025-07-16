@@ -76,6 +76,7 @@ packages = ["src/uipath"]
 [tool.ruff]
 line-length = 88
 indent-width = 4
+exclude = ["samples/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "D"]
@@ -103,6 +104,8 @@ line-ending = "auto"
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
+exclude = ["samples/.*"]
+
 
 follow_imports = "silent"
 warn_redundant_casts = true
