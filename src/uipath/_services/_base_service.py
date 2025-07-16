@@ -8,6 +8,7 @@ from httpx import (
     Client,
     ConnectTimeout,
     Headers,
+    HTTPStatusError,
     Response,
     TimeoutException,
 )
@@ -25,6 +26,7 @@ from .._execution_context import ExecutionContext
 from .._utils import UiPathUrl, user_agent_value
 from .._utils._ssl_context import get_httpx_client_kwargs
 from .._utils.constants import HEADER_USER_AGENT
+from ..models.exceptions import EnrichedException
 
 
 def is_retryable_exception(exception: BaseException) -> bool:
@@ -104,7 +106,12 @@ class BaseService:
         scoped_url = self._url.scope_url(str(url), scoped)
 
         response = self._client.request(method, scoped_url, **kwargs)
-        response.raise_for_status()
+
+        try:
+            response.raise_for_status()
+        except HTTPStatusError as e:
+            # include the http response in the error message
+            raise EnrichedException(e) from e
 
         return response
 
@@ -136,8 +143,12 @@ class BaseService:
         scoped_url = self._url.scope_url(str(url), scoped)
 
         response = await self._client_async.request(method, scoped_url, **kwargs)
-        response.raise_for_status()
 
+        try:
+            response.raise_for_status()
+        except HTTPStatusError as e:
+            # include the http response in the error message
+            raise EnrichedException(e) from e
         return response
 
     @property
