@@ -1,27 +1,35 @@
 # type: ignore
 import json
 import os
-import re
-import subprocess
 import uuid
 import zipfile
 from string import Template
-from typing import Dict, Tuple
 
 import click
 
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
-
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
-from ._utils._constants import is_binary_file
+from ._utils._project_files import (
+    ensure_config_file,
+    files_to_include,
+    get_project_config,
+    read_toml_project,
+    validate_config,
+)
+from ._utils._uv_helpers import handle_uv_operations
 
 console = ConsoleLogger()
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
+
+
+def get_project_version(directory):
+    toml_path = os.path.join(directory, "pyproject.toml")
+    if not os.path.exists(toml_path):
+        console.warning("pyproject.toml not found. Using default version 0.0.1")
+        return "0.0.1"
+    toml_data = read_toml_project(toml_path)
+    return toml_data["version"]
 
 
 def validate_config_structure(config_data):
@@ -29,92 +37,6 @@ def validate_config_structure(config_data):
     for field in required_fields:
         if field not in config_data:
             console.error(f"uipath.json is missing the required field: {field}.")
-
-
-def check_config(directory):
-    config_path = os.path.join(directory, "uipath.json")
-    toml_path = os.path.join(directory, "pyproject.toml")
-
-    if not os.path.isfile(config_path):
-        console.error("uipath.json not found, please run `uipath init`.")
-    if not os.path.isfile(toml_path):
-        console.error("pyproject.toml not found.")
-
-    with open(config_path, "r") as config_file:
-        config_data = json.load(config_file)
-
-    validate_config_structure(config_data)
-
-    toml_data = read_toml_project(toml_path)
-
-    return {
-        "project_name": toml_data["name"],
-        "description": toml_data["description"],
-        "entryPoints": config_data["entryPoints"],
-        "version": toml_data["version"],
-        "authors": toml_data["authors"],
-        "dependencies": toml_data.get("dependencies", {}),
-    }
-
-
-def is_uv_available():
-    """Check if uv command is available in the system."""
-    try:
-        subprocess.run(["uv", "--version"], capture_output=True, check=True, timeout=20)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-    except Exception as e:
-        console.warning(
-            f"An unexpected error occurred while checking uv availability: {str(e)}"
-        )
-        return False
-
-
-def is_uv_project(directory):
-    """Check if this is a uv project by looking for the uv.lock file."""
-    uv_lock_path = os.path.join(directory, "uv.lock")
-
-    # If uv.lock exists, it's definitely a uv project
-    if os.path.exists(uv_lock_path):
-        return True
-
-    return False
-
-
-def run_uv_lock(directory):
-    """Run uv lock to update the lock file."""
-    try:
-        subprocess.run(
-            ["uv", "lock"],
-            cwd=directory,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=60,
-        )
-        return True
-    except subprocess.CalledProcessError as e:
-        console.warning(f"uv lock failed: {e.stderr}")
-        return False
-    except FileNotFoundError:
-        console.warning("uv command not found. Skipping lock file update.")
-        return False
-    except Exception as e:
-        console.warning(f"An unexpected error occurred while running uv lock: {str(e)}")
-        return False
-
-
-def handle_uv_operations(directory):
-    """Handle uv operations if uv is detected and available."""
-    if not is_uv_available():
-        return
-
-    if not is_uv_project(directory):
-        return
-
-    # Always run uv lock to ensure lock file is up to date
-    run_uv_lock(directory)
 
 
 def generate_operate_file(entryPoints, dependencies=None):
@@ -263,22 +185,12 @@ def pack_fn(
     if not os.path.exists(config_path):
         console.error("uipath.json not found, please run `uipath init`.")
 
-    # Define the allowlist of file extensions to include
-    file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml"]
-    files_included = []
-
     with open(config_path, "r") as f:
         config_data = json.load(f)
         if "bindings" in config_data:
             bindings_content = config_data["bindings"]
         else:
             bindings_content = generate_bindings_content()
-        if "settings" in config_data:
-            settings = config_data["settings"]
-            if "fileExtensionsIncluded" in settings:
-                file_extensions_included.extend(settings["fileExtensionsIncluded"])
-            if "filesIncluded" in settings:
-                files_included = settings["filesIncluded"]
 
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
@@ -313,38 +225,27 @@ def pack_fn(
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        # Walk through directory and add all files with extensions in the allowlist
-        for root, dirs, files in os.walk(directory):
-            # Skip all directories that start with . or are a venv
-            dirs[:] = [
-                d
-                for d in dirs
-                if not d.startswith(".") and not is_venv_dir(os.path.join(root, d))
-            ]
+        files = files_to_include(config_data, directory)
 
-            for file in files:
-                file_extension = os.path.splitext(file)[1].lower()
-                if file_extension in file_extensions_included or file in files_included:
-                    file_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(file_path, directory)
-                    if is_binary_file(file_extension):
-                        # Read binary files in binary mode
-                        with open(file_path, "rb") as f:
-                            z.writestr(f"content/{rel_path}", f.read())
-                    else:
-                        try:
-                            # Try UTF-8 first
-                            with open(file_path, "r", encoding="utf-8") as f:
-                                z.writestr(f"content/{rel_path}", f.read())
-                        except UnicodeDecodeError:
-                            # If UTF-8 fails, try with utf-8-sig (for files with BOM)
-                            try:
-                                with open(file_path, "r", encoding="utf-8-sig") as f:
-                                    z.writestr(f"content/{rel_path}", f.read())
-                            except UnicodeDecodeError:
-                                # If that also fails, try with latin-1 as a fallback
-                                with open(file_path, "r", encoding="latin-1") as f:
-                                    z.writestr(f"content/{rel_path}", f.read())
+        for file in files:
+            if file.is_binary:
+                # Read binary files in binary mode
+                with open(file.file_path, "rb") as f:
+                    z.writestr(f"content/{file.relative_path}", f.read())
+            else:
+                try:
+                    # Try UTF-8 first
+                    with open(file.file_path, "r", encoding="utf-8") as f:
+                        z.writestr(f"content/{file.relative_path}", f.read())
+                except UnicodeDecodeError:
+                    # If UTF-8 fails, try with utf-8-sig (for files with BOM)
+                    try:
+                        with open(file.file_path, "r", encoding="utf-8-sig") as f:
+                            z.writestr(f"content/{file.relative_path}", f.read())
+                    except UnicodeDecodeError:
+                        # If that also fails, try with latin-1 as a fallback
+                        with open(file.file_path, "r", encoding="latin-1") as f:
+                            z.writestr(f"content/{file.relative_path}", f.read())
 
         # Handle optional files, conditionally including uv.lock
         optional_files = ["pyproject.toml", "README.md"]
@@ -360,177 +261,6 @@ def pack_fn(
                 except UnicodeDecodeError:
                     with open(file_path, "r", encoding="latin-1") as f:
                         z.writestr(f"content/{file}", f.read())
-
-
-def parse_dependency_string(dependency: str) -> Tuple[str, str]:
-    """Parse a dependency string into package name and version specifier.
-
-    Handles PEP 508 dependency specifications including:
-    - Simple names: "requests"
-    - Version specifiers: "requests>=2.28.0"
-    - Complex specifiers: "requests>=2.28.0,<3.0.0"
-    - Extras: "requests[security]>=2.28.0"
-    - Environment markers: "requests>=2.28.0; python_version>='3.8'"
-
-    Args:
-        dependency: Raw dependency string from pyproject.toml
-
-    Returns:
-        Tuple of (package_name, version_specifier)
-
-    Examples:
-        "requests" -> ("requests", "*")
-        "requests>=2.28.0" -> ("requests", ">=2.28.0")
-        "requests>=2.28.0,<3.0.0" -> ("requests", ">=2.28.0,<3.0.0")
-        "requests[security]>=2.28.0" -> ("requests", ">=2.28.0")
-    """
-    # Remove whitespace
-    dependency = dependency.strip()
-
-    # Handle environment markers (everything after semicolon)
-    if ";" in dependency:
-        dependency = dependency.split(";")[0].strip()
-
-    # Pattern to match package name with optional extras and version specifiers
-    # Matches: package_name[extras] version_specs
-    pattern = r"^([a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?)(\[[^\]]+\])?(.*)"
-    match = re.match(pattern, dependency)
-
-    if not match:
-        # Fallback for edge cases
-        return dependency, "*"
-
-    package_name = match.group(1)
-    version_part = match.group(4).strip() if match.group(4) else ""
-
-    # If no version specifier, return wildcard
-    if not version_part:
-        return package_name, "*"
-
-    # Clean up version specifier
-    version_spec = version_part.strip()
-
-    # Validate that version specifier starts with a valid operator
-    valid_operators = [">=", "<=", "==", "!=", "~=", ">", "<"]
-    if not any(version_spec.startswith(op) for op in valid_operators):
-        # If it doesn't start with an operator, treat as exact version
-        if version_spec:
-            version_spec = f"=={version_spec}"
-        else:
-            version_spec = "*"
-
-    return package_name, version_spec
-
-
-def extract_dependencies_from_toml(project_data: Dict) -> Dict[str, str]:
-    """Extract and parse dependencies from pyproject.toml project data.
-
-    Args:
-        project_data: The "project" section from pyproject.toml
-
-    Returns:
-        Dictionary mapping package names to version specifiers
-    """
-    dependencies = {}
-
-    if "dependencies" not in project_data:
-        return dependencies
-
-    deps_list = project_data["dependencies"]
-    if not isinstance(deps_list, list):
-        console.warning("dependencies should be a list in pyproject.toml")
-        return dependencies
-
-    for dep in deps_list:
-        if not isinstance(dep, str):
-            console.warning(f"Skipping non-string dependency: {dep}")
-            continue
-
-        try:
-            name, version_spec = parse_dependency_string(dep)
-            if name:  # Only add if we got a valid name
-                dependencies[name] = version_spec
-        except Exception as e:
-            console.warning(f"Failed to parse dependency '{dep}': {e}")
-            continue
-
-    return dependencies
-
-
-def read_toml_project(file_path: str) -> dict:
-    """Read and parse pyproject.toml file with improved error handling and validation.
-
-    Args:
-        file_path: Path to pyproject.toml file
-
-    Returns:
-        Dictionary containing project metadata and dependencies
-    """
-    try:
-        with open(file_path, "rb") as f:
-            content = tomllib.load(f)
-    except Exception as e:
-        console.error(f"Failed to read or parse pyproject.toml: {e}")
-
-    # Validate required sections
-    if "project" not in content:
-        console.error("pyproject.toml is missing the required field: project.")
-
-    project = content["project"]
-
-    # Validate required fields with better error messages
-    required_fields = {
-        "name": "Project name is required in pyproject.toml",
-        "description": "Project description is required in pyproject.toml",
-        "version": "Project version is required in pyproject.toml",
-    }
-
-    for field, error_msg in required_fields.items():
-        if field not in project:
-            console.error(
-                f"pyproject.toml is missing the required field: project.{field}. {error_msg}"
-            )
-
-        # Check for empty values only if field exists
-        if field in project and (
-            not project[field]
-            or (isinstance(project[field], str) and not project[field].strip())
-        ):
-            console.error(
-                f"Project {field} cannot be empty. Please specify a {field} in pyproject.toml."
-            )
-
-    # Extract author information safely
-    authors = project.get("authors", [])
-    author_name = ""
-
-    if authors and isinstance(authors, list) and len(authors) > 0:
-        first_author = authors[0]
-        if isinstance(first_author, dict):
-            author_name = first_author.get("name", "")
-        elif isinstance(first_author, str):
-            # Handle case where authors is a list of strings
-            author_name = first_author
-
-    # Extract dependencies with improved parsing
-    dependencies = extract_dependencies_from_toml(project)
-
-    return {
-        "name": project["name"].strip(),
-        "description": project["description"].strip(),
-        "version": project["version"].strip(),
-        "authors": author_name.strip(),
-        "dependencies": dependencies,
-    }
-
-
-def get_project_version(directory):
-    toml_path = os.path.join(directory, "pyproject.toml")
-    if not os.path.exists(toml_path):
-        console.warning("pyproject.toml not found. Using default version 0.0.1")
-        return "0.0.1"
-    toml_data = read_toml_project(toml_path)
-    return toml_data["version"]
 
 
 def display_project_info(config):
@@ -561,34 +291,9 @@ def pack(root, nolock):
     """Pack the project."""
     version = get_project_version(root)
 
-    while not os.path.isfile(os.path.join(root, "uipath.json")):
-        console.error(
-            "uipath.json not found. Please run `uipath init` in the project directory."
-        )
-    config = check_config(root)
-    if not config["project_name"] or config["project_name"].strip() == "":
-        console.error(
-            "Project name cannot be empty. Please specify a name in pyproject.toml."
-        )
-
-    if not config["description"] or config["description"].strip() == "":
-        console.error(
-            "Project description cannot be empty. Please specify a description in pyproject.toml."
-        )
-
-    if not config["authors"] or config["authors"].strip() == "":
-        console.error(
-            'Project authors cannot be empty. Please specify authors in pyproject.toml:\n    authors = [{ name = "John Doe" }]'
-        )
-
-    invalid_chars = ["&", "<", ">", '"', "'", ";"]
-    for char in invalid_chars:
-        if char in config["project_name"]:
-            console.error(f"Project name contains invalid character: '{char}'")
-
-    for char in invalid_chars:
-        if char in config["description"]:
-            console.error(f"Project description contains invalid character: '{char}'")
+    ensure_config_file(root)
+    config = get_project_config(root)
+    validate_config(config)
 
     with console.spinner("Packaging project ..."):
         try:

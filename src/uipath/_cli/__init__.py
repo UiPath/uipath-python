@@ -10,6 +10,8 @@ from .cli_invoke import invoke as invoke  # type: ignore
 from .cli_new import new as new  # type: ignore
 from .cli_pack import pack as pack  # type: ignore
 from .cli_publish import publish as publish  # type: ignore
+from .cli_pull import pull as pull  # type: ignore
+from .cli_push import push as push  # type: ignore
 from .cli_run import run as run  # type: ignore
 
 
@@ -63,3 +65,5 @@ cli.add_command(run)
 cli.add_command(deploy)
 cli.add_command(auth)
 cli.add_command(invoke)
+cli.add_command(push)
+cli.add_command(pull)
