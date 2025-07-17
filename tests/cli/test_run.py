@@ -53,6 +53,9 @@ class TestRun:
             entrypoint: str,
         ):
             with runner.isolated_filesystem(temp_dir=temp_dir):
+                file_path = os.path.join(temp_dir, entrypoint)
+                with open(file_path, "w") as f:
+                    f.write("script content")
                 result = runner.invoke(run, [entrypoint, "--file", "not-here.json"])
                 assert result.exit_code != 0
                 assert "Error: Invalid value for '-f' / '--file'" in result.output
@@ -65,12 +68,15 @@ class TestRun:
         ):
             file_name = "not-json.txt"
             with runner.isolated_filesystem(temp_dir=temp_dir):
+                script_file_path = os.path.join(temp_dir, entrypoint)
+                with open(script_file_path, "w") as f:
+                    f.write("script content")
                 file_path = os.path.join(temp_dir, file_name)
                 with open(file_path, "w") as f:
                     f.write("file content")
-                result = runner.invoke(run, [entrypoint, "--file", file_path])
+                result = runner.invoke(run, [script_file_path, "--file", file_path])
                 assert result.exit_code == 1
-                assert "Input file extension must be '.json'." in result.output
+                assert "Invalid Input File Extension" in result.output
 
         def test_run_input_file_success(
             self,
@@ -100,7 +106,14 @@ class TestRun:
                     assert "Successful execution." in result.output
                     assert mock_middleware.call_count == 1
                     assert mock_middleware.call_args == mock.call(
-                        "run", entrypoint, json_content, False
+                        "run",
+                        entrypoint,
+                        "{}",
+                        False,
+                        debug=False,
+                        debug_port=5678,
+                        input_file=file_path,
+                        execution_output_file=None,
                     )
 
     class TestMiddleware:
@@ -134,6 +147,7 @@ class TestRun:
             simple_script: str,
         ):
             input_file_name = "input.json"
+            output_file_name = "output.json"
             input_json_content = """
             {
                 "message": "Hello world",
@@ -142,6 +156,7 @@ class TestRun:
             with runner.isolated_filesystem(temp_dir=temp_dir):
                 # create input file
                 input_file_path = os.path.join(temp_dir, input_file_name)
+                output_file_path = os.path.join(temp_dir, output_file_name)
                 with open(input_file_path, "w") as f:
                     f.write(input_json_content)
                 # Create test script
@@ -152,11 +167,22 @@ class TestRun:
                 with open("uipath.json", "w") as f:
                     f.write(uipath_json.to_json())
                 result = runner.invoke(
-                    run, [script_file_path, "--file", input_file_path]
+                    run,
+                    [
+                        script_file_path,
+                        "--input-file",
+                        input_file_path,
+                        "--output-file",
+                        output_file_path,
+                    ],
                 )
                 assert result.exit_code == 0
                 assert "Successful execution." in result.output
                 assert result.output.count("Hello world") == 2
+                assert os.path.exists(output_file_path)
+                with open(output_file_path, "r") as f:
+                    output = f.read()
+                    assert output.count("Hello world") == 2
 
     def test_no_main_function_found(
         self,

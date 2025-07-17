@@ -148,6 +148,7 @@ class UiPathRuntimeContext(BaseModel):
     trace_context: Optional[UiPathTraceContext] = None
     tracing_enabled: Union[bool, str] = False
     resume: bool = False
+    debug: bool = False
     config_path: str = "uipath.json"
     runtime_dir: Optional[str] = "__uipath"
     logs_file: Optional[str] = "execution.log"
@@ -155,15 +156,19 @@ class UiPathRuntimeContext(BaseModel):
     output_file: str = "output.json"
     state_file: str = "state.db"
     result: Optional[UiPathRuntimeResult] = None
+    execution_output_file: Optional[str] = None
+    input_file: Optional[str] = None
+    eval_run: bool = False
 
     model_config = {"arbitrary_types_allowed": True}
 
     @classmethod
-    def from_config(cls, config_path=None):
+    def from_config(cls, config_path=None, **kwargs) -> "UiPathRuntimeContext":
         """Load configuration from uipath.json file.
 
         Args:
             config_path: Path to the configuration file. If None, uses the default "uipath.json"
+            **kwargs: Additional keyword arguments to use as fallback for configuration values
 
         Returns:
             An instance of the class with fields populated from the config file
@@ -181,19 +186,28 @@ class UiPathRuntimeContext(BaseModel):
 
         instance = cls()
 
+        mapping = {
+            "dir": "runtime_dir",
+            "outputFile": "output_file",
+            "stateFile": "state_file",
+            "logsFile": "logs_file",
+        }
+
+        attributes_set = set()
+        # set values from config file if available
         if "runtime" in config:
             runtime_config = config["runtime"]
-
-            mapping = {
-                "dir": "runtime_dir",
-                "outputFile": "output_file",
-                "stateFile": "state_file",
-                "logsFile": "logs_file",
-            }
-
             for config_key, attr_name in mapping.items():
                 if config_key in runtime_config and hasattr(instance, attr_name):
+                    attributes_set.add(attr_name)
                     setattr(instance, attr_name, runtime_config[config_key])
+
+        # fallback to kwargs for any values not set from config file
+        for _, attr_name in mapping.items():
+            if attr_name in kwargs and hasattr(instance, attr_name):
+                # Only set from kwargs if not already set from config file
+                if attr_name not in attributes_set:
+                    setattr(instance, attr_name, kwargs[attr_name])
 
         return instance
 
@@ -295,12 +309,25 @@ class UiPathBaseRuntime(ABC):
         Returns:
             The runtime instance
         """
-        # Intercept all stdout/stderr/logs and write them to a file (runtime), stdout (debug)
+        # Read the input from file if provided
+        if self.context.input_file:
+            _, file_extension = os.path.splitext(self.context.input_file)
+            if file_extension != ".json":
+                raise UiPathRuntimeError(
+                    code="INVALID_INPUT_FILE_EXTENSION",
+                    title="Invalid Input File Extension",
+                    detail="The provided input file must be in JSON format.",
+                )
+            with open(self.context.input_file) as f:
+                self.context.input = f.read()
+
+        # Intercept all stdout/stderr/logs and write them to a file (runtime/evals), stdout (debug)
         self.logs_interceptor = LogsInterceptor(
             min_level=self.context.logs_min_level,
             dir=self.context.runtime_dir,
             file=self.context.logs_file,
             job_id=self.context.job_id,
+            eval_run=self.context.eval_run,
         )
         self.logs_interceptor.setup()
 
@@ -369,6 +396,11 @@ class UiPathBaseRuntime(ABC):
             if self.context.job_id:
                 with open(self.output_file_path, "w") as f:
                     json.dump(content, f, indent=2, default=str)
+
+            # Write the execution output to file if requested
+            if self.context.execution_output_file:
+                with open(self.context.execution_output_file, "w") as f:
+                    json.dump(execution_result.output or {}, f, indent=2, default=str)
 
             # Don't suppress exceptions
             return False

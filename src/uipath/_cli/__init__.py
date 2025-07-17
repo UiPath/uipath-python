@@ -13,6 +13,7 @@ from .cli_publish import publish as publish  # type: ignore
 from .cli_pull import pull as pull  # type: ignore
 from .cli_push import push as push  # type: ignore
 from .cli_run import run as run  # type: ignore
+from .cli_eval import eval as eval # type: ignore
 
 
 def _get_safe_version() -> str:
@@ -67,3 +68,4 @@ cli.add_command(auth)
 cli.add_command(invoke)
 cli.add_command(push)
 cli.add_command(pull)
+cli.add_command(eval)

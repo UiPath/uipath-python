@@ -1,10 +1,16 @@
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Iterator, List, Optional, Type, TypeVar
+from typing import Any, Dict, Iterator, List, Optional, Type, TypeVar
 
 import click
 from rich.console import Console
 from rich.live import Live
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from rich.spinner import Spinner as RichSpinner
 from rich.text import Text
 
@@ -50,6 +56,8 @@ class ConsoleLogger:
             self._console = Console()
             self._spinner_live: Optional[Live] = None
             self._spinner = RichSpinner("dots")
+            self._progress: Optional[Progress] = None
+            self._progress_tasks: Dict[str, int] = {}
             self._initialized = True
 
     def _stop_spinner_if_active(self) -> None:
@@ -57,6 +65,13 @@ class ConsoleLogger:
         if self._spinner_live and self._spinner_live.is_started:
             self._spinner_live.stop()
             self._spinner_live = None
+
+    def _stop_progress_if_active(self) -> None:
+        """Internal method to stop the progress if it's active."""
+        if self._progress:
+            self._progress.stop()
+            self._progress = None
+            self._progress_tasks.clear()
 
     def log(
         self, message: str, level: LogLevel = LogLevel.INFO, fg: Optional[str] = None
@@ -203,6 +218,44 @@ class ConsoleLogger:
         if self._spinner_live and self._spinner_live.is_started:
             self._spinner.text = Text(message)
 
+    @contextmanager
+    def evaluation_progress(
+        self, evaluations: List[Dict[str, str]]
+    ) -> Iterator["EvaluationProgressManager"]:
+        """Context manager for evaluation progress tracking.
+
+        Args:
+            evaluations: List of evaluation items with 'id' and 'name' keys
+
+        Yields:
+            EvaluationProgressManager instance
+        """
+        try:
+            # Stop any existing progress or spinner
+            self._stop_spinner_if_active()
+            self._stop_progress_if_active()
+
+            # Create progress with custom columns
+            self._progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]{task.description}"),
+                TimeElapsedColumn(),
+                console=self._console,
+                transient=False,
+            )
+
+            # Add tasks for each evaluation
+            for eval_item in evaluations:
+                task_id = self._progress.add_task(eval_item["name"], total=1)
+                self._progress_tasks[eval_item["id"]] = task_id
+
+            self._progress.start()
+
+            yield EvaluationProgressManager(self._progress, self._progress_tasks)
+
+        finally:
+            self._stop_progress_if_active()
+
     @classmethod
     def get_instance(cls) -> "ConsoleLogger":
         """Get the singleton instance of ConsoleLogger.
@@ -213,3 +266,60 @@ class ConsoleLogger:
         if cls._instance is None:
             return cls()
         return cls._instance
+
+
+class EvaluationProgressManager:
+    """Manager for evaluation progress updates."""
+
+    def __init__(self, progress: Progress, tasks: Dict[str, int]):
+        """Initialize the progress manager.
+
+        Args:
+            progress: The Rich Progress instance
+            tasks: Mapping of evaluation IDs to task IDs
+        """
+        self.progress = progress
+        self.tasks = tasks
+
+    def start_evaluation(self, eval_id: str, worker_id: int) -> None:
+        """Mark an evaluation as started.
+
+        Args:
+            eval_id: The evaluation ID
+            worker_id: The worker ID processing this evaluation
+        """
+        # No need to update anything - spinner and timer will show it's running
+        pass
+
+    def complete_evaluation(self, eval_id: str) -> None:
+        """Mark an evaluation as completed.
+
+        Args:
+            eval_id: The evaluation ID
+        """
+        if eval_id in self.tasks:
+            task_id = self.tasks[eval_id]
+            # Update description to show completion
+            current_desc = self.progress.tasks[task_id].description
+            self.progress.update(
+                task_id, completed=1, description=f"[green]✅ {current_desc}[/green]"
+            )
+
+    def fail_evaluation(self, eval_id: str, error_message: str) -> None:
+        """Mark an evaluation as failed.
+
+        Args:
+            eval_id: The evaluation ID
+            error_message: The error message
+        """
+        if eval_id in self.tasks:
+            task_id = self.tasks[eval_id]
+            # Truncate error message if too long
+            short_error = (
+                error_message[:40] + "..." if len(error_message) > 40 else error_message
+            )
+            # Update the description to show failure
+            current_desc = self.progress.tasks[task_id].description
+            self.progress.update(
+                task_id, description=f"[red]❌ {current_desc} - {short_error}[/red]"
+            )

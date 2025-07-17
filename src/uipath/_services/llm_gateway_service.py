@@ -1,3 +1,21 @@
+"""UiPath LLM Gateway Services.
+
+This module provides services for interacting with UiPath's LLM (Large Language Model) Gateway,
+offering both OpenAI-compatible and normalized API interfaces for chat completions and embeddings.
+
+The module includes:
+- UiPathOpenAIService: OpenAI-compatible API for chat completions and embeddings
+- UiPathLlmChatService: UiPath's normalized API with advanced features like tool calling
+- ChatModels: Constants for available chat models
+- EmbeddingModels: Constants for available embedding models
+
+Classes:
+    ChatModels: Container for supported chat model identifiers
+    EmbeddingModels: Container for supported embedding model identifiers
+    UiPathOpenAIService: Service using OpenAI-compatible API format
+    UiPathLlmChatService: Service using UiPath's normalized API format
+"""
+
 import json
 from typing import Any, Dict, List, Optional
 
@@ -16,10 +34,12 @@ from ..utils import EndpointManager
 from ._base_service import BaseService
 
 # Common constants
-API_VERSION = "2024-10-21"
-NORMALIZED_API_VERSION = "2024-08-01-preview"
+API_VERSION = "2024-10-21"  # Standard API version for OpenAI-compatible endpoints
+NORMALIZED_API_VERSION = (
+    "2024-08-01-preview"  # API version for UiPath's normalized endpoints
+)
 
-# Common headers
+# Common headers used across all LLM Gateway requests
 DEFAULT_LLM_HEADERS = {
     "X-UIPATH-STREAMING-ENABLED": "false",
     "X-UiPath-LlmGateway-RequestingProduct": "uipath-python-sdk",
@@ -28,6 +48,12 @@ DEFAULT_LLM_HEADERS = {
 
 
 class ChatModels(object):
+    """Available chat models for LLM Gateway services.
+
+    This class provides constants for the supported chat models that can be used
+    with both UiPathOpenAIService and UiPathLlmChatService.
+    """
+
     gpt_4 = "gpt-4"
     gpt_4_1106_Preview = "gpt-4-1106-Preview"
     gpt_4_32k = "gpt-4-32k"
@@ -40,16 +66,23 @@ class ChatModels(object):
 
 
 class EmbeddingModels(object):
+    """Available embedding models for LLM Gateway services.
+
+    This class provides constants for the supported embedding models that can be used
+    with the embeddings functionality.
+    """
+
     text_embedding_3_large = "text-embedding-3-large"
     text_embedding_ada_002 = "text-embedding-ada-002"
 
 
-API_VERSION = "2024-10-21"
-NORMALIZED_API_VERSION = "2024-08-01-preview"
-
-
 class UiPathOpenAIService(BaseService):
-    """Service calling llm gateway service."""
+    """Service for calling UiPath's LLM Gateway using OpenAI-compatible API.
+
+    This service provides access to Large Language Model capabilities through UiPath's
+    LLM Gateway, including chat completions and text embeddings. It uses the OpenAI-compatible
+    API format and is suitable for applications that need direct OpenAI API compatibility.
+    """
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
@@ -61,13 +94,35 @@ class UiPathOpenAIService(BaseService):
         embedding_model: str = EmbeddingModels.text_embedding_ada_002,
         openai_api_version: str = API_VERSION,
     ):
-        """Embed the input text using llm gateway service.
+        """Generate text embeddings using UiPath's LLM Gateway service.
+
+        This method converts input text into dense vector representations that can be used
+        for semantic search, similarity calculations, and other NLP tasks.
 
         Args:
-            input (str): The input text to embed.
+            input (str): The input text to embed. Can be a single sentence, paragraph,
+                or document that you want to convert to embeddings.
+            embedding_model (str, optional): The embedding model to use.
+                Defaults to EmbeddingModels.text_embedding_ada_002.
+                Available models are defined in the EmbeddingModels class.
+            openai_api_version (str, optional): The OpenAI API version to use.
+                Defaults to API_VERSION.
 
         Returns:
-            TextEmbedding: The embedding response.
+            TextEmbedding: The embedding response containing the vector representation
+                of the input text along with metadata.
+
+        Examples:
+            ```python
+            # Basic embedding
+            embedding = await service.embeddings("Hello, world!")
+
+            # Using a specific model
+            embedding = await service.embeddings(
+                "This is a longer text to embed",
+                embedding_model=EmbeddingModels.text_embedding_3_large
+            )
+            ```
         """
         endpoint = EndpointManager.get_embeddings_endpoint().format(
             model=embedding_model, api_version=openai_api_version
@@ -91,31 +146,63 @@ class UiPathOpenAIService(BaseService):
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 50,
         temperature: float = 0,
+        response_format: Optional[Dict[str, Any]] = None,
         api_version: str = API_VERSION,
     ):
-        """Get chat completions using llm gateway service.
+        """Generate chat completions using UiPath's LLM Gateway service.
+
+        This method provides conversational AI capabilities by sending a series of messages
+        to a language model and receiving a generated response. It supports multi-turn
+        conversations and various OpenAI-compatible models.
 
         Args:
             messages (List[Dict[str, str]]): List of message dictionaries with 'role' and 'content' keys.
-                The supported roles are 'system', 'user', and 'assistant'.
-
-        Example:
-                ```
-                [
-                    {"role": "system", "content": "You are a helpful Python programming assistant."},
-                    {"role": "user", "content": "How do I read a file in Python?"},
-                    {"role": "assistant", "content": "You can use the built-in open() function."},
-                    {"role": "user", "content": "Can you show an example?"}
-                ]
-                ```
-                The conversation history can be included to provide context to the model.
-            model (str, optional): The model to use for chat completion. Defaults to ChatModels.gpt_4o_mini_2024_07_18.
-            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to 50.
+                The supported roles are 'system', 'user', and 'assistant'. System messages set
+                the behavior/context, user messages are from the human, and assistant messages
+                are from the AI.
+            model (str, optional): The model to use for chat completion.
+                Defaults to ChatModels.gpt_4o_mini_2024_07_18.
+                Available models are defined in the ChatModels class.
+            max_tokens (int, optional): Maximum number of tokens to generate in the response.
+                Defaults to 50. Higher values allow longer responses.
             temperature (float, optional): Temperature for sampling, between 0 and 1.
-                Lower values make output more deterministic. Defaults to 0.
+                Lower values (closer to 0) make output more deterministic and focused,
+                higher values make it more creative and random. Defaults to 0.
+            response_format (Optional[Dict[str, Any]], optional): An object specifying the format
+                that the model must output. Used to enable JSON mode or other structured outputs.
+                Defaults to None.
+            api_version (str, optional): The API version to use. Defaults to API_VERSION.
 
         Returns:
-            ChatCompletion: The chat completion response.
+            ChatCompletion: The chat completion response containing the generated message,
+                usage statistics, and other metadata.
+
+        Examples:
+            ```python
+            # Simple conversation
+            messages = [
+                {"role": "system", "content": "You are a helpful Python programming assistant."},
+                {"role": "user", "content": "How do I read a file in Python?"}
+            ]
+            response = await service.chat_completions(messages)
+
+            # Multi-turn conversation with more tokens
+            messages = [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What is machine learning?"},
+                {"role": "assistant", "content": "Machine learning is a subset of AI..."},
+                {"role": "user", "content": "Can you give me a practical example?"}
+            ]
+            response = await service.chat_completions(
+                messages,
+                max_tokens=200,
+                temperature=0.3
+            )
+            ```
+
+        Note:
+            The conversation history can be included to provide context to the model.
+            Each message should have both 'role' and 'content' keys.
         """
         endpoint = EndpointManager.get_passthrough_endpoint().format(
             model=model, api_version=api_version
@@ -127,6 +214,10 @@ class UiPathOpenAIService(BaseService):
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+
+        # Add response_format if provided
+        if response_format:
+            request_body["response_format"] = response_format
 
         response = await self.request_async(
             "POST",
@@ -140,7 +231,16 @@ class UiPathOpenAIService(BaseService):
 
 
 class UiPathLlmChatService(BaseService):
-    """Service for calling UiPath's normalized LLM Gateway API."""
+    """Service for calling UiPath's normalized LLM Gateway API.
+
+    This service provides access to Large Language Model capabilities through UiPath's
+    normalized LLM Gateway API. Unlike the OpenAI-compatible service, this service uses
+    UiPath's standardized API format and supports advanced features like tool calling,
+    function calling, and more sophisticated conversation control.
+
+    The normalized API provides a consistent interface across different underlying model
+    providers and includes enhanced features for enterprise use cases.
+    """
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
@@ -158,27 +258,102 @@ class UiPathLlmChatService(BaseService):
         top_p: float = 1,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[ToolChoice] = None,
+        response_format: Optional[Dict[str, Any]] = None,
         api_version: str = NORMALIZED_API_VERSION,
     ):
-        """Get chat completions using UiPath's normalized LLM Gateway API.
+        """Generate chat completions using UiPath's normalized LLM Gateway API.
+
+        This method provides advanced conversational AI capabilities with support for
+        tool calling, function calling, and sophisticated conversation control parameters.
+        It uses UiPath's normalized API format for consistent behavior across different
+        model providers.
 
         Args:
             messages (List[Dict[str, str]]): List of message dictionaries with 'role' and 'content' keys.
-                The supported roles are 'system', 'user', and 'assistant'.
-            model (str, optional): The model to use for chat completion. Defaults to ChatModels.gpt_4o_mini_2024_07_18.
-            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to 250.
+                The supported roles are 'system', 'user', and 'assistant'. System messages set
+                the behavior/context, user messages are from the human, and assistant messages
+                are from the AI.
+            model (str, optional): The model to use for chat completion.
+                Defaults to ChatModels.gpt_4o_mini_2024_07_18.
+                Available models are defined in the ChatModels class.
+            max_tokens (int, optional): Maximum number of tokens to generate in the response.
+                Defaults to 250. Higher values allow longer responses.
             temperature (float, optional): Temperature for sampling, between 0 and 1.
-                Lower values make output more deterministic. Defaults to 0.
-            n (int, optional): Number of chat completion choices to generate. Defaults to 1.
-            frequency_penalty (float, optional): Penalty for token frequency. Defaults to 0.
-            presence_penalty (float, optional): Penalty for token presence. Defaults to 0.
-            top_p (float, optional): Nucleus sampling parameter. Defaults to 1.
-            tools (Optional[List[ToolDefinition]], optional): List of tool definitions. Defaults to None.
-            tool_choice (Optional[ToolChoice], optional): Tool choice configuration.
-                Can be "auto", "none", an AutoToolChoice, a RequiredToolChoice, or a SpecificToolChoice. Defaults to None.
+                Lower values (closer to 0) make output more deterministic and focused,
+                higher values make it more creative and random. Defaults to 0.
+            n (int, optional): Number of chat completion choices to generate for each input.
+                Defaults to 1. Higher values generate multiple alternative responses.
+            frequency_penalty (float, optional): Penalty for token frequency between -2.0 and 2.0.
+                Positive values reduce repetition of frequent tokens. Defaults to 0.
+            presence_penalty (float, optional): Penalty for token presence between -2.0 and 2.0.
+                Positive values encourage discussion of new topics. Defaults to 0.
+            top_p (float, optional): Nucleus sampling parameter between 0 and 1.
+                Controls diversity by considering only the top p probability mass. Defaults to 1.
+            tools (Optional[List[ToolDefinition]], optional): List of tool definitions that the
+                model can call. Tools enable the model to perform actions or retrieve information
+                beyond text generation. Defaults to None.
+            tool_choice (Optional[ToolChoice], optional): Controls which tools the model can call.
+                Can be "auto" (model decides), "none" (no tools), or a specific tool choice.
+                Defaults to None.
+            response_format (Optional[Dict[str, Any]], optional): An object specifying the format
+                that the model must output. Used to enable JSON mode or other structured outputs.
+                Defaults to None.
+            api_version (str, optional): The normalized API version to use.
+                Defaults to NORMALIZED_API_VERSION.
 
         Returns:
-            ChatCompletion: The chat completion response.
+            ChatCompletion: The chat completion response containing the generated message(s),
+                tool calls (if any), usage statistics, and other metadata.
+
+        Examples:
+            ```python
+            # Basic conversation
+            messages = [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What is the weather like today?"}
+            ]
+            response = await service.chat_completions(messages)
+
+            # Conversation with tool calling
+            tools = [
+                ToolDefinition(
+                    function=FunctionDefinition(
+                        name="get_weather",
+                        description="Get current weather for a location",
+                        parameters=ParametersDefinition(
+                            type="object",
+                            properties={
+                                "location": PropertyDefinition(
+                                    type="string",
+                                    description="City name"
+                                )
+                            },
+                            required=["location"]
+                        )
+                    )
+                )
+            ]
+            response = await service.chat_completions(
+                messages,
+                tools=tools,
+                tool_choice="auto",
+                max_tokens=500
+            )
+
+            # Advanced parameters for creative writing
+            response = await service.chat_completions(
+                messages,
+                temperature=0.8,
+                top_p=0.9,
+                frequency_penalty=0.3,
+                presence_penalty=0.2,
+                n=3  # Generate 3 alternative responses
+            )
+            ```
+
+        Note:
+            This service uses UiPath's normalized API format which provides consistent
+            behavior across different underlying model providers and enhanced enterprise features.
         """
         endpoint = EndpointManager.get_normalized_endpoint().format(
             model=model, api_version=api_version
@@ -194,6 +369,10 @@ class UiPathLlmChatService(BaseService):
             "presence_penalty": presence_penalty,
             "top_p": top_p,
         }
+
+        # Add response_format if provided
+        if response_format:
+            request_body["response_format"] = response_format
 
         # Add tools if provided - convert to UiPath format
         if tools:
@@ -227,7 +406,19 @@ class UiPathLlmChatService(BaseService):
         return ChatCompletion.model_validate(response.json())
 
     def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> Dict[str, Any]:
-        """Convert an OpenAI-style tool definition directly to UiPath API format."""
+        """Convert an OpenAI-style tool definition to UiPath API format.
+
+        This internal method transforms tool definitions from the standard OpenAI format
+        to the format expected by UiPath's normalized LLM Gateway API.
+
+        Args:
+            tool (ToolDefinition): The tool definition in OpenAI format containing
+                function name, description, and parameter schema.
+
+        Returns:
+            Dict[str, Any]: The tool definition converted to UiPath API format
+                with the appropriate structure and field mappings.
+        """
         parameters = {
             "type": tool.function.parameters.type,
             "properties": {
