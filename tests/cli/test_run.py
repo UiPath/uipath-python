@@ -110,10 +110,11 @@ class TestRun:
                         entrypoint,
                         "{}",
                         False,
+                        input_file=file_path,
                         debug=False,
                         debug_port=5678,
-                        input_file=file_path,
                         execution_output_file=None,
+                        logs_file=None,
                     )
 
     class TestMiddleware:

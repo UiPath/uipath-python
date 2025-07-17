@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.1.8"
+version = "2.1.9"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -102,7 +102,6 @@ line-ending = "auto"
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 exclude = ["samples/.*"]
-
 
 follow_imports = "silent"
 warn_redundant_casts = true
