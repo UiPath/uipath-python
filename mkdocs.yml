@@ -77,6 +77,7 @@ nav:
         - Connections: core/connections.md
         - Context Grounding: core/context_grounding.md
         - Jobs: core/jobs.md
+        - LLM Gateway: core/llm_gateway.md
         - Queues: core/queues.md
         - Processes: core/processes.md
   - How To Contribute: CONTRIBUTING.md
