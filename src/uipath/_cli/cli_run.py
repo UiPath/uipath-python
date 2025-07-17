@@ -145,6 +145,7 @@ def run(
             console.error("Input file extension must be '.json'.")
         with open(file) as f:
             input = f.read()
+    print("INPUT:", input)
     # Setup debugging if requested
 
     if not setup_debugging(debug, debug_port):
@@ -152,7 +153,6 @@ def run(
 
     # Process through middleware chain
     result = Middlewares.next("run", entrypoint, input, resume)
-
     if result.should_continue:
         result = python_run_middleware(
             entrypoint=entrypoint,
