@@ -18,6 +18,8 @@ from ._services import (
     JobsService,
     ProcessesService,
     QueuesService,
+    UiPathLlmChatService,
+    UiPathOpenAIService,
 )
 from ._utils import setup_logging
 from ._utils.constants import (
@@ -122,3 +124,11 @@ class UiPath:
         if not self._folders_service:
             self._folders_service = FolderService(self._config, self._execution_context)
         return self._folders_service
+
+    @property
+    def llm_openai(self) -> UiPathOpenAIService:
+        return UiPathOpenAIService(self._config, self._execution_context)
+
+    @property
+    def llm(self) -> UiPathLlmChatService:
+        return UiPathLlmChatService(self._config, self._execution_context)
