@@ -103,13 +103,13 @@ line-ending = "auto"
 plugins = ["pydantic.mypy"]
 exclude = ["samples/.*"]
 
-
 follow_imports = "silent"
 warn_redundant_casts = true
 warn_unused_ignores = true
 disallow_any_generics = true
 check_untyped_defs = true
 no_implicit_reexport = true
+disable_error_code = ["empty-body"]
 
 disallow_untyped_defs = false
 

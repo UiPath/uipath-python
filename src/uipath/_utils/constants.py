@@ -16,6 +16,7 @@ HEADER_FOLDER_KEY = "x-uipath-folderkey"
 HEADER_FOLDER_PATH = "x-uipath-folderpath"
 HEADER_USER_AGENT = "x-uipath-user-agent"
 HEADER_TENANT_ID = "x-uipath-tenantid"
+HEADER_INTERNAL_TENANT_ID = "x-uipath-internal-tenantid"
 HEADER_JOB_KEY = "x-uipath-jobkey"
 
 # Data sources
@@ -25,3 +26,6 @@ ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (
 
 # Local storage
 TEMP_ATTACHMENTS_FOLDER = "uipath_attachments"
+
+# LLM models
+COMMUNITY_AGENTS_SUFFIX = "-community-agents"
