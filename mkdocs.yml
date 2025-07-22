@@ -68,6 +68,10 @@ nav:
             - LLM Gateway: core/llm_gateway.md
             - Queues: core/queues.md
             - Processes: core/processes.md
+  - UiPath MCP SDK:
+      - Getting Started: mcp/quick_start.md
+      - How To Pack Binary: mcp/how_to_pack_binary.md
+      - Sample MCPs: https://github.com/UiPath/uipath-mcp-python/tree/main/samples
   - UiPath Langchain SDK:
       - Getting Started: langchain/quick_start.md
       - Chat Models: langchain/chat_models.md
@@ -80,10 +84,6 @@ nav:
       - Context Grounding: llamaindex/context_grounding.md
       - Human In The Loop: llamaindex/human_in_the_loop.md
       - Sample Agents: https://github.com/UiPath/uipath-llamaindex-python/tree/main/samples
-  - UiPath MCP SDK:
-      - Getting Started: mcp/quick_start.md
-      - How To Pack Binary: mcp/how_to_pack_binary.md
-      - Sample MCPs: https://github.com/UiPath/uipath-mcp-python/tree/main/samples
   - How To Contribute: CONTRIBUTING.md
   - FAQ: FAQ.md
   - Release Policy: release_policy.md
