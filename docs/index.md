@@ -13,6 +13,17 @@ title: Getting Started
 
 </div>
 
+<div class="grid cards" markdown>
+-   __UiPath MCP SDK__
+
+    ---
+
+    Build and host Coded MCP Servers within UiPath.
+
+    [Start Building](./mcp/quick_start.md)
+
+</div>
+
 <h2> Extensions </h2>
 <div class="grid cards" markdown>
 -   __UiPath Langchain SDK__
