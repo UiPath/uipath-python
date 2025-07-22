@@ -70,8 +70,8 @@ nav:
             - Processes: core/processes.md
   - UiPath MCP SDK:
       - Getting Started: mcp/quick_start.md
-      - How To Pack Binary: mcp/how_to_pack_binary.md
-      - Sample MCPs: https://github.com/UiPath/uipath-mcp-python/tree/main/samples
+      - How To Pack Binary MCP Server: mcp/how_to_pack_binary.md
+      - Sample MCP Servers: https://github.com/UiPath/uipath-mcp-python/tree/main/samples
   - UiPath Langchain SDK:
       - Getting Started: langchain/quick_start.md
       - Chat Models: langchain/chat_models.md
