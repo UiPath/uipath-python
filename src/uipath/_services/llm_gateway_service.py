@@ -146,6 +146,7 @@ class UiPathOpenAIService(BaseService):
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 50,
         temperature: float = 0,
+        response_format: Optional[Dict[str, Any]] = None,
         api_version: str = API_VERSION,
     ):
         """Generate chat completions using UiPath's LLM Gateway service.
@@ -167,6 +168,9 @@ class UiPathOpenAIService(BaseService):
             temperature (float, optional): Temperature for sampling, between 0 and 1.
                 Lower values (closer to 0) make output more deterministic and focused,
                 higher values make it more creative and random. Defaults to 0.
+            response_format (Optional[Dict[str, Any]], optional): An object specifying the format
+                that the model must output. Used to enable JSON mode or other structured outputs.
+                Defaults to None.
             api_version (str, optional): The API version to use. Defaults to API_VERSION.
 
         Returns:
@@ -211,6 +215,10 @@ class UiPathOpenAIService(BaseService):
             "temperature": temperature,
         }
 
+        # Add response_format if provided
+        if response_format:
+            request_body["response_format"] = response_format
+
         response = await self.request_async(
             "POST",
             endpoint,
@@ -250,6 +258,7 @@ class UiPathLlmChatService(BaseService):
         top_p: float = 1,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[ToolChoice] = None,
+        response_format: Optional[Dict[str, Any]] = None,
         api_version: str = NORMALIZED_API_VERSION,
     ):
         """Generate chat completions using UiPath's normalized LLM Gateway API.
@@ -285,6 +294,9 @@ class UiPathLlmChatService(BaseService):
                 beyond text generation. Defaults to None.
             tool_choice (Optional[ToolChoice], optional): Controls which tools the model can call.
                 Can be "auto" (model decides), "none" (no tools), or a specific tool choice.
+                Defaults to None.
+            response_format (Optional[Dict[str, Any]], optional): An object specifying the format
+                that the model must output. Used to enable JSON mode or other structured outputs.
                 Defaults to None.
             api_version (str, optional): The normalized API version to use.
                 Defaults to NORMALIZED_API_VERSION.
@@ -357,6 +369,10 @@ class UiPathLlmChatService(BaseService):
             "presence_penalty": presence_penalty,
             "top_p": top_p,
         }
+
+        # Add response_format if provided
+        if response_format:
+            request_body["response_format"] = response_format
 
         # Add tools if provided - convert to UiPath format
         if tools:
