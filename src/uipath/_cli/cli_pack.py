@@ -264,7 +264,7 @@ def pack_fn(
         console.error("uipath.json not found, please run `uipath init`.")
 
     # Define the allowlist of file extensions to include
-    file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml"]
+    file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml", ".md"]
     files_included = []
 
     with open(config_path, "r") as f:
