@@ -148,6 +148,7 @@ class UiPathRuntimeContext(BaseModel):
     trace_context: Optional[UiPathTraceContext] = None
     tracing_enabled: Union[bool, str] = False
     resume: bool = False
+    debug: bool = False
     config_path: str = "uipath.json"
     runtime_dir: Optional[str] = "__uipath"
     logs_file: Optional[str] = "execution.log"
@@ -155,6 +156,8 @@ class UiPathRuntimeContext(BaseModel):
     output_file: str = "output.json"
     state_file: str = "state.db"
     result: Optional[UiPathRuntimeResult] = None
+    execution_output_file: Optional[str] = None
+    input_file: Optional[str] = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -295,6 +298,18 @@ class UiPathBaseRuntime(ABC):
         Returns:
             The runtime instance
         """
+        # Read the input from file if provided
+        if self.context.input_file:
+            _, file_extension = os.path.splitext(self.context.input_file)
+            if file_extension != ".json":
+                raise UiPathRuntimeError(
+                    code="INVALID_INPUT_FILE_EXTENSION",
+                    title="Invalid Input File Extension",
+                    detail="The provided input file must be in JSON format.",
+                )
+            with open(self.context.input_file) as f:
+                self.context.input = f.read()
+
         # Intercept all stdout/stderr/logs and write them to a file (runtime), stdout (debug)
         self.logs_interceptor = LogsInterceptor(
             min_level=self.context.logs_min_level,
@@ -369,6 +384,11 @@ class UiPathBaseRuntime(ABC):
             if self.context.job_id:
                 with open(self.output_file_path, "w") as f:
                     json.dump(content, f, indent=2, default=str)
+
+            # Write the execution output to file if requested
+            if self.context.execution_output_file:
+                with open(self.context.execution_output_file, "w") as f:
+                    json.dump(execution_result.output or {}, f, indent=2, default=str)
 
             # Don't suppress exceptions
             return False
