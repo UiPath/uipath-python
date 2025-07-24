@@ -1,26 +1,22 @@
 import json
 from typing import Any, Dict, Optional
 
-from ..._utils._debug import console
+from .evaluator_base import EvaluatorBase
 from ...._config import Config
 from ...._execution_context import ExecutionContext
 from ...._services.llm_gateway_service import UiPathLlmChatService
 from ...._utils.constants import (
+    COMMUNITY_AGENTS_SUFFIX,
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
-    ENV_UNATTENDED_USER_ACCESS_TOKEN, COMMUNITY_AGENTS_SUFFIX,
+    ENV_UNATTENDED_USER_ACCESS_TOKEN,
 )
+from ..._utils._debug import console
 from ..models import EvaluationResult, EvaluatorCategory, LLMResponse
 
 
-class LLMEvaluator:
+class LLMEvaluator(EvaluatorBase):
     """Service for evaluating outputs using LLM."""
-
-    # TODO: find a better way to structure the output
-    format_instructions: dict[str, str] = {
-        "role": "system",
-        "content": 'Extract the data from the following text and model it like this in JSON format: {"similarity_score" = "", "score_justification" = "" . Similarity_score is a float between 0 and 100 and score_justification is a str. The output should be a plain json, nothing else. No markdown.',
-    }
 
     def __init__(self, evaluator_config: Dict[str, Any]):
         """Initialize LLM evaluator.
@@ -83,25 +79,43 @@ class LLMEvaluator:
             model = model.replace(COMMUNITY_AGENTS_SUFFIX, "")
 
         response = await self.llm.chat_completions(
-            messages=[{"role": "user", "content": content}], model=model
-        )
-        structured_response = await self.llm.chat_completions(
-            messages=[
-                self.format_instructions,
-                {"role": "user", "content": response.choices[-1].message.content},
-            ],
+            messages=[{"role": "user", "content": content}],
             model=model,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "evaluation_result",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "score": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 100,
+                                "description": "Similarity score between expected and actual output (0-100)",
+                            },
+                            "justification": {
+                                "type": "string",
+                                "description": "Detailed explanation of why this score was given",
+                            },
+                        },
+                        "required": ["score", "justification"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
         )
         try:
             llm_response = LLMResponse(
-                **json.loads(structured_response.choices[-1].message.content)
+                **json.loads(response.choices[-1].message.content)
             )
         except Exception as e:
             raise Exception(f"Error parsing LLM response: {e}") from e
         # Leave those comments
         # llm_response = LLMResponse(similarity_score=90, score_justification="test justification")
-        score = llm_response.similarity_score
-        details = llm_response.score_justification
+        score = llm_response.score
+        details = llm_response.justification
 
         if score < 0 or score > 100:
             raise ValueError(f"Score {score} is outside valid range 0-100")

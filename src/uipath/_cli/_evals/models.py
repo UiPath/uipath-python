@@ -6,8 +6,9 @@ from pydantic import BaseModel, Field
 
 
 class LLMResponse(BaseModel):
-    similarity_score: float
-    score_justification: str
+    score: float
+    justification: str
+
 
 class EvaluatorCategory(IntEnum):
     """Types of evaluators."""

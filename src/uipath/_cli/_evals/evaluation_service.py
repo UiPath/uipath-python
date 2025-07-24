@@ -1,12 +1,14 @@
 import asyncio
 import json
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
 from uipath._cli._utils._console import ConsoleLogger
+from .evaluators.evaluator_base import EvaluatorBase
 
-from ..cli_run import run
+from ..cli_run import run_core
 from .evaluators.llm_evaluator import LLMEvaluator
 from .models import EvaluationSetResult
 
@@ -16,16 +18,17 @@ console = ConsoleLogger()
 class EvaluationService:
     """Service for running evaluations."""
 
-    def __init__(self, eval_set_path: str | Path):
+    def __init__(self, entrypoint: str, eval_set_path: str | Path, workers: int):
         """Initialize the evaluation service.
 
         Args:
             eval_set_path: Path to the evaluation set file (can be string or Path)
         """
+        self.entrypoint = entrypoint
         self.eval_set_path = Path(eval_set_path)
         self.eval_set = self._load_eval_set()
         self.evaluators = self._load_evaluators()
-        self.num_workers = 8
+        self.num_workers = workers
         self.results_lock = asyncio.Lock()
         self._initialize_results()
 
@@ -60,7 +63,7 @@ class EvaluationService:
         with open(self.eval_set_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
-    def _load_evaluators(self) -> List[LLMEvaluator]:
+    def _load_evaluators(self) -> List[EvaluatorBase]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         evaluators_dir = self.eval_set_path.parent.parent / "evaluators"
@@ -105,7 +108,7 @@ class EvaluationService:
             with open(self.result_file, "w", encoding="utf-8") as f:
                 f.write(current_results.model_dump_json(indent=2))
 
-    def _run_agent(self, input_json: str) -> Dict[str, Any]:
+    def _run_agent(self, input_json: str) -> tuple[Dict[str, Any], bool]:
         """Run the agent with the given input.
 
         Args:
@@ -114,34 +117,33 @@ class EvaluationService:
         Returns:
             Agent output as dictionary
         """
-        try:
-            # Run the agent using the CLI run command
-            run.callback(
-                entrypoint=None,
-                input=input_json,
-                resume=False,
-                file=None,
-                debug=False,
-                debug_port=5678,
-            )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                output_file = Path(tmpdir) / "output.json"
+                success, error_message, info_message = run_core(
+                    entrypoint=self.entrypoint,
+                    input=input_json,
+                    resume=False,
+                    file=None,
+                    output_file=output_file
+                )
+                if not success:
+                    console.warning(error_message)
+                    return {}, False
+                else:
+                    # Read the output file
+                    with open(output_file, "r", encoding="utf-8") as f:
+                        result = json.load(f)
+                    if isinstance(result, str):
+                        try:
+                            return json.loads(result)
+                        except json.JSONDecodeError as e:
+                            raise Exception(f"Error parsing output: {e}") from e
+                return result, True
 
-            # Read the output file
-            output_file = Path("__uipath") / "output.json"
-            with open(output_file, "r", encoding="utf-8") as f:
-                result = json.load(f)
-
-            # Extract and parse the output content
-            output_content = result.get("output", {})
-            if isinstance(output_content, str):
-                try:
-                    return json.loads(output_content)
-                except json.JSONDecodeError as e:
-                    raise Exception(f"Error parsing output: {e}") from e
-            return output_content
-
-        except Exception as e:
-            console.error(f"Error running agent: {str(e)}")
-            return {"error": str(e)}
+            except Exception as e:
+                console.error(f"Error running agent: {str(e)}")
+                return {"error": str(e)}, False
 
     async def _process_evaluation(self, eval_item: Dict[str, Any]) -> None:
         """Process a single evaluation item.
@@ -156,22 +158,22 @@ class EvaluationService:
 
         # Run _run_agent in a non-async context using run_in_executor
         loop = asyncio.get_running_loop()
-        actual_output = await loop.run_in_executor(None, self._run_agent, input_json)
+        actual_output, success = await loop.run_in_executor(None, self._run_agent, input_json)
+        if success:
+            # Run each evaluator
+            eval_results = []
+            for evaluator in self.evaluators:
+                result = await evaluator.evaluate(
+                    evaluation_id=eval_item["id"],
+                    evaluation_name=eval_item["name"],
+                    input_data=eval_item["inputs"],
+                    expected_output=eval_item["expectedOutput"],
+                    actual_output=actual_output,
+                )
+                eval_results.append(result)
 
-        # Run each evaluator
-        eval_results = []
-        for evaluator in self.evaluators:
-            result = await evaluator.evaluate(
-                evaluation_id=eval_item["id"],
-                evaluation_name=eval_item["name"],
-                input_data=eval_item["inputs"],
-                expected_output=eval_item["expectedOutput"],
-                actual_output=actual_output,
-            )
-            eval_results.append(result)
-
-        # Write results immediately
-        await self._write_results(eval_results)
+            # Write results immediately
+            await self._write_results(eval_results)
 
         # TODO: here we should send the event to the SW eval API
         console.info(f"Evaluation {eval_item['name']} complete.")
