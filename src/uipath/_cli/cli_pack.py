@@ -347,7 +347,7 @@ def pack_fn(
                                     z.writestr(f"content/{rel_path}", f.read())
 
         # Handle optional files, conditionally including uv.lock
-        optional_files = ["pyproject.toml", "README.md"]
+        optional_files = ["pyproject.toml"]
         if include_uv_lock:
             optional_files.append("uv.lock")
 
