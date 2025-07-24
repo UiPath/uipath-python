@@ -126,9 +126,9 @@ class Middlewares:
                         register_func()
                         logger.info(f"Loaded middleware plugin: {entry_point.name}")
                     except Exception as e:
-                        logger.error(
+                        console.error(
                             f"Failed to load middleware plugin {entry_point.name}: {str(e)}",
-                            exc_info=True,
+                            include_traceback=True,
                         )
             else:
                 logger.info("No middleware plugins found")
