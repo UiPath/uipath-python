@@ -1,14 +1,15 @@
 import asyncio
 import json
 import tempfile
+import warnings
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
 from uipath._cli._utils._console import ConsoleLogger
-from .evaluators.evaluator_base import EvaluatorBase
 
 from ..cli_run import run_core
+from .evaluators.evaluator_base import EvaluatorBase
 from .evaluators.llm_evaluator import LLMEvaluator
 from .models import EvaluationSetResult
 
@@ -120,13 +121,23 @@ class EvaluationService:
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 output_file = Path(tmpdir) / "output.json"
-                success, error_message, info_message = run_core(
-                    entrypoint=self.entrypoint,
-                    input=input_json,
-                    resume=False,
-                    file=None,
-                    output_file=output_file
-                )
+                logs_file = Path(tmpdir) / "execution.log"
+
+                # Suppress LangChain deprecation warnings during agent execution
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore", category=UserWarning, module="langchain"
+                    )
+                    success, error_message, info_message = run_core(
+                        entrypoint=self.entrypoint,
+                        input=input_json,
+                        resume=False,
+                        input_file=None,
+                        execution_output_file=output_file,
+                        logs_file=logs_file,
+                        runtime_dir=tmpdir,
+                        eval_run=True,
+                    )
                 if not success:
                     console.warning(error_message)
                     return {}, False
@@ -134,15 +145,19 @@ class EvaluationService:
                     # Read the output file
                     with open(output_file, "r", encoding="utf-8") as f:
                         result = json.load(f)
+
+                    # uncomment the following lines to have access to the execution.logs (needed for some types of evals)
+                    # with open(logs_file, "r", encoding="utf-8") as f:
+                    #     logs = f.read()
                     if isinstance(result, str):
                         try:
-                            return json.loads(result)
+                            return json.loads(result), True
                         except json.JSONDecodeError as e:
                             raise Exception(f"Error parsing output: {e}") from e
                 return result, True
 
             except Exception as e:
-                console.error(f"Error running agent: {str(e)}")
+                console.warning(f"Error running agent: {str(e)}")
                 return {"error": str(e)}, False
 
     async def _process_evaluation(self, eval_item: Dict[str, Any]) -> None:
@@ -158,7 +173,9 @@ class EvaluationService:
 
         # Run _run_agent in a non-async context using run_in_executor
         loop = asyncio.get_running_loop()
-        actual_output, success = await loop.run_in_executor(None, self._run_agent, input_json)
+        actual_output, success = await loop.run_in_executor(
+            None, self._run_agent, input_json
+        )
         if success:
             # Run each evaluator
             eval_results = []
@@ -209,6 +226,8 @@ class EvaluationService:
                 await self._process_evaluation(eval_item)
                 task_queue.task_done()
             except Exception as e:
+                import click
+
                 # Log error and continue to next item
                 task_queue.task_done()
                 console.warning(

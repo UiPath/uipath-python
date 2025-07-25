@@ -64,7 +64,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
 
         async def execute():
             context = UiPathRuntimeContext.from_config(
-                env.get("UIPATH_CONFIG_PATH", "uipath.json")
+                env.get("UIPATH_CONFIG_PATH", "uipath.json"), **kwargs
             )
             context.entrypoint = entrypoint
             context.input = input
@@ -73,6 +73,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
             context.trace_id = env.get("UIPATH_TRACE_ID")
             context.input_file = kwargs.get("input_file", None)
             context.execution_output_file = kwargs.get("execution_output_file", None)
+            context.eval_run = kwargs.get("eval_run", False)
             context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
             context.trace_context = UiPathTraceContext(
                 trace_id=env.get("UIPATH_TRACE_ID"),
@@ -115,7 +116,8 @@ def run_core(
     resume: bool,
     input: Optional[str] = None,
     input_file: Optional[str] = None,
-    output_file: Optional[str] = None,
+    execution_output_file: Optional[str] = None,
+    logs_file: Optional[str] = None,
     **kwargs,
 ) -> Tuple[bool, Optional[str], Optional[str]]:
     """Core execution logic that can be called programmatically.
@@ -125,7 +127,7 @@ def run_core(
         input: JSON string with input data
         resume: Flag indicating if this is a resume execution
         input_file: Path to input JSON file
-        output_file: Path where output will be written
+        logs_file: Path where execution output will be written
         **kwargs: Additional arguments to be forwarded to the middleware
 
     Returns:
@@ -141,7 +143,8 @@ def run_core(
         input,
         resume,
         input_file=input_file,
-        execution_output_file=output_file,
+        execution_output_file=execution_output_file,
+        logs_file=logs_file,
         **kwargs,
     )
 
@@ -151,7 +154,8 @@ def run_core(
             input=input,
             resume=resume,
             input_file=input_file,
-            execution_output_file=output_file,
+            execution_output_file=execution_output_file,
+            logs_file=logs_file,
             **kwargs,
         )
 
