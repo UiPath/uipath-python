@@ -242,7 +242,14 @@ class TestPack:
         """Test generating operate.json and its content."""
         xml_file_name = "test.xml"
         sh_file_name = "test.sh"
-        uipath_json.settings.file_extensions_included = [".xml"]
+        md_file_name = "README.md"
+        binary_file_name = "script.exe"
+        binary_file_not_included = "report.xlsx"
+
+        # Binary content for the exe file (simulating a simple executable)
+        binary_content = b"\x4d\x5a\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00\xb8\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00"
+
+        uipath_json.settings.file_extensions_included = [".xml", ".exe"]
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
                 f.write(uipath_json.to_json())
@@ -252,6 +259,12 @@ class TestPack:
                 f.write("<root><child>text</child></root>")
             with open(sh_file_name, "w") as f:
                 f.write("#bin/sh\n echo 1")
+            with open(md_file_name, "w") as f:
+                f.write(".md file content")
+            with open(binary_file_name, "wb") as f:  # Write binary file
+                f.write(binary_content)
+            with open(binary_file_not_included, "w") as f:
+                f.write("---")
             result = runner.invoke(pack, ["./"])
 
             assert result.exit_code == 0
@@ -260,6 +273,15 @@ class TestPack:
             ) as z:
                 assert f"content/{xml_file_name}" in z.namelist()
                 assert f"content/{sh_file_name}" not in z.namelist()
+                assert f"content/{md_file_name}" in z.namelist()
+                assert f"content/{binary_file_not_included}" not in z.namelist()
+                assert f"content/{binary_file_name}" in z.namelist()
+                assert "content/pyproject.toml" in z.namelist()
+                # Verify binary content is not corrupted
+                extracted_binary_content = z.read(f"content/{binary_file_name}")
+                assert extracted_binary_content == binary_content, (
+                    "Binary file content was corrupted during packing"
+                )
 
     def test_include_files(
         self,
