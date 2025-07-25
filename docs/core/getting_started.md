@@ -176,6 +176,29 @@ This command creates a `uipath.json` file containing the project metadata.
 [2025-04-11 10:13:58,857][INFO] {'message': 'test'}
 ```
 
+/// warning
+Depending on the shell you are using, it may be necessary to escape the input json:
+
+/// tab | Bash/ZSH/PowerShell
+```console
+uipath run main.py '{"message": "test"}'
+```
+///
+
+/// tab | Windows CMD
+```console
+uipath run main.py "{""message"": ""test""}"
+```
+///
+
+/// tab | Windows PowerShell
+```console
+uipath run main.py '{\"message\":\"test\"}'
+```
+///
+
+///
+
 ### Packaging and Publishing
 
 Before packaging your project, add your details to the `pyproject.toml` file. Add the following line below the `description` field:
