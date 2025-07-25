@@ -106,11 +106,20 @@ class ClientCredentialsService:
                             "refresh_token": "",
                             "id_token": "",
                         }
+                    
                     case 400:
+                        try:
+                            error_details = response.json()
+                            console.info(f"DEBUG: Error details: {error_details}")
+                        except Exception:
+                            console.info(f"DEBUG: Raw error response: {response.text}")
+                        
                         console.error(
                             "Invalid client credentials or request parameters."
                         )
+                        
                         return None
+                    
                     case 401:
                         console.error("Unauthorized: Invalid client credentials.")
                         return None
