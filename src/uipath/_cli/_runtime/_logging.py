@@ -29,6 +29,7 @@ class LogsInterceptor:
         dir: Optional[str] = "__uipath",
         file: Optional[str] = "execution.log",
         job_id: Optional[str] = None,
+        eval_run: bool = False,
     ):
         """Initialize the log interceptor.
 
@@ -37,9 +38,11 @@ class LogsInterceptor:
             dir (str): The directory where logs should be stored.
             file (str): The log file name.
             job_id (str, optional): If provided, logs go to file; otherwise, to stdout.
+            eval_run (bool): If True, skip stdout/stderr redirection to prevent recursion.
         """
         min_level = min_level or "INFO"
         self.job_id = job_id
+        self.eval_run = eval_run
 
         # Convert to numeric level for consistent comparison
         self.numeric_min_level = getattr(logging, min_level.upper(), logging.INFO)
@@ -57,8 +60,8 @@ class LogsInterceptor:
 
         self.log_handler: Union[PersistentLogsHandler, logging.StreamHandler[TextIO]]
 
-        # Create either file handler (runtime) or stdout handler (debug)
-        if self.job_id:
+        # Create either file handler (runtime/evals) or stdout handler (debug)
+        if self.job_id or self.eval_run:
             # Ensure directory exists for file logging
             dir = dir or "__uipath"
             file = file or "execution.log"
@@ -102,9 +105,6 @@ class LogsInterceptor:
             logger.propagate = False  # Prevent double-logging
             self._clean_all_handlers(logger)
             self.patched_loggers.add(logger_name)
-
-        # Set up stdout/stderr redirection
-        self._redirect_stdout_stderr()
 
     def _redirect_stdout_stderr(self) -> None:
         """Redirect stdout and stderr to the logging system."""

@@ -25,3 +25,6 @@ ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (
 
 # Local storage
 TEMP_ATTACHMENTS_FOLDER = "uipath_attachments"
+
+# LLM models
+COMMUNITY_AGENTS_SUFFIX = "-community-agents"
