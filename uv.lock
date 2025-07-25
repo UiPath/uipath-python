@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.12.4'",
@@ -2027,7 +2026,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.1.0"
+version = "2.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "azure-monitor-opentelemetry" },

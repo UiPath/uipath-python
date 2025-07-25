@@ -1,10 +1,12 @@
+import asyncio
 import http.server
 import json
 import os
 import socketserver
+import threading
 import time
+from typing import Optional
 
-import click
 from dotenv import load_dotenv
 
 from ._oidc_utils import get_auth_config
@@ -117,9 +119,11 @@ class HTTPServer:
         """
         self.current_path = os.path.dirname(os.path.abspath(__file__))
         self.port = port
-        self.httpd = None
+        self.httpd: Optional[socketserver.TCPServer] = None
         self.token_data = None
         self.should_shutdown = False
+        self.token_received_event: Optional[asyncio.Event] = None
+        self.loop = None
 
     def token_received_callback(self, token_data):
         """Callback for when a token is received.
@@ -128,7 +132,8 @@ class HTTPServer:
             token_data (dict): The received token data.
         """
         self.token_data = token_data
-        self.should_shutdown = True
+        if self.token_received_event and self.loop:
+            self.loop.call_soon_threadsafe(self.token_received_event.set)
 
     def create_server(self, state, code_verifier, domain):
         """Create and configure the HTTP server.
@@ -149,7 +154,16 @@ class HTTPServer:
         self.httpd = socketserver.TCPServer(("", self.port), handler)
         return self.httpd
 
-    def start(self, state, code_verifier, domain):
+    def _run_server(self):
+        """Run server loop in thread."""
+        try:
+            while not self.should_shutdown and self.httpd:
+                self.httpd.handle_request()
+        except Exception:
+            # Server might be closed, that's fine
+            pass
+
+    async def start(self, state, code_verifier, domain):
         """Start the server.
 
         Args:
@@ -163,12 +177,16 @@ class HTTPServer:
         if not self.httpd:
             self.create_server(state, code_verifier, domain)
 
+        self.token_received_event = asyncio.Event()
+        self.loop = asyncio.get_event_loop()
+
+        # Run server in daemon thread
+        server_thread = threading.Thread(target=self._run_server, daemon=True)
+        server_thread.start()
+
         try:
-            if self.httpd:
-                while not self.should_shutdown:
-                    self.httpd.handle_request()
-        except KeyboardInterrupt:
-            click.echo("Process interrupted by user")
+            # Wait indefinitely for token received event or interrupt
+            await self.token_received_event.wait()
         finally:
             self.stop()
 
@@ -176,6 +194,7 @@ class HTTPServer:
 
     def stop(self):
         """Stop the server gracefully and cleanup resources."""
+        self.should_shutdown = True
         if self.httpd:
             self.httpd.server_close()
             self.httpd = None
