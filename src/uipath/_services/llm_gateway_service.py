@@ -17,7 +17,9 @@ Classes:
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -74,6 +76,67 @@ class EmbeddingModels(object):
 
     text_embedding_3_large = "text-embedding-3-large"
     text_embedding_ada_002 = "text-embedding-ada-002"
+
+
+def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
+    """Clean up a Pydantic model schema for use with LLM Gateway.
+
+    This function converts a Pydantic model's JSON schema to a format that's
+    compatible with the LLM Gateway's JSON schema requirements by removing
+    titles and other metadata that might cause validation issues.
+
+    Args:
+        model_class (type[BaseModel]): A Pydantic BaseModel class to convert to schema.
+
+    Returns:
+        dict: A cleaned JSON schema dictionary suitable for LLM Gateway response_format.
+
+    Examples:
+        ```python
+        from pydantic import BaseModel
+        from typing import List
+
+        class Country(BaseModel):
+            name: str
+            capital: str
+            languages: List[str]
+
+        schema = _cleanup_schema(Country)
+        # Returns a clean schema without titles and unnecessary metadata
+        ```
+    """
+    schema = model_class.model_json_schema()
+
+    def clean_properties(properties):
+        """Clean property definitions by removing titles and cleaning nested items."""
+        cleaned_props = {}
+        for prop_name, prop_def in properties.items():
+            if isinstance(prop_def, dict):
+                cleaned_prop = {}
+                for key, value in prop_def.items():
+                    if key == "title":  # Skip title
+                        continue
+                    elif key == "items" and isinstance(value, dict):
+                        # Clean nested items
+                        cleaned_items = {}
+                        for item_key, item_value in value.items():
+                            if item_key != "title":
+                                cleaned_items[item_key] = item_value
+                        cleaned_prop[key] = cleaned_items
+                    else:
+                        cleaned_prop[key] = value
+                cleaned_props[prop_name] = cleaned_prop
+        return cleaned_props
+
+    # Create clean schema
+    clean_schema = {
+        "type": "object",
+        "properties": clean_properties(schema.get("properties", {})),
+        "required": schema.get("required", []),
+        "additionalProperties": False,
+    }
+
+    return clean_schema
 
 
 class UiPathOpenAIService(BaseService):
@@ -146,7 +209,7 @@ class UiPathOpenAIService(BaseService):
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 50,
         temperature: float = 0,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
         api_version: str = API_VERSION,
     ):
         """Generate chat completions using UiPath's LLM Gateway service.
@@ -168,9 +231,11 @@ class UiPathOpenAIService(BaseService):
             temperature (float, optional): Temperature for sampling, between 0 and 1.
                 Lower values (closer to 0) make output more deterministic and focused,
                 higher values make it more creative and random. Defaults to 0.
-            response_format (Optional[Dict[str, Any]], optional): An object specifying the format
-                that the model must output. Used to enable JSON mode or other structured outputs.
-                Defaults to None.
+            response_format (Optional[Union[Dict[str, Any], type[BaseModel]]], optional):
+                An object specifying the format that the model must output. Can be either:
+                - A dictionary with response format configuration (traditional format)
+                - A Pydantic BaseModel class (automatically converted to JSON schema)
+                Used to enable JSON mode or other structured outputs. Defaults to None.
             api_version (str, optional): The API version to use. Defaults to API_VERSION.
 
         Returns:
@@ -198,11 +263,31 @@ class UiPathOpenAIService(BaseService):
                 max_tokens=200,
                 temperature=0.3
             )
+
+            # Using Pydantic model for structured response
+            from pydantic import BaseModel
+            from typing import List
+
+            class Country(BaseModel):
+                name: str
+                capital: str
+                languages: List[str]
+
+            response = await service.chat_completions(
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant. Respond with structured JSON."},
+                    {"role": "user", "content": "Tell me about Canada."}
+                ],
+                response_format=Country,  # Pass BaseModel directly
+                max_tokens=1000
+            )
             ```
 
         Note:
             The conversation history can be included to provide context to the model.
             Each message should have both 'role' and 'content' keys.
+            When using a Pydantic BaseModel as response_format, it will be automatically
+            converted to the appropriate JSON schema format for the LLM Gateway.
         """
         endpoint = EndpointManager.get_passthrough_endpoint().format(
             model=model, api_version=api_version
@@ -215,9 +300,24 @@ class UiPathOpenAIService(BaseService):
             "temperature": temperature,
         }
 
-        # Add response_format if provided
+        # Handle response_format - convert BaseModel to schema if needed
         if response_format:
-            request_body["response_format"] = response_format
+            if isinstance(response_format, type) and issubclass(
+                response_format, BaseModel
+            ):
+                # Convert Pydantic model to JSON schema format
+                cleaned_schema = _cleanup_schema(response_format)
+                request_body["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": response_format.__name__.lower(),
+                        "strict": True,
+                        "schema": cleaned_schema,
+                    },
+                }
+            else:
+                # Use provided dictionary format directly
+                request_body["response_format"] = response_format
 
         response = await self.request_async(
             "POST",
@@ -258,7 +358,7 @@ class UiPathLlmChatService(BaseService):
         top_p: float = 1,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[ToolChoice] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
         api_version: str = NORMALIZED_API_VERSION,
     ):
         """Generate chat completions using UiPath's normalized LLM Gateway API.
@@ -295,9 +395,11 @@ class UiPathLlmChatService(BaseService):
             tool_choice (Optional[ToolChoice], optional): Controls which tools the model can call.
                 Can be "auto" (model decides), "none" (no tools), or a specific tool choice.
                 Defaults to None.
-            response_format (Optional[Dict[str, Any]], optional): An object specifying the format
-                that the model must output. Used to enable JSON mode or other structured outputs.
-                Defaults to None.
+            response_format (Optional[Union[Dict[str, Any], type[BaseModel]]], optional):
+                An object specifying the format that the model must output. Can be either:
+                - A dictionary with response format configuration (traditional format)
+                - A Pydantic BaseModel class (automatically converted to JSON schema)
+                Used to enable JSON mode or other structured outputs. Defaults to None.
             api_version (str, optional): The normalized API version to use.
                 Defaults to NORMALIZED_API_VERSION.
 
@@ -349,6 +451,25 @@ class UiPathLlmChatService(BaseService):
                 presence_penalty=0.2,
                 n=3  # Generate 3 alternative responses
             )
+
+            # Using Pydantic model for structured response
+            from pydantic import BaseModel
+            from typing import List
+
+            class Country(BaseModel):
+                name: str
+                capital: str
+                languages: List[str]
+
+            response = await service.chat_completions(
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant. Respond with structured JSON."},
+                    {"role": "user", "content": "Tell me about Canada."}
+                ],
+                response_format=Country,  # Pass BaseModel directly
+                max_tokens=1000
+            )
+            )
             ```
 
         Note:
@@ -370,9 +491,24 @@ class UiPathLlmChatService(BaseService):
             "top_p": top_p,
         }
 
-        # Add response_format if provided
+        # Handle response_format - convert BaseModel to schema if needed
         if response_format:
-            request_body["response_format"] = response_format
+            if isinstance(response_format, type) and issubclass(
+                response_format, BaseModel
+            ):
+                # Convert Pydantic model to JSON schema format
+                cleaned_schema = _cleanup_schema(response_format)
+                request_body["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": response_format.__name__.lower(),
+                        "strict": True,
+                        "schema": cleaned_schema,
+                    },
+                }
+            else:
+                # Use provided dictionary format directly
+                request_body["response_format"] = response_format
 
         # Add tools if provided - convert to UiPath format
         if tools:
