@@ -276,7 +276,9 @@ def display_project_info(config):
 
 
 @click.command()
-@click.argument("root", type=str, default="./")
+@click.argument(
+    "root", type=click.Path(exists=True, file_okay=False, dir_okay=True), default="."
+)
 @click.option(
     "--nolock",
     is_flag=True,
