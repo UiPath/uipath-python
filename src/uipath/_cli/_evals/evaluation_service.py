@@ -6,12 +6,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
+import click
+
 from uipath._cli._utils._console import ConsoleLogger
 
 from ..cli_run import run_core
 from .evaluators.evaluator_base import EvaluatorBase
-from .evaluators.llm_evaluator import LLMEvaluator
-from .models import EvaluationSetResult
+from .evaluators.evaluator_factory import EvaluatorFactory
+from .models import EvaluationSet, EvaluationSetResult, EvaluatorCategory
 
 console = ConsoleLogger()
 
@@ -23,7 +25,9 @@ class EvaluationService:
         """Initialize the evaluation service.
 
         Args:
+            entrypoint: Path to the agent script to evaluate
             eval_set_path: Path to the evaluation set file (can be string or Path)
+            workers: Number of parallel workers for running evaluations
         """
         self.entrypoint = entrypoint
         self.eval_set_path = Path(eval_set_path)
@@ -31,6 +35,7 @@ class EvaluationService:
         self.evaluators = self._load_evaluators()
         self.num_workers = workers
         self.results_lock = asyncio.Lock()
+        self._progress_manager = None
         self._initialize_results()
 
     def _initialize_results(self) -> None:
@@ -41,13 +46,13 @@ class EvaluationService:
 
         # Create results file
         timestamp = datetime.now(UTC).strftime("%M-%H-%d-%m-%Y")
-        eval_set_name = self.eval_set["name"]
+        eval_set_name = self.eval_set.name
         self.result_file = results_dir / f"eval-{eval_set_name}-{timestamp}.json"
 
         # Initialize with empty results
         initial_results = EvaluationSetResult(
-            eval_set_id=self.eval_set["id"],
-            eval_set_name=self.eval_set["name"],
+            eval_set_id=self.eval_set.id,
+            eval_set_name=self.eval_set.name,
             results=[],
             average_score=0.0,
         )
@@ -55,34 +60,45 @@ class EvaluationService:
         with open(self.result_file, "w", encoding="utf-8") as f:
             f.write(initial_results.model_dump_json(indent=2))
 
-    def _load_eval_set(self) -> Dict[str, Any]:
+    def _load_eval_set(self) -> EvaluationSet:
         """Load the evaluation set from file.
 
         Returns:
-            The loaded evaluation set
+            The loaded evaluation set as EvaluationSet model
         """
         with open(self.eval_set_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            return EvaluationSet(**data)
 
     def _load_evaluators(self) -> List[EvaluatorBase]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         evaluators_dir = self.eval_set_path.parent.parent / "evaluators"
+        evaluator_refs = set(self.eval_set.evaluatorRefs)
+        found_evaluator_ids = set()
 
-        for evaluator_id in self.eval_set["evaluatorRefs"]:
-            # Find evaluator file
-            evaluator_file = None
-            for file in evaluators_dir.glob("*.json"):
-                with open(file) as f:
-                    data = json.load(f)
-                    if data.get("id") == evaluator_id:
-                        evaluator_file = data
-                        break
+        # Load evaluators from JSON files
+        for file in evaluators_dir.glob("*.json"):
+            with open(file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                evaluator_id = data.get("id")
 
-            if not evaluator_file:
-                raise ValueError(f"Could not find evaluator with ID {evaluator_id}")
+                if evaluator_id in evaluator_refs:
+                    try:
+                        evaluator = EvaluatorFactory.create_evaluator(data)
+                        evaluators.append(evaluator)
+                        found_evaluator_ids.add(evaluator_id)
+                    except Exception as e:
+                        console.warning(
+                            f"Failed to create evaluator {evaluator_id}: {str(e)}"
+                        )
 
-            evaluators.append(LLMEvaluator(evaluator_file))
+        # Check if all referenced evaluators were found
+        missing_evaluators = evaluator_refs - found_evaluator_ids
+        if missing_evaluators:
+            raise ValueError(
+                f"Could not find evaluators with IDs: {missing_evaluators}"
+            )
 
         return evaluators
 
@@ -116,7 +132,7 @@ class EvaluationService:
             input_json: JSON string containing input data
 
         Returns:
-            Agent output as dictionary
+            Agent output as dictionary and success status
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
@@ -160,40 +176,64 @@ class EvaluationService:
                 console.warning(f"Error running agent: {str(e)}")
                 return {"error": str(e)}, False
 
-    async def _process_evaluation(self, eval_item: Dict[str, Any]) -> None:
+    async def _process_evaluation(
+        self, eval_item: Dict[str, Any], worker_id: int
+    ) -> None:
         """Process a single evaluation item.
 
         Args:
             eval_item: The evaluation item to process
+            worker_id: ID of the worker processing this evaluation
         """
-        console.info(f"Running evaluation: {eval_item['name']}")
+        eval_id = eval_item["id"]
 
-        # Run the agent using the evaluation input
-        input_json = json.dumps(eval_item["inputs"])
+        # Update progress to running
+        if self._progress_manager:
+            self._progress_manager.start_evaluation(eval_id, worker_id)
 
-        # Run _run_agent in a non-async context using run_in_executor
-        loop = asyncio.get_running_loop()
-        actual_output, success = await loop.run_in_executor(
-            None, self._run_agent, input_json
-        )
-        if success:
-            # Run each evaluator
-            eval_results = []
-            for evaluator in self.evaluators:
-                result = await evaluator.evaluate(
-                    evaluation_id=eval_item["id"],
-                    evaluation_name=eval_item["name"],
-                    input_data=eval_item["inputs"],
-                    expected_output=eval_item["expectedOutput"],
-                    actual_output=actual_output,
-                )
-                eval_results.append(result)
+        try:
+            # Run the agent using the evaluation input
+            input_json = json.dumps(eval_item["inputs"])
 
-            # Write results immediately
-            await self._write_results(eval_results)
+            # Run _run_agent in a non-async context using run_in_executor
+            loop = asyncio.get_running_loop()
+            actual_output, success = await loop.run_in_executor(
+                None, self._run_agent, input_json
+            )
+
+            if success:
+                # Run each evaluator
+                eval_results = []
+                for evaluator in self.evaluators:
+                    result = await evaluator.evaluate(
+                        evaluation_id=eval_item["id"],
+                        evaluation_name=eval_item["name"],
+                        input_data=eval_item["inputs"],
+                        expected_output=eval_item["expectedOutput"],
+                        actual_output=actual_output,
+                    )
+                    eval_results.append(result)
+
+                # Write results immediately
+                await self._write_results(eval_results)
+
+                # Update progress to completed
+                if self._progress_manager:
+                    self._progress_manager.complete_evaluation(eval_id)
+            else:
+                # Mark as failed if agent execution failed
+                if self._progress_manager:
+                    self._progress_manager.fail_evaluation(
+                        eval_id, "Agent execution failed"
+                    )
+
+        except Exception as e:
+            # Mark as failed with error message
+            if self._progress_manager:
+                self._progress_manager.fail_evaluation(eval_id, str(e))
+            raise
 
         # TODO: here we should send the event to the SW eval API
-        console.info(f"Evaluation {eval_item['name']} complete.")
 
     async def _producer_task(self, task_queue: asyncio.Queue) -> None:
         """Producer task that adds all evaluations to the queue.
@@ -201,8 +241,8 @@ class EvaluationService:
         Args:
             task_queue: The asyncio queue to add tasks to
         """
-        for eval_item in self.eval_set["evaluations"]:
-            await task_queue.put(eval_item)
+        for eval_item in self.eval_set.evaluations:
+            await task_queue.put(eval_item.model_dump())
 
         # Add sentinel values to signal workers to stop
         for _ in range(self.num_workers):
@@ -223,35 +263,47 @@ class EvaluationService:
                 return
 
             try:
-                await self._process_evaluation(eval_item)
+                await self._process_evaluation(eval_item, worker_id)
                 task_queue.task_done()
             except Exception as e:
-                import click
-
                 # Log error and continue to next item
                 task_queue.task_done()
                 console.warning(
-                    f"Worker {worker_id} failed evaluation {eval_item.get('name', 'Unknown')}: {str(e)}"
+                    f"Evaluation {eval_item.get('name', 'Unknown')} failed: {str(e)}"
                 )
 
     async def run_evaluation(self) -> None:
         """Run the evaluation set using multiple worker tasks."""
-        task_queue = asyncio.Queue()
-
-        producer = asyncio.create_task(self._producer_task(task_queue))
-
-        consumers = []
-        for worker_id in range(self.num_workers):
-            consumer = asyncio.create_task(self._consumer_task(task_queue, worker_id))
-            consumers.append(consumer)
-
-        await producer
-
-        await task_queue.join()
-
-        # Wait for all consumers to finish
-        await asyncio.gather(*consumers)
-
-        console.success(
-            f"All evaluations complete. Results saved to {self.result_file}"
+        # Display starting message
+        console.info(
+            f"Starting evaluating {click.style(self.eval_set.name, fg='cyan')} evaluation set..."
         )
+
+        # Prepare items for progress tracker
+        progress_items = [
+            {"id": eval_item.id, "name": eval_item.name}
+            for eval_item in self.eval_set.evaluations
+        ]
+
+        # Use Rich Progress for evaluation tracking
+        with console.evaluation_progress(progress_items) as progress_manager:
+            self._progress_manager = progress_manager
+
+            task_queue = asyncio.Queue()
+
+            producer = asyncio.create_task(self._producer_task(task_queue))
+
+            consumers = []
+            for worker_id in range(self.num_workers):
+                consumer = asyncio.create_task(
+                    self._consumer_task(task_queue, worker_id)
+                )
+                consumers.append(consumer)
+
+            await producer
+            await task_queue.join()
+
+            # Wait for all consumers to finish
+            await asyncio.gather(*consumers)
+
+        console.info(f"Results saved to {click.style(self.result_file, fg='cyan')}")

@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-
 class LLMResponse(BaseModel):
     score: float
     justification: str
@@ -17,6 +16,14 @@ class EvaluatorCategory(IntEnum):
     LlmAsAJudge = 1
     AgentScorer = 2
     Trajectory = 3
+
+    @classmethod
+    def from_int(cls, value):
+        """Construct EvaluatorCategory from an int value."""
+        if value in cls._value2member_map_:
+            return cls(value)
+        else:
+            raise ValueError(f"{value} is not a valid EvaluatorCategory value")
 
 
 class EvaluatorType(IntEnum):
@@ -33,6 +40,13 @@ class EvaluatorType(IntEnum):
     ContextPrecision = 8
     Faithfulness = 9
 
+    @classmethod
+    def from_int(cls, value):
+        """Construct EvaluatorCategory from an int value."""
+        if value in cls._value2member_map_:
+            return cls(value)
+        else:
+            raise ValueError(f"{value} is not a valid EvaluatorType value")
 
 class EvaluationResult(BaseModel):
     """Result of a single evaluation."""
@@ -50,10 +64,9 @@ class EvaluationResult(BaseModel):
 
 
 class EvaluationSetResult(BaseModel):
-    """Results of running an evaluation set."""
+    """Result of a complete evaluation set."""
 
     eval_set_id: str
     eval_set_name: str
     results: List[EvaluationResult]
     average_score: float
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
