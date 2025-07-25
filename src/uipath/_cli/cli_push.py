@@ -492,7 +492,9 @@ def upload_source_files_to_project(
 
 
 @click.command()
-@click.argument("root", type=str, default="./")
+@click.argument(
+    "root", type=click.Path(exists=True, file_okay=False, dir_okay=True), default="."
+)
 @click.option(
     "--nolock",
     is_flag=True,

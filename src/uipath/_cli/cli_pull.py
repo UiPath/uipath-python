@@ -20,9 +20,8 @@ import httpx
 from dotenv import load_dotenv
 
 from .._utils._ssl_context import get_httpx_client_kwargs
-from .._utils._url import UiPathUrl
 from ..telemetry import track
-from ._utils._common import get_env_vars
+from ._utils._common import get_env_vars, get_org_scoped_url
 from ._utils._console import ConsoleLogger
 from ._utils._studio_project import (
     ProjectFile,
@@ -142,7 +141,9 @@ def download_folder_files(
 
 
 @click.command()
-@click.argument("root", type=str, default="./")
+@click.argument(
+    "root", type=click.Path(exists=True, file_okay=False, dir_okay=True), default="."
+)
 @track
 def pull(root: str) -> None:
     """Pull remote project files from Studio Web Project.
@@ -166,9 +167,7 @@ def pull(root: str) -> None:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
     [base_url, token] = get_env_vars()
-    uipath_url = UiPathUrl(base_url)
-    org_scoped_base_url = uipath_url.scope_url("org")
-    base_api_url = f"{org_scoped_base_url}/studio_/backend/api/Project/{os.getenv('UIPATH_PROJECT_ID')}/FileOperations"
+    base_api_url = f"{get_org_scoped_url(base_url)}/studio_/backend/api/Project/{os.getenv('UIPATH_PROJECT_ID')}/FileOperations"
 
     with console.spinner("Pulling UiPath project files..."):
         try:
@@ -176,7 +175,7 @@ def pull(root: str) -> None:
                 # Get project structure
                 structure = get_project_structure(
                     os.getenv("UIPATH_PROJECT_ID"),  # type: ignore
-                    org_scoped_base_url,
+                    get_org_scoped_url(base_url),
                     token,
                     client,
                 )
