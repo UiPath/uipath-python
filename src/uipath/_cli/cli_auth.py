@@ -1,4 +1,5 @@
 # type: ignore
+import asyncio
 import json
 import os
 import socket
@@ -159,10 +160,16 @@ def auth(
                 auth_url,
             )
 
-            server = HTTPServer(port=auth_config["port"])
-            token_data = server.start(state, code_verifier, domain)
+            try:
+                server = HTTPServer(port=auth_config["port"])
+                token_data = asyncio.run(server.start(state, code_verifier, domain))
 
-            if token_data:
+                if not token_data:
+                    console.error(
+                        "Authentication failed. Please try again.",
+                    )
+                    return
+
                 portal_service.update_token_data(token_data)
                 update_auth_file(token_data)
                 access_token = token_data["access_token"]
@@ -181,7 +188,7 @@ def auth(
                     console.error(
                         "Could not prepare the environment. Please try again.",
                     )
-            else:
+            except KeyboardInterrupt:
                 console.error(
-                    "Authentication failed. Please try again.",
+                    "Authentication cancelled by user.",
                 )
