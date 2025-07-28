@@ -1,0 +1,35 @@
+{
+    "id": "simple-math-test-001",
+    "name": "Simple Math Test",
+    "description": "Two test cases for debugging the math agent",
+    "version": "1.0.0",
+    "evaluatorRefs": [
+        "math-accuracy-evaluator-001"
+    ],
+    "evaluations": [
+        {
+            "id": "basic-addition-001",
+            "name": "Basic Addition - Small Numbers",
+            "description": "Test basic addition with small positive integers",
+            "inputs": {
+                "first_number": 5,
+                "second_number": 3
+            },
+            "expectedOutput": {
+                "output": "Math Agent Calculation:\nOperation: addition\nFirst Number: 5\nSecond Number: 3\nResult: 8\nCalculation: 5 + 3 = 8"
+            }
+        },
+        {
+            "id": "zero-addition-001",
+            "name": "Addition with Zero",
+            "description": "Test addition when one number is zero",
+            "inputs": {
+                "first_number": 42,
+                "second_number": 0
+            },
+            "expectedOutput": {
+                "output": "Math Agent Calculation:\nOperation: addition\nFirst Number: 42\nSecond Number: 0\nResult: 42\nCalculation: 42 + 0 = 42"
+            }
+        }
+    ]
+}

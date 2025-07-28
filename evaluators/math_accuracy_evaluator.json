@@ -1,0 +1,9 @@
+{
+    "id": "199a7ce6-b501-4235-8454-31a0aa339c7a",
+    "name": "Math Accuracy Evaluator",
+    "description": "Evaluates the accuracy of mathematical calculations and formatting",
+    "category": 1,
+    "type": 4,
+    "model": "gpt-4o-2024-11-20",
+    "prompt": "You are evaluating the accuracy of a mathematical calculation agent.\n\nExpected Output:\n{{ExpectedOutput}}\n\nActual Output:\n{{ActualOutput}}\n\nEvaluate the actual output against the expected output based on these criteria:\n1. Mathematical Accuracy: Is the calculation result correct?\n2. Format Consistency: Does the output follow the expected format and structure?\n3. Completeness: Are all required fields present (operation, numbers, result, calculation)?\n4. Clarity: Is the response clear and well-formatted?\n\nProvide a similarity score from 0-100 where:\n- 100: Perfect match in calculation accuracy and format\n- 80-99: Correct calculation with minor formatting differences\n- 60-79: Correct calculation but significant formatting issues\n- 40-59: Incorrect calculation but proper format structure\n- 20-39: Major errors in both calculation and format\n- 0-19: Completely incorrect or malformed response\n\nFocus primarily on mathematical accuracy (70% weight) and secondarily on format consistency (30% weight)."
+}

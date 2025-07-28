@@ -1,0 +1,54 @@
+{
+    "fileName": "math_agent_eval_set.json",
+    "id": "f2f3c7b9-36f5-4705-a900-5d62f8938180",
+    "name": "Simple Math Agent Evaluation Set",
+    "batchSize": 10,
+    "evaluatorRefs": [
+        "199a7ce6-b501-4235-8454-31a0aa339c7a"
+    ],
+    "evaluations": [
+        {
+            "id": "basic-addition-001",
+            "name": "Basic Addition - Small Numbers",
+            "inputs": {
+                "first_number": 5,
+                "second_number": 3
+            },
+            "expectedOutput": {
+                "content": "Math Agent Calculation:\nOperation: addition\nFirst Number: 5\nSecond Number: 3\nResult: 8\nCalculation: 5 + 3 = 8"
+            },
+            "expectedAgentBehavior": "",
+            "simulationInstructions": "",
+            "simulateInput": false,
+            "inputGenerationInstructions": "",
+            "simulateTools": false,
+            "toolsToSimulate": [],
+            "evalSetId": "f2f3c7b9-36f5-4705-a900-5d62f8938180",
+            "createdAt": "2025-07-22T16:48:20.067Z",
+            "updatedAt": "2025-07-24T05:15:56.180Z"
+        },
+        {
+            "id": "basic-addition-002",
+            "name": "Basic Addition - Medium Numbers",
+            "inputs": {
+                "first_number": 127,
+                "second_number": 238
+            },
+            "expectedOutput": {
+                "content": "Math Agent Calculation:\nOperation: addition\nFirst Number: 127\nSecond Number: 238\nResult: 365\nCalculation: 127 + 238 = 365"
+            },
+            "expectedAgentBehavior": "",
+            "simulationInstructions": "",
+            "simulateInput": false,
+            "inputGenerationInstructions": "",
+            "simulateTools": false,
+            "toolsToSimulate": [],
+            "evalSetId": "f2f3c7b9-36f5-4705-a900-5d62f8938180",
+            "createdAt": "2025-07-22T16:48:20.067Z",
+            "updatedAt": "2025-07-24T05:15:56.180Z"
+        }
+    ],
+    "modelSettings": [],
+    "createdAt": "2025-07-22T16:48:20.067Z",
+    "updatedAt": "2025-07-24T05:15:56.180Z"
+}
