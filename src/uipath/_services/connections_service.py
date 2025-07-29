@@ -1,9 +1,14 @@
+import json
 import logging
+from typing import Any, Dict
+
+import httpx
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec
-from ..models import Connection, ConnectionToken
+from .._utils._ssl_context import get_httpx_client_kwargs
+from ..models import Connection, ConnectionToken, EventArguments
 from ..tracing._traced import traced
 from ._base_service import BaseService
 
@@ -111,6 +116,67 @@ class ConnectionsService(BaseService):
             spec.method, url=spec.endpoint, params=spec.params
         )
         return ConnectionToken.model_validate(response.json())
+
+    @traced(
+        name="connections_retrieve_event_payload",
+        run_type="uipath",
+    )
+    async def retrieve_event_payload_async(
+        self, key: str, event_args: EventArguments
+    ) -> Dict[str, Any]:
+        """Retrieve event payload from UiPath Integration Service.
+
+        Args:
+            key (str): The unique identifier of the connection.
+            event_args (EventArguments): The event arguments. Should be passed along from the job's input.
+
+        Returns:
+            Dict[str, Any]: The event payload data
+        """
+        if not event_args.additional_event_data:
+            raise ValueError("additional_event_data is required")
+
+        # Parse additional event data to get event id
+        event_data = json.loads(event_args.additional_event_data)
+
+        event_id = None
+        if "processedEventId" in event_data:
+            event_id = event_data["processedEventId"]
+        elif "rawEventId" in event_data:
+            event_id = event_data["rawEventId"]
+        else:
+            raise ValueError("Event Id not found in additional event data")
+
+        connection_token = await self.retrieve_token_async(key)
+
+        # Build request URL using connection token's API base URI
+        base_uri = connection_token.api_base_uri.rstrip("/")
+        request_uri = f"{base_uri}/v1/events/{event_id}"
+
+        async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
+            response = await client.get(
+                request_uri,
+                headers={
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {connection_token.access_token}",
+                },
+            )
+
+            if not response.is_success:
+                logger.error(
+                    f"Request failed: {response.status_code} - {response.text}"
+                )
+                raise Exception(
+                    f"Failed to fetch event: {response.status_code} - {response.text}"
+                )
+
+            response_data = response.json()
+
+            # Extract data from V2 CloudEvent format
+            if "data" in response_data:
+                return response_data["data"]
+
+            return response_data
 
     def _retrieve_spec(self, key: str) -> RequestSpec:
         return RequestSpec(
