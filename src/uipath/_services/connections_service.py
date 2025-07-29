@@ -1,9 +1,11 @@
+import json
 import logging
+from typing import Any, Dict
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._utils import Endpoint, RequestSpec
-from ..models import Connection, ConnectionToken
+from .._utils import Endpoint, RequestSpec, infer_bindings
+from ..models import Connection, ConnectionToken, EventArguments
 from ..tracing._traced import traced
 from ._base_service import BaseService
 
@@ -111,6 +113,84 @@ class ConnectionsService(BaseService):
             spec.method, url=spec.endpoint, params=spec.params
         )
         return ConnectionToken.model_validate(response.json())
+
+    @traced(
+        name="connections_retrieve_event_payload",
+        run_type="uipath",
+    )
+    @infer_bindings(resource_type="ignored", ignore=True)
+    def retrieve_event_payload(self, event_args: EventArguments) -> Dict[str, Any]:
+        """Retrieve event payload from UiPath Integration Service.
+
+        Args:
+            event_args (EventArguments): The event arguments. Should be passed along from the job's input.
+
+        Returns:
+            Dict[str, Any]: The event payload data
+        """
+        if not event_args.additional_event_data:
+            raise ValueError("additional_event_data is required")
+
+        # Parse additional event data to get event id
+        event_data = json.loads(event_args.additional_event_data)
+
+        event_id = None
+        if "processedEventId" in event_data:
+            event_id = event_data["processedEventId"]
+        elif "rawEventId" in event_data:
+            event_id = event_data["rawEventId"]
+        else:
+            raise ValueError("Event Id not found in additional event data")
+
+        # Build request URL using connection token's API base URI
+        spec = self._retrieve_event_payload_spec("v1", event_id)
+
+        response = self.request(spec.method, url=spec.endpoint)
+
+        return response.json()
+
+    @traced(
+        name="connections_retrieve_event_payload",
+        run_type="uipath",
+    )
+    @infer_bindings(resource_type="ignored", ignore=True)
+    async def retrieve_event_payload_async(
+        self, event_args: EventArguments
+    ) -> Dict[str, Any]:
+        """Retrieve event payload from UiPath Integration Service.
+
+        Args:
+            event_args (EventArguments): The event arguments. Should be passed along from the job's input.
+
+        Returns:
+            Dict[str, Any]: The event payload data
+        """
+        if not event_args.additional_event_data:
+            raise ValueError("additional_event_data is required")
+
+        # Parse additional event data to get event id
+        event_data = json.loads(event_args.additional_event_data)
+
+        event_id = None
+        if "processedEventId" in event_data:
+            event_id = event_data["processedEventId"]
+        elif "rawEventId" in event_data:
+            event_id = event_data["rawEventId"]
+        else:
+            raise ValueError("Event Id not found in additional event data")
+
+        # Build request URL using connection token's API base URI
+        spec = self._retrieve_event_payload_spec("v1", event_id)
+
+        response = await self.request_async(spec.method, url=spec.endpoint)
+
+        return response.json()
+
+    def _retrieve_event_payload_spec(self, version: str, event_id: str) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/elements_/{version}/events/{event_id}"),
+        )
 
     def _retrieve_spec(self, key: str) -> RequestSpec:
         return RequestSpec(

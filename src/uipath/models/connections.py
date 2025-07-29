@@ -49,3 +49,20 @@ class ConnectionToken(BaseModel):
     expires_in: Optional[int] = Field(default=None, alias="expiresIn")
     api_base_uri: Optional[str] = Field(default=None, alias="apiBaseUri")
     element_instance_id: Optional[int] = Field(default=None, alias="elementInstanceId")
+
+
+class EventArguments(BaseModel):
+    event_connector: Optional[str] = Field(default=None, alias="UiPathEventConnector")
+    event: Optional[str] = Field(default=None, alias="UiPathEvent")
+    event_object_type: Optional[str] = Field(
+        default=None, alias="UiPathEventObjectType"
+    )
+    event_object_id: Optional[str] = Field(default=None, alias="UiPathEventObjectId")
+    additional_event_data: Optional[str] = Field(
+        default=None, alias="UiPathAdditionalEventData"
+    )
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="allow",
+    )

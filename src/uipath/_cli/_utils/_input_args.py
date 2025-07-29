@@ -14,6 +14,8 @@ from typing import (
     get_type_hints,
 )
 
+from pydantic import BaseModel
+
 SchemaType = Literal["object", "integer", "double", "string", "boolean", "array"]
 
 TYPE_MAP: Dict[str, SchemaType] = {
@@ -50,7 +52,30 @@ def get_type_schema(type_hint: Any) -> Dict[str, Any]:
         return {"type": "object"}
 
     if inspect.isclass(type_hint):
-        if is_dataclass(type_hint):
+        # Handle Pydantic models
+        if issubclass(type_hint, BaseModel):
+            properties = {}
+            required = []
+
+            # Get the model fields
+            model_fields = type_hint.model_fields
+
+            for field_name, field_info in model_fields.items():
+                # Use alias if defined, otherwise use field name
+                schema_field_name = field_info.alias if field_info.alias else field_name
+
+                # Get the field type schema
+                field_schema = get_type_schema(field_info.annotation)
+                properties[schema_field_name] = field_schema
+
+                # Check if field is required using Pydantic's built-in method
+                if field_info.is_required():
+                    required.append(schema_field_name)
+
+            return {"type": "object", "properties": properties, "required": required}
+
+        # Handle dataclasses
+        elif is_dataclass(type_hint):
             properties = {}
             required = []
 
@@ -61,6 +86,8 @@ def get_type_schema(type_hint: Any) -> Dict[str, Any]:
                     required.append(field.name)
 
             return {"type": "object", "properties": properties, "required": required}
+
+        # Handle regular classes with annotations
         elif hasattr(type_hint, "__annotations__"):
             properties = {}
             required = []

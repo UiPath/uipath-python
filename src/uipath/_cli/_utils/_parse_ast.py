@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..._services import (
     AssetsService,
     BucketsService,
+    ConnectionsService,
     ContextGroundingService,
     ProcessesService,
 )
@@ -47,6 +48,7 @@ supported_bindings_by_service = {
     "processes": ProcessesService,
     "buckets": BucketsService,
     "context_grounding": ContextGroundingService,
+    "connections": ConnectionsService,
 }
 
 
@@ -103,7 +105,17 @@ class ServiceUsage:
 
         # custom logic for connections bindings
         elif self.service_name == "connections":
+            # First, try to get inferred bindings for connections if they exist
+            connections_service = supported_bindings_by_service.get("connections")
+            inferred_bindings = {}
+            if connections_service:
+                inferred_bindings = get_inferred_bindings_names(connections_service)
+
             for call in self.method_calls:
+                # Skip methods that are decorated with @infer_bindings(ignore=False)
+                if call.method_name in inferred_bindings:
+                    continue
+
                 if len(call.args) > 0:
                     connection_id = call.args[0]
                     if connection_id:
