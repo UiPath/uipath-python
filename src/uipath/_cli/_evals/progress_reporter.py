@@ -3,7 +3,8 @@
 import json
 import logging
 import os
-from typing import Any, List
+import uuid
+from typing import Any, List, Optional
 
 from uipath import UiPath
 from uipath._cli._evals._evaluators import EvaluatorBase
@@ -54,26 +55,38 @@ class ProgressReporter:
                 "Cannot report data to StudioWeb. Please set UIPATH_PROJECT_ID."
             )
 
-    async def create_eval_run(self, eval_snapshot: dict[str, Any]):
+    async def create_eval_run(self, eval_snapshot: dict[str, Any]) -> Optional[str]:
         """Create a new evaluation run in StudioWeb.
 
         Args:
             eval_snapshot: Dictionary containing evaluation data
 
         Returns:
-            The ID of the created evaluation run
+            The ID of the created evaluation run, or None if failed
         """
-        spec = self._create_eval_run_spec(eval_snapshot)
-        response = await self._client.request_async(
-            method=spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-            content=spec.content,
-            headers=spec.headers,
-            scoped="org",
-        )
+        try:
+            spec = self._create_eval_run_spec(eval_snapshot)
+            response = await self._client.request_async(
+                method=spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                content=spec.content,
+                headers=spec.headers,
+                scoped="tenant",
+            )
 
-        return json.loads(response.content)["id"]
+            result = json.loads(response.content)
+            eval_run_id = result.get("id")
+            if eval_run_id:
+                self._console.info(f"Created EvalRun with ID: {eval_run_id}")
+                return eval_run_id
+            else:
+                self._console.warning("EvalRun creation response missing 'id' field")
+                return None
+
+        except Exception as e:
+            self._console.warning(f"Failed to create EvalRun for {eval_snapshot.get('name', 'Unknown')}: {str(e)}")
+            return None
 
     async def update_eval_run(
         self,
@@ -81,7 +94,7 @@ class ProgressReporter:
         eval_run_id: str,
         actual_output: dict[str, Any],
         success: bool,
-    ):
+    ) -> None:
         """Update an evaluation run with results.
 
         Args:
@@ -90,43 +103,69 @@ class ProgressReporter:
             actual_output: The actual output from the agent
             success: Whether the evaluation was successful
         """
-        spec = self._update_eval_run_spec(
-            eval_results, eval_run_id, actual_output, success
-        )
-        await self._client.request_async(
-            method=spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-            content=spec.content,
-            headers=spec.headers,
-            scoped="org",
-        )
+        if not eval_run_id:
+            self._console.warning("Cannot update EvalRun: eval_run_id is None")
+            return
 
-    async def create_eval_set_run(self):
+        try:
+            spec = self._update_eval_run_spec(
+                eval_results, eval_run_id, actual_output, success
+            )
+            
+            await self._client.request_async(
+                method=spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                content=spec.content,
+                headers=spec.headers,
+                scoped="tenant",
+            )
+            self._console.info(f"Successfully updated EvalRun with ID: {eval_run_id}")
+
+        except Exception as e:
+            self._console.warning(f"Failed to update EvalRun {eval_run_id}: {str(e)}")
+
+    async def create_eval_set_run(self) -> None:
         """Create a new evaluation set run in StudioWeb."""
-        spec = self._create_eval_set_run_spec()
-        response = await self._client.request_async(
-            method=spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-            content=spec.content,
-            headers=spec.headers,
-            scoped="org",
-        )
+        try:
+            spec = self._create_eval_set_run_spec()
+            response = await self._client.request_async(
+                method=spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                content=spec.content,
+                headers=spec.headers,
+                scoped="tenant",
+            )
 
-        self._eval_set_run_id = json.loads(response.content)["id"]
+            result = json.loads(response.content)
+            self._eval_set_run_id = result.get("id")
+            
+            if self._eval_set_run_id:
+                self._console.info(f"Created EvalSetRun with ID: {self._eval_set_run_id}")
+            else:
+                self._console.warning("EvalSetRun creation response missing 'id' field")
 
-    async def update_eval_set_run(self):
+        except Exception as e:
+            self._console.warning(f"Failed to create EvalSetRun: {str(e)}")
+
+    async def update_eval_set_run(self) -> None:
         """Update the evaluation set run status to completed."""
-        spec = self._update_eval_set_run_spec()
-        await self._client.request_async(
-            method=spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-            content=spec.content,
-            headers=spec.headers,
-            scoped="org",
-        )
+        try:
+            spec = self._update_eval_set_run_spec()
+            
+            await self._client.request_async(
+                method=spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                content=spec.content,
+                headers=spec.headers,
+                scoped="tenant",
+            )
+            self._console.info(f"Successfully updated EvalSetRun with ID: {self._eval_set_run_id}")
+
+        except Exception as e:
+            self._console.warning(f"Failed to update EvalSetRun {self._eval_set_run_id}: {str(e)}")
 
     def _update_eval_run_spec(
         self,
@@ -135,34 +174,50 @@ class ProgressReporter:
         actual_output: dict[str, Any],
         success: bool,
     ) -> RequestSpec:
+        # Build evaluator scores and assertion runs
+        evaluator_scores = []
+        assertion_runs = []
+        overall_status = 2  # Default to Success
+        
+        for i, evaluator in enumerate(self._evaluators):
+            if evaluator is not None and evaluator.id in eval_results:
+                result = eval_results[evaluator.id]
+                
+                evaluator_scores.append({
+                    "Type": 1,
+                    "Value": result.score,
+                    "Justification": result.details,
+                    "EvaluatorId": result.evaluator_id,
+                })
+                
+                ## TODO: I don't see a way to report if an evaluator failed to run or errored (this would be the "Status" field), Defaulting to success for now
+                ## TODO: Generate Completion Metrics for Eval Run (Duration, Tokens, etc). Defaulting to 0 for now. 
+                assertion_runs.append({
+                    "Status": overall_status,
+                    "EvaluatorId": result.evaluator_id,
+                    "Result": {
+                        "Output": {"reasoning": result.details, "passed": overall_status == 2},
+                        "Score": {"Type": 1, "Value": result.score, "Justification": result.details}
+                    },
+                    # "CompletionMetrics": {"Duration": 0, "Tokens": 0, "CompletionTokens": 0, "PromptTokens": 0}
+                })
+        
+        ## TODO: Generate Completion Metrics for Eval Set Run (Duration, Tokens, etc). Defaulting to 0 for now. 
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"agents_/api/execution/agents/{self._project_id}/evalRun"
+                f"agentsruntime_/api/execution/agents/{self._project_id}/evalRun"
             ),
             content=json.dumps(
                 {
-                    "evalRunId": eval_run_id,
-                    "status": EvaluationStatus.COMPLETED.value,
-                    "result": {
-                        "output": {
-                            **actual_output,
-                        }
+                    "EvalRunId": eval_run_id,
+                    "Status": overall_status,
+                    "Result": {
+                        "Output": actual_output,
+                        "EvaluatorScores": evaluator_scores 
                     },
-                    "evaluatorScores": [
-                        {
-                            # TODO: here we should extract the exact value type (0 = boolean, 1 = numerical, 2 = error)
-                            "type": EvaluatorStatus.NUMERICAL.value
-                            if success
-                            else EvaluatorStatus.ERROR.value,
-                            "value": eval_results[evaluator.id].score,  # type: ignore
-                            "justification": eval_results[evaluator.id].details,  # type: ignore
-                            "evaluatorId": evaluator.id,
-                        }
-                        for evaluator in self._evaluators
-                    ],
-                    "completionMetrics": None,
-                    "assertionRuns": [],
+                    # "CompletionMetrics": {"Duration": 0, "Tokens": 0, "CompletionTokens": 0, "PromptTokens": 0},
+                    "AssertionRuns": assertion_runs
                 }
             ),
             headers=self._tenant_header(),
@@ -172,24 +227,41 @@ class ProgressReporter:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"agents_/api/execution/agents/{self._project_id}/evalRun"
+                f"agentsruntime_/api/execution/agents/{self._project_id}/evalRun"
             ),
             content=json.dumps(
                 {
                     "evalSetRunId": self._eval_set_run_id,
-                    "evalSnapshot": eval_snapshot,
+                    ##TODO: AssertionType, AssertionProperties, and OutputKey are legacy fields in Eval Snapshots; they are unused. I will work on removing them from them API call and filling them in on the server-side. 
+                    "evalSnapshot": {
+                        "id": eval_snapshot["id"],
+                        "name": eval_snapshot["name"],
+                        "assertionType": "Unknown", 
+                        "assertionProperties": {},
+                        "inputs": eval_snapshot["inputs"],
+                        "outputKey": ""
+                    },
                     "status": EvaluationStatus.IN_PROGRESS.value,
+                    ##TODO: Will update API to take in assertionRuns list during update call instead of creating it here
                     "assertionRuns": [
                         {
                             "assertionSnapshot": {
-                                "id": evaluator.id,
-                                "assertionType": evaluator.type.name,  # type: ignore
-                                "targetOutputKey": evaluator.target_output_key,
+                                "assertionType": evaluator.type.name if evaluator.type else "Unknown",
+                                "outputKey": evaluator.target_output_key,
+                                "assertionProperties": {
+                                    "id": evaluator.id,
+                                    "name": evaluator.name,
+                                    "description": evaluator.description,
+                                    "category": evaluator.category.value if evaluator.category else 1,
+                                    "type": evaluator.type.value if evaluator.type else 5,
+                                    "targetOutputKey": evaluator.target_output_key,
+                                }
                             },
                             "status": 1,
                             "evaluatorId": evaluator.id,
                         }
                         for evaluator in self._evaluators
+                        if evaluator is not None  # Filter out None evaluators
                     ],
                 }
             ),
@@ -206,7 +278,7 @@ class ProgressReporter:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"agents_/api/execution/agents/{self._project_id}/evalSetRun"
+                f"agentsruntime_/api/execution/agents/{self._project_id}/evalSetRun"
             ),
             content=json.dumps(
                 {
@@ -226,7 +298,7 @@ class ProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"agents_/api/execution/agents/{self._project_id}/evalSetRun"
+                f"agentsruntime_/api/execution/agents/{self._project_id}/evalSetRun"
             ),
             content=json.dumps(
                 {

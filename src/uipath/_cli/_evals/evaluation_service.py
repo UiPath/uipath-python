@@ -323,6 +323,8 @@ class EvaluationService:
                 # Run each evaluator
                 eval_results = {}
                 for evaluator in self._evaluators:
+                    if evaluator is None:  ##TODO: Remove this if condition (this is due to _create_trajectory_evaluator in _evaluator_factory.py)
+                        continue
                     result = await evaluator.evaluate(
                         evaluation_id=eval_item["id"],
                         evaluation_name=eval_item["name"],
