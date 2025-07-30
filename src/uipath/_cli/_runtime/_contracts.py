@@ -163,7 +163,7 @@ class UiPathRuntimeContext(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     @classmethod
-    def from_config(cls, config_path=None, **kwargs) -> "UiPathRuntimeContext":
+    def from_config(cls, config_path=None, **kwargs):
         """Load configuration from uipath.json file.
 
         Args:
