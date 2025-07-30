@@ -38,16 +38,4 @@ class DeterministicEvaluator(EvaluatorBase):
         Returns:
             EvaluationResult containing the score and details
         """
-        # TODO: implement this
-
-        return EvaluationResult(
-            evaluation_id=evaluation_id,
-            evaluation_name=evaluation_name,
-            evaluator_id=self.id,  # type: ignore
-            evaluator_name=self.name,  # type: ignore
-            score=0.5,
-            input=input_data,
-            expected_output=expected_output,
-            actual_output=actual_output,
-            details="details",
-        )
+        raise NotImplementedError()

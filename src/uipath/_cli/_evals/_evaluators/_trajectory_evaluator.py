@@ -45,16 +45,4 @@ class TrajectoryEvaluator(EvaluatorBase):
         Returns:
             EvaluationResult containing the score and details
         """
-        # TODO: Implement this
-
-        return EvaluationResult(
-            evaluation_id=evaluation_id,
-            evaluation_name=evaluation_name,
-            evaluator_id=self.id,  # type: ignore
-            evaluator_name=self.name,  # type: ignore
-            score=0.7,
-            input=input_data,
-            expected_output=expected_output,
-            actual_output=actual_output,
-            details="Trajectory evaluation not yet implemented",
-        )
+        raise NotImplementedError()

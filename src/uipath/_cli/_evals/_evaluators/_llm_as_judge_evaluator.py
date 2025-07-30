@@ -5,10 +5,10 @@ from ...._config import Config
 from ...._execution_context import ExecutionContext
 from ...._services.llm_gateway_service import UiPathLlmChatService
 from ...._utils.constants import (
-    COMMUNITY_AGENTS_SUFFIX,
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
+    COMMUNITY_agents_SUFFIX,
 )
 from .._models import EvaluationResult, LLMResponse
 from ._evaluator_base import EvaluatorBase
@@ -37,13 +37,13 @@ class LlmAsAJudgeEvaluator(EvaluatorBase):
         """Initialize the LLM used for evaluation."""
         import os
 
-        base_url_value = os.getenv(ENV_BASE_URL)
-        secret_value = os.getenv(ENV_UNATTENDED_USER_ACCESS_TOKEN) or os.getenv(
+        base_url_value: str = os.getenv(ENV_BASE_URL)  # type: ignore
+        secret_value: str = os.getenv(ENV_UNATTENDED_USER_ACCESS_TOKEN) or os.getenv(
             ENV_UIPATH_ACCESS_TOKEN
-        )
+        )  # type: ignore
         config = Config(
-            base_url=base_url_value,  # type: ignore
-            secret=secret_value,  # type: ignore
+            base_url=base_url_value,
+            secret=secret_value,
         )
         self.llm = UiPathLlmChatService(config, ExecutionContext())
 
@@ -79,8 +79,8 @@ class LlmAsAJudgeEvaluator(EvaluatorBase):
         return EvaluationResult(
             evaluation_id=evaluation_id,
             evaluation_name=evaluation_name,
-            evaluator_id=self.id,  # type: ignore
-            evaluator_name=self.name,  # type: ignore
+            evaluator_id=self.id,
+            evaluator_name=self.name,
             score=llm_response.score,
             input=input_data,
             expected_output=expected_output,
@@ -108,16 +108,16 @@ class LlmAsAJudgeEvaluator(EvaluatorBase):
             return None
 
     def _create_evaluation_prompt(
-        self, expected_output: Dict[str, Any], actual_output: Dict[str, Any]
+        self, expected_output: Any, actual_output: Any
     ) -> str:
         """Create the evaluation prompt for the LLM."""
-        # Convert complex objects to JSON strings for the prompt
-        # Use the template prompt and substitute variables
         formatted_prompt = self.prompt.replace(
-            self.actual_output_placeholder, json.dumps(actual_output, indent=2)
+            self.actual_output_placeholder,
+            str(actual_output),
         )
         formatted_prompt = formatted_prompt.replace(
-            self.expected_output_placeholder, json.dumps(expected_output, indent=2)
+            self.expected_output_placeholder,
+            str(expected_output),
         )
 
         return formatted_prompt
@@ -134,8 +134,8 @@ class LlmAsAJudgeEvaluator(EvaluatorBase):
         try:
             # remove community-agents suffix from llm model name
             model = self.model
-            if model.endswith(COMMUNITY_AGENTS_SUFFIX):
-                model = model.replace(COMMUNITY_AGENTS_SUFFIX, "")
+            if model.endswith(COMMUNITY_agents_SUFFIX):
+                model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
             # Prepare the request
             request_data = {

@@ -58,6 +58,8 @@ class EvaluationResult(BaseModel):
     evaluator_id: str
     evaluator_name: str
     score: float
+    # mark this as optional, as it is populated inside the 'measure_execution_time' decorator
+    evaluation_time: Optional[float] = None
     input: Dict[str, Any]
     expected_output: Dict[str, Any]
     actual_output: Dict[str, Any]
@@ -74,7 +76,14 @@ class EvaluationSetResult(BaseModel):
     average_score: float
 
 
-class EvaluatorStatus(IntEnum):
+class ScoreType(IntEnum):
     BOOLEAN = 0
     NUMERICAL = 1
     ERROR = 2
+
+
+class EvalItemResult(BaseModel):
+    """Result of a single evaluation item."""
+
+    evaluator_id: str
+    result: EvaluationResult

@@ -383,7 +383,7 @@ class EvaluationService:
                         eval_run=True,
                     )
                     execution_time = time.time() - start_time
-                    
+   
                 if not success:
                     console.warning(error_message)
                     return {}, False, execution_time

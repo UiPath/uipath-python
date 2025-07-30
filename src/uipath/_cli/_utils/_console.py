@@ -282,16 +282,6 @@ class EvaluationProgressManager:
         self.progress = progress
         self.tasks = tasks
 
-    def start_evaluation(self, eval_id: str, worker_id: int) -> None:
-        """Mark an evaluation as started.
-
-        Args:
-            eval_id: The evaluation ID
-            worker_id: The worker ID processing this evaluation
-        """
-        # No need to update anything - spinner and timer will show it's running
-        pass
-
     def complete_evaluation(self, eval_id: str) -> None:
         """Mark an evaluation as completed.
 

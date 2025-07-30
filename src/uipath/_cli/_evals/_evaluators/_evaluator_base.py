@@ -1,3 +1,5 @@
+import functools
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict
@@ -7,6 +9,22 @@ from uipath._cli._evals._models import (
     EvaluatorCategory,
     EvaluatorType,
 )
+
+
+def measure_execution_time(func):
+    """Decorator to measure execution time and update EvaluationResult.evaluation_time."""
+
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs) -> EvaluationResult:
+        start_time = time.time()
+        result = await func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+
+        result.evaluation_time = execution_time
+        return result
+
+    return wrapper
 
 
 @dataclass
@@ -28,14 +46,14 @@ class EvaluatorBase(ABC):
 
     def __init__(self):
         # initialization done via 'from_params' function
-        self.id = None
-        self.name = None
-        self.description = None
-        self.created_at = None
-        self.updated_at = None
-        self.category = None
-        self.type = None
-        self.target_output_key = None
+        self.id: str
+        self.name: str
+        self.description: str
+        self.created_at: str
+        self.updated_at: str
+        self.category: EvaluatorCategory
+        self.type: EvaluatorType
+        self.target_output_key: str
         pass
 
     @classmethod
@@ -60,6 +78,7 @@ class EvaluatorBase(ABC):
         instance.target_output_key = params.target_output_key
         return instance
 
+    @measure_execution_time
     @abstractmethod
     async def evaluate(
         self,
@@ -83,6 +102,23 @@ class EvaluatorBase(ABC):
         """
         pass
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the evaluator instance to a dictionary representation.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing all evaluator properties
+        """
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "category": self.category.name if self.category else None,
+            "type": self.type.name if self.type else None,
+            "target_output_key": self.target_output_key,
+        }
+
     def __repr__(self) -> str:
         """String representation of the evaluator."""
-        return f"{self.__class__.__name__}(id='{self.id}', name='{self.name}', category={self.category.name})"  # type: ignore
+        return f"{self.__class__.__name__}(id='{self.id}', name='{self.name}', category={self.category.name})"

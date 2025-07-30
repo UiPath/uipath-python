@@ -66,8 +66,7 @@ class EvaluatorFactory:
         base_params: EvaluatorBaseParams, data: Dict[str, Any]
     ) -> DeterministicEvaluator:
         """Create a deterministic evaluator."""
-        # TODO: implement this
-        pass
+        raise NotImplementedError()
 
     @staticmethod
     def _create_llm_as_judge_evaluator(
@@ -94,13 +93,11 @@ class EvaluatorFactory:
         base_params: EvaluatorBaseParams, data: Dict[str, Any]
     ) -> AgentScorerEvaluator:
         """Create an agent scorer evaluator."""
-        # TODO: implement this
-        pass
+        raise NotImplementedError()
 
     @staticmethod
     def _create_trajectory_evaluator(
         base_params: EvaluatorBaseParams, data: Dict[str, Any]
     ) -> TrajectoryEvaluator:
         """Create a trajectory evaluator."""
-        # TODO: implement this
-        pass
+        raise NotImplementedError()

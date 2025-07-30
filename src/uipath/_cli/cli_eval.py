@@ -1,7 +1,6 @@
 # type: ignore
 import asyncio
 import os
-from pathlib import Path
 from typing import Optional, Tuple
 
 import click
@@ -17,13 +16,17 @@ load_dotenv(override=True)
 
 
 def eval_agent(
-    entrypoint: str, eval_set: str, workers: int = 8, no_report: bool = False, **kwargs
+    entrypoint: Optional[str] = None,
+    eval_set: Optional[str] = None,
+    workers: int = 8,
+    no_report: bool = False,
+    **kwargs,
 ) -> Tuple[bool, Optional[str], Optional[str]]:
     """Core evaluation logic that can be called programmatically.
 
     Args:
-        entrypoint: Path to the agent script to evaluate
-        eval_set: Path to the evaluation set JSON file
+        entrypoint: Path to the agent script to evaluate (optional, will auto-discover if not provided)
+        eval_set: Path to the evaluation set JSON file (optional, will auto-discover if not provided)
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
         **kwargs: Additional arguments for future extensibility
@@ -35,10 +38,6 @@ def eval_agent(
             - info_message: Info message if any
     """
     try:
-        eval_path = Path(eval_set)
-        if not eval_path.is_file() or eval_path.suffix != ".json":
-            return False, "Evaluation set must be a JSON file", None
-
         if workers < 1:
             return False, "Number of workers must be at least 1", None
 
@@ -54,8 +53,8 @@ def eval_agent(
 
 
 @click.command()
-@click.argument("entrypoint", required=True)
-@click.argument("eval_set", required=True, type=click.Path(exists=True))
+@click.argument("entrypoint", required=False)
+@click.argument("eval_set", required=False)
 @click.option(
     "--no-report",
     is_flag=True,
@@ -69,12 +68,14 @@ def eval_agent(
     help="Number of parallel workers for running evaluations (default: 8)",
 )
 @track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
-def eval(entrypoint: str, eval_set: str, no_report: bool, workers: int) -> None:
+def eval(
+    entrypoint: Optional[str], eval_set: Optional[str], no_report: bool, workers: int
+) -> None:
     """Run an evaluation set against the agent.
 
     Args:
-        entrypoint: Path to the agent script to evaluate
-        eval_set: Path to the evaluation set JSON file
+        entrypoint: Path to the agent script to evaluate (optional, will auto-discover if not specified)
+        eval_set: Path to the evaluation set JSON file (optional, will auto-discover if not specified)
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """

@@ -127,6 +127,7 @@ def run_core(
         input: JSON string with input data
         resume: Flag indicating if this is a resume execution
         input_file: Path to input JSON file
+        execution_output_file: Path to execution output file
         logs_file: Path where execution output will be written
         **kwargs: Additional arguments to be forwarded to the middleware
 
@@ -225,7 +226,7 @@ def run(
         input=input,
         resume=resume,
         input_file=input_file,
-        output_file=output_file,
+        execution_output_file=output_file,
         debug=debug,
         debug_port=debug_port,
     )

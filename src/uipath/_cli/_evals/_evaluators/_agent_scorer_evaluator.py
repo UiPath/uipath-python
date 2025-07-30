@@ -45,16 +45,4 @@ class AgentScorerEvaluator(EvaluatorBase):
         Returns:
             EvaluationResult containing the score and details
         """
-        # TODO: Implement this
-
-        return EvaluationResult(
-            evaluation_id=evaluation_id,
-            evaluation_name=evaluation_name,
-            evaluator_id=self.id,  # type: ignore
-            evaluator_name="AgentScorer",
-            score=0.5,  # Placeholder score
-            input=input_data,
-            expected_output=expected_output,
-            actual_output=actual_output,
-            details="Agent scorer evaluation not yet implemented",
-        )
+        raise NotImplementedError()
