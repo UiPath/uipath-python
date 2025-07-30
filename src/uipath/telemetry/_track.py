@@ -1,3 +1,4 @@
+import json
 import os
 from functools import wraps
 from importlib.metadata import version
@@ -25,12 +26,34 @@ from ._constants import (
     _CODE_LINENO,
     _CONNECTION_STRING,
     _OTEL_RESOURCE_ATTRIBUTES,
+    _PROJECT_KEY,
     _SDK_VERSION,
+    _TELEMETRY_CONFIG_FILE,
     _UNKNOWN,
 )
 
 _logger = getLogger(__name__)
 _logger.propagate = False
+
+
+def _get_project_key() -> str:
+    """Get project key from telemetry file if present.
+
+    Returns:
+        Project key string if available, otherwise empty string.
+    """
+    try:
+        telemetry_file = os.path.join(".uipath", _TELEMETRY_CONFIG_FILE)
+        if os.path.exists(telemetry_file):
+            with open(telemetry_file, "r") as f:
+                telemetry_data = json.load(f)
+                project_id = telemetry_data.get(_PROJECT_KEY)
+                if project_id:
+                    return project_id
+    except (json.JSONDecodeError, IOError, KeyError):
+        pass
+
+    return _UNKNOWN
 
 
 class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
@@ -43,6 +66,7 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
         attributes[_CLOUD_URL] = os.getenv(ENV_BASE_URL, _UNKNOWN)
         attributes[_APP_NAME] = "UiPath.Sdk"
         attributes[_SDK_VERSION] = version("uipath")
+        attributes[_PROJECT_KEY] = _get_project_key()
 
         if _CODE_FILEPATH in attributes:
             del attributes[_CODE_FILEPATH]
