@@ -29,6 +29,7 @@ class LogsInterceptor:
         dir: Optional[str] = "__uipath",
         file: Optional[str] = "execution.log",
         job_id: Optional[str] = None,
+        is_debug_run: bool = False,
     ):
         """Initialize the log interceptor.
 
@@ -37,6 +38,7 @@ class LogsInterceptor:
             dir (str): The directory where logs should be stored.
             file (str): The log file name.
             job_id (str, optional): If provided, logs go to file; otherwise, to stdout.
+            is_debug_run (bool, optional): If True, log the output to stdout/stderr.
         """
         min_level = min_level or "INFO"
         self.job_id = job_id
@@ -58,18 +60,18 @@ class LogsInterceptor:
         self.log_handler: Union[PersistentLogsHandler, logging.StreamHandler[TextIO]]
 
         # Create either file handler (runtime) or stdout handler (debug)
-        if self.job_id:
+        if is_debug_run:
+            # Use stdout handler when not running as a job or eval
+            self.log_handler = logging.StreamHandler(sys.stdout)
+            formatter = logging.Formatter("%(message)s")
+            self.log_handler.setFormatter(formatter)
+        else:
             # Ensure directory exists for file logging
             dir = dir or "__uipath"
             file = file or "execution.log"
             os.makedirs(dir, exist_ok=True)
             log_file = os.path.join(dir, file)
             self.log_handler = PersistentLogsHandler(file=log_file)
-        else:
-            # Use stdout handler when not running as a job
-            self.log_handler = logging.StreamHandler(sys.stdout)
-            formatter = logging.Formatter("%(message)s")
-            self.log_handler.setFormatter(formatter)
 
         self.log_handler.setLevel(self.numeric_min_level)
         self.logger = logging.getLogger("runtime")

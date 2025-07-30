@@ -207,7 +207,7 @@ class UiPathOpenAIService(BaseService):
         self,
         messages: List[Dict[str, str]],
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
-        max_tokens: int = 50,
+        max_tokens: int = 4096,
         temperature: float = 0,
         response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
         api_version: str = API_VERSION,
@@ -227,7 +227,7 @@ class UiPathOpenAIService(BaseService):
                 Defaults to ChatModels.gpt_4o_mini_2024_07_18.
                 Available models are defined in the ChatModels class.
             max_tokens (int, optional): Maximum number of tokens to generate in the response.
-                Defaults to 50. Higher values allow longer responses.
+                Defaults to 4096. Higher values allow longer responses.
             temperature (float, optional): Temperature for sampling, between 0 and 1.
                 Lower values (closer to 0) make output more deterministic and focused,
                 higher values make it more creative and random. Defaults to 0.
@@ -350,7 +350,7 @@ class UiPathLlmChatService(BaseService):
         self,
         messages: List[Dict[str, str]],
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
-        max_tokens: int = 250,
+        max_tokens: int = 4096,
         temperature: float = 0,
         n: int = 1,
         frequency_penalty: float = 0,
@@ -377,7 +377,7 @@ class UiPathLlmChatService(BaseService):
                 Defaults to ChatModels.gpt_4o_mini_2024_07_18.
                 Available models are defined in the ChatModels class.
             max_tokens (int, optional): Maximum number of tokens to generate in the response.
-                Defaults to 250. Higher values allow longer responses.
+                Defaults to 4096. Higher values allow longer responses.
             temperature (float, optional): Temperature for sampling, between 0 and 1.
                 Lower values (closer to 0) make output more deterministic and focused,
                 higher values make it more creative and random. Defaults to 0.

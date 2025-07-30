@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any, Literal, Union
 
 from httpx import URL, Response
 
@@ -24,6 +24,7 @@ class ApiClient(FolderContext, BaseService):
         self,
         method: str,
         url: Union[URL, str],
+        scoped: Literal["org", "tenant"] = "tenant",
         **kwargs: Any,
     ) -> Response:
         if kwargs.get("include_folder_headers", False):
@@ -35,12 +36,13 @@ class ApiClient(FolderContext, BaseService):
         if "include_folder_headers" in kwargs:
             del kwargs["include_folder_headers"]
 
-        return super().request(method, url, **kwargs)
+        return super().request(method, url, scoped=scoped, **kwargs)
 
     async def request_async(
         self,
         method: str,
         url: Union[URL, str],
+        scoped: Literal["org", "tenant"] = "tenant",
         **kwargs: Any,
     ) -> Response:
         if kwargs.get("include_folder_headers", False):
@@ -52,4 +54,4 @@ class ApiClient(FolderContext, BaseService):
         if "include_folder_headers" in kwargs:
             del kwargs["include_folder_headers"]
 
-        return await super().request_async(method, url, **kwargs)
+        return await super().request_async(method, url, scoped=scoped, **kwargs)

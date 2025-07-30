@@ -3,7 +3,7 @@ import asyncio
 import os
 import traceback
 from os import environ as env
-from typing import Optional
+from typing import Optional, Tuple
 from uuid import uuid4
 
 import click
@@ -64,7 +64,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
 
         async def execute():
             context = UiPathRuntimeContext.from_config(
-                env.get("UIPATH_CONFIG_PATH", "uipath.json")
+                env.get("UIPATH_CONFIG_PATH", "uipath.json"), **kwargs
             )
             context.entrypoint = entrypoint
             context.input = input
@@ -73,6 +73,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
             context.trace_id = env.get("UIPATH_TRACE_ID")
             context.input_file = kwargs.get("input_file", None)
             context.execution_output_file = kwargs.get("execution_output_file", None)
+            context.is_eval_run = kwargs.get("is_eval_run", False)
             context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
             context.trace_context = UiPathTraceContext(
                 trace_id=env.get("UIPATH_TRACE_ID"),
@@ -108,6 +109,65 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
             error_message=f"Error: Unexpected error occurred - {str(e)}",
             should_include_stacktrace=True,
         )
+
+
+def run_core(
+    entrypoint: Optional[str],
+    resume: bool,
+    input: Optional[str] = None,
+    input_file: Optional[str] = None,
+    execution_output_file: Optional[str] = None,
+    logs_file: Optional[str] = None,
+    **kwargs,
+) -> Tuple[bool, Optional[str], Optional[str]]:
+    """Core execution logic that can be called programmatically.
+
+    Args:
+        entrypoint: Path to the Python script to execute
+        input: JSON string with input data
+        resume: Flag indicating if this is a resume execution
+        input_file: Path to input JSON file
+        execution_output_file: Path to execution output file
+        logs_file: Path where execution output will be written
+        **kwargs: Additional arguments to be forwarded to the middleware
+
+    Returns:
+        Tuple containing:
+            - success: True if execution was successful
+            - error_message: Error message if any
+            - info_message: Info message if any
+    """
+    # Process through middleware chain
+    result = Middlewares.next(
+        "run",
+        entrypoint,
+        input,
+        resume,
+        input_file=input_file,
+        execution_output_file=execution_output_file,
+        logs_file=logs_file,
+        **kwargs,
+    )
+
+    if result.should_continue:
+        result = python_run_middleware(
+            entrypoint=entrypoint,
+            input=input,
+            resume=resume,
+            input_file=input_file,
+            execution_output_file=execution_output_file,
+            logs_file=logs_file,
+            **kwargs,
+        )
+
+    if result.should_continue:
+        return False, "Could not process the request with any available handler.", None
+
+    return (
+        not bool(result.error_message),
+        result.error_message,
+        result.info_message,
+    )
 
 
 @click.command()
@@ -161,44 +221,26 @@ def run(
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
 
-    # Process through middleware chain
-    result = Middlewares.next(
-        "run",
-        entrypoint,
-        input,
-        resume,
-        debug=debug,
-        debug_port=debug_port,
+    success, error_message, info_message = run_core(
+        entrypoint=entrypoint,
+        input=input,
+        resume=resume,
         input_file=input_file,
         execution_output_file=output_file,
+        debug=debug,
+        debug_port=debug_port,
     )
 
-    if result.should_continue:
-        result = python_run_middleware(
-            entrypoint=entrypoint,
-            input=input,
-            resume=resume,
-            input_file=input_file,
-            execution_output_file=output_file,
-        )
-
-    # Handle result from middleware
-    if result.error_message:
-        console.error(result.error_message, include_traceback=True)
-        if result.should_include_stacktrace:
+    if error_message:
+        console.error(error_message, include_traceback=True)
+        if not success:  # If there was an error and execution failed
             console.error(traceback.format_exc())
         click.get_current_context().exit(1)
 
-    if result.info_message:
-        console.info(result.info_message)
+    if info_message:
+        console.info(info_message)
 
-    # If middleware chain completed but didn't handle the request
-    if result.should_continue:
-        console.error(
-            "Error: Could not process the request with any available handler."
-        )
-
-    if not result.should_continue and not result.error_message:
+    if success:
         console.success("Successful execution.")
 
 
