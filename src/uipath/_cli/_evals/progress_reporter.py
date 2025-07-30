@@ -10,7 +10,7 @@ from uipath import UiPath
 from uipath._cli._evals._evaluators import EvaluatorBase
 from uipath._cli._evals._models import EvaluationResult
 from uipath._cli._evals._models._evaluation_set import EvaluationStatus
-from uipath._cli._evals._models._evaluators import EvaluatorStatus
+from uipath._cli._evals._models._evaluators import EvalItemResult, EvaluatorStatus
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils import Endpoint, RequestSpec
 from uipath._utils.constants import ENV_TENANT_ID, HEADER_INTERNAL_TENANT_ID
@@ -149,10 +149,10 @@ class ProgressReporter:
         except Exception as e:
             self._console.warning(f"Failed to create EvalSetRun: {str(e)}")
 
-    async def update_eval_set_run(self) -> None:
+    async def update_eval_set_run(self, final_results: Optional[dict] = None) -> None:
         """Update the evaluation set run status to completed."""
         try:
-            spec = self._update_eval_set_run_spec()
+            spec = self._update_eval_set_run_spec(final_results)
             
             await self._client.request_async(
                 method=spec.method,
@@ -293,8 +293,22 @@ class ProgressReporter:
         )
 
     def _update_eval_set_run_spec(
-        self,
+        self, final_results: Optional[dict] = None
     ) -> RequestSpec:
+        # Calculate aggregated scores from final results if available
+        average_score = 0.0
+        evaluator_scores = []
+        
+        if final_results and 'results' in final_results:
+            average_score = final_results.get('average_score', 0.0)
+            results = final_results.get('results', [])
+            
+            for result in results:
+                evaluator_scores.append({
+                    "value": result.score,
+                    "evaluatorId": result.evaluator_id
+                })
+        
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
@@ -304,9 +318,9 @@ class ProgressReporter:
                 {
                     ## TODO: send the actual data here (do we need to send those again? isn't it redundant?)
                     "evalSetRunId": self._eval_set_run_id,
-                    "score": 0,
+                    "score": average_score,
                     "status": EvaluationStatus.COMPLETED.value,
-                    "evaluatorScores": [],
+                    "evaluatorScores": evaluator_scores,
                 }
             ),
             headers=self._tenant_header(),

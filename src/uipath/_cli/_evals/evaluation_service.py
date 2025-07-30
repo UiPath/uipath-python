@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import click
 
-from uipath._cli._utils._console import ConsoleLogger
+from uipath._cli._utils._console import ConsoleLogger, EvaluationProgressManager
 
 from ..cli_run import run_core  # type: ignore
 from ._evaluators._evaluator_base import EvaluatorBase
@@ -20,6 +20,7 @@ from ._models import (
     EvaluationSet,
     EvaluationSetResult,
 )
+from ._models._evaluators import EvalItemResult
 from .progress_reporter import ProgressReporter
 
 console = ConsoleLogger()
@@ -30,29 +31,137 @@ class EvaluationService:
 
     def __init__(
         self,
-        entrypoint: str,
-        eval_set_path: str | Path,
-        workers: int,
-        report_progress: bool,
+        entrypoint: Optional[str] = None,
+        eval_set_path: Optional[str | Path] = None,
+        workers: int = 8,
+        report_progress: bool = True,
     ):
         """Initialize the evaluation service.
 
         Args:
-            entrypoint: Path to the agent script to evaluate
-            eval_set_path: Path to the evaluation set file (can be string or Path)
+            entrypoint: Path to the agent script to evaluate (optional, will auto-discover if not provided)
+            eval_set_path: Path to the evaluation set file (optional, will auto-discover if not provided)
             workers: Number of parallel workers for running evaluations
             report_progress: Whether to report progress to StudioWeb
         """
-        self.entrypoint = entrypoint
-        self.eval_set_path = Path(eval_set_path)
+        self.entrypoint, self.eval_set_path = self._resolve_paths(
+            entrypoint, eval_set_path
+        )
         self.eval_set = self._load_eval_set()
         self._evaluators = self._load_evaluators()
         self.num_workers = workers
         self.results_lock = asyncio.Lock()
-        self._progress_manager: Optional[Any] = None
+        self._progress_manager: Optional[EvaluationProgressManager] = None
         self._report_progress = report_progress
         self._progress_reporter: Optional[ProgressReporter] = None
+        self._accumulated_results: List[Any] = []  # Track results for progress reporting
         self._initialize_results()
+
+    def _resolve_paths(
+        self, entrypoint: Optional[str], eval_set_path: Optional[str | Path]
+    ) -> tuple[str, Path]:
+        """Resolve entrypoint and eval_set_path, auto-discovering if not provided.
+
+        Args:
+            entrypoint: Optional entrypoint path
+            eval_set_path: Optional eval set path
+
+        Returns:
+            Tuple of (resolved_entrypoint, resolved_eval_set_path)
+
+        Raises:
+            ValueError: If paths cannot be resolved or multiple options exist
+        """
+        resolved_entrypoint = entrypoint
+        resolved_eval_set_path = eval_set_path
+
+        if resolved_entrypoint is None:
+            resolved_entrypoint = self._auto_discover_entrypoint()
+
+        if resolved_eval_set_path is None:
+            resolved_eval_set_path = self._auto_discover_eval_set()
+
+        eval_set_path_obj = Path(resolved_eval_set_path)
+        if not eval_set_path_obj.is_file() or eval_set_path_obj.suffix != ".json":
+            raise ValueError("Evaluation set must be a JSON file")
+
+        return resolved_entrypoint, eval_set_path_obj
+
+    def _auto_discover_entrypoint(self) -> str:
+        """Auto-discover entrypoint from config file.
+
+        Returns:
+            Path to the entrypoint
+
+        Raises:
+            ValueError: If no entrypoint found or multiple entrypoints exist
+        """
+        config_file = "uipath.json"
+        if not os.path.isfile(config_file):
+            raise ValueError(
+                f"File '{config_file}' not found. Please run 'uipath init'."
+            )
+
+        with open(config_file, "r", encoding="utf-8") as f:
+            uipath_config = json.loads(f.read())
+
+        entrypoints = uipath_config.get("entryPoints", [])
+
+        if not entrypoints:
+            raise ValueError(
+                "No entrypoints found in uipath.json. Please run 'uipath init'."
+            )
+
+        if len(entrypoints) > 1:
+            entrypoint_paths = [ep.get("filePath") for ep in entrypoints]
+            raise ValueError(
+                f"Multiple entrypoints found: {entrypoint_paths}. "
+                f"Please specify which entrypoint to use: uipath eval <entrypoint> [eval_set]"
+            )
+
+        entrypoint_path = entrypoints[0].get("filePath")
+
+        console.info(
+            f"Auto-discovered entrypoint: {click.style(entrypoint_path, fg='cyan')}"
+        )
+        return entrypoint_path
+
+    def _auto_discover_eval_set(self) -> str:
+        """Auto-discover evaluation set from evals/eval-sets directory.
+
+        Returns:
+            Path to the evaluation set file
+
+        Raises:
+            ValueError: If no eval set found or multiple eval sets exist
+        """
+        eval_sets_dir = Path("evals/eval-sets")
+
+        if not eval_sets_dir.exists():
+            raise ValueError(
+                "No 'evals/eval-sets' directory found. "
+                "Please set 'UIPATH_PROJECT_ID' env var and run 'uipath pull'."
+            )
+
+        eval_set_files = list(eval_sets_dir.glob("*.json"))
+
+        if not eval_set_files:
+            raise ValueError(
+                "No evaluation set files found in 'evals/eval-sets' directory. "
+            )
+
+        if len(eval_set_files) > 1:
+            file_names = [f.name for f in eval_set_files]
+            raise ValueError(
+                f"Multiple evaluation sets found: {file_names}. "
+                f"Please specify which evaluation set to use: 'uipath eval [entrypoint] <eval_set_path>'"
+            )
+
+        eval_set_path = str(eval_set_files[0])
+        console.info(
+            f"Auto-discovered evaluation set: {click.style(eval_set_path, fg='cyan')}"
+        )
+        return eval_set_path
 
     def _initialize_results(self) -> None:
         """Initialize the results file and directory."""
@@ -192,14 +301,14 @@ class EvaluationService:
             results_queue: Queue containing evaluation results to write to file
         """
         while True:
-            results = await results_queue.get()
+            results: list[EvalItemResult] = await results_queue.get()
             if results is None:
                 # Sentinel value - consumer should stop
                 results_queue.task_done()
                 return
 
             try:
-                await self._write_results(results)
+                await self._write_results([eval_item.result for eval_item in results])
                 results_queue.task_done()
             except Exception as e:
                 console.warning(f"Error writing results to file: {str(e)}")
@@ -224,27 +333,35 @@ class EvaluationService:
 
             try:
                 if self._progress_reporter:
+                    # Convert EvalItemResult list to dict format for API calls
+                    if isinstance(eval_results, list) and eval_results and hasattr(eval_results[0], 'evaluator_id'):
+                        # New format: list of EvalItemResult
+                        eval_results_dict = {item.evaluator_id: item.result for item in eval_results}
+                    else:
+                        # Old format: already a dict
+                        eval_results_dict = eval_results
+                    
                     await self._progress_reporter.update_eval_run(
-                        eval_results, eval_run_id, actual_output, success
+                        eval_results_dict, eval_run_id, actual_output, success
                     )
                 sw_progress_reporter_queue.task_done()
             except Exception as e:
                 console.warning(f"Error reporting progress to StudioWeb: {str(e)}")
                 sw_progress_reporter_queue.task_done()
 
-    def _run_agent(
-        self, input_json: str, eval_item: dict[str, Any]
-    ) -> tuple[Dict[str, Any], bool]:
+    def _run_agent(self, input_json: str) -> tuple[Dict[str, Any], bool, float]:
         """Run the agent with the given input.
 
         Args:
             input_json: JSON string containing input data
 
         Returns:
-            Agent output as dictionary and success status
+            Agent output as dictionary, success status, and execution time
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
+                import time
+
                 output_file = Path(tmpdir) / "output.json"
                 logs_file = Path(tmpdir) / "execution.log"
 
@@ -254,7 +371,7 @@ class EvaluationService:
                         "ignore", category=UserWarning, module="langchain"
                     )
                     # Note: Progress reporting is handled outside this method since it's async
-
+                    start_time = time.time()
                     success, error_message, info_message = run_core(
                         entrypoint=self.entrypoint,
                         input=input_json,
@@ -265,9 +382,11 @@ class EvaluationService:
                         runtime_dir=tmpdir,
                         eval_run=True,
                     )
+                    execution_time = time.time() - start_time
+                    
                 if not success:
                     console.warning(error_message)
-                    return {}, False
+                    return {}, False, execution_time
                 else:
                     # Read the output file
                     with open(output_file, "r", encoding="utf-8") as f:
@@ -278,14 +397,14 @@ class EvaluationService:
                     #     logs = f.read()
                     if isinstance(result, str):
                         try:
-                            return json.loads(result), True
+                            return json.loads(result), True, execution_time
                         except json.JSONDecodeError as e:
                             raise Exception(f"Error parsing output: {e}") from e
-                return result, True
+                return result, True, execution_time
 
             except Exception as e:
                 console.warning(f"Error running agent: {str(e)}")
-                return {"error": str(e)}, False
+                return {"error": str(e)}, False, execution_time
 
     async def _process_evaluation(
         self,
@@ -305,9 +424,6 @@ class EvaluationService:
         eval_id = eval_item["id"]
         eval_run_id: Optional[str] = None
 
-        if self._progress_manager:
-            self._progress_manager.start_evaluation(eval_id, worker_id)
-
         try:
             input_json = json.dumps(eval_item["inputs"])
 
@@ -315,13 +431,15 @@ class EvaluationService:
                 eval_run_id = await self._progress_reporter.create_eval_run(eval_item)
 
             loop = asyncio.get_running_loop()
-            actual_output, success = await loop.run_in_executor(
-                None, self._run_agent, input_json, eval_item
+            actual_output, success, execution_time = await loop.run_in_executor(
+                None,
+                self._run_agent,
+                input_json,
             )
 
             if success:
                 # Run each evaluator
-                eval_results = {}
+                eval_results: list[EvalItemResult] = []
                 for evaluator in self._evaluators:
                     if evaluator is None:  ##TODO: Remove this if condition (this is due to _create_trajectory_evaluator in _evaluator_factory.py)
                         continue
@@ -332,11 +450,15 @@ class EvaluationService:
                         expected_output=eval_item["expectedOutput"],
                         actual_output=actual_output,
                     )
-                    eval_results[evaluator.id] = result
+                    eval_results.append(
+                        EvalItemResult(evaluator_id=evaluator.id, result=result)
+                    )
 
-                await results_queue.put(
-                    [eval_result for eval_result in eval_results.values()]
-                )
+                await results_queue.put(eval_results)
+
+                # Accumulate results for progress reporting
+                if self._report_progress:
+                    self._accumulated_results.extend([item.result for item in eval_results])
 
                 if self._report_progress:
                     # TODO: modify this, here we are only reporting for success
@@ -471,6 +593,18 @@ class EvaluationService:
                 await sw_progress_consumer
 
             if self._progress_reporter:
-                await self._progress_reporter.update_eval_set_run()
+                # Calculate aggregated scores from accumulated results
+                if self._accumulated_results:
+                    total_score = sum(result.score for result in self._accumulated_results)
+                    average_score = total_score / len(self._accumulated_results)
+                    
+                    # Create a simple results object with the data we need
+                    aggregated_data = {
+                        'average_score': average_score,
+                        'results': self._accumulated_results
+                    }
+                    await self._progress_reporter.update_eval_set_run(aggregated_data)
+                else:
+                    await self._progress_reporter.update_eval_set_run()
 
         console.info(f"Results saved to {click.style(self.result_file, fg='cyan')}")
