@@ -4,9 +4,9 @@ _APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE = "APPLICATION_INSIGHTS_EVENT_MARKER_ATTRIB
 _OTEL_RESOURCE_ATTRIBUTES = "OTEL_RESOURCE_ATTRIBUTES"
 _SDK_VERSION = "SdkVersion"
 
-_CODE_FILEPATH = "code.filepath"
-_CODE_FUNCTION = "code.function"
-_CODE_LINENO = "code.lineno"
+_CODE_FILEPATH = "code.file.path"
+_CODE_FUNCTION = "code.function.name"
+_CODE_LINENO = "code.line.number"
 
 _CLOUD_ORG_ID = "CloudOrganizationId"
 _CLOUD_TENANT_ID = "CloudTenantId"
