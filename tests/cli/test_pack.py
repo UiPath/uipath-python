@@ -493,3 +493,79 @@ class TestPack:
                 assert "projectId" in operate_data
                 assert operate_data["targetRuntime"] == "python"
                 assert operate_data["targetFramework"] == "Portable"
+
+    def test_nupkg_contains_all_necessary_files(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("uv.lock", "w") as f:
+                f.write("# uv.lock content")
+            for entry in uipath_json.entry_points:
+                with open(f"{entry.file_path}.py", "w") as f:
+                    f.write("# agent content")
+
+            result = runner.invoke(pack, ["./"])
+            assert result.exit_code == 0
+
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            assert os.path.exists(nupkg_path)
+
+            # List of expected files in the package
+            expected_files = [
+                "content/uipath.json",
+                "content/pyproject.toml",
+                "content/operate.json",
+                "content/entry-points.json",
+                "content/bindings_v2.json",
+                "content/uv.lock",
+            ]
+
+            for entry in uipath_json.entry_points:
+                expected_files.append(f"content/{entry.file_path}.py")
+
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                actual_files = set(z.namelist())
+                for expected in expected_files:
+                    assert expected in actual_files, f"Missing {expected} in nupkg"
+
+    def test_no_uv_lock_with_nolock(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("uv.lock", "w") as f:
+                f.write("# uv.lock content")
+            for entry in uipath_json.entry_points:
+                with open(f"{entry.file_path}.py", "w") as f:
+                    f.write("# agent content")
+
+            result = runner.invoke(pack, ["./", "--nolock"])
+            assert result.exit_code == 0
+
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            assert os.path.exists(nupkg_path)
+
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                actual_files = set(z.namelist())
+                assert "content/uv.lock" not in actual_files, (
+                    "uv.lock should not be in nupkg when --nolock is used"
+                )
