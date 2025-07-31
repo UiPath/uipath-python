@@ -247,9 +247,9 @@ def pack_fn(
                         with open(file.file_path, "r", encoding="latin-1") as f:
                             z.writestr(f"content/{file.relative_path}", f.read())
 
-        # Handle optional files, conditionally including uv.lock
         if include_uv_lock:
-            file_path = os.path.join(directory, "uv.lock")
+            file = "uv.lock"
+            file_path = os.path.join(directory, file)
             if os.path.exists(file_path):
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
