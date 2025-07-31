@@ -8,7 +8,9 @@ from typing import Any, Dict, Optional
 import click
 from dotenv import load_dotenv
 
+from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry import track
+from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger
 from ._utils._input_args import generate_args
 from ._utils._parse_ast import generate_bindings_json
@@ -17,6 +19,30 @@ from .middlewares import Middlewares
 console = ConsoleLogger()
 
 CONFIG_PATH = "uipath.json"
+
+
+def create_telemetry_config_file(target_directory: str) -> None:
+    """Create telemetry file if telemetry is enabled.
+
+    Args:
+        target_directory: The directory where the .uipath folder should be created.
+    """
+    telemetry_enabled = os.getenv(ENV_TELEMETRY_ENABLED, "true").lower() == "true"
+
+    if not telemetry_enabled:
+        return
+
+    uipath_dir = os.path.join(target_directory, ".uipath")
+    telemetry_file = os.path.join(uipath_dir, _TELEMETRY_CONFIG_FILE)
+
+    if os.path.exists(telemetry_file):
+        return
+
+    os.makedirs(uipath_dir, exist_ok=True)
+    telemetry_data = {_PROJECT_KEY: str(uuid.uuid4())}
+
+    with open(telemetry_file, "w") as f:
+        json.dump(telemetry_data, f, indent=4)
 
 
 def generate_env_file(target_directory):
@@ -103,6 +129,7 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
         generate_env_file(current_directory)
+        create_telemetry_config_file(current_directory)
 
         result = Middlewares.next(
             "init",
