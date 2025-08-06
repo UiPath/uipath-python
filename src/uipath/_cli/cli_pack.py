@@ -8,6 +8,7 @@ from string import Template
 import click
 
 from ..telemetry import track
+from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     ensure_config_file,
@@ -21,6 +22,27 @@ from ._utils._uv_helpers import handle_uv_operations
 console = ConsoleLogger()
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
+
+
+def get_project_id() -> str:
+    """Get project ID from telemetry file if it exists, otherwise generate a new one.
+
+    Returns:
+        Project ID string (either from telemetry file or newly generated).
+    """
+    telemetry_file = os.path.join(".uipath", _TELEMETRY_CONFIG_FILE)
+
+    if os.path.exists(telemetry_file):
+        try:
+            with open(telemetry_file, "r") as f:
+                telemetry_data = json.load(f)
+                project_id = telemetry_data.get(_PROJECT_KEY)
+                if project_id:
+                    return project_id
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return str(uuid.uuid4())
 
 
 def get_project_version(directory):
@@ -40,7 +62,7 @@ def validate_config_structure(config_data):
 
 
 def generate_operate_file(entryPoints, dependencies=None):
-    project_id = str(uuid.uuid4())
+    project_id = get_project_id()
 
     first_entry = entryPoints[0]
     file_path = first_entry["filePath"]
