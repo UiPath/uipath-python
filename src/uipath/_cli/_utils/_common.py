@@ -86,3 +86,19 @@ def get_org_scoped_url(base_url: str) -> str:
     org_name, *_ = parsed.path.strip("/").split("/")
     org_scoped_url = f"{parsed.scheme}://{parsed.netloc}/{org_name}"
     return org_scoped_url
+
+
+def clean_directory(directory: str) -> None:
+    """Clean up Python files in the specified directory.
+
+    Args:
+        directory (str): Path to the directory to clean.
+
+    This function removes all Python files (*.py) from the specified directory.
+    It's used to prepare a directory for a quickstart agent/coded MCP server.
+    """
+    for file_name in os.listdir(directory):
+        file_path = os.path.join(directory, file_name)
+
+        if os.path.isfile(file_path) and file_name.endswith(".py"):
+            os.remove(file_path)
