@@ -1,11 +1,19 @@
 import os
+import sys
 import tempfile
+from pathlib import Path
 from typing import Generator
 
 import pytest
 from click.testing import CliRunner
 
 from uipath._execution_context import ExecutionContext
+
+# Ensure local source package (src/uipath) is importable before tests collect
+_PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
+_SRC_PATH: Path = _PROJECT_ROOT / "src"
+if _SRC_PATH.exists():
+    sys.path.insert(0, str(_SRC_PATH))
 
 
 @pytest.fixture

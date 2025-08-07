@@ -396,4 +396,4 @@ class TestPull:
             result = runner.invoke(pull, ["./"])
             assert result.exit_code == 1
             assert "Failed to pull UiPath project" in result.output
-            assert "401 Unauthorized" in result.output
+            assert "Status Code: 401" in result.output

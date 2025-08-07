@@ -7,6 +7,8 @@ from string import Template
 
 import click
 
+from uipath._cli._utils._constants import UIPATH_PROJECT_ID
+
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger
@@ -30,6 +32,10 @@ def get_project_id() -> str:
     Returns:
         Project ID string (either from telemetry file or newly generated).
     """
+    # first check if this is a studio project
+    if os.getenv(UIPATH_PROJECT_ID, None):
+        return os.getenv(UIPATH_PROJECT_ID)
+
     telemetry_file = os.path.join(".uipath", _TELEMETRY_CONFIG_FILE)
 
     if os.path.exists(telemetry_file):
@@ -247,7 +253,7 @@ def pack_fn(
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        files = files_to_include(config_data, directory)
+        files = files_to_include(config_data, directory, include_uv_lock)
 
         for file in files:
             if file.is_binary:
@@ -268,17 +274,6 @@ def pack_fn(
                         # If that also fails, try with latin-1 as a fallback
                         with open(file.file_path, "r", encoding="latin-1") as f:
                             z.writestr(f"content/{file.relative_path}", f.read())
-
-        if include_uv_lock:
-            file = "uv.lock"
-            file_path = os.path.join(directory, file)
-            if os.path.exists(file_path):
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        z.writestr(f"content/{file}", f.read())
-                except UnicodeDecodeError:
-                    with open(file_path, "r", encoding="latin-1") as f:
-                        z.writestr(f"content/{file}", f.read())
 
 
 def display_project_info(config):

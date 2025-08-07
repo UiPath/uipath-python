@@ -24,6 +24,7 @@ class FileInfo(BaseModel):
         is_binary: Whether the file should be treated as binary
     """
 
+    file_name: str
     file_path: str
     relative_path: str
     is_binary: bool
@@ -299,7 +300,10 @@ def read_toml_project(file_path: str) -> dict:
 
 
 def files_to_include(
-    config_data: Optional[dict[Any, Any]], directory: str
+    config_data: Optional[dict[Any, Any]],
+    directory: str,
+    include_uv_lock: bool = True,
+    directories_to_ignore: list[str] | None = None,
 ) -> list[FileInfo]:
     """Get list of files to include in the project based on configuration.
 
@@ -307,14 +311,18 @@ def files_to_include(
     and explicit inclusion rules. Skips virtual environments and hidden directories.
 
     Args:
-        settings_section: Configuration section containing file inclusion rules
+        config_data: Configuration containing file inclusion rules
         directory: Root directory to search for files
+        include_uv_lock: Whether to include uv.lock file
+        directories_to_ignore: List of directories to ignore
 
     Returns:
         list[FileInfo]: List of file information objects for included files
     """
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml", ".md"]
     files_included = ["pyproject.toml"]
+    if include_uv_lock:
+        files_included += ["uv.lock"]
     if "settings" in config_data:
         settings = config_data["settings"]
         if "fileExtensionsIncluded" in settings:
@@ -344,15 +352,19 @@ def files_to_include(
         dirs[:] = [
             d
             for d in dirs
-            if not d.startswith(".") and not is_venv_dir(os.path.join(root, d))
+            if not d.startswith(".")
+            and not is_venv_dir(os.path.join(root, d))
+            and (directories_to_ignore is not None and d not in directories_to_ignore)
         ]
         for file in files:
             file_extension = os.path.splitext(file)[1].lower()
             if file_extension in file_extensions_included or file in files_included:
                 file_path = os.path.join(root, file)
+                file_name = os.path.basename(file_path)
                 rel_path = os.path.relpath(file_path, directory)
                 extra_files.append(
                     FileInfo(
+                        file_name=file_name,
                         file_path=file_path,
                         relative_path=rel_path,
                         is_binary=is_binary_file(file_extension),

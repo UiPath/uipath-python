@@ -1,6 +1,7 @@
+import json
+import os
 from typing import Any, List, Optional, Union
 
-import httpx
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -139,47 +140,6 @@ class ProjectStructure(BaseModel):
         return v
 
 
-def get_project_structure(
-    project_id: str,
-    base_url: str,
-    token: str,
-    client: httpx.Client,
-) -> ProjectStructure:
-    """Retrieve the project's file structure from UiPath Cloud.
-
-    Makes an API call to fetch the complete file structure of a project,
-    including all files and folders. The response is validated against
-    the ProjectStructure model.
-
-    Args:
-        project_id: The ID of the project
-        base_url: The base URL for the API
-        token: Authentication token
-        client: HTTP client to use for requests
-
-    Returns:
-        ProjectStructure: The complete project structure
-
-    Raises:
-        httpx.HTTPError: If the API request fails
-    """
-    headers = {"Authorization": f"Bearer {token}"}
-    url = (
-        f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure"
-    )
-
-    response = client.get(url, headers=headers)
-    response.raise_for_status()
-    return ProjectStructure.model_validate(response.json())
-
-
-def download_file(base_url: str, file_id: str, client: httpx.Client, token: str) -> Any:
-    file_url = f"{base_url}/File/{file_id}"
-    response = client.get(file_url, headers={"Authorization": f"Bearer {token}"})
-    response.raise_for_status()
-    return response
-
-
 def get_folder_by_name(
     structure: ProjectStructure, folder_name: str
 ) -> Optional[ProjectFolder]:
@@ -196,3 +156,187 @@ def get_folder_by_name(
         if folder.name == folder_name:
             return folder
     return None
+
+
+class AddedResource(BaseModel):
+    content_file_path: str
+    parent_path: Optional[str] = None
+
+
+class ModifiedResource(BaseModel):
+    id: str
+    content_file_path: str
+
+
+class StructuralMigration(BaseModel):
+    deleted_resources: List[str]
+    added_resources: List[AddedResource]
+    modified_resources: List[ModifiedResource]
+
+
+class StudioClient:
+    def __init__(self, project_id: str):
+        from uipath import UiPath
+
+        self.uipath: UiPath = UiPath()
+        self.base_url: str = f"/studio_/backend/api/Project/{project_id}/FileOperations"
+
+    async def get_project_structure_async(self) -> ProjectStructure:
+        """Retrieve the project's file structure from UiPath Cloud.
+
+        Makes an API call to fetch the complete file structure of a project,
+        including all files and folders. The response is validated against
+        the ProjectStructure model.
+
+        Returns:
+            ProjectStructure: The complete project structure
+        """
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url=f"{self.base_url}/Structure",
+            scoped="org",
+        )
+
+        return ProjectStructure.model_validate(response.json())
+
+    async def create_folder_async(
+        self, folder_name: str, parent_id: Optional[str] = None
+    ) -> str:
+        """Retrieve the project's file structure from UiPath Cloud.
+
+        Makes an API call to fetch the complete file structure of a project,
+        including all files and folders. The response is validated against
+        the ProjectStructure model.
+
+        Returns:
+            ProjectStructure: The complete project structure
+        """
+        data = {"name": folder_name}
+        if parent_id:
+            data["parent_id"] = parent_id
+        response = await self.uipath.api_client.request_async(
+            "POST", url=f"{self.base_url}/Folder", scoped="org", json=data
+        )
+        return response.json()
+
+    async def download_file_async(self, file_id: str) -> Any:
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url=f"{self.base_url}/File/{file_id}",
+            scoped="org",
+        )
+        return response
+
+    async def upload_file_async(
+        self,
+        *,
+        local_file_path: Optional[str] = None,
+        file_content: Optional[str] = None,
+        file_name: str,
+        folder: Optional[ProjectFolder] = None,
+        remote_file: Optional[ProjectFile] = None,
+    ) -> tuple[str, str]:
+        if local_file_path:
+            with open(local_file_path, "rb") as f:
+                file_content = f.read()  # type: ignore
+        files_data = {"file": (file_name, file_content, "application/octet-stream")}
+
+        if remote_file:
+            # File exists in source_code folder, use PUT to update
+            response = await self.uipath.api_client.request_async(
+                "PUT",
+                files=files_data,
+                url=f"{self.base_url}/File/{remote_file.id}",
+                scoped="org",
+                infer_content_type=True,
+            )
+            action = "Updated"
+        else:
+            response = await self.uipath.api_client.request_async(
+                "POST",
+                url=f"{self.base_url}/File",
+                data={"parentId": folder.id} if folder else None,
+                files=files_data,
+                scoped="org",
+                infer_content_type=True,
+            )
+            action = "Uploaded"
+
+        # response contains only the uploaded file identifier
+        return response.json(), action
+
+    async def delete_item_async(self, item_id: str) -> None:
+        await self.uipath.api_client.request_async(
+            "DELETE",
+            url=f"{self.base_url}/Delete/{item_id}",
+            scoped="org",
+        )
+
+    async def perform_structural_migration_async(
+        self, structural_migration: StructuralMigration
+    ) -> Any:
+        """Perform structural migration of project files.
+
+        Args:
+            structural_migration: The structural migration data containing deleted and added resources
+
+        Returns:
+            Any: The API response
+        """
+        files: Any = []
+        deleted_resources_json = json.dumps(structural_migration.deleted_resources)
+
+        files.append(
+            (
+                "DeletedResources",
+                (None, deleted_resources_json),
+            )
+        )
+
+        for i, added_resource in enumerate(structural_migration.added_resources):
+            if os.path.exists(added_resource.content_file_path):
+                with open(added_resource.content_file_path, "rb") as f:
+                    content = f.read()
+
+                filename = os.path.basename(added_resource.content_file_path)
+                files.append((f"AddedResources[{i}].Content", (filename, content)))
+
+                if added_resource.parent_path:
+                    files.append(
+                        (
+                            f"AddedResources[{i}].ParentPath",
+                            (None, added_resource.parent_path),
+                        )
+                    )
+            else:
+                raise FileNotFoundError(
+                    f"File not found: {added_resource.content_file_path}"
+                )
+
+        for i, modified_resource in enumerate(structural_migration.modified_resources):
+            if os.path.exists(modified_resource.content_file_path):
+                with open(modified_resource.content_file_path, "rb") as f:
+                    content = f.read()
+
+                filename = os.path.basename(modified_resource.content_file_path)
+                files.append((f"ModifiedResources[{i}].Content", (filename, content)))
+                files.append(
+                    (
+                        f"ModifiedResources[{i}].Id",
+                        (None, modified_resource.id),
+                    )
+                )
+            else:
+                raise FileNotFoundError(
+                    f"File not found: {modified_resource.content_file_path}"
+                )
+
+        response = await self.uipath.api_client.request_async(
+            "POST",
+            url=f"{self.base_url}/StructuralMigration",
+            scoped="org",
+            files=files,
+            infer_content_type=True,
+        )
+
+        return response
