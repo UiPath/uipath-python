@@ -10,25 +10,23 @@ It handles:
 """
 
 # type: ignore
+import asyncio
 import hashlib
 import json
 import os
 from typing import Dict, Set
 
 import click
-import httpx
 from dotenv import load_dotenv
 
-from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
-from ._utils._common import get_env_vars, get_org_scoped_url
 from ._utils._console import ConsoleLogger
+from ._utils._constants import UIPATH_PROJECT_ID
 from ._utils._studio_project import (
     ProjectFile,
     ProjectFolder,
-    download_file,
+    StudioClient,
     get_folder_by_name,
-    get_project_structure,
 )
 
 console = ConsoleLogger()
@@ -76,22 +74,18 @@ def collect_files_from_folder(
         collect_files_from_folder(subfolder, subfolder_path, files_dict)
 
 
-def download_folder_files(
+async def download_folder_files(
+    studio_client: StudioClient,
     folder: ProjectFolder,
     base_path: str,
-    base_url: str,
-    token: str,
-    client: httpx.Client,
     processed_files: Set[str],
 ) -> None:
     """Download files from a folder recursively.
 
     Args:
+        studio_client: Studio client
         folder: The folder to download files from
         base_path: Base path for local file storage
-        base_url: Base URL for API requests
-        token: Authentication token
-        client: HTTP client
         processed_files: Set to track processed files
     """
     files_dict: Dict[str, ProjectFile] = {}
@@ -106,7 +100,7 @@ def download_folder_files(
             os.makedirs(local_dir)
 
         # Download remote file
-        response = download_file(base_url, remote_file.id, client, token)
+        response = await studio_client.download_file_async(remote_file.id)
         remote_content = response.read().decode("utf-8")
         remote_hash = compute_normalized_hash(remote_content)
 
@@ -163,53 +157,45 @@ def pull(root: str) -> None:
         $ uipath pull
         $ uipath pull /path/to/project
     """
-    if not os.getenv("UIPATH_PROJECT_ID", False):
+    if not (project_id := os.getenv(UIPATH_PROJECT_ID, False)):
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
-    [base_url, token] = get_env_vars()
-    base_api_url = f"{get_org_scoped_url(base_url)}/studio_/backend/api/Project/{os.getenv('UIPATH_PROJECT_ID')}/FileOperations"
+    studio_client = StudioClient(project_id)
 
     with console.spinner("Pulling UiPath project files..."):
         try:
-            with httpx.Client(**get_httpx_client_kwargs()) as client:
-                # Get project structure
-                structure = get_project_structure(
-                    os.getenv("UIPATH_PROJECT_ID"),  # type: ignore
-                    get_org_scoped_url(base_url),
-                    token,
-                    client,
-                )
+            structure = asyncio.run(studio_client.get_project_structure_async())
 
-                processed_files: Set[str] = set()
+            processed_files: Set[str] = set()
 
-                # Process source_code folder
-                source_code_folder = get_folder_by_name(structure, "source_code")
-                if source_code_folder:
+            # Process source_code folder
+            source_code_folder = get_folder_by_name(structure, "source_code")
+            if source_code_folder:
+                asyncio.run(
                     download_folder_files(
+                        studio_client,
                         source_code_folder,
                         root,
-                        base_api_url,
-                        token,
-                        client,
                         processed_files,
                     )
-                else:
-                    console.warning("No source_code folder found in remote project")
+                )
+            else:
+                console.warning("No source_code folder found in remote project")
 
-                # Process evals folder
-                evals_folder = get_folder_by_name(structure, "evals")
-                if evals_folder:
-                    evals_path = os.path.join(root, "evals")
+            # Process evals folder
+            evals_folder = get_folder_by_name(structure, "evals")
+            if evals_folder:
+                evals_path = os.path.join(root, "evals")
+                asyncio.run(
                     download_folder_files(
+                        studio_client,
                         evals_folder,
                         evals_path,
-                        base_api_url,
-                        token,
-                        client,
                         processed_files,
                     )
-                else:
-                    console.warning("No evals folder found in remote project")
+                )
+            else:
+                console.warning("No evals folder found in remote project")
 
         except Exception as e:
             console.error(f"Failed to pull UiPath project: {str(e)}")
