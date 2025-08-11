@@ -153,6 +153,8 @@ class TestPush:
             json=mock_structure,
         )
 
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
         # Mock agent.json download
         httpx_mock.add_response(
             method="GET",
@@ -269,6 +271,8 @@ class TestPush:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=3)
 
         httpx_mock.add_response(
             method="POST",
@@ -442,6 +446,8 @@ class TestPush:
             json=mock_structure,
         )
 
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
         httpx_mock.add_response(
             method="POST",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
@@ -486,3 +492,15 @@ class TestPush:
             assert "Uploading pyproject.toml" in result.output
             assert "Updating uipath.json" in result.output
             assert "uv.lock" not in result.output
+
+    def _mock_lock_retrieval(
+        self, httpx_mock: HTTPXMock, base_url: str, project_id: str, times: int
+    ):
+        for _ in range(times):
+            httpx_mock.add_response(
+                url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
+                json={
+                    "projectLockKey": "test-lock-key",
+                    "solutionLockKey": "test-solution-lock-key",
+                },
+            )

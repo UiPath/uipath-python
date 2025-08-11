@@ -1,8 +1,12 @@
 import json
 import os
-from typing import Any, List, Optional, Union
+from functools import wraps
+from typing import Any, Callable, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from uipath._utils.constants import HEADER_SW_LOCK_KEY
+from uipath.models.exceptions import EnrichedException
 
 
 class ProjectFile(BaseModel):
@@ -140,6 +144,18 @@ class ProjectStructure(BaseModel):
         return v
 
 
+class LockInfo(BaseModel):
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+    project_lock_key: str = Field(alias="projectLockKey")
+    solution_lock_key: str = Field(alias="solutionLockKey")
+
+
 def get_folder_by_name(
     structure: ProjectStructure, folder_name: str
 ) -> Optional[ProjectFolder]:
@@ -174,12 +190,41 @@ class StructuralMigration(BaseModel):
     modified_resources: List[ModifiedResource]
 
 
+def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        try:
+            lock_info = await self._retrieve_lock()
+
+            headers = kwargs.get("headers", {}) or {}
+            headers[HEADER_SW_LOCK_KEY] = lock_info.project_lock_key
+            kwargs["headers"] = headers
+
+            return await func(self, *args, **kwargs)
+        except EnrichedException as e:
+            if e.status_code == 423:
+                from uipath._cli._utils._console import ConsoleLogger
+
+                console = ConsoleLogger()
+                console.error(
+                    "The project is temporarily locked. This could be due to modifications or active processes. Please wait a moment and try again."
+                )
+            raise
+
+    return wrapper
+
+
 class StudioClient:
     def __init__(self, project_id: str):
         from uipath import UiPath
 
         self.uipath: UiPath = UiPath()
-        self.base_url: str = f"/studio_/backend/api/Project/{project_id}/FileOperations"
+        self.file_operations_base_url: str = (
+            f"/studio_/backend/api/Project/{project_id}/FileOperations"
+        )
+        self._lock_operations_base_url: str = (
+            f"/studio_/backend/api/Project/{project_id}/Lock"
+        )
 
     async def get_project_structure_async(self) -> ProjectStructure:
         """Retrieve the project's file structure from UiPath Cloud.
@@ -193,40 +238,50 @@ class StudioClient:
         """
         response = await self.uipath.api_client.request_async(
             "GET",
-            url=f"{self.base_url}/Structure",
+            url=f"{self.file_operations_base_url}/Structure",
             scoped="org",
         )
 
         return ProjectStructure.model_validate(response.json())
 
+    @with_lock_retry
     async def create_folder_async(
-        self, folder_name: str, parent_id: Optional[str] = None
+        self,
+        folder_name: str,
+        parent_id: Optional[str] = None,
+        headers: Optional[dict[str, Any]] = None,
     ) -> str:
-        """Retrieve the project's file structure from UiPath Cloud.
+        """Create a folder in the project.
 
-        Makes an API call to fetch the complete file structure of a project,
-        including all files and folders. The response is validated against
-        the ProjectStructure model.
+        Args:
+            folder_name: Name of the folder to create
+            parent_id: Optional parent folder ID
+            headers: HTTP headers (automatically injected by decorator)
 
         Returns:
-            ProjectStructure: The complete project structure
+            str: The created folder ID
         """
         data = {"name": folder_name}
         if parent_id:
             data["parent_id"] = parent_id
         response = await self.uipath.api_client.request_async(
-            "POST", url=f"{self.base_url}/Folder", scoped="org", json=data
+            "POST",
+            url=f"{self.file_operations_base_url}/Folder",
+            scoped="org",
+            json=data,
+            headers=headers or {},
         )
         return response.json()
 
     async def download_file_async(self, file_id: str) -> Any:
         response = await self.uipath.api_client.request_async(
             "GET",
-            url=f"{self.base_url}/File/{file_id}",
+            url=f"{self.file_operations_base_url}/File/{file_id}",
             scoped="org",
         )
         return response
 
+    @with_lock_retry
     async def upload_file_async(
         self,
         *,
@@ -235,6 +290,7 @@ class StudioClient:
         file_name: str,
         folder: Optional[ProjectFolder] = None,
         remote_file: Optional[ProjectFile] = None,
+        headers: Optional[dict[str, Any]] = None,
     ) -> tuple[str, str]:
         if local_file_path:
             with open(local_file_path, "rb") as f:
@@ -246,39 +302,51 @@ class StudioClient:
             response = await self.uipath.api_client.request_async(
                 "PUT",
                 files=files_data,
-                url=f"{self.base_url}/File/{remote_file.id}",
+                url=f"{self.file_operations_base_url}/File/{remote_file.id}",
                 scoped="org",
                 infer_content_type=True,
+                headers=headers or {},
             )
             action = "Updated"
         else:
             response = await self.uipath.api_client.request_async(
                 "POST",
-                url=f"{self.base_url}/File",
+                url=f"{self.file_operations_base_url}/File",
                 data={"parentId": folder.id} if folder else None,
                 files=files_data,
                 scoped="org",
                 infer_content_type=True,
+                headers=headers or {},
             )
             action = "Uploaded"
 
         # response contains only the uploaded file identifier
         return response.json(), action
 
-    async def delete_item_async(self, item_id: str) -> None:
+    @with_lock_retry
+    async def delete_item_async(
+        self,
+        item_id: str,
+        headers: Optional[dict[str, Any]] = None,
+    ) -> None:
         await self.uipath.api_client.request_async(
             "DELETE",
-            url=f"{self.base_url}/Delete/{item_id}",
+            url=f"{self.file_operations_base_url}/Delete/{item_id}",
             scoped="org",
+            headers=headers or {},
         )
 
+    @with_lock_retry
     async def perform_structural_migration_async(
-        self, structural_migration: StructuralMigration
+        self,
+        structural_migration: StructuralMigration,
+        headers: Optional[dict[str, Any]] = None,
     ) -> Any:
         """Perform structural migration of project files.
 
         Args:
             structural_migration: The structural migration data containing deleted and added resources
+            headers: HTTP headers (automatically injected by decorator)
 
         Returns:
             Any: The API response
@@ -333,10 +401,19 @@ class StudioClient:
 
         response = await self.uipath.api_client.request_async(
             "POST",
-            url=f"{self.base_url}/StructuralMigration",
+            url=f"{self.file_operations_base_url}/StructuralMigration",
             scoped="org",
             files=files,
             infer_content_type=True,
+            headers=headers or {},
         )
 
         return response
+
+    async def _retrieve_lock(self) -> LockInfo:
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url=f"{self._lock_operations_base_url}",
+            scoped="org",
+        )
+        return LockInfo.model_validate(response.json())
