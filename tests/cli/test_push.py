@@ -153,6 +153,8 @@ class TestPush:
             json=mock_structure,
         )
 
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
         # Mock agent.json download
         httpx_mock.add_response(
             method="GET",
@@ -161,33 +163,17 @@ class TestPush:
             json={"metadata": {"codeVersion": "0.1.0"}},
         )
 
-        # Mock file upload responses
-        # For main.py
-        httpx_mock.add_response(
-            method="PUT",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
-            status_code=200,
-        )
-
-        # For pyproject.toml
-        httpx_mock.add_response(
-            method="PUT",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
-            status_code=200,
-        )
-
-        # For uipath.json
-        httpx_mock.add_response(
-            method="PUT",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
-            status_code=200,
-        )
-
-        # For uv.lock
         httpx_mock.add_response(
             method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
+            json={"success": True},
+        )
+
+        # Mock empty folder cleanup - get structure again after migration
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
         )
 
         # For agent.json
@@ -195,6 +181,7 @@ class TestPush:
             method="PUT",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/246",
             status_code=200,
+            json={},
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -218,10 +205,11 @@ class TestPush:
             # Run push
             result = runner.invoke(push, ["./"])
             assert result.exit_code == 0
-            assert "Updated main.py" in result.output
-            assert "Updated pyproject.toml" in result.output
-            assert "Updated uipath.json" in result.output
-            assert "Uploaded uv.lock" in result.output
+            assert "Updating main.py" in result.output
+            assert "Updating pyproject.toml" in result.output
+            assert "Updating uipath.json" in result.output
+            assert "Uploading uv.lock" in result.output
+            assert "Updated agent.json" in result.output
 
             # check incremented code version
             agent_upload_request = None
@@ -271,6 +259,12 @@ class TestPush:
             method="POST",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
             status_code=200,
+            json={
+                "id": "123",
+                "name": "source_code",
+                "folders": [],
+                "files": [],
+            },
         )
 
         httpx_mock.add_response(
@@ -278,40 +272,26 @@ class TestPush:
             json=mock_structure,
         )
 
-        # Mock file upload responses
-        # For main.py
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=3)
+
         httpx_mock.add_response(
             method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
+            json={"success": True},
         )
 
-        # For pyproject.toml
+        # Mock empty folder cleanup - get structure again after migration
         httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
-            status_code=200,
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
         )
 
-        # For uipath.json
         httpx_mock.add_response(
             method="POST",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
             status_code=200,
-        )
-
-        # For uv.lock
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
-            status_code=200,
-        )
-
-        # For agent.json
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
-            status_code=200,
+            json={},
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -334,12 +314,12 @@ class TestPush:
 
             # Run push
             result = runner.invoke(push, ["./"])
-            print(result.output)
             assert result.exit_code == 0
-            assert "Uploaded main.py" in result.output
-            assert "Uploaded pyproject.toml" in result.output
-            assert "Uploaded uipath.json" in result.output
-            assert "Uploaded uv.lock" in result.output
+            assert "Uploading main.py" in result.output
+            assert "Uploading pyproject.toml" in result.output
+            assert "Uploading uipath.json" in result.output
+            assert "Uploading uv.lock" in result.output
+            assert "Uploaded agent.json" in result.output
 
             # check expected agent.json fields
             agent_upload_request = None
@@ -413,7 +393,8 @@ class TestPush:
 
             result = runner.invoke(push, ["./"])
             assert result.exit_code == 1
-            assert "Failed to get project structure" in result.output
+            assert "Failed to push UiPath project" in result.output
+            assert "Status Code: 401" in result.output
 
     def test_push_with_nolock_flag(
         self,
@@ -465,33 +446,26 @@ class TestPush:
             json=mock_structure,
         )
 
-        # Mock file upload responses
-        # For main.py
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
         httpx_mock.add_response(
-            method="PUT",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
+            json={"success": True},
         )
 
-        # For pyproject.toml
+        # Mock empty folder cleanup - get structure again after migration
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
         httpx_mock.add_response(
             method="POST",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
             status_code=200,
-        )
-
-        # For agent.json
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
-            status_code=200,
-        )
-
-        # For uipath.json
-        httpx_mock.add_response(
-            method="PUT",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
-            status_code=200,
+            json={},
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -507,15 +481,26 @@ class TestPush:
 
             with open("uv.lock", "w") as f:
                 f.write("")
-            # Set environment variables
+
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run push with --nolock flag
             result = runner.invoke(push, ["./", "--nolock"])
             assert result.exit_code == 0
-            assert "Updated main.py" in result.output
-            assert "Uploaded pyproject.toml" in result.output
-            assert "Updated uipath.json" in result.output
-            assert "Uploaded agent.json" not in result.output
+            assert "Updating main.py" in result.output
+            assert "Uploading pyproject.toml" in result.output
+            assert "Updating uipath.json" in result.output
             assert "uv.lock" not in result.output
+
+    def _mock_lock_retrieval(
+        self, httpx_mock: HTTPXMock, base_url: str, project_id: str, times: int
+    ):
+        for _ in range(times):
+            httpx_mock.add_response(
+                url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
+                json={
+                    "projectLockKey": "test-lock-key",
+                    "solutionLockKey": "test-solution-lock-key",
+                },
+            )

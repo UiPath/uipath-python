@@ -18,6 +18,7 @@ HEADER_USER_AGENT = "x-uipath-user-agent"
 HEADER_TENANT_ID = "x-uipath-tenantid"
 HEADER_INTERNAL_TENANT_ID = "x-uipath-internal-tenantid"
 HEADER_JOB_KEY = "x-uipath-jobkey"
+HEADER_SW_LOCK_KEY = "x-uipath-sw-lockkey"
 
 # Data sources
 ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (

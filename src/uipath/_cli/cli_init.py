@@ -39,7 +39,9 @@ def create_telemetry_config_file(target_directory: str) -> None:
         return
 
     os.makedirs(uipath_dir, exist_ok=True)
-    telemetry_data = {_PROJECT_KEY: str(uuid.uuid4())}
+    telemetry_data = {
+        _PROJECT_KEY: os.getenv("UIPATH_PROJECT_ID", None) or str(uuid.uuid4())
+    }
 
     with open(telemetry_file, "w") as f:
         json.dump(telemetry_data, f, indent=4)
