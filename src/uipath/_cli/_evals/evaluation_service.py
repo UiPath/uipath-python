@@ -337,7 +337,7 @@ class EvaluationService:
             try:
                 if self._progress_reporter:
                     await self._progress_reporter.update_eval_run(
-                        eval_results, eval_run_id, success, execution_time
+                        eval_results, eval_run_id, execution_time
                     )
                 sw_progress_reporter_queue.task_done()
             except Exception as e:

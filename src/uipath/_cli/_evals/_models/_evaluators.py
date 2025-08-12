@@ -58,7 +58,7 @@ class EvaluationResult(BaseModel):
     evaluator_id: str
     evaluator_name: str
     score: float
-    # mark this as optional, as it is populated inside the 'measure_execution_time' decorator
+    # this is marked as optional, as it is populated inside the 'measure_execution_time' decorator
     evaluation_time: Optional[float] = None
     input: Dict[str, Any]
     expected_output: Dict[str, Any]
