@@ -20,6 +20,11 @@ class EnrichedException(Exception):
         # Extract the relevant details from the HTTPStatusError
         self.status_code = error.response.status_code if error.response else "Unknown"
         self.url = str(error.request.url) if error.request else "Unknown"
+        self.http_method = (
+            error.request.method
+            if error.request and error.request.method
+            else "Unknown"
+        )
         self.response_content = (
             error.response.content.decode("utf-8")
             if error.response and error.response.content
@@ -28,6 +33,7 @@ class EnrichedException(Exception):
 
         enriched_message = (
             f"\nRequest URL: {self.url}"
+            f"\nHTTP Method: {self.http_method}"
             f"\nStatus Code: {self.status_code}"
             f"\nResponse Content: {self.response_content}"
         )

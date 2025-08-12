@@ -35,7 +35,9 @@ class ProgressReporter:
         self._eval_set_id = eval_set_id
         self.agent_snapshot = agent_snapshot
         self._no_of_evals = no_of_evals
-        self._evaluators = evaluators
+        self._evaluators: dict[str, EvaluatorBase] = {
+            evaluator.id: evaluator for evaluator in evaluators
+        }
         self._evaluator_scores: dict[str, list[float]] = {
             evaluator.id: [] for evaluator in evaluators
         }
@@ -56,6 +58,18 @@ class ProgressReporter:
                 "Cannot report data to StudioWeb. Please set UIPATH_PROJECT_ID."
             )
 
+    async def create_eval_set_run(self):
+        """Create a new evaluation set run in StudioWeb."""
+        spec = self._create_eval_set_run_spec()
+        response = await self._client.request_async(
+            method=spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            content=spec.content,
+            headers=spec.headers,
+        )
+        self._eval_set_run_id = json.loads(response.content)["id"]
+
     async def create_eval_run(self, eval_item: dict[str, Any]):
         """Create a new evaluation run in StudioWeb.
 
@@ -72,7 +86,6 @@ class ProgressReporter:
             params=spec.params,
             content=spec.content,
             headers=spec.headers,
-            scoped="org",
         )
         return json.loads(response.content)["id"]
 
@@ -80,7 +93,6 @@ class ProgressReporter:
         self,
         eval_results: list[EvalItemResult],
         eval_run_id: str,
-        success: bool,
         execution_time: float,
     ):
         """Update an evaluation run with results.
@@ -88,7 +100,6 @@ class ProgressReporter:
         Args:
             eval_results: Dictionary mapping evaluator IDs to evaluation results
             eval_run_id: ID of the evaluation run to update
-            success: Whether the evaluation was successful
             execution_time: The agent execution time
         """
         assertion_runs, evaluator_scores, actual_output = self._collect_results(
@@ -107,21 +118,7 @@ class ProgressReporter:
             params=spec.params,
             content=spec.content,
             headers=spec.headers,
-            scoped="org",
         )
-
-    async def create_eval_set_run(self):
-        """Create a new evaluation set run in StudioWeb."""
-        spec = self._create_eval_set_run_spec()
-        response = await self._client.request_async(
-            method=spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-            content=spec.content,
-            headers=spec.headers,
-            scoped="org",
-        )
-        self._eval_set_run_id = json.loads(response.content)["id"]
 
     async def update_eval_set_run(self):
         """Update the evaluation set run status to complete."""
@@ -132,7 +129,6 @@ class ProgressReporter:
             params=spec.params,
             content=spec.content,
             headers=spec.headers,
-            scoped="org",
         )
 
     def _collect_results(
@@ -158,20 +154,20 @@ class ProgressReporter:
                 {
                     "status": EvaluationStatus.COMPLETED.value,
                     "evaluatorId": eval_result.evaluator_id,
-                    "result": {
-                        "output": {"content": {**eval_result.result.actual_output}},
-                        "score": {
-                            "type": ScoreType.NUMERICAL.value,
-                            "value": eval_result.result.score,
-                            "justification": eval_result.result.details,
-                        },
-                    },
                     "completionMetrics": {
                         "duration": eval_result.result.evaluation_time,
                         "cost": None,
                         "tokens": 0,
                         "completionTokens": 0,
                         "promptTokens": 0,
+                    },
+                    "assertionSnapshot": {
+                        "assertionType": self._evaluators[
+                            eval_result.evaluator_id
+                        ].type.name,
+                        "outputKey": self._evaluators[
+                            eval_result.evaluator_id
+                        ].target_output_key,
                     },
                 }
             )
@@ -192,7 +188,7 @@ class ProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"agents_/api/execution/agents/{self._project_id}/evalRun"
+                f"agentsruntime_/api/execution/agents/{self._project_id}/evalRun"
             ),
             content=json.dumps(
                 {
@@ -213,7 +209,7 @@ class ProgressReporter:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"agents_/api/execution/agents/{self._project_id}/evalRun"
+                f"agentsruntime_/api/execution/agents/{self._project_id}/evalRun"
             ),
             content=json.dumps(
                 {
@@ -221,41 +217,10 @@ class ProgressReporter:
                     "evalSnapshot": {
                         "id": eval_item["id"],
                         "name": eval_item["name"],
-                        "assertionType": "unknown",
-                        "assertionProperties": {},
                         "inputs": eval_item.get("inputs"),
-                        "outputKey": "*",
+                        "expectedOutput": eval_item.get("expectedOutput", {}),
                     },
                     "status": EvaluationStatus.IN_PROGRESS.value,
-                    "assertionRuns": [
-                        # TODO: replace default values
-                        {
-                            "assertionSnapshot": {
-                                "assertionProperties": {
-                                    "expectedOutput": eval_item.get(
-                                        "expectedOutput", {}
-                                    ),
-                                    "prompt": "No prompt for coded agents",
-                                    "simulationInstructions": "",
-                                    "expectedAgentBehavior": "",
-                                    "inputGenerationInstructions": "",
-                                    "simulateTools": False,
-                                    "simulateInput": False,
-                                    "toolsToSimulate": [],
-                                    **(
-                                        {"model": evaluator.model}
-                                        if hasattr(evaluator, "model")
-                                        else {}
-                                    ),
-                                },
-                                "assertionType": "Custom",
-                                "outputKey": "*",
-                            },
-                            "status": 1,
-                            "evaluatorId": evaluator.id,
-                        }
-                        for evaluator in self._evaluators
-                    ],
                 }
             ),
             headers=self._tenant_header(),
@@ -264,13 +229,12 @@ class ProgressReporter:
     def _create_eval_set_run_spec(
         self,
     ) -> RequestSpec:
-        self._add_defaults_to_agent_snapshot()
         agent_snapshot_dict = json.loads(self.agent_snapshot)
 
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"agents_/api/execution/agents/{self._project_id}/evalSetRun"
+                f"agentsruntime_/api/execution/agents/{self._project_id}/evalSetRun"
             ),
             content=json.dumps(
                 {
@@ -288,7 +252,7 @@ class ProgressReporter:
         evaluator_scores = []
         evaluator_averages = []
 
-        for evaluator in self._evaluators:
+        for evaluator in self._evaluators.values():
             scores = self._evaluator_scores[evaluator.id]
             if scores:
                 avg_score = sum(scores) / len(scores)
@@ -316,36 +280,17 @@ class ProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"agents_/api/execution/agents/{self._project_id}/evalSetRun"
+                f"agentsruntime_/api/execution/agents/{self._project_id}/evalSetRun"
             ),
             content=json.dumps(
                 {
-                    ## TODO: send the actual data here (do we need to send those again? isn't it redundant?)
                     "evalSetRunId": self._eval_set_run_id,
-                    ## this should be removed. not used but enforced by the API
-                    "score": overall_score,
                     "status": EvaluationStatus.COMPLETED.value,
                     "evaluatorScores": evaluator_scores,
                 }
             ),
             headers=self._tenant_header(),
         )
-
-    def _add_defaults_to_agent_snapshot(self):
-        ## TODO: remove this after properties are marked as optional at api level
-        agent_snapshot_dict = json.loads(self.agent_snapshot)
-        agent_snapshot_dict["tools"] = []
-        agent_snapshot_dict["contexts"] = []
-        agent_snapshot_dict["escalations"] = []
-        agent_snapshot_dict["systemPrompt"] = ""
-        agent_snapshot_dict["userPrompt"] = ""
-        agent_snapshot_dict["settings"] = {
-            "model": "",
-            "maxTokens": 0,
-            "temperature": 0,
-            "engine": "",
-        }
-        self.agent_snapshot = json.dumps(agent_snapshot_dict)
 
     def _tenant_header(self) -> dict[str, str]:
         tenant_id = os.getenv(ENV_TENANT_ID, None)
