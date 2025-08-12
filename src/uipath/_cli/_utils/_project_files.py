@@ -329,6 +329,8 @@ def files_to_include(
             file_extensions_included.extend(settings["fileExtensionsIncluded"])
         if "filesIncluded" in settings:
             files_included.extend(settings["filesIncluded"])
+    if directories_to_ignore is None:
+        directories_to_ignore = []
 
     def is_venv_dir(d: str) -> bool:
         """Check if a directory is a Python virtual environment.
