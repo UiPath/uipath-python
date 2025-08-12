@@ -66,7 +66,10 @@ class EvaluatorFactory:
         base_params: EvaluatorBaseParams, data: Dict[str, Any]
     ) -> DeterministicEvaluator:
         """Create a deterministic evaluator."""
-        raise NotImplementedError()
+        return DeterministicEvaluator.from_params(
+            base_params,
+            target_output_key=data.get("targetOutputKey", "*"),
+        )
 
     @staticmethod
     def _create_llm_as_judge_evaluator(

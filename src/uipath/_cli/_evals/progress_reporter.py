@@ -139,12 +139,23 @@ class ProgressReporter:
         actual_output: dict[str, Any] = {}
         for eval_result in eval_results:
             # keep track of evaluator scores. this should be removed after this computation is done server-side
-            self._evaluator_scores[eval_result.evaluator_id].append(
-                eval_result.result.score
-            )
+
+            # check the evaluator score type
+            match eval_result.result.score_type:
+                case ScoreType.NUMERICAL:
+                    self._evaluator_scores[eval_result.evaluator_id].append(
+                        eval_result.result.score
+                    )
+                case ScoreType.BOOLEAN:
+                    self._evaluator_scores[eval_result.evaluator_id].append(
+                        100 if eval_result.result.score else 0
+                    )
+                case ScoreType.ERROR:
+                    self._evaluator_scores[eval_result.evaluator_id].append(0)
+
             evaluator_scores.append(
                 {
-                    "type": ScoreType.NUMERICAL.value,
+                    "type": eval_result.result.score_type.value,
                     "value": eval_result.result.score,
                     "justification": eval_result.result.details,
                     "evaluatorId": eval_result.evaluator_id,
