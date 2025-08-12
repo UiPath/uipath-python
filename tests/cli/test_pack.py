@@ -312,6 +312,30 @@ class TestPack:
                 assert f"content/{file_to_add}" in z.namelist()
                 assert f"content/{random_file}" not in z.namelist()
 
+    def test_include_subdir_files(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test generating operate.json and its content."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            os.mkdir("subdir")
+            with open("subdir/should_be_included.py", "w") as f:
+                f.write('print("This file should be included in the .nupkg")')
+            result = runner.invoke(pack, ["./"])
+
+            assert result.exit_code == 0
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                assert "content/subdir/should_be_included.py" in z.namelist()
+
     def test_successful_pack(
         self,
         runner: CliRunner,
