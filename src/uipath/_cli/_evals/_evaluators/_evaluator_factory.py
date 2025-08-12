@@ -1,9 +1,9 @@
 from typing import Any, Dict
 
 from .._models import EvaluatorCategory, EvaluatorType
-from ._agent_scorer_evaluator import AgentScorerEvaluator
-from ._deterministic_evaluator import DeterministicEvaluator
 from ._evaluator_base import EvaluatorBase, EvaluatorBaseParams
+from ._exact_match_evaluator import ExactMatchEvaluator
+from ._json_similarity_evaluator import JsonSimilarityEvaluator
 from ._llm_as_judge_evaluator import LlmAsAJudgeEvaluator
 from ._trajectory_evaluator import TrajectoryEvaluator
 
@@ -50,23 +50,50 @@ class EvaluatorFactory:
         )
 
         # Create evaluator based on category
-        if category == EvaluatorCategory.Deterministic:
-            return EvaluatorFactory._create_deterministic_evaluator(base_params, data)
-        elif category == EvaluatorCategory.LlmAsAJudge:
-            return EvaluatorFactory._create_llm_as_judge_evaluator(base_params, data)
-        elif category == EvaluatorCategory.AgentScorer:
-            return EvaluatorFactory._create_agent_scorer_evaluator(base_params, data)
-        elif category == EvaluatorCategory.Trajectory:
-            return EvaluatorFactory._create_trajectory_evaluator(base_params, data)
-        else:
-            raise ValueError(f"Unknown evaluator category: {category}")
+        match category:
+            case EvaluatorCategory.Deterministic:
+                if evaluator_type == evaluator_type.Equals:
+                    return EvaluatorFactory._create_exact_match_evaluator(
+                        base_params, data
+                    )
+                elif evaluator_type == evaluator_type.JsonSimilarity:
+                    return EvaluatorFactory._create_json_similarity_evaluator(
+                        base_params, data
+                    )
+                else:
+                    raise ValueError(
+                        f"Unknown evaluator type {evaluator_type} for category {category}"
+                    )
+            case EvaluatorCategory.LlmAsAJudge:
+                return EvaluatorFactory._create_llm_as_judge_evaluator(
+                    base_params, data
+                )
+            case EvaluatorCategory.AgentScorer:
+                raise NotImplementedError()
+            case EvaluatorCategory.Trajectory:
+                return EvaluatorFactory._create_trajectory_evaluator(base_params, data)
+            case _:
+                raise ValueError(f"Unknown evaluator category: {category}")
 
     @staticmethod
-    def _create_deterministic_evaluator(
+    def _create_exact_match_evaluator(
         base_params: EvaluatorBaseParams, data: Dict[str, Any]
-    ) -> DeterministicEvaluator:
+    ) -> ExactMatchEvaluator:
         """Create a deterministic evaluator."""
-        raise NotImplementedError()
+        return ExactMatchEvaluator.from_params(
+            base_params,
+            target_output_key=data.get("targetOutputKey", "*"),
+        )
+
+    @staticmethod
+    def _create_json_similarity_evaluator(
+        base_params: EvaluatorBaseParams, data: Dict[str, Any]
+    ) -> JsonSimilarityEvaluator:
+        """Create a deterministic evaluator."""
+        return JsonSimilarityEvaluator.from_params(
+            base_params,
+            target_output_key=data.get("targetOutputKey", "*"),
+        )
 
     @staticmethod
     def _create_llm_as_judge_evaluator(
@@ -87,13 +114,6 @@ class EvaluatorFactory:
             model=model,
             target_output_key=data.get("targetOutputKey", "*"),
         )
-
-    @staticmethod
-    def _create_agent_scorer_evaluator(
-        base_params: EvaluatorBaseParams, data: Dict[str, Any]
-    ) -> AgentScorerEvaluator:
-        """Create an agent scorer evaluator."""
-        raise NotImplementedError()
 
     @staticmethod
     def _create_trajectory_evaluator(

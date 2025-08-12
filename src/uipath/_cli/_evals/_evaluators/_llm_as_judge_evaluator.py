@@ -11,6 +11,7 @@ from ...._utils.constants import (
     COMMUNITY_agents_SUFFIX,
 )
 from .._models import EvaluationResult, LLMResponse
+from .._models._evaluators import ScoreType
 from ._evaluator_base import EvaluatorBase
 
 
@@ -86,6 +87,7 @@ class LlmAsAJudgeEvaluator(EvaluatorBase):
             expected_output=expected_output,
             actual_output=actual_output,
             details=llm_response.justification,
+            score_type=ScoreType.NUMERICAL,
         )
 
     def _extract_target_value(self, output: Dict[str, Any]) -> Any:

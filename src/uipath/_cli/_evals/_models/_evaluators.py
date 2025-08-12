@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import IntEnum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class LLMResponse(BaseModel):
@@ -50,6 +50,12 @@ class EvaluatorType(IntEnum):
             raise ValueError(f"{value} is not a valid EvaluatorType value")
 
 
+class ScoreType(IntEnum):
+    BOOLEAN = 0
+    NUMERICAL = 1
+    ERROR = 2
+
+
 class EvaluationResult(BaseModel):
     """Result of a single evaluation."""
 
@@ -57,13 +63,14 @@ class EvaluationResult(BaseModel):
     evaluation_name: str
     evaluator_id: str
     evaluator_name: str
-    score: float
+    score: float | bool
+    score_type: ScoreType
     # this is marked as optional, as it is populated inside the 'measure_execution_time' decorator
     evaluation_time: Optional[float] = None
     input: Dict[str, Any]
     expected_output: Dict[str, Any]
     actual_output: Dict[str, Any]
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = datetime.now(timezone.utc)
     details: Optional[str] = None
 
 
@@ -74,12 +81,6 @@ class EvaluationSetResult(BaseModel):
     eval_set_name: str
     results: List[EvaluationResult]
     average_score: float
-
-
-class ScoreType(IntEnum):
-    BOOLEAN = 0
-    NUMERICAL = 1
-    ERROR = 2
 
 
 class EvalItemResult(BaseModel):
