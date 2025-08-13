@@ -14,33 +14,78 @@ from tests.cli.utils.common import configure_env_vars
 from uipath._cli.cli_push import push
 
 
-def extract_agent_json_file_from_request(request: Request) -> dict[Any, str]:
-    boundary = re.search(rb"--([a-f0-9]+)", request.content).group(1).decode()
-    parts = request.content.split(f"--{boundary}".encode())
+def extract_agent_json_from_modified_resources(
+    request: Request, *, agent_file_id: str | None = None
+) -> dict[str, Any]:
+    """Extract agent.json content from ModifiedResources in StructuralMigration payload."""
+    match = re.search(
+        rb"boundary=([-._0-9A-Za-z]+)", request.headers.get("Content-Type", "").encode()
+    )
+    if match is None:
+        # Fallback to body sniffing like older helper
+        match = re.search(rb"--([-._0-9A-Za-z]+)", request.content)
+    assert match is not None, "Could not detect multipart boundary"
+    boundary = match.group(1)
+    parts = request.content.split(b"--" + boundary)
 
-    # Locate the agent.json file
-    agent_json_part = None
+    # Require agent_file_id and search only ModifiedResources
+    assert agent_file_id is not None, (
+        "agent_file_id is required to extract agent.json from ModifiedResources"
+    )
+    target_index: str | None = None
     for part in parts:
         if (
-            b'Content-Disposition: form-data; name="file"; filename="agent.json"'
-            in part
+            b"Content-Disposition: form-data;" in part
+            and b"ModifiedResources[" in part
+            and b"].Id" in part
         ):
-            agent_json_part = part
-            break
+            body = part.split(b"\r\n\r\n", 1)
+            if len(body) == 2:
+                value = body[1].strip().strip(b"\r\n")
+                if value.decode(errors="ignore") == agent_file_id:
+                    m = re.search(rb"ModifiedResources\[(\d+)\]\.Id", part)
+                    if m:
+                        target_index = m.group(1).decode()
+                        break
 
-    assert agent_json_part is not None, (
-        "agent.json part not found in the multipart/form-data payload."
+    if target_index is not None:
+        for part in parts:
+            if (
+                b"Content-Disposition: form-data;" in part
+                and f"ModifiedResources[{target_index}].Content".encode() in part
+            ):
+                content_bytes = part.split(b"\r\n\r\n", 1)[1].split(b"\r\n")[0]
+                return json.loads(content_bytes.decode())
+
+    raise AssertionError(
+        "agent.json content not found in ModifiedResources of StructuralMigration payload"
     )
 
-    # Extract the agent.json content
-    agent_json_content = (
-        agent_json_part.split(b"\r\n\r\n", 1)[1].split(b"\r\n--")[0].decode()
+
+def extract_agent_json_from_added_resources(request: Request) -> dict[str, Any]:
+    """Extract agent.json content from AddedResources in StructuralMigration payload."""
+    match = re.search(
+        rb"boundary=([-._0-9A-Za-z]+)", request.headers.get("Content-Type", "").encode()
     )
+    if match is None:
+        match = re.search(rb"--([-._0-9A-Za-z]+)", request.content)
+    assert match is not None, "Could not detect multipart boundary"
+    boundary = match.group(1)
+    parts = request.content.split(b"--" + boundary)
 
-    # Parse the agent.json payload
-    agent_json_data = json.loads(agent_json_content)
+    for part in parts:
+        if (
+            b"Content-Disposition: form-data;" in part
+            and b"AddedResources[" in part
+            and b"].Content" in part
+            and b'filename="agent.json"' in part
+        ):
+            content_bytes = part.split(b"\r\n\r\n", 1)[1].split(b"\r\n")[0]
+            return json.loads(content_bytes.decode())
 
-    return agent_json_data
+    raise AssertionError(
+        "agent.json content not found in AddedResources of StructuralMigration payload"
+    )
 
 
 class TestPush:
@@ -144,6 +189,14 @@ class TestPush:
                     "isEntryPoint": False,
                     "ignoredFromPublish": False,
                 },
+                {
+                    "id": "898",
+                    "name": "entry-points.json",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
             ],
             "folderType": "0",
         }
@@ -153,7 +206,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
         # Mock agent.json download
         httpx_mock.add_response(
@@ -161,6 +214,14 @@ class TestPush:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/246",
             status_code=200,
             json={"metadata": {"codeVersion": "0.1.0"}},
+        )
+
+        # Mock entry-points.json download
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/898",
+            status_code=200,
+            json={"entryPoints": {}},
         )
 
         httpx_mock.add_response(
@@ -174,14 +235,6 @@ class TestPush:
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
-        )
-
-        # For agent.json
-        httpx_mock.add_response(
-            method="PUT",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/246",
-            status_code=200,
-            json={},
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -209,19 +262,17 @@ class TestPush:
             assert "Updating pyproject.toml" in result.output
             assert "Updating uipath.json" in result.output
             assert "Uploading uv.lock" in result.output
-            assert "Updated agent.json" in result.output
+            assert "Updating agent.json" in result.output
+            assert "Updating entry-points.json" in result.output
 
-            # check incremented code version
-            agent_upload_request = None
-            for request in httpx_mock.get_requests(
-                method="PUT",
-                url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/246",
-            ):
-                agent_upload_request = request
-                break
-
-            agent_json_content = extract_agent_json_file_from_request(
-                agent_upload_request
+            # check incremented code version via StructuralMigration payload
+            structural_migration_request = httpx_mock.get_request(
+                method="POST",
+                url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            )
+            assert structural_migration_request is not None
+            agent_json_content = extract_agent_json_from_modified_resources(
+                structural_migration_request, agent_file_id="246"
             )
 
             # Validate `metadata["codeVersion"]`
@@ -272,7 +323,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=3)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         httpx_mock.add_response(
             method="POST",
@@ -285,13 +336,6 @@ class TestPush:
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
-        )
-
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
-            status_code=200,
-            json={},
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -319,23 +363,17 @@ class TestPush:
             assert "Uploading pyproject.toml" in result.output
             assert "Uploading uipath.json" in result.output
             assert "Uploading uv.lock" in result.output
-            assert "Uploaded agent.json" in result.output
+            assert "Uploading agent.json" in result.output
+            assert "Uploading entry-points.json" in result.output
 
             # check expected agent.json fields
-            agent_upload_request = None
-            for request in httpx_mock.get_requests(
+            structural_migration_request = httpx_mock.get_request(
                 method="POST",
-                url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
-            ):
-                if (
-                    b'Content-Disposition: form-data; name="file"; filename="agent.json"'
-                    in request.content
-                ):
-                    agent_upload_request = request
-                    break
-
-            agent_json_content = extract_agent_json_file_from_request(
-                agent_upload_request
+                url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            )
+            assert structural_migration_request is not None
+            agent_json_content = extract_agent_json_from_added_resources(
+                structural_migration_request
             )
 
             expected_code_version = "1.0.0"
@@ -446,7 +484,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
         httpx_mock.add_response(
             method="POST",
@@ -459,13 +497,6 @@ class TestPush:
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
-        )
-
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File",
-            status_code=200,
-            json={},
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
