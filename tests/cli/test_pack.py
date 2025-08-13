@@ -79,6 +79,27 @@ class TestPack:
                 in result.output
             )
 
+    def test_pyproject_missing_requires_python(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        project_details.requires_python = None
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            result = runner.invoke(pack, ["./"])
+            assert result.exit_code == 1
+            assert (
+                "'requires-python' field cannot be empty. Please specify it in pyproject.toml"
+                in result.output
+            )
+
     def test_pyproject_missing_project_name(
         self,
         runner: CliRunner,
