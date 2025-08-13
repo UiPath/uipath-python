@@ -175,13 +175,20 @@ def get_folder_by_name(
 
 
 class AddedResource(BaseModel):
-    content_file_path: str
+    """Represents a new file to be added during a structural migration."""
+
+    content_file_path: Optional[str] = None
     parent_path: Optional[str] = None
+    file_name: Optional[str] = None
+    content_string: Optional[str] = None
 
 
 class ModifiedResource(BaseModel):
+    """Represents a file update during a structural migration."""
+
     id: str
-    content_file_path: str
+    content_file_path: Optional[str] = None
+    content_string: Optional[str] = None
 
 
 class StructuralMigration(BaseModel):
@@ -336,6 +343,53 @@ class StudioClient:
             headers=headers or {},
         )
 
+    def _resolve_content_and_filename(
+        self,
+        *,
+        content_string: Optional[str],
+        content_file_path: Optional[str],
+        file_name: Optional[str] = None,
+        modified: bool = False,
+    ) -> tuple[bytes, Optional[str]]:
+        """Resolve multipart content bytes and filename for a resource.
+
+        Args:
+            content_string: Inline content as a string.
+            content_file_path: Path to a local file to read if inline content is not provided.
+            file_name: Explicit filename to use when adding a new resource.
+
+        Returns:
+            A tuple of (content_bytes, filename).
+
+        Raises:
+            FileNotFoundError: If a provided file path does not exist.
+            ValueError: If a filename cannot be determined.
+        """
+        content_bytes: bytes = b""
+        resolved_name: Optional[str] = None
+        if content_string is not None:
+            content_bytes = content_string.encode("utf-8")
+        elif content_file_path:
+            if os.path.exists(content_file_path):
+                with open(content_file_path, "rb") as f:
+                    content_bytes = f.read()
+            else:
+                raise FileNotFoundError(f"File not found: {content_file_path}")
+
+        if file_name:
+            resolved_name = file_name
+        elif content_file_path:
+            resolved_name = os.path.basename(content_file_path)
+        elif not modified:
+            raise ValueError(
+                "Unable to determine filename for multipart upload. "
+                "When providing inline content (content_string), you must also provide file_name. "
+                "Alternatively, set content_file_path so the filename can be inferred. "
+                f"Received file_name={file_name!r}, content_file_path={content_file_path!r}."
+            )
+
+        return content_bytes, resolved_name
+
     @with_lock_retry
     async def perform_structural_migration_async(
         self,
@@ -360,44 +414,37 @@ class StudioClient:
                 (None, deleted_resources_json),
             )
         )
-
         for i, added_resource in enumerate(structural_migration.added_resources):
-            if os.path.exists(added_resource.content_file_path):
-                with open(added_resource.content_file_path, "rb") as f:
-                    content = f.read()
+            content_bytes, filename = self._resolve_content_and_filename(
+                content_string=added_resource.content_string,
+                content_file_path=added_resource.content_file_path,
+                file_name=added_resource.file_name,
+            )
 
-                filename = os.path.basename(added_resource.content_file_path)
-                files.append((f"AddedResources[{i}].Content", (filename, content)))
+            files.append((f"AddedResources[{i}].Content", (filename, content_bytes)))
 
-                if added_resource.parent_path:
-                    files.append(
-                        (
-                            f"AddedResources[{i}].ParentPath",
-                            (None, added_resource.parent_path),
-                        )
+            if added_resource.parent_path:
+                files.append(
+                    (
+                        f"AddedResources[{i}].ParentPath",
+                        (None, added_resource.parent_path),
                     )
-            else:
-                raise FileNotFoundError(
-                    f"File not found: {added_resource.content_file_path}"
                 )
 
         for i, modified_resource in enumerate(structural_migration.modified_resources):
-            if os.path.exists(modified_resource.content_file_path):
-                with open(modified_resource.content_file_path, "rb") as f:
-                    content = f.read()
+            content_bytes, _ = self._resolve_content_and_filename(
+                content_string=modified_resource.content_string,
+                content_file_path=modified_resource.content_file_path,
+                modified=True,
+            )
 
-                filename = os.path.basename(modified_resource.content_file_path)
-                files.append((f"ModifiedResources[{i}].Content", (filename, content)))
-                files.append(
-                    (
-                        f"ModifiedResources[{i}].Id",
-                        (None, modified_resource.id),
-                    )
+            files.append((f"ModifiedResources[{i}].Content", content_bytes))
+            files.append(
+                (
+                    f"ModifiedResources[{i}].Id",
+                    (None, modified_resource.id),
                 )
-            else:
-                raise FileNotFoundError(
-                    f"File not found: {modified_resource.content_file_path}"
-                )
+            )
 
         response = await self.uipath.api_client.request_async(
             "POST",

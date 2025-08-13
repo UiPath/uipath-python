@@ -133,12 +133,14 @@ class SwFileHandler:
         self,
         local_files: list[FileInfo],
         source_code_files: Dict[str, ProjectFile],
+        root_files: Dict[str, ProjectFile],
     ) -> None:
         """Process all file uploads to the source_code folder.
 
         Args:
             local_files: List of files to upload
             source_code_files: Dictionary of existing remote files
+            root_files: Dictionary of existing root-level files
 
         Returns:
             Set of processed file names
@@ -186,13 +188,25 @@ class SwFileHandler:
                     )
                 )
                 self.console.info(
-                    f"Uploading {click.style(local_file.file_name, fg='cyan')}"
+                    f"Uploading {click.style(local_file.relative_path, fg='cyan')}"
                 )
 
         # identify and add deleted files
         structural_migration.deleted_resources.extend(
             self._collect_deleted_files(source_code_files, processed_source_files)
         )
+
+        with open(os.path.join(self.directory, "uipath.json"), "r") as f:
+            uipath_config = json.load(f)
+
+        await self._prepare_agent_json_migration(
+            structural_migration, root_files, uipath_config
+        )
+
+        await self._prepare_entrypoints_json_migration(
+            structural_migration, root_files, uipath_config
+        )
+
         await self._studio_client.perform_structural_migration_async(
             structural_migration
         )
@@ -303,40 +317,65 @@ class SwFileHandler:
 
         return True
 
-    async def _update_agent_json(
+    async def _prepare_entrypoints_json_migration(
         self,
-        agent_json_file: Optional[ProjectFile] = None,
+        structural_migration: StructuralMigration,
+        root_files: Dict[str, ProjectFile],
+        uipath_config: Dict[str, Any],
     ) -> None:
-        """Update agent.json file with metadata from uipath.json.
+        """Prepare entry-points.json to be included in the same structural migration."""
+        existing = root_files.get("entry-points.json")
+        if existing:
+            try:
+                entry_points_json = (
+                    await self._studio_client.download_file_async(existing.id)
+                ).json()
+                entry_points_json["entryPoints"] = uipath_config["entryPoints"]
 
-        This function:
-        1. Downloads existing agent.json if it exists
-        2. Updates metadata based on uipath.json content
-        3. Increments code version
-        4. Updates author from JWT or pyproject.toml
-        5. Uploads updated agent.json
+            except Exception:
+                self.console.warning(
+                    "Could not parse existing entry-points.json file, using default version"
+                )
+            structural_migration.modified_resources.append(
+                ModifiedResource(
+                    id=existing.id,
+                    content_string=json.dumps(entry_points_json),
+                )
+            )
+            self.console.info(
+                f"Updating {click.style('entry-points.json', fg='yellow')}"
+            )
 
-        Args:
-            agent_json_file: Optional existing agent.json file
+        else:
+            self.console.warning(
+                "'entry-points.json' file does not exist in Studio Web project, initializing using default version"
+            )
+            entry_points_json = {
+                "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+                "$id": "entry-points.json",
+                "entryPoints": uipath_config["entryPoints"],
+            }
+            structural_migration.added_resources.append(
+                AddedResource(
+                    file_name="entry-points.json",
+                    content_string=json.dumps(entry_points_json),
+                )
+            )
+            self.console.info(
+                f"Uploading {click.style('entry-points.json', fg='cyan')}"
+            )
 
-        Raises:
-            httpx.HTTPError: If API requests fail
-            FileNotFoundError: If required files are missing
-            json.JSONDecodeError: If JSON parsing fails
-        """
+    async def _prepare_agent_json_migration(
+        self,
+        structural_migration: StructuralMigration,
+        root_files: Dict[str, ProjectFile],
+        uipath_config: Dict[str, Any],
+    ) -> None:
+        """Prepare agent.json to be included in the same structural migration."""
 
         def get_author_from_token_or_toml() -> str:
             import jwt
 
-            """Extract preferred_username from JWT token or fall back to pyproject.toml author.
-
-            Args:
-                directory: Project directory containing pyproject.toml
-
-            Returns:
-                str: Author name from JWT preferred_username or pyproject.toml authors field
-            """
-            # Try to get author from JWT token first
             token = os.getenv("UIPATH_ACCESS_TOKEN")
             if token:
                 try:
@@ -350,19 +389,15 @@ class SwFileHandler:
                     # If JWT decoding fails, fall back to toml
                     pass
 
-            toml_data = read_toml_project(os.path.join(directory, "pyproject.toml"))
-
+            toml_data = read_toml_project(
+                os.path.join(self.directory, "pyproject.toml")
+            )
             return toml_data.get("authors", "").strip()
-
-        # Read uipath.json
-        directory = os.getcwd()
-        with open(os.path.join(directory, "uipath.json"), "r") as f:
-            uipath_config = json.load(f)
 
         try:
             entrypoints = [
-                {"input": entry_point["input"], "output": entry_point["output"]}
-                for entry_point in uipath_config["entryPoints"]
+                {"input": entrypoint["input"], "output": entrypoint["output"]}
+                for entrypoint in uipath_config["entryPoints"]
             ]
         except (FileNotFoundError, KeyError) as e:
             self.console.error(
@@ -388,14 +423,12 @@ class SwFileHandler:
             ),
         }
 
-        if agent_json_file:
-            # Download existing agent.json
-            existing_agent_json = (
-                await self._studio_client.download_file_async(agent_json_file.id)
-            ).json()
-
+        existing = root_files.get("agent.json")
+        if existing:
             try:
-                # Get current version and increment patch version
+                existing_agent_json = (
+                    await self._studio_client.download_file_async(existing.id)
+                ).json()
                 version_parts = existing_agent_json["metadata"]["codeVersion"].split(
                     "."
                 )
@@ -403,20 +436,32 @@ class SwFileHandler:
                     version_parts[-1] = str(int(version_parts[-1]) + 1)
                     agent_json["metadata"]["codeVersion"] = ".".join(version_parts)
                 else:
-                    # If version format is invalid, start from initial version + 1
                     agent_json["metadata"]["codeVersion"] = (
                         AGENT_INITIAL_CODE_VERSION[:-1] + "1"
                     )
-            except (json.JSONDecodeError, KeyError, ValueError):
+            except Exception:
                 self.console.warning(
-                    "Could not parse existing agent.json, using default version"
+                    "Could not parse existing agent.json file, using default version"
                 )
-        file, action = await self._studio_client.upload_file_async(
-            file_content=json.dumps(agent_json),
-            file_name="agent.json",
-            remote_file=agent_json_file,
-        )
-        self.console.success(f"{action} {click.style('agent.json', fg='cyan')}")
+
+            structural_migration.modified_resources.append(
+                ModifiedResource(
+                    id=existing.id,
+                    content_string=json.dumps(agent_json),
+                )
+            )
+            self.console.info(f"Updating {click.style('agent.json', fg='yellow')}")
+        else:
+            self.console.warning(
+                "'agent.json' file does not exist in Studio Web project, initializing using default version"
+            )
+            structural_migration.added_resources.append(
+                AddedResource(
+                    file_name="agent.json",
+                    content_string=json.dumps(agent_json),
+                )
+            )
+            self.console.info(f"Uploading {click.style('agent.json', fg='cyan')}")
 
     async def upload_source_files(self, config_data: dict[str, Any]) -> None:
         """Main method to upload source files to the UiPath project.
@@ -457,8 +502,4 @@ class SwFileHandler:
             self.include_uv_lock,
             directories_to_ignore=["evals"],
         )
-        await self._process_file_uploads(files, source_code_files)
-
-        await self._update_agent_json(
-            root_files.get("agent.json", None),
-        )
+        await self._process_file_uploads(files, source_code_files, root_files)
