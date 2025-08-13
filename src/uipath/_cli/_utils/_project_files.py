@@ -68,6 +68,7 @@ def get_project_config(directory: str) -> dict[str, str]:
         "version": toml_data["version"],
         "authors": toml_data["authors"],
         "dependencies": toml_data.get("dependencies", {}),
+        "requires-python": toml_data.get("requires-python", {}),
     }
 
 
@@ -95,6 +96,11 @@ def validate_config(config: dict[str, str]) -> None:
     if not config["authors"] or config["authors"].strip() == "":
         console.error(
             'Project authors cannot be empty. Please specify authors in pyproject.toml:\n    authors = [{ name = "John Doe" }]'
+        )
+
+    if not config["requires-python"] or config["requires-python"].strip() == "":
+        console.error(
+            "'requires-python' field cannot be empty. Please specify it in pyproject.toml:  requires-python = \">=3.10\""
         )
 
     invalid_chars = ["&", "<", ">", '"', "'", ";"]
@@ -296,6 +302,7 @@ def read_toml_project(file_path: str) -> dict:
         "version": project["version"].strip(),
         "authors": author_name.strip(),
         "dependencies": dependencies,
+        "requires-python": project.get("requires-python", "").strip(),
     }
 
 
