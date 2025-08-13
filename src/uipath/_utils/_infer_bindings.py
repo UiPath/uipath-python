@@ -8,7 +8,10 @@ T = TypeVar("T")
 
 
 def infer_bindings(
-    resource_type: str, name: str = "name", folder_path: str = "folder_path"
+    resource_type: str,
+    name: str = "name",
+    folder_path: str = "folder_path",
+    ignore: bool = False,
 ) -> Callable[..., Any]:
     def decorator(func: Callable[..., Any]):
         @functools.wraps(func)
@@ -30,7 +33,7 @@ def infer_bindings(
 
             return func(**all_args)
 
-        wrapper._should_infer_bindings = True  # type: ignore
+        wrapper._should_infer_bindings = not ignore  # type: ignore
         wrapper._infer_bindings_mappings = {"name": name, "folder_path": folder_path}  # type: ignore
         return wrapper
 

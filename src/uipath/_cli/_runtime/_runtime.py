@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Type, TypeVar, cast, get_type_hints
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from pydantic import BaseModel
 
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -162,9 +163,11 @@ class UiPathRuntime(UiPathBaseRuntime):
                 input_param = params[0]
                 input_type = input_param.annotation
 
-                # Case 2: Class or dataclass parameter
+                # Case 2: Class, dataclass, or Pydantic model parameter
                 if input_type != inspect.Parameter.empty and (
-                    is_dataclass(input_type) or hasattr(input_type, "__annotations__")
+                    is_dataclass(input_type)
+                    or self._is_pydantic_model(input_type)
+                    or hasattr(input_type, "__annotations__")
                 ):
                     try:
                         valid_type = cast(Type[Any], input_type)
@@ -216,7 +219,16 @@ class UiPathRuntime(UiPathBaseRuntime):
         )
 
     def _convert_to_class(self, data: Dict[str, Any], cls: Type[T]) -> T:
-        """Convert a dictionary to either a dataclass or regular class instance."""
+        """Convert a dictionary to either a dataclass, Pydantic model, or regular class instance."""
+        # Handle Pydantic models
+        try:
+            if inspect.isclass(cls) and issubclass(cls, BaseModel):
+                return cast(T, cls.model_validate(data))
+        except TypeError:
+            # issubclass can raise TypeError if cls is not a class
+            pass
+
+        # Handle dataclasses
         if is_dataclass(cls):
             field_types = get_type_hints(cls)
             converted_data = {}
@@ -227,13 +239,17 @@ class UiPathRuntime(UiPathBaseRuntime):
 
                 value = data[field_name]
                 if (
-                    is_dataclass(field_type) or hasattr(field_type, "__annotations__")
+                    is_dataclass(field_type)
+                    or self._is_pydantic_model(field_type)
+                    or hasattr(field_type, "__annotations__")
                 ) and isinstance(value, dict):
                     typed_field = cast(Type[Any], field_type)
                     value = self._convert_to_class(value, typed_field)
                 converted_data[field_name] = value
 
             return cast(T, cls(**converted_data))
+
+        # Handle regular classes
         else:
             sig = inspect.signature(cls.__init__)
             params = sig.parameters
@@ -254,6 +270,7 @@ class UiPathRuntime(UiPathBaseRuntime):
 
                     if (
                         is_dataclass(param_type)
+                        or self._is_pydantic_model(param_type)
                         or hasattr(param_type, "__annotations__")
                     ) and isinstance(value, dict):
                         typed_param = cast(Type[Any], param_type)
@@ -265,22 +282,41 @@ class UiPathRuntime(UiPathBaseRuntime):
 
             return cls(**init_args)
 
+    def _is_pydantic_model(self, cls: Type[Any]) -> bool:
+        """Safely check if a class is a Pydantic model."""
+        try:
+            return inspect.isclass(cls) and issubclass(cls, BaseModel)
+        except TypeError:
+            # issubclass can raise TypeError if cls is not a class
+            return False
+
     def _convert_from_class(self, obj: Any) -> Dict[str, Any]:
-        """Convert a class instance (dataclass or regular) to a dictionary."""
+        """Convert a class instance (dataclass, Pydantic model, or regular) to a dictionary."""
         if obj is None:
             return {}
 
-        if is_dataclass(obj):
+        # Handle Pydantic models
+        if isinstance(obj, BaseModel):
+            return obj.model_dump()
+
+        # Handle dataclasses
+        elif is_dataclass(obj):
             # Make sure obj is an instance, not a class
             if isinstance(obj, type):
                 return {}
             return asdict(obj)
+
+        # Handle regular classes
         elif hasattr(obj, "__dict__"):
             result = {}
             for key, value in obj.__dict__.items():
                 # Skip private attributes
                 if not key.startswith("_"):
-                    if hasattr(value, "__dict__") or is_dataclass(value):
+                    if (
+                        isinstance(value, BaseModel)
+                        or hasattr(value, "__dict__")
+                        or is_dataclass(value)
+                    ):
                         result[key] = self._convert_from_class(value)
                     else:
                         result[key] = value
