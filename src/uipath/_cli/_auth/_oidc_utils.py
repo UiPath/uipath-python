@@ -65,5 +65,8 @@ def get_auth_url(domain: str) -> tuple[str, str, str]:
     }
 
     query_string = urlencode(query_params)
-    url = f"https://{domain}.uipath.com/identity_/connect/authorize?{query_string}"
+    if domain.startswith("http"):
+        url = f"{domain}/identity_/connect/authorize?{query_string}"
+    else:
+        url = f"https://{domain}.uipath.com/identity_/connect/authorize?{query_string}"
     return url, code_verifier, state

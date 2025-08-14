@@ -65,7 +65,10 @@ class PortalService:
         if self._client is None:
             raise RuntimeError("HTTP client is not initialized")
 
-        url = f"https://{self.domain}.uipath.com/{self.prt_id}/portal_/api/filtering/leftnav/tenantsAndOrganizationInfo"
+        if self.domain and self.domain.startswith("http"):
+            url = f"{self.domain}/{self.prt_id}/portal_/api/filtering/leftnav/tenantsAndOrganizationInfo"
+        else:
+            url = f"https://{self.domain}.uipath.com/{self.prt_id}/portal_/api/filtering/leftnav/tenantsAndOrganizationInfo"
         response = self._client.get(
             url, headers={"Authorization": f"Bearer {self.access_token}"}
         )
@@ -213,12 +216,19 @@ def select_tenant(
     account_name = tenants_and_organizations["organization"]["name"]
     console.info(f"Selected tenant: {click.style(tenant_name, fg='cyan')}")
 
+    if domain.startswith("http"):
+        base_url = domain
+    else:
+        base_url = f"https://{domain if domain else 'cloud'}.uipath.com"
+
+    uipath_url = f"{base_url}/{account_name}/{tenant_name}"
+
     update_env_file(
         {
-            "UIPATH_URL": f"https://{domain if domain else 'alpha'}.uipath.com/{account_name}/{tenant_name}",
+            "UIPATH_URL": uipath_url,
             "UIPATH_TENANT_ID": tenants_and_organizations["tenants"][tenant_idx]["id"],
             "UIPATH_ORGANIZATION_ID": tenants_and_organizations["organization"]["id"],
         }
     )
 
-    return f"https://{domain if domain else 'alpha'}.uipath.com/{account_name}/{tenant_name}"
+    return uipath_url

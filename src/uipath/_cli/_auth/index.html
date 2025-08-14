@@ -477,7 +477,12 @@
                 formData.append('client_id', '__PY_REPLACE_CLIENT_ID__');
                 formData.append('code_verifier', codeVerifier);
 
-                const response = await fetch('https://__PY_REPLACE_DOMAIN__.uipath.com/identity_/connect/token', {
+                const domain = '__PY_REPLACE_DOMAIN__';
+                const tokenUrl = domain.startsWith('http')
+                    ? `${domain}/identity_/connect/token`
+                    : `https://${domain}.uipath.com/identity_/connect/token`;
+
+                const response = await fetch(tokenUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
