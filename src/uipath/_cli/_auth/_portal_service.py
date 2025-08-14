@@ -9,6 +9,7 @@ from ..._utils._ssl_context import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import TenantsAndOrganizationInfoResponse, TokenData
 from ._oidc_utils import get_auth_config
+from ._url_utils import build_service_url, get_base_url
 from ._utils import (
     get_auth_data,
     get_parsed_token_data,
@@ -24,7 +25,7 @@ class PortalService:
 
     access_token: Optional[str] = None
     prt_id: Optional[str] = None
-    domain: Optional[str] = None
+    domain: str
     selected_tenant: Optional[str] = None
 
     _client: Optional[httpx.Client] = None
@@ -65,7 +66,10 @@ class PortalService:
         if self._client is None:
             raise RuntimeError("HTTP client is not initialized")
 
-        url = f"https://{self.domain}.uipath.com/{self.prt_id}/portal_/api/filtering/leftnav/tenantsAndOrganizationInfo"
+        url = build_service_url(
+            self.domain,
+            f"/{self.prt_id}/portal_/api/filtering/leftnav/tenantsAndOrganizationInfo",
+        )
         response = self._client.get(
             url, headers={"Authorization": f"Bearer {self.access_token}"}
         )
@@ -90,13 +94,14 @@ class PortalService:
             console.error("Organization not found.")
             return ""
         account_name = organization.get("name")
-        return f"https://{self.domain}.uipath.com/{account_name}/{self.selected_tenant}/orchestrator_"
+        base_url = get_base_url(self.domain)
+        return f"{base_url}/{account_name}/{self.selected_tenant}/orchestrator_"
 
     def post_refresh_token_request(self, refresh_token: str) -> TokenData:
         if self._client is None:
             raise RuntimeError("HTTP client is not initialized")
 
-        url = f"https://{self.domain}.uipath.com/identity_/connect/token"
+        url = build_service_url(self.domain, "/identity_/connect/token")
         client_id = get_auth_config().get("client_id")
 
         data = {
@@ -213,12 +218,15 @@ def select_tenant(
     account_name = tenants_and_organizations["organization"]["name"]
     console.info(f"Selected tenant: {click.style(tenant_name, fg='cyan')}")
 
+    base_url = get_base_url(domain)
+    uipath_url = f"{base_url}/{account_name}/{tenant_name}"
+
     update_env_file(
         {
-            "UIPATH_URL": f"https://{domain if domain else 'alpha'}.uipath.com/{account_name}/{tenant_name}",
+            "UIPATH_URL": uipath_url,
             "UIPATH_TENANT_ID": tenants_and_organizations["tenants"][tenant_idx]["id"],
             "UIPATH_ORGANIZATION_ID": tenants_and_organizations["organization"]["id"],
         }
     )
 
-    return f"https://{domain if domain else 'alpha'}.uipath.com/{account_name}/{tenant_name}"
+    return uipath_url

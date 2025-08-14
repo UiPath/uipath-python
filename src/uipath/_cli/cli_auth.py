@@ -1,9 +1,10 @@
-# type: ignore
 import asyncio
 import json
 import os
 import socket
 import webbrowser
+from typing import Optional
+from urllib.parse import urlparse
 
 import click
 from dotenv import load_dotenv
@@ -33,10 +34,10 @@ def is_port_in_use(port: int) -> bool:
 
 def set_port():
     auth_config = get_auth_config()
-    port = auth_config.get("port", 8104)
-    port_option_one = auth_config.get("portOptionOne", 8104)
-    port_option_two = auth_config.get("portOptionTwo", 8055)
-    port_option_three = auth_config.get("portOptionThree", 42042)
+    port = int(auth_config.get("port", 8104))
+    port_option_one = int(auth_config.get("portOptionOne", 8104))  # type: ignore
+    port_option_two = int(auth_config.get("portOptionTwo", 8055))  # type: ignore
+    port_option_three = int(auth_config.get("portOptionThree", 42042))  # type: ignore
     if is_port_in_use(port):
         if is_port_in_use(port_option_one):
             if is_port_in_use(port_option_two):
@@ -90,13 +91,16 @@ def set_port():
 @track
 def auth(
     domain,
-    force: None | bool = False,
-    client_id: str = None,
-    client_secret: str = None,
-    base_url: str = None,
-    scope: str = None,
+    force: Optional[bool] = False,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
+    base_url: Optional[str] = None,
+    scope: Optional[str] = None,
 ):
     """Authenticate with UiPath Cloud Platform.
+
+    The domain for authentication is determined by the UIPATH_URL environment variable if set.
+    Otherwise, it can be specified with --cloud (default), --staging, or --alpha flags.
 
     Interactive mode (default): Opens browser for OAuth authentication.
     Unattended mode: Use --client-id, --client-secret, --base-url and --scope for client credentials flow.
@@ -106,6 +110,17 @@ def auth(
     - Set REQUESTS_CA_BUNDLE to specify a custom CA bundle for SSL verification
     - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)
     """
+    uipath_url = os.getenv("UIPATH_URL")
+    if uipath_url and domain == "cloud":  # "cloud" is the default
+        parsed_url = urlparse(uipath_url)
+        if parsed_url.scheme and parsed_url.netloc:
+            domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        else:
+            console.error(
+                f"Malformed UIPATH_URL: '{uipath_url}'. Please ensure it includes both scheme and netloc (e.g., 'https://cloud.uipath.com')."
+            )
+            return
+
     # Check if client credentials are provided for unattended authentication
     if client_id and client_secret:
         if not base_url:
