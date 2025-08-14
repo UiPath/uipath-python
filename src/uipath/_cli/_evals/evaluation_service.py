@@ -33,6 +33,7 @@ class EvaluationService:
         self,
         entrypoint: Optional[str] = None,
         eval_set_path: Optional[str | Path] = None,
+        eval_ids: Optional[List[str]] = None,
         workers: int = 8,
         report_progress: bool = True,
     ):
@@ -47,10 +48,10 @@ class EvaluationService:
         self.entrypoint, self.eval_set_path = self._resolve_paths(
             entrypoint, eval_set_path
         )
-        self.eval_set = self._load_eval_set()
+        self._eval_set = self._load_eval_set(eval_ids)
         self._evaluators = self._load_evaluators()
-        self.num_workers = workers
-        self.results_lock = asyncio.Lock()
+        self._num_workers = workers
+        self._results_lock = asyncio.Lock()
         self._progress_manager: Optional[EvaluationProgressManager] = None
         self._report_progress = report_progress
         self._progress_reporter: Optional[ProgressReporter] = None
@@ -169,9 +170,9 @@ class EvaluationService:
         if self._report_progress:
             agent_snapshot = self._extract_agent_snapshot()
             self._progress_reporter = ProgressReporter(
-                eval_set_id=self.eval_set.id,
+                eval_set_id=self._eval_set.id,
                 agent_snapshot=agent_snapshot,
-                no_of_evals=len(self.eval_set.evaluations),
+                no_of_evals=len(self._eval_set.evaluations),
                 evaluators=self._evaluators,
             )
 
@@ -215,12 +216,12 @@ class EvaluationService:
 
         # Create results file
         timestamp = datetime.now(timezone.utc).strftime("%M-%H-%d-%m-%Y")
-        eval_set_name = self.eval_set.name
+        eval_set_name = self._eval_set.name
         self.result_file = results_dir / f"eval-{eval_set_name}-{timestamp}.json"
 
         initial_results = EvaluationSetResult(
-            eval_set_id=self.eval_set.id,
-            eval_set_name=self.eval_set.name,
+            eval_set_id=self._eval_set.id,
+            eval_set_name=self._eval_set.name,
             results=[],
             average_score=0.0,
         )
@@ -228,7 +229,7 @@ class EvaluationService:
         with open(self.result_file, "w", encoding="utf-8") as f:
             f.write(initial_results.model_dump_json(indent=2))
 
-    def _load_eval_set(self) -> EvaluationSet:
+    def _load_eval_set(self, eval_ids: Optional[List[str]] = None) -> EvaluationSet:
         """Load the evaluation set from file.
 
         Returns:
@@ -236,13 +237,16 @@ class EvaluationService:
         """
         with open(self.eval_set_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            return EvaluationSet(**data)
+        eval_set = EvaluationSet(**data)
+        if eval_ids:
+            eval_set.extract_selected_evals(eval_ids)
+        return eval_set
 
     def _load_evaluators(self) -> List[EvaluatorBase]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         evaluators_dir = self.eval_set_path.parent.parent / "evaluators"
-        evaluator_refs = set(self.eval_set.evaluatorRefs)
+        evaluator_refs = set(self._eval_set.evaluatorRefs)
         found_evaluator_ids = set()
 
         # Load evaluators from JSON files
@@ -252,14 +256,9 @@ class EvaluationService:
                 evaluator_id = data.get("id")
 
                 if evaluator_id in evaluator_refs:
-                    try:
-                        evaluator = EvaluatorFactory.create_evaluator(data)
-                        evaluators.append(evaluator)
-                        found_evaluator_ids.add(evaluator_id)
-                    except Exception as e:
-                        console.warning(
-                            f"Failed to create evaluator {evaluator_id}: {str(e)}"
-                        )
+                    evaluator = EvaluatorFactory.create_evaluator(data)
+                    evaluators.append(evaluator)
+                    found_evaluator_ids.add(evaluator_id)
 
         # Check if all referenced evaluators were found
         missing_evaluators = evaluator_refs - found_evaluator_ids
@@ -276,7 +275,7 @@ class EvaluationService:
         Args:
             results: List of evaluation results to write
         """
-        async with self.results_lock:
+        async with self._results_lock:
             # Read current results
             with open(self.result_file, "r", encoding="utf-8") as f:
                 current_results = EvaluationSetResult.model_validate_json(f.read())
@@ -473,11 +472,11 @@ class EvaluationService:
         Args:
             task_queue: The asyncio queue to add tasks to
         """
-        for eval_item in self.eval_set.evaluations:
+        for eval_item in self._eval_set.evaluations:
             await task_queue.put(eval_item.model_dump())
 
         # Add sentinel values to signal workers to stop
-        for _ in range(self.num_workers):
+        for _ in range(self._num_workers):
             await task_queue.put(None)
 
     async def _consumer_task(
@@ -517,7 +516,7 @@ class EvaluationService:
     async def run_evaluation(self) -> None:
         """Run the evaluation set using multiple worker tasks."""
         console.info(
-            f"Starting evaluating {click.style(self.eval_set.name, fg='cyan')} evaluation set..."
+            f"Starting evaluating {click.style(self._eval_set.name, fg='cyan')} evaluation set..."
         )
 
         if self._report_progress and self._progress_reporter:
@@ -526,7 +525,7 @@ class EvaluationService:
         # Prepare items for progress tracker
         progress_items = [
             {"id": eval_item.id, "name": eval_item.name}
-            for eval_item in self.eval_set.evaluations
+            for eval_item in self._eval_set.evaluations
         ]
 
         with console.evaluation_progress(progress_items) as progress_manager:
@@ -539,7 +538,7 @@ class EvaluationService:
             producer = asyncio.create_task(self._producer_task(task_queue))
 
             consumers = []
-            for worker_id in range(self.num_workers):
+            for worker_id in range(self._num_workers):
                 consumer = asyncio.create_task(
                     self._consumer_task(
                         task_queue, worker_id, results_queue, sw_progress_reporter_queue

@@ -107,6 +107,10 @@ class EvaluatorFactory:
         model = data.get("model", "")
         if not model:
             raise ValueError("LLM evaluator must include 'model' field")
+        if model == "same-as-agent":
+            raise ValueError(
+                "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
+            )
 
         return LlmAsAJudgeEvaluator.from_params(
             base_params,
