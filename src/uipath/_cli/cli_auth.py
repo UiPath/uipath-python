@@ -4,6 +4,7 @@ import json
 import os
 import socket
 import webbrowser
+from urllib.parse import urlparse
 
 import click
 from dotenv import load_dotenv
@@ -91,6 +92,9 @@ def auth(
 ):
     """Authenticate with UiPath Cloud Platform.
 
+    The domain for authentication is determined by the UIPATH_URL environment variable if set.
+    Otherwise, it can be specified with --cloud (default), --staging, or --alpha flags.
+
     Interactive mode (default): Opens browser for OAuth authentication.
     Unattended mode: Use --client-id, --client-secret and --base-url for client credentials flow.
 
@@ -99,6 +103,11 @@ def auth(
     - Set REQUESTS_CA_BUNDLE to specify a custom CA bundle for SSL verification
     - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)
     """
+    uipath_url = os.getenv("UIPATH_URL")
+    if uipath_url:
+        parsed_url = urlparse(uipath_url)
+        domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
     # Check if client credentials are provided for unattended authentication
     if client_id and client_secret:
         if not base_url:
