@@ -70,7 +70,6 @@ def invoke(
         url = f"{base_url}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
         _, personal_workspace_folder_id = get_personal_workspace_info(base_url, token)
         project_name, project_version = _read_project_details()
-
         if not personal_workspace_folder_id:
             console.error(
                 "No personal workspace found for user. Please try reauthenticating."
