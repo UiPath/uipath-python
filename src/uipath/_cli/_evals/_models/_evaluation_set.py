@@ -36,6 +36,16 @@ class EvaluationSet(BaseModel):
     createdAt: str
     updatedAt: str
 
+    def extract_selected_evals(self, eval_ids) -> None:
+        selected_evals: list[EvaluationItem] = []
+        for evaluation in self.evaluations:
+            if evaluation.id in eval_ids:
+                selected_evals.append(evaluation)
+                eval_ids.remove(evaluation.id)
+        if len(eval_ids) > 0:
+            raise ValueError("Unknown evaluation ids: {}".format(eval_ids))
+        self.evaluations = selected_evals
+
 
 class EvaluationStatus(IntEnum):
     PENDING = 0
