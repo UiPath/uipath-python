@@ -303,6 +303,22 @@ class SwFileHandler:
 
         return True
 
+    async def _update_entrypoints_json(self, entrypoints_json_file: Optional[ProjectFile] = None,):
+        with open(os.path.join(self.directory, "uipath.json"), "r") as f:
+            uipath_config = json.load(f)
+
+        entry_points_json = {
+            "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+            "$id": "entry-points.json",
+            "entryPoints": uipath_config["entryPoints"],
+        }
+        file, action = await self._studio_client.upload_file_async(
+            file_content=json.dumps(entry_points_json),
+            file_name="entry-points.json",
+            remote_file=entrypoints_json_file,
+        )
+        self.console.success(f"{action} {click.style('entry-points.json', fg='cyan')}")
+
     async def _update_agent_json(
         self,
         agent_json_file: Optional[ProjectFile] = None,
@@ -458,6 +474,10 @@ class SwFileHandler:
             directories_to_ignore=["evals"],
         )
         await self._process_file_uploads(files, source_code_files)
+
+        await self._update_entrypoints_json(
+            root_files.get("entry-points.json", None)
+        )
 
         await self._update_agent_json(
             root_files.get("agent.json", None),
