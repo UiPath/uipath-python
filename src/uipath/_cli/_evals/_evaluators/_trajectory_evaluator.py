@@ -1,4 +1,6 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+from uipath.tracing._models import UiPathEvalSpan
 
 from .._models import EvaluationResult
 from ._evaluator_base import EvaluatorBase
@@ -32,6 +34,7 @@ class TrajectoryEvaluator(EvaluatorBase):
         input_data: Dict[str, Any],
         expected_output: Dict[str, Any],
         actual_output: Dict[str, Any],
+        uipath_eval_spans: Optional[list[UiPathEvalSpan]],
     ) -> EvaluationResult:
         """Evaluate using trajectory analysis.
 

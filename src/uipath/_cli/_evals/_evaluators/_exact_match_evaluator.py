@@ -1,11 +1,12 @@
 import copy
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from uipath._cli._evals._evaluators._deterministic_evaluator_base import (
     DeterministicEvaluatorBase,
 )
 from uipath._cli._evals._models import EvaluationResult
 from uipath._cli._evals._models._evaluators import ScoreType
+from uipath.tracing._models import UiPathEvalSpan
 
 
 class ExactMatchEvaluator(DeterministicEvaluatorBase):
@@ -16,6 +17,7 @@ class ExactMatchEvaluator(DeterministicEvaluatorBase):
         input_data: Dict[str, Any],
         expected_output: Dict[str, Any],
         actual_output: Dict[str, Any],
+        uipath_eval_spans: Optional[list[UiPathEvalSpan]],
     ) -> EvaluationResult:
         actual_output_copy = copy.deepcopy(actual_output)
         expected_output_copy = copy.deepcopy(expected_output)

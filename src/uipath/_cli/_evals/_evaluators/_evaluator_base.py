@@ -2,13 +2,14 @@ import functools
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from uipath._cli._evals._models import (
     EvaluationResult,
     EvaluatorCategory,
     EvaluatorType,
 )
+from uipath.tracing._models import UiPathEvalSpan
 
 
 def measure_execution_time(func):
@@ -87,6 +88,7 @@ class EvaluatorBase(ABC):
         input_data: Dict[str, Any],
         expected_output: Dict[str, Any],
         actual_output: Dict[str, Any],
+        uipath_eval_spans: Optional[list[UiPathEvalSpan]],
     ) -> EvaluationResult:
         """Evaluate the given data and return a result.
 
@@ -96,6 +98,7 @@ class EvaluatorBase(ABC):
             input_data: The input data for the evaluation
             expected_output: The expected output
             actual_output: The actual output from the agent
+            uipath_eval_spans: The execution spans to use for the evaluation
 
         Returns:
             EvaluationResult containing the score and details
