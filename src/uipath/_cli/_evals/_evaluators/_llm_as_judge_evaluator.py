@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ...._config import Config
 from ...._execution_context import ExecutionContext
@@ -10,6 +10,7 @@ from ...._utils.constants import (
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
     COMMUNITY_agents_SUFFIX,
 )
+from ....tracing._models import UiPathEvalSpan
 from .._models import EvaluationResult, LLMResponse
 from .._models._evaluators import ScoreType
 from ._evaluator_base import EvaluatorBase
@@ -55,6 +56,8 @@ class LlmAsAJudgeEvaluator(EvaluatorBase):
         input_data: Dict[str, Any],
         expected_output: Dict[str, Any],
         actual_output: Dict[str, Any],
+        uipath_eval_spans: Optional[list[UiPathEvalSpan]],
+        execution_logs: str,
     ) -> EvaluationResult:
         """Evaluate using an LLM as a judge.
 

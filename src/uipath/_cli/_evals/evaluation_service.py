@@ -3,7 +3,9 @@
 import asyncio
 import json
 import os
+import pickle
 import tempfile
+import time
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +15,7 @@ import click
 
 from uipath._cli._utils._console import ConsoleLogger, EvaluationProgressManager
 
+from ...tracing._models import UiPathEvalSpan
 from ..cli_run import run_core  # type: ignore
 from ._evaluators._evaluator_base import EvaluatorBase
 from ._evaluators._evaluator_factory import EvaluatorFactory
@@ -20,7 +23,7 @@ from ._models import (
     EvaluationSet,
     EvaluationSetResult,
 )
-from ._models._evaluators import EvalItemResult
+from ._models._evaluators import AgentExecutionOutput, EvalItemResult
 from .progress_reporter import ProgressReporter
 
 console = ConsoleLogger()
@@ -343,7 +346,29 @@ class EvaluationService:
                 console.warning(f"Error reporting progress to StudioWeb: {str(e)}")
                 sw_progress_reporter_queue.task_done()
 
-    def _run_agent(self, input_json: str) -> tuple[Dict[str, Any], bool, float]:
+    def _read_all_spans(self, file_path: Path) -> List[UiPathEvalSpan]:
+        """Read all spans from the file.
+
+        Returns:
+            List of all UiPathEvalSpan objects in the file.
+        """
+        if not file_path.exists() or file_path.stat().st_size == 0:
+            return []
+
+        try:
+            with open(file_path, "rb") as f:
+                spans = pickle.load(f)
+                return spans if isinstance(spans, list) else []
+        except (pickle.PickleError, EOFError) as e:
+            console.warning(f"Failed to read spans from file {file_path}: {e}")
+            return []
+        except Exception as e:
+            console.warning(
+                f"Unexpected error reading spans from file {file_path}: {e}"
+            )
+            return []
+
+    def _run_agent(self, input_json: str) -> AgentExecutionOutput:  # type: ignore
         """Run the agent with the given input.
 
         Args:
@@ -358,6 +383,7 @@ class EvaluationService:
 
                 output_file = Path(tmpdir) / "output.json"
                 logs_file = Path(tmpdir) / "execution.log"
+                trace_file = Path(tmpdir) / "trace.pickle"
 
                 # Suppress LangChain deprecation warnings during agent execution
                 with warnings.catch_warnings():
@@ -375,29 +401,41 @@ class EvaluationService:
                         logs_file=logs_file,
                         runtime_dir=tmpdir,
                         is_eval_run=True,
+                        trace_file=trace_file,
                     )
                     execution_time = time.time() - start_time
                 if not success:
                     console.warning(error_message)
-                    return {}, False, execution_time
+                    return AgentExecutionOutput(
+                        actual_output={},
+                        success=False,
+                        execution_time=execution_time,
+                        uipath_spans=[],
+                        execution_logs=""
+                    )
                 else:
                     # Read the output file
                     with open(output_file, "r", encoding="utf-8") as f:
                         result = json.load(f)
 
-                    # uncomment the following lines to have access to the execution.logs (needed for some types of evals)
-                    # with open(logs_file, "r", encoding="utf-8") as f:
-                    #     logs = f.read()
-                    if isinstance(result, str):
-                        try:
-                            return json.loads(result), True, execution_time
-                        except json.JSONDecodeError as e:
-                            raise Exception(f"Error parsing output: {e}") from e
-                return result, True, 0.0
+                    with open(logs_file, "r", encoding="utf-8") as f:
+                        logs = f.read()
+
+                    uipath_spans = self._read_all_spans(trace_file)
+
+                    return AgentExecutionOutput(
+                        actual_output=result,
+                        success=True,
+                        execution_time=execution_time,
+                        uipath_spans=uipath_spans,
+                        execution_logs=logs
+                    )
 
             except Exception as e:
                 console.warning(f"Error running agent: {str(e)}")
-                return {"error": str(e)}, False, execution_time
+                return AgentExecutionOutput(
+                    actual_output={}, success=False, execution_time=0.0, uipath_spans=[], execution_logs=""
+                )
 
     async def _process_evaluation(
         self,
@@ -422,13 +460,12 @@ class EvaluationService:
                 eval_run_id = await self._progress_reporter.create_eval_run(eval_item)
 
             loop = asyncio.get_running_loop()
-            actual_output, success, execution_time = await loop.run_in_executor(
+            agent_execution_output = await loop.run_in_executor(
                 None,
                 self._run_agent,
                 input_json,
             )
-
-            if success:
+            if agent_execution_output and agent_execution_output.success:
                 # Run each evaluator
                 eval_results: list[EvalItemResult] = []
                 for evaluator in self._evaluators:
@@ -437,7 +474,9 @@ class EvaluationService:
                         evaluation_name=eval_item["name"],
                         input_data=eval_item["inputs"],
                         expected_output=eval_item["expectedOutput"],
-                        actual_output=actual_output,
+                        actual_output=agent_execution_output.actual_output,
+                        uipath_eval_spans=agent_execution_output.uipath_spans,
+                        execution_logs=agent_execution_output.execution_logs,
                     )
                     eval_results.append(
                         EvalItemResult(evaluator_id=evaluator.id, result=result)
@@ -447,7 +486,12 @@ class EvaluationService:
                 if self._report_progress:
                     # TODO: modify this, here we are only reporting for success
                     await sw_progress_reporter_queue.put(
-                        (eval_run_id, eval_results, success, execution_time)
+                        (
+                            eval_run_id,
+                            eval_results,
+                            agent_execution_output.success,
+                            agent_execution_output.execution_time,
+                        )
                     )
 
                 # Update progress to completed

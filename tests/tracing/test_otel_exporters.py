@@ -5,7 +5,7 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExportResult
 
-from uipath.tracing._otel_exporters import LlmOpsHttpExporter
+from uipath.tracing._otel_llmops_exporters import LlmOpsHttpExporter
 
 
 @pytest.fixture

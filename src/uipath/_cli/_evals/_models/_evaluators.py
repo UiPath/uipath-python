@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+from uipath.tracing._models import UiPathEvalSpan
+
 
 class LLMResponse(BaseModel):
     score: float
@@ -88,3 +90,13 @@ class EvalItemResult(BaseModel):
 
     evaluator_id: str
     result: EvaluationResult
+
+
+class AgentExecutionOutput(BaseModel):
+    """Result of a single agent response."""
+
+    actual_output: dict[str, Any]
+    success: bool
+    execution_time: Optional[float] = None
+    uipath_spans: list[UiPathEvalSpan]
+    execution_logs: str

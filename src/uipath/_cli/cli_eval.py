@@ -52,8 +52,6 @@ def eval_agent(
         if workers < 1:
             return False, "Number of workers must be at least 1", None
 
-        print("EVAL SET")
-        print(eval_set)
         if eval_set is not None and len(eval_set) == 0:
             return False, "Evaluation set must not be empty", None
 

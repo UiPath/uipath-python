@@ -1,12 +1,13 @@
 import copy
 import math
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from uipath._cli._evals._evaluators._deterministic_evaluator_base import (
     DeterministicEvaluatorBase,
 )
 from uipath._cli._evals._models import EvaluationResult
 from uipath._cli._evals._models._evaluators import ScoreType
+from uipath.tracing._models import UiPathEvalSpan
 
 
 class JsonSimilarityEvaluator(DeterministicEvaluatorBase):
@@ -24,6 +25,8 @@ class JsonSimilarityEvaluator(DeterministicEvaluatorBase):
         input_data: Dict[str, Any],
         expected_output: Dict[str, Any],
         actual_output: Dict[str, Any],
+        uipath_eval_spans: Optional[list[UiPathEvalSpan]],
+        execution_logs: str,
     ) -> EvaluationResult:
         """Evaluate similarity between expected and actual JSON outputs.
 
