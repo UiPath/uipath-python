@@ -4,10 +4,10 @@ import os
 import zipfile
 
 from click.testing import CliRunner
-from utils.project_details import ProjectDetails
-from utils.uipath_json import UiPathJson
 
 import uipath._cli.cli_pack as cli_pack
+from tests.utils.project_details import ProjectDetails
+from tests.utils.uipath_json import UiPathJson
 from uipath._cli.cli_pack import pack
 
 

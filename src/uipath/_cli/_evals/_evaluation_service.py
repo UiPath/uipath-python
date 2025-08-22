@@ -3,25 +3,26 @@
 import asyncio
 import json
 import os
-import tempfile
-import warnings
+import pickle
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import click
 
-from uipath._cli._utils._console import ConsoleLogger, EvaluationProgressManager
+from uipath._cli._utils._console import ConsoleLogger
+from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.models import AgentExecutionOutput, EvalItemResult, EvaluationResult
 
-from ..cli_run import run_core  # type: ignore
-from ._evaluators._evaluator_base import EvaluatorBase
-from ._evaluators._evaluator_factory import EvaluatorFactory
+from ...eval.agent_evaluator import AgentEvaluator
+from ._evaluator_factory import EvaluatorFactory
 from ._models import (
     EvaluationSet,
     EvaluationSetResult,
 )
-from ._models._evaluators import EvalItemResult
-from .progress_reporter import ProgressReporter
+from ._models._evaluation_set import EvaluationResultExtended
+from ._models._evaluators import SwProgressItem, EvaluationRunResult
+from ._progress_reporter import ProgressReporter
 
 console = ConsoleLogger()
 
@@ -45,47 +46,29 @@ class EvaluationService:
             workers: Number of parallel workers for running evaluations
             report_progress: Whether to report progress to StudioWeb
         """
-        self.entrypoint, self.eval_set_path = self._resolve_paths(
-            entrypoint, eval_set_path
-        )
+        self._eval_set_path = eval_set_path or self._auto_discover_eval_set()
         self._eval_set = self._load_eval_set(eval_ids)
+
+        self._agent_evaluator = AgentEvaluator(
+            evaluators=self._load_evaluators(),
+            path_to_agent=os.getcwd(),
+            entrypoint=entrypoint,
+        )
         self._evaluators = self._load_evaluators()
         self._num_workers = workers
         self._results_lock = asyncio.Lock()
-        self._progress_manager: Optional[EvaluationProgressManager] = None
         self._report_progress = report_progress
         self._progress_reporter: Optional[ProgressReporter] = None
         self._initialize_results()
 
-    def _resolve_paths(
-        self, entrypoint: Optional[str], eval_set_path: Optional[str | Path]
-    ) -> tuple[str, Path]:
-        """Resolve entrypoint and eval_set_path, auto-discovering if not provided.
+        if self._report_progress:
+            # rebuild models to solve forward BaseEvaluator reference
+            self._ensure_models_rebuilt()
 
-        Args:
-            entrypoint: Optional entrypoint path
-            eval_set_path: Optional eval set path
-
-        Returns:
-            Tuple of (resolved_entrypoint, resolved_eval_set_path)
-
-        Raises:
-            ValueError: If paths cannot be resolved or multiple options exist
-        """
-        resolved_entrypoint = entrypoint
-        resolved_eval_set_path = eval_set_path
-
-        if resolved_entrypoint is None:
-            resolved_entrypoint = self._auto_discover_entrypoint()
-
-        if resolved_eval_set_path is None:
-            resolved_eval_set_path = self._auto_discover_eval_set()
-
-        eval_set_path_obj = Path(resolved_eval_set_path)
-        if not eval_set_path_obj.is_file() or eval_set_path_obj.suffix != ".json":
-            raise ValueError("Evaluation set must be a JSON file")
-
-        return resolved_entrypoint, eval_set_path_obj
+    def _ensure_models_rebuilt(self):
+        """Ensure all models with forward references are rebuilt."""
+        EvalItemResult.model_rebuild()
+        SwProgressItem.model_rebuild()
 
     def _auto_discover_entrypoint(self) -> str:
         """Auto-discover entrypoint from config file.
@@ -102,8 +85,14 @@ class EvaluationService:
                 f"File '{config_file}' not found. Please run 'uipath init'."
             )
 
-        with open(config_file, "r", encoding="utf-8") as f:
-            uipath_config = json.loads(f.read())
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                uipath_config = json.loads(f.read())
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Invalid JSON in '{config_file}': {str(e)}. "
+                f"Please check the file for syntax errors."
+            ) from e
 
         entrypoints = uipath_config.get("entryPoints", [])
 
@@ -161,6 +150,11 @@ class EvaluationService:
         console.info(
             f"Auto-discovered evaluation set: {click.style(eval_set_path, fg='cyan')}"
         )
+
+        eval_set_path_obj = Path(eval_set_path)
+        if not eval_set_path_obj.is_file() or eval_set_path_obj.suffix != ".json":
+            raise ValueError("Evaluation set must be a JSON file")
+
         return eval_set_path
 
     def _initialize_results(self) -> None:
@@ -186,19 +180,25 @@ class EvaluationService:
         if not os.path.isfile(config_file):
             console.error(f"File '{config_file}' not found. Please run 'uipath init'")
 
-        with open(config_file, "r", encoding="utf-8") as f:
-            file_content = f.read()
-        uipath_config = json.loads(file_content)
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                file_content = f.read()
+            uipath_config = json.loads(file_content)
+        except json.JSONDecodeError as e:
+            console.error(
+                f"Invalid JSON in '{config_file}': {str(e)}. "
+                f"Please check the file for syntax errors."
+            )
 
         entry_point = None
         for ep in uipath_config.get("entryPoints", []):
-            if ep.get("filePath") == self.entrypoint:
+            if ep.get("filePath") == self._agent_evaluator._entrypoint:
                 entry_point = ep
                 break
 
         if not entry_point:
             console.error(
-                f"No entry point found with filePath '{self.entrypoint}' in uipath.json"
+                f"No entry point found with filePath '{self._agent_evaluator._entrypoint}' in uipath.json"
             )
 
         input_schema = entry_point.get("input", {})  # type: ignore
@@ -211,7 +211,7 @@ class EvaluationService:
 
     def _create_and_initialize_results_file(self):
         # Create results directory if it doesn't exist
-        results_dir = self.eval_set_path.parent.parent / "results"
+        results_dir = Path(self._eval_set_path).parent.parent / "results"
         results_dir.mkdir(exist_ok=True)
 
         # Create results file
@@ -222,8 +222,8 @@ class EvaluationService:
         initial_results = EvaluationSetResult(
             eval_set_id=self._eval_set.id,
             eval_set_name=self._eval_set.name,
-            results=[],
-            average_score=0.0,
+            runs={},
+            overall_average_score=0.0,
         )
 
         with open(self.result_file, "w", encoding="utf-8") as f:
@@ -235,85 +235,151 @@ class EvaluationService:
         Returns:
             The loaded evaluation set as EvaluationSet model
         """
-        with open(self.eval_set_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        eval_set = EvaluationSet(**data)
+        try:
+            with open(self._eval_set_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Invalid JSON in evaluation set file '{self._eval_set_path}': {str(e)}. "
+                f"Please check the file for syntax errors."
+            ) from e
+
+        try:
+            eval_set = EvaluationSet(**data)
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                f"Invalid evaluation set format in '{self._eval_set_path}': {str(e)}. "
+                f"Please verify the evaluation set structure."
+            ) from e
         if eval_ids:
             eval_set.extract_selected_evals(eval_ids)
         return eval_set
 
-    def _load_evaluators(self) -> List[EvaluatorBase]:
+    def _load_evaluators(self) -> List[BaseEvaluator]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
-        evaluators_dir = self.eval_set_path.parent.parent / "evaluators"
+        evaluators_dir = Path(self._eval_set_path).parent.parent / "evaluators"
         evaluator_refs = set(self._eval_set.evaluatorRefs)
         found_evaluator_ids = set()
 
         # Load evaluators from JSON files
         for file in evaluators_dir.glob("*.json"):
-            with open(file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                evaluator_id = data.get("id")
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"Invalid JSON in evaluator file '{file}': {str(e)}. "
+                    f"Please check the file for syntax errors."
+                ) from e
 
-                if evaluator_id in evaluator_refs:
+            try:
+                evaluator_name = data.get("name")
+                if evaluator_name in evaluator_refs:
                     evaluator = EvaluatorFactory.create_evaluator(data)
                     evaluators.append(evaluator)
-                    found_evaluator_ids.add(evaluator_id)
+                    found_evaluator_ids.add(evaluator_name)
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to create evaluator from file '{file}': {str(e)}. "
+                    f"Please verify the evaluator configuration."
+                ) from e
 
         # Check if all referenced evaluators were found
         missing_evaluators = evaluator_refs - found_evaluator_ids
         if missing_evaluators:
             raise ValueError(
-                f"Could not find evaluators with IDs: {missing_evaluators}"
+                f"Could not find the following evaluators: {missing_evaluators}"
             )
 
         return evaluators
 
-    async def _write_results(self, results: List[Any]) -> None:
+    async def _write_result(self, result: EvaluationResult, evaluator_name: str, run_name: str) -> None:
         """Write evaluation results to file with async lock.
 
         Args:
-            results: List of evaluation results to write
+            result: The evaluation result to write
+            evaluator_name: Name of the evaluator
+            run_name: Name of the evaluation run to group results
         """
         async with self._results_lock:
             # Read current results
             with open(self.result_file, "r", encoding="utf-8") as f:
                 current_results = EvaluationSetResult.model_validate_json(f.read())
 
-            # Add new results
-            current_results.results.extend(results)
+            # Create or get the run for this evaluation
+            if run_name not in current_results.runs:
+                current_results.runs[run_name] = EvaluationRunResult(
+                    results=[],
+                    average_score=0.0
+                )
 
-            if current_results.results:
-                current_results.average_score = sum(
-                    r.score for r in current_results.results
-                ) / len(current_results.results)
+            # Add new result to the appropriate run (preserve original score type)
+            # Remove UiPathPlatform prefix from evaluator name if it exists
+            clean_evaluator_name = evaluator_name
+            if evaluator_name.startswith("UiPathPlatform"):
+                clean_evaluator_name = evaluator_name[len("UiPathPlatform"):]
+
+            extended_result = EvaluationResultExtended.from_evaluation_result(result).with_evaluator_name(clean_evaluator_name)
+
+            # Convert ScoreType enum to name for display
+            extended_result.score_type = extended_result.score_type.name
+
+            current_results.runs[run_name].results.append(extended_result)
+
+            # Update run average score (convert bool to 100/0 for averaging only)
+            run_results = current_results.runs[run_name].results
+            if run_results:
+                numeric_scores = []
+                for r in run_results:
+                    if isinstance(r.score, bool):
+                        numeric_scores.append(100.0 if r.score else 0.0)  # True=100, False=0
+                    else:
+                        numeric_scores.append(float(r.score))
+                current_results.runs[run_name].average_score = sum(numeric_scores) / len(numeric_scores)
+
+            # Update overall average score (convert bool to 100/0 for averaging only)
+            all_scores = []
+            for run in current_results.runs.values():
+                for r in run.results:
+                    if isinstance(r.score, bool):
+                        all_scores.append(100.0 if r.score else 0.0)  # True=100, False=0
+                    else:
+                        all_scores.append(float(r.score))
+
+            current_results.overall_average_score = sum(all_scores) / len(all_scores) if all_scores else 0.0
 
             # Write updated results
             with open(self.result_file, "w", encoding="utf-8") as f:
                 f.write(current_results.model_dump_json(indent=2))
 
-    async def _results_queue_consumer(self, results_queue: asyncio.Queue[Any]) -> None:
+    async def _results_queue_consumer(
+        self, results_queue: asyncio.Queue[Any]
+    ) -> None:
         """Consumer task for the results queue that writes to local file.
 
         Args:
-            results_queue: Queue containing evaluation results to write to file
+            results_queue: Queue containing evaluation results with run names to write to file
         """
         while True:
-            results: list[EvalItemResult] = await results_queue.get()
-            if results is None:
+            queue_item = await results_queue.get()
+            if queue_item is None:
                 # Sentinel value - consumer should stop
                 results_queue.task_done()
                 return
 
             try:
-                await self._write_results([eval_item.result for eval_item in results])
+                eval_result: EvalItemResult = queue_item["eval_result"]
+                run_name: str = queue_item["run_name"]
+
+                await self._write_result(eval_result.result, eval_result.evaluator.name, run_name)
                 results_queue.task_done()
             except Exception as e:
                 console.warning(f"Error writing results to file: {str(e)}")
                 results_queue.task_done()
 
     async def _sw_progress_reporter_queue_consumer(
-        self, sw_progress_reporter_queue: asyncio.Queue[Any]
+        self, sw_progress_reporter_queue: asyncio.Queue[SwProgressItem]
     ) -> None:
         """Consumer task for the SW progress reporter.
 
@@ -326,83 +392,43 @@ class EvaluationService:
                 # Sentinel value - consumer should stop
                 sw_progress_reporter_queue.task_done()
                 return
-            eval_run_id: str
-            eval_results: list[EvalItemResult]
-            success: bool
-            execution_time: float
 
-            eval_run_id, eval_results, success, execution_time = queue_item
+            sw_progress_item = queue_item
 
             try:
                 if self._progress_reporter:
-                    await self._progress_reporter.update_eval_run(
-                        eval_results, eval_run_id, execution_time
-                    )
+                    await self._progress_reporter.update_eval_run(sw_progress_item)
                 sw_progress_reporter_queue.task_done()
             except Exception as e:
                 console.warning(f"Error reporting progress to StudioWeb: {str(e)}")
                 sw_progress_reporter_queue.task_done()
 
-    def _run_agent(self, input_json: str) -> tuple[Dict[str, Any], bool, float]:
-        """Run the agent with the given input.
-
-        Args:
-            input_json: JSON string containing input data
+    def _read_all_spans(self, file_path: Path) -> List[BaseEvaluator]:
+        """Read all spans from the file.
 
         Returns:
-            Agent output as dictionary and success status
+            List of all UiPathEvalSpan objects in the file.
         """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                import time
+        if not file_path.exists() or file_path.stat().st_size == 0:
+            return []
 
-                output_file = Path(tmpdir) / "output.json"
-                logs_file = Path(tmpdir) / "execution.log"
-
-                # Suppress LangChain deprecation warnings during agent execution
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore", category=UserWarning, module="langchain"
-                    )
-                    # Note: Progress reporting is handled outside this method since it's async
-                    start_time = time.time()
-                    success, error_message, info_message = run_core(
-                        entrypoint=self.entrypoint,
-                        input=input_json,
-                        resume=False,
-                        input_file=None,
-                        execution_output_file=output_file,
-                        logs_file=logs_file,
-                        runtime_dir=tmpdir,
-                        is_eval_run=True,
-                    )
-                    execution_time = time.time() - start_time
-                if not success:
-                    console.warning(error_message)
-                    return {}, False, execution_time
-                else:
-                    # Read the output file
-                    with open(output_file, "r", encoding="utf-8") as f:
-                        result = json.load(f)
-
-                    # uncomment the following lines to have access to the execution.logs (needed for some types of evals)
-                    # with open(logs_file, "r", encoding="utf-8") as f:
-                    #     logs = f.read()
-                    if isinstance(result, str):
-                        try:
-                            return json.loads(result), True, execution_time
-                        except json.JSONDecodeError as e:
-                            raise Exception(f"Error parsing output: {e}") from e
-                return result, True, 0.0
-
-            except Exception as e:
-                console.warning(f"Error running agent: {str(e)}")
-                return {"error": str(e)}, False, execution_time
+        try:
+            with open(file_path, "rb") as f:
+                spans = pickle.load(f)
+                return spans if isinstance(spans, list) else []
+        except (pickle.PickleError, EOFError) as e:
+            console.warning(f"Failed to read spans from file {file_path}: {e}")
+            return []
+        except Exception as e:
+            console.warning(
+                f"Unexpected error reading spans from file {file_path}: {e}"
+            )
+            return []
 
     async def _process_evaluation(
         self,
         eval_item: Dict[str, Any],
-        results_queue: asyncio.Queue[Any],
+        results_queue: asyncio.Queue[EvalItemResult],
         sw_progress_reporter_queue: asyncio.Queue[Any],
     ) -> None:
         """Process a single evaluation item.
@@ -414,57 +440,56 @@ class EvaluationService:
         """
         eval_id = eval_item["id"]
         eval_run_id: Optional[str] = None
+        if self._report_progress and self._progress_reporter:
+            eval_run_id = await self._progress_reporter.create_eval_run(eval_item)
 
+        agent_execution_output: Optional[AgentExecutionOutput] = None
+        eval_results: list[EvalItemResult] = []
         try:
-            input_json = json.dumps(eval_item["inputs"])
-
-            if self._report_progress and self._progress_reporter:
-                eval_run_id = await self._progress_reporter.create_eval_run(eval_item)
-
+            success = True
             loop = asyncio.get_running_loop()
-            actual_output, success, execution_time = await loop.run_in_executor(
-                None,
-                self._run_agent,
-                input_json,
+            agent_execution_output = await loop.run_in_executor(
+                None, self._agent_evaluator._run_agent, eval_item["inputs"]
             )
 
-            if success:
-                # Run each evaluator
-                eval_results: list[EvalItemResult] = []
-                for evaluator in self._evaluators:
-                    result = await evaluator.evaluate(
-                        evaluation_id=eval_item["id"],
-                        evaluation_name=eval_item["name"],
-                        input_data=eval_item["inputs"],
-                        expected_output=eval_item["expectedOutput"],
-                        actual_output=actual_output,
-                    )
-                    eval_results.append(
-                        EvalItemResult(evaluator_id=evaluator.id, result=result)
-                    )
+            evaluation_criteria_list = list(eval_item["evaluationCriteria"])
 
-                await results_queue.put(eval_results)
-                if self._report_progress:
-                    # TODO: modify this, here we are only reporting for success
-                    await sw_progress_reporter_queue.put(
-                        (eval_run_id, eval_results, success, execution_time)
-                    )
+            name_to_criteria = {}
+            for criteria_dict in evaluation_criteria_list:
+                name_to_criteria.update(criteria_dict)
 
-                # Update progress to completed
-                if self._progress_manager:
-                    self._progress_manager.complete_evaluation(eval_id)
-            else:
-                # Mark as failed if agent execution failed
-                if self._progress_manager:
-                    self._progress_manager.fail_evaluation(
-                        eval_id, "Agent execution failed"
-                    )
+            # Convert from evaluator names to evaluator classes
+            evaluation_criteria_by_class = {}
+            for evaluator in self._evaluators:
+                if evaluator.name in name_to_criteria:
+                    evaluation_criteria_by_class[type(evaluator)] = name_to_criteria[evaluator.name]
+            # Process each evaluator result
+            async for eval_result in self._agent_evaluator._run_evaluators(
+                agent_execution_output=agent_execution_output,
+                agent_input=eval_item["inputs"],
+                evaluation_criteria=evaluation_criteria_by_class,
+            ):
+                result_with_run_name = {
+                    "eval_result": eval_result,
+                    "run_name": eval_item["name"]
+                }
+                await results_queue.put(result_with_run_name)
+                # collect all eval results to bulk submit them to sw
+                eval_results.append(eval_result)
 
-        except Exception as e:
-            # Mark as failed with error message
-            if self._progress_manager:
-                self._progress_manager.fail_evaluation(eval_id, str(e))
-            raise
+        except RuntimeError as e:
+            success = False
+            console.warning(str(e))
+
+        if self._report_progress:
+            await sw_progress_reporter_queue.put(
+                SwProgressItem(
+                    eval_run_id=eval_run_id,  # type: ignore
+                    eval_results=eval_results,
+                    success=success,
+                    agent_execution_output=agent_execution_output,  # type: ignore
+                )
+            )
 
     async def _producer_task(self, task_queue: asyncio.Queue[Any]) -> None:
         """Producer task that adds all evaluations to the queue.
@@ -522,61 +547,52 @@ class EvaluationService:
         if self._report_progress and self._progress_reporter:
             await self._progress_reporter.create_eval_set_run()
 
-        # Prepare items for progress tracker
-        progress_items = [
-            {"id": eval_item.id, "name": eval_item.name}
-            for eval_item in self._eval_set.evaluations
-        ]
+        task_queue: asyncio.Queue[Any] = asyncio.Queue()
+        results_queue: asyncio.Queue[Any] = asyncio.Queue()
+        sw_progress_reporter_queue: asyncio.Queue[Any] = asyncio.Queue()
 
-        with console.evaluation_progress(progress_items) as progress_manager:
-            self._progress_manager = progress_manager
+        producer = asyncio.create_task(self._producer_task(task_queue))
 
-            task_queue: asyncio.Queue[Any] = asyncio.Queue()
-            results_queue: asyncio.Queue[Any] = asyncio.Queue()
-            sw_progress_reporter_queue: asyncio.Queue[Any] = asyncio.Queue()
-
-            producer = asyncio.create_task(self._producer_task(task_queue))
-
-            consumers = []
-            for worker_id in range(self._num_workers):
-                consumer = asyncio.create_task(
-                    self._consumer_task(
-                        task_queue, worker_id, results_queue, sw_progress_reporter_queue
-                    )
+        consumers = []
+        for worker_id in range(self._num_workers):
+            consumer = asyncio.create_task(
+                self._consumer_task(
+                    task_queue, worker_id, results_queue, sw_progress_reporter_queue
                 )
-                consumers.append(consumer)
+            )
+            consumers.append(consumer)
 
-            # Create results queue consumer
-            results_consumer = asyncio.create_task(
-                self._results_queue_consumer(results_queue)
+        # Create results queue consumer
+        results_consumer = asyncio.create_task(
+            self._results_queue_consumer(results_queue)
+        )
+
+        # Create SW progress reporter queue consumer
+        sw_progress_consumer = None
+        if self._report_progress:
+            sw_progress_consumer = asyncio.create_task(
+                self._sw_progress_reporter_queue_consumer(
+                    sw_progress_reporter_queue
+                )
             )
 
-            # Create SW progress reporter queue consumer
-            sw_progress_consumer = None
-            if self._report_progress:
-                sw_progress_consumer = asyncio.create_task(
-                    self._sw_progress_reporter_queue_consumer(
-                        sw_progress_reporter_queue
-                    )
-                )
+        # Wait for producer to finish
+        await producer
+        await task_queue.join()
 
-            # Wait for producer to finish
-            await producer
-            await task_queue.join()
+        # Wait for all consumers to finish
+        await asyncio.gather(*consumers)
 
-            # Wait for all consumers to finish
-            await asyncio.gather(*consumers)
+        # Signal queue consumers to stop by sending sentinel values
+        await results_queue.put(None)
+        if self._report_progress:
+            await sw_progress_reporter_queue.put(None)
 
-            # Signal queue consumers to stop by sending sentinel values
-            await results_queue.put(None)
-            if self._report_progress:
-                await sw_progress_reporter_queue.put(None)
+        await results_consumer
+        if sw_progress_consumer:
+            await sw_progress_consumer
 
-            await results_consumer
-            if sw_progress_consumer:
-                await sw_progress_consumer
-
-            if self._progress_reporter:
-                await self._progress_reporter.update_eval_set_run()
+        if self._progress_reporter:
+            await self._progress_reporter.update_eval_set_run()
 
         console.info(f"Results saved to {click.style(self.result_file, fg='cyan')}")

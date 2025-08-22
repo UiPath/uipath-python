@@ -15,6 +15,8 @@ from pydantic import BaseModel
 
 from uipath.tracing import LlmOpsHttpExporter
 
+from ..._utils.constants import ENV_JOB_ID
+from ...tracing._file_exporter import FileExporter
 from ._contracts import (
     UiPathBaseRuntime,
     UiPathErrorCategory,
@@ -44,9 +46,15 @@ class UiPathRuntime(UiPathBaseRuntime):
 
         try:
             trace.set_tracer_provider(TracerProvider())
-            trace.get_tracer_provider().add_span_processor(  # type: ignore
-                BatchSpanProcessor(LlmOpsHttpExporter())
-            )
+
+            if os.getenv(ENV_JOB_ID, None):
+                trace.get_tracer_provider().add_span_processor(  # type: ignore
+                    BatchSpanProcessor(LlmOpsHttpExporter())
+                )
+            if self.context.trace_file:
+                trace.get_tracer_provider().add_span_processor(  # type: ignore
+                    BatchSpanProcessor(FileExporter(self.context.trace_file))
+                )
 
             if self.context.entrypoint is None:
                 return None

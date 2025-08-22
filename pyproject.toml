@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.1.27"
+version = "2.1.28"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -10,10 +10,11 @@ dependencies = [
   "opentelemetry-sdk>=1.31.1",
   "pydantic>=2.11.1",
   "python-dotenv>=1.0.1",
-  "tenacity>=9.0.0",
+  "tenacity>=8.0.0",
   "tomli>=2.2.1",
   "pathlib>=1.0.1",
   "rich>=13.0.0",
+  "textual>=0.85.0",
   "azure-monitor-opentelemetry>=1.6.8",
   "truststore>=0.10.1",
 ]
@@ -101,7 +102,7 @@ line-ending = "auto"
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
-exclude = ["samples/.*"]
+exclude = ["samples/.*", "tests/.*"]
 
 follow_imports = "silent"
 warn_redundant_casts = true

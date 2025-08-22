@@ -30,3 +30,9 @@ TEMP_ATTACHMENTS_FOLDER = "uipath_attachments"
 
 # LLM models
 COMMUNITY_agents_SUFFIX = "-community-agents"
+
+# Platform evaluators prefix
+PLATFORM_EVALUATOR_PREFIX = "UiPathPlatform"
+
+# File names
+UIPATH_CONFIG_FILE = "uipath.json"

@@ -1,77 +1,21 @@
-from datetime import datetime, timezone
-from enum import IntEnum
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 from pydantic import BaseModel
 
-
-class LLMResponse(BaseModel):
-    score: float
-    justification: str
-
-
-class EvaluatorCategory(IntEnum):
-    """Types of evaluators."""
-
-    Deterministic = 0
-    LlmAsAJudge = 1
-    AgentScorer = 2
-    Trajectory = 3
-
-    @classmethod
-    def from_int(cls, value):
-        """Construct EvaluatorCategory from an int value."""
-        if value in cls._value2member_map_:
-            return cls(value)
-        else:
-            raise ValueError(f"{value} is not a valid EvaluatorCategory value")
+from uipath._cli._evals._models._evaluation_set import EvaluationResultExtended
+from uipath.eval.models import (
+    AgentExecutionOutput,
+    EvalItemResult,
+    EvaluatorCategory,
+    EvaluatorType,
+)
 
 
-class EvaluatorType(IntEnum):
-    """Subtypes of evaluators."""
-
-    Unknown = 0
-    Equals = 1
-    Contains = 2
-    Regex = 3
-    Factuality = 4
-    Custom = 5
-    JsonSimilarity = 6
-    Trajectory = 7
-    ContextPrecision = 8
-    Faithfulness = 9
-
-    @classmethod
-    def from_int(cls, value):
-        """Construct EvaluatorCategory from an int value."""
-        if value in cls._value2member_map_:
-            return cls(value)
-        else:
-            raise ValueError(f"{value} is not a valid EvaluatorType value")
-
-
-class ScoreType(IntEnum):
-    BOOLEAN = 0
-    NUMERICAL = 1
-    ERROR = 2
-
-
-class EvaluationResult(BaseModel):
-    """Result of a single evaluation."""
-
-    evaluation_id: str
-    evaluation_name: str
-    evaluator_id: str
-    evaluator_name: str
-    score: float | bool
-    score_type: ScoreType
-    # this is marked as optional, as it is populated inside the 'measure_execution_time' decorator
-    evaluation_time: Optional[float] = None
-    input: Dict[str, Any]
-    expected_output: Dict[str, Any]
-    actual_output: Dict[str, Any]
-    timestamp: datetime = datetime.now(timezone.utc)
-    details: Optional[str] = None
+class EvaluationRunResult(BaseModel):
+    """Result of a single evaluation run."""
+    
+    results: List[EvaluationResultExtended]
+    average_score: float
 
 
 class EvaluationSetResult(BaseModel):
@@ -79,12 +23,24 @@ class EvaluationSetResult(BaseModel):
 
     eval_set_id: str
     eval_set_name: str
-    results: List[EvaluationResult]
-    average_score: float
+    runs: Dict[str, EvaluationRunResult]  # Group results by run name
+    overall_average_score: float
 
 
-class EvalItemResult(BaseModel):
-    """Result of a single evaluation item."""
+class SwProgressItem(BaseModel):
+    eval_run_id: str
+    eval_results: list[EvalItemResult]
+    success: bool
+    agent_execution_output: AgentExecutionOutput
 
-    evaluator_id: str
-    result: EvaluationResult
+
+class EvaluatorBaseParams(BaseModel):
+    """Parameters for initializing the base evaluator."""
+
+    category: EvaluatorCategory
+    evaluator_type: EvaluatorType
+    name: str
+    description: str
+    created_at: str
+    updated_at: str
+    target_output_key: str
