@@ -3,6 +3,7 @@ import asyncio
 import os
 import traceback
 from os import environ as env
+from pathlib import Path
 from typing import Optional, Tuple
 from uuid import uuid4
 
@@ -112,8 +113,8 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
         )
 
 
-def validate_pickle_file(file_name: str) -> None:
-    if not file_name.endswith((".pkl", ".pickle")):
+def validate_pickle_file(file_name: str | Path) -> None:
+    if not str(file_name).endswith((".pkl", ".pickle")):
         raise ValueError("Trace file must have a .pkl or .pickle extension")
 
 

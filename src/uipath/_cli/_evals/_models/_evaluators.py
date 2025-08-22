@@ -99,3 +99,4 @@ class AgentExecutionOutput(BaseModel):
     success: bool
     execution_time: Optional[float] = None
     uipath_spans: list[UiPathEvalSpan]
+    execution_logs: str

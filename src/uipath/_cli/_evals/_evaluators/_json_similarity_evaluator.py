@@ -26,6 +26,7 @@ class JsonSimilarityEvaluator(DeterministicEvaluatorBase):
         expected_output: Dict[str, Any],
         actual_output: Dict[str, Any],
         uipath_eval_spans: Optional[list[UiPathEvalSpan]],
+        execution_logs: str,
     ) -> EvaluationResult:
         """Evaluate similarity between expected and actual JSON outputs.
 

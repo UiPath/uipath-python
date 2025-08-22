@@ -88,6 +88,7 @@ class EvaluatorBase(ABC):
         input_data: Dict[str, Any],
         expected_output: Dict[str, Any],
         actual_output: Dict[str, Any],
+        execution_logs: str,
         uipath_eval_spans: Optional[list[UiPathEvalSpan]],
     ) -> EvaluationResult:
         """Evaluate the given data and return a result.
@@ -99,6 +100,7 @@ class EvaluatorBase(ABC):
             expected_output: The expected output
             actual_output: The actual output from the agent
             uipath_eval_spans: The execution spans to use for the evaluation
+            execution_logs: Execution logs to use for the evaluation
 
         Returns:
             EvaluationResult containing the score and details

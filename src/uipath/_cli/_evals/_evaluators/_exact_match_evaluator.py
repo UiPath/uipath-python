@@ -18,6 +18,7 @@ class ExactMatchEvaluator(DeterministicEvaluatorBase):
         expected_output: Dict[str, Any],
         actual_output: Dict[str, Any],
         uipath_eval_spans: Optional[list[UiPathEvalSpan]],
+        execution_logs: str,
     ) -> EvaluationResult:
         actual_output_copy = copy.deepcopy(actual_output)
         expected_output_copy = copy.deepcopy(expected_output)

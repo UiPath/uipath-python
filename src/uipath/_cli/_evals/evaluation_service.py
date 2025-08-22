@@ -5,6 +5,7 @@ import json
 import os
 import pickle
 import tempfile
+import time
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -410,31 +411,30 @@ class EvaluationService:
                         success=False,
                         execution_time=execution_time,
                         uipath_spans=[],
+                        execution_logs=""
                     )
                 else:
                     # Read the output file
                     with open(output_file, "r", encoding="utf-8") as f:
                         result = json.load(f)
 
+                    with open(logs_file, "r", encoding="utf-8") as f:
+                        logs = f.read()
+
                     uipath_spans = self._read_all_spans(trace_file)
-                    # uncomment the following lines to have access to the execution.logs (needed for some types of evals)
-                    # with open(logs_file, "r", encoding="utf-8") as f:
-                    #     logs = f.read()
-                    if isinstance(result, str):
-                        try:
-                            return AgentExecutionOutput(
-                                actual_output=json.loads(result),
-                                success=True,
-                                execution_time=execution_time,
-                                uipath_spans=uipath_spans,
-                            )
-                        except json.JSONDecodeError as e:
-                            raise Exception(f"Error parsing output: {e}") from e
+
+                    return AgentExecutionOutput(
+                        actual_output=result,
+                        success=True,
+                        execution_time=execution_time,
+                        uipath_spans=uipath_spans,
+                        execution_logs=logs
+                    )
 
             except Exception as e:
                 console.warning(f"Error running agent: {str(e)}")
                 return AgentExecutionOutput(
-                    actual_output={}, success=False, execution_time=0.0, uipath_spans=[]
+                    actual_output={}, success=False, execution_time=0.0, uipath_spans=[], execution_logs=""
                 )
 
     async def _process_evaluation(
@@ -465,7 +465,6 @@ class EvaluationService:
                 self._run_agent,
                 input_json,
             )
-
             if agent_execution_output and agent_execution_output.success:
                 # Run each evaluator
                 eval_results: list[EvalItemResult] = []
@@ -477,6 +476,7 @@ class EvaluationService:
                         expected_output=eval_item["expectedOutput"],
                         actual_output=agent_execution_output.actual_output,
                         uipath_eval_spans=agent_execution_output.uipath_spans,
+                        execution_logs=agent_execution_output.execution_logs,
                     )
                     eval_results.append(
                         EvalItemResult(evaluator_id=evaluator.id, result=result)
