@@ -36,7 +36,7 @@ class EvaluationSet(BaseModel):
     createdAt: str
     updatedAt: str
 
-    def extract_selected_evals(self, eval_ids) -> None:
+    def extract_selected_evals(self, eval_ids: list[str]) -> None:
         selected_evals: list[EvaluationItem] = []
         for evaluation in self.evaluations:
             if evaluation.id in eval_ids:
