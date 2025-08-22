@@ -3,6 +3,8 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
+from uipath.eval.models import EvaluationResult
+
 
 class EvaluationItem(BaseModel):
     """Individual evaluation item within an evaluation set."""
@@ -36,7 +38,7 @@ class EvaluationSet(BaseModel):
     createdAt: str
     updatedAt: str
 
-    def extract_selected_evals(self, eval_ids) -> None:
+    def extract_selected_evals(self, eval_ids: list[str]) -> None:
         selected_evals: list[EvaluationItem] = []
         for evaluation in self.evaluations:
             if evaluation.id in eval_ids:
@@ -51,3 +53,24 @@ class EvaluationStatus(IntEnum):
     PENDING = 0
     IN_PROGRESS = 1
     COMPLETED = 2
+
+class EvaluationResultExtended(EvaluationResult):
+    evaluator_name: str
+
+    @classmethod
+    def from_evaluation_result(cls, result: EvaluationResult) -> "EvaluationResultExtended":
+        """Create an extended result from a base EvaluationResult."""
+        return cls(
+            score=result.score,
+            score_type=result.score_type,
+            details=result.details,
+            timestamp=result.timestamp,
+            evaluation_time=result.evaluation_time,
+            evaluator_name="Unknown",
+        )
+
+    def with_evaluator_name(self, evaluator_name: str) -> "EvaluationResultExtended":
+        """Set evaluator name and return self for method chaining."""
+        self.evaluator_name = evaluator_name
+        return self
+

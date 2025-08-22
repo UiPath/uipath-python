@@ -6,12 +6,13 @@ import os
 from typing import Any, List
 
 from uipath import UiPath
-from uipath._cli._evals._evaluators import EvaluatorBase
 from uipath._cli._evals._models._evaluation_set import EvaluationStatus
-from uipath._cli._evals._models._evaluators import EvalItemResult, ScoreType
+from uipath._cli._evals._models._evaluators import SwProgressItem
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils import Endpoint, RequestSpec
 from uipath._utils.constants import ENV_TENANT_ID, HEADER_INTERNAL_TENANT_ID
+from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.models import EvalItemResult, ScoreType
 
 
 class ProgressReporter:
@@ -22,7 +23,7 @@ class ProgressReporter:
         eval_set_id: str,
         agent_snapshot: str,
         no_of_evals: int,
-        evaluators: List[EvaluatorBase],
+        evaluators: List[BaseEvaluator],
     ):
         """Initialize the progress reporter.
 
@@ -35,7 +36,7 @@ class ProgressReporter:
         self._eval_set_id = eval_set_id
         self.agent_snapshot = agent_snapshot
         self._no_of_evals = no_of_evals
-        self._evaluators: dict[str, EvaluatorBase] = {
+        self._evaluators: dict[str, BaseEvaluator] = {
             evaluator.id: evaluator for evaluator in evaluators
         }
         self._evaluator_scores: dict[str, list[float]] = {
@@ -70,7 +71,7 @@ class ProgressReporter:
         )
         self._eval_set_run_id = json.loads(response.content)["id"]
 
-    async def create_eval_run(self, eval_item: dict[str, Any]):
+    async def create_eval_run(self, eval_item: dict[str, Any]) -> str:
         """Create a new evaluation run in StudioWeb.
 
         Args:
@@ -91,26 +92,18 @@ class ProgressReporter:
 
     async def update_eval_run(
         self,
-        eval_results: list[EvalItemResult],
-        eval_run_id: str,
-        execution_time: float,
+        sw_progress_item: SwProgressItem,
     ):
-        """Update an evaluation run with results.
-
-        Args:
-            eval_results: Dictionary mapping evaluator IDs to evaluation results
-            eval_run_id: ID of the evaluation run to update
-            execution_time: The agent execution time
-        """
-        assertion_runs, evaluator_scores, actual_output = self._collect_results(
-            eval_results
+        """Update an evaluation run with results."""
+        assertion_runs, evaluator_scores = self._collect_results(
+            sw_progress_item.eval_results
         )
         spec = self._update_eval_run_spec(
             assertion_runs=assertion_runs,
             evaluator_scores=evaluator_scores,
-            eval_run_id=eval_run_id,
-            execution_time=execution_time,
-            actual_output=actual_output,
+            eval_run_id=sw_progress_item.eval_run_id,
+            execution_time=sw_progress_item.agent_execution_output.execution_time,
+            actual_output=sw_progress_item.agent_execution_output.actual_output,
         )
         await self._client.request_async(
             method=spec.method,
@@ -133,38 +126,37 @@ class ProgressReporter:
 
     def _collect_results(
         self, eval_results: list[EvalItemResult]
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         assertion_runs: list[dict[str, Any]] = []
         evaluator_scores: list[dict[str, Any]] = []
-        actual_output: dict[str, Any] = {}
         for eval_result in eval_results:
             # keep track of evaluator scores. this should be removed after this computation is done server-side
 
             # check the evaluator score type
             match eval_result.result.score_type:
                 case ScoreType.NUMERICAL:
-                    self._evaluator_scores[eval_result.evaluator_id].append(
+                    self._evaluator_scores[eval_result.evaluator.id].append(
                         eval_result.result.score
                     )
                 case ScoreType.BOOLEAN:
-                    self._evaluator_scores[eval_result.evaluator_id].append(
+                    self._evaluator_scores[eval_result.evaluator.id].append(
                         100 if eval_result.result.score else 0
                     )
                 case ScoreType.ERROR:
-                    self._evaluator_scores[eval_result.evaluator_id].append(0)
+                    self._evaluator_scores[eval_result.evaluator.id].append(0)
 
             evaluator_scores.append(
                 {
                     "type": eval_result.result.score_type.value,
                     "value": eval_result.result.score,
                     "justification": eval_result.result.details,
-                    "evaluatorId": eval_result.evaluator_id,
+                    "evaluatorId": eval_result.evaluator.id,
                 }
             )
             assertion_runs.append(
                 {
                     "status": EvaluationStatus.COMPLETED.value,
-                    "evaluatorId": eval_result.evaluator_id,
+                    "evaluatorId": eval_result.evaluator.id,
                     "completionMetrics": {
                         "duration": eval_result.result.evaluation_time,
                         "cost": None,
@@ -174,19 +166,15 @@ class ProgressReporter:
                     },
                     "assertionSnapshot": {
                         "assertionType": self._evaluators[
-                            eval_result.evaluator_id
+                            eval_result.evaluator.id
                         ].type.name,
                         "outputKey": self._evaluators[
-                            eval_result.evaluator_id
+                            eval_result.evaluator.id
                         ].target_output_key,
                     },
                 }
             )
-
-            # we extract the actual output here. we should have the same 'actual_output' for each 'EvalItemResult'
-            actual_output = eval_result.result.actual_output
-
-        return assertion_runs, evaluator_scores, actual_output
+        return assertion_runs, evaluator_scores
 
     def _update_eval_run_spec(
         self,

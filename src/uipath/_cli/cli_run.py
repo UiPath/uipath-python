@@ -3,6 +3,7 @@ import asyncio
 import os
 import traceback
 from os import environ as env
+from pathlib import Path
 from typing import Optional, Tuple
 from uuid import uuid4
 
@@ -75,6 +76,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
             context.execution_output_file = kwargs.get("execution_output_file", None)
             context.is_eval_run = kwargs.get("is_eval_run", False)
             context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
+            context.trace_file = kwargs.get("trace_file", None)
             context.trace_context = UiPathTraceContext(
                 trace_id=env.get("UIPATH_TRACE_ID"),
                 parent_span_id=env.get("UIPATH_PARENT_SPAN_ID"),
@@ -111,6 +113,11 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
         )
 
 
+def validate_json_file(file_name: str | Path) -> None:
+    if not str(file_name).endswith(("json", ".jsonl")):
+        raise ValueError("Trace file must have a .json or .jsonl extension")
+
+
 def run_core(
     entrypoint: Optional[str],
     resume: bool,
@@ -118,6 +125,7 @@ def run_core(
     input_file: Optional[str] = None,
     execution_output_file: Optional[str] = None,
     logs_file: Optional[str] = None,
+    trace_file: Optional[str] = None,
     **kwargs,
 ) -> Tuple[bool, Optional[str], Optional[str]]:
     """Core execution logic that can be called programmatically.
@@ -129,6 +137,7 @@ def run_core(
         input_file: Path to input JSON file
         execution_output_file: Path to execution output file
         logs_file: Path where execution output will be written
+        trace_file: Path where execution traces will be written
         **kwargs: Additional arguments to be forwarded to the middleware
 
     Returns:
@@ -138,6 +147,9 @@ def run_core(
             - info_message: Info message if any
     """
     # Process through middleware chain
+    if trace_file:
+        validate_json_file(file_name=trace_file)
+
     result = Middlewares.next(
         "run",
         entrypoint,
@@ -146,6 +158,7 @@ def run_core(
         input_file=input_file,
         execution_output_file=execution_output_file,
         logs_file=logs_file,
+        trace_file=trace_file,
         **kwargs,
     )
 
@@ -157,6 +170,7 @@ def run_core(
             input_file=input_file,
             execution_output_file=execution_output_file,
             logs_file=logs_file,
+            trace_file=trace_file,
             **kwargs,
         )
 
@@ -194,6 +208,12 @@ def run_core(
     help="File path where the output will be written",
 )
 @click.option(
+    "--trace-file",
+    required=False,
+    type=click.Path(exists=False),
+    help="File path where the execution traces will be written",
+)
+@click.option(
     "--debug",
     is_flag=True,
     help="Enable debugging with debugpy. The process will wait for a debugger to attach.",
@@ -212,6 +232,7 @@ def run(
     file: Optional[str],
     input_file: Optional[str],
     output_file: Optional[str],
+    trace_file: Optional[str],
     debug: bool,
     debug_port: int,
 ) -> None:
@@ -229,6 +250,7 @@ def run(
         execution_output_file=output_file,
         debug=debug,
         debug_port=debug_port,
+        trace_file=trace_file,
     )
 
     if error_message:

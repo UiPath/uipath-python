@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
-from tests.cli.utils.uipath_json import UiPathJson
+from tests.utils.uipath_json import UiPathJson
 from uipath._cli.cli_run import run  # type: ignore
 from uipath._cli.middlewares import MiddlewareResult
 
@@ -14,17 +14,6 @@ from uipath._cli.middlewares import MiddlewareResult
 @pytest.fixture
 def entrypoint():
     return "entrypoint.py"
-
-
-@pytest.fixture
-def simple_script() -> str:
-    if os.path.isfile("mocks/simple_script.py"):
-        with open("mocks/simple_script.py", "r") as file:
-            data = file.read()
-    else:
-        with open("tests/cli/mocks/simple_script.py", "r") as file:
-            data = file.read()
-    return data
 
 
 @pytest.fixture
@@ -115,6 +104,7 @@ class TestRun:
                         debug_port=5678,
                         execution_output_file=None,
                         logs_file=None,
+                        trace_file=None,
                     )
 
     class TestMiddleware:
@@ -135,16 +125,13 @@ class TestRun:
                 assert result.exit_code == 1
                 assert f"Script not found at path {entrypoint}" in result.output
 
-        @pytest.mark.parametrize(
-            "uipath_json", ["uipath-simple-script-mock.json"], indirect=True
-        )
         def test_successful_execution(
             self,
             runner: CliRunner,
             temp_dir: str,
             entrypoint: str,
             mock_env_vars: dict,
-            uipath_json: UiPathJson,
+            uipath_script_json: UiPathJson,
             simple_script: str,
         ):
             input_file_name = "input.json"
@@ -166,7 +153,7 @@ class TestRun:
                     f.write(simple_script)
                 # create uipath.json
                 with open("uipath.json", "w") as f:
-                    f.write(uipath_json.to_json())
+                    f.write(uipath_script_json.to_json())
                 result = runner.invoke(
                     run,
                     [

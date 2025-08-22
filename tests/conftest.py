@@ -7,6 +7,8 @@ from typing import Generator
 import pytest
 from click.testing import CliRunner
 
+from tests.utils.project_details import ProjectDetails
+from tests.utils.uipath_json import UiPathJson
 from uipath._execution_context import ExecutionContext
 
 # Ensure local source package (src/uipath) is importable before tests collect
@@ -51,3 +53,49 @@ def mock_project(temp_dir: str) -> str:
         f.write("def main(input): return input")
 
     return temp_dir
+
+
+@pytest.fixture
+def project_details() -> ProjectDetails:
+    if os.path.isfile("../utils/mocks/pyproject.toml"):
+        with open("../utils/mocks/pyproject.toml", "r") as file:
+            data = file.read()
+    else:
+        with open("tests/utils/mocks/pyproject.toml", "r") as file:
+            data = file.read()
+    return ProjectDetails.from_toml(data)
+
+
+@pytest.fixture
+def uipath_json() -> UiPathJson:
+    file_name = "uipath-mock.json"
+    if os.path.isfile(f"../utils/mocks/{file_name}"):
+        with open(f"../utils/mocks/{file_name}", "r") as file:
+            data = file.read()
+    else:
+        with open(f"tests/utils/mocks/{file_name}", "r") as file:
+            data = file.read()
+    return UiPathJson.from_json(data)
+
+
+@pytest.fixture
+def uipath_script_json() -> UiPathJson:
+    file_name = "uipath-simple-script-mock.json"
+    if os.path.isfile(f"../utils/mocks/{file_name}"):
+        with open(f"../utils/mocks/{file_name}", "r") as file:
+            data = file.read()
+    else:
+        with open(f"tests/utils/mocks/{file_name}", "r") as file:
+            data = file.read()
+    return UiPathJson.from_json(data)
+
+
+@pytest.fixture
+def simple_script() -> str:
+    if os.path.isfile("../utils/mocks/simple_script.py"):
+        with open("../utils/mocks/simple_script.py", "r") as file:
+            data = file.read()
+    else:
+        with open("tests/utils/mocks/simple_script.py", "r") as file:
+            data = file.read()
+    return data

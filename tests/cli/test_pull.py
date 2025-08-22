@@ -5,10 +5,10 @@ from typing import Any, Dict
 
 from click.testing import CliRunner
 from pytest_httpx import HTTPXMock
-from utils.project_details import ProjectDetails
-from utils.uipath_json import UiPathJson
 
 from tests.cli.utils.common import configure_env_vars
+from tests.utils.project_details import ProjectDetails
+from tests.utils.uipath_json import UiPathJson
 from uipath._cli.cli_pull import pull
 
 
