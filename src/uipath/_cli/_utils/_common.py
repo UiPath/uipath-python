@@ -3,6 +3,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import click
+from dotenv import find_dotenv, load_dotenv
 
 from ..spinner import Spinner
 
@@ -102,3 +103,7 @@ def clean_directory(directory: str) -> None:
 
         if os.path.isfile(file_path) and file_name.endswith(".py"):
             os.remove(file_path)
+
+
+def load_environment_variables():
+    load_dotenv(dotenv_path=find_dotenv(usecwd=True), override=True)

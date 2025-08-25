@@ -1,9 +1,9 @@
 from os import environ as env
 from typing import Optional
 
-from dotenv import load_dotenv
 from pydantic import ValidationError
 
+from ._cli._utils._common import load_environment_variables
 from ._config import Config
 from ._execution_context import ExecutionContext
 from ._services import (
@@ -29,7 +29,7 @@ from ._utils.constants import (
 )
 from .models.errors import BaseUrlMissingError, SecretMissingError
 
-load_dotenv(override=True)
+load_environment_variables()
 
 
 class UiPath:

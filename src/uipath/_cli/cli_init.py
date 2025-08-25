@@ -6,18 +6,18 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import click
-from dotenv import load_dotenv
 
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
+from ._utils._common import load_environment_variables
 from ._utils._console import ConsoleLogger
 from ._utils._input_args import generate_args
 from ._utils._parse_ast import generate_bindings_json
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
-
+load_environment_variables()
 CONFIG_PATH = "uipath.json"
 
 
@@ -125,9 +125,6 @@ def write_config_file(config_data: Dict[str, Any]) -> None:
 @track
 def init(entrypoint: str, infer_bindings: bool) -> None:
     """Create uipath.json with input/output schemas and bindings."""
-    current_path = os.getcwd()
-    load_dotenv(os.path.join(current_path, ".env"), override=True)
-
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
         generate_env_file(current_directory)
