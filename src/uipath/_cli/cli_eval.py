@@ -5,7 +5,8 @@ import os
 from typing import List, Optional, Tuple
 
 import click
-from dotenv import load_dotenv
+
+from uipath._cli._utils._common import load_environment_variables
 
 from .._utils.constants import ENV_JOB_ID
 from ..telemetry import track
@@ -13,7 +14,7 @@ from ._evals.evaluation_service import EvaluationService
 from ._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
-load_dotenv(override=True)
+load_environment_variables()
 
 
 class LiteralOption(click.Option):

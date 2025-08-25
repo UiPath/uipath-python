@@ -6,7 +6,6 @@ import socket
 import webbrowser
 
 import click
-from dotenv import load_dotenv
 
 from ..telemetry import track
 from ._auth._auth_server import HTTPServer
@@ -14,10 +13,10 @@ from ._auth._client_credentials import ClientCredentialsService
 from ._auth._oidc_utils import get_auth_config, get_auth_url
 from ._auth._portal_service import PortalService, select_tenant
 from ._auth._utils import update_auth_file, update_env_file
-from ._utils._common import environment_options
+from ._utils._common import environment_options, load_environment_variables
 from ._utils._console import ConsoleLogger
 
-load_dotenv(override=True)
+load_environment_variables()
 console = ConsoleLogger()
 
 

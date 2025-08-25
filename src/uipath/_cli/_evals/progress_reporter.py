@@ -3,9 +3,11 @@
 import json
 import logging
 import os
-from typing import Any, List
+from typing import TYPE_CHECKING, Any, List
 
-from uipath import UiPath
+if TYPE_CHECKING:
+    from uipath import UiPath
+
 from uipath._cli._evals._evaluators import EvaluatorBase
 from uipath._cli._evals._models._evaluation_set import EvaluationStatus
 from uipath._cli._evals._models._evaluators import EvalItemResult, ScoreType
@@ -32,6 +34,8 @@ class ProgressReporter:
             no_of_evals: Number of evaluations in the set
             evaluators: List of evaluator instances
         """
+        from uipath import UiPath
+
         self._eval_set_id = eval_set_id
         self.agent_snapshot = agent_snapshot
         self._no_of_evals = no_of_evals
@@ -46,7 +50,6 @@ class ProgressReporter:
         logging.getLogger("uipath._cli.middlewares").setLevel(logging.CRITICAL)
 
         console_logger = ConsoleLogger.get_instance()
-
         uipath = UiPath()
 
         self._eval_set_run_id = None

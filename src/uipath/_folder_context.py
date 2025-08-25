@@ -1,8 +1,7 @@
 from os import environ as env
 from typing import Any, Optional
 
-from dotenv import load_dotenv
-
+from ._cli._utils._common import load_environment_variables
 from ._utils.constants import (
     ENV_FOLDER_KEY,
     ENV_FOLDER_PATH,
@@ -10,7 +9,7 @@ from ._utils.constants import (
     HEADER_FOLDER_PATH,
 )
 
-load_dotenv(override=True)
+load_environment_variables()
 
 
 class FolderContext:

@@ -17,9 +17,9 @@ import os
 from typing import Dict, Set
 
 import click
-from dotenv import load_dotenv
 
 from ..telemetry import track
+from ._utils._common import load_environment_variables
 from ._utils._console import ConsoleLogger
 from ._utils._constants import UIPATH_PROJECT_ID
 from ._utils._studio_project import (
@@ -30,7 +30,7 @@ from ._utils._studio_project import (
 )
 
 console = ConsoleLogger()
-load_dotenv(override=True)
+load_environment_variables()
 
 
 def compute_normalized_hash(content: str) -> str:

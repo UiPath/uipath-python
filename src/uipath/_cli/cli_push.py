@@ -5,10 +5,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 import click
-from dotenv import load_dotenv
 
 from ..telemetry import track
 from ._push.sw_file_handler import SwFileHandler
+from ._utils._common import load_environment_variables
 from ._utils._console import ConsoleLogger
 from ._utils._constants import (
     UIPATH_PROJECT_ID,
@@ -21,7 +21,7 @@ from ._utils._project_files import (
 from ._utils._uv_helpers import handle_uv_operations
 
 console = ConsoleLogger()
-load_dotenv(override=True)
+load_environment_variables()
 
 
 def get_org_scoped_url(base_url: str) -> str:

@@ -4,16 +4,16 @@ import os
 
 import click
 import httpx
-from dotenv import load_dotenv
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
-from ._utils._common import get_env_vars
+from ._utils._common import get_env_vars, load_environment_variables
 from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
 
 console = ConsoleLogger()
+load_environment_variables()
 
 
 def get_most_recent_package():
@@ -70,9 +70,6 @@ def get_available_feeds(
 @track
 def publish(feed):
     """Publish the package."""
-    current_path = os.getcwd()
-    load_dotenv(os.path.join(current_path, ".env"), override=True)
-
     [base_url, token] = get_env_vars()
     headers = {"Authorization": f"Bearer {token}"}
 
