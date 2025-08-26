@@ -81,6 +81,12 @@ def set_port():
     required=False,
     help="Base URL for the UiPath tenant instance (required for client credentials)",
 )
+@click.option(
+    "--scope",
+    required=False,
+    default="OR.Execution",
+    help="Space-separated list of OAuth scopes to request (e.g., 'OR.Execution OR.Queues'). Defaults to 'OR.Execution'",
+)
 @track
 def auth(
     domain,
@@ -88,11 +94,12 @@ def auth(
     client_id: str = None,
     client_secret: str = None,
     base_url: str = None,
+    scope: str = None,
 ):
     """Authenticate with UiPath Cloud Platform.
 
     Interactive mode (default): Opens browser for OAuth authentication.
-    Unattended mode: Use --client-id, --client-secret and --base-url for client credentials flow.
+    Unattended mode: Use --client-id, --client-secret, --base-url and --scope for client credentials flow.
 
     Network options:
     - Set HTTP_PROXY/HTTPS_PROXY/NO_PROXY environment variables for proxy configuration
@@ -117,7 +124,9 @@ def auth(
                 )
                 credentials_service.domain = extracted_domain
 
-            token_data = credentials_service.authenticate(client_id, client_secret)
+            token_data = credentials_service.authenticate(
+                client_id, client_secret, scope
+            )
 
             if token_data:
                 credentials_service.setup_environment(token_data, base_url)
