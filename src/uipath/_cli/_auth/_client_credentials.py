@@ -70,7 +70,7 @@ class ClientCredentialsService:
             return "cloud"
 
     def authenticate(
-        self, client_id: str, client_secret: str, scope: str = "OR.Execution"
+        self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
     ) -> Optional[TokenData]:
         """Authenticate using client credentials flow.
 
