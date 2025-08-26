@@ -42,12 +42,20 @@ class UiPathRuntime(UiPathBaseRuntime):
         """
         await self.validate()
 
-        try:
-            trace.set_tracer_provider(TracerProvider())
-            trace.get_tracer_provider().add_span_processor(  # type: ignore
-                BatchSpanProcessor(LlmOpsHttpExporter())
-            )
+        shutdown_provider = False
+        trace_provider: Optional[TracerProvider] = None
+        span_processor: Optional[BatchSpanProcessor] = None
 
+        if self.context.trace_context.enabled:
+            trace_provider = trace.get_tracer_provider()
+            if not trace_provider:
+                trace_provider = TracerProvider()
+                trace.set_tracer_provider(trace_provider)
+                shutdown_provider = True
+            span_processor = BatchSpanProcessor(LlmOpsHttpExporter())
+            trace_provider.add_span_processor(span_processor)
+
+        try:
             if self.context.entrypoint is None:
                 return None
 
@@ -74,8 +82,13 @@ class UiPathRuntime(UiPathBaseRuntime):
                 f"Error: {str(e)}",
                 UiPathErrorCategory.SYSTEM,
             ) from e
+
         finally:
-            trace.get_tracer_provider().shutdown()  # type: ignore
+            if self.context.trace_context.enabled:
+                await span_processor.force_flush()
+                # Only shutdown if we created the provider
+                if shutdown_provider:
+                    await trace_provider.shutdown()
 
     async def validate(self) -> None:
         """Validate runtime inputs."""
@@ -114,6 +127,12 @@ class UiPathRuntime(UiPathBaseRuntime):
 
     async def _execute_python_script(self, script_path: str, input_data: Any) -> Any:
         """Execute the Python script with the given input."""
+        # parent_span = trace.get_current_span()
+        # ctx = trace.set_span_in_context(parent_span)
+
+        # print(f"Before module execution - Current span: {parent_span}")
+        # print(f"Current span attributes: {getattr(parent_span, 'attributes', {})}")
+
         spec = importlib.util.spec_from_file_location("dynamic_module", script_path)
         if not spec or not spec.loader:
             raise UiPathRuntimeError(
@@ -124,44 +143,44 @@ class UiPathRuntime(UiPathBaseRuntime):
             )
 
         module = importlib.util.module_from_spec(spec)
+
+        # Attach the context BEFORE any module operations
+        # token = context_api.attach(ctx)
+
         try:
+            # print("Executing module with context attached")
             spec.loader.exec_module(module)
-        except Exception as e:
-            raise UiPathRuntimeError(
-                "MODULE_EXECUTION_ERROR",
-                "Module execution failed",
-                f"Error executing module: {str(e)}",
-                UiPathErrorCategory.USER,
-            ) from e
 
-        for func_name in ["main", "run", "execute"]:
-            if hasattr(module, func_name):
-                main_func = getattr(module, func_name)
-                sig = inspect.signature(main_func)
-                params = list(sig.parameters.values())
+            # active_span = trace.get_current_span()
+            # print(f"After module execution - Active span: {active_span}")
 
-                # Check if the function is asynchronous
-                is_async = inspect.iscoroutinefunction(main_func)
+            # Execute the function while context is still attached
+            for func_name in ["main", "run", "execute"]:
+                if hasattr(module, func_name):
+                    main_func = getattr(module, func_name)
+                    sig = inspect.signature(main_func)
+                    params = list(sig.parameters.values())
+                    is_async = inspect.iscoroutinefunction(main_func)
 
-                # Case 1: No parameters
-                if not params:
-                    try:
-                        result = await main_func() if is_async else main_func()
-                        return (
-                            self._convert_from_class(result)
-                            if result is not None
-                            else {}
-                        )
-                    except Exception as e:
-                        raise UiPathRuntimeError(
-                            "FUNCTION_EXECUTION_ERROR",
-                            f"Error executing {func_name} function",
-                            f"Error: {str(e)}",
-                            UiPathErrorCategory.USER,
-                        ) from e
+                    # Case 1: No parameters
+                    if not params:
+                        try:
+                            result = await main_func() if is_async else main_func()
+                            return (
+                                self._convert_from_class(result)
+                                if result is not None
+                                else {}
+                            )
+                        except Exception as e:
+                            raise UiPathRuntimeError(
+                                "FUNCTION_EXECUTION_ERROR",
+                                f"Error executing {func_name} function",
+                                f"Error: {str(e)}",
+                                UiPathErrorCategory.USER,
+                            ) from e
 
-                input_param = params[0]
-                input_type = input_param.annotation
+                    input_param = params[0]
+                    input_type = input_param.annotation
 
                 # Case 2: Class, dataclass, or Pydantic model parameter
                 if input_type != inspect.Parameter.empty and (
@@ -190,33 +209,49 @@ class UiPathRuntime(UiPathBaseRuntime):
                             UiPathErrorCategory.USER,
                         ) from e
 
-                # Case 3: Dict parameter
-                else:
-                    try:
-                        result = (
-                            await main_func(input_data)
-                            if is_async
-                            else main_func(input_data)
-                        )
-                        return (
-                            self._convert_from_class(result)
-                            if result is not None
-                            else {}
-                        )
-                    except Exception as e:
-                        raise UiPathRuntimeError(
-                            "FUNCTION_EXECUTION_ERROR",
-                            f"Error executing {func_name} function with dictionary input",
-                            f"Error: {str(e)}",
-                            UiPathErrorCategory.USER,
-                        ) from e
+                    # Case 3: Dict parameter
+                    else:
+                        try:
+                            result = (
+                                await main_func(input_data)
+                                if is_async
+                                else main_func(input_data)
+                            )
+                            return (
+                                self._convert_from_class(result)
+                                if result is not None
+                                else {}
+                            )
+                        except Exception as e:
+                            raise UiPathRuntimeError(
+                                "FUNCTION_EXECUTION_ERROR",
+                                f"Error executing {func_name} function with dictionary input",
+                                f"Error: {str(e)}",
+                                UiPathErrorCategory.USER,
+                            ) from e
 
-        raise UiPathRuntimeError(
-            "ENTRYPOINT_FUNCTION_MISSING",
-            "No entry function found",
-            f"No main function (main, run, or execute) found in {script_path}",
-            UiPathErrorCategory.USER,
-        )
+            # If we get here, no main function was found
+            raise UiPathRuntimeError(
+                "ENTRYPOINT_FUNCTION_MISSING",
+                "No entry function found",
+                f"No main function (main, run, or execute) found in {script_path}",
+                UiPathErrorCategory.USER,
+            )
+
+        except Exception as e:
+            # Handle module execution errors
+            if isinstance(e, UiPathRuntimeError):
+                raise
+            raise UiPathRuntimeError(
+                "MODULE_EXECUTION_ERROR",
+                "Module execution failed",
+                f"Error executing module: {str(e)}",
+                UiPathErrorCategory.USER,
+            ) from e
+
+        # finally:
+        # Only detach the context at the very end, after all operations
+        # context_api.detach(token)
 
     def _convert_to_class(self, data: Dict[str, Any], cls: Type[T]) -> T:
         """Convert a dictionary to either a dataclass, Pydantic model, or regular class instance."""
