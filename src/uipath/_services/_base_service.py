@@ -107,7 +107,7 @@ class BaseService:
         scoped_url = self._url.scope_url(str(url), scoped)
 
         if infer_content_type:
-            self._client_async.headers.pop("Content-Type", None)
+            self._client.headers.pop("Content-Type", None)
 
         response = self._client.request(method, scoped_url, **kwargs)
 
