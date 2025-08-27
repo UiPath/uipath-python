@@ -8,7 +8,7 @@ import traceback
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Generic, Optional, Type, TypeVar, Union
 
 from pydantic import BaseModel, Field
 
@@ -465,3 +465,38 @@ class UiPathBaseRuntime(ABC):
             os.makedirs(self.context.runtime_dir, exist_ok=True)
             return os.path.join(self.context.runtime_dir, self.context.state_file)
         return os.path.join("__uipath", "state.db")
+
+
+T = TypeVar("T", bound=UiPathBaseRuntime)
+C = TypeVar("C", bound=UiPathRuntimeContext)
+
+
+class UiPathRuntimeFactory(Generic[T, C]):
+    """Generic factory for UiPath runtime classes."""
+
+    def __init__(self, runtime_class: Type[T], context_class: Type[C]):
+        if not issubclass(runtime_class, UiPathBaseRuntime):
+            raise TypeError(
+                f"runtime_class {runtime_class.__name__} must inherit from UiPathBaseRuntime"
+            )
+
+        if not issubclass(context_class, UiPathRuntimeContext):
+            raise TypeError(
+                f"context_class {context_class.__name__} must inherit from UiPathRuntimeContext"
+            )
+
+        self.runtime_class = runtime_class
+        self.context_class = context_class
+
+    def new_context(self, **kwargs) -> C:
+        """Create a new context instance."""
+        return self.context_class(**kwargs)
+
+    def from_context(self, context: C) -> T:
+        """Create runtime instance from context."""
+        return self.runtime_class.from_context(context)
+
+    async def execute(self, context: C) -> Optional[UiPathRuntimeResult]:
+        """Execute runtime with context."""
+        async with self.from_context(context) as runtime:
+            return await runtime.execute()
