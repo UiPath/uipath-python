@@ -1,0 +1,431 @@
+{
+  "extractionResult": {
+    "DocumentId": "65c1bb72-70cd-4d25-9a1e-724c3d1a0c6f",
+    "ResultsVersion": 0,
+    "ResultsDocument": {
+      "Bounds": {
+        "StartPage": 0,
+        "PageCount": 1,
+        "TextStartIndex": 0,
+        "TextLength": 2008,
+        "PageRange": "1"
+      },
+      "Language": "eng",
+      "DocumentGroup": "",
+      "DocumentCategory": "",
+      "DocumentTypeId": "00000000-0000-0000-0000-000000000000",
+      "DocumentTypeName": "Default",
+      "DocumentTypeDataVersion": 0,
+      "DataVersion": 0,
+      "DocumentTypeSource": "Automatic",
+      "DocumentTypeField": {
+        "Components": [],
+        "Value": "Default",
+        "UnformattedValue": "",
+        "Reference": {
+          "TextStartIndex": 0,
+          "TextLength": 0,
+          "Tokens": []
+        },
+        "DerivedFields": [],
+        "Confidence": 1.0,
+        "OperatorConfirmed": false,
+        "OcrConfidence": -1.0,
+        "TextType": "Unknown"
+      },
+      "Fields": [
+        {
+          "FieldId": "Insurer",
+          "FieldName": "Insurer",
+          "FieldType": "Table",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "Values": [
+            {
+              "Components": [
+                {
+                  "FieldId": "Insurer.Header",
+                  "FieldName": "Header",
+                  "FieldType": "Internal",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [
+                        {
+                          "FieldId": "Insurer Name",
+                          "FieldName": "Insurer Name",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Insurer Name",
+                              "UnformattedValue": "Insurer Name",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": -1.0,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown"
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": ""
+                        },
+                        {
+                          "FieldId": "Name of Insured",
+                          "FieldName": "Name of Insured",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Name of Insured",
+                              "UnformattedValue": "Name of Insured",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": -1.0,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown"
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": ""
+                        }
+                      ],
+                      "Value": "",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": -1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown"
+                    }
+                  ],
+                  "DataVersion": 0,
+                  "OperatorConfirmed": false,
+                  "ValidatorNotes": ""
+                },
+                {
+                  "FieldId": "Insurer.Body",
+                  "FieldName": "Body",
+                  "FieldType": "Internal",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [
+                        {
+                          "FieldId": "Insurer Name",
+                          "FieldName": "Insurer Name",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "John Doe",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 15,
+                                "TextLength": 847,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 15,
+                                    "TextLength": 847,
+                                    "Page": 0,
+                                    "PageWidth": 1152.0,
+                                    "PageHeight": 1624.0,
+                                    "Boxes": [[0.0, 0.0, 115.2, 812.0]]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 0.95,
+                              "TextType": "Text"
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": ""
+                        },
+                        {
+                          "FieldId": "Name of Insured",
+                          "FieldName": "Name of Insured",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "value",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 15,
+                                "TextLength": 847,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 15,
+                                    "TextLength": 847,
+                                    "Page": 0,
+                                    "PageWidth": 1152.0,
+                                    "PageHeight": 1624.0,
+                                    "Boxes": [[0.0, 0.0, 115.2, 812.0]]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 0.95,
+                              "TextType": "Text"
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": ""
+                        }
+                      ],
+                      "Value": "",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 0.95,
+                      "TextType": "Unknown"
+                    }
+                  ],
+                  "DataVersion": 0,
+                  "OperatorConfirmed": false,
+                  "ValidatorNotes": ""
+                }
+              ],
+              "Value": "",
+              "UnformattedValue": "",
+              "Reference": {
+                "TextStartIndex": 0,
+                "TextLength": 0,
+                "Tokens": []
+              },
+              "DerivedFields": [],
+              "Confidence": 1.0,
+              "OperatorConfirmed": true,
+              "OcrConfidence": 1.0,
+              "TextType": "Unknown"
+            }
+          ],
+          "DataVersion": 0,
+          "OperatorConfirmed": false,
+          "ValidatorNotes": ""
+        }
+      ],
+      "Tables": [
+        {
+          "FieldId": "Insurer",
+          "FieldName": "Insurer",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "DataVersion": 0,
+          "OperatorConfirmed": false,
+          "Values": [
+            {
+              "OperatorConfirmed": true,
+              "Confidence": 1.0,
+              "OcrConfidence": 1.0,
+              "Cells": [
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 0,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Insurer Name",
+                      "UnformattedValue": "Insurer Name",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": -1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown"
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 1,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Name of Insured",
+                      "UnformattedValue": "Name of Insured",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": -1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown"
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 0,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "John Doe",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 15,
+                        "TextLength": 847,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 15,
+                            "TextLength": 847,
+                            "Page": 0,
+                            "PageWidth": 1152.0,
+                            "PageHeight": 1624.0,
+                            "Boxes": [[0.0, 0.0, 115.2, 812.0]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 0.95,
+                      "TextType": "Text"
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 1,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "value",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 15,
+                        "TextLength": 847,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 15,
+                            "TextLength": 847,
+                            "Page": 0,
+                            "PageWidth": 1152.0,
+                            "PageHeight": 1624.0,
+                            "Boxes": [[0.0, 0.0, 115.2, 812.0]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 0.95,
+                      "TextType": "Text"
+                    }
+                  ]
+                }
+              ],
+              "ColumnInfo": [
+                {
+                  "FieldId": "Insurer Name",
+                  "FieldName": "Insurer Name",
+                  "FieldType": "Text"
+                },
+                {
+                  "FieldId": "Name of Insured",
+                  "FieldName": "Name of Insured",
+                  "FieldType": "Text"
+                }
+              ],
+              "NumberOfRows": 2
+            }
+          ]
+        }
+      ]
+    },
+    "ExtractorPayloads": null,
+    "BusinessRulesResults": null
+  },
+  "dataProjection": [
+    {
+      "fieldGroupName": "Insurer",
+      "fieldValues": [
+        {
+          "id": "fcbbf88b-1f55-496f-99e4-ad9f96f3e29b",
+          "name": "Name of Insured",
+          "value": "John Doe",
+          "unformattedValue": "John Doe",
+          "confidence": 1,
+          "ocrConfidence": 0.95,
+          "type": "Text"
+        },
+        {
+          "id": "0f11ff27-1f88-4e5b-ac1b-a32e44465d48",
+          "name": "Insurer Name",
+          "value": "value",
+          "unformattedValue": "value",
+          "confidence": 1,
+          "ocrConfidence": 0.95,
+          "type": "Text"
+        }
+      ]
+    }
+  ]
+}

@@ -14,6 +14,7 @@ from ._services import (
     BucketsService,
     ConnectionsService,
     ContextGroundingService,
+    DocumentsService,
     FolderService,
     JobsService,
     ProcessesService,
@@ -110,6 +111,10 @@ class UiPath:
             self._folders_service,
             self._buckets_service,
         )
+
+    @property
+    def documents(self) -> DocumentsService:
+        return DocumentsService(self._config, self._execution_context)
 
     @property
     def queues(self) -> QueuesService:
