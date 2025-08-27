@@ -1,18 +1,22 @@
 from typing import Any, Dict
 
-from .._models import EvaluatorCategory, EvaluatorType
-from ._evaluator_base import EvaluatorBase, EvaluatorBaseParams
-from ._exact_match_evaluator import ExactMatchEvaluator
-from ._json_similarity_evaluator import JsonSimilarityEvaluator
-from ._llm_as_judge_evaluator import LlmAsAJudgeEvaluator
-from ._trajectory_evaluator import TrajectoryEvaluator
+from uipath.eval.evaluators import (
+    BaseEvaluator,
+    ExactMatchEvaluator,
+    JsonSimilarityEvaluator,
+    LlmAsAJudgeEvaluator,
+    TrajectoryEvaluator,
+)
+from uipath.eval.models import EvaluatorCategory, EvaluatorType
+
+from ._models import EvaluatorBaseParams
 
 
 class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
 
     @staticmethod
-    def create_evaluator(data: Dict[str, Any]) -> EvaluatorBase:
+    def create_evaluator(data: Dict[str, Any]) -> BaseEvaluator:
         """Create an evaluator instance from configuration data.
 
         Args:
@@ -81,8 +85,7 @@ class EvaluatorFactory:
     ) -> ExactMatchEvaluator:
         """Create a deterministic evaluator."""
         return ExactMatchEvaluator.from_params(
-            base_params,
-            target_output_key=data.get("targetOutputKey", "*"),
+            **base_params.model_dump(),
         )
 
     @staticmethod
@@ -91,8 +94,7 @@ class EvaluatorFactory:
     ) -> JsonSimilarityEvaluator:
         """Create a deterministic evaluator."""
         return JsonSimilarityEvaluator.from_params(
-            base_params,
-            target_output_key=data.get("targetOutputKey", "*"),
+            **base_params.model_dump(),
         )
 
     @staticmethod
@@ -113,10 +115,9 @@ class EvaluatorFactory:
             )
 
         return LlmAsAJudgeEvaluator.from_params(
-            base_params,
+            **base_params.model_dump(),
             prompt=prompt,
             model=model,
-            target_output_key=data.get("targetOutputKey", "*"),
         )
 
     @staticmethod

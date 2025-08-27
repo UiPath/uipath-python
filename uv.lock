@@ -2029,7 +2029,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.1.26"
+version = "2.1.28"
 source = { editable = "." }
 dependencies = [
     { name = "azure-monitor-opentelemetry" },
@@ -2080,7 +2080,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.1" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "rich", specifier = ">=13.0.0" },
-    { name = "tenacity", specifier = ">=9.0.0" },
+    { name = "tenacity", specifier = ">=8.0.0" },
     { name = "tomli", specifier = ">=2.2.1" },
     { name = "truststore", specifier = ">=0.10.1" },
 ]

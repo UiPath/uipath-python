@@ -8,7 +8,7 @@ import pytest
 from click.testing import CliRunner
 from pytest_httpx import HTTPXMock
 
-from tests.cli.utils.project_details import ProjectDetails
+from tests.utils.project_details import ProjectDetails
 from uipath._cli.cli_invoke import invoke  # type: ignore
 from uipath._cli.middlewares import MiddlewareResult
 
