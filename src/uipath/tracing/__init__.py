@@ -1,5 +1,6 @@
 from ._otel_exporters import (  # noqa: D104
     BaseSpanProcessor,
+    CommonSpanProcessor,
     JsonFileExporter,
     LlmOpsHttpExporter,
     SqliteExporter,
@@ -12,6 +13,7 @@ __all__ = [
     "wait_for_tracers",
     "LlmOpsHttpExporter",
     "BaseSpanProcessor",
+    "CommonSpanProcessor",
     "JsonFileExporter",
     "SqliteExporter",
 ]
