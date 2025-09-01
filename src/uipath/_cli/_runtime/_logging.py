@@ -30,6 +30,7 @@ class LogsInterceptor:
         file: Optional[str] = "execution.log",
         job_id: Optional[str] = None,
         is_debug_run: bool = False,
+        log_handler: Optional[logging.Handler] = None,
     ):
         """Initialize the log interceptor.
 
@@ -39,6 +40,7 @@ class LogsInterceptor:
             file (str): The log file name.
             job_id (str, optional): If provided, logs go to file; otherwise, to stdout.
             is_debug_run (bool, optional): If True, log the output to stdout/stderr.
+            log_handler (logging.Handler, optional): Custom log handler to use.
         """
         min_level = min_level or "INFO"
         self.job_id = job_id
@@ -57,21 +59,26 @@ class LogsInterceptor:
         self.original_stdout = cast(TextIO, sys.stdout)
         self.original_stderr = cast(TextIO, sys.stderr)
 
-        self.log_handler: Union[PersistentLogsHandler, logging.StreamHandler[TextIO]]
+        self.log_handler: Union[
+            PersistentLogsHandler, logging.StreamHandler[TextIO], logging.Handler
+        ]
 
-        # Create either file handler (runtime) or stdout handler (debug)
-        if is_debug_run:
-            # Use stdout handler when not running as a job or eval
-            self.log_handler = logging.StreamHandler(sys.stdout)
-            formatter = logging.Formatter("%(message)s")
-            self.log_handler.setFormatter(formatter)
+        if log_handler:
+            self.log_handler = log_handler
         else:
-            # Ensure directory exists for file logging
-            dir = dir or "__uipath"
-            file = file or "execution.log"
-            os.makedirs(dir, exist_ok=True)
-            log_file = os.path.join(dir, file)
-            self.log_handler = PersistentLogsHandler(file=log_file)
+            # Create either file handler (runtime) or stdout handler (debug)
+            if is_debug_run:
+                # Use stdout handler when not running as a job or eval
+                self.log_handler = logging.StreamHandler(sys.stdout)
+                formatter = logging.Formatter("%(message)s")
+                self.log_handler.setFormatter(formatter)
+            else:
+                # Ensure directory exists for file logging
+                dir = dir or "__uipath"
+                file = file or "execution.log"
+                os.makedirs(dir, exist_ok=True)
+                log_file = os.path.join(dir, file)
+                self.log_handler = PersistentLogsHandler(file=log_file)
 
         self.log_handler.setLevel(self.numeric_min_level)
         self.logger = logging.getLogger("runtime")
