@@ -159,6 +159,7 @@ class UiPathRuntimeContext(BaseModel):
     execution_output_file: Optional[str] = None
     input_file: Optional[str] = None
     is_eval_run: bool = False
+    log_handler: Optional[logging.Handler] = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -328,6 +329,7 @@ class UiPathBaseRuntime(ABC):
             file=self.context.logs_file,
             job_id=self.context.job_id,
             is_debug_run=self.is_debug_run(),
+            log_handler=self.context.log_handler,
         )
         self.logs_interceptor.setup()
 
