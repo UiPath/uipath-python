@@ -1,113 +1,105 @@
+"""LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
+
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional, TypeVar
 
-from ...._config import Config
-from ...._execution_context import ExecutionContext
-from ...._services.llm_gateway_service import UiPathLlmChatService
-from ...._utils.constants import (
-    ENV_BASE_URL,
-    ENV_UIPATH_ACCESS_TOKEN,
-    ENV_UNATTENDED_USER_ACCESS_TOKEN,
-    COMMUNITY_agents_SUFFIX,
-)
-from .._models import EvaluationResult, LLMResponse
-from .._models._evaluators import ScoreType
-from ._evaluator_base import EvaluatorBase
+from uipath.eval.models import EvaluationResult, LLMResponse, ScoreType
+from uipath.tracing import UiPathEvalSpan
 
+from ..._utils.constants import COMMUNITY_agents_SUFFIX
+from .base_evaluator import BaseEvaluator
 
-class LlmAsAJudgeEvaluator(EvaluatorBase):
+T = TypeVar('T')
+
+class LlmAsAJudgeEvaluator(BaseEvaluator[T]):
     """Evaluator that uses an LLM to judge the quality of outputs."""
 
-    def __init__(self, prompt: str = "", model: str = "", target_output_key: str = "*"):
+    def __init__(
+        self,
+        prompt: str,
+        model: str,
+        name: str = "LlmAsAJudgeEvaluator",
+        description: Optional[str] = None,
+        target_output_key: str = "*",
+    ):
         """Initialize the LLM-as-a-judge evaluator.
 
         Args:
-            prompt: The prompt template for the LLM
+            prompt: The prompt template for the LLM with {{ActualOutput}} and {{ExpectedOutput}} placeholders
             model: The model to use for evaluation
+            name: Display name for the evaluator
+            description: Optional description of the evaluator's purpose
             target_output_key: Key in output to evaluate ("*" for entire output)
+
+        Raises:
+            ValueError: If prompt is missing required placeholders
         """
-        super().__init__()
+        super().__init__(name, description)
         self.actual_output_placeholder = "{{ActualOutput}}"
         self.expected_output_placeholder = "{{ExpectedOutput}}"
+        self._validate_prompt(prompt)
         self._initialize_llm()
         self.prompt = prompt
         self.model = model
         self.target_output_key: str = target_output_key
 
+    def _validate_prompt(self, prompt: str) -> None:
+        missing_placeholders = []
+
+        if self.actual_output_placeholder not in prompt:
+            missing_placeholders.append(self.actual_output_placeholder)
+        if self.expected_output_placeholder not in prompt:
+            missing_placeholders.append(self.expected_output_placeholder)
+
+        if missing_placeholders:
+            raise ValueError(
+                f"Prompt is missing required placeholders: {', '.join(missing_placeholders)}. "
+                f"The prompt must contain both {self.actual_output_placeholder} and {self.expected_output_placeholder}."
+            )
+
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
-        import os
+        from uipath import UiPath
 
-        base_url_value: str = os.getenv(ENV_BASE_URL)  # type: ignore
-        secret_value: str = os.getenv(ENV_UNATTENDED_USER_ACCESS_TOKEN) or os.getenv(
-            ENV_UIPATH_ACCESS_TOKEN
-        )  # type: ignore
-        config = Config(
-            base_url=base_url_value,
-            secret=secret_value,
-        )
-        self.llm = UiPathLlmChatService(config, ExecutionContext())
+        uipath = UiPath()
+        self.llm = uipath.llm
 
     async def evaluate(
         self,
-        evaluation_id: str,
-        evaluation_name: str,
-        input_data: Dict[str, Any],
-        expected_output: Dict[str, Any],
+        agent_input: Optional[Dict[str, Any]],
+        evaluation_criteria: T,
         actual_output: Dict[str, Any],
+        uipath_eval_spans: Optional[list[UiPathEvalSpan]],
+        execution_logs: str,
     ) -> EvaluationResult:
         """Evaluate using an LLM as a judge.
 
+        Sends the formatted prompt to the configured LLM and expects a JSON response
+        with a numerical score (0-100) and justification.
+
         Args:
-            evaluation_id: The ID of the evaluation being processed
-            evaluation_name: The name of the evaluation
-            input_data: The input data for the evaluation
-            expected_output: The expected output
+            agent_input: The input provided to the agent (unused)
+            evaluation_criteria: The evaluation criteria to evaluate
             actual_output: The actual output from the agent
+            uipath_eval_spans: Execution spans from the agent (unused)
+            execution_logs: Agent execution logs (unused)
 
         Returns:
-            EvaluationResult containing the score and details
+            EvaluationResult: Numerical score with LLM justification as details
         """
-        # Extract the target value to evaluate
-        target_value = self._extract_target_value(actual_output)
-        expected_value = self._extract_target_value(expected_output)
-
         # Create the evaluation prompt
-        evaluation_prompt = self._create_evaluation_prompt(expected_value, target_value)
-
-        llm_response = await self._get_llm_response(evaluation_prompt)
-
-        return EvaluationResult(
-            evaluation_id=evaluation_id,
-            evaluation_name=evaluation_name,
-            evaluator_id=self.id,
-            evaluator_name=self.name,
-            score=llm_response.score,
-            input=input_data,
-            expected_output=expected_output,
-            actual_output=actual_output,
-            details=llm_response.justification,
-            score_type=ScoreType.NUMERICAL,
+        evaluation_prompt = self._create_evaluation_prompt(
+            evaluation_criteria, actual_output
         )
 
-    def _extract_target_value(self, output: Dict[str, Any]) -> Any:
-        """Extract the target value from output based on target_output_key."""
-        if self.target_output_key == "*":
-            return output
-
-        # Handle nested keys
-        keys = self.target_output_key.split(".")
-        value = output
-
-        try:
-            for key in keys:
-                if isinstance(value, dict):
-                    value = value[key]
-                else:
-                    return None
-            return value
-        except (KeyError, TypeError):
-            return None
+        llm_response = await self._get_llm_response(evaluation_prompt)
+        return EvaluationResult(
+            score=llm_response.score,
+            details=llm_response.justification,
+            score_type=ScoreType.NUMERICAL
+            if llm_response.successful()
+            else ScoreType.ERROR,
+        )
 
     def _create_evaluation_prompt(
         self, expected_output: Any, actual_output: Any
@@ -173,11 +165,15 @@ class LlmAsAJudgeEvaluator(EvaluatorBase):
                 return LLMResponse(**json.loads(response.choices[-1].message.content))
             except (json.JSONDecodeError, ValueError) as e:
                 return LLMResponse(
-                    score=0.0, justification=f"Error parsing LLM response: {str(e)}"
+                    score=0.0,
+                    justification=f"Error parsing LLM response: {str(e)}",
+                    error=True,
                 )
 
         except Exception as e:
             # Fallback in case of any errors
             return LLMResponse(
-                score=0.0, justification=f"Error during LLM evaluation: {str(e)}"
+                score=0.0,
+                justification=f"Error during LLM evaluation: {str(e)}",
+                error=True,
             )

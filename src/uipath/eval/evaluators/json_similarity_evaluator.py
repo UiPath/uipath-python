@@ -1,15 +1,16 @@
-import copy
+"""JSON similarity evaluator for flexible structural comparison of outputs."""
+
 import math
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple, TypeVar
 
-from uipath._cli._evals._evaluators._deterministic_evaluator_base import (
-    DeterministicEvaluatorBase,
-)
-from uipath._cli._evals._models import EvaluationResult
-from uipath._cli._evals._models._evaluators import ScoreType
+from uipath.eval.models import EvaluationResult, ScoreType
+from uipath.tracing import UiPathEvalSpan
 
+from .deterministic_evaluator_base import DeterministicEvaluatorBase
 
-class JsonSimilarityEvaluator(DeterministicEvaluatorBase):
+T = TypeVar('T')
+
+class JsonSimilarityEvaluator(DeterministicEvaluatorBase[T]):
     """Deterministic evaluator that scores structural JSON similarity.
 
     Compares expected versus actual JSON-like structures and returns a
@@ -17,45 +18,59 @@ class JsonSimilarityEvaluator(DeterministicEvaluatorBase):
     and tolerant for numbers and strings (via Levenshtein distance).
     """
 
+    def __init__(
+        self,
+        name: str = "JsonSimilarityEvaluator",
+        description: Optional[str] = None,
+        target_output_key: str = "*",
+    ):
+        """Initialize the JsonSimilarityEvaluator.
+
+        Args:
+            name: Display name for the evaluator
+            description: Optional description of the evaluator's purpose
+            target_output_key: Key to target in output for evaluation ("*" for entire output)
+        """
+        super().__init__(
+            name=name, description=description, target_output_key=target_output_key
+        )
+
     async def evaluate(
         self,
-        evaluation_id: str,
-        evaluation_name: str,
-        input_data: Dict[str, Any],
-        expected_output: Dict[str, Any],
+        agent_input: Optional[Dict[str, Any]],
+        evaluation_criteria: T,
         actual_output: Dict[str, Any],
+        uipath_eval_spans: Optional[list[UiPathEvalSpan]],
+        execution_logs: str,
     ) -> EvaluationResult:
         """Evaluate similarity between expected and actual JSON outputs.
 
+        Uses token-based comparison with tolerance for numeric differences
+        and Levenshtein distance for string similarity.
+
         Args:
-            evaluation_id: Unique identifier for this evaluation run.
-            evaluation_name: Human friendly evaluation name.
-            input_data: Input payload used to produce the outputs.
-            expected_output: Ground-truth JSON structure.
-            actual_output: Produced JSON structure to compare against the ground truth.
+            agent_input: The input provided to the agent (unused)
+            evaluation_criteria: The evaluation criteria to evaluate
+            actual_output: The actual output from the agent
+            uipath_eval_spans: Execution spans from the agent (unused)
+            execution_logs: Agent execution logs (unused)
 
         Returns:
-            EvaluationResult: Structured result with the numerical similarity score.
+            EvaluationResult: Numerical score between 0-100 indicating similarity
         """
-        actual_output_copy = copy.deepcopy(actual_output)
-        expected_output_copy = copy.deepcopy(expected_output)
+        try:
+            similarity = self._compare_json(evaluation_criteria, actual_output)
 
-        actual_output, expected_output = self._select_targets(
-            expected_output, actual_output
-        )
-        similarity = self._compare_json(expected_output, actual_output)
-
-        return EvaluationResult(
-            evaluation_id=evaluation_id,
-            evaluation_name=evaluation_name,
-            evaluator_id=self.id,
-            evaluator_name=self.name,
-            score=similarity,
-            input=input_data,
-            expected_output=expected_output_copy,
-            actual_output=actual_output_copy,
-            score_type=ScoreType.NUMERICAL,
-        )
+            return EvaluationResult(
+                score=similarity,
+                score_type=ScoreType.NUMERICAL,
+            )
+        except Exception as e:
+            return EvaluationResult(
+                score=0.0,
+                details=f"Error during evaluation: {str(e)}",
+                score_type=ScoreType.ERROR,
+            )
 
     def _compare_json(self, expected: Any, actual: Any) -> float:
         matched_leaves, total_leaves = self._compare_tokens(expected, actual)

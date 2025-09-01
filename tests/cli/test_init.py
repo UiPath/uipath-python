@@ -13,11 +13,11 @@ from uipath._cli.middlewares import MiddlewareResult
 
 @pytest.fixture
 def bindings_script() -> str:
-    if os.path.isfile("mocks/bindings_script.py"):
-        with open("mocks/bindings_script.py", "r") as file:
+    if os.path.isfile("../utils/mocks/bindings_script.py"):
+        with open("../utils/mocks/bindings_script.py", "r") as file:
             data = file.read()
     else:
-        with open("tests/cli/mocks/bindings_script.py", "r") as file:
+        with open("tests/utils/mocks/bindings_script.py", "r") as file:
             data = file.read()
     return data
 
