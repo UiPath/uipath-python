@@ -1,5 +1,6 @@
 import asyncio
 import json
+import traceback
 from datetime import datetime
 from os import environ as env
 from pathlib import Path
@@ -12,7 +13,9 @@ from textual.containers import Container, Horizontal
 from textual.widgets import Button, ListView
 
 from ..._runtime._contracts import (
+    UiPathErrorContract,
     UiPathRuntimeContext,
+    UiPathRuntimeError,
     UiPathRuntimeFactory,
 )
 from ._components._details import RunDetailsPanel
@@ -159,11 +162,23 @@ class UiPathDevTerminal(App[Any]):
             run.status = "completed"
             run.end_time = datetime.now()
 
+        except UiPathRuntimeError as e:
+            error_msg = (
+                f"{e.error_info.code}: {e.error_info.title}\n{e.error_info.detail}"
+            )
+            self._add_error_log(run, error_msg)
+            run.status = "failed"
+            run.end_time = datetime.now()
+            run.error = e.error_info
+
         except Exception as e:
             error_msg = f"Execution failed: {str(e)}"
             self._add_error_log(run, error_msg)
             run.status = "failed"
             run.end_time = datetime.now()
+            run.error = UiPathErrorContract(
+                code="Unknown", title=str(e), detail=traceback.format_exc()
+            )
 
         self._update_run_in_history(run)
         self._update_run_details(run)
