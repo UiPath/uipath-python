@@ -385,16 +385,13 @@ class TestPush:
             )
             assert "targetRuntime" in agent_json_content["metadata"]
             assert agent_json_content["metadata"]["targetRuntime"] == "python"
-            assert "entryPoints" in agent_json_content
-            assert len(agent_json_content["entryPoints"]) == 2
+            assert "inputSchema" in agent_json_content
+            assert "outputSchema" in agent_json_content
             assert (
-                agent_json_content["entryPoints"][0]["input"]["type"]
+                agent_json_content["inputSchema"]["type"]
                 == uipath_json.entry_points[0].input.type
             )
-            assert (
-                "agent_1_output"
-                in agent_json_content["entryPoints"][0]["output"]["properties"]
-            )
+            assert "agent_1_output" in agent_json_content["outputSchema"]["properties"]
 
     def test_push_with_api_error(
         self,
