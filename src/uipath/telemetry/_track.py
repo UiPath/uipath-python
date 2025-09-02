@@ -58,7 +58,7 @@ def _get_project_key() -> str:
 
 class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
     @staticmethod
-    def _get_attributes(record: LogRecord) -> Attributes:
+    def _get_attributes(record: LogRecord) -> Attributes:  # type: ignore[override]
         attributes = dict(LoggingHandler._get_attributes(record) or {})
         attributes[_APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE] = True
         attributes[_CLOUD_TENANT_ID] = os.getenv(ENV_TENANT_ID, _UNKNOWN)
@@ -75,7 +75,7 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
         if _CODE_LINENO in attributes:
             del attributes[_CODE_LINENO]
 
-        return attributes
+        return attributes  # type: ignore[return-value]
 
 
 class _TelemetryClient:
