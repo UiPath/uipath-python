@@ -523,7 +523,7 @@ class UiPathRuntimeFactory(Generic[T, C]):
     def add_instrumentor(
         self,
         instrumentor_class: Type[BaseInstrumentor],
-        get_current_span_func: Callable[[], Optional[Span]],
+        get_current_span_func: Callable[[], Any],
     ) -> "UiPathRuntimeFactory[T, C]":
         """Add and instrument immediately."""
         instrumentor_class().instrument(tracer_provider=self.tracer_provider)
