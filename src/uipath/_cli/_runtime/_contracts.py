@@ -14,7 +14,11 @@ from opentelemetry import context as context_api
 from opentelemetry import trace
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.sdk.trace import Span, SpanProcessor, TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    SimpleSpanProcessor,
+    SpanExporter,
+)
 from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
 
@@ -502,10 +506,16 @@ class UiPathRuntimeFactory(Generic[T, C]):
         trace.set_tracer_provider(self.tracer_provider)
 
     def add_span_exporter(
-        self, span_exporter: SpanExporter
+        self,
+        span_exporter: SpanExporter,
+        batch: bool = True,
     ) -> "UiPathRuntimeFactory[T, C]":
         """Add a span processor to the tracer provider."""
-        span_processor = UiPathExecutionTraceProcessor(span_exporter)
+        span_processor: SpanProcessor
+        if batch:
+            span_processor = UiPathExecutionBatchTraceProcessor(span_exporter)
+        else:
+            span_processor = UiPathExecutionSimpleTraceProcessor(span_exporter)
         self.tracer_span_processors.append(span_processor)
         self.tracer_provider.add_span_processor(span_processor)
         return self
@@ -554,7 +564,7 @@ class UiPathRuntimeFactory(Generic[T, C]):
             return result
 
 
-class UiPathExecutionTraceProcessor(BatchSpanProcessor):
+class UiPathExecutionTraceProcessorMixin:
     def on_start(
         self, span: Span, parent_context: Optional[context_api.Context] = None
     ):
@@ -569,4 +579,14 @@ class UiPathExecutionTraceProcessor(BatchSpanProcessor):
             if run_id:
                 span.set_attribute("execution.id", run_id)
 
-        super().on_start(span, parent_context)
+
+class UiPathExecutionBatchTraceProcessor(
+    UiPathExecutionTraceProcessorMixin, BatchSpanProcessor
+):
+    """Batch span processor that propagates execution.id."""
+
+
+class UiPathExecutionSimpleTraceProcessor(
+    UiPathExecutionTraceProcessorMixin, SimpleSpanProcessor
+):
+    """Simple span processor that propagates execution.id."""
