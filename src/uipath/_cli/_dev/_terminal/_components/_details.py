@@ -229,7 +229,10 @@ class RunDetailsPanel(Container):
         if hasattr(run, "error") and run.error:
             run_details_log.write("[bold red]ERROR:[/bold red]")
             run_details_log.write("[dim]" + "=" * 50 + "[/dim]")
-            run_details_log.write(f"[red]{run.error}[/red]")
+            if run.error.code:
+                run_details_log.write(f"[red]Code: {run.error.code}[/red]")
+            run_details_log.write(f"[red]Title: {run.error.title}[/red]")
+            run_details_log.write(f"[red]\n{run.error.detail}[/red]")
             run_details_log.write("")
 
         # Additional metadata

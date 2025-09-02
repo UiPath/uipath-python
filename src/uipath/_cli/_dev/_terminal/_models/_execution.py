@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
+from ...._runtime._contracts import UiPathErrorContract
 from ._messages import LogMessage, TraceMessage
 
 
@@ -19,6 +20,7 @@ class ExecutionRun:
         self.status = "running"  # running, completed, failed
         self.traces: List[TraceMessage] = []
         self.logs: List[LogMessage] = []
+        self.error: Optional[UiPathErrorContract] = None
 
     @property
     def duration(self) -> str:
