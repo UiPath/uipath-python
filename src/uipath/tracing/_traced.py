@@ -5,7 +5,8 @@ import logging
 from functools import wraps
 from typing import Any, Callable, List, Optional, Tuple
 
-from opentelemetry import trace
+from opentelemetry import context, trace
+from opentelemetry.trace import set_span_in_context
 
 from ._utils import _SpanUtils
 
@@ -55,22 +56,32 @@ class TracingManager:
 
     @classmethod
     def get_parent_context(cls):
-        """Get the parent context using the registered current span provider.
+        """Get the parent context for starting new spans.
 
         Returns:
-            Context object with the current span set, or None if no provider is registered.
+            The current OpenTelemetry context if available, or context with external span if registered.
         """
+        # First, get the current OpenTelemetry context
+        current_context = context.get_current()
+
+        # Check if there's already a span in the current context
+        current_span = trace.get_current_span(current_context)
+
+        # If we have a valid span in the current context, use it
+        if current_span is not None and current_span.is_recording():
+            return current_context
+
+        # Only fall back to the external span provider if no active OTel span
         if cls._current_span_provider is not None:
             try:
-                current_span = cls._current_span_provider()
-                if current_span is not None:
-                    from opentelemetry.trace import set_span_in_context
-
-                    return set_span_in_context(current_span)
+                external_span = cls._current_span_provider()
+                if external_span is not None:
+                    return set_span_in_context(external_span, current_context)
             except Exception as e:
                 logger.warning(f"Error getting current span from provider: {e}")
-                return None
-        return None
+
+        # Return current context (might be empty, but that's fine)
+        return current_context
 
     @classmethod
     def register_traced_function(cls, original_func, decorated_func, params):
