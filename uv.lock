@@ -2029,12 +2029,13 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.1.26"
+version = "2.1.27"
 source = { editable = "." }
 dependencies = [
     { name = "azure-monitor-opentelemetry" },
     { name = "click" },
     { name = "httpx" },
+    { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pathlib" },
     { name = "pydantic" },
@@ -2075,6 +2076,7 @@ requires-dist = [
     { name = "azure-monitor-opentelemetry", specifier = ">=1.6.8" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "opentelemetry-instrumentation", specifier = ">=0.52b1" },
     { name = "opentelemetry-sdk", specifier = ">=1.31.1" },
     { name = "pathlib", specifier = ">=1.0.1" },
     { name = "pydantic", specifier = ">=2.11.1" },

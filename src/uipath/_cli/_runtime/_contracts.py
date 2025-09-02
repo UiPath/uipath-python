@@ -8,9 +8,17 @@ import traceback
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
-from typing import Any, Dict, Generic, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
 
+from opentelemetry import context as context_api
+from opentelemetry import trace
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.sdk.trace import Span, SpanProcessor, TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
+from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
+
+from uipath.tracing import TracingManager
 
 from ._logging import LogsInterceptor
 
@@ -144,6 +152,7 @@ class UiPathRuntimeContext(BaseModel):
     input: Optional[str] = None
     input_json: Optional[Any] = None
     job_id: Optional[str] = None
+    execution_id: Optional[str] = None
     trace_id: Optional[str] = None
     trace_context: Optional[UiPathTraceContext] = None
     tracing_enabled: Union[bool, str] = False
@@ -160,7 +169,6 @@ class UiPathRuntimeContext(BaseModel):
     input_file: Optional[str] = None
     is_eval_run: bool = False
     log_handler: Optional[logging.Handler] = None
-
     model_config = {"arbitrary_types_allowed": True}
 
     @classmethod
@@ -489,6 +497,28 @@ class UiPathRuntimeFactory(Generic[T, C]):
 
         self.runtime_class = runtime_class
         self.context_class = context_class
+        self.tracer_provider: TracerProvider = TracerProvider()
+        self.tracer_span_processors: List[SpanProcessor] = []
+        trace.set_tracer_provider(self.tracer_provider)
+
+    def add_span_exporter(
+        self, span_exporter: SpanExporter
+    ) -> "UiPathRuntimeFactory[T, C]":
+        """Add a span processor to the tracer provider."""
+        span_processor = UiPathExecutionTraceProcessor(span_exporter)
+        self.tracer_span_processors.append(span_processor)
+        self.tracer_provider.add_span_processor(span_processor)
+        return self
+
+    def add_instrumentor(
+        self,
+        instrumentor_class: Type[BaseInstrumentor],
+        get_current_span_func: Callable[[], Optional[Span]],
+    ) -> "UiPathRuntimeFactory[T, C]":
+        """Add and instrument immediately."""
+        instrumentor_class().instrument(tracer_provider=self.tracer_provider)
+        TracingManager.register_current_span_provider(get_current_span_func)
+        return self
 
     def new_context(self, **kwargs) -> C:
         """Create a new context instance."""
@@ -501,4 +531,42 @@ class UiPathRuntimeFactory(Generic[T, C]):
     async def execute(self, context: C) -> Optional[UiPathRuntimeResult]:
         """Execute runtime with context."""
         async with self.from_context(context) as runtime:
-            return await runtime.execute()
+            result = await runtime.execute()
+            for span_processor in self.tracer_span_processors:
+                span_processor.force_flush()
+            return result
+
+    async def execute_in_root_span(
+        self, context: C, root_span: str = "root"
+    ) -> Optional[UiPathRuntimeResult]:
+        """Execute runtime with context."""
+        async with self.from_context(context) as runtime:
+            tracer: Tracer = trace.get_tracer("uipath-runtime")
+            with tracer.start_as_current_span(
+                root_span,
+                attributes={"execution.id": context.execution_id}
+                if context.execution_id
+                else {},
+            ):
+                result = await runtime.execute()
+            for span_processor in self.tracer_span_processors:
+                span_processor.force_flush()
+            return result
+
+
+class UiPathExecutionTraceProcessor(BatchSpanProcessor):
+    def on_start(
+        self, span: Span, parent_context: Optional[context_api.Context] = None
+    ):
+        """Called when a span is started."""
+        if parent_context:
+            parent_span = trace.get_current_span(parent_context)
+        else:
+            parent_span = trace.get_current_span()
+
+        if parent_span and parent_span.is_recording():
+            run_id = parent_span.attributes.get("execution.id")  # type: ignore[attr-defined]
+            if run_id:
+                span.set_attribute("execution.id", run_id)
+
+        super().on_start(span, parent_context)
