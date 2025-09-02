@@ -211,7 +211,7 @@ class UiPathRuntime(UiPathBaseRuntime):
         # Handle Pydantic models
         try:
             if inspect.isclass(cls) and issubclass(cls, BaseModel):
-                return cast(T, cls.model_validate(data))
+                return cls.model_validate(data)
         except TypeError:
             # issubclass can raise TypeError if cls is not a class
             pass
@@ -235,7 +235,7 @@ class UiPathRuntime(UiPathBaseRuntime):
                     value = self._convert_to_class(value, typed_field)
                 converted_data[field_name] = value
 
-            return cast(T, cls(**converted_data))
+            return cls(**converted_data)
 
         # Handle regular classes
         else:
