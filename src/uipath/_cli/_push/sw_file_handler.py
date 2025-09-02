@@ -395,10 +395,8 @@ class SwFileHandler:
             return toml_data.get("authors", "").strip()
 
         try:
-            entrypoints = [
-                {"input": entrypoint["input"], "output": entrypoint["output"]}
-                for entrypoint in uipath_config["entryPoints"]
-            ]
+            input_schema = uipath_config["entryPoints"][0]["input"]
+            output_schema = uipath_config["entryPoints"][0]["output"]
         except (FileNotFoundError, KeyError) as e:
             self.console.error(
                 f"Unable to extract entrypoints from configuration file. Please run 'uipath init' : {str(e)}",
@@ -417,10 +415,12 @@ class SwFileHandler:
                 "author": author,
                 "pushDate": datetime.now(timezone.utc).isoformat(),
             },
-            "entryPoints": entrypoints,
+            "inputSchema": input_schema,
+            "outputSchema": output_schema,
             "bindings": uipath_config.get(
                 "bindings", {"version": "2.0", "resources": []}
             ),
+            "settings": {},
         }
 
         existing = root_files.get("agent.json")
