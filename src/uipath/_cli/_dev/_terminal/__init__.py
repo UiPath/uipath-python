@@ -115,12 +115,14 @@ class UiPathDevTerminal(App[Any]):
         if not entrypoint:
             return
 
+        input: Dict[str, Any] = {}
         try:
-            json.loads(input_data)
+            input = json.loads(input_data)
         except json.JSONDecodeError:
             return
 
-        run = ExecutionRun(entrypoint, input_data)
+        run = ExecutionRun(entrypoint, input)
+
         self.runs[run.id] = run
 
         self._add_run_in_history(run)
@@ -140,7 +142,7 @@ class UiPathDevTerminal(App[Any]):
         try:
             context: UiPathRuntimeContext = self.runtime_factory.new_context(
                 entrypoint=run.entrypoint,
-                input=run.input_data,
+                input_json=run.input_data,
                 trace_id=str(uuid4()),
                 execution_id=run.id,
                 logs_min_level=env.get("LOG_LEVEL", "INFO"),
@@ -154,7 +156,7 @@ class UiPathDevTerminal(App[Any]):
             result = await self.runtime_factory.execute_in_root_span(context)
 
             if result is not None:
-                run.output_data = json.dumps(result.output)
+                run.output_data = result.output
                 if run.output_data:
                     self._add_info_log(run, f"Execution result: {run.output_data}")
 
