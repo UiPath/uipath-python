@@ -5,6 +5,7 @@ import click
 
 from .cli_auth import auth as auth
 from .cli_deploy import deploy as deploy  # type: ignore
+from .cli_dev import dev as dev
 from .cli_eval import eval as eval  # type: ignore
 from .cli_init import init as init  # type: ignore
 from .cli_invoke import invoke as invoke  # type: ignore
@@ -69,3 +70,4 @@ cli.add_command(invoke)
 cli.add_command(push)
 cli.add_command(pull)
 cli.add_command(eval)
+cli.add_command(dev)

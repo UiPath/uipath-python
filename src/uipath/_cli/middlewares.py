@@ -28,6 +28,7 @@ class Middlewares:
         "pack": [],
         "publish": [],
         "run": [],
+        "dev": [],
     }
     _plugins_loaded = False
 
