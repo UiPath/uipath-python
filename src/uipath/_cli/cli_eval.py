@@ -2,13 +2,22 @@
 import ast
 import asyncio
 import os
-from typing import List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import List, Optional
 
 import click
 
+from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath._cli._runtime._contracts import (
+    UiPathRuntimeContext,
+    UiPathRuntimeContextBuilder,
+    UiPathRuntimeFactory,
+)
+from uipath._cli._runtime._runtime import UiPathRuntime
+from uipath._cli.middlewares import MiddlewareResult, Middlewares
+
 from .._utils.constants import ENV_JOB_ID
 from ..telemetry import track
-from ._evals.evaluation_service import EvaluationService
 from ._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
@@ -22,48 +31,60 @@ class LiteralOption(click.Option):
             raise click.BadParameter(value) from e
 
 
-def eval_agent(
+def eval_agent_middleware(
     entrypoint: Optional[str] = None,
     eval_set: Optional[str] = None,
     eval_ids: Optional[List[str]] = None,
     workers: int = 8,
     no_report: bool = False,
     **kwargs,
-) -> Tuple[bool, Optional[str], Optional[str]]:
-    """Core evaluation logic that can be called programmatically.
-
-    Args:
-        entrypoint: Path to the agent script to evaluate (optional, will auto-discover if not provided)
-        eval_set: Path to the evaluation set JSON file (optional, will auto-discover if not provided)
-        eval_ids: Optional list of evaluation IDs
-        workers: Number of parallel workers for running evaluations
-        no_report: Do not report the evaluation results
-        **kwargs: Additional arguments for future extensibility
-
-    Returns:
-        Tuple containing:
-            - success: True if evaluation was successful
-            - error_message: Error message if any
-            - info_message: Info message if any
-    """
-    try:
-        if workers < 1:
-            return False, "Number of workers must be at least 1", None
-
-        print("EVAL SET")
-        print(eval_set)
-        if eval_set is not None and len(eval_set) == 0:
-            return False, "Evaluation set must not be empty", None
-
-        service = EvaluationService(
-            entrypoint, eval_set, eval_ids, workers, report_progress=not no_report
+) -> MiddlewareResult:
+    def generate_eval_context(
+        runtime_context: UiPathRuntimeContext,
+    ) -> UiPathEvalContext:
+        os.makedirs("evals/results", exist_ok=True)
+        timestamp = datetime.now(timezone.utc).strftime("%M-%H-%d-%m-%Y")
+        base_context = UiPathRuntimeContextBuilder().with_defaults().build()
+        # TODO: the name should include the eval_set name. those files should not be commited to SW
+        base_context.execution_output_file = (
+            f"evals/results/{timestamp}.json"
+            if not os.getenv("UIPATH_JOB_KEY")
+            else None
         )
-        asyncio.run(service.run_evaluation())
+        return UiPathEvalContext(
+            runtime_context=runtime_context,
+            no_report=no_report,
+            workers=workers,
+            eval_set=eval_set,
+            eval_ids=eval_ids,
+            **kwargs,
+            **base_context.model_dump(),
+        )
 
-        return True, None, "Evaluation completed successfully"
+    try:
+        runtime_factory = UiPathRuntimeFactory(UiPathRuntime, UiPathRuntimeContext)
+        context = (
+            UiPathRuntimeContextBuilder()
+            .with_defaults(**kwargs)
+            .with_entrypoint(entrypoint)
+            .with_entrypoint(entrypoint)
+            .mark_eval_run()
+            .build()
+        )
+
+        async def execute():
+            async with UiPathEvalRuntime.from__eval_context(
+                factory=runtime_factory, context=generate_eval_context(context)
+            ) as eval_runtime:
+                await eval_runtime.execute()
+
+        asyncio.run(execute())
+        return MiddlewareResult(should_continue=False)
 
     except Exception as e:
-        return False, f"Error running evaluation: {str(e)}", None
+        return MiddlewareResult(
+            should_continue=False, error_message=f"Error running evaluation: {str(e)}"
+        )
 
 
 @click.command()
@@ -99,19 +120,29 @@ def eval(
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """
-    success, error_message, info_message = eval_agent(
-        entrypoint=entrypoint,
-        eval_set=eval_set,
-        eval_ids=eval_ids,
-        workers=workers,
+    result = Middlewares.next(
+        "eval",
+        entrypoint,
+        eval_set,
+        eval_ids,
         no_report=no_report,
+        workers=workers,
     )
-    if error_message:
-        console.error(error_message)
-        click.get_current_context().exit(1)
 
-    if info_message:
-        console.success(info_message)
+    if result.should_continue:
+        result = eval_agent_middleware(
+            entrypoint=entrypoint,
+            eval_set=eval_set,
+            eval_ids=eval_ids,
+            workers=workers,
+            no_report=no_report,
+        )
+    if result.should_continue:
+        console.error("Could not process the request with any available handler.")
+    if result.error_message:
+        console.error(result.error_message)
+
+    console.success("Evaluation completed successfully")
 
 
 if __name__ == "__main__":

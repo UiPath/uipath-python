@@ -31,3 +31,6 @@ TEMP_ATTACHMENTS_FOLDER = "uipath_attachments"
 
 # LLM models
 COMMUNITY_agents_SUFFIX = "-community-agents"
+
+# File names
+UIPATH_CONFIG_FILE = "uipath.json"
