@@ -1,7 +1,7 @@
 import time
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from uuid import UUID
 
 from httpx._types import FileContent
@@ -32,7 +32,7 @@ class DocumentsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    def _get_common_headers(self) -> dict:
+    def _get_common_headers(self) -> Dict:
         return {
             "X-UiPath-Internal-Agents-Integration": "true",
             "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
