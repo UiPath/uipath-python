@@ -1,3 +1,4 @@
+import json
 from typing import Dict, List, Optional
 
 from textual.app import ComposeResult
@@ -200,8 +201,6 @@ class RunDetailsPanel(Container):
             if isinstance(run.input_data, str):
                 run_details_log.write(run.input_data)
             elif isinstance(run.input_data, dict):
-                import json
-
                 run_details_log.write(json.dumps(run.input_data, indent=2))
             else:
                 run_details_log.write(str(run.input_data))
@@ -217,8 +216,6 @@ class RunDetailsPanel(Container):
             if isinstance(run.output_data, str):
                 run_details_log.write(run.output_data)
             elif isinstance(run.output_data, dict):
-                import json
-
                 run_details_log.write(json.dumps(run.output_data, indent=2))
             else:
                 run_details_log.write(str(run.output_data))

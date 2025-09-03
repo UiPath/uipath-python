@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from ...._runtime._contracts import UiPathErrorContract
@@ -10,11 +10,11 @@ from ._messages import LogMessage, TraceMessage
 class ExecutionRun:
     """Represents a single execution run."""
 
-    def __init__(self, entrypoint: str, input_data: str):
+    def __init__(self, entrypoint: str, input_data: Dict[str, Any]):
         self.id = str(uuid4())[:8]
         self.entrypoint = entrypoint
         self.input_data = input_data
-        self.output_data: Optional[str] = None
+        self.output_data: Optional[Dict[str, Any]] = None
         self.start_time = datetime.now()
         self.end_time: Optional[datetime] = None
         self.status = "running"  # running, completed, failed

@@ -86,7 +86,7 @@ class UiPathRuntime(UiPathBaseRuntime):
         try:
             if self.context.input:
                 self.context.input_json = json.loads(self.context.input)
-            else:
+            if self.context.input_json is None:
                 self.context.input_json = {}
         except json.JSONDecodeError as e:
             raise UiPathRuntimeError(
