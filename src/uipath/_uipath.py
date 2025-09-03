@@ -14,6 +14,7 @@ from ._services import (
     BucketsService,
     ConnectionsService,
     ContextGroundingService,
+    EntitiesService,
     FolderService,
     JobsService,
     ProcessesService,
@@ -132,3 +133,7 @@ class UiPath:
     @property
     def llm(self) -> UiPathLlmChatService:
         return UiPathLlmChatService(self._config, self._execution_context)
+
+    @property
+    def entities(self) -> EntitiesService:
+        return EntitiesService(self._config, self._execution_context)
