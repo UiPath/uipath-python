@@ -64,7 +64,10 @@ class TestDocumentsService:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={
+                "X-UiPath-Internal-Agents-Integration": "true",
+                "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+            },
             json={
                 "projects": [
                     {"id": str(uuid4()), "name": "OtherProject"},
@@ -76,7 +79,10 @@ class TestDocumentsService:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={
+                "X-UiPath-Internal-Agents-Integration": "true",
+                "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+            },
             json={
                 "tags": [
                     {"name": "draft"},
@@ -88,14 +94,20 @@ class TestDocumentsService:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={
+                "X-UiPath-Internal-Agents-Integration": "true",
+                "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+            },
             match_files={"File": b"test content"},
             json={"documentId": document_id},
         )
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/start?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={
+                "X-UiPath-Internal-Agents-Integration": "true",
+                "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+            },
             match_json={"documentId": document_id},
             json={"operationId": operation_id},
         )
@@ -103,19 +115,28 @@ class TestDocumentsService:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={
+                "X-UiPath-Internal-Agents-Integration": "true",
+                "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+            },
             json={"status": "NotStarted", "result": extraction_response},
         )
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={
+                "X-UiPath-Internal-Agents-Integration": "true",
+                "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+            },
             json={"status": "Running", "result": extraction_response},
         )
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={
+                "X-UiPath-Internal-Agents-Integration": "true",
+                "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+            },
             json={"status": "Succeeded", "result": extraction_response},
         )
 

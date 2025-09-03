@@ -32,12 +32,18 @@ class DocumentsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    def _get_common_headers(self) -> dict:
+        return {
+            "X-UiPath-Internal-Agents-Integration": "true",
+            "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+        }
+
     def _get_project_id_by_name(self, project_name: str) -> str:
         response = self.request(
             "GET",
             url=Endpoint("/du_/api/framework/projects"),
             params={"api-version": 1.1, "type": "IXP"},
-            headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            headers=self._get_common_headers(),
         )
 
         try:
@@ -54,7 +60,7 @@ class DocumentsService(FolderContext, BaseService):
             "GET",
             url=Endpoint(f"/du_/api/framework/projects/{project_id}/tags"),
             params={"api-version": 1.1},
-            headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            headers=self._get_common_headers(),
         )
         return {tag["name"] for tag in response.json().get("tags", [])}
 
@@ -79,7 +85,7 @@ class DocumentsService(FolderContext, BaseService):
                 f"/du_/api/framework/projects/{project_id}/digitization/start"
             ),
             params={"api-version": 1.1},
-            headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            headers=self._get_common_headers(),
             files={"File": file},
             infer_content_type=True,
         ).json()["documentId"]
@@ -96,7 +102,7 @@ class DocumentsService(FolderContext, BaseService):
                 f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/extraction/start"
             ),
             params={"api-version": 1.1},
-            headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            headers=self._get_common_headers(),
             json={"documentId": document_id},
         ).json()["operationId"]
 
@@ -136,7 +142,7 @@ class DocumentsService(FolderContext, BaseService):
                             f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/extraction/result/{operation_id}"
                         ),
                         params={"api-version": 1.1},
-                        headers={"X-UiPath-Internal-Agents-Integration": "true"},
+                        headers=self._get_common_headers(),
                     ).json()
                 )["status"],
                 result.get("result", None),
@@ -221,7 +227,7 @@ class DocumentsService(FolderContext, BaseService):
                 f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/start"
             ),
             params={"api-version": 1.1},
-            headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            headers=self._get_common_headers(),
             json={
                 "extractionResult": extraction_response.extraction_result.model_dump(),
                 "documentId": extraction_response.extraction_result.document_id,
@@ -244,7 +250,7 @@ class DocumentsService(FolderContext, BaseService):
                 f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}"
             ),
             params={"api-version": 1.1},
-            headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            headers=self._get_common_headers(),
         ).json()
 
     def _wait_for_create_validation_action(
