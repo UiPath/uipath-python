@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from uipath.tracing import TracingManager
 
+from .._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from ._logging import LogsInterceptor
 
 logger = logging.getLogger(__name__)
@@ -563,6 +564,33 @@ class UiPathRuntimeFactory(Generic[T, C]):
                 span_processor.force_flush()
             return result
 
+    async def evaluate(
+        self, eval_context: UiPathEvalContext
+    ) -> Optional[UiPathRuntimeResult]:
+        """Run an evaluation runtime."""
+        async with UiPathEvalRuntime.from_context(eval_context, self) as runtime:
+            result = await runtime.execute()
+            for span_processor in self.tracer_span_processors:
+                span_processor.force_flush()
+            return result
+
+    async def evaluate_in_root_span(
+        self, eval_context: UiPathEvalContext, root_span: str = "root"
+    ) -> Optional[UiPathRuntimeResult]:
+        """Run an evaluation runtime."""
+        async with UiPathEvalRuntime.from_context(eval_context, self) as runtime:
+            tracer: Tracer = trace.get_tracer("uipath-runtime")
+            with tracer.start_as_current_span(
+                root_span,
+                attributes={"evaluation.id": eval_context.evaluation_id}
+                if eval_context.evaluation_id
+                else {},
+            ):
+                result = await runtime.execute()
+            for span_processor in self.tracer_span_processors:
+                span_processor.force_flush()
+            return result
+
 
 class UiPathExecutionTraceProcessorMixin:
     def on_start(
@@ -575,9 +603,12 @@ class UiPathExecutionTraceProcessorMixin:
             parent_span = trace.get_current_span()
 
         if parent_span and parent_span.is_recording():
-            run_id = parent_span.attributes.get("execution.id")  # type: ignore[attr-defined]
-            if run_id:
-                span.set_attribute("execution.id", run_id)
+            execution_id = parent_span.attributes.get("execution.id")  # type: ignore[attr-defined]
+            if execution_id:
+                span.set_attribute("execution.id", execution_id)
+            evaluation_id = parent_span.attributes.get("evaluation.id")  # type: ignore[attr-defined]
+            if evaluation_id:
+                span.set_attribute("evaluation.id", evaluation_id)
 
 
 class UiPathExecutionBatchTraceProcessor(
