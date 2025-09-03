@@ -140,13 +140,6 @@ class TestDocumentsService:
             json={"status": "Succeeded", "result": extraction_response},
         )
 
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/test-if-failed-for-not-used-endpoint",
-            status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
-            json={"status": "Completed", "result": extraction_response},
-        )
-
         # ACT
         response = service.extract(
             project_name="TestProject", tag="live", file=b"test content"
