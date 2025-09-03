@@ -5,6 +5,7 @@ import os
 from urllib.parse import urlencode
 
 from ._models import AuthConfig
+from ._url_utils import build_service_url
 
 
 def generate_code_verifier_and_challenge():
@@ -65,5 +66,5 @@ def get_auth_url(domain: str) -> tuple[str, str, str]:
     }
 
     query_string = urlencode(query_params)
-    url = f"https://{domain}.uipath.com/identity_/connect/authorize?{query_string}"
+    url = build_service_url(domain, f"/identity_/connect/authorize?{query_string}")
     return url, code_verifier, state

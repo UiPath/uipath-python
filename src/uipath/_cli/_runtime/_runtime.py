@@ -8,12 +8,7 @@ import os
 from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, Optional, Type, TypeVar, cast, get_type_hints
 
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pydantic import BaseModel
-
-from uipath.tracing import LlmOpsHttpExporter
 
 from ._contracts import (
     UiPathBaseRuntime,
@@ -43,11 +38,6 @@ class UiPathRuntime(UiPathBaseRuntime):
         await self.validate()
 
         try:
-            trace.set_tracer_provider(TracerProvider())
-            trace.get_tracer_provider().add_span_processor(  # type: ignore
-                BatchSpanProcessor(LlmOpsHttpExporter())
-            )
-
             if self.context.entrypoint is None:
                 return None
 
@@ -74,8 +64,6 @@ class UiPathRuntime(UiPathBaseRuntime):
                 f"Error: {str(e)}",
                 UiPathErrorCategory.SYSTEM,
             ) from e
-        finally:
-            trace.get_tracer_provider().shutdown()  # type: ignore
 
     async def validate(self) -> None:
         """Validate runtime inputs."""
@@ -98,7 +86,7 @@ class UiPathRuntime(UiPathBaseRuntime):
         try:
             if self.context.input:
                 self.context.input_json = json.loads(self.context.input)
-            else:
+            if self.context.input_json is None:
                 self.context.input_json = {}
         except json.JSONDecodeError as e:
             raise UiPathRuntimeError(
@@ -223,7 +211,7 @@ class UiPathRuntime(UiPathBaseRuntime):
         # Handle Pydantic models
         try:
             if inspect.isclass(cls) and issubclass(cls, BaseModel):
-                return cast(T, cls.model_validate(data))
+                return cls.model_validate(data)
         except TypeError:
             # issubclass can raise TypeError if cls is not a class
             pass
@@ -247,7 +235,7 @@ class UiPathRuntime(UiPathBaseRuntime):
                     value = self._convert_to_class(value, typed_field)
                 converted_data[field_name] = value
 
-            return cast(T, cls(**converted_data))
+            return cls(**converted_data)
 
         # Handle regular classes
         else:

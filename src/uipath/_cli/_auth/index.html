@@ -477,7 +477,15 @@
                 formData.append('client_id', '__PY_REPLACE_CLIENT_ID__');
                 formData.append('code_verifier', codeVerifier);
 
-                const response = await fetch('https://__PY_REPLACE_DOMAIN__.uipath.com/identity_/connect/token', {
+                const domainOrUrl = '__PY_REPLACE_DOMAIN__';
+                let tokenUrl;
+                if (domainOrUrl.startsWith('http')) {
+                    tokenUrl = `${domainOrUrl}/identity_/connect/token`;
+                } else {
+                    tokenUrl = `https://${domainOrUrl}.uipath.com/identity_/connect/token`;
+                }
+
+                const response = await fetch(tokenUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'

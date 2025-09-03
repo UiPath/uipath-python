@@ -8,9 +8,21 @@ import traceback
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
 
+from opentelemetry import context as context_api
+from opentelemetry import trace
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.sdk.trace import Span, SpanProcessor, TracerProvider
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    SimpleSpanProcessor,
+    SpanExporter,
+)
+from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
+
+from uipath.tracing import TracingManager
 
 from ._logging import LogsInterceptor
 
@@ -144,6 +156,7 @@ class UiPathRuntimeContext(BaseModel):
     input: Optional[str] = None
     input_json: Optional[Any] = None
     job_id: Optional[str] = None
+    execution_id: Optional[str] = None
     trace_id: Optional[str] = None
     trace_context: Optional[UiPathTraceContext] = None
     tracing_enabled: Union[bool, str] = False
@@ -159,7 +172,7 @@ class UiPathRuntimeContext(BaseModel):
     execution_output_file: Optional[str] = None
     input_file: Optional[str] = None
     is_eval_run: bool = False
-
+    log_handler: Optional[logging.Handler] = None
     model_config = {"arbitrary_types_allowed": True}
 
     @classmethod
@@ -328,6 +341,7 @@ class UiPathBaseRuntime(ABC):
             file=self.context.logs_file,
             job_id=self.context.job_id,
             is_debug_run=self.is_debug_run(),
+            log_handler=self.context.log_handler,
         )
         self.logs_interceptor.setup()
 
@@ -465,3 +479,114 @@ class UiPathBaseRuntime(ABC):
             os.makedirs(self.context.runtime_dir, exist_ok=True)
             return os.path.join(self.context.runtime_dir, self.context.state_file)
         return os.path.join("__uipath", "state.db")
+
+
+T = TypeVar("T", bound=UiPathBaseRuntime)
+C = TypeVar("C", bound=UiPathRuntimeContext)
+
+
+class UiPathRuntimeFactory(Generic[T, C]):
+    """Generic factory for UiPath runtime classes."""
+
+    def __init__(self, runtime_class: Type[T], context_class: Type[C]):
+        if not issubclass(runtime_class, UiPathBaseRuntime):
+            raise TypeError(
+                f"runtime_class {runtime_class.__name__} must inherit from UiPathBaseRuntime"
+            )
+
+        if not issubclass(context_class, UiPathRuntimeContext):
+            raise TypeError(
+                f"context_class {context_class.__name__} must inherit from UiPathRuntimeContext"
+            )
+
+        self.runtime_class = runtime_class
+        self.context_class = context_class
+        self.tracer_provider: TracerProvider = TracerProvider()
+        self.tracer_span_processors: List[SpanProcessor] = []
+        trace.set_tracer_provider(self.tracer_provider)
+
+    def add_span_exporter(
+        self,
+        span_exporter: SpanExporter,
+        batch: bool = True,
+    ) -> "UiPathRuntimeFactory[T, C]":
+        """Add a span processor to the tracer provider."""
+        span_processor: SpanProcessor
+        if batch:
+            span_processor = UiPathExecutionBatchTraceProcessor(span_exporter)
+        else:
+            span_processor = UiPathExecutionSimpleTraceProcessor(span_exporter)
+        self.tracer_span_processors.append(span_processor)
+        self.tracer_provider.add_span_processor(span_processor)
+        return self
+
+    def add_instrumentor(
+        self,
+        instrumentor_class: Type[BaseInstrumentor],
+        get_current_span_func: Callable[[], Any],
+    ) -> "UiPathRuntimeFactory[T, C]":
+        """Add and instrument immediately."""
+        instrumentor_class().instrument(tracer_provider=self.tracer_provider)
+        TracingManager.register_current_span_provider(get_current_span_func)
+        return self
+
+    def new_context(self, **kwargs) -> C:
+        """Create a new context instance."""
+        return self.context_class(**kwargs)
+
+    def from_context(self, context: C) -> T:
+        """Create runtime instance from context."""
+        return self.runtime_class.from_context(context)
+
+    async def execute(self, context: C) -> Optional[UiPathRuntimeResult]:
+        """Execute runtime with context."""
+        async with self.from_context(context) as runtime:
+            result = await runtime.execute()
+            for span_processor in self.tracer_span_processors:
+                span_processor.force_flush()
+            return result
+
+    async def execute_in_root_span(
+        self, context: C, root_span: str = "root"
+    ) -> Optional[UiPathRuntimeResult]:
+        """Execute runtime with context."""
+        async with self.from_context(context) as runtime:
+            tracer: Tracer = trace.get_tracer("uipath-runtime")
+            with tracer.start_as_current_span(
+                root_span,
+                attributes={"execution.id": context.execution_id}
+                if context.execution_id
+                else {},
+            ):
+                result = await runtime.execute()
+            for span_processor in self.tracer_span_processors:
+                span_processor.force_flush()
+            return result
+
+
+class UiPathExecutionTraceProcessorMixin:
+    def on_start(
+        self, span: Span, parent_context: Optional[context_api.Context] = None
+    ):
+        """Called when a span is started."""
+        if parent_context:
+            parent_span = trace.get_current_span(parent_context)
+        else:
+            parent_span = trace.get_current_span()
+
+        if parent_span and parent_span.is_recording():
+            run_id = parent_span.attributes.get("execution.id")  # type: ignore[attr-defined]
+            if run_id:
+                span.set_attribute("execution.id", run_id)
+
+
+class UiPathExecutionBatchTraceProcessor(
+    UiPathExecutionTraceProcessorMixin, BatchSpanProcessor
+):
+    """Batch span processor that propagates execution.id."""
+
+
+class UiPathExecutionSimpleTraceProcessor(
+    UiPathExecutionTraceProcessorMixin, SimpleSpanProcessor
+):
+    """Simple span processor that propagates execution.id."""
