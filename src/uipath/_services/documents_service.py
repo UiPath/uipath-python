@@ -1,7 +1,7 @@
 import time
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Set, Tuple
 from uuid import UUID
 
 from httpx._types import FileContent
@@ -16,6 +16,7 @@ from ..models.documents import (
     ValidatedResult,
     ValidationAction,
 )
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 POLLING_INTERVAL = 2  # seconds
@@ -48,14 +49,14 @@ class DocumentsService(FolderContext, BaseService):
         except StopIteration:
             raise ValueError(f"Project '{project_name}' not found.") from None
 
-    def _get_project_tags(self, project_id: str) -> List[str]:
+    def _get_project_tags(self, project_id: str) -> Set[str]:
         response = self.request(
             "GET",
             url=Endpoint(f"/du_/api/framework/projects/{project_id}/tags"),
             params={"api-version": 1.1},
             headers={"X-UiPath-Internal-Agents-Integration": "true"},
         )
-        return [tag["name"] for tag in response.json().get("tags", [])]
+        return {tag["name"] for tag in response.json().get("tags", [])}
 
     def _get_project_id_and_validate_tag(self, project_name: str, tag: str) -> str:
         project_id = self._get_project_id_by_name(project_name)
@@ -148,8 +149,8 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response["tag"] = tag
         return ExtractionResponse.model_validate(extraction_response)
 
-    # telemetry
     # async
+    @traced(name="documents_extract", run_type="uipath")
     def extract(
         self,
         project_name: str,
@@ -246,7 +247,7 @@ class DocumentsService(FolderContext, BaseService):
             headers={"X-UiPath-Internal-Agents-Integration": "true"},
         ).json()
 
-    def _wait_for_validation(
+    def _wait_for_create_validation_action(
         self, project_id: str, tag: str, operation_id: str
     ) -> ValidationAction:
         response = self._wait_for_operation(
@@ -267,8 +268,8 @@ class DocumentsService(FolderContext, BaseService):
         response["operationId"] = operation_id
         return ValidationAction.model_validate(response)
 
-    # telemetry
     # async
+    @traced(name="documents_create_validation_action", run_type="uipath")
     def create_validation_action(
         self,
         action_title: str,
@@ -318,14 +319,14 @@ class DocumentsService(FolderContext, BaseService):
             extraction_response=extraction_response,
         )
 
-        return self._wait_for_validation(
+        return self._wait_for_create_validation_action(
             project_id=extraction_response.project_id,
             tag=extraction_response.tag,
             operation_id=operation_id,
         )
 
-    # telemetry
     # async
+    @traced(name="documents_get_validation_result", run_type="uipath")
     def get_validation_result(
         self, validation_action: ValidationAction
     ) -> ValidatedResult:
