@@ -1,15 +1,12 @@
 from os import environ as env
 from typing import Any, Optional
 
-from ._cli._utils._common import load_environment_variables
 from ._utils.constants import (
     ENV_FOLDER_KEY,
     ENV_FOLDER_PATH,
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
 )
-
-load_environment_variables()
 
 
 class FolderContext:

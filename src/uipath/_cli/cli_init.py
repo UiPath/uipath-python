@@ -10,14 +10,12 @@ import click
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
-from ._utils._common import load_environment_variables
 from ._utils._console import ConsoleLogger
 from ._utils._input_args import generate_args
 from ._utils._parse_ast import generate_bindings_json
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
-load_environment_variables()
 CONFIG_PATH = "uipath.json"
 
 

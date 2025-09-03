@@ -7,10 +7,8 @@ import threading
 import time
 from typing import Optional
 
-from .._utils._common import load_environment_variables
 from ._oidc_utils import get_auth_config
 
-load_environment_variables()
 # Server port
 PORT = 6234
 

@@ -3,7 +3,6 @@ from typing import Optional
 
 from pydantic import ValidationError
 
-from ._cli._utils._common import load_environment_variables
 from ._config import Config
 from ._execution_context import ExecutionContext
 from ._services import (
@@ -28,8 +27,6 @@ from ._utils.constants import (
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
 )
 from .models.errors import BaseUrlMissingError, SecretMissingError
-
-load_environment_variables()
 
 
 class UiPath:

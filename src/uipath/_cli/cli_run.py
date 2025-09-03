@@ -8,7 +8,6 @@ from uuid import uuid4
 
 import click
 
-from uipath._cli._utils._common import load_environment_variables
 from uipath._cli._utils._debug import setup_debugging
 
 from .._utils.constants import (
@@ -25,7 +24,6 @@ from ._utils._console import ConsoleLogger
 from .middlewares import MiddlewareResult, Middlewares
 
 console = ConsoleLogger()
-load_environment_variables()
 
 
 def python_run_middleware(

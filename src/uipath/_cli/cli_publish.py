@@ -7,13 +7,12 @@ import httpx
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
-from ._utils._common import get_env_vars, load_environment_variables
+from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
 
 console = ConsoleLogger()
-load_environment_variables()
 
 
 def get_most_recent_package():

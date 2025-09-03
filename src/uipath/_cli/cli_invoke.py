@@ -15,12 +15,11 @@ except ImportError:
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
-from ._utils._common import get_env_vars, load_environment_variables
+from ._utils._common import get_env_vars
 from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
 
 logger = logging.getLogger(__name__)
-load_environment_variables()
 console = ConsoleLogger()
 
 

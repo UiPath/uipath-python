@@ -1,10 +1,7 @@
 from os import environ as env
 from typing import Optional
 
-from ._cli._utils._common import load_environment_variables
 from ._utils.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
-
-load_environment_variables()
 
 
 class ExecutionContext:

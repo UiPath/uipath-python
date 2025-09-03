@@ -106,4 +106,4 @@ def clean_directory(directory: str) -> None:
 
 
 def load_environment_variables():
-    load_dotenv(dotenv_path=find_dotenv(usecwd=True), override=True)
+    load_dotenv(dotenv_path=find_dotenv(usecwd=True), override=False)
