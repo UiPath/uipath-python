@@ -47,7 +47,9 @@ def validated_result(documents_tests_data_path: Path) -> dict:
 
 
 class TestDocumentsService:
-    def test_extract(
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract(
         self,
         httpx_mock: HTTPXMock,
         service: DocumentsService,
@@ -55,6 +57,7 @@ class TestDocumentsService:
         org: str,
         tenant: str,
         extraction_response: dict,
+        mode: str,
     ):
         # ARRANGE
         project_id = str(uuid4())
@@ -65,7 +68,6 @@ class TestDocumentsService:
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
             status_code=200,
             match_headers={
-                "X-UiPath-Internal-Agents-Integration": "true",
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
             },
             json={
@@ -80,7 +82,6 @@ class TestDocumentsService:
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version=1.1",
             status_code=200,
             match_headers={
-                "X-UiPath-Internal-Agents-Integration": "true",
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
             },
             json={
@@ -95,7 +96,6 @@ class TestDocumentsService:
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
             status_code=200,
             match_headers={
-                "X-UiPath-Internal-Agents-Integration": "true",
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
             },
             match_files={"File": b"test content"},
@@ -105,7 +105,6 @@ class TestDocumentsService:
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/start?api-version=1.1",
             status_code=200,
             match_headers={
-                "X-UiPath-Internal-Agents-Integration": "true",
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
             },
             match_json={"documentId": document_id},
@@ -116,7 +115,6 @@ class TestDocumentsService:
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
             status_code=200,
             match_headers={
-                "X-UiPath-Internal-Agents-Integration": "true",
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
             },
             json={"status": "NotStarted", "result": extraction_response},
@@ -125,7 +123,6 @@ class TestDocumentsService:
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
             status_code=200,
             match_headers={
-                "X-UiPath-Internal-Agents-Integration": "true",
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
             },
             json={"status": "Running", "result": extraction_response},
@@ -134,16 +131,20 @@ class TestDocumentsService:
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
             status_code=200,
             match_headers={
-                "X-UiPath-Internal-Agents-Integration": "true",
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
             },
             json={"status": "Succeeded", "result": extraction_response},
         )
 
         # ACT
-        response = service.extract(
-            project_name="TestProject", tag="live", file=b"test content"
-        )
+        if mode == "async":
+            response = await service.extract_async(
+                project_name="TestProject", tag="live", file=b"test content"
+            )
+        else:
+            response = service.extract(
+                project_name="TestProject", tag="live", file=b"test content"
+            )
 
         # ASSERT
         expected_response = extraction_response
@@ -151,49 +152,72 @@ class TestDocumentsService:
         expected_response["tag"] = "live"
         assert response.model_dump() == extraction_response
 
-    def test_extract_with_both_file_and_file_path_provided(
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract_with_both_file_and_file_path_provided(
         self,
         service: DocumentsService,
+        mode: str,
     ):
         # ACT & ASSERT
         with pytest.raises(
             ValueError,
             match="`file` and `file_path` are mutually exclusive",
         ):
-            service.extract(
-                project_name="TestProject",
-                tag="live",
-                file=b"test content",
-                file_path="path/to/file.pdf",
-            )
+            if mode == "async":
+                await service.extract_async(
+                    project_name="TestProject",
+                    tag="live",
+                    file=b"test content",
+                    file_path="path/to/file.pdf",
+                )
+            else:
+                service.extract(
+                    project_name="TestProject",
+                    tag="live",
+                    file=b"test content",
+                    file_path="path/to/file.pdf",
+                )
 
-    def test_extract_with_neither_file_nor_file_path_provided(
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract_with_neither_file_nor_file_path_provided(
         self,
         service: DocumentsService,
+        mode: str,
     ):
         # ACT & ASSERT
         with pytest.raises(
             ValueError,
             match="Either `file` or `file_path` must be provided",
         ):
-            service.extract(
-                project_name="TestProject",
-                tag="live",
-            )
+            if mode == "async":
+                await service.extract_async(
+                    project_name="TestProject",
+                    tag="live",
+                )
+            else:
+                service.extract(
+                    project_name="TestProject",
+                    tag="live",
+                )
 
-    def test_extract_with_wrong_project_name(
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract_with_wrong_project_name(
         self,
         httpx_mock: HTTPXMock,
         service: DocumentsService,
         base_url: str,
         org: str,
         tenant: str,
+        mode: str,
     ):
         # ARRANGE
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={
                 "projects": [
                     {"id": str(uuid4()), "name": "OtherProject"},
@@ -205,24 +229,32 @@ class TestDocumentsService:
 
         # ACT & ASSERT
         with pytest.raises(ValueError, match="Project 'TestProject' not found."):
-            service.extract(
-                project_name="TestProject", tag="live", file=b"test content"
-            )
+            if mode == "async":
+                await service.extract_async(
+                    project_name="TestProject", tag="live", file=b"test content"
+                )
+            else:
+                service.extract(
+                    project_name="TestProject", tag="live", file=b"test content"
+                )
 
-    def test_extract_with_wrong_tag(
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract_with_wrong_tag(
         self,
         httpx_mock: HTTPXMock,
         service: DocumentsService,
         base_url: str,
         org: str,
         tenant: str,
+        mode: str,
     ):
         # ARRANGE
         project_id = str(uuid4())
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={
                 "projects": [
                     {"id": str(uuid4()), "name": "OtherProject"},
@@ -234,17 +266,24 @@ class TestDocumentsService:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"tags": [{"name": "staging"}]},
         )
 
         # ACT & ASSERT
         with pytest.raises(ValueError, match="Tag 'live' not found."):
-            service.extract(
-                project_name="TestProject", tag="live", file=b"test content"
-            )
+            if mode == "async":
+                await service.extract_async(
+                    project_name="TestProject", tag="live", file=b"test content"
+                )
+            else:
+                service.extract(
+                    project_name="TestProject", tag="live", file=b"test content"
+                )
 
-    def test_create_validation_action(
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_create_validation_action(
         self,
         httpx_mock: HTTPXMock,
         service: DocumentsService,
@@ -253,6 +292,7 @@ class TestDocumentsService:
         tenant: str,
         extraction_response: dict,
         create_validation_action_response: dict,
+        mode: str,
     ):
         # ARRANGE
         project_id = str(uuid4())
@@ -268,7 +308,7 @@ class TestDocumentsService:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/start?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
                 "extractionResult": extraction_response["extractionResult"],
                 "documentId": extraction_response["extractionResult"]["DocumentId"],
@@ -286,20 +326,20 @@ class TestDocumentsService:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "NotStarted"},
         )
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Running"},
         )
 
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
         )
 
@@ -307,15 +347,30 @@ class TestDocumentsService:
         extraction_response["tag"] = tag
 
         # ACT
-        response = service.create_validation_action(
-            action_title=action_title,
-            action_priority=action_priority,
-            action_catalog=action_catalog,
-            action_folder=action_folder,
-            storage_bucket_name=storage_bucket_name,
-            storage_bucket_directory_path=storage_bucket_directory_path,
-            extraction_response=ExtractionResponse.model_validate(extraction_response),
-        )
+        if mode == "async":
+            response = await service.create_validation_action_async(
+                action_title=action_title,
+                action_priority=action_priority,
+                action_catalog=action_catalog,
+                action_folder=action_folder,
+                storage_bucket_name=storage_bucket_name,
+                storage_bucket_directory_path=storage_bucket_directory_path,
+                extraction_response=ExtractionResponse.model_validate(
+                    extraction_response
+                ),
+            )
+        else:
+            response = service.create_validation_action(
+                action_title=action_title,
+                action_priority=action_priority,
+                action_catalog=action_catalog,
+                action_folder=action_folder,
+                storage_bucket_name=storage_bucket_name,
+                storage_bucket_directory_path=storage_bucket_directory_path,
+                extraction_response=ExtractionResponse.model_validate(
+                    extraction_response
+                ),
+            )
 
         # ASSERT
         create_validation_action_response["projectId"] = project_id
@@ -323,7 +378,9 @@ class TestDocumentsService:
         create_validation_action_response["operationId"] = operation_id
         assert response.model_dump() == create_validation_action_response
 
-    def test_get_validation_result(
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_get_validation_result(
         self,
         httpx_mock: HTTPXMock,
         base_url: str,
@@ -332,6 +389,7 @@ class TestDocumentsService:
         service: DocumentsService,
         create_validation_action_response: dict,
         validated_result: dict,
+        mode: str,
     ):
         # ARRANGE
         project_id = str(uuid4())
@@ -348,25 +406,35 @@ class TestDocumentsService:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
             status_code=200,
-            match_headers={"X-UiPath-Internal-Agents-Integration": "true"},
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
         )
 
         # ACT
-        response = service.get_validation_result(
-            validation_action=ValidationAction.model_validate(
-                create_validation_action_response
+        if mode == "async":
+            response = await service.get_validation_result_async(
+                validation_action=ValidationAction.model_validate(
+                    create_validation_action_response
+                )
             )
-        )
+        else:
+            response = service.get_validation_result(
+                validation_action=ValidationAction.model_validate(
+                    create_validation_action_response
+                )
+            )
 
         # ASSERT
         assert response.model_dump() == validated_result
 
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
     @patch("uipath._services.documents_service.time")
-    def test_wait_for_operation_timeout(
+    async def test_wait_for_operation_timeout(
         self,
         mock_time: Mock,
         service: DocumentsService,
+        mode: str,
     ):
         # ARRANGE
         mock_time.monotonic.side_effect = [0, 10, 30, 60, 200, 280, 310, 350]
@@ -374,27 +442,50 @@ class TestDocumentsService:
         def mock_result_getter():
             return "Running", None
 
+        async def mock_result_getter_async():
+            return "Running", None
+
         # ACT & ASSERT
         with pytest.raises(TimeoutError, match="Operation timed out."):
-            service._wait_for_operation(
-                result_getter=mock_result_getter,
-                wait_statuses=["NotStarted", "Running"],
-                success_status="Succeeded",
-            )
+            if mode == "async":
+                await service._wait_for_operation_async(
+                    result_getter=mock_result_getter_async,
+                    wait_statuses=["NotStarted", "Running"],
+                    success_status="Succeeded",
+                )
+            else:
+                service._wait_for_operation(
+                    result_getter=mock_result_getter,
+                    wait_statuses=["NotStarted", "Running"],
+                    success_status="Succeeded",
+                )
 
-    def test_wait_for_operation_failed(
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_wait_for_operation_failed(
         self,
         service: DocumentsService,
+        mode: str,
     ):
         # ARRANGE
 
         def mock_result_getter():
             return "Failed", None
 
+        async def mock_result_getter_async():
+            return "Failed", None
+
         # ACT & ASSERT
         with pytest.raises(Exception, match="Operation failed with status: Failed"):
-            service._wait_for_operation(
-                result_getter=mock_result_getter,
-                wait_statuses=["NotStarted", "Running"],
-                success_status="Succeeded",
-            )
+            if mode == "async":
+                await service._wait_for_operation_async(
+                    result_getter=mock_result_getter_async,
+                    wait_statuses=["NotStarted", "Running"],
+                    success_status="Succeeded",
+                )
+            else:
+                service._wait_for_operation(
+                    result_getter=mock_result_getter,
+                    wait_statuses=["NotStarted", "Running"],
+                    success_status="Succeeded",
+                )
