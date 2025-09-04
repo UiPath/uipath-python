@@ -37,12 +37,14 @@ class ExecutionRun:
     def display_name(self) -> Text:
         status_colors = {
             "running": "yellow",
+            "suspended": "cyan",
             "completed": "green",
             "failed": "red",
         }
 
         status_icon = {
             "running": "▶",
+            "suspended": "⏸",
             "completed": "✔",
             "failed": "✖",
         }.get(self.status, "?")
