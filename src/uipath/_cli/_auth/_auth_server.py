@@ -7,11 +7,7 @@ import threading
 import time
 from typing import Optional
 
-from dotenv import load_dotenv
-
 from ._oidc_utils import get_auth_config
-
-load_dotenv(override=True)
 
 # Server port
 PORT = 6234

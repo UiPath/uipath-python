@@ -5,7 +5,6 @@ from typing import Optional
 
 import click
 import httpx
-from dotenv import load_dotenv
 
 from ._utils._console import ConsoleLogger
 
@@ -21,7 +20,6 @@ from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
 
 logger = logging.getLogger(__name__)
-load_dotenv(override=True)
 console = ConsoleLogger()
 
 
@@ -63,8 +61,6 @@ def invoke(
         with open(file) as f:
             input = f.read()
     with console.spinner("Loading configuration ..."):
-        current_path = os.getcwd()
-        load_dotenv(os.path.join(current_path, ".env"), override=True)
         [base_url, token] = get_env_vars()
 
         url = f"{base_url}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"

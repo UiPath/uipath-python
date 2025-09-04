@@ -4,7 +4,6 @@ import os
 
 import click
 import httpx
-from dotenv import load_dotenv
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
@@ -70,9 +69,6 @@ def get_available_feeds(
 @track
 def publish(feed):
     """Publish the package."""
-    current_path = os.getcwd()
-    load_dotenv(os.path.join(current_path, ".env"), override=True)
-
     [base_url, token] = get_env_vars()
     headers = {"Authorization": f"Bearer {token}"}
 
