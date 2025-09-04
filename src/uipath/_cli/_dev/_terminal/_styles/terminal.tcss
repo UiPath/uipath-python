@@ -117,6 +117,7 @@ Screen {
 }
 
 Footer {
+    margin-top:1;
     height: auto;
     dock: bottom;
 }

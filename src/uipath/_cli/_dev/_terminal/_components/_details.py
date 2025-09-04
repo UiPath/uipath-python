@@ -9,6 +9,7 @@ from textual.widgets.tree import TreeNode
 
 from .._models._execution import ExecutionRun
 from .._models._messages import LogMessage, TraceMessage
+from ._resume import ResumePanel
 
 
 class SpanDetailsDisplay(Container):
@@ -113,6 +114,9 @@ class RunDetailsPanel(Container):
                     classes="detail-log",
                 )
 
+            with TabPane("Resume", id="resume-tab"):
+                yield ResumePanel(id="resume-panel")
+
     def watch_current_run(
         self, old_value: Optional[ExecutionRun], new_value: Optional[ExecutionRun]
     ):
@@ -140,8 +144,14 @@ class RunDetailsPanel(Container):
         # Clear and rebuild traces tree using TraceMessage objects
         self._rebuild_spans_tree()
 
+    def _update_resume_tab(self, run: ExecutionRun) -> None:
+        resume_panel = self.query_one("#resume-panel", ResumePanel)
+        resume_panel.display = run.status == "suspended"
+
     def _show_run_details(self, run: ExecutionRun):
         """Display detailed information about the run in the Details tab."""
+        self._update_resume_tab(run)
+
         run_details_log = self.query_one("#run-details-log", RichLog)
         run_details_log.clear()
 
@@ -231,25 +241,6 @@ class RunDetailsPanel(Container):
             run_details_log.write(f"[red]Title: {run.error.title}[/red]")
             run_details_log.write(f"[red]\n{run.error.detail}[/red]")
             run_details_log.write("")
-
-        # Additional metadata
-        run_details_log.write("[bold]METADATA:[/bold]")
-        run_details_log.write("[dim]" + "=" * 50 + "[/dim]")
-
-        # Show available attributes
-        for attr in ["id", "status", "start_time", "end_time", "duration_ms"]:
-            if hasattr(run, attr):
-                value = getattr(run, attr)
-                if value is not None:
-                    run_details_log.write(f"  {attr}: {value}")
-
-        # Show traces count
-        traces_count = len(run.traces) if run.traces else 0
-        run_details_log.write(f"  traces_count: {traces_count}")
-
-        # Show logs count
-        logs_count = len(run.logs) if run.logs else 0
-        run_details_log.write(f"  logs_count: {logs_count}")
 
     def _rebuild_spans_tree(self):
         """Rebuild the spans tree from current run's traces."""
