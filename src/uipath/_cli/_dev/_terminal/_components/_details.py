@@ -180,8 +180,11 @@ class RunDetailsPanel(Container):
 
         elif isinstance(value, str):
             if prefix:
-                for line in value.splitlines():
-                    lines.append(f"{prefix}: {line}")
+                split_lines = value.splitlines()
+                if split_lines:
+                    lines.append(f"{prefix}: {split_lines[0]}")
+                    for line in split_lines[1:]:
+                        lines.append(f"{' ' * 2}{line}")
             else:
                 lines.extend(value.splitlines())
 
