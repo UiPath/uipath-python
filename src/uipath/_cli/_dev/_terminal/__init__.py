@@ -10,7 +10,7 @@ from uuid import uuid4
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, ListView
+from textual.widgets import Button, Footer, ListView
 
 from ..._runtime._contracts import (
     UiPathErrorContract,
@@ -34,8 +34,8 @@ class UiPathDevTerminal(App[Any]):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("n", "new_run", "New Run"),
-        Binding("r", "execute_run", "Execute"),
+        Binding("n", "new_run", "New"),
+        Binding("r", "execute_run", "Run"),
         Binding("c", "clear_history", "Clear History"),
         Binding("escape", "cancel", "Cancel"),
     ]
@@ -75,6 +75,8 @@ class UiPathDevTerminal(App[Any]):
 
                 # Run details panel (initially hidden)
                 yield RunDetailsPanel(id="details-panel", classes="hidden")
+
+        yield Footer()
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press events."""

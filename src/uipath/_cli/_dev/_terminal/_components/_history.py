@@ -2,7 +2,14 @@ from typing import List, Optional
 
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical
-from textual.widgets import Button, ListItem, ListView, Static
+from textual.widgets import (
+    Button,
+    ListItem,
+    ListView,
+    Static,
+    TabbedContent,
+    TabPane,
+)
 
 from .._models._execution import ExecutionRun
 
@@ -16,11 +23,16 @@ class RunHistoryPanel(Container):
         self.selected_run: Optional[ExecutionRun] = None
 
     def compose(self) -> ComposeResult:
-        with Vertical():
-            yield ListView(id="run-list", classes="run-list")
-            yield Button(
-                "+ New Run", id="new-run-btn", variant="primary", classes="new-run-btn"
-            )
+        with TabbedContent():
+            with TabPane("History", id="history-tab"):
+                with Vertical():
+                    yield ListView(id="run-list", classes="run-list")
+                    yield Button(
+                        "+ New",
+                        id="new-run-btn",
+                        variant="primary",
+                        classes="new-run-btn",
+                    )
 
     def add_run(self, run: ExecutionRun):
         """Add a new run to history."""
