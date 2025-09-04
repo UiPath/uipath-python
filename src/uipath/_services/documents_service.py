@@ -431,7 +431,7 @@ class DocumentsService(FolderContext, BaseService):
 
     def _get_validation_result(
         self, project_id: str, tag: str, operation_id: str
-    ) -> dict:
+    ) -> Dict:
         return self.request(
             method="GET",
             url=Endpoint(
@@ -443,7 +443,7 @@ class DocumentsService(FolderContext, BaseService):
 
     async def _get_validation_result_async(
         self, project_id: str, tag: str, operation_id: str
-    ) -> dict:
+    ) -> Dict:
         return (
             await self.request_async(
                 method="GET",
