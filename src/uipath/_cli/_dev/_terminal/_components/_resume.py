@@ -1,3 +1,5 @@
+import json
+
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, TextArea
@@ -12,7 +14,7 @@ class ResumePanel(Container):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield TextArea(
-                text="{}",
+                text=json.dumps({"value": ""}, indent=2),
                 language="json",
                 id="resume-json-input",
                 classes="input-field json-input",

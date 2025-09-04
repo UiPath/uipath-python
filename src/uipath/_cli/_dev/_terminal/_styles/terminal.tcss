@@ -22,6 +22,11 @@ Screen {
     color: #ffaa00;
 }
 
+.run-suspended {
+    border-left: solid #00FFFF;
+    color: #e0e0e0;
+}
+
 .run-completed {
     border-left: solid #00ff88;
     color: #e0e0e0;
