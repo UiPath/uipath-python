@@ -1,11 +1,7 @@
-/* Global layout - dark terminal theme */
 Screen {
-    background: #1a1a1a;
-    color: #e0e0e0;
     layout: horizontal;
 }
 
-/* Left sidebar - run history with embedded title */
 .run-history {
     width: 30%;
     min-width: 25;
@@ -15,18 +11,10 @@ Screen {
 .run-list {
     height: 1fr;
     margin-bottom: 1;
-    border: solid #404040;
-    background: #252525;
 }
 
 .run-item {
     padding: 0 1;
-    background: transparent;
-    color: #e0e0e0;
-}
-
-.run-item:hover {
-    background: #333333;
 }
 
 .run-running {
@@ -47,43 +35,27 @@ Screen {
 .new-run-btn {
     width: 100%;
     margin-bottom: 1;
-    background: #00d4ff;
-    color: #000000;
     border: none;
     text-style: bold;
 }
-
-.new-run-btn:hover {
-    background: #00a0cc;
-}
-
-/* Main content area */
 .main-content {
     width: 70%;
     padding-left: 1;
 }
 
-/* New run panel with embedded titles */
 .new-run-title {
-    color: #00d4ff;
     text-style: bold;
-    background: #252525;
     padding: 0 1;
     height: 1;
-    border: solid #404040;
     margin-bottom: 0;
 }
 
 .new-run-panel {
     height: 100%;
-    background: #252525;
-    border: solid #404040;
 }
 
 .field-label {
-    color: #00d4ff;
     text-style: bold;
-    background: #252525;
 }
 
 .run-actions {
@@ -94,26 +66,10 @@ Screen {
 .action-btn {
     margin-right: 2;
     min-width: 8;
-    background: #00ff88;
-    color: #000000;
     border: none;
     text-style: bold;
 }
 
-.action-btn:hover {
-    background: #00cc66;
-}
-
-.cancel-btn {
-    background: #404040;
-    color: #e0e0e0;
-}
-
-.cancel-btn:hover {
-    background: #555555;
-}
-
-/* Run details panel with embedded titles */
 .details-content {
     height: 1fr;
 }
@@ -134,12 +90,10 @@ Screen {
 
 .detail-log {
     height: 1fr;
-    background: #252525;
     padding: 1;
     padding-top: 0;
 }
 
-/* Status indicators for buttons */
 .status-running {
     background: #ffaa00;
     color: #000000;
@@ -158,53 +112,15 @@ Screen {
     border: solid #ff4444;
 }
 
-/* ListView styling */
-ListView {
-    background: transparent;
-}
-
-ListView>ListItem {
-    background: transparent;
-}
-
-ListView>ListItem:hover {
-    background: #333333;
-}
-
-ListView>ListItem.--highlight {
-    background: #00d4ff;
-    color: #000000;
-}
-
-/* TextArea and RichLog improvements */
-TextArea {
-    background: #1a1a1a;
-    color: #e0e0e0;
-}
-
-RichLog {
-    background: #252525;
-    color: #e0e0e0;
-}
-
-/* Initially hide details panel */
 .hidden {
     display: none;
 }
 
-/* Header and Footer */
-Header {
-    background: #000000;
-    color: #00d4ff;
-}
-
 Footer {
-    background: #000000;
-    color: #888888;
-    border-top: solid #404040;
+    height: auto;
+    dock: bottom;
 }
 
-/* Tabbed content styling */
 TabbedContent {
     height: 100%;
 }
@@ -214,7 +130,6 @@ TabPane {
     padding: 0;
 }
 
-/* Traces tab layout */
 .traces-content {
     height: 100%;
 }
@@ -231,60 +146,24 @@ TabPane {
     padding-left: 1;
 }
 
-/* Tree styling */
 .spans-tree {
     height: 100%;
-    background: #252525;
     padding: 1;
     padding-top: 0;
-}
-
-Tree {
-    background: #252525;
-    color: #e0e0e0;
-}
-
-Tree>TreeNode {
-    background: transparent;
-}
-
-Tree>TreeNode:hover {
-    background: #333333;
-}
-
-Tree>TreeNode.--highlight {
-    background: #00d4ff;
-    color: #000000;
-}
-
-/* Tab styling */
-Tabs {
-    background: #252525;
-    color: #e0e0e0;
-}
-
-Tab {
-    background: transparent;
-    color: #888888;
-    border: none;
 }
 
 Label {
     margin: 1 1;
     width: 100%;
     height: 100%;
-    background: $panel;
     border: tall $primary;
     content-align: center middle;
 }
 
-/* Content areas */
 ContentSwitcher {
     height: 1fr;
-    background: transparent;
 }
 
-/* Span details styling */
 SpanDetailsDisplay {
     height: 100%;
 }
@@ -297,33 +176,20 @@ SpanDetailsDisplay {
     height: 100%;
 }
 
-/* Panels */
 .new-run-panel {
     height: 100%;
-    background: #252525;
-    padding: 1;
 }
 
-/* Section Titles */
 .new-run-title {
-    color: #00d4ff;
     text-style: bold;
-    background: #1f1f1f;
     padding: 0 1;
     height: 2;
     content-align: left middle;
 }
 
-/* Labels */
 .field-label {
-    color: #00d4ff;
     text-style: bold;
     margin: 1 0;
-}
-
-.input-field {
-    background: #1a1a1a;
-    color: #e0e0e0;
 }
 
 .script-input {
@@ -345,17 +211,4 @@ SpanDetailsDisplay {
     padding: 0 2;
     text-style: bold;
     border: none;
-}
-
-.action-btn:hover {
-    background: #00cc66;
-}
-
-.cancel-btn {
-    background: #404040;
-    color: #e0e0e0;
-}
-
-.cancel-btn:hover {
-    background: #555555;
 }

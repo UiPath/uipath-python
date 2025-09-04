@@ -5,7 +5,7 @@ from typing import Any, Dict, Tuple, cast
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
-from textual.widgets import Button, Select, TextArea
+from textual.widgets import Button, Select, TabbedContent, TabPane, TextArea
 
 
 def mock_json_from_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,32 +63,31 @@ class NewRunPanel(Container):
         )
 
     def compose(self) -> ComposeResult:
-        with Vertical():
-            options = [(path, path) for path in self.entrypoint_paths]
-            yield Select(
-                options,
-                id="entrypoint-select",
-                value=self.selected_entrypoint,
-                allow_blank=False,
-            )
+        with TabbedContent():
+            with TabPane("New run", id="new-tab"):
+                with Vertical():
+                    options = [(path, path) for path in self.entrypoint_paths]
+                    yield Select(
+                        options,
+                        id="entrypoint-select",
+                        value=self.selected_entrypoint,
+                        allow_blank=False,
+                    )
 
-            yield TextArea(
-                text=self.initial_input,
-                language="json",
-                id="json-input",
-                classes="input-field json-input",
-            )
+                    yield TextArea(
+                        text=self.initial_input,
+                        language="json",
+                        id="json-input",
+                        classes="input-field json-input",
+                    )
 
-            with Horizontal(classes="run-actions"):
-                yield Button(
-                    "▶ Run", id="execute-btn", variant="primary", classes="action-btn"
-                )
-                yield Button(
-                    "Cancel",
-                    id="cancel-btn",
-                    variant="default",
-                    classes="action-btn cancel-btn",
-                )
+                    with Horizontal(classes="run-actions"):
+                        yield Button(
+                            "▶ Run",
+                            id="execute-btn",
+                            variant="primary",
+                            classes="action-btn",
+                        )
 
     async def on_select_changed(self, event: Select.Changed) -> None:
         """Update JSON input when user selects an entrypoint."""

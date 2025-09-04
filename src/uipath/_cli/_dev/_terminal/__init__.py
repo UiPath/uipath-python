@@ -1,5 +1,6 @@
 import asyncio
 import json
+import traceback
 from datetime import datetime
 from os import environ as env
 from pathlib import Path
@@ -9,10 +10,12 @@ from uuid import uuid4
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, ListView
+from textual.widgets import Button, Footer, ListView
 
 from ..._runtime._contracts import (
+    UiPathErrorContract,
     UiPathRuntimeContext,
+    UiPathRuntimeError,
     UiPathRuntimeFactory,
 )
 from ._components._details import RunDetailsPanel
@@ -31,8 +34,8 @@ class UiPathDevTerminal(App[Any]):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("n", "new_run", "New Run"),
-        Binding("r", "execute_run", "Execute"),
+        Binding("n", "new_run", "New"),
+        Binding("r", "execute_run", "Run"),
         Binding("c", "clear_history", "Clear History"),
         Binding("escape", "cancel", "Cancel"),
     ]
@@ -73,6 +76,8 @@ class UiPathDevTerminal(App[Any]):
                 # Run details panel (initially hidden)
                 yield RunDetailsPanel(id="details-panel", classes="hidden")
 
+        yield Footer()
+
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press events."""
         if event.button.id == "new-run-btn":
@@ -112,12 +117,14 @@ class UiPathDevTerminal(App[Any]):
         if not entrypoint:
             return
 
+        input: Dict[str, Any] = {}
         try:
-            json.loads(input_data)
+            input = json.loads(input_data)
         except json.JSONDecodeError:
             return
 
-        run = ExecutionRun(entrypoint, input_data)
+        run = ExecutionRun(entrypoint, input)
+
         self.runs[run.id] = run
 
         self._add_run_in_history(run)
@@ -137,7 +144,7 @@ class UiPathDevTerminal(App[Any]):
         try:
             context: UiPathRuntimeContext = self.runtime_factory.new_context(
                 entrypoint=run.entrypoint,
-                input=run.input_data,
+                input_json=run.input_data,
                 trace_id=str(uuid4()),
                 execution_id=run.id,
                 logs_min_level=env.get("LOG_LEVEL", "INFO"),
@@ -151,7 +158,7 @@ class UiPathDevTerminal(App[Any]):
             result = await self.runtime_factory.execute_in_root_span(context)
 
             if result is not None:
-                run.output_data = json.dumps(result.output)
+                run.output_data = result.output
                 if run.output_data:
                     self._add_info_log(run, f"Execution result: {run.output_data}")
 
@@ -159,11 +166,23 @@ class UiPathDevTerminal(App[Any]):
             run.status = "completed"
             run.end_time = datetime.now()
 
+        except UiPathRuntimeError as e:
+            error_msg = (
+                f"{e.error_info.code}: {e.error_info.title}\n{e.error_info.detail}"
+            )
+            self._add_error_log(run, error_msg)
+            run.status = "failed"
+            run.end_time = datetime.now()
+            run.error = e.error_info
+
         except Exception as e:
             error_msg = f"Execution failed: {str(e)}"
             self._add_error_log(run, error_msg)
             run.status = "failed"
             run.end_time = datetime.now()
+            run.error = UiPathErrorContract(
+                code="Unknown", title=str(e), detail=traceback.format_exc()
+            )
 
         self._update_run_in_history(run)
         self._update_run_details(run)

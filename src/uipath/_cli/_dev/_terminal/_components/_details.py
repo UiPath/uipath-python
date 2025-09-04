@@ -1,3 +1,4 @@
+import json
 from typing import Dict, List, Optional
 
 from textual.app import ComposeResult
@@ -200,8 +201,6 @@ class RunDetailsPanel(Container):
             if isinstance(run.input_data, str):
                 run_details_log.write(run.input_data)
             elif isinstance(run.input_data, dict):
-                import json
-
                 run_details_log.write(json.dumps(run.input_data, indent=2))
             else:
                 run_details_log.write(str(run.input_data))
@@ -217,8 +216,6 @@ class RunDetailsPanel(Container):
             if isinstance(run.output_data, str):
                 run_details_log.write(run.output_data)
             elif isinstance(run.output_data, dict):
-                import json
-
                 run_details_log.write(json.dumps(run.output_data, indent=2))
             else:
                 run_details_log.write(str(run.output_data))
@@ -229,7 +226,10 @@ class RunDetailsPanel(Container):
         if hasattr(run, "error") and run.error:
             run_details_log.write("[bold red]ERROR:[/bold red]")
             run_details_log.write("[dim]" + "=" * 50 + "[/dim]")
-            run_details_log.write(f"[red]{run.error}[/red]")
+            if run.error.code:
+                run_details_log.write(f"[red]Code: {run.error.code}[/red]")
+            run_details_log.write(f"[red]Title: {run.error.title}[/red]")
+            run_details_log.write(f"[red]\n{run.error.detail}[/red]")
             run_details_log.write("")
 
         # Additional metadata
@@ -272,34 +272,38 @@ class RunDetailsPanel(Container):
         spans_tree = self.query_one("#spans-tree", Tree)
         root = spans_tree.root
 
-        # Group spans by parent relationship
-        root_spans = []
-        child_spans: Dict[str, List[TraceMessage]] = {}
+        # Filter out spans without parents (artificial root spans)
+        spans_by_id = {
+            msg.span_id: msg for msg in trace_messages if msg.parent_span_id is not None
+        }
 
-        for trace_msg in trace_messages:
-            if not trace_msg.parent_span_id:
-                root_spans.append(trace_msg)
-            else:
-                if trace_msg.parent_span_id not in child_spans:
-                    child_spans[trace_msg.parent_span_id] = []
-                child_spans[trace_msg.parent_span_id].append(trace_msg)
+        # Build parent-to-children mapping once upfront
+        children_by_parent: Dict[str, List[TraceMessage]] = {}
+        for msg in spans_by_id.values():
+            if msg.parent_span_id:
+                if msg.parent_span_id not in children_by_parent:
+                    children_by_parent[msg.parent_span_id] = []
+                children_by_parent[msg.parent_span_id].append(msg)
 
-        # Build tree recursively
+        # Find root spans (parent doesn't exist in our filtered data)
+        root_spans = [
+            msg
+            for msg in trace_messages
+            if msg.parent_span_id and msg.parent_span_id not in spans_by_id
+        ]
+
+        # Build tree recursively for each root span
         for root_span in sorted(root_spans, key=lambda x: x.timestamp):
-            if root_span.span_id in child_spans:
-                for child in sorted(
-                    child_spans[root_span.span_id], key=lambda x: x.timestamp
-                ):
-                    self._add_span_node(root, child, child_spans)
+            self._add_span_with_children(root, root_span, children_by_parent)
 
-    def _add_span_node(
+    def _add_span_with_children(
         self,
         parent_node: TreeNode[str],
         trace_msg: TraceMessage,
-        child_spans: Dict[str, List[TraceMessage]],
+        children_by_parent: Dict[str, List[TraceMessage]],
     ):
-        """Recursively add span nodes to the tree."""
-        # Create display label for the span
+        """Recursively add a span and all its children."""
+        # Create the node for this span
         color_map = {
             "started": "🔵",
             "running": "🟡",
@@ -308,26 +312,20 @@ class RunDetailsPanel(Container):
             "error": "🔴",
         }
         status_icon = color_map.get(trace_msg.status.lower(), "⚪")
-
         duration_str = (
             f" ({trace_msg.duration_ms:.1f}ms)" if trace_msg.duration_ms else ""
         )
         label = f"{status_icon} {trace_msg.span_name}{duration_str}"
 
-        # Add node to tree
         node = parent_node.add(label)
-        node.data = trace_msg.span_id  # Store span_id for reference
+        node.data = trace_msg.span_id
         self.span_tree_nodes[trace_msg.span_id] = node
-
         node.expand()
 
-        # Add child spans (sorted by timestamp)
-        if trace_msg.span_id in child_spans:
-            sorted_children = sorted(
-                child_spans[trace_msg.span_id], key=lambda x: x.timestamp
-            )
-            for child_span in sorted_children:
-                self._add_span_node(node, child_span, child_spans)
+        # Get children from prebuilt mapping - O(1) lookup
+        children = children_by_parent.get(trace_msg.span_id, [])
+        for child in sorted(children, key=lambda x: x.timestamp):
+            self._add_span_with_children(node, child, children_by_parent)
 
     def on_tree_node_selected(self, event: Tree.NodeSelected[str]) -> None:
         """Handle span selection in the tree."""
