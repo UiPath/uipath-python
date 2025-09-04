@@ -123,8 +123,9 @@ class UiPathDevTerminal(App[Any]):
                 input = json.loads(input_data)
             except json.JSONDecodeError:
                 return
-            details_panel.current_run.input_data = input
+            details_panel.current_run.resume_data = input
             asyncio.create_task(self._execute_runtime(details_panel.current_run))
+            details_panel.switch_tab("run-tab")
 
     async def action_execute_run(self) -> None:
         """Execute a new run with UiPath runtime."""
@@ -161,7 +162,6 @@ class UiPathDevTerminal(App[Any]):
         try:
             context: UiPathRuntimeContext = self.runtime_factory.new_context(
                 entrypoint=run.entrypoint,
-                input_json=run.input_data,
                 trace_id=str(uuid4()),
                 execution_id=run.id,
                 logs_min_level=env.get("LOG_LEVEL", "INFO"),
@@ -172,8 +172,10 @@ class UiPathDevTerminal(App[Any]):
 
             if run.status == "suspended":
                 context.resume = True
+                context.input_json = run.resume_data
                 self._add_info_log(run, f"Resuming execution: {run.entrypoint}")
             else:
+                context.input_json = run.input_data
                 self._add_info_log(run, f"Starting execution: {run.entrypoint}")
 
             run.status = "running"

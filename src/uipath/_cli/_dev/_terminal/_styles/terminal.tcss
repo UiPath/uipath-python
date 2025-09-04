@@ -218,3 +218,7 @@ SpanDetailsDisplay {
     text-style: bold;
     border: none;
 }
+
+TextArea.invalid {
+    border: tall red;
+}

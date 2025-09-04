@@ -16,6 +16,7 @@ class ExecutionRun:
         self.id = str(uuid4())[:8]
         self.entrypoint = entrypoint
         self.input_data = input_data
+        self.resume_data: Optional[Dict[str, Any]] = None
         self.output_data: Optional[Dict[str, Any]] = None
         self.start_time = datetime.now()
         self.end_time: Optional[datetime] = None

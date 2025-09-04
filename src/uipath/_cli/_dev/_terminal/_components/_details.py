@@ -1,4 +1,3 @@
-import json
 from typing import Dict, List, Optional
 
 from textual.app import ComposeResult
@@ -29,14 +28,7 @@ class SpanDetailsDisplay(Container):
         details_log = self.query_one("#span-details", RichLog)
         details_log.clear()
 
-        # Format span details
         details_log.write(f"[bold cyan]Span: {trace_msg.span_name}[/bold cyan]")
-        details_log.write(f"[dim]Trace ID: {trace_msg.trace_id}[/dim]")
-        details_log.write(f"[dim]Span ID: {trace_msg.span_id}[/dim]")
-        details_log.write(f"[dim]Run ID: {trace_msg.run_id}[/dim]")
-
-        if trace_msg.parent_span_id:
-            details_log.write(f"[dim]Parent Span: {trace_msg.parent_span_id}[/dim]")
 
         details_log.write("")  # Empty line
 
@@ -67,6 +59,16 @@ class SpanDetailsDisplay(Container):
             details_log.write("[bold]Attributes:[/bold]")
             for key, value in trace_msg.attributes.items():
                 details_log.write(f"  {key}: {value}")
+
+        details_log.write("")  # Empty line
+
+        # Format span details
+        details_log.write(f"[dim]Trace ID: {trace_msg.trace_id}[/dim]")
+        details_log.write(f"[dim]Span ID: {trace_msg.span_id}[/dim]")
+        details_log.write(f"[dim]Run ID: {trace_msg.run_id}[/dim]")
+
+        if trace_msg.parent_span_id:
+            details_log.write(f"[dim]Parent Span: {trace_msg.parent_span_id}[/dim]")
 
 
 class RunDetailsPanel(Container):
@@ -144,9 +146,64 @@ class RunDetailsPanel(Container):
         # Clear and rebuild traces tree using TraceMessage objects
         self._rebuild_spans_tree()
 
+    def switch_tab(self, tab_id: str) -> None:
+        """Switch to a specific tab by id (e.g. 'run-tab', 'traces-tab')."""
+        tabbed = self.query_one(TabbedContent)
+        tabbed.active = tab_id
+
     def _update_resume_tab(self, run: ExecutionRun) -> None:
         resume_panel = self.query_one("#resume-panel", ResumePanel)
         resume_panel.display = run.status == "suspended"
+
+    def _flatten_values(self, value: object, prefix: str = "") -> list[str]:
+        """Flatten nested dict/list structures into dot-notation paths."""
+        lines: list[str] = []
+
+        if value is None:
+            lines.append(f"{prefix}: [dim]—[/dim]" if prefix else "[dim]—[/dim]")
+
+        elif isinstance(value, dict):
+            if not value:
+                lines.append(f"{prefix}: {{}}" if prefix else "{}")
+            else:
+                for k, v in value.items():
+                    new_prefix = f"{prefix}.{k}" if prefix else k
+                    lines.extend(self._flatten_values(v, new_prefix))
+
+        elif isinstance(value, list):
+            if not value:
+                lines.append(f"{prefix}: []" if prefix else "[]")
+            else:
+                for i, item in enumerate(value):
+                    new_prefix = f"{prefix}[{i}]"
+                    lines.extend(self._flatten_values(item, new_prefix))
+
+        elif isinstance(value, str):
+            if prefix:
+                for line in value.splitlines():
+                    lines.append(f"{prefix}: {line}")
+            else:
+                lines.extend(value.splitlines())
+
+        else:
+            if prefix:
+                lines.append(f"{prefix}: {value}")
+            else:
+                lines.append(str(value))
+
+        return lines
+
+    def _write_block(
+        self, log: RichLog, title: str, data: object, style: str = "white"
+    ) -> None:
+        """Pretty-print a block with flattened dot-notation paths."""
+        log.write(f"[bold {style}]{title.upper()}:[/bold {style}]")
+        log.write("[dim]" + "=" * 50 + "[/dim]")
+
+        for line in self._flatten_values(data):
+            log.write(line)
+
+        log.write("")
 
     def _show_run_details(self, run: ExecutionRun):
         """Display detailed information about the run in the Details tab."""
@@ -202,35 +259,16 @@ class RunDetailsPanel(Container):
 
         run_details_log.write("")
 
-        # Input section
-        if hasattr(run, "input_data") and run.input_data is not None:
-            run_details_log.write("[bold green]INPUT:[/bold green]")
-            run_details_log.write("[dim]" + "=" * 50 + "[/dim]")
+        if hasattr(run, "input_data"):
+            self._write_block(run_details_log, "Input", run.input_data, style="green")
 
-            # Handle different input types
-            if isinstance(run.input_data, str):
-                run_details_log.write(run.input_data)
-            elif isinstance(run.input_data, dict):
-                run_details_log.write(json.dumps(run.input_data, indent=2))
-            else:
-                run_details_log.write(str(run.input_data))
+        if hasattr(run, "resume_data") and run.resume_data:
+            self._write_block(run_details_log, "Resume", run.resume_data, style="green")
 
-            run_details_log.write("")
-
-        # Output section
-        if hasattr(run, "output_data") and run.output_data is not None:
-            run_details_log.write("[bold magenta]OUTPUT:[/bold magenta]")
-            run_details_log.write("[dim]" + "=" * 50 + "[/dim]")
-
-            # Handle different output types
-            if isinstance(run.output_data, str):
-                run_details_log.write(run.output_data)
-            elif isinstance(run.output_data, dict):
-                run_details_log.write(json.dumps(run.output_data, indent=2))
-            else:
-                run_details_log.write(str(run.output_data))
-
-            run_details_log.write("")
+        if hasattr(run, "output_data"):
+            self._write_block(
+                run_details_log, "Output", run.output_data, style="magenta"
+            )
 
         # Error section (if applicable)
         if hasattr(run, "error") and run.error:
