@@ -4,6 +4,8 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, TextArea
 
+from ._json_input import JsonInput
+
 
 class ResumePanel(Container):
     """Panel for resuming a suspended run."""
@@ -13,7 +15,7 @@ class ResumePanel(Container):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield TextArea(
+            yield JsonInput(
                 text=json.dumps({"value": ""}, indent=2),
                 language="json",
                 id="resume-json-input",

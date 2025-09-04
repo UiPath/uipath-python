@@ -7,6 +7,8 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import Button, Select, TabbedContent, TabPane, TextArea
 
+from ._json_input import JsonInput
+
 
 def mock_json_from_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     props = schema.get("properties", {})
@@ -74,7 +76,7 @@ class NewRunPanel(Container):
                         allow_blank=False,
                     )
 
-                    yield TextArea(
+                    yield JsonInput(
                         text=self.initial_input,
                         language="json",
                         id="json-input",
