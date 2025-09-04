@@ -17,10 +17,12 @@ from ..._runtime._contracts import (
     UiPathRuntimeContext,
     UiPathRuntimeError,
     UiPathRuntimeFactory,
+    UiPathRuntimeStatus,
 )
 from ._components._details import RunDetailsPanel
 from ._components._history import RunHistoryPanel
 from ._components._new import NewRunPanel
+from ._components._resume import ResumePanel
 from ._models._execution import ExecutionRun
 from ._models._messages import LogMessage, TraceMessage
 from ._traces._exporter import RunContextExporter
@@ -86,6 +88,8 @@ class UiPathDevTerminal(App[Any]):
             await self.action_execute_run()
         elif event.button.id == "cancel-btn":
             await self.action_cancel()
+        elif event.button.id == "resume-btn":
+            await self.action_resume()
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle run selection from history."""
@@ -108,6 +112,19 @@ class UiPathDevTerminal(App[Any]):
     async def action_cancel(self) -> None:
         """Cancel and return to new run view."""
         await self.action_new_run()
+
+    async def action_resume(self) -> None:
+        """Resume the suspended run."""
+        details_panel = self.query_one("#details-panel", RunDetailsPanel)
+        if details_panel and details_panel.current_run:
+            input: Dict[str, Any] = {}
+            input_data = self.query_one("#resume-panel", ResumePanel).get_input_values()
+            try:
+                input = json.loads(input_data)
+            except json.JSONDecodeError:
+                return
+            details_panel.current_run.input_data = input
+            asyncio.create_task(self._execute_runtime(details_panel.current_run))
 
     async def action_execute_run(self) -> None:
         """Execute a new run with UiPath runtime."""
@@ -153,17 +170,27 @@ class UiPathDevTerminal(App[Any]):
                 ),
             )
 
-            self._add_info_log(run, f"Starting execution: {run.entrypoint}")
+            if run.status == "suspended":
+                context.resume = True
+                self._add_info_log(run, f"Resuming execution: {run.entrypoint}")
+            else:
+                self._add_info_log(run, f"Starting execution: {run.entrypoint}")
+
+            run.status = "running"
+            run.start_time = datetime.now()
 
             result = await self.runtime_factory.execute_in_root_span(context)
 
             if result is not None:
-                run.output_data = result.output
+                if result.status == UiPathRuntimeStatus.SUSPENDED.value:
+                    run.status = "suspended"
+                else:
+                    run.output_data = result.output
+                    run.status = "completed"
                 if run.output_data:
                     self._add_info_log(run, f"Execution result: {run.output_data}")
 
             self._add_info_log(run, "✅ Execution completed successfully")
-            run.status = "completed"
             run.end_time = datetime.now()
 
         except UiPathRuntimeError as e:
