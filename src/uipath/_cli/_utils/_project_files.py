@@ -68,7 +68,7 @@ def get_project_config(directory: str) -> dict[str, str]:
         "version": toml_data["version"],
         "authors": toml_data["authors"],
         "dependencies": toml_data.get("dependencies", {}),
-        "requires-python": toml_data.get("requires-python", {}),
+        "requires-python": toml_data.get("requires-python", None),
     }
 
 
@@ -105,12 +105,13 @@ def validate_config(config: dict[str, str]) -> None:
 
     invalid_chars = ["&", "<", ">", '"', "'", ";"]
     for char in invalid_chars:
-        if char in config["project_name"]:
-            console.error(f"Project name contains invalid character: '{char}'")
-
-    for char in invalid_chars:
         if char in config["description"]:
             console.error(f"Project description contains invalid character: '{char}'")
+
+    invalid_chars += [" "]
+    for char in invalid_chars:
+        if char in config["project_name"]:
+            console.error(f"Project name contains invalid character: '{char}'")
 
 
 def validate_config_structure(config_data: dict[str, Any]) -> None:
