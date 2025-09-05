@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.1.35"
+version = "2.1.36"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"

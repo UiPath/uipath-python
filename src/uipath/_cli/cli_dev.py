@@ -18,27 +18,25 @@ console = ConsoleLogger()
 @track
 def dev(interface: Optional[str]) -> None:
     """Launch interactive debugging interface."""
-    with console.spinner("Launching UiPath debugging terminal ..."):
-        result = Middlewares.next(
-            "dev",
-            interface,
+    console.info("Launching UiPath debugging terminal ...")
+    result = Middlewares.next(
+        "dev",
+        interface,
+    )
+
+    if result.should_continue is False:
+        return
+
+    try:
+        if interface == "terminal":
+            runtime_factory = UiPathRuntimeFactory(UiPathRuntime, UiPathRuntimeContext)
+            app = UiPathDevTerminal(runtime_factory)
+            asyncio.run(app.run_async())
+        else:
+            console.error(f"Unknown interface: {interface}")
+    except KeyboardInterrupt:
+        console.info("Debug session interrupted by user")
+    except Exception as e:
+        console.error(
+            f"Error running debug interface: {str(e)}", include_traceback=True
         )
-
-        if result.should_continue is False:
-            return
-
-        try:
-            if interface == "terminal":
-                runtime_factory = UiPathRuntimeFactory(
-                    UiPathRuntime, UiPathRuntimeContext
-                )
-                app = UiPathDevTerminal(runtime_factory)
-                asyncio.run(app.run_async())
-            else:
-                console.error(f"Unknown interface: {interface}")
-        except KeyboardInterrupt:
-            console.info("Debug session interrupted by user")
-        except Exception as e:
-            console.error(
-                f"Error running debug interface: {str(e)}", include_traceback=True
-            )
