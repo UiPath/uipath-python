@@ -9,7 +9,7 @@ from click.testing import CliRunner
 from pytest_httpx import HTTPXMock
 
 from tests.cli.utils.project_details import ProjectDetails
-from uipath._cli.cli_invoke import invoke  # type: ignore
+from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
 
 
@@ -34,7 +34,9 @@ class TestInvoke:
             entrypoint: str,
         ):
             with runner.isolated_filesystem(temp_dir=temp_dir):
-                result = runner.invoke(invoke, [entrypoint, "--file", "not-here.json"])
+                result = runner.invoke(
+                    cli, ["invoke", entrypoint, "--file", "not-here.json"]
+                )
                 assert result.exit_code != 0
                 assert "Error: Invalid value for '-f' / '--file'" in result.output
 
@@ -49,7 +51,7 @@ class TestInvoke:
                 file_path = os.path.join(temp_dir, file_name)
                 with open(file_path, "w") as f:
                     f.write("file content")
-                result = runner.invoke(invoke, [entrypoint, "--file", file_path])
+                result = runner.invoke(cli, ["invoke", entrypoint, "--file", file_path])
                 assert result.exit_code == 1
                 assert "Input file extension must be '.json'." in result.output
 
@@ -117,7 +119,7 @@ class TestInvoke:
                 f.write(json_content)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-            result = runner.invoke(invoke, [entrypoint, "{}"])
+            result = runner.invoke(cli, ["invoke", entrypoint, "{}"])
             assert result.exit_code == 0
             assert "Starting job ..." in result.output
             assert "Job started successfully!" in result.output
@@ -160,7 +162,7 @@ class TestInvoke:
                     error_message=None,
                     should_include_stacktrace=False,
                 )
-                result = runner.invoke(invoke, [entrypoint, "{}"])
+                result = runner.invoke(cli, ["invoke", entrypoint, "{}"])
                 assert result.exit_code == 1
                 assert (
                     "Failed to fetch user info. Please try reauthenticating."

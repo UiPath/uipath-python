@@ -1,16 +1,12 @@
 from os import environ as env
 from typing import Any, Optional
 
-from dotenv import load_dotenv
-
 from ._utils.constants import (
     ENV_FOLDER_KEY,
     ENV_FOLDER_PATH,
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
 )
-
-load_dotenv(override=True)
 
 
 class FolderContext:

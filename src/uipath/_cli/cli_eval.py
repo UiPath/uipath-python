@@ -5,7 +5,6 @@ import os
 from typing import List, Optional, Tuple
 
 import click
-from dotenv import load_dotenv
 
 from .._utils.constants import ENV_JOB_ID
 from ..telemetry import track
@@ -13,7 +12,6 @@ from ._evals.evaluation_service import EvaluationService
 from ._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
-load_dotenv(override=True)
 
 
 class LiteralOption(click.Option):

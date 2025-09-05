@@ -7,7 +7,7 @@ import pytest
 from click.testing import CliRunner
 
 from tests.cli.utils.uipath_json import UiPathJson
-from uipath._cli.cli_run import run  # type: ignore
+from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
 
 
@@ -56,7 +56,9 @@ class TestRun:
                 file_path = os.path.join(temp_dir, entrypoint)
                 with open(file_path, "w") as f:
                     f.write("script content")
-                result = runner.invoke(run, [entrypoint, "--file", "not-here.json"])
+                result = runner.invoke(
+                    cli, ["run", entrypoint, "--file", "not-here.json"]
+                )
                 assert result.exit_code != 0
                 assert "Error: Invalid value for '-f' / '--file'" in result.output
 
@@ -74,7 +76,9 @@ class TestRun:
                 file_path = os.path.join(temp_dir, file_name)
                 with open(file_path, "w") as f:
                     f.write("file content")
-                result = runner.invoke(run, [script_file_path, "--file", file_path])
+                result = runner.invoke(
+                    cli, ["run", script_file_path, "--file", file_path]
+                )
                 assert result.exit_code == 1
                 assert "Invalid Input File Extension" in result.output
 
@@ -101,7 +105,9 @@ class TestRun:
                         error_message=None,
                         should_include_stacktrace=False,
                     )
-                    result = runner.invoke(run, [entrypoint, "--file", file_path])
+                    result = runner.invoke(
+                        cli, ["run", entrypoint, "--file", file_path]
+                    )
                     assert result.exit_code == 0
                     assert "Successful execution." in result.output
                     assert mock_middleware.call_count == 1
@@ -120,7 +126,7 @@ class TestRun:
     class TestMiddleware:
         def test_no_entrypoint(self, runner: CliRunner, temp_dir: str):
             with runner.isolated_filesystem(temp_dir=temp_dir):
-                result = runner.invoke(run)
+                result = runner.invoke(cli, ["run"])
                 assert result.exit_code == 1
                 assert (
                     "No entrypoint specified. Please provide a path to a Python script."
@@ -131,7 +137,7 @@ class TestRun:
             self, runner: CliRunner, temp_dir: str, entrypoint: str
         ):
             with runner.isolated_filesystem(temp_dir=temp_dir):
-                result = runner.invoke(run, [entrypoint])
+                result = runner.invoke(cli, ["run", entrypoint])
                 assert result.exit_code == 1
                 assert f"Script not found at path {entrypoint}" in result.output
 
@@ -168,8 +174,9 @@ class TestRun:
                 with open("uipath.json", "w") as f:
                     f.write(uipath_json.to_json())
                 result = runner.invoke(
-                    run,
+                    cli,
                     [
+                        "run",
                         script_file_path,
                         "--input-file",
                         input_file_path,
@@ -211,7 +218,7 @@ class TestRun:
             # create uipath.json
             with open("uipath.json", "w") as f:
                 f.write(uipath_json.to_json())
-            result = runner.invoke(run, [script_file_path, "{}"])
+            result = runner.invoke(cli, ["run", script_file_path, "{}"])
             assert result.exit_code == 1
             assert (
                 "No entry function found - No main function (main, run, or execute)"
@@ -252,7 +259,7 @@ class TestRun:
                     error_message="some error message",
                     should_include_stacktrace=True,
                 )
-                result = runner.invoke(run, [script_file_path, "{}"])
+                result = runner.invoke(cli, ["run", script_file_path, "{}"])
             assert result.exit_code == 1
             assert "some error message" in result.output
             assert "Successful execution." not in result.output
@@ -319,8 +326,9 @@ def main(input_data: PersonIn) -> PersonOut:
                 f.write(uipath_json.to_json())
 
             result = runner.invoke(
-                run,
+                cli,
                 [
+                    "run",
                     script_file_path,
                     "--input-file",
                     input_file_path,

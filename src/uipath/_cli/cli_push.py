@@ -5,7 +5,6 @@ from typing import Any
 from urllib.parse import urlparse
 
 import click
-from dotenv import load_dotenv
 
 from ..telemetry import track
 from ._push.sw_file_handler import SwFileHandler
@@ -21,7 +20,6 @@ from ._utils._project_files import (
 from ._utils._uv_helpers import handle_uv_operations
 
 console = ConsoleLogger()
-load_dotenv(override=True)
 
 
 def get_org_scoped_url(base_url: str) -> str:

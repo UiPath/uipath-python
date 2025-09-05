@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from click.testing import CliRunner
 
-from uipath._cli.cli_auth import auth
+from uipath._cli import cli
 
 """
 Unit tests for the 'uipath auth' command.
@@ -113,7 +113,7 @@ def test_auth_scenarios(
             for key, value in env_vars.items():
                 os.environ[key] = value
 
-            result = runner.invoke(auth, cli_args)
+            result = runner.invoke(cli, ["auth"] + cli_args)
 
             for key in env_vars:
                 del os.environ[key]
@@ -133,7 +133,7 @@ def test_auth_with_malformed_url():
     runner = CliRunner()
     with runner.isolated_filesystem():
         os.environ["UIPATH_URL"] = "custom.uipath.com"
-        result = runner.invoke(auth, ["--force"])
+        result = runner.invoke(cli, ["auth", "--force"])
         del os.environ["UIPATH_URL"]
 
         assert result.exit_code == 1

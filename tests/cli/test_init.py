@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
-from uipath._cli.cli_init import init  # type: ignore
+from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
 
 
@@ -29,7 +29,7 @@ class TestInit:
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
             # Test creation of new .env
-            result = runner.invoke(init)
+            result = runner.invoke(cli, ["init"])
             assert result.exit_code == 0
             assert "Created '.env' file" in result.output
 
@@ -40,7 +40,7 @@ class TestInit:
             with open(".env", "w") as f:
                 f.write(original_content)
 
-            result = runner.invoke(init)
+            result = runner.invoke(cli, ["init"])
             assert result.exit_code == 0
             with open(".env", "r") as f:
                 assert f.read() == original_content
@@ -49,7 +49,7 @@ class TestInit:
         """Test Python script detection scenarios."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Test empty directory
-            result = runner.invoke(init)
+            result = runner.invoke(cli, ["init"])
             assert result.exit_code == 1
             assert "No python files found in the current directory" in result.output
 
@@ -57,7 +57,7 @@ class TestInit:
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
 
-            result = runner.invoke(init)
+            result = runner.invoke(cli, ["init"])
             assert result.exit_code == 0
             assert os.path.exists("uipath.json")
 
@@ -65,7 +65,7 @@ class TestInit:
             with open("second.py", "w") as f:
                 f.write("def main(input): return input")
 
-            result = runner.invoke(init)
+            result = runner.invoke(cli, ["init"])
             assert result.exit_code == 1
             assert (
                 "Multiple python files found in the current directory" in result.output
@@ -76,7 +76,7 @@ class TestInit:
         """Test init with specified entrypoint."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Test with non-existent file
-            result = runner.invoke(init, ["nonexistent.py"])
+            result = runner.invoke(cli, ["init", "nonexistent.py"])
             assert result.exit_code == 1
             assert "does not exist in the current directory" in result.output
 
@@ -84,7 +84,7 @@ class TestInit:
             with open("script.py", "w") as f:
                 f.write("def main(input): return input")
 
-            result = runner.invoke(init, ["script.py"])
+            result = runner.invoke(cli, ["init", "script.py"])
             assert result.exit_code == 0
             assert os.path.exists("uipath.json")
 
@@ -110,7 +110,7 @@ class TestInit:
                     should_include_stacktrace=False,
                 )
 
-                result = runner.invoke(init)
+                result = runner.invoke(cli, ["init"])
                 assert result.exit_code == 1
                 assert "Middleware error" in result.output
                 assert not os.path.exists("uipath.json")
@@ -125,7 +125,7 @@ class TestInit:
                 with open("main.py", "w") as f:
                     f.write("def main(input): return input")
 
-                result = runner.invoke(init)
+                result = runner.invoke(cli, ["init"])
                 assert result.exit_code == 0
                 assert os.path.exists("uipath.json")
 
@@ -140,7 +140,7 @@ class TestInit:
             with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
                 mock_middleware.return_value = MiddlewareResult(should_continue=True)
 
-                result = runner.invoke(init, ["invalid.py"])
+                result = runner.invoke(cli, ["init", "invalid.py"])
                 assert result.exit_code == 1
                 assert "Error creating configuration" in result.output
                 assert "invalid syntax" in result.output  # Should show stacktrace
@@ -157,7 +157,7 @@ class TestInit:
                         should_continue=True
                     )
 
-                    result = runner.invoke(init, ["script.py"])
+                    result = runner.invoke(cli, ["init", "script.py"])
                     assert result.exit_code == 1
                     # Use regex to match any spinner character followed by the expected message
                     assert re.search(
@@ -188,7 +188,7 @@ def main(input: Input) -> Output:
             with open("test.py", "w") as f:
                 f.write(script_content)
 
-            result = runner.invoke(init, ["test.py"])
+            result = runner.invoke(cli, ["init", "test.py"])
             assert result.exit_code == 0
             assert os.path.exists("uipath.json")
 
@@ -225,7 +225,7 @@ def main(input: Input) -> Output:
             with open("bindings.py", "w") as f:
                 f.write(bindings_script)
             print(1)
-            result = runner.invoke(init, ["bindings.py"])
+            result = runner.invoke(cli, ["init", "bindings.py"])
             assert result.exit_code == 0
             assert "Created 'uipath.json' file" in result.output
             assert os.path.exists("uipath.json")

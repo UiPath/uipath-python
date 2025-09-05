@@ -8,7 +8,7 @@ from utils.project_details import ProjectDetails
 from utils.uipath_json import UiPathJson
 
 import uipath._cli.cli_pack as cli_pack
-from uipath._cli.cli_pack import pack
+from uipath._cli import cli
 
 
 class TestPack:
@@ -29,7 +29,7 @@ class TestPack:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 0
             assert os.path.exists(
                 f".uipath/{project_details.name}.{project_details.version}.nupkg"
@@ -50,7 +50,7 @@ class TestPack:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
                 "pyproject.toml is missing the required field: project.description."
@@ -72,7 +72,7 @@ class TestPack:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
                 """Project authors cannot be empty. Please specify authors in pyproject.toml:\n    authors = [{ name = "John Doe" }]"""
@@ -93,7 +93,7 @@ class TestPack:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
                 "'requires-python' field cannot be empty. Please specify it in pyproject.toml"
@@ -114,7 +114,7 @@ class TestPack:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
                 "Project name cannot be empty. Please specify a name in pyproject.toml."
@@ -135,7 +135,7 @@ class TestPack:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert """Project name contains invalid character: '<'""" in result.output
 
@@ -153,7 +153,7 @@ class TestPack:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
                 """Project description contains invalid character: '&'"""
@@ -167,7 +167,7 @@ class TestPack:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
                 "uipath.json not found. Please run `uipath init` in the project directory."
@@ -182,7 +182,7 @@ class TestPack:
             with open("uipath.json", "w") as f:
                 f.write(uipath_json.to_json())
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert "pyproject.toml not found" in result.output
 
@@ -286,7 +286,7 @@ class TestPack:
                 f.write(binary_content)
             with open(binary_file_not_included, "w") as f:
                 f.write("---")
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
 
             assert result.exit_code == 0
             with zipfile.ZipFile(
@@ -324,7 +324,7 @@ class TestPack:
                 f.write("<root><child>text</child></root>")
             with open(random_file, "w") as f:
                 f.write("<root><child>text</child></root>")
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
 
             assert result.exit_code == 0
             with zipfile.ZipFile(
@@ -349,7 +349,7 @@ class TestPack:
             os.mkdir("subdir")
             with open("subdir/should_be_included.py", "w") as f:
                 f.write('print("This file should be included in the .nupkg")')
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
 
             assert result.exit_code == 0
             with zipfile.ZipFile(
@@ -373,7 +373,7 @@ class TestPack:
             for entry in uipath_json.entry_points:
                 with open(f"{entry.file_path}.py", "w") as f:
                     f.write("#agent content")
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
 
             assert result.exit_code == 0
             with zipfile.ZipFile(
@@ -442,7 +442,7 @@ class TestPack:
                     f.write("# agent content")
 
             # Run pack command
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
 
             # Assert pack was successful
             assert result.exit_code == 0, f"Pack failed with output: {result.output}"
@@ -557,7 +557,7 @@ class TestPack:
                 with open(f"{entry.file_path}.py", "w") as f:
                     f.write("# agent content")
 
-            result = runner.invoke(pack, ["./"])
+            result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 0
 
             nupkg_path = (
@@ -601,7 +601,7 @@ class TestPack:
                 with open(f"{entry.file_path}.py", "w") as f:
                     f.write("# agent content")
 
-            result = runner.invoke(pack, ["./", "--nolock"])
+            result = runner.invoke(cli, ["pack", "./", "--nolock"])
             assert result.exit_code == 0
 
             nupkg_path = (
