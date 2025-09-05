@@ -7,7 +7,7 @@ import pytest
 from click.testing import CliRunner
 from pytest_httpx import HTTPXMock
 
-from uipath._cli.cli_publish import publish  # type: ignore
+from uipath._cli import cli
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ class TestPublish:
     ) -> None:
         """Test publish command when no env file exists."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            result = runner.invoke(publish)
+            result = runner.invoke(cli, ["publish"])
             assert result.exit_code == 1
             assert "Missing required environment variables." in result.output
             assert "UIPATH_URL" in result.output
@@ -60,7 +60,7 @@ class TestPublish:
                 mock_prompt.return_value = 0
                 _create_env_file(mock_env_vars)
                 os.makedirs(".uipath")
-                result = runner.invoke(publish)
+                result = runner.invoke(cli, ["publish"])
                 assert result.exit_code == 1
                 assert (
                     "No .nupkg files found. Please run `uipath pack` first."
@@ -86,17 +86,17 @@ class TestPublish:
                 _create_env_file(mock_env_vars)
                 # negative value
                 mock_prompt.return_value = -1
-                result = runner.invoke(publish)
+                result = runner.invoke(cli, ["publish"])
                 assert result.exit_code == 1
                 assert "Invalid feed selected" in result.output
                 # invalid type
                 mock_prompt.return_value = "string"
-                result = runner.invoke(publish)
+                result = runner.invoke(cli, ["publish"])
                 assert result.exit_code == 1
                 assert type(result.exception) is TypeError
                 # index error
                 mock_prompt.return_value = len(mock_feeds_response) + 1
-                result = runner.invoke(publish)
+                result = runner.invoke(cli, ["publish"])
                 assert result.exit_code == 1
                 assert "Invalid feed selected" in result.output
 
@@ -122,7 +122,7 @@ class TestPublish:
 
             _create_env_file(mock_env_vars)
 
-            result = runner.invoke(publish, ["--tenant"])
+            result = runner.invoke(cli, ["publish", "--tenant"])
 
             assert result.exit_code == 1
             assert "Failed to publish package. Status code: 401" in result.output
@@ -149,7 +149,7 @@ class TestPublish:
 
             _create_env_file(mock_env_vars)
 
-            result = runner.invoke(publish, ["--tenant"])
+            result = runner.invoke(cli, ["publish", "--tenant"])
 
             assert result.exit_code == 0
             assert "Package published successfully!" in result.output
@@ -192,7 +192,7 @@ class TestPublish:
                 )  # Different from our target feed
                 _create_env_file(mock_env_vars)
 
-                result = runner.invoke(publish)
+                result = runner.invoke(cli, ["publish"])
 
                 assert result.exit_code == 0
                 assert "Package published successfully!" in result.output
@@ -223,7 +223,7 @@ class TestPublish:
                 _create_env_file(mock_env_vars)
                 mock_workspace.return_value = (None, None)
 
-                result = runner.invoke(publish, ["--my-workspace"])
+                result = runner.invoke(cli, ["publish", "--my-workspace"])
 
                 assert result.exit_code == 1
                 assert "No personal workspace found for user" in result.output
@@ -290,7 +290,7 @@ class TestPublish:
 
             _create_env_file(mock_env_vars)
 
-            result = runner.invoke(publish, ["--my-workspace"])
+            result = runner.invoke(cli, ["publish", "--my-workspace"])
             expected_release_url = f"{base_url}/orchestrator_/processes/{release_id}/edit?fid={my_workspace_folder_id}"
             assert result.exit_code == 0
             assert "Package published successfully!" in result.output
@@ -393,7 +393,7 @@ class TestPublish:
                 mock_prompt.return_value = 2
                 _create_env_file(mock_env_vars)
 
-                result = runner.invoke(publish)
+                result = runner.invoke(cli, ["publish"])
                 expected_release_url = f"{base_url}/orchestrator_/processes/{release_id}/edit?fid={my_workspace_folder_id}"
                 assert result.exit_code == 0
                 assert "Package published successfully!" in result.output

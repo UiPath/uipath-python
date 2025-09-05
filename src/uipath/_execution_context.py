@@ -1,11 +1,7 @@
 from os import environ as env
 from typing import Optional
 
-from dotenv import load_dotenv
-
 from ._utils.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
-
-load_dotenv(override=True)
 
 
 class ExecutionContext:
