@@ -55,12 +55,12 @@ class ExecutionRun:
         )
         truncated_script = script_name[:8]
         time_str = self.start_time.strftime("%H:%M:%S")
-        duration_str = self.duration[:4]
+        duration_str = self.duration[:6]
 
         text = Text()
         text.append(f"{status_icon:<2} ", style=status_colors.get(self.status, "white"))
         text.append(f"{truncated_script:<8} ")
         text.append(f"({time_str:<8}) ")
-        text.append(f"[{duration_str:<4}]")
+        text.append(f"[{duration_str:<6}]")
 
         return text
