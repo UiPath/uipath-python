@@ -64,10 +64,13 @@ nav:
             - Buckets: core/buckets.md
             - Connections: core/connections.md
             - Context Grounding: core/context_grounding.md
+            - Documents: core/documents.md
             - Jobs: core/jobs.md
             - LLM Gateway: core/llm_gateway.md
             - Queues: core/queues.md
             - Processes: core/processes.md
+        - Models:
+            - Documents: core/documents_models.md
   - UiPath MCP SDK:
       - Getting Started: mcp/quick_start.md
       - How To Pack Binary: mcp/how_to_pack_binary.md
