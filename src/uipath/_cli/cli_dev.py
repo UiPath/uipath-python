@@ -1,16 +1,17 @@
 import asyncio
+import os
 from typing import Optional
 
 import click
 
+from uipath._cli._dev._terminal import UiPathDevTerminal
+from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
+from uipath._cli._runtime._runtime import UiPathRuntime
+from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
-
-from ..telemetry import track
-from ._dev._terminal import UiPathDevTerminal
-from ._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
-from ._runtime._runtime import UiPathRuntime
-from ._utils._console import ConsoleLogger
-from .middlewares import Middlewares
+from uipath._cli.cli_init import init  # type: ignore[attr-defined]
+from uipath._cli.middlewares import Middlewares
+from uipath.telemetry import track
 
 console = ConsoleLogger()
 
@@ -31,6 +32,13 @@ console = ConsoleLogger()
 @track
 def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
     """Launch interactive debugging interface."""
+    project_file = os.path.join(os.getcwd(), "uipath.json")
+
+    if not os.path.exists(project_file):
+        console.warning("Project not initialized. Running `uipath init`...")
+        ctx = click.get_current_context()
+        ctx.invoke(init)
+
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
 

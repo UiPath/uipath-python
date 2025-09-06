@@ -90,7 +90,9 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
     python_files = [f for f in os.listdir(directory) if f.endswith(".py")]
 
     if not python_files:
-        console.error("No python files found in the current directory.")
+        console.error(
+            "No python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
+        )
         return None
     elif len(python_files) == 1:
         return os.path.join(directory, python_files[0])
