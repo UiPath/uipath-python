@@ -20,7 +20,7 @@ class ExecutionRun:
         self.output_data: Optional[Dict[str, Any]] = None
         self.start_time = datetime.now()
         self.end_time: Optional[datetime] = None
-        self.status = "running"  # running, completed, failed
+        self.status = "running"  # running, completed, failed, suspended
         self.traces: List[TraceMessage] = []
         self.logs: List[LogMessage] = []
         self.error: Optional[UiPathErrorContract] = None
@@ -53,14 +53,14 @@ class ExecutionRun:
         script_name = (
             os.path.basename(self.entrypoint) if self.entrypoint else "untitled"
         )
-        truncated_script = script_name[:10]
+        truncated_script = script_name[:8]
         time_str = self.start_time.strftime("%H:%M:%S")
-        duration_str = self.duration[:6]
+        duration_str = self.duration[:4]
 
         text = Text()
         text.append(f"{status_icon:<2} ", style=status_colors.get(self.status, "white"))
-        text.append(f"{truncated_script:<10} ")
+        text.append(f"{truncated_script:<8} ")
         text.append(f"({time_str:<8}) ")
-        text.append(f"[{duration_str:<6}]")
+        text.append(f"[{duration_str:<4}]")
 
         return text
