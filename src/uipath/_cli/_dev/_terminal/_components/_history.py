@@ -34,6 +34,10 @@ class RunHistoryPanel(Container):
                         classes="new-run-btn",
                     )
 
+    def on_mount(self) -> None:
+        # Update only running items every 5 seconds
+        self.set_interval(5.0, self._refresh_running_items)
+
     def add_run(self, run: ExecutionRun):
         """Add a new run to history."""
         self.runs.insert(0, run)  # Add to top
@@ -67,3 +71,15 @@ class RunHistoryPanel(Container):
         """Clear all runs from history."""
         self.runs.clear()
         self.refresh_list()
+
+    def _refresh_running_items(self) -> None:
+        if not any(run.status == "running" for run in self.runs):
+            return None  # No running items, skip update
+
+        run_list = self.query_one("#run-list", ListView)
+
+        for item in run_list.children:
+            run = self.get_run_by_id(item.run_id)  # type: ignore[attr-defined]
+            if run and run.status == "running":
+                static = item.query_one(Static)
+                static.update(run.display_name)
