@@ -8,6 +8,7 @@ from typing import Any, Dict
 from uuid import uuid4
 
 import pyperclip  # type: ignore[import-untyped]
+from rich.traceback import Traceback
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
@@ -208,17 +209,13 @@ class UiPathDevTerminal(App[Any]):
             run.end_time = datetime.now()
 
         except UiPathRuntimeError as e:
-            error_msg = (
-                f"{e.error_info.code}: {e.error_info.title}\n{e.error_info.detail}"
-            )
-            self._add_error_log(run, error_msg)
+            self._add_error_log(run)
             run.status = "failed"
             run.end_time = datetime.now()
             run.error = e.error_info
 
         except Exception as e:
-            error_msg = f"Execution failed: {str(e)}"
-            self._add_error_log(run, error_msg)
+            self._add_error_log(run)
             run.status = "failed"
             run.end_time = datetime.now()
             run.error = UiPathErrorContract(
@@ -280,8 +277,12 @@ class UiPathDevTerminal(App[Any]):
         log_msg = LogMessage(run.id, "INFO", message, timestamp)
         self._handle_log_message(log_msg)
 
-    def _add_error_log(self, run: ExecutionRun, message: str):
+    def _add_error_log(self, run: ExecutionRun):
         """Add error log to run."""
         timestamp = datetime.now()
-        log_msg = LogMessage(run.id, "ERROR", message, timestamp)
+        tb = Traceback(
+            show_locals=False,
+            max_frames=4,
+        )
+        log_msg = LogMessage(run.id, "ERROR", tb, timestamp)
         self._handle_log_message(log_msg)

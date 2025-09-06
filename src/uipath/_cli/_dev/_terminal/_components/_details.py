@@ -416,14 +416,16 @@ class RunDetailsPanel(Container):
         timestamp_str = log_msg.timestamp.strftime("%H:%M:%S")
         level_short = log_msg.level[:4].upper()
 
-        log_text = (
-            f"[dim]{timestamp_str}[/dim] "
-            f"[{color}]{level_short}[/{color}] "
-            f"{log_msg.message}"
-        )
-
         logs_log = self.query_one("#logs-log", RichLog)
-        logs_log.write(log_text)
+        if isinstance(log_msg.message, str):
+            log_text = (
+                f"[dim]{timestamp_str}[/dim] "
+                f"[{color}]{level_short}[/{color}] "
+                f"{log_msg.message}"
+            )
+            logs_log.write(log_text)
+        else:
+            logs_log.write(log_msg.message)
 
     def clear_display(self):
         """Clear both traces and logs display."""
