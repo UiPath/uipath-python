@@ -64,7 +64,8 @@ Screen {
 }
 
 .run-actions {
-    height: 2;
+    dock: bottom;
+    height: auto;
     align: left middle;
 }
 
@@ -204,7 +205,7 @@ SpanDetailsDisplay {
 
 .json-input {
     margin-top: 1;
-    height: 12;
+    height: auto;
 }
 
 .run-actions {

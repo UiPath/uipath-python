@@ -3,6 +3,8 @@ from typing import Optional
 
 import click
 
+from uipath._cli._utils._debug import setup_debugging
+
 from ..telemetry import track
 from ._dev._terminal import UiPathDevTerminal
 from ._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
@@ -15,9 +17,23 @@ console = ConsoleLogger()
 
 @click.command()
 @click.argument("interface", default="terminal")
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debugging with debugpy. The process will wait for a debugger to attach.",
+)
+@click.option(
+    "--debug-port",
+    type=int,
+    default=5678,
+    help="Port for the debug server (default: 5678)",
+)
 @track
-def dev(interface: Optional[str]) -> None:
+def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
     """Launch interactive debugging interface."""
+    if not setup_debugging(debug, debug_port):
+        console.error(f"Failed to start debug server on port {debug_port}")
+
     console.info("Launching UiPath debugging terminal ...")
     result = Middlewares.next(
         "dev",
