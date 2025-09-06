@@ -5,6 +5,8 @@ from uuid import uuid4
 
 from rich.text import Text
 
+from uipath.agent.chat import UiPathChatMessage
+
 from ...._runtime._contracts import UiPathErrorContract
 from ._messages import LogMessage, TraceMessage
 
@@ -24,6 +26,79 @@ class ExecutionRun:
         self.traces: List[TraceMessage] = []
         self.logs: List[LogMessage] = []
         self.error: Optional[UiPathErrorContract] = None
+        self.messages: Dict[str, UiPathChatMessage] = {}
+
+    def add_message(self, msg: UiPathChatMessage) -> UiPathChatMessage:
+        """Add or update a chat message (handles partial updates & token streaming)."""
+        existing = self.messages.get(msg.message_id)
+
+        if existing:
+            # --- Merge/replace content parts ---
+            if msg.content_parts:
+                if not existing.content_parts:
+                    existing.content_parts = []
+
+                # Index existing parts by content_part_id
+                part_index = {
+                    getattr(part, "content_part_id", None): i
+                    for i, part in enumerate(existing.content_parts)
+                    if getattr(part, "content_part_id", None) is not None
+                }
+
+                for new_part in msg.content_parts:
+                    cid = getattr(new_part, "content_part_id", None)
+
+                    if cid is not None:
+                        # Replace if exists, otherwise append
+                        if cid in part_index:
+                            existing.content_parts[part_index[cid]] = new_part
+                        else:
+                            existing.content_parts.append(new_part)
+                    else:
+                        # No ID → merge consecutive plain-text
+                        if (
+                            new_part.mime_type == "text/plain"
+                            and existing.content_parts
+                            and existing.content_parts[-1].mime_type == "text/plain"
+                            and getattr(
+                                existing.content_parts[-1], "content_part_id", None
+                            )
+                            is None
+                        ):
+                            existing.content_parts[-1].data += new_part.data
+                        else:
+                            existing.content_parts.append(new_part)
+
+            # --- Merge/replace tool calls ---
+            if msg.tool_calls:
+                if not existing.tool_calls:
+                    existing.tool_calls = []
+
+                tool_index = {
+                    getattr(call, "tool_call_id", None): i
+                    for i, call in enumerate(existing.tool_calls)
+                    if getattr(call, "tool_call_id", None) is not None
+                }
+
+                for new_call in msg.tool_calls:
+                    tid = getattr(new_call, "tool_call_id", None)
+
+                    if tid is not None:
+                        if tid in tool_index:
+                            existing.tool_calls[tool_index[tid]] = new_call
+                        else:
+                            existing.tool_calls.append(new_call)
+                    else:
+                        existing.tool_calls.append(new_call)
+
+            # Update timestamps
+            existing.updated_at = msg.updated_at or datetime.utcnow()
+            return existing
+
+        else:
+            # First time seeing this message
+            self.messages[msg.message_id] = msg
+            return msg
 
     @property
     def duration(self) -> str:

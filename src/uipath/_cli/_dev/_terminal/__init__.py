@@ -9,10 +9,17 @@ from uuid import uuid4
 
 import pyperclip  # type: ignore[import-untyped]
 from rich.traceback import Traceback
+from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, Footer, ListView, RichLog
+from textual.widgets import Button, Footer, Input, ListView, RichLog
+
+from uipath.agent.chat._models import (
+    UiPathChatContentPart,
+    UiPathChatMessage,
+    UiPathChatMessageRole,
+)
 
 from ..._runtime._contracts import (
     UiPathErrorContract,
@@ -27,12 +34,16 @@ from ._components._new import NewRunPanel
 from ._components._resume import ResumePanel
 from ._models._execution import ExecutionRun
 from ._models._messages import LogMessage, TraceMessage
+from ._traces._chat import RunContextChatHandler
 from ._traces._exporter import RunContextExporter
 from ._traces._logger import RunContextLogHandler
 
 
 class UiPathDevTerminal(App[Any]):
-    """UiPath development terminal interface."""
+    """UiPath debugging terminal interface."""
+
+    TITLE = "UiPath Debugging Terminal"
+    SUB_TITLE = "Interactive debugging interface for UiPath Python projects"
 
     CSS_PATH = Path(__file__).parent / "_styles" / "terminal.tcss"
 
@@ -93,6 +104,39 @@ class UiPathDevTerminal(App[Any]):
             await self.action_cancel()
         elif event.button.id == "resume-btn":
             await self.action_resume()
+
+    @on(Input.Submitted, "#chat-input")
+    async def handle_chat_input(self, event: Input.Submitted) -> None:
+        """Handle user submitting text into the chat."""
+        user_text = event.value.strip()
+        if not user_text:
+            return
+
+        details_panel = self.query_one("#details-panel", RunDetailsPanel)
+        if details_panel and details_panel.current_run:
+            if details_panel.current_run.status != "suspended":
+                self.app.notify(
+                    "Wait for agent response...", timeout=1.5, severity="warning"
+                )
+                return
+
+            event.input.clear()
+
+            # Create a UiPathChatMessage for the user
+            user_msg = UiPathChatMessage(
+                message_id=str(uuid4()),
+                role="user",
+                content_parts=[{"mime_type": "text/plain", "data": user_text}],
+                created_at=datetime.now(),
+            )
+            updated_chat_message = self.runs[details_panel.current_run.id].add_message(
+                user_msg
+            )
+            details_panel.add_chat_message(
+                updated_chat_message, details_panel.current_run.id
+            )
+            details_panel.current_run.resume_data = {"value": user_text}
+            asyncio.create_task(self._execute_runtime(details_panel.current_run))
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle run selection from history."""
@@ -181,6 +225,9 @@ class UiPathDevTerminal(App[Any]):
                 log_handler=RunContextLogHandler(
                     run_id=run.id, on_log=self._handle_log_message
                 ),
+                chat_handler=RunContextChatHandler(
+                    run_id=run.id, on_message=self._handle_chat_message
+                ),
             )
 
             if run.status == "suspended":
@@ -194,6 +241,7 @@ class UiPathDevTerminal(App[Any]):
             run.status = "running"
             run.start_time = datetime.now()
 
+            # asyncio.create_task(self.simulate_chat_flow(context, run.id))
             result = await self.runtime_factory.execute_in_root_span(context)
 
             if result is not None:
@@ -271,6 +319,13 @@ class UiPathDevTerminal(App[Any]):
         details_panel = self.query_one("#details-panel", RunDetailsPanel)
         details_panel.add_log(log_msg)
 
+    def _handle_chat_message(
+        self, chat_msg: UiPathChatMessage, execution_id: str
+    ) -> None:
+        updated_chat_message = self.runs[execution_id].add_message(chat_msg)
+        details_panel = self.app.query_one("#details-panel", RunDetailsPanel)
+        details_panel.add_chat_message(updated_chat_message, execution_id)
+
     def _add_info_log(self, run: ExecutionRun, message: str):
         """Add info log to run."""
         timestamp = datetime.now()
@@ -286,3 +341,153 @@ class UiPathDevTerminal(App[Any]):
         )
         log_msg = LogMessage(run.id, "ERROR", tb, timestamp)
         self._handle_log_message(log_msg)
+
+    async def simulate_chat_flow(
+        self, context: UiPathRuntimeContext, run_id: str
+    ) -> None:
+        """Simulate a user -> assistant -> tool call -> assistant chat flow."""
+        # 1. User sends a message
+        user_msg = UiPathChatMessage(
+            message_id="m1",
+            role=UiPathChatMessageRole.USER,
+            content_parts=[
+                UiPathChatContentPart(
+                    content_part_id="c1",
+                    mime_type="text/plain",
+                    data="Hello, can you tell me about UiPath?",
+                )
+            ],
+            tool_calls=None,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        context.chat_handler.on_chat_message(user_msg)
+
+        await asyncio.sleep(1)  # simulate delay
+
+        # 2. Assistant starts responding (partial)
+        assistant_msg = UiPathChatMessage(
+            message_id="m2",
+            role=UiPathChatMessageRole.ASSISTANT,
+            content_parts=[
+                UiPathChatContentPart(
+                    content_part_id="c2",
+                    mime_type="text/plain",
+                    data="Sure! UiPath is a leading RPA platform",
+                )
+            ],
+            tool_calls=None,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        context.chat_handler.on_chat_message(assistant_msg)
+
+        await asyncio.sleep(1)
+
+        # 3. Assistant updates same message (streaming style)
+        assistant_msg_updated = assistant_msg.model_copy(
+            update={
+                "content_parts": [
+                    UiPathChatContentPart(
+                        content_part_id="c2",
+                        mime_type="text/plain",
+                        data="Sure! UiPath is a leading RPA platform used for automating repetitive tasks.",
+                    )
+                ],
+                "updated_at": datetime.now(),
+            }
+        )
+        context.chat_handler.on_chat_message(assistant_msg_updated)
+
+        await asyncio.sleep(1)
+
+        assistant_msg = UiPathChatMessage(
+            message_id="m11",
+            role=UiPathChatMessageRole.ASSISTANT,
+            content_parts=[
+                UiPathChatContentPart(
+                    content_part_id="c1",
+                    mime_type="text/plain",
+                    data="Test streaming",
+                )
+            ],
+            tool_calls=None,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        context.chat_handler.on_chat_message(assistant_msg)
+
+        await asyncio.sleep(1)
+
+        assistant_msg = UiPathChatMessage(
+            message_id="m11",
+            role=UiPathChatMessageRole.ASSISTANT,
+            content_parts=[
+                UiPathChatContentPart(
+                    content_part_id="c2",
+                    mime_type="text/plain",
+                    data=" 1",
+                )
+            ],
+            tool_calls=None,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        context.chat_handler.on_chat_message(assistant_msg)
+
+        await asyncio.sleep(1)
+
+        assistant_msg = UiPathChatMessage(
+            message_id="m11",
+            role=UiPathChatMessageRole.ASSISTANT,
+            content_parts=[
+                UiPathChatContentPart(
+                    content_part_id="c3",
+                    mime_type="text/plain",
+                    data=" 2 3",
+                )
+            ],
+            tool_calls=None,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        context.chat_handler.on_chat_message(assistant_msg)
+
+        await asyncio.sleep(1)
+
+        # 4. Assistant issues a tool call
+        tool_msg = UiPathChatMessage(
+            message_id="m3",
+            role=UiPathChatMessageRole.ASSISTANT,
+            content_parts=None,
+            tool_calls=[
+                {
+                    "tool_call_id": "t1",
+                    "name": "search",
+                    "arguments": {"query": "UiPath company overview"},
+                    "timestamp": datetime.now().isoformat(),
+                }
+            ],
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        context.chat_handler.on_chat_message(tool_msg)
+
+        await asyncio.sleep(1)
+
+        # 5. Assistant finalizes response
+        final_msg = UiPathChatMessage(
+            message_id="m4",
+            role=UiPathChatMessageRole.ASSISTANT,
+            content_parts=[
+                UiPathChatContentPart(
+                    content_part_id="c3",
+                    mime_type="text/plain",
+                    data="I found that UiPath was founded in 2005 and is now a leader in enterprise automation.",
+                )
+            ],
+            tool_calls=None,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        context.chat_handler.on_chat_message(final_msg)

@@ -1,14 +1,27 @@
+import json
 from typing import Dict, List, Optional
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
-from textual.widgets import RichLog, TabbedContent, TabPane, Tree
+from textual.widgets import Input, Markdown, RichLog, TabbedContent, TabPane, Tree
 from textual.widgets.tree import TreeNode
+
+from uipath.agent.chat import (
+    UiPathChatMessage,
+)
 
 from .._models._execution import ExecutionRun
 from .._models._messages import LogMessage, TraceMessage
 from ._resume import ResumePanel
+
+
+class Prompt(Markdown):
+    pass
+
+
+class Response(Markdown):
+    BORDER_TITLE = "AI"
 
 
 class SpanDetailsDisplay(Container):
@@ -118,6 +131,14 @@ class RunDetailsPanel(Container):
 
             with TabPane("Resume", id="resume-tab"):
                 yield ResumePanel(id="resume-panel")
+
+            with TabPane("Chat", id="chat-tab"):
+                with Vertical(id="chat-container"):
+                    yield VerticalScroll(id="chat-view")
+                    yield Input(
+                        placeholder="Type your message and press Enter...",
+                        id="chat-input",
+                    )
 
     def watch_current_run(
         self, old_value: Optional[ExecutionRun], new_value: Optional[ExecutionRun]
@@ -397,6 +418,71 @@ class RunDetailsPanel(Container):
 
         # Rebuild the tree to include new trace
         self._rebuild_spans_tree()
+
+    def add_chat_message(self, chat_msg: UiPathChatMessage, run_id: str) -> None:
+        """Add or update a chat message bubble for the given run."""
+        if not self.current_run or run_id != self.current_run.id:
+            return
+
+        chat_view = self.query_one("#chat-view")
+
+        # Pick widget type and prefix based on role
+        if chat_msg.role == "user":
+            widget_cls = Prompt
+            prefix = "👤"
+        elif chat_msg.role == "assistant":
+            widget_cls = Response
+            prefix = "🤖"
+        else:  # system or fallback
+            widget_cls = Response
+            prefix = "⚙"
+
+        # --- Build bubble content ---
+        parts: list[str] = []
+
+        # Text parts
+        if chat_msg.content_parts:
+            for part in chat_msg.content_parts:
+                if part.mime_type.startswith("text/"):
+                    parts.append(part.data)
+
+        text_block = "\n".join(parts).strip()
+        content_lines = [f"{prefix} {text_block}"] if text_block else []
+
+        # Tool calls → fenced code blocks with pretty JSON
+        if chat_msg.tool_calls:
+            for call in chat_msg.tool_calls:
+                name = getattr(call, "name", None) or call.get("name")
+                args = getattr(call, "arguments", None) or call.get("arguments")
+
+                # Try to pretty-print JSON arguments
+                try:
+                    pretty_args = json.dumps(args, indent=2, ensure_ascii=False)
+                except Exception:
+                    # Fallback to str if not JSON serializable
+                    pretty_args = str(args)
+
+                content_lines.append(f"🛠 **{name}**\n\n{pretty_args}")
+
+        if not content_lines:
+            return  # Skip empty messages
+
+        content = "\n\n".join(content_lines)
+
+        # --- One bubble per message_id ---
+        if not hasattr(self, "_chat_widgets"):
+            self._chat_widgets = {}
+
+        existing = self._chat_widgets.get(chat_msg.message_id)
+        if existing:
+            existing.update(content)
+        else:
+            widget_instance = widget_cls(content)
+            chat_view.mount(widget_instance)
+            self._chat_widgets[chat_msg.message_id] = widget_instance
+
+        # Scroll to bottom
+        chat_view.scroll_end(animate=False)
 
     def add_log(self, log_msg: LogMessage):
         """Add log to current run if it matches."""

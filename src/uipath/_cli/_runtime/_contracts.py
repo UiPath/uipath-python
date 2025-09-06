@@ -22,6 +22,7 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
 
+from uipath.agent.chat import UiPathChatMessage
 from uipath.tracing import TracingManager
 
 from ._logging import LogsInterceptor
@@ -149,6 +150,15 @@ class UiPathTraceContext(BaseModel):
     reference_id: Optional[str] = None
 
 
+class UiPathChatHandler(ABC):
+    """Base delegate for handling UiPath chat messages."""
+
+    @abstractmethod
+    def on_chat_message(self, chat_msg: UiPathChatMessage) -> None:
+        """Handle a chat message for a given execution run."""
+        pass
+
+
 class UiPathRuntimeContext(BaseModel):
     """Context information passed throughout the runtime execution."""
 
@@ -173,6 +183,7 @@ class UiPathRuntimeContext(BaseModel):
     input_file: Optional[str] = None
     is_eval_run: bool = False
     log_handler: Optional[logging.Handler] = None
+    chat_handler: Optional[UiPathChatHandler] = None
     model_config = {"arbitrary_types_allowed": True}
 
     @classmethod
