@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Any, Dict
 from uuid import uuid4
 
+import pyperclip  # type: ignore[import-untyped]
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, Footer, ListView
+from textual.widgets import Button, Footer, ListView, RichLog
 
 from ..._runtime._contracts import (
     UiPathErrorContract,
@@ -38,7 +39,8 @@ class UiPathDevTerminal(App[Any]):
         Binding("q", "quit", "Quit"),
         Binding("n", "new_run", "New"),
         Binding("r", "execute_run", "Run"),
-        Binding("c", "clear_history", "Clear History"),
+        Binding("c", "copy", "Copy"),
+        Binding("h", "clear_history", "Clear History"),
         Binding("escape", "cancel", "Cancel"),
     ]
 
@@ -156,6 +158,16 @@ class UiPathDevTerminal(App[Any]):
         history_panel = self.query_one("#history-panel", RunHistoryPanel)
         history_panel.clear_runs()
         await self.action_new_run()
+
+    def action_copy(self) -> None:
+        """Copy content of currently focused RichLog to clipboard and notify."""
+        focused = self.app.focused
+        if isinstance(focused, RichLog):
+            clipboard_text = "\n".join(line.text for line in focused.lines)
+            pyperclip.copy(clipboard_text)
+            self.app.notify("Copied to clipboard!", timeout=1.5)
+        else:
+            self.app.notify("Nothing to copy here.", timeout=1.5, severity="warning")
 
     async def _execute_runtime(self, run: ExecutionRun):
         """Execute the script using UiPath runtime."""
