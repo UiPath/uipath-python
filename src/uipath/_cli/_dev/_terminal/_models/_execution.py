@@ -5,7 +5,10 @@ from uuid import uuid4
 
 from rich.text import Text
 
+from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
+
 from ...._runtime._contracts import UiPathErrorContract
+from .._utils._chat import ConversationAggregator
 from ._messages import LogMessage, TraceMessage
 
 
@@ -24,6 +27,7 @@ class ExecutionRun:
         self.traces: List[TraceMessage] = []
         self.logs: List[LogMessage] = []
         self.error: Optional[UiPathErrorContract] = None
+        self.chat_aggregator = ConversationAggregator()
 
     @property
     def duration(self) -> str:
@@ -64,3 +68,12 @@ class ExecutionRun:
         text.append(f"[{duration_str:<6}]")
 
         return text
+
+    @property
+    def messages(self) -> List[UiPathConversationMessage]:
+        return list(self.chat_aggregator.messages.values())
+
+    def add_message(
+        self, event: UiPathConversationEvent
+    ) -> Optional[UiPathConversationMessage]:
+        return self.chat_aggregator.add_event(event)

@@ -223,3 +223,29 @@ SpanDetailsDisplay {
 TextArea.invalid {
     border: tall red;
 }
+
+
+Prompt {
+    background: $primary 5%;
+    color: $text;
+    margin-right: 8;
+    margin-left: 1;
+    padding: 1 1 0 1;
+}
+Response, Tool {
+    border: wide $success;
+    background: $success 5%;
+    color: $text;
+    margin: 1;
+    margin-left: 8;
+    padding: 1 1 0 1;
+}
+
+#chat-container{
+    background: $surface;
+}
+
+#chat-input{
+    dock: bottom;
+    margin: 1;
+}

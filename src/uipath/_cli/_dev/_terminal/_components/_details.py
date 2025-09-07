@@ -3,12 +3,14 @@ from typing import Dict, List, Optional
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
-from textual.widgets import RichLog, TabbedContent, TabPane, Tree
+from textual.widgets import Input, RichLog, TabbedContent, TabPane, Tree
 from textual.widgets.tree import TreeNode
+
+from uipath.agent.conversation import UiPathConversationMessage
 
 from .._models._execution import ExecutionRun
 from .._models._messages import LogMessage, TraceMessage
-from ._resume import ResumePanel
+from ._chat import ChatPanel
 
 
 class SpanDetailsDisplay(Container):
@@ -116,8 +118,8 @@ class RunDetailsPanel(Container):
                     classes="detail-log",
                 )
 
-            with TabPane("Resume", id="resume-tab"):
-                yield ResumePanel(id="resume-panel")
+            with TabPane("Chat", id="chat-tab"):
+                yield ChatPanel(id="chat-panel")
 
     def watch_current_run(
         self, old_value: Optional[ExecutionRun], new_value: Optional[ExecutionRun]
@@ -151,9 +153,9 @@ class RunDetailsPanel(Container):
         tabbed = self.query_one(TabbedContent)
         tabbed.active = tab_id
 
-    def _update_resume_tab(self, run: ExecutionRun) -> None:
-        resume_panel = self.query_one("#resume-panel", ResumePanel)
-        resume_panel.display = run.status == "suspended"
+    def _update_chat_tab(self, run: ExecutionRun) -> None:
+        chat_input = self.query_one("#chat-input", Input)
+        chat_input.disabled = run.status == "completed" or run.status == "failed"
 
     def _flatten_values(self, value: object, prefix: str = "") -> list[str]:
         """Flatten nested dict/list structures into dot-notation paths."""
@@ -210,7 +212,7 @@ class RunDetailsPanel(Container):
 
     def _show_run_details(self, run: ExecutionRun):
         """Display detailed information about the run in the Details tab."""
-        self._update_resume_tab(run)
+        self._update_chat_tab(run)
 
         run_details_log = self.query_one("#run-details-log", RichLog)
         run_details_log.clear()
@@ -426,6 +428,15 @@ class RunDetailsPanel(Container):
             logs_log.write(log_text)
         else:
             logs_log.write(log_msg.message)
+
+    def add_chat_message(
+        self, chat_msg: UiPathConversationMessage, run_id: str
+    ) -> None:
+        """Add a chat message to the display."""
+        if not self.current_run or run_id != self.current_run.id:
+            return
+        chat_panel = self.query_one("#chat-panel", ChatPanel)
+        chat_panel.add_chat_message(chat_msg)
 
     def clear_display(self):
         """Clear both traces and logs display."""

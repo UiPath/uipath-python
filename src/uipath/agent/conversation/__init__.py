@@ -55,6 +55,8 @@ from .content import (
     UiPathConversationContentPartEndEvent,
     UiPathConversationContentPartEvent,
     UiPathConversationContentPartStartEvent,
+    UiPathExternalValue,
+    UiPathInlineValue,
 )
 from .conversation import (
     UiPathConversationCapabilities,
@@ -108,6 +110,8 @@ __all__ = [
     "UiPathConversationContentPartEndEvent",
     "UiPathConversationContentPartEvent",
     "UiPathConversationContentPart",
+    "UiPathInlineValue",
+    "UiPathExternalValue",
     # Citation
     "UiPathConversationCitationStartEvent",
     "UiPathConversationCitationEndEvent",
