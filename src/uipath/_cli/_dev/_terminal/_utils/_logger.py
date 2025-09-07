@@ -11,11 +11,11 @@ class RunContextLogHandler(logging.Handler):
     def __init__(
         self,
         run_id: str,
-        on_log: Callable[[LogMessage], None],
+        callback: Callable[[LogMessage], None],
     ):
         super().__init__()
         self.run_id = run_id
-        self.on_log = on_log
+        self.callback = callback
 
     def emit(self, record: logging.LogRecord):
         """Emit a log record to CLI UI."""
@@ -26,7 +26,7 @@ class RunContextLogHandler(logging.Handler):
                 message=self.format(record),
                 timestamp=datetime.fromtimestamp(record.created),
             )
-            self.on_log(log_msg)
+            self.callback(log_msg)
         except Exception:
             # Don't let logging errors crash the app
             pass
