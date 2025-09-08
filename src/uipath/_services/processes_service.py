@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from typing import Any, Dict, Optional
 
 from .._config import Config
@@ -9,6 +10,7 @@ from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from .._utils.constants import ENV_JOB_ID, HEADER_JOB_KEY
 from ..models.job import Job
 from ..tracing._traced import traced
+from . import AttachmentsService
 from ._base_service import BaseService
 
 
@@ -20,7 +22,13 @@ class ProcessesService(FolderContext, BaseService):
     specific business tasks.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self,
+        config: Config,
+        execution_context: ExecutionContext,
+        attachment_service: AttachmentsService,
+    ) -> None:
+        self._attachments_service = attachment_service
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="processes_invoke", run_type="uipath")
@@ -65,9 +73,14 @@ class ProcessesService(FolderContext, BaseService):
             client.processes.invoke(name="MyProcess", folder_path="my-folder-key")
             ```
         """
+        input_data = self._handle_input_arguments(
+            input_arguments=input_arguments,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         spec = self._invoke_spec(
             name,
-            input_arguments=input_arguments,
+            input_data=input_data,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -118,9 +131,14 @@ class ProcessesService(FolderContext, BaseService):
             asyncio.run(main())
             ```
         """
+        input_data = await self._handle_input_arguments_async(
+            input_arguments=input_arguments,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         spec = self._invoke_spec(
             name,
-            input_arguments=input_arguments,
+            input_data=input_data,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -138,29 +156,87 @@ class ProcessesService(FolderContext, BaseService):
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
-    def _invoke_spec(
+    def _handle_input_arguments(
         self,
-        name: str,
         input_arguments: Optional[Dict[str, Any]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+    ) -> Dict[str, str]:
+        """Handle input arguments, storing as attachment if they exceed size limit.
+
+        Args:
+            input_arguments: The input arguments to process
+            folder_key: The folder key for attachment storage
+            folder_path: The folder path for attachment storage
+
+        Returns:
+            Dict containing either "InputArguments" or "InputFile" key
+        """
+        if not input_arguments:
+            return {"InputArguments": json.dumps({})}
+
+        # If payload exceeds limit, store as attachment
+        payload_json = json.dumps(input_arguments)
+        if len(payload_json) > 10000:  # 10k char limit
+            attachment_id = self._attachments_service.upload(
+                name=f"{uuid.uuid4()}.json",
+                content=payload_json,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+            return {"InputFile": str(attachment_id)}
+        else:
+            return {"InputArguments": payload_json}
+
+    async def _handle_input_arguments_async(
+        self,
+        input_arguments: Optional[Dict[str, Any]] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Dict[str, str]:
+        """Handle input arguments, storing as attachment if they exceed size limit.
+
+        Args:
+            input_arguments: The input arguments to process
+            folder_key: The folder key for attachment storage
+            folder_path: The folder path for attachment storage
+
+        Returns:
+            Dict containing either "InputArguments" or "InputFile" key
+        """
+        if not input_arguments:
+            return {"InputArguments": json.dumps({})}
+
+        # If payload exceeds limit, store as attachment
+        payload_json = json.dumps(input_arguments)
+        if len(payload_json) > 10000:  # 10k char limit
+            attachment_id = await self._attachments_service.upload_async(
+                name=f"{uuid.uuid4()}.json",
+                content=payload_json,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+            return {"InputFile": str(attachment_id)}
+        else:
+            return {"InputArguments": payload_json}
+
+    def _invoke_spec(
+        self,
+        name: str,
+        input_data: Optional[Dict[str, Any]] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> RequestSpec:
+        input_dict = {"startInfo": {"ReleaseName": name, **(input_data or {})}}
         request_scope = RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
             ),
-            content=str(
-                {
-                    "startInfo": {
-                        "ReleaseName": name,
-                        "InputArguments": json.dumps(input_arguments)
-                        if input_arguments
-                        else "{}",
-                    }
-                }
-            ),
+            content=str(input_dict),
             headers={
                 **header_folder(folder_key, folder_path),
             },

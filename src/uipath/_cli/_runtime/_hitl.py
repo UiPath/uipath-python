@@ -92,7 +92,8 @@ class HitlReader:
                             _try_convert_to_json_format(str(job.job_error or job.info))
                             or "Job error unavailable.",
                         )
-                    return _try_convert_to_json_format(job.output_arguments)
+                    output_data = await uipath.jobs.extract_output_async(job)
+                    return _try_convert_to_json_format(output_data)
 
             case UiPathResumeTriggerType.API:
                 if resume_trigger.api_resume and resume_trigger.api_resume.inbox_id:
