@@ -64,7 +64,8 @@ Screen {
 }
 
 .run-actions {
-    height: 2;
+    dock: bottom;
+    height: auto;
     align: left middle;
 }
 
@@ -204,7 +205,7 @@ SpanDetailsDisplay {
 
 .json-input {
     margin-top: 1;
-    height: 12;
+    height: auto;
 }
 
 .run-actions {
@@ -217,4 +218,34 @@ SpanDetailsDisplay {
     padding: 0 2;
     text-style: bold;
     border: none;
+}
+
+TextArea.invalid {
+    border: tall red;
+}
+
+
+Prompt {
+    background: $primary 5%;
+    color: $text;
+    margin-right: 8;
+    margin-left: 1;
+    padding: 1 1 0 1;
+}
+Response, Tool {
+    border: wide $success;
+    background: $success 5%;
+    color: $text;
+    margin: 1;
+    margin-left: 8;
+    padding: 1 1 0 1;
+}
+
+#chat-container{
+    background: $surface;
+}
+
+#chat-input{
+    dock: bottom;
+    margin: 1;
 }

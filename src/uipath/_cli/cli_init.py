@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import click
-from dotenv import load_dotenv
 
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry import track
@@ -91,7 +90,9 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
     python_files = [f for f in os.listdir(directory) if f.endswith(".py")]
 
     if not python_files:
-        console.error("No python files found in the current directory.")
+        console.error(
+            "No python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
+        )
         return None
     elif len(python_files) == 1:
         return os.path.join(directory, python_files[0])
@@ -125,9 +126,6 @@ def write_config_file(config_data: Dict[str, Any]) -> None:
 @track
 def init(entrypoint: str, infer_bindings: bool) -> None:
     """Create uipath.json with input/output schemas and bindings."""
-    current_path = os.getcwd()
-    load_dotenv(os.path.join(current_path, ".env"), override=True)
-
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
         generate_env_file(current_directory)

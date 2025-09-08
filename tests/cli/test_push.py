@@ -11,7 +11,7 @@ from utils.project_details import ProjectDetails
 from utils.uipath_json import UiPathJson
 
 from tests.cli.utils.common import configure_env_vars
-from uipath._cli.cli_push import push
+from uipath._cli import cli
 
 
 def extract_agent_json_from_modified_resources(
@@ -104,7 +104,7 @@ class TestPush:
             os.environ["UIPATH_PROJECT_ID"] = "123"
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-            result = runner.invoke(push, ["./"])
+            result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 1
             assert (
                 "uipath.json not found. Please run `uipath init` in the project directory."
@@ -127,7 +127,7 @@ class TestPush:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(push, ["./"])
+            result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 1
             assert "UIPATH_PROJECT_ID environment variable not found." in result.output
 
@@ -256,7 +256,7 @@ class TestPush:
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run push
-            result = runner.invoke(push, ["./"])
+            result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 0
             assert "Updating main.py" in result.output
             assert "Updating pyproject.toml" in result.output
@@ -357,7 +357,7 @@ class TestPush:
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run push
-            result = runner.invoke(push, ["./"])
+            result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 0
             assert "Uploading main.py" in result.output
             assert "Uploading pyproject.toml" in result.output
@@ -426,7 +426,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(push, ["./"])
+            result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 1
             assert "Failed to push UiPath project" in result.output
             assert "Status Code: 401" in result.output
@@ -514,7 +514,7 @@ class TestPush:
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run push with --nolock flag
-            result = runner.invoke(push, ["./", "--nolock"])
+            result = runner.invoke(cli, ["push", "./", "--nolock"])
             assert result.exit_code == 0
             assert "Updating main.py" in result.output
             assert "Uploading pyproject.toml" in result.output

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from uipath._cli.cli_new import new  # type: ignore
+from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
 
 
@@ -12,7 +12,7 @@ class TestNew:
         """Test project creation scenarios."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Test creating a new project
-            result = runner.invoke(new, ["my_project"])
+            result = runner.invoke(cli, ["new", "my_project"])
             assert result.exit_code == 0
             assert os.path.exists("main.py")
             assert os.path.exists("pyproject.toml")
@@ -20,7 +20,7 @@ class TestNew:
     def test_new_project_without_name(self, runner: CliRunner, temp_dir: str) -> None:
         """Test creating a new project without specifying a name."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            result = runner.invoke(new, [""])
+            result = runner.invoke(cli, ["new", ""])
             assert result.exit_code == 1
             assert "Please specify a name for your project" in result.output
 
@@ -33,7 +33,7 @@ class TestNew:
             with open("main.py", "w") as f:
                 f.write("print('Existing file')")
 
-            result = runner.invoke(new, ["my_project"])
+            result = runner.invoke(cli, ["new", "my_project"])
             assert result.exit_code == 0
             assert "Created 'main.py' file." in result.output
 
@@ -50,7 +50,7 @@ class TestNew:
                     should_include_stacktrace=False,
                 )
 
-                result = runner.invoke(new, ["my_project"])
+                result = runner.invoke(cli, ["new", "my_project"])
                 assert result.exit_code == 1
                 assert "Middleware error" in result.output
                 assert not os.path.exists("main.py")
@@ -62,7 +62,7 @@ class TestNew:
                     should_include_stacktrace=False,
                 )
 
-                result = runner.invoke(new, ["my_project"])
+                result = runner.invoke(cli, ["new", "my_project"])
                 assert result.exit_code == 0
                 assert os.path.exists("main.py")
 
@@ -76,6 +76,6 @@ class TestNew:
                 # Simulate an error during project creation
                 with patch("uipath._cli.cli_new.generate_script") as mock_generate:
                     mock_generate.side_effect = Exception("Generation error")
-                    result = runner.invoke(new, ["my_project"])
+                    result = runner.invoke(cli, ["new", "my_project"])
                     assert result.exit_code == 1
                     assert "Created 'main.py' file." not in result.output

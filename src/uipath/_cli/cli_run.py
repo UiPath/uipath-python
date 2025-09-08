@@ -7,7 +7,6 @@ from typing import Optional, Tuple
 from uuid import uuid4
 
 import click
-from dotenv import load_dotenv
 
 from uipath._cli._utils._debug import setup_debugging
 from uipath.tracing import LlmOpsHttpExporter
@@ -27,7 +26,6 @@ from ._utils._console import ConsoleLogger
 from .middlewares import MiddlewareResult, Middlewares
 
 console = ConsoleLogger()
-load_dotenv(override=True)
 
 
 def python_run_middleware(

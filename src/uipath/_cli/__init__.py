@@ -3,6 +3,7 @@ import sys
 
 import click
 
+from ._utils._common import load_environment_variables
 from .cli_auth import auth as auth
 from .cli_deploy import deploy as deploy  # type: ignore
 from .cli_dev import dev as dev
@@ -43,6 +44,7 @@ def _get_safe_version() -> str:
     help="Display the current version of uipath.",
 )
 def cli(lv: bool, v: bool) -> None:
+    load_environment_variables()
     if lv:
         try:
             version = importlib.metadata.version("uipath-langchain")

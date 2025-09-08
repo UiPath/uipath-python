@@ -1,26 +1,48 @@
 import asyncio
+import os
 from typing import Optional
 
 import click
 
-from ..telemetry import track
-from ._dev._terminal import UiPathDevTerminal
-from ._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
-from ._runtime._runtime import UiPathRuntime
-from ._utils._console import ConsoleLogger
-from .middlewares import Middlewares
+from uipath._cli._dev._terminal import UiPathDevTerminal
+from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
+from uipath._cli._runtime._runtime import UiPathRuntime
+from uipath._cli._utils._console import ConsoleLogger
+from uipath._cli._utils._debug import setup_debugging
+from uipath._cli.cli_init import init  # type: ignore[attr-defined]
+from uipath._cli.middlewares import Middlewares
+from uipath.telemetry import track
 
 console = ConsoleLogger()
 
 
 @click.command()
 @click.argument("interface", default="terminal")
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debugging with debugpy. The process will wait for a debugger to attach.",
+)
+@click.option(
+    "--debug-port",
+    type=int,
+    default=5678,
+    help="Port for the debug server (default: 5678)",
+)
 @track
-def dev(interface: Optional[str]) -> None:
+def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
     """Launch interactive debugging interface."""
-    console.info("🚀 Starting UiPath Dev Terminal...")
-    console.info("Use 'q' to quit, 'n' for new run, 'r' to execute")
+    project_file = os.path.join(os.getcwd(), "uipath.json")
 
+    if not os.path.exists(project_file):
+        console.warning("Project not initialized. Running `uipath init`...")
+        ctx = click.get_current_context()
+        ctx.invoke(init)
+
+    if not setup_debugging(debug, debug_port):
+        console.error(f"Failed to start debug server on port {debug_port}")
+
+    console.info("Launching UiPath debugging terminal ...")
     result = Middlewares.next(
         "dev",
         interface,

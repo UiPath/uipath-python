@@ -9,7 +9,7 @@ from utils.project_details import ProjectDetails
 from utils.uipath_json import UiPathJson
 
 from tests.cli.utils.common import configure_env_vars
-from uipath._cli.cli_pull import pull
+from uipath._cli import cli
 
 
 class TestPull:
@@ -24,7 +24,7 @@ class TestPull:
     ) -> None:
         """Test pull when UIPATH_PROJECT_ID is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            result = runner.invoke(pull, ["./"])
+            result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 1
             assert "UIPATH_PROJECT_ID environment variable not found." in result.output
 
@@ -193,7 +193,7 @@ class TestPull:
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run pull
-            result = runner.invoke(pull, ["./"])
+            result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 0
 
             # Verify source code files
@@ -285,7 +285,7 @@ class TestPull:
             monkeypatch.setattr("click.prompt", lambda *args, **kwargs: "y")
 
             # Run pull
-            result = runner.invoke(pull, ["./"])
+            result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 0
             assert "differs from remote version" in result.output
             assert "Updated main.py" in result.output
@@ -359,7 +359,7 @@ class TestPull:
             monkeypatch.setattr("click.prompt", lambda *args, **kwargs: "n")
 
             # Run pull
-            result = runner.invoke(pull, ["./"])
+            result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 0
             assert "differs from remote version" in result.output
             assert "Skipped main.py" in result.output
@@ -393,7 +393,7 @@ class TestPull:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(pull, ["./"])
+            result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 1
             assert "Failed to pull UiPath project" in result.output
             assert "Status Code: 401" in result.output

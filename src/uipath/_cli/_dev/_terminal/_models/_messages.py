@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
+from rich.console import RenderableType
 from textual.message import Message
 
 
@@ -28,7 +29,7 @@ class LogMessage(Message):
         self,
         run_id: str,
         level: str,
-        message: str,
+        message: Union[str, RenderableType],
         timestamp: Optional[datetime] = None,
     ):
         self.run_id = run_id

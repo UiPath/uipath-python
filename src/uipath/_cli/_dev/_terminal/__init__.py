@@ -7,10 +7,15 @@ from pathlib import Path
 from typing import Any, Dict
 from uuid import uuid4
 
+import pyperclip  # type: ignore[import-untyped]
+from rich.traceback import Traceback
+from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, Footer, ListView
+from textual.widgets import Button, Footer, Input, ListView, RichLog
+
+from uipath.agent.conversation import UiPathConversationEvent
 
 from ..._runtime._contracts import (
     UiPathErrorContract,
@@ -22,23 +27,26 @@ from ..._runtime._contracts import (
 from ._components._details import RunDetailsPanel
 from ._components._history import RunHistoryPanel
 from ._components._new import NewRunPanel
-from ._components._resume import ResumePanel
 from ._models._execution import ExecutionRun
 from ._models._messages import LogMessage, TraceMessage
-from ._traces._exporter import RunContextExporter
-from ._traces._logger import RunContextLogHandler
+from ._utils._chat import RunContextChatHandler, build_user_message_event
+from ._utils._exporter import RunContextExporter
+from ._utils._logger import RunContextLogHandler
 
 
 class UiPathDevTerminal(App[Any]):
-    """UiPath development terminal interface."""
+    """UiPath debugging terminal interface."""
 
+    TITLE = "UiPath Debugging Terminal"
+    SUB_TITLE = "Interactive debugging interface for UiPath Python projects"
     CSS_PATH = Path(__file__).parent / "_styles" / "terminal.tcss"
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("n", "new_run", "New"),
         Binding("r", "execute_run", "Run"),
-        Binding("c", "clear_history", "Clear History"),
+        Binding("c", "copy", "Copy"),
+        Binding("h", "clear_history", "Clear History"),
         Binding("escape", "cancel", "Cancel"),
     ]
 
@@ -88,8 +96,6 @@ class UiPathDevTerminal(App[Any]):
             await self.action_execute_run()
         elif event.button.id == "cancel-btn":
             await self.action_cancel()
-        elif event.button.id == "resume-btn":
-            await self.action_resume()
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle run selection from history."""
@@ -100,6 +106,31 @@ class UiPathDevTerminal(App[Any]):
                 run = history_panel.get_run_by_id(run_id)
                 if run:
                     self._show_run_details(run)
+
+    @on(Input.Submitted, "#chat-input")
+    async def handle_chat_input(self, event: Input.Submitted) -> None:
+        """Handle user submitting text into the chat."""
+        user_text = event.value.strip()
+        if not user_text:
+            return
+
+        details_panel = self.query_one("#details-panel", RunDetailsPanel)
+        if details_panel and details_panel.current_run:
+            if details_panel.current_run.status != "suspended":
+                self.app.notify(
+                    "Wait for agent response...", timeout=1.5, severity="warning"
+                )
+                return
+            self._handle_chat_event(
+                build_user_message_event(
+                    user_text=user_text,
+                    conversation_id=details_panel.current_run.id,
+                ),
+                details_panel.current_run.id,
+            )
+            details_panel.current_run.resume_data = {"value": user_text}
+            asyncio.create_task(self._execute_runtime(details_panel.current_run))
+            event.input.clear()
 
     async def action_new_run(self) -> None:
         """Show new run panel."""
@@ -112,19 +143,6 @@ class UiPathDevTerminal(App[Any]):
     async def action_cancel(self) -> None:
         """Cancel and return to new run view."""
         await self.action_new_run()
-
-    async def action_resume(self) -> None:
-        """Resume the suspended run."""
-        details_panel = self.query_one("#details-panel", RunDetailsPanel)
-        if details_panel and details_panel.current_run:
-            input: Dict[str, Any] = {}
-            input_data = self.query_one("#resume-panel", ResumePanel).get_input_values()
-            try:
-                input = json.loads(input_data)
-            except json.JSONDecodeError:
-                return
-            details_panel.current_run.input_data = input
-            asyncio.create_task(self._execute_runtime(details_panel.current_run))
 
     async def action_execute_run(self) -> None:
         """Execute a new run with UiPath runtime."""
@@ -156,24 +174,38 @@ class UiPathDevTerminal(App[Any]):
         history_panel.clear_runs()
         await self.action_new_run()
 
+    def action_copy(self) -> None:
+        """Copy content of currently focused RichLog to clipboard and notify."""
+        focused = self.app.focused
+        if isinstance(focused, RichLog):
+            clipboard_text = "\n".join(line.text for line in focused.lines)
+            pyperclip.copy(clipboard_text)
+            self.app.notify("Copied to clipboard!", timeout=1.5)
+        else:
+            self.app.notify("Nothing to copy here.", timeout=1.5, severity="warning")
+
     async def _execute_runtime(self, run: ExecutionRun):
         """Execute the script using UiPath runtime."""
         try:
             context: UiPathRuntimeContext = self.runtime_factory.new_context(
                 entrypoint=run.entrypoint,
-                input_json=run.input_data,
                 trace_id=str(uuid4()),
                 execution_id=run.id,
                 logs_min_level=env.get("LOG_LEVEL", "INFO"),
                 log_handler=RunContextLogHandler(
-                    run_id=run.id, on_log=self._handle_log_message
+                    run_id=run.id, callback=self._handle_log_message
+                ),
+                chat_handler=RunContextChatHandler(
+                    run_id=run.id, callback=self._handle_chat_event
                 ),
             )
 
             if run.status == "suspended":
                 context.resume = True
+                context.input_json = run.resume_data
                 self._add_info_log(run, f"Resuming execution: {run.entrypoint}")
             else:
+                context.input_json = run.input_data
                 self._add_info_log(run, f"Starting execution: {run.entrypoint}")
 
             run.status = "running"
@@ -194,17 +226,13 @@ class UiPathDevTerminal(App[Any]):
             run.end_time = datetime.now()
 
         except UiPathRuntimeError as e:
-            error_msg = (
-                f"{e.error_info.code}: {e.error_info.title}\n{e.error_info.detail}"
-            )
-            self._add_error_log(run, error_msg)
+            self._add_error_log(run)
             run.status = "failed"
             run.end_time = datetime.now()
             run.error = e.error_info
 
         except Exception as e:
-            error_msg = f"Execution failed: {str(e)}"
-            self._add_error_log(run, error_msg)
+            self._add_error_log(run)
             run.status = "failed"
             run.end_time = datetime.now()
             run.error = UiPathErrorContract(
@@ -260,14 +288,27 @@ class UiPathDevTerminal(App[Any]):
         details_panel = self.query_one("#details-panel", RunDetailsPanel)
         details_panel.add_log(log_msg)
 
+    def _handle_chat_event(
+        self, event: UiPathConversationEvent, execution_id: str
+    ) -> None:
+        updated_chat_message = self.runs[execution_id].add_message(event)
+        if not updated_chat_message:
+            return
+        details_panel = self.app.query_one("#details-panel", RunDetailsPanel)
+        details_panel.add_chat_message(updated_chat_message, execution_id)
+
     def _add_info_log(self, run: ExecutionRun, message: str):
         """Add info log to run."""
         timestamp = datetime.now()
         log_msg = LogMessage(run.id, "INFO", message, timestamp)
         self._handle_log_message(log_msg)
 
-    def _add_error_log(self, run: ExecutionRun, message: str):
+    def _add_error_log(self, run: ExecutionRun):
         """Add error log to run."""
         timestamp = datetime.now()
-        log_msg = LogMessage(run.id, "ERROR", message, timestamp)
+        tb = Traceback(
+            show_locals=False,
+            max_frames=4,
+        )
+        log_msg = LogMessage(run.id, "ERROR", tb, timestamp)
         self._handle_log_message(log_msg)

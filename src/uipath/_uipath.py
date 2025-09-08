@@ -1,7 +1,6 @@
 from os import environ as env
 from typing import Optional
 
-from dotenv import load_dotenv
 from pydantic import ValidationError
 
 from ._config import Config
@@ -28,8 +27,6 @@ from ._utils.constants import (
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
 )
 from .models.errors import BaseUrlMissingError, SecretMissingError
-
-load_dotenv(override=True)
 
 
 class UiPath:
