@@ -1,6 +1,8 @@
 import os
 from urllib.parse import urlparse
 
+ignore_env_var = False
+
 
 def get_base_url(domain: str) -> str:
     """Get the base URL for UiPath services.
@@ -11,11 +13,14 @@ def get_base_url(domain: str) -> str:
     Returns:
         The base URL to use for UiPath services
     """
-    # If UIPATH_URL is set and domain is 'cloud' (default), use the base from UIPATH_URL
-    uipath_url = os.getenv("UIPATH_URL")
-    if uipath_url and domain == "cloud":
-        parsed_url = urlparse(uipath_url)
-        return f"{parsed_url.scheme}://{parsed_url.netloc}"
+    global ignore_env_var
+
+    if not ignore_env_var:
+        # If UIPATH_URL is set and domain is 'cloud' (default), use the base from UIPATH_URL
+        uipath_url = os.getenv("UIPATH_URL")
+        if uipath_url and domain == "cloud":
+            parsed_url = urlparse(uipath_url)
+            return f"{parsed_url.scheme}://{parsed_url.netloc}"
 
     # If domain is already a full URL, use it directly
     if domain.startswith("http"):
@@ -23,6 +28,11 @@ def get_base_url(domain: str) -> str:
 
     # Otherwise, construct the URL using the domain
     return f"https://{domain if domain else 'cloud'}.uipath.com"
+
+
+def set_force_flag(force: bool):
+    global ignore_env_var
+    ignore_env_var = force
 
 
 def build_service_url(domain: str, path: str) -> str:

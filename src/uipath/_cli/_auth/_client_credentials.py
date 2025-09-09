@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -14,12 +14,13 @@ console = ConsoleLogger()
 class ClientCredentialsService:
     """Service for client credentials authentication flow."""
 
-    def __init__(self, domain: str):
-        self.domain = domain
+    def __init__(self, base_url: str):
+        self._base_url = base_url
+        self._domain = self._extract_domain_from_base_url(base_url)
 
     def get_token_url(self) -> str:
         """Get the token URL for the specified domain."""
-        match self.domain:
+        match self._domain:
             case "alpha":
                 return "https://alpha.uipath.com/identity_/connect/token"
             case "staging":
@@ -39,7 +40,7 @@ class ClientCredentialsService:
         """
         return hostname == domain or hostname.endswith(f".{domain}")
 
-    def extract_domain_from_base_url(self, base_url: str) -> str:
+    def _extract_domain_from_base_url(self, base_url: str) -> str:
         """Extract domain from base URL.
 
         Args:
@@ -71,7 +72,7 @@ class ClientCredentialsService:
 
     def authenticate(
         self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
-    ) -> Optional[TokenData]:
+    ) -> None:
         """Authenticate using client credentials flow.
 
         Args:
@@ -97,37 +98,35 @@ class ClientCredentialsService:
                 match response.status_code:
                     case 200:
                         token_data = response.json()
-                        return {
-                            "access_token": token_data["access_token"],
-                            "token_type": token_data.get("token_type", "Bearer"),
-                            "expires_in": token_data.get("expires_in", 3600),
-                            "scope": token_data.get("scope", scope),
-                            # Client credentials flow doesn't provide these, but we need them for compatibility
-                            "refresh_token": "",
-                            "id_token": "",
-                        }
+                        token_data = cast(
+                            TokenData,
+                            {
+                                "access_token": token_data["access_token"],
+                                "token_type": token_data.get("token_type", "Bearer"),
+                                "expires_in": token_data.get("expires_in", 3600),
+                                "scope": token_data.get("scope", scope),
+                                "refresh_token": "",
+                                "id_token": "",
+                            },
+                        )
+                        self._setup_environment(token_data)
                     case 400:
                         console.error(
                             "Invalid client credentials or request parameters."
                         )
-                        return None
                     case 401:
                         console.error("Unauthorized: Invalid client credentials.")
-                        return None
                     case _:
                         console.error(
                             f"Authentication failed: {response.status_code} - {response.text}"
                         )
-                        return None
 
         except httpx.RequestError as e:
             console.error(f"Network error during authentication: {e}")
-            return None
         except Exception as e:
             console.error(f"Unexpected error during authentication: {e}")
-            return None
 
-    def setup_environment(self, token_data: TokenData, base_url: str):
+    def _setup_environment(self, token_data: TokenData):
         """Setup environment variables for client credentials authentication.
 
         Args:
@@ -138,7 +137,7 @@ class ClientCredentialsService:
 
         env_vars = {
             "UIPATH_ACCESS_TOKEN": token_data["access_token"],
-            "UIPATH_URL": base_url,
+            "UIPATH_URL": self._base_url,
             "UIPATH_ORGANIZATION_ID": parsed_access_token.get("prt_id", ""),
             "UIPATH_TENANT_ID": "",
         }

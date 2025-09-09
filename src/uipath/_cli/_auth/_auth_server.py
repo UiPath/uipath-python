@@ -7,7 +7,7 @@ import threading
 import time
 from typing import Optional
 
-from ._oidc_utils import get_auth_config
+from ._oidc_utils import OidcUtils
 
 # Server port
 PORT = 6234
@@ -74,7 +74,7 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                     content = f.read()
 
                 # Get the redirect URI from auth config
-                auth_config = get_auth_config()
+                auth_config = OidcUtils.get_auth_config()
                 redirect_uri = auth_config["redirect_uri"]
 
                 content = content.replace("__PY_REPLACE_EXPECTED_STATE__", state)
