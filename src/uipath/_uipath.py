@@ -33,7 +33,6 @@ class UiPath:
     def __init__(
         self,
         *,
-        domain:  Optional[str] = None,
         base_url: Optional[str] = None,
         secret: Optional[str] = None,
         client_id: Optional[str] = None,
@@ -47,23 +46,12 @@ class UiPath:
             if not base_url_value:
                 raise BaseUrlMissingError("The base_url must be provided for client credentials.")
 
-            external_application_service = ExternalApplicationService(domain)
+            external_application_service = ExternalApplicationService(base_url)
 
-            extracted_domain = external_application_service.extract_domain_from_base_url(
-                base_url
-            )
-            external_application_service.domain = extracted_domain
-
-            token_data = external_application_service.authenticate(
+            external_application_service.authenticate(
                 client_id, client_secret, scope
             )
-
-            if token_data:
-                external_application_service.setup_environment(token_data, base_url)
-                secret_value = token_data["access_token"]
-            else:
-                secret_value = None
-
+            secret_value = env.get(ENV_UIPATH_ACCESS_TOKEN) or None
         else:
             secret_value = None
 

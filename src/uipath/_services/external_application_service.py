@@ -1,4 +1,4 @@
-from typing import Optional, cast
+from typing import Optional, cast, TypedDict
 from urllib.parse import urlparse
 
 import httpx
@@ -6,6 +6,16 @@ from httpx import HTTPStatusError, Request
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..models.exceptions import EnrichedException
+
+class TokenData(TypedDict):
+    """TypedDict for token data structure."""
+
+    access_token: str
+    refresh_token: str
+    expires_in: int
+    token_type: str
+    scope: str
+    id_token: str
 
 class ExternalApplicationService:
     """Service for client credentials authentication flow."""
@@ -94,7 +104,6 @@ class ExternalApplicationService:
                 match response.status_code:
                     case 200:
                         token_data = response.json()
-                        from .._cli._auth._models import TokenData
                         token_data = cast(
                             TokenData,
                             {
@@ -125,7 +134,7 @@ class ExternalApplicationService:
         except Exception as e:
             raise Exception(f"Unexpected error during authentication: {e}",)
 
-    def _setup_environment(self, token_data: dict):
+    def _setup_environment(self, token_data: TokenData):
         """Setup environment variables for client credentials authentication.
 
         Args:
