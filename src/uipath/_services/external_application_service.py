@@ -1,4 +1,4 @@
-from typing import Optional, cast, TypedDict
+from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -7,15 +7,6 @@ from httpx import HTTPStatusError, Request
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..models.exceptions import EnrichedException
 
-class TokenData(TypedDict):
-    """TypedDict for token data structure."""
-
-    access_token: str
-    refresh_token: str
-    expires_in: int
-    token_type: str
-    scope: str
-    id_token: str
 
 class ExternalApplicationService:
     """Service for client credentials authentication flow."""
@@ -76,9 +67,9 @@ class ExternalApplicationService:
             # Default to cloud if parsing fails
             return "cloud"
 
-    def authenticate(
+    def get_access_token(
         self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
-    ) -> None:
+    ) -> str:
         """Authenticate using client credentials flow.
 
         Args:
@@ -104,18 +95,7 @@ class ExternalApplicationService:
                 match response.status_code:
                     case 200:
                         token_data = response.json()
-                        token_data = cast(
-                            TokenData,
-                            {
-                                "access_token": token_data["access_token"],
-                                "token_type": token_data.get("token_type", "Bearer"),
-                                "expires_in": token_data.get("expires_in", 3600),
-                                "scope": token_data.get("scope", scope),
-                                "refresh_token": "",
-                                "id_token": "",
-                            },
-                        )
-                        self._setup_environment(token_data)
+                        return token_data["access_token"]
                     case 400:
                         raise EnrichedException(
                             HTTPStatusError(message="Invalid client credentials or request parameters.",
@@ -132,24 +112,4 @@ class ExternalApplicationService:
                 HTTPStatusError(message=f"Network error during authentication: {e}",
                                 request=Request(data=data, url=token_url, method="post"), response=response))
         except Exception as e:
-            raise Exception(f"Unexpected error during authentication: {e}",)
-
-    def _setup_environment(self, token_data: TokenData):
-        """Setup environment variables for client credentials authentication.
-
-        Args:
-            token_data: The token data from authentication
-            base_url: The base URL for the UiPath instance
-        """
-        from .._cli._auth._utils import parse_access_token, update_env_file
-
-        parsed_access_token = parse_access_token(token_data["access_token"])
-
-        env_vars = {
-            "UIPATH_ACCESS_TOKEN": token_data["access_token"],
-            "UIPATH_URL": self._base_url,
-            "UIPATH_ORGANIZATION_ID": parsed_access_token.get("prt_id", ""),
-            "UIPATH_TENANT_ID": "",
-        }
-
-        update_env_file(env_vars)
+            raise Exception(f"Unexpected error during authentication: {e}")
