@@ -226,15 +226,16 @@ TextArea.invalid {
 
 
 Prompt {
-    background: $primary 5%;
+    border: wide $primary-background;
+    background: $surface;
     color: $text;
     margin-right: 8;
     margin-left: 1;
     padding: 1 1 0 1;
 }
 Response, Tool {
-    border: wide $success;
-    background: $success 5%;
+    border: wide $primary-background;
+    background: $surface;
     color: $text;
     margin: 1;
     margin-left: 8;
