@@ -6,7 +6,7 @@ from textual.reactive import reactive
 from textual.widgets import Input, RichLog, TabbedContent, TabPane, Tree
 from textual.widgets.tree import TreeNode
 
-from uipath.agent.conversation import UiPathConversationMessage
+from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 
 from .._models._execution import ExecutionRun
 from .._models._messages import LogMessage, TraceMessage
@@ -430,13 +430,16 @@ class RunDetailsPanel(Container):
             logs_log.write(log_msg.message)
 
     def add_chat_message(
-        self, chat_msg: UiPathConversationMessage, run_id: str
+        self,
+        event: UiPathConversationEvent,
+        chat_msg: UiPathConversationMessage,
+        run_id: str,
     ) -> None:
         """Add a chat message to the display."""
         if not self.current_run or run_id != self.current_run.id:
             return
         chat_panel = self.query_one("#chat-panel", ChatPanel)
-        chat_panel.add_chat_message(chat_msg)
+        chat_panel.add_chat_message(event, chat_msg)
 
     def clear_display(self):
         """Clear both traces and logs display."""

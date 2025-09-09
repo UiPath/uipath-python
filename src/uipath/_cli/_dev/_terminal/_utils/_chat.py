@@ -74,9 +74,10 @@ class ConversationAggregator:
             )
             self.messages[ev.message_id] = msg
 
-        # --- Handle content parts ---
+        # --- Handle content parts (text, JSON, etc.) ---
         if ev.content_part:
             cp_event = ev.content_part
+
             existing = next(
                 (
                     cp
@@ -86,27 +87,41 @@ class ConversationAggregator:
                 None,
             )
 
-            if cp_event.start:
+            # Start of a new content part
+            if cp_event.start and not existing:
+                new_cp = UiPathConversationContentPart(
+                    content_part_id=cp_event.content_part_id,
+                    mime_type=cp_event.start.mime_type,
+                    data=UiPathInlineValue(inline=""),
+                    citations=[],
+                    is_transcript=None,
+                    is_incomplete=True,
+                )
+                if msg.content_parts is None:
+                    msg.content_parts = []
+                msg.content_parts.append(new_cp)
+                existing = new_cp
+
+            # Chunk for an existing part (or backfill if start missing)
+            if cp_event.chunk:
                 if not existing:
+                    new_cp = UiPathConversationContentPart(
+                        content_part_id=cp_event.content_part_id,
+                        mime_type="text/plain",  # fallback if start missing
+                        data=UiPathInlineValue(inline=""),
+                        citations=[],
+                        is_transcript=None,
+                        is_incomplete=True,
+                    )
                     if msg.content_parts is None:
                         msg.content_parts = []
-                    msg.content_parts.append(
-                        UiPathConversationContentPart(
-                            content_part_id=cp_event.content_part_id,
-                            mime_type=cp_event.start.mime_type,
-                            data=UiPathInlineValue(
-                                inline=cp_event.chunk.data
-                                if cp_event.chunk and cp_event.chunk.data
-                                else ""
-                            ),
-                            citations=[],
-                            is_transcript=None,
-                            is_incomplete=None,
-                        )
-                    )
-            if cp_event.chunk and existing:
+                    msg.content_parts.append(new_cp)
+                    existing = new_cp
+
                 if isinstance(existing.data, UiPathInlineValue):
                     existing.data.inline += cp_event.chunk.data or ""
+
+            # End of a part
             if cp_event.end and existing:
                 existing.is_incomplete = bool(cp_event.end.interrupted)
 
@@ -122,43 +137,31 @@ class ConversationAggregator:
                 None,
             )
 
+            # Start of a tool call
             if tc_event.start:
                 if not existing_tool_call:
-                    # create new tool call
                     new_tc = UiPathConversationToolCall(
                         tool_call_id=tc_event.tool_call_id,
                         name=tc_event.start.tool_name,
-                        arguments=tc_event.start.arguments,
+                        arguments=None,  # args will arrive as JSON content part
                         timestamp=tc_event.start.timestamp,
                         result=None,
                     )
                     if msg.tool_calls is None:
                         msg.tool_calls = []
                     msg.tool_calls.append(new_tc)
+                    existing_tool_call = new_tc
                 else:
-                    # merge/update existing
                     existing_tool_call.name = (
                         tc_event.start.tool_name or existing_tool_call.name
                     )
-                    if tc_event.start.arguments:
-                        # If Inline, append more data
-                        if isinstance(
-                            tc_event.start.arguments, UiPathInlineValue
-                        ) and isinstance(
-                            existing_tool_call.arguments, UiPathInlineValue
-                        ):
-                            existing_tool_call.arguments.inline += (
-                                tc_event.start.arguments.inline or ""
-                            )
-                        else:
-                            existing_tool_call.arguments = tc_event.start.arguments
                     existing_tool_call.timestamp = (
                         tc_event.start.timestamp or existing_tool_call.timestamp
                     )
 
+            # End of a tool call
             if tc_event.end:
                 if not existing_tool_call:
-                    # Shouldn't happen, but initialize if end comes first
                     existing_tool_call = UiPathConversationToolCall(
                         tool_call_id=tc_event.tool_call_id,
                         name="",  # unknown until start seen
@@ -177,7 +180,6 @@ class ConversationAggregator:
 
         # --- Update timestamps ---
         msg.updated_at = self._timestamp(ev)
-
         return msg
 
     def _timestamp(self, ev: UiPathConversationMessageEvent) -> str:

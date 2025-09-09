@@ -295,7 +295,7 @@ class UiPathDevTerminal(App[Any]):
         if not updated_chat_message:
             return
         details_panel = self.app.query_one("#details-panel", RunDetailsPanel)
-        details_panel.add_chat_message(updated_chat_message, execution_id)
+        details_panel.add_chat_message(event, updated_chat_message, execution_id)
 
     def _add_info_log(self, run: ExecutionRun, message: str):
         """Add info log to run."""
