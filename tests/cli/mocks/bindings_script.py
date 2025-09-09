@@ -8,6 +8,7 @@ async def async_function() -> None:
     await uipath.buckets.retrieve_async("bucket_from_retrieve_async")
     await uipath.context_grounding.retrieve_async("index_from_retrieve_async")
     await uipath.processes.invoke_async("process_name_from_invoke_async")
+    await uipath.processes.status_async("job_id_from_status_async")
 
 
 def include_folder_path() -> None:
@@ -19,6 +20,7 @@ def include_folder_path() -> None:
     uipath.processes.invoke(
         "process_with_folder_path", folder_path="process_folder_path"
     )
+    uipath.processes.status("status_with_folder_path", folder_path="status_folder_path")
 
 
 def main() -> None:

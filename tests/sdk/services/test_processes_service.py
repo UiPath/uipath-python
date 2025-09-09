@@ -252,3 +252,94 @@ class TestProcessesService:
             sent_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ProcessesService.invoke_async/{version}"
         )
+
+    def test_status(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ProcessesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        job_id = "job_id"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_id})",
+            status_code=200,
+            json={
+                "Key": "test-job-key",
+                "State": "Running",
+                "StartTime": "2024-01-01T00:00:00Z",
+                "Id": 123,
+            },
+        )
+
+        job = service.status(job_id)
+
+        assert isinstance(job, Job)
+        assert job.key == "test-job-key"
+        assert job.state == "Running"
+        assert job.start_time == "2024-01-01T00:00:00Z"
+        assert job.id == 123
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert sent_request.method == "GET"
+        assert (
+            sent_request.url
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_id})"
+        )
+
+        assert HEADER_USER_AGENT in sent_request.headers
+        assert (
+            sent_request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ProcessesService.status/{version}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_status_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ProcessesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        job_id = "job_id"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_id})",
+            status_code=200,
+            json={
+                "Key": "test-job-key",
+                "State": "Running",
+                "StartTime": "2024-01-01T00:00:00Z",
+                "Id": 123,
+            },
+        )
+
+        job = await service.status_async(job_id)
+
+        assert isinstance(job, Job)
+        assert job.key == "test-job-key"
+        assert job.state == "Running"
+        assert job.start_time == "2024-01-01T00:00:00Z"
+        assert job.id == 123
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert sent_request.method == "GET"
+        assert (
+            sent_request.url
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_id})"
+        )
+
+        assert HEADER_USER_AGENT in sent_request.headers
+        assert (
+            sent_request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ProcessesService.status_async/{version}"
+        )

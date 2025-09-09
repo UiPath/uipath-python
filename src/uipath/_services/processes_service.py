@@ -134,6 +134,95 @@ class ProcessesService(FolderContext, BaseService):
 
         return Job.model_validate(response.json()["value"][0])
 
+    @traced(name="processes_status", run_type="uipath")
+    def status(
+        self,
+        job_id: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Job:
+        """Retrieve status of a process by its ID.
+
+        Args:
+            job_id (str): The id of the process to retrieve.
+            folder_key (Optional[str]): The key of the folder the process is in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to process is in. Override the default one set in the SDK config.
+
+        Returns:
+            Job: The job execution details.
+
+        Examples:
+            ```python
+            from uipath import UiPath
+
+            client = UiPath()
+
+            client.processes.status(job_id="<job-id>")
+            ```
+        """
+        spec = self._status_spec(
+            job_id=job_id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            content=spec.content,
+            headers=spec.headers,
+        )
+
+        return Job.model_validate(response.json())
+
+    @traced(name="processes_status", run_type="uipath")
+    async def status_async(
+        self,
+        job_id: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Job:
+        """Asynchronously retrieve status of a process by its ID.
+
+        Args:
+            job_id (str): The id of the process to retrieve.
+            folder_key (Optional[str]): The key of the folder the process is in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder the process is in. Override the default one set in the SDK config.
+
+        Returns:
+            Job: The job execution details.
+
+        Examples:
+            ```python
+            import asyncio
+
+            from uipath import UiPath
+
+            sdk = UiPath()
+
+            async def main():
+                job = await sdk.processes.status_async("<job-id>")
+                print(job)
+
+            asyncio.run(main())
+            ```
+        """
+        spec = self._status_spec(
+            job_id=job_id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            content=spec.content,
+            headers=spec.headers,
+        )
+
+        return Job.model_validate(response.json())
+
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
@@ -160,6 +249,27 @@ class ProcessesService(FolderContext, BaseService):
                         else "{}",
                     }
                 }
+            ),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+        job_key = os.environ.get(ENV_JOB_ID, None)
+        if job_key:
+            request_scope.headers[HEADER_JOB_KEY] = job_key
+        return request_scope
+
+    def _status_spec(
+        self,
+        job_id: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        request_scope = RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_id})"
             ),
             headers={
                 **header_folder(folder_key, folder_path),
