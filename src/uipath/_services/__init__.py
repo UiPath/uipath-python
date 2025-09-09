@@ -10,6 +10,7 @@ from .jobs_service import JobsService
 from .llm_gateway_service import UiPathLlmChatService, UiPathOpenAIService
 from .processes_service import ProcessesService
 from .queues_service import QueuesService
+from .external_application_service import ExternalApplicationService
 
 __all__ = [
     "ActionsService",
@@ -25,4 +26,5 @@ __all__ = [
     "UiPathOpenAIService",
     "UiPathLlmChatService",
     "FolderService",
+    "ExternalApplicationService"
 ]

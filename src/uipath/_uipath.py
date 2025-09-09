@@ -19,6 +19,7 @@ from ._services import (
     QueuesService,
     UiPathLlmChatService,
     UiPathOpenAIService,
+    ExternalApplicationService,
 )
 from ._utils import setup_logging
 from ._utils.constants import (
@@ -28,21 +29,55 @@ from ._utils.constants import (
 )
 from .models.errors import BaseUrlMissingError, SecretMissingError
 
-
 class UiPath:
     def __init__(
         self,
         *,
+        domain:  Optional[str] = None,
         base_url: Optional[str] = None,
         secret: Optional[str] = None,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+        scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
         base_url_value = base_url or env.get(ENV_BASE_URL)
-        secret_value = (
-            secret
-            or env.get(ENV_UNATTENDED_USER_ACCESS_TOKEN)
-            or env.get(ENV_UIPATH_ACCESS_TOKEN)
-        )
+
+        if client_id and client_secret:
+            if not base_url_value:
+                raise BaseUrlMissingError("The base_url must be provided for client credentials.")
+
+            external_application_service = ExternalApplicationService(domain)
+
+            extracted_domain = external_application_service.extract_domain_from_base_url(
+                base_url
+            )
+            external_application_service.domain = extracted_domain
+
+            token_data = external_application_service.authenticate(
+                client_id, client_secret, scope
+            )
+
+            if token_data:
+                external_application_service.setup_environment(token_data, base_url)
+                secret_value = token_data["access_token"]
+            else:
+                secret_value = None
+
+        else:
+            secret_value = None
+
+        if not secret_value:
+            secret_value = (
+                secret
+                or env.get(ENV_UNATTENDED_USER_ACCESS_TOKEN)
+                or env.get(ENV_UIPATH_ACCESS_TOKEN)
+            )
+
+            if not secret_value:
+                raise SecretMissingError(
+                    "Authentication failed. Please provide valid secret or client credentials."
+                )
 
         try:
             self._config = Config(

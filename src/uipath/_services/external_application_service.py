@@ -2,16 +2,12 @@ from typing import Optional, cast
 from urllib.parse import urlparse
 
 import httpx
+from httpx import HTTPStatusError, Request
 
-from ..._utils._ssl_context import get_httpx_client_kwargs
-from .._utils._console import ConsoleLogger
-from ._models import TokenData
-from ._utils import parse_access_token, update_env_file
+from .._utils._ssl_context import get_httpx_client_kwargs
+from ..models.exceptions import EnrichedException
 
-console = ConsoleLogger()
-
-
-class ClientCredentialsService:
+class ExternalApplicationService:
     """Service for client credentials authentication flow."""
 
     def __init__(self, base_url: str):
@@ -98,6 +94,7 @@ class ClientCredentialsService:
                 match response.status_code:
                     case 200:
                         token_data = response.json()
+                        from .._cli._auth._models import TokenData
                         token_data = cast(
                             TokenData,
                             {
@@ -111,28 +108,32 @@ class ClientCredentialsService:
                         )
                         self._setup_environment(token_data)
                     case 400:
-                        console.error(
-                            "Invalid client credentials or request parameters."
-                        )
+                        raise EnrichedException(
+                            HTTPStatusError(message="Invalid client credentials or request parameters.",
+                                            request=Request(data=data, url=token_url, method="post"),
+                                            response=response))
                     case 401:
-                        console.error("Unauthorized: Invalid client credentials.")
+                        raise EnrichedException(
+                            HTTPStatusError(message="Unauthorized: Invalid client credentials.", request=Request(data=data, url=token_url, method="post"), response=response))
                     case _:
-                        console.error(
-                            f"Authentication failed: {response.status_code} - {response.text}"
-                        )
+                        raise Exception(f"Authentication failed: {response.status_code} - {response.text}")
 
         except httpx.RequestError as e:
-            console.error(f"Network error during authentication: {e}")
+            raise EnrichedException(
+                HTTPStatusError(message=f"Network error during authentication: {e}",
+                                request=Request(data=data, url=token_url, method="post"), response=response))
         except Exception as e:
-            console.error(f"Unexpected error during authentication: {e}")
+            raise Exception(f"Unexpected error during authentication: {e}",)
 
-    def _setup_environment(self, token_data: TokenData):
+    def _setup_environment(self, token_data: dict):
         """Setup environment variables for client credentials authentication.
 
         Args:
             token_data: The token data from authentication
             base_url: The base URL for the UiPath instance
         """
+        from .._cli._auth._utils import parse_access_token, update_env_file
+
         parsed_access_token = parse_access_token(token_data["access_token"])
 
         env_vars = {
