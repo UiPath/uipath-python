@@ -13,15 +13,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from uipath._cli._auth._portal_service import PortalService
-from uipath._cli._auth._url_utils import set_force_flag
-
-
-@pytest.fixture(autouse=True)
-def reset_force_flag():
-    """Reset the force flag before each test to ensure clean state."""
-    set_force_flag(False)
-    yield
-    set_force_flag(False)
 
 
 @pytest.fixture
@@ -82,9 +73,18 @@ class TestPortalServiceEnsureValidToken:
     @pytest.mark.parametrize(
         "domain, expected_token_url",
         [
-            ("cloud", "https://cloud.uipath.com/identity_/connect/token"),
-            ("alpha", "https://alpha.uipath.com/identity_/connect/token"),
-            ("staging", "https://staging.uipath.com/identity_/connect/token"),
+            (
+                "https://cloud.uipath.com",
+                "https://cloud.uipath.com/identity_/connect/token",
+            ),
+            (
+                "https://alpha.uipath.com",
+                "https://alpha.uipath.com/identity_/connect/token",
+            ),
+            (
+                "https://staging.uipath.com",
+                "https://staging.uipath.com/identity_/connect/token",
+            ),
             (
                 "https://custom.automationsuite.org",
                 "https://custom.automationsuite.org/identity_/connect/token",
@@ -124,7 +124,7 @@ class TestPortalServiceEnsureValidToken:
             patch(
                 "uipath._cli._auth._portal_service.update_env_file"
             ) as mock_update_env,
-            patch("uipath._cli._auth._portal_service.select_tenant"),
+            patch.object(PortalService, "select_tenant"),
         ):
             # Create a mock HTTP client
             mock_client = Mock()
@@ -294,7 +294,7 @@ class TestPortalServiceEnsureValidToken:
                 ),
                 patch("uipath._cli._auth._portal_service.update_auth_file"),
                 patch("uipath._cli._auth._portal_service.update_env_file"),
-                patch("uipath._cli._auth._portal_service.select_tenant"),
+                patch.object(PortalService, "select_tenant"),
             ):
                 # Create a mock HTTP client
                 mock_client = Mock()
