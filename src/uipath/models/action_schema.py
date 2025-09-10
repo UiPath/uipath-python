@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,7 +15,6 @@ class ActionSchema(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
 
     key: str

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class Action(BaseModel):
@@ -11,8 +11,13 @@ class Action(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("*", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
 
     task_definition_properties_id: Optional[int] = Field(
         default=None, alias="taskDefinitionPropertiesId"
