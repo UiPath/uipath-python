@@ -74,7 +74,6 @@ class BaseService:
         url: Union[URL, str],
         *,
         scoped: Literal["org", "tenant"] = "tenant",
-        infer_content_type=False,
         **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
@@ -106,9 +105,6 @@ class BaseService:
 
         scoped_url = self._url.scope_url(str(url), scoped)
 
-        if infer_content_type:
-            self._client.headers.pop("Content-Type", None)
-
         response = self._client.request(method, scoped_url, **kwargs)
 
         try:
@@ -132,7 +128,6 @@ class BaseService:
         url: Union[URL, str],
         *,
         scoped: Literal["org", "tenant"] = "tenant",
-        infer_content_type=False,
         **kwargs: Any,
     ) -> Response:
         self._logger.debug(f"Request: {method} {url}")
@@ -147,9 +142,6 @@ class BaseService:
 
         scoped_url = self._url.scope_url(str(url), scoped)
 
-        if infer_content_type:
-            self._client_async.headers.pop("Content-Type", None)
-
         response = await self._client_async.request(method, scoped_url, **kwargs)
 
         try:
@@ -163,7 +155,6 @@ class BaseService:
     def default_headers(self) -> dict[str, str]:
         return {
             "Accept": "application/json",
-            "Content-Type": "application/json",
             **self.auth_headers,
             **self.custom_headers,
         }
