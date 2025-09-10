@@ -18,6 +18,7 @@ from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._folders import get_personal_workspace_info
 from ._utils._processes import get_release_info
+from .middlewares import Middlewares
 
 logger = logging.getLogger(__name__)
 console = ConsoleLogger()
@@ -86,6 +87,25 @@ def invoke(
             "Authorization": f"Bearer {token}",
             "x-uipath-organizationunitid": str(personal_workspace_folder_id),
         }
+
+        context = {
+            "url": url,
+            "payload": payload,
+            "headers": headers,
+        }
+
+        result = Middlewares.next("invoke", context)
+
+        if result.error_message:
+            console.error(
+                result.error_message, include_traceback=result.should_include_stacktrace
+            )
+
+        if result.info_message:
+            console.info(result.info_message)
+
+        if not result.should_continue:
+            return
 
         with httpx.Client(**get_httpx_client_kwargs()) as client:
             response = client.post(url, json=payload, headers=headers)
