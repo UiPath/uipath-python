@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class CredentialsConnectionData(BaseModel):
@@ -11,8 +11,13 @@ class CredentialsConnectionData(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("*", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
 
     url: str
     body: str
@@ -26,8 +31,13 @@ class UserAsset(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("*", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
 
     name: Optional[str] = Field(default=None, alias="Name")
     value: Optional[str] = Field(default=None, alias="Value")

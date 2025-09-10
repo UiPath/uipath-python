@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class Connection(BaseModel):
@@ -11,8 +11,13 @@ class Connection(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("*", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
 
     id: Optional[str] = None
     name: Optional[str] = None
@@ -40,8 +45,13 @@ class ConnectionToken(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("*", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
 
     access_token: str = Field(alias="accessToken")
     token_type: Optional[str] = Field(default=None, alias="tokenType")
