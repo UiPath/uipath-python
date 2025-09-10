@@ -57,6 +57,7 @@ class UiPath:
                     raise SecretMissingError() from e
         self._folders_service: Optional[FolderService] = None
         self._buckets_service: Optional[BucketsService] = None
+        self._attachments_service: Optional[AttachmentsService] = None
 
         setup_logging(debug)
         self._execution_context = ExecutionContext()
@@ -71,11 +72,15 @@ class UiPath:
 
     @property
     def attachments(self) -> AttachmentsService:
-        return AttachmentsService(self._config, self._execution_context)
+        if not self._attachments_service:
+            self._attachments_service = AttachmentsService(
+                self._config, self._execution_context
+            )
+        return self._attachments_service
 
     @property
     def processes(self) -> ProcessesService:
-        return ProcessesService(self._config, self._execution_context)
+        return ProcessesService(self._config, self._execution_context, self.attachments)
 
     @property
     def actions(self) -> ActionsService:

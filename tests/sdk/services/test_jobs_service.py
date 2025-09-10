@@ -680,6 +680,453 @@ class TestJobsService:
         with open(expected_path, "r") as f:
             assert f.read() == source_content
 
+    def test_extract_output_with_inline_arguments(
+        self,
+        service: JobsService,
+    ) -> None:
+        """Test extracting job output when output is stored inline (small output)."""
+
+        job_data = {
+            "Key": "test-job-key",
+            "State": "Successful",
+            "StartTime": "2024-01-01T00:00:00Z",
+            "Id": 123,
+            "OutputArguments": '{"result": "small output data", "status": "completed"}',
+            "OutputFile": None,
+        }
+        job = Job.model_validate(job_data)
+
+        result = service.extract_output(job)
+
+        assert result == '{"result": "small output data", "status": "completed"}'
+
+    def test_extract_output_with_attachment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        temp_attachments_dir: str,
+    ) -> None:
+        """Test extracting job output when output is stored as attachment (large output)."""
+
+        service._temp_dir = temp_attachments_dir
+        attachment_id = str(uuid.uuid4())
+        large_output = '{"result": "' + "x" * 10001 + '", "status": "completed"}'
+
+        job_data = {
+            "Key": "test-job-key",
+            "State": "Successful",
+            "StartTime": "2024-01-01T00:00:00Z",
+            "Id": 123,
+            "OutputArguments": None,
+            "OutputFile": attachment_id,
+        }
+        job = Job.model_validate(job_data)
+
+        blob_uri = "https://test-storage.com/test-container/test-blob"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="GET",
+            status_code=200,
+            json={
+                "Id": attachment_id,
+                "Name": "output.json",
+                "BlobFileAccess": {
+                    "Uri": blob_uri,
+                    "Headers": {
+                        "Keys": ["Content-Type"],
+                        "Values": ["application/json"],
+                    },
+                    "RequiresAuth": False,
+                },
+            },
+        )
+
+        httpx_mock.add_response(
+            url=blob_uri,
+            method="GET",
+            status_code=200,
+            content=large_output.encode("utf-8"),
+        )
+
+        result = service.extract_output(job)
+
+        assert result == large_output
+
+    @pytest.mark.asyncio
+    async def test_extract_output_async_with_inline_arguments(
+        self,
+        service: JobsService,
+    ) -> None:
+        """Test extracting job output asynchronously when output is stored inline."""
+
+        job_data = {
+            "Key": "test-job-key",
+            "State": "Successful",
+            "StartTime": "2024-01-01T00:00:00Z",
+            "Id": 123,
+            "OutputArguments": '{"result": "small output data", "status": "completed"}',
+            "OutputFile": None,
+        }
+        job = Job.model_validate(job_data)
+
+        result = await service.extract_output_async(job)
+
+        assert result == '{"result": "small output data", "status": "completed"}'
+
+    @pytest.mark.asyncio
+    async def test_extract_output_async_with_attachment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        temp_attachments_dir: str,
+    ) -> None:
+        """Test extracting job output asynchronously when output is stored as attachment."""
+
+        service._temp_dir = temp_attachments_dir
+        attachment_id = str(uuid.uuid4())
+        large_output = '{"result": "' + "y" * 10001 + '", "status": "completed"}'
+
+        job_data = {
+            "Key": "test-job-key",
+            "State": "Successful",
+            "StartTime": "2024-01-01T00:00:00Z",
+            "Id": 123,
+            "OutputArguments": None,
+            "OutputFile": attachment_id,
+        }
+        job = Job.model_validate(job_data)
+
+        blob_uri = "https://test-storage.com/test-container/test-blob"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="GET",
+            status_code=200,
+            json={
+                "Id": attachment_id,
+                "Name": "output.json",
+                "BlobFileAccess": {
+                    "Uri": blob_uri,
+                    "Headers": {
+                        "Keys": ["Content-Type"],
+                        "Values": ["application/json"],
+                    },
+                    "RequiresAuth": False,
+                },
+            },
+        )
+
+        httpx_mock.add_response(
+            url=blob_uri,
+            method="GET",
+            status_code=200,
+            content=large_output.encode("utf-8"),
+        )
+
+        result = await service.extract_output_async(job)
+
+        assert result == large_output
+
+    def test_extract_output_no_output(
+        self,
+        service: JobsService,
+    ) -> None:
+        """Test extracting job output when no output is available."""
+
+        job_data = {
+            "Key": "test-job-key",
+            "State": "Successful",
+            "StartTime": "2024-01-01T00:00:00Z",
+            "Id": 123,
+            "OutputArguments": None,
+            "OutputFile": None,
+        }
+        job = Job.model_validate(job_data)
+
+        result = service.extract_output(job)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_extract_output_async_no_output(
+        self,
+        service: JobsService,
+    ) -> None:
+        """Test extracting job output asynchronously when no output is available."""
+
+        job_data = {
+            "Key": "test-job-key",
+            "State": "Successful",
+            "StartTime": "2024-01-01T00:00:00Z",
+            "Id": 123,
+            "OutputArguments": None,
+            "OutputFile": None,
+        }
+        job = Job.model_validate(job_data)
+
+        result = await service.extract_output_async(job)
+
+        assert result is None
+
+    def test_retrieve_job_with_large_output_integration(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        temp_attachments_dir: str,
+    ) -> None:
+        """Retrieve job with large output stored as attachment and extract it.
+
+        This test verifies the complete flow:
+        1. Job retrieval returns a job with OutputFile (not OutputArguments)
+        2. Extract output correctly downloads from the attachment
+        3. The attachment ID matches between job and download
+        """
+        # Arrange
+        service._temp_dir = temp_attachments_dir
+        job_key = "test-job-key-with-large-output"
+        attachment_id = str(uuid.uuid4())
+        large_output_content = (
+            '{"result": "'
+            + "z" * 10001
+            + '", "status": "completed", "metadata": {"size": "large"}}'
+        )
+
+        # job has OutputFile instead of OutputArguments for large output
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_key})",
+            method="GET",
+            status_code=200,
+            json={
+                "Key": job_key,
+                "State": "Successful",
+                "StartTime": "2024-01-01T00:00:00Z",
+                "EndTime": "2024-01-01T00:05:00Z",
+                "Id": 456,
+                "OutputArguments": None,  # large output is NOT stored inline
+                "OutputFile": attachment_id,  # large output IS stored as attachment
+                "InputArguments": '{"input": "test"}',  # small input stored inline
+                "InputFile": None,
+            },
+        )
+
+        blob_uri = "https://test-storage.com/large-output-container/output-blob"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="GET",
+            status_code=200,
+            json={
+                "Id": attachment_id,
+                "Name": "large_output.json",
+                "BlobFileAccess": {
+                    "Uri": blob_uri,
+                    "Headers": {
+                        "Keys": ["Content-Type", "x-ms-blob-type"],
+                        "Values": ["application/json", "BlockBlob"],
+                    },
+                    "RequiresAuth": False,
+                },
+            },
+        )
+
+        httpx_mock.add_response(
+            url=blob_uri,
+            method="GET",
+            status_code=200,
+            content=large_output_content.encode("utf-8"),
+        )
+
+        job = service.retrieve(job_key)
+
+        # job structure is correct for large output
+        assert job.key == job_key
+        assert job.state == "Successful"
+        assert job.output_arguments is None  # large output not stored inline
+        assert job.output_file == attachment_id  # large output stored as attachment
+        assert job.input_arguments == '{"input": "test"}'  # small input stored inline
+        assert job.input_file is None
+
+        extracted_output = service.extract_output(job)
+
+        assert extracted_output == large_output_content
+
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 3
+
+        job_request = requests[0]
+        assert job_request.method == "GET"
+        assert job_key in str(job_request.url)
+
+        attachment_request = requests[1]
+        assert attachment_request.method == "GET"
+        assert attachment_id in str(attachment_request.url)
+        assert "Attachments" in str(attachment_request.url)
+
+        blob_request = requests[2]
+        assert blob_request.method == "GET"
+        assert blob_request.url == blob_uri
+
+    @pytest.mark.asyncio
+    async def test_retrieve_job_with_large_output_integration_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        temp_attachments_dir: str,
+    ) -> None:
+        """Async integration test: Retrieve job with large output and extract it."""
+        service._temp_dir = temp_attachments_dir
+        job_key = "test-job-key-async-large-output"
+        attachment_id = str(uuid.uuid4())
+        large_output_content = (
+            '{"result": "'
+            + "w" * 10001
+            + '", "status": "completed", "metadata": {"async": true}}'
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_key})",
+            method="GET",
+            status_code=200,
+            json={
+                "Key": job_key,
+                "State": "Successful",
+                "StartTime": "2024-01-01T00:00:00Z",
+                "EndTime": "2024-01-01T00:10:00Z",
+                "Id": 789,
+                "OutputArguments": None,
+                "OutputFile": attachment_id,
+                "InputArguments": None,
+                "InputFile": None,
+            },
+        )
+
+        blob_uri = "https://test-storage.com/async-output-container/output-blob"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_id})",
+            method="GET",
+            status_code=200,
+            json={
+                "Id": attachment_id,
+                "Name": "async_large_output.json",
+                "BlobFileAccess": {
+                    "Uri": blob_uri,
+                    "Headers": {
+                        "Keys": ["Content-Type"],
+                        "Values": ["application/json"],
+                    },
+                    "RequiresAuth": False,
+                },
+            },
+        )
+
+        httpx_mock.add_response(
+            url=blob_uri,
+            method="GET",
+            status_code=200,
+            content=large_output_content.encode("utf-8"),
+        )
+
+        job = await service.retrieve_async(job_key)
+
+        assert job.key == job_key
+        assert job.state == "Successful"
+        assert job.output_arguments is None
+        assert job.output_file == attachment_id
+
+        extracted_output = await service.extract_output_async(job)
+
+        assert extracted_output == large_output_content
+
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 3
+
+        job_request = requests[0]
+        attachment_request = requests[1]
+        blob_request = requests[2]
+
+        assert job_key in str(job_request.url)
+        assert attachment_id in str(attachment_request.url)
+        assert blob_request.url == blob_uri
+
+    def test_retrieve_job_with_small_output_vs_large_output(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test that demonstrates the difference between small and large output handling."""
+
+        small_job_key = "job-with-small-output"
+        small_output = '{"result": "small", "status": "ok"}'
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={small_job_key})",
+            method="GET",
+            status_code=200,
+            json={
+                "Key": small_job_key,
+                "State": "Successful",
+                "StartTime": "2024-01-01T00:00:00Z",
+                "Id": 100,
+                "OutputArguments": small_output,  # small output stored inline
+                "OutputFile": None,  # no attachment needed
+                "InputArguments": '{"input": "test"}',
+                "InputFile": None,
+            },
+        )
+
+        large_job_key = "job-with-large-output"
+        large_attachment_id = str(uuid.uuid4())
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={large_job_key})",
+            method="GET",
+            status_code=200,
+            json={
+                "Key": large_job_key,
+                "State": "Successful",
+                "StartTime": "2024-01-01T00:00:00Z",
+                "Id": 200,
+                "OutputArguments": None,  # large output NOT stored inline
+                "OutputFile": large_attachment_id,  # large output stored as attachment
+                "InputArguments": '{"input": "test"}',
+                "InputFile": None,
+            },
+        )
+
+        small_job = service.retrieve(small_job_key)
+        large_job = service.retrieve(large_job_key)
+
+        assert small_job.output_arguments == small_output
+        assert small_job.output_file is None
+
+        assert large_job.output_arguments is None
+        assert large_job.output_file == large_attachment_id
+
+        assert small_job.input_arguments == '{"input": "test"}'
+        assert small_job.input_file is None
+        assert large_job.input_arguments == '{"input": "test"}'
+        assert large_job.input_file is None
+
+        small_extracted = service.extract_output(small_job)
+        assert small_extracted == small_output
+
+        # only 2 requests made (job retrievals, no attachment downloads)
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 2
+
     def test_create_job_attachment_validation_errors(
         self,
         service: JobsService,

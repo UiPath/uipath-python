@@ -351,6 +351,54 @@ class JobsService(FolderContext, BaseService):
             },
         )
 
+    def extract_output(self, job: Job) -> Optional[str]:
+        """Get the actual output data, downloading from attachment if necessary.
+
+        Args:
+            job: The job instance to fetch output data from.
+
+        Returns:
+            Parsed output arguments as dictionary, or None if no output
+        """
+        if job.output_file:
+            # Large output stored as attachment
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir) / f"output_{job.output_file}"
+                self._attachments_service.download(
+                    key=uuid.UUID(job.output_file), destination_path=temp_path
+                )
+                with open(temp_path, "r", encoding="utf-8") as f:
+                    return f.read()
+        elif job.output_arguments:
+            # Small output stored inline
+            return job.output_arguments
+        else:
+            return None
+
+    async def extract_output_async(self, job: Job) -> Optional[str]:
+        """Asynchronously fetch the actual output data, downloading from attachment if necessary.
+
+        Args:
+            job: The job instance to fetch output data from.
+
+        Returns:
+            Parsed output arguments as dictionary, or None if no output
+        """
+        if job.output_file:
+            # Large output stored as attachment
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir) / f"output_{job.output_file}"
+                await self._attachments_service.download_async(
+                    key=uuid.UUID(job.output_file), destination_path=temp_path
+                )
+                with open(temp_path, "r", encoding="utf-8") as f:
+                    return f.read()
+        elif job.output_arguments:
+            # Small output stored inline
+            return job.output_arguments
+        else:
+            return None
+
     def _resume_spec(
         self,
         *,
