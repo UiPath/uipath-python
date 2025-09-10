@@ -1,8 +1,7 @@
 import json
-from typing import List, Optional, Type, TypeVar
+from typing import Any, List, Optional, Type
 
 from httpx import Response
-from pydantic import BaseModel
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -14,8 +13,6 @@ from ..models.entities import (
 )
 from ..tracing import traced
 from ._base_service import BaseService
-
-T = TypeVar("T", bound=BaseModel)
 
 
 class EntitiesService(BaseService):
@@ -41,7 +38,7 @@ class EntitiesService(BaseService):
     def list_records(
         self,
         entity_key: str,
-        schema: Optional[Type[T]] = None,  # Optional schema
+        schema: Optional[Type[Any]] = None,  # Optional schema
         start: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> List[EntityRecord]:
@@ -71,7 +68,7 @@ class EntitiesService(BaseService):
     async def list_records_async(
         self,
         entity_key: str,
-        schema: Optional[Type[T]] = None,  # Optional schema
+        schema: Optional[Type[Any]] = None,  # Optional schema
         start: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> List[EntityRecord]:
@@ -102,8 +99,8 @@ class EntitiesService(BaseService):
     def insert_records(
         self,
         entity_key: str,
-        records: List[T],
-        schema: Optional[Type[T]] = None,
+        records: List[Any],
+        schema: Optional[Type[Any]] = None,
     ) -> EntityRecordsBatchResponse:
         spec = self._insert_batch_spec(entity_key, records)
         response = self.request(spec.method, spec.endpoint, content=spec.content)
@@ -114,8 +111,8 @@ class EntitiesService(BaseService):
     async def insert_records_async(
         self,
         entity_key: str,
-        records: List[T],
-        schema: Optional[Type[T]] = None,
+        records: List[Any],
+        schema: Optional[Type[Any]] = None,
     ) -> EntityRecordsBatchResponse:
         spec = self._insert_batch_spec(entity_key, records)
         response = await self.request_async(
@@ -128,8 +125,8 @@ class EntitiesService(BaseService):
     def update_records(
         self,
         entity_key: str,
-        records: List[T],
-        schema: Optional[Type[T]] = None,
+        records: List[Any],
+        schema: Optional[Type[Any]] = None,
     ) -> EntityRecordsBatchResponse:
         valid_records = [
             EntityRecord.from_data(data=record.model_dump(by_alias=True), model=schema)
@@ -145,8 +142,8 @@ class EntitiesService(BaseService):
     async def update_records_async(
         self,
         entity_key: str,
-        records: List[T],
-        schema: Optional[Type[T]] = None,
+        records: List[Any],
+        schema: Optional[Type[Any]] = None,
     ) -> EntityRecordsBatchResponse:
         valid_records = [
             EntityRecord.from_data(data=record.model_dump(by_alias=True), model=schema)
@@ -195,7 +192,7 @@ class EntitiesService(BaseService):
     def validate_entity_batch(
         self,
         batch_response: Response,
-        schema: Optional[Type[T]] = None,
+        schema: Optional[Type[Any]] = None,
     ) -> EntityRecordsBatchResponse:
         # Validate the response format
         insert_records_response = EntityRecordsBatchResponse.model_validate(
@@ -245,7 +242,7 @@ class EntitiesService(BaseService):
             params=({"start": start, "limit": limit}),
         )
 
-    def _insert_batch_spec(self, entity_key: str, records: List[T]) -> RequestSpec:
+    def _insert_batch_spec(self, entity_key: str, records: List[Any]) -> RequestSpec:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(

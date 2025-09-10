@@ -1,8 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, Union, get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.v1 import create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model
 
 
 class ReferenceType(Enum):
@@ -244,7 +243,7 @@ class EntityRecord(BaseModel):
         )
 
         # Validate input data
-        dynamic_model.parse_obj(data)
+        dynamic_model.model_validate(data)
 
 
 class EntityGetByIdResponse(BaseModel):
