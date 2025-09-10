@@ -73,13 +73,14 @@ class TestProcessesService:
             sent_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
         )
-        assert sent_request.content.decode("utf-8") == str(
+        assert sent_request.content.decode("utf-8") == json.dumps(
             {
                 "startInfo": {
                     "ReleaseName": process_name,
                     "InputArguments": json.dumps(input_arguments),
                 }
-            }
+            },
+            separators=(",", ":"),
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -130,13 +131,14 @@ class TestProcessesService:
             sent_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
         )
-        assert sent_request.content.decode("utf-8") == str(
+        assert sent_request.content.decode("utf-8") == json.dumps(
             {
                 "startInfo": {
                     "ReleaseName": process_name,
                     "InputArguments": "{}",
                 }
-            }
+            },
+            separators=(",", ":"),
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -286,13 +288,14 @@ class TestProcessesService:
             sent_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
         )
-        assert sent_request.content.decode("utf-8") == str(
+        assert sent_request.content.decode("utf-8") == json.dumps(
             {
                 "startInfo": {
                     "ReleaseName": process_name,
                     "InputArguments": json.dumps(input_arguments),
                 }
-            }
+            },
+            separators=(",", ":"),
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -344,13 +347,14 @@ class TestProcessesService:
             sent_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
         )
-        assert sent_request.content.decode("utf-8") == str(
+        assert sent_request.content.decode("utf-8") == json.dumps(
             {
                 "startInfo": {
                     "ReleaseName": process_name,
                     "InputArguments": "{}",
                 }
-            }
+            },
+            separators=(",", ":"),
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
