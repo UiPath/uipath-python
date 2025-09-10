@@ -421,6 +421,8 @@ class SwFileHandler:
                 "bindings", {"version": "2.0", "resources": []}
             ),
             "settings": {},
+            # TODO: remove this after validation check gets removed on SW side
+            "entryPoints": [{}],
         }
 
         existing = root_files.get("agent.json")
