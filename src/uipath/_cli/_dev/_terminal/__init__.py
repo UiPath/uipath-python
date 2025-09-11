@@ -4,7 +4,7 @@ import traceback
 from datetime import datetime
 from os import environ as env
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, cast
 from uuid import uuid4
 
 import pyperclip  # type: ignore[import-untyped]
@@ -15,7 +15,12 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal
 from textual.widgets import Button, Footer, Input, ListView, RichLog
 
-from uipath.agent.conversation import UiPathConversationEvent
+from uipath.agent.conversation import (
+    UiPathConversationContentPart,
+    UiPathConversationEvent,
+    UiPathConversationMessage,
+    UiPathInlineValue,
+)
 
 from ..._runtime._contracts import (
     UiPathErrorContract,
@@ -116,7 +121,8 @@ class UiPathDevTerminal(App[Any]):
 
         details_panel = self.query_one("#details-panel", RunDetailsPanel)
         if details_panel and details_panel.current_run:
-            if details_panel.current_run.status != "suspended":
+            status = details_panel.current_run.status
+            if status == "running":
                 self.app.notify(
                     "Wait for agent response...", timeout=1.5, severity="warning"
                 )
@@ -128,7 +134,22 @@ class UiPathDevTerminal(App[Any]):
                 ),
                 details_panel.current_run.id,
             )
-            details_panel.current_run.resume_data = {"value": user_text}
+            if details_panel.current_run.status == "suspended":
+                details_panel.current_run.resume_data = user_text
+            else:
+                details_panel.current_run.input_data = UiPathConversationMessage(
+                    message_id=str(uuid4()),
+                    created_at=datetime.now().isoformat(),
+                    updated_at=datetime.now().isoformat(),
+                    content_parts=[
+                        UiPathConversationContentPart(
+                            content_part_id=str(uuid4()),
+                            mime_type="text/plain",
+                            data=UiPathInlineValue(inline=user_text),
+                        )
+                    ],
+                    role="user",
+                )
             asyncio.create_task(self._execute_runtime(details_panel.current_run))
             event.input.clear()
 
@@ -147,7 +168,7 @@ class UiPathDevTerminal(App[Any]):
     async def action_execute_run(self) -> None:
         """Execute a new run with UiPath runtime."""
         new_run_panel = self.query_one("#new-run-panel", NewRunPanel)
-        entrypoint, input_data = new_run_panel.get_input_values()
+        entrypoint, input_data, conversational = new_run_panel.get_input_values()
 
         if not entrypoint:
             return
@@ -158,7 +179,7 @@ class UiPathDevTerminal(App[Any]):
         except json.JSONDecodeError:
             return
 
-        run = ExecutionRun(entrypoint, input)
+        run = ExecutionRun(entrypoint, input, conversational)
 
         self.runs[run.id] = run
 
@@ -166,7 +187,8 @@ class UiPathDevTerminal(App[Any]):
 
         self._show_run_details(run)
 
-        asyncio.create_task(self._execute_runtime(run))
+        if not run.conversational:
+            asyncio.create_task(self._execute_runtime(run))
 
     async def action_clear_history(self) -> None:
         """Clear run history."""
@@ -191,6 +213,7 @@ class UiPathDevTerminal(App[Any]):
                 entrypoint=run.entrypoint,
                 trace_id=str(uuid4()),
                 execution_id=run.id,
+                is_conversational=run.conversational,
                 logs_min_level=env.get("LOG_LEVEL", "INFO"),
                 log_handler=RunContextLogHandler(
                     run_id=run.id, callback=self._handle_log_message
@@ -201,11 +224,16 @@ class UiPathDevTerminal(App[Any]):
             )
 
             if run.status == "suspended":
-                context.resume = True
                 context.input_json = run.resume_data
+                context.resume = True
                 self._add_info_log(run, f"Resuming execution: {run.entrypoint}")
             else:
-                context.input_json = run.input_data
+                if run.conversational:
+                    context.input_message = cast(
+                        UiPathConversationMessage, run.input_data
+                    )
+                else:
+                    context.input_json = run.input_data
                 self._add_info_log(run, f"Starting execution: {run.entrypoint}")
 
             run.status = "running"
@@ -214,7 +242,10 @@ class UiPathDevTerminal(App[Any]):
             result = await self.runtime_factory.execute_in_root_span(context)
 
             if result is not None:
-                if result.status == UiPathRuntimeStatus.SUSPENDED.value:
+                if (
+                    result.status == UiPathRuntimeStatus.SUSPENDED.value
+                    and result.resume
+                ):
                     run.status = "suspended"
                 else:
                     run.output_data = result.output

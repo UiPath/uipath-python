@@ -22,7 +22,7 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
 
-from uipath.agent.conversation import UiPathConversationEvent
+from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 from uipath.tracing import TracingManager
 
 from ._logging import LogsInterceptor
@@ -167,6 +167,7 @@ class UiPathRuntimeContext(BaseModel):
     entrypoint: Optional[str] = None
     input: Optional[str] = None
     input_json: Optional[Any] = None
+    input_message: Optional[UiPathConversationMessage] = None
     job_id: Optional[str] = None
     execution_id: Optional[str] = None
     trace_id: Optional[str] = None
@@ -186,6 +187,7 @@ class UiPathRuntimeContext(BaseModel):
     is_eval_run: bool = False
     log_handler: Optional[logging.Handler] = None
     chat_handler: Optional[UiPathConversationHandler] = None
+    is_conversational: Optional[bool] = None
 
     model_config = {"arbitrary_types_allowed": True}
 

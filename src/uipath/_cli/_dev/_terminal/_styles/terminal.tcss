@@ -27,6 +27,11 @@ Screen {
     color: #e0e0e0;
 }
 
+.run-pending {
+    border-left: solid grey;
+    color: #e0e0e0;
+}
+
 .run-completed {
     border-left: solid #00ff88;
     color: #e0e0e0;
@@ -249,4 +254,8 @@ Response, Tool {
 #chat-input{
     dock: bottom;
     margin: 1;
+}
+
+Checkbox{
+    margin-top: 1;
 }
