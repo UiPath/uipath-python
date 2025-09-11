@@ -292,7 +292,11 @@ class RunDetailsPanel(Container):
     def _rebuild_spans_tree(self):
         """Rebuild the spans tree from current run's traces."""
         spans_tree = self.query_one("#spans-tree", Tree)
-        spans_tree.clear()
+        if spans_tree is None or spans_tree.root is None:
+            return
+
+        spans_tree.root.remove_children()
+
         # Only clear the node mapping since we're rebuilding the tree structure
         self.span_tree_nodes.clear()
 
