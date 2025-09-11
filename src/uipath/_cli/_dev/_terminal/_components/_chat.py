@@ -1,10 +1,11 @@
 import time
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical, VerticalScroll
 from textual.widgets import Input, Markdown
 
+from uipath._cli._dev._terminal._models._execution import ExecutionRun
 from uipath.agent.conversation import (
     UiPathConversationEvent,
     UiPathConversationMessage,
@@ -44,8 +45,22 @@ class ChatPanel(Container):
                 id="chat-input",
             )
 
+    def update_messages(self, run: ExecutionRun) -> None:
+        """Update the chat panel with messages from the given execution run."""
+        chat_view = self.query_one("#chat-view")
+        chat_view.remove_children()
+        self._chat_widgets.clear()
+        self._last_update_time.clear()
+
+        for chat_msg in run.messages:
+            self.add_chat_message(None, chat_msg, auto_scroll=False)
+        chat_view.scroll_end(animate=False)
+
     def add_chat_message(
-        self, event: UiPathConversationEvent, chat_msg: UiPathConversationMessage
+        self,
+        event: Optional[UiPathConversationEvent],
+        chat_msg: UiPathConversationMessage,
+        auto_scroll: bool = True,
     ) -> None:
         """Add or update a chat message bubble."""
         chat_view = self.query_one("#chat-view")
@@ -90,17 +105,20 @@ class ChatPanel(Container):
 
         if existing:
             should_update = (
-                event.exchange
+                event
+                and event.exchange
                 and event.exchange.message
                 and event.exchange.message.end is not None
             )
             if should_update or now - last_update > 0.15:
                 existing.update(content)
                 self._last_update_time[chat_msg.message_id] = now
-                chat_view.scroll_end(animate=False)
+                if auto_scroll:
+                    chat_view.scroll_end(animate=False)
         else:
             widget_instance = widget_cls(content)
             chat_view.mount(widget_instance)
             self._chat_widgets[chat_msg.message_id] = widget_instance
             self._last_update_time[chat_msg.message_id] = now
-            chat_view.scroll_end(animate=False)
+            if auto_scroll:
+                chat_view.scroll_end(animate=False)

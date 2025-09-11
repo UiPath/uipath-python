@@ -155,7 +155,11 @@ class RunDetailsPanel(Container):
 
     def _update_chat_tab(self, run: ExecutionRun) -> None:
         chat_input = self.query_one("#chat-input", Input)
-        chat_input.disabled = run.status == "completed" or run.status == "failed"
+        chat_input.disabled = (
+            run.status == "completed" or run.status == "failed"
+        ) and not run.conversational
+        chat_panel = self.query_one("#chat-panel", ChatPanel)
+        chat_panel.update_messages(run)
 
     def _flatten_values(self, value: object, prefix: str = "") -> list[str]:
         """Flatten nested dict/list structures into dot-notation paths."""

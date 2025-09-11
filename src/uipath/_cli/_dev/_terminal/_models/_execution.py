@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 
 from rich.text import Text
@@ -15,15 +15,21 @@ from ._messages import LogMessage, TraceMessage
 class ExecutionRun:
     """Represents a single execution run."""
 
-    def __init__(self, entrypoint: str, input_data: Dict[str, Any]):
+    def __init__(
+        self,
+        entrypoint: str,
+        input_data: Union[Dict[str, Any], UiPathConversationMessage],
+        conversational: bool = False,
+    ):
         self.id = str(uuid4())[:8]
         self.entrypoint = entrypoint
         self.input_data = input_data
-        self.resume_data: Optional[Dict[str, Any]] = None
+        self.conversational = conversational
+        self.resume_data: Optional[Any] = None
         self.output_data: Optional[Dict[str, Any]] = None
         self.start_time = datetime.now()
         self.end_time: Optional[datetime] = None
-        self.status = "running"  # running, completed, failed, suspended
+        self.status = "pending"  # pending, running, completed, failed, suspended
         self.traces: List[TraceMessage] = []
         self.logs: List[LogMessage] = []
         self.error: Optional[UiPathErrorContract] = None
@@ -34,13 +40,15 @@ class ExecutionRun:
         if self.end_time:
             delta = self.end_time - self.start_time
             return f"{delta.total_seconds():.1f}s"
-        else:
+        elif self.start_time:
             delta = datetime.now() - self.start_time
             return f"{delta.total_seconds():.1f}s"
+        return "0.0s"
 
     @property
     def display_name(self) -> Text:
         status_colors = {
+            "pending": "grey50",
             "running": "yellow",
             "suspended": "cyan",
             "completed": "green",
@@ -48,6 +56,7 @@ class ExecutionRun:
         }
 
         status_icon = {
+            "pending": "●",
             "running": "▶",
             "suspended": "⏸",
             "completed": "✔",

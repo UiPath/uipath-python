@@ -5,7 +5,7 @@ from typing import Any, Dict, Tuple, cast
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
-from textual.widgets import Button, Select, TabbedContent, TabPane, TextArea
+from textual.widgets import Button, Checkbox, Select, TabbedContent, TabPane, TextArea
 
 from ._json_input import JsonInput
 
@@ -76,6 +76,12 @@ class NewRunPanel(Container):
                         allow_blank=False,
                     )
 
+                    yield Checkbox(
+                        "chat mode",
+                        value=False,
+                        id="conversational-toggle",
+                    )
+
                     yield JsonInput(
                         text=self.initial_input,
                         language="json",
@@ -108,9 +114,16 @@ class NewRunPanel(Container):
             mock_json_from_schema(ep.get("input", {})), indent=2
         )
 
-    def get_input_values(self) -> Tuple[str, str]:
+    async def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        """Hide JSON input if conversational is enabled."""
+        if event.checkbox.id == "conversational-toggle":
+            json_input = self.query_one("#json-input", TextArea)
+            json_input.display = not event.value
+
+    def get_input_values(self) -> Tuple[str, str, bool]:
         json_input = self.query_one("#json-input", TextArea)
-        return self.selected_entrypoint, json_input.text.strip()
+        conversational = self.query_one("#conversational-toggle", Checkbox).value
+        return self.selected_entrypoint, json_input.text.strip(), conversational
 
     def reset_form(self):
         """Reset selection and JSON input to defaults."""
