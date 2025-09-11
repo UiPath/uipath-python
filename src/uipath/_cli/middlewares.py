@@ -29,6 +29,7 @@ class Middlewares:
         "publish": [],
         "run": [],
         "dev": [],
+        "invoke": [],
     }
     _plugins_loaded = False
 
