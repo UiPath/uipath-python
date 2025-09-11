@@ -189,6 +189,8 @@ class UiPathDevTerminal(App[Any]):
 
         if not run.conversational:
             asyncio.create_task(self._execute_runtime(run))
+        else:
+            self._focus_chat_input()
 
     async def action_clear_history(self) -> None:
         """Clear run history."""
@@ -284,6 +286,13 @@ class UiPathDevTerminal(App[Any]):
 
         # Populate the details panel with run data
         details_panel.update_run(run)
+
+    def _focus_chat_input(self):
+        """Focus the chat input box."""
+        details_panel = self.query_one("#details-panel", RunDetailsPanel)
+        details_panel.switch_tab("chat-tab")
+        chat_input = details_panel.query_one("#chat-input", Input)
+        chat_input.focus()
 
     def _add_run_in_history(self, run: ExecutionRun):
         """Add run to history panel."""
