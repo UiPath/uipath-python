@@ -15,7 +15,7 @@ class TestSdkConfig:
 
         assert (
             str(exc_info.value)
-            == "Authentication required. Please run \033[1muipath auth\033[22m."
+            == "Authentication required. Please run \033[1muipath auth\033[22m or set the base URL via the UIPATH_URL environment variable."
         )
 
     def test_config_from_env(self, monkeypatch):
