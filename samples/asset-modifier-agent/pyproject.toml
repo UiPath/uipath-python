@@ -1,0 +1,9 @@
+[project]
+name = "asset-modifier-agent"
+version = "0.0.1"
+description = "asset-modifier-agent"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "uipath @ file:///C:/Users/radu.gheorghe/Work/uipath-python",
+]
+requires-python = ">=3.10"

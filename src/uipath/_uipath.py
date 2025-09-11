@@ -42,11 +42,7 @@ class UiPath:
     ) -> None:
         base_url_value = base_url or env.get(ENV_BASE_URL)
         if client_id and client_secret:
-            if not base_url_value:
-                raise BaseUrlMissingError("The base_url must be provided for client credentials.")
-
-            external_application_service = ExternalApplicationService(base_url)
-
+            external_application_service = ExternalApplicationService(base_url_value)
             secret_value = external_application_service.get_access_token(
                 client_id, client_secret, scope
             )

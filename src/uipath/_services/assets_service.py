@@ -234,7 +234,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     def update(
         self,
-        robot_asset: UserAsset,
+        asset: UserAsset | Asset,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -244,7 +244,7 @@ class AssetsService(FolderContext, BaseService):
         Related Activity: [Set Asset](https://docs.uipath.com/activities/other/latest/workflow/set-asset)
 
         Args:
-            robot_asset (UserAsset): The asset object containing the updated values.
+            asset (UserAsset | Asset): The asset object containing the updated values.
 
         Returns:
             Response: The HTTP response confirming the update.
@@ -257,26 +257,26 @@ class AssetsService(FolderContext, BaseService):
         except ValueError:
             is_user = False
 
-        if not is_user:
-            raise ValueError("This method can only be used for robot assets.")
-
-        spec = self._update_spec(
-            robot_asset, folder_key=folder_key, folder_path=folder_path
-        )
+        if is_user:
+            spec = self._update_robot_spec(asset, folder_key=folder_key, folder_path=folder_path)
+        else:
+            spec = self._update_asset_spec(asset, folder_key=folder_key, folder_path=folder_path)
 
         response = self.request(
             spec.method,
             url=spec.endpoint,
-            content=spec.content,
+            json=spec.content,
             headers=spec.headers,
         )
 
-        return response.json()
+        if response.text.strip():
+            return response.json()
+        return {"status": response.status_code}
 
     @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     async def update_async(
         self,
-        robot_asset: UserAsset,
+        asset: UserAsset | Asset,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -286,19 +286,25 @@ class AssetsService(FolderContext, BaseService):
         Related Activity: [Set Asset](https://docs.uipath.com/activities/other/latest/workflow/set-asset)
 
         Args:
-            robot_asset (UserAsset): The asset object containing the updated values.
+            asset (UserAsset | Asset): The asset object containing the updated values.
 
         Returns:
             Response: The HTTP response confirming the update.
         """
-        spec = self._update_spec(
-            robot_asset, folder_key=folder_key, folder_path=folder_path
-        )
+        try:
+            is_user = self._execution_context.robot_key is not None
+        except ValueError:
+            is_user = False
+
+        if is_user:
+            spec = self._update_robot_spec(asset, folder_key=folder_key, folder_path=folder_path)
+        else:
+            spec = self._update_asset_spec(asset, folder_key=folder_key, folder_path=folder_path)
 
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
-            content=spec.content,
+            json=spec.content,
             headers=spec.headers,
         )
 
@@ -343,7 +349,23 @@ class AssetsService(FolderContext, BaseService):
             },
         )
 
-    def _update_spec(
+    def _update_asset_spec(
+        self,
+        asset: Asset,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="PUT",
+            endpoint=Endpoint(f"/orchestrator_/odata/Assets({asset.Id})"),
+            content=asset.model_dump(by_alias=True),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _update_robot_spec(
         self,
         robot_asset: UserAsset,
         *,
