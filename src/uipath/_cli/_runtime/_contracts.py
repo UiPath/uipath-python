@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
 from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
+from uuid import uuid4
 
 from opentelemetry import context as context_api
 from opentelemetry import trace
@@ -23,7 +24,7 @@ from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
 
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
-from uipath.tracing import TracingManager
+from uipath.tracing import LlmOpsHttpExporter, TracingManager
 
 from ._logging import LogsInterceptor
 
@@ -159,6 +160,128 @@ class UiPathTraceContext(BaseModel):
     process_key: Optional[str] = None
     enabled: Union[bool, str] = False
     reference_id: Optional[str] = None
+
+
+class UiPathRuntimeContextBuilder:
+    """Builder class for UiPathRuntimeContext following the builder pattern."""
+
+    def __init__(self):
+        self._kwargs = {}
+
+    def with_defaults(
+        self, config_path: Optional[str] = None, **kwargs
+    ) -> "UiPathRuntimeContextBuilder":
+        """Apply default configuration similar to UiPathRuntimeContext.with_defaults().
+
+        Args:
+            config_path: Path to the configuration file (defaults to UIPATH_CONFIG_PATH env var or "uipath.json")
+            **kwargs: Additional keyword arguments to pass to with_defaults
+
+        Returns:
+            Self for method chaining
+        """
+        from os import environ as env
+
+        resolved_config_path = config_path or env.get(
+            "UIPATH_CONFIG_PATH", "uipath.json"
+        )
+        self._kwargs["config_path"] = resolved_config_path
+
+        self._kwargs.update(
+            {
+                "job_id": env.get("UIPATH_JOB_KEY"),
+                "trace_id": env.get("UIPATH_TRACE_ID"),
+                "tracing_enabled": env.get("UIPATH_TRACING_ENABLED", True),
+                "logs_min_level": env.get("LOG_LEVEL", "INFO"),
+                **kwargs,  # Allow overriding defaults with provided kwargs
+            }
+        )
+
+        self._kwargs["trace_context"] = UiPathTraceContext(
+            trace_id=env.get("UIPATH_TRACE_ID"),
+            parent_span_id=env.get("UIPATH_PARENT_SPAN_ID"),
+            root_span_id=env.get("UIPATH_ROOT_SPAN_ID"),
+            enabled=env.get("UIPATH_TRACING_ENABLED", True),
+            job_id=env.get("UIPATH_JOB_KEY"),
+            org_id=env.get("UIPATH_ORGANIZATION_ID"),
+            tenant_id=env.get("UIPATH_TENANT_ID"),
+            process_key=env.get("UIPATH_PROCESS_UUID"),
+            folder_key=env.get("UIPATH_FOLDER_KEY"),
+            reference_id=env.get("UIPATH_JOB_KEY") or str(uuid4()),
+        )
+
+        return self
+
+    def with_entrypoint(self, entrypoint: str) -> "UiPathRuntimeContextBuilder":
+        """Set the entrypoint for the runtime context.
+
+        Args:
+            entrypoint: The entrypoint to execute
+
+        Returns:
+            Self for method chaining
+        """
+        self._kwargs["entrypoint"] = entrypoint
+        return self
+
+    def with_input(
+        self, input_data: Optional[str] = None, input_file: Optional[str] = None
+    ) -> "UiPathRuntimeContextBuilder":
+        """Set the input data for the runtime context.
+
+        Args:
+            input_data: The input data as a string
+            input_file: Path to the input file
+
+        Returns:
+            Self for method chaining
+        """
+        if input_data is not None:
+            self._kwargs["input"] = input_data
+        if input_file is not None:
+            self._kwargs["input_file"] = input_file
+        return self
+
+    def with_resume(self, enable: bool = True) -> "UiPathRuntimeContextBuilder":
+        """Enable or disable resume mode for the runtime context.
+
+        Args:
+            enable: Whether to enable resume mode (defaults to True)
+
+        Returns:
+            Self for method chaining
+        """
+        self._kwargs["resume"] = enable
+        return self
+
+    def mark_eval_run(self, enable: bool = True) -> "UiPathRuntimeContextBuilder":
+        """Mark this as an evaluation run.
+
+        Args:
+            enable: Whether this is an eval run (defaults to True)
+
+        Returns:
+            Self for method chaining
+        """
+        self._kwargs["is_eval_run"] = enable
+        return self
+
+    def build(self) -> "UiPathRuntimeContext":
+        """Build and return the UiPathRuntimeContext instance.
+
+        Returns:
+            A configured UiPathRuntimeContext instance
+        """
+        config_path = self._kwargs.pop("config_path", None)
+        if config_path:
+            # Create context from config first, then update with any additional kwargs
+            context = UiPathRuntimeContext.from_config(config_path)
+            for key, value in self._kwargs.items():
+                if hasattr(context, key):
+                    setattr(context, key, value)
+            return context
+        else:
+            return UiPathRuntimeContext(**self._kwargs)
 
 
 class UiPathRuntimeContext(BaseModel):
@@ -422,8 +545,8 @@ class UiPathBaseRuntime(ABC):
             content = execution_result.to_dict()
             logger.debug(content)
 
-            # Always write output file at runtime
-            if self.context.job_id:
+            # Always write output file at runtime, except evaluation runs
+            if self.context.job_id and not self.context.is_eval_run:
                 with open(self.output_file_path, "w") as f:
                     json.dump(content, f, indent=2, default=str)
 
@@ -521,6 +644,9 @@ class UiPathRuntimeFactory(Generic[T, C]):
         self.tracer_span_processors: List[SpanProcessor] = []
         trace.set_tracer_provider(self.tracer_provider)
 
+        if os.getenv("UIPATH_JOB_KEY"):
+            self.add_span_exporter(LlmOpsHttpExporter())
+
     def add_span_exporter(
         self,
         span_exporter: SpanExporter,
@@ -591,9 +717,12 @@ class UiPathExecutionTraceProcessorMixin:
             parent_span = trace.get_current_span()
 
         if parent_span and parent_span.is_recording():
-            run_id = parent_span.attributes.get("execution.id")  # type: ignore[attr-defined]
-            if run_id:
-                span.set_attribute("execution.id", run_id)
+            execution_id = parent_span.attributes.get("execution.id")  # type: ignore[attr-defined]
+            if execution_id:
+                span.set_attribute("execution.id", execution_id)
+            evaluation_id = parent_span.attributes.get("evaluation.id")  # type: ignore[attr-defined]
+            if evaluation_id:
+                span.set_attribute("evaluation.id", evaluation_id)
 
 
 class UiPathExecutionBatchTraceProcessor(
