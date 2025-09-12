@@ -473,6 +473,21 @@ class UiPathBaseRuntime(ABC):
             with open(self.context.input_file) as f:
                 self.context.input = f.read()
 
+        try:
+            if self.context.input:
+                self.context.input_json = json.loads(self.context.input)
+            if self.context.input_json is None:
+                self.context.input_json = {}
+        except json.JSONDecodeError as e:
+            raise UiPathRuntimeError(
+                "INPUT_INVALID_JSON",
+                "Invalid JSON input",
+                f"The input data is not valid JSON: {str(e)}",
+                UiPathErrorCategory.USER,
+            ) from e
+
+        await self.validate()
+
         # Intercept all stdout/stderr/logs and write them to a file (runtime/evals), stdout (debug)
         self.logs_interceptor = LogsInterceptor(
             min_level=self.context.logs_min_level,
