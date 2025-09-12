@@ -30,6 +30,7 @@ class Middlewares:
         "run": [],
         "dev": [],
         "invoke": [],
+        "eval": [],
     }
     _plugins_loaded = False
 

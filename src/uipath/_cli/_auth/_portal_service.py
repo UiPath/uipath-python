@@ -8,7 +8,7 @@ import httpx
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import TenantsAndOrganizationInfoResponse, TokenData
-from ._oidc_utils import get_auth_config
+from ._oidc_utils import OidcUtils
 from ._url_utils import build_service_url, get_base_url
 from ._utils import (
     get_auth_data,
@@ -102,7 +102,7 @@ class PortalService:
             raise RuntimeError("HTTP client is not initialized")
 
         url = build_service_url(self.domain, "/identity_/connect/token")
-        client_id = get_auth_config().get("client_id")
+        client_id = OidcUtils.get_auth_config().get("client_id")
 
         data = {
             "grant_type": "refresh_token",
@@ -136,32 +136,33 @@ class PortalService:
         auth_data = get_auth_data()
         claims = get_parsed_token_data(auth_data)
         exp = claims.get("exp")
-
         if exp is not None and float(exp) > time.time():
             if not os.getenv("UIPATH_URL"):
                 tenants_and_organizations = self.get_tenants_and_organizations()
                 select_tenant(
                     self.domain if self.domain else "alpha", tenants_and_organizations
                 )
-            return auth_data.get("access_token")
+            updated_env_contents = {
+                "UIPATH_ACCESS_TOKEN": auth_data["access_token"],
+            }
+        else:
+            refresh_token = auth_data.get("refresh_token")
+            if refresh_token is None:
+                raise Exception("Refresh token not found")
+            token_data = self.post_refresh_token_request(refresh_token)
+            update_auth_file(token_data)
 
-        refresh_token = auth_data.get("refresh_token")
-        if refresh_token is None:
-            raise Exception("Refresh token not found")
-        token_data = self.post_refresh_token_request(refresh_token)
-        update_auth_file(token_data)
+            self.access_token = token_data["access_token"]
+            self.prt_id = claims.get("prt_id")
 
-        self.access_token = token_data["access_token"]
-        self.prt_id = claims.get("prt_id")
-
-        updated_env_contents = {
-            "UIPATH_ACCESS_TOKEN": token_data["access_token"],
-        }
-        if not os.getenv("UIPATH_URL"):
-            tenants_and_organizations = self.get_tenants_and_organizations()
-            select_tenant(
-                self.domain if self.domain else "alpha", tenants_and_organizations
-            )
+            updated_env_contents = {
+                "UIPATH_ACCESS_TOKEN": token_data["access_token"],
+            }
+            if not os.getenv("UIPATH_URL"):
+                tenants_and_organizations = self.get_tenants_and_organizations()
+                select_tenant(
+                    self.domain if self.domain else "alpha", tenants_and_organizations
+                )
 
         update_env_file(updated_env_contents)
 

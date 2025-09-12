@@ -4,12 +4,10 @@ import os
 import traceback
 from os import environ as env
 from typing import Optional, Tuple
-from uuid import uuid4
 
 import click
 
 from uipath._cli._utils._debug import setup_debugging
-from uipath.tracing import LlmOpsHttpExporter
 
 from .._utils.constants import (
     ENV_JOB_ID,
@@ -17,9 +15,9 @@ from .._utils.constants import (
 from ..telemetry import track
 from ._runtime._contracts import (
     UiPathRuntimeContext,
+    UiPathRuntimeContextBuilder,
     UiPathRuntimeError,
     UiPathRuntimeFactory,
-    UiPathTraceContext,
 )
 from ._runtime._runtime import UiPathRuntime
 from ._utils._console import ConsoleLogger
@@ -61,41 +59,17 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
         )
 
     try:
-        context = UiPathRuntimeContext.from_config(
-            env.get("UIPATH_CONFIG_PATH", "uipath.json"), **kwargs
-        )
-        context.entrypoint = entrypoint
-        context.input = input
-        context.resume = resume
-        context.job_id = env.get("UIPATH_JOB_KEY")
-        context.trace_id = env.get("UIPATH_TRACE_ID")
-        context.input_file = kwargs.get("input_file", None)
-        context.execution_output_file = kwargs.get("execution_output_file", None)
-        context.is_eval_run = kwargs.get("is_eval_run", False)
-        context.logs_min_level = env.get("LOG_LEVEL", "INFO")
-        context.tracing_enabled = env.get("UIPATH_TRACING_ENABLED", True)
-        context.trace_context = UiPathTraceContext(
-            trace_id=env.get("UIPATH_TRACE_ID"),
-            parent_span_id=env.get("UIPATH_PARENT_SPAN_ID"),
-            root_span_id=env.get("UIPATH_ROOT_SPAN_ID"),
-            enabled=env.get("UIPATH_TRACING_ENABLED", True),
-            job_id=env.get("UIPATH_JOB_KEY"),
-            org_id=env.get("UIPATH_ORGANIZATION_ID"),
-            tenant_id=env.get("UIPATH_TENANT_ID"),
-            process_key=env.get("UIPATH_PROCESS_UUID"),
-            folder_key=env.get("UIPATH_FOLDER_KEY"),
-            reference_id=env.get("UIPATH_JOB_KEY") or str(uuid4()),
-        )
-
         runtime_factory = UiPathRuntimeFactory(UiPathRuntime, UiPathRuntimeContext)
+        context = (
+            UiPathRuntimeContextBuilder()
+            .with_defaults(**kwargs)
+            .with_entrypoint(entrypoint)
+            .with_input(input)
+            .with_resume(resume)
+            .build()
+        )
 
-        if context.job_id:
-            runtime_factory.add_span_exporter(LlmOpsHttpExporter())
-
-        async def execute():
-            await runtime_factory.execute(context)
-
-        asyncio.run(execute())
+        asyncio.run(runtime_factory.execute(context))
 
         return MiddlewareResult(should_continue=False)
 
