@@ -28,6 +28,15 @@ import httpx
 import pytest
 
 from uipath._cli._auth._portal_service import PortalService
+from uipath._cli._auth._url_utils import set_force_flag
+
+
+@pytest.fixture(autouse=True)
+def reset_force_flag():
+    """Reset the force flag before each test to ensure clean state."""
+    set_force_flag(False)
+    yield
+    set_force_flag(False)
 
 
 @pytest.fixture
@@ -90,7 +99,7 @@ class TestPortalServiceRefreshToken:
         """Test refresh token request with different domain configurations."""
 
         with patch(
-            "uipath._cli._auth._portal_service.get_auth_config",
+            "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
             return_value=mock_auth_config,
         ):
             # Create a mock HTTP client
@@ -165,7 +174,7 @@ class TestPortalServiceRefreshToken:
 
         try:
             with patch(
-                "uipath._cli._auth._portal_service.get_auth_config",
+                "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                 return_value=mock_auth_config,
             ):
                 # Create a mock HTTP client
@@ -208,7 +217,7 @@ class TestPortalServiceRefreshToken:
         """Test refresh token request with 401 Unauthorized response."""
 
         with patch(
-            "uipath._cli._auth._portal_service.get_auth_config",
+            "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
             return_value=mock_auth_config,
         ):
             with patch("uipath._cli._auth._portal_service.console") as mock_console:
@@ -233,7 +242,7 @@ class TestPortalServiceRefreshToken:
         """Test refresh token request with 500 server error response."""
 
         with patch(
-            "uipath._cli._auth._portal_service.get_auth_config",
+            "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
             return_value=mock_auth_config,
         ):
             with patch("uipath._cli._auth._portal_service.console") as mock_console:
@@ -273,7 +282,7 @@ class TestPortalServiceRefreshToken:
         """Test that successful refresh token request returns proper TokenData format."""
 
         with patch(
-            "uipath._cli._auth._portal_service.get_auth_config",
+            "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
             return_value=mock_auth_config,
         ):
             # Create a mock HTTP client
@@ -321,7 +330,7 @@ class TestPortalServiceRefreshToken:
 
         for domain, expected_url in test_cases:
             with patch(
-                "uipath._cli._auth._portal_service.get_auth_config",
+                "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                 return_value=mock_auth_config,
             ):
                 # Create a mock HTTP client
@@ -416,7 +425,7 @@ class TestPortalServiceRefreshToken:
                 os.environ[key] = value
 
             with patch(
-                "uipath._cli._auth._portal_service.get_auth_config",
+                "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                 return_value=mock_auth_config,
             ):
                 # Create a mock HTTP client

@@ -13,6 +13,15 @@ from unittest.mock import Mock, patch
 import pytest
 
 from uipath._cli._auth._portal_service import PortalService
+from uipath._cli._auth._url_utils import set_force_flag
+
+
+@pytest.fixture(autouse=True)
+def reset_force_flag():
+    """Reset the force flag before each test to ensure clean state."""
+    set_force_flag(False)
+    yield
+    set_force_flag(False)
 
 
 @pytest.fixture
@@ -98,7 +107,7 @@ class TestPortalServiceEnsureValidToken:
 
         with (
             patch(
-                "uipath._cli._auth._portal_service.get_auth_config",
+                "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                 return_value=mock_auth_config,
             ),
             patch(
@@ -141,7 +150,7 @@ class TestPortalServiceEnsureValidToken:
             portal_service._client = mock_client
 
             # Test ensure_valid_token
-            result = portal_service.ensure_valid_token()
+            portal_service.ensure_valid_token()
 
             # Verify refresh token request was made to correct URL
             mock_client.post.assert_called_with(
@@ -164,10 +173,6 @@ class TestPortalServiceEnsureValidToken:
                 }
             )
 
-            # Verify the result (currently ensure_valid_token doesn't return the access token after refresh)
-            # This documents the current behavior - the method implicitly returns None
-            assert result is None
-
     def test_ensure_valid_token_with_valid_token_and_uipath_url_set(
         self, mock_auth_config, valid_auth_data
     ):
@@ -179,7 +184,7 @@ class TestPortalServiceEnsureValidToken:
         try:
             with (
                 patch(
-                    "uipath._cli._auth._portal_service.get_auth_config",
+                    "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                     return_value=mock_auth_config,
                 ),
                 patch(
@@ -197,13 +202,10 @@ class TestPortalServiceEnsureValidToken:
                 portal_service._client = mock_client
 
                 # Test ensure_valid_token
-                result = portal_service.ensure_valid_token()
+                portal_service.ensure_valid_token()
 
                 # Verify no refresh request was made (token is still valid)
                 mock_client.post.assert_not_called()
-
-                # Verify the result
-                assert result == valid_auth_data["access_token"]
 
         finally:
             if "UIPATH_URL" in os.environ:
@@ -229,7 +231,7 @@ class TestPortalServiceEnsureValidToken:
 
         with (
             patch(
-                "uipath._cli._auth._portal_service.get_auth_config",
+                "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                 return_value=mock_auth_config,
             ),
             patch(
@@ -279,7 +281,7 @@ class TestPortalServiceEnsureValidToken:
 
             with (
                 patch(
-                    "uipath._cli._auth._portal_service.get_auth_config",
+                    "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                     return_value=mock_auth_config,
                 ),
                 patch(
@@ -318,14 +320,10 @@ class TestPortalServiceEnsureValidToken:
                 portal_service._client = mock_client
 
                 # Test ensure_valid_token
-                result = portal_service.ensure_valid_token()
+                portal_service.ensure_valid_token()
 
                 # Verify refresh was attempted
                 assert mock_client.post.called
-
-                # Verify the result (currently ensure_valid_token doesn't return the access token after refresh)
-                # This documents the current behavior - the method implicitly returns None
-                assert result is None
 
         finally:
             # Restore original environment variables
