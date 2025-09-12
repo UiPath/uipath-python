@@ -102,7 +102,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self.factory.add_span_exporter(self.span_exporter)
 
     @classmethod
-    def from__eval_context(
+    def from_eval_context(
         cls,
         context: "UiPathEvalContext[C]",
         factory: "UiPathRuntimeFactory[T, C]",

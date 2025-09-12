@@ -73,7 +73,7 @@ def eval_agent_middleware(
         )
 
         async def execute():
-            async with UiPathEvalRuntime.from__eval_context(
+            async with UiPathEvalRuntime.from_eval_context(
                 factory=runtime_factory, context=generate_eval_context(context)
             ) as eval_runtime:
                 await eval_runtime.execute()

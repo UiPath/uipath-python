@@ -64,7 +64,7 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
             UiPathRuntimeContextBuilder()
             .with_defaults(**kwargs)
             .with_entrypoint(entrypoint)
-            .with_input(input)
+            .with_input(input, input_file=kwargs.get("input_file"))
             .with_resume(resume)
             .build()
         )
