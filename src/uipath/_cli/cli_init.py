@@ -1,6 +1,8 @@
 # type: ignore
+import importlib.resources
 import json
 import os
+import shutil
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -54,6 +56,34 @@ def generate_env_file(target_directory):
         with open(env_path, "w"):
             pass
         console.success(f" Created '{relative_path}' file.")
+
+
+def generate_agents_md(target_directory: str) -> None:
+    """Generate AGENTS.md file from the packaged resource.
+
+    Args:
+        target_directory: The directory where AGENTS.md should be created.
+    """
+    target_path = os.path.join(target_directory, "AGENTS.md")
+
+    # Skip if file already exists
+    if os.path.exists(target_path):
+        console.info("Skipping 'AGENTS.md' creation as it already exists.")
+        return
+
+    try:
+        # Get the resource path using importlib.resources
+        source_path = importlib.resources.files("uipath._resources").joinpath(
+            "AGENTS.md"
+        )
+
+        # Copy the file to the target directory
+        with importlib.resources.as_file(source_path) as s_path:
+            shutil.copy(s_path, target_path)
+
+        console.success(" Created 'AGENTS.md' file.")
+    except Exception as e:
+        console.warning(f"Could not create AGENTS.md: {e}")
 
 
 def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
@@ -130,6 +160,7 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
         current_directory = os.getcwd()
         generate_env_file(current_directory)
         create_telemetry_config_file(current_directory)
+        generate_agents_md(current_directory)
 
         result = Middlewares.next(
             "init",
