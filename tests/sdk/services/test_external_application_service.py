@@ -1,279 +1,112 @@
+import httpx
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
-from uipath._services.assets_service import AssetsService
-from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models import UserAsset
-from uipath.models.assets import Asset
+from uipath._services.external_application_service import ExternalApplicationService
+from uipath.models.exceptions import EnrichedException
 
 
-@pytest.fixture
-def service(
-    config: Config, execution_context: ExecutionContext, monkeypatch: pytest.MonkeyPatch
-) -> AssetsService:
-    monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
-    return AssetsService(config=config, execution_context=execution_context)
+class TestExternalApplicationService:
+    @pytest.mark.parametrize(
+        "url,expected_domain",
+        [
+            ("https://alpha.uipath.com", "alpha"),
+            ("https://sub.alpha.uipath.com", "alpha"),
+            ("https://staging.uipath.com", "staging"),
+            ("https://env.staging.uipath.com", "staging"),
+            ("https://cloud.uipath.com", "cloud"),
+            ("https://org.cloud.uipath.com", "cloud"),
+            ("https://something-else.com", "cloud"),
+            ("not-a-url", "cloud"),
+        ],
+    )
+    def test_extract_domain_from_base_url(self, url: str, expected_domain: str):
+        service = ExternalApplicationService(url)
+        assert service._domain == expected_domain
 
+    @pytest.mark.parametrize(
+        "domain,expected_url",
+        [
+            ("alpha", "https://alpha.uipath.com/identity_/connect/token"),
+            ("staging", "https://staging.uipath.com/identity_/connect/token"),
+            ("cloud", "https://cloud.uipath.com/identity_/connect/token"),
+            ("unknown", "https://cloud.uipath.com/identity_/connect/token"),
+        ],
+    )
+    def test_get_token_url(self, domain: str, expected_url: str):
+        service = ExternalApplicationService("https://cloud.uipath.com")
+        service._domain = domain
+        assert service.get_token_url() == expected_url
 
-class TestAssetsService:
-    class TestRetrieveAsset:
-        def test_retrieve_robot_asset(
-            self,
-            httpx_mock: HTTPXMock,
-            service: AssetsService,
-            base_url: str,
-            org: str,
-            tenant: str,
-            version: str,
-        ) -> None:
-            httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
-                status_code=200,
-                json={"id": 1, "name": "Test Asset", "value": "test-value"},
-            )
+    def test_get_access_token_success(self, httpx_mock: HTTPXMock):
+        service = ExternalApplicationService("https://cloud.uipath.com")
 
-            asset = service.retrieve(name="Test Asset")
-
-            assert isinstance(asset, UserAsset)
-            assert asset.id == 1
-            assert asset.name == "Test Asset"
-            assert asset.value == "test-value"
-
-            sent_request = httpx_mock.get_request()
-            if sent_request is None:
-                raise Exception("No request was sent")
-
-            assert sent_request.method == "POST"
-            assert (
-                sent_request.url
-                == f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
-            )
-
-            assert HEADER_USER_AGENT in sent_request.headers
-            assert (
-                sent_request.headers[HEADER_USER_AGENT]
-                == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve/{version}"
-            )
-
-        def test_retrieve_asset(
-            self,
-            httpx_mock: HTTPXMock,
-            base_url: str,
-            org: str,
-            tenant: str,
-            version: str,
-            config: Config,
-            monkeypatch: pytest.MonkeyPatch,
-        ) -> None:
-            monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
-            service = AssetsService(
-                config=config,
-                execution_context=ExecutionContext(),
-            )
-
-            httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?$filter=Name eq 'Test Asset'&$top=1",
-                status_code=200,
-                json={
-                    "value": [
-                        {
-                            "key": "asset-key",
-                            "name": "Test Asset",
-                            "value": "test-value",
-                        }
-                    ]
-                },
-            )
-
-            asset = service.retrieve(name="Test Asset")
-
-            assert isinstance(asset, Asset)
-            assert asset.key == "asset-key"
-            assert asset.name == "Test Asset"
-            assert asset.value == "test-value"
-
-            sent_request = httpx_mock.get_request()
-            if sent_request is None:
-                raise Exception("No request was sent")
-
-            assert sent_request.method == "GET"
-            assert (
-                sent_request.url
-                == f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?%24filter=Name+eq+%27Test+Asset%27&%24top=1"
-            )
-
-            assert HEADER_USER_AGENT in sent_request.headers
-            assert (
-                sent_request.headers[HEADER_USER_AGENT]
-                == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve/{version}"
-            )
-
-    def test_retrieve_credential(
-        self,
-        httpx_mock: HTTPXMock,
-        service: AssetsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-        version: str,
-    ) -> None:
+        token_url = service.get_token_url()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+            url=token_url,
+            method="POST",
             status_code=200,
-            json={
-                "id": 1,
-                "name": "Test Credential",
-                "credential_username": "test-user",
-                "credential_password": "test-password",
-            },
+            json={"access_token": "fake-token"},
         )
 
-        credential = service.retrieve_credential(name="Test Credential")
+        token = service.get_access_token("client-id", "client-secret")
+        assert token == "fake-token"
 
-        assert credential == "test-password"
+    def test_get_access_token_invalid_client(self, httpx_mock: HTTPXMock):
+        service = ExternalApplicationService("https://cloud.uipath.com")
 
-        sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
+        token_url = service.get_token_url()
+        httpx_mock.add_response(url=token_url, method="POST", status_code=400, json={})
 
-        assert sent_request.method == "POST"
-        assert (
-            sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
-        )
+        with pytest.raises(EnrichedException) as exc:
+            service.get_access_token("bad-id", "bad-secret")
 
-        assert HEADER_USER_AGENT in sent_request.headers
-        assert (
-            sent_request.headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve_credential/{version}"
-        )
+        assert "400" in str(exc.value)
 
-    def test_retrieve_credential_user_asset(
-        self,
-        service: AssetsService,
-        monkeypatch: pytest.MonkeyPatch,
-        config: Config,
-    ) -> None:
-        with pytest.raises(ValueError):
-            monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
-            service = AssetsService(
-                config=config,
-                execution_context=ExecutionContext(),
-            )
-            service.retrieve_credential(name="Test Credential")
+    def test_get_access_token_unauthorized(self, httpx_mock: HTTPXMock):
+        service = ExternalApplicationService("https://cloud.uipath.com")
 
-    async def test_retrieve_credential_async(
-        self,
-        httpx_mock: HTTPXMock,
-        service: AssetsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-        version: str,
-    ) -> None:
-        """Test asynchronously retrieving a credential asset."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
-            status_code=200,
-            json={
-                "id": 1,
-                "name": "Test Credential",
-                "credential_username": "test-user",
-                "credential_password": "test-password",
-            },
-        )
+        token_url = service.get_token_url()
+        httpx_mock.add_response(url=token_url, method="POST", status_code=401, json={})
 
-        credential = await service.retrieve_credential_async(name="Test Credential")
+        with pytest.raises(EnrichedException) as exc:
+            service.get_access_token("bad-id", "bad-secret")
 
-        assert credential == "test-password"
+        assert "401" in str(exc.value)
 
-        sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
+    def test_get_access_token_unexpected_status(self, httpx_mock: HTTPXMock):
+        service = ExternalApplicationService("https://cloud.uipath.com")
 
-        assert sent_request.method == "POST"
-        assert (
-            sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
-        )
+        token_url = service.get_token_url()
+        httpx_mock.add_response(url=token_url, method="POST", status_code=500, json={})
 
-        assert HEADER_USER_AGENT in sent_request.headers
-        assert (
-            sent_request.headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve_credential_async/{version}"
-        )
+        with pytest.raises(EnrichedException) as exc:
+            service.get_access_token("client-id", "client-secret")
 
-    def test_update(
-        self,
-        httpx_mock: HTTPXMock,
-        service: AssetsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-        version: str,
-    ) -> None:
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey",
-            status_code=200,
-            json={"id": 1, "name": "Test Asset", "value": "updated-value"},
-        )
+        assert "500" in str(exc.value).lower()
 
-        asset = UserAsset(name="Test Asset", value="updated-value")
-        response = service.update(robot_asset=asset)
+    def test_get_access_token_network_error(self, monkeypatch):
+        service = ExternalApplicationService("https://cloud.uipath.com")
 
-        assert response == {"id": 1, "name": "Test Asset", "value": "updated-value"}
+        def fake_client_post(*args, **kwargs):
+            raise httpx.RequestError("network down")
 
-        sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
+        monkeypatch.setattr(httpx.Client, "post", fake_client_post)
 
-        assert sent_request.method == "POST"
-        assert (
-            sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey"
-        )
+        with pytest.raises(Exception) as exc:
+            service.get_access_token("client-id", "client-secret")
 
-        assert HEADER_USER_AGENT in sent_request.headers
-        assert (
-            sent_request.headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.update/{version}"
-        )
+        assert "Network error during authentication" in str(exc.value)
 
-    @pytest.mark.anyio
-    async def test_update_async(
-        self,
-        httpx_mock: HTTPXMock,
-        service: AssetsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-        version: str,
-    ) -> None:
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey",
-            status_code=200,
-            json={"id": 1, "name": "Test Asset", "value": "updated-value"},
-        )
+    def test_get_access_token_unexpected_exception(self, monkeypatch):
+        service = ExternalApplicationService("https://cloud.uipath.com")
 
-        asset = UserAsset(name="Test Asset", value="updated-value")
-        response = await service.update_async(robot_asset=asset)
+        def fake_client_post(*args, **kwargs):
+            raise ValueError("weird error")
 
-        assert response == {"id": 1, "name": "Test Asset", "value": "updated-value"}
+        monkeypatch.setattr(httpx.Client, "post", fake_client_post)
 
-        sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
+        with pytest.raises(Exception) as exc:
+            service.get_access_token("client-id", "client-secret")
 
-        assert sent_request.method == "POST"
-        assert (
-            sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey"
-        )
-
-        assert HEADER_USER_AGENT in sent_request.headers
-        assert (
-            sent_request.headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.update_async/{version}"
-        )
+        assert "Unexpected error during authentication" in str(exc.value)

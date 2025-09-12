@@ -11,9 +11,9 @@ from ..models.exceptions import EnrichedException
 class ExternalApplicationService:
     """Service for client credentials authentication flow."""
 
-    def __init__(self, base_url: str):
-        self._base_url = base_url
-        self._domain = self._extract_domain_from_base_url(base_url)
+    def __init__(self, base_url: Optional[str]):
+        self._base_url = base_url or ""
+        self._domain = self._extract_domain_from_base_url(self._base_url)
 
     def get_token_url(self) -> str:
         """Get the token URL for the specified domain."""
@@ -78,7 +78,7 @@ class ExternalApplicationService:
             scope: The scope for the token (default: OR.Execution)
 
         Returns:
-            Token data if successful, None otherwise
+            Access token if successful, None otherwise
         """
         token_url = self.get_token_url()
 
@@ -126,7 +126,8 @@ class ExternalApplicationService:
                                 response=response,
                             )
                         )
-
+        except EnrichedException:
+            raise
         except httpx.RequestError as e:
             raise Exception(f"Network error during authentication: {e}") from e
         except Exception as e:

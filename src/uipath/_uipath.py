@@ -20,7 +20,8 @@ from ._services import (
     UiPathLlmChatService,
     UiPathOpenAIService,
 )
-from ._utils import resolve_secret, setup_logging
+from ._utils import setup_logging
+from ._utils._auth import resolve_secret
 from ._utils.constants import (
     ENV_BASE_URL,
 )
@@ -38,14 +39,14 @@ class UiPath:
         scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
-        base_url_value = base_url or env.get(ENV_BASE_URL) or ""
+        base_url_value = base_url or env.get(ENV_BASE_URL)
 
         try:
             self._config = Config(
-                base_url=base_url_value,
+                base_url=base_url_value,  # type: ignore
                 secret=resolve_secret(
                     base_url_value, secret, client_id, client_secret, scope
-                ),
+                ),  # type: ignore
             )
         except ValidationError as e:
             for error in e.errors():
