@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class ContextGroundingMetadata(BaseModel):
@@ -11,8 +11,14 @@ class ContextGroundingMetadata(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("*", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
+
     operation_id: str = Field(alias="operation_id")
     strategy: str = Field(alias="strategy")
 
@@ -24,8 +30,14 @@ class ContextGroundingQueryResponse(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("*", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
+
     source: str = Field(alias="source")
     page_number: str = Field(alias="page_number")
     content: str = Field(alias="content")
