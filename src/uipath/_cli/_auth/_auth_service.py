@@ -64,7 +64,7 @@ class AuthService:
             return
         self._console.hint("Using client credentials authentication.")
         credentials_service = ExternalApplicationService(self._base_url)
-        credentials_service.authenticate(
+        credentials_service.get_access_token(
             self._client_id,  # type: ignore
             self._client_secret,  # type: ignore
             self._scope,

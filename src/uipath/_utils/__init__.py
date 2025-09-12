@@ -1,3 +1,4 @@
+from ._auth import resolve_secret
 from ._endpoint import Endpoint
 from ._infer_bindings import get_inferred_bindings_names, infer_bindings
 from ._logs import setup_logging
@@ -16,4 +17,5 @@ __all__ = [
     "header_user_agent",
     "user_agent_value",
     "UiPathUrl",
+    "resolve_secret",
 ]

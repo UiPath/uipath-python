@@ -98,18 +98,36 @@ class ExternalApplicationService:
                         return token_data["access_token"]
                     case 400:
                         raise EnrichedException(
-                            HTTPStatusError(message="Invalid client credentials or request parameters.",
-                                            request=Request(data=data, url=token_url, method="post"),
-                                            response=response))
+                            HTTPStatusError(
+                                message="Invalid client credentials or request parameters.",
+                                request=Request(
+                                    data=data, url=token_url, method="post"
+                                ),
+                                response=response,
+                            )
+                        )
                     case 401:
                         raise EnrichedException(
-                            HTTPStatusError(message="Unauthorized: Invalid client credentials.", request=Request(data=data, url=token_url, method="post"), response=response))
+                            HTTPStatusError(
+                                message="Unauthorized: Invalid client credentials.",
+                                request=Request(
+                                    data=data, url=token_url, method="post"
+                                ),
+                                response=response,
+                            )
+                        )
                     case _:
-                        raise Exception(f"Authentication failed: {response.status_code} - {response.text}")
+                        raise EnrichedException(
+                            HTTPStatusError(
+                                message=f"Authentication failed with unexpected status: {response.status_code}",
+                                request=Request(
+                                    data=data, url=token_url, method="post"
+                                ),
+                                response=response,
+                            )
+                        )
 
         except httpx.RequestError as e:
-            raise EnrichedException(
-                HTTPStatusError(message=f"Network error during authentication: {e}",
-                                request=Request(data=data, url=token_url, method="post"), response=response))
+            raise Exception(f"Network error during authentication: {e}") from e
         except Exception as e:
-            raise Exception(f"Unexpected error during authentication: {e}")
+            raise Exception(f"Unexpected error during authentication: {e}") from e

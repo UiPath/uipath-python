@@ -19,15 +19,13 @@ from ._services import (
     QueuesService,
     UiPathLlmChatService,
     UiPathOpenAIService,
-    ExternalApplicationService,
 )
-from ._utils import setup_logging
+from ._utils import resolve_secret, setup_logging
 from ._utils.constants import (
     ENV_BASE_URL,
-    ENV_UIPATH_ACCESS_TOKEN,
-    ENV_UNATTENDED_USER_ACCESS_TOKEN,
 )
 from .models.errors import BaseUrlMissingError, SecretMissingError
+
 
 class UiPath:
     def __init__(
@@ -40,31 +38,14 @@ class UiPath:
         scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
-        base_url_value = base_url or env.get(ENV_BASE_URL)
-        if client_id and client_secret:
-            external_application_service = ExternalApplicationService(base_url_value)
-            secret_value = external_application_service.get_access_token(
-                client_id, client_secret, scope
-            )
-        else:
-            secret_value = None
-
-        if not secret_value:
-            secret_value = (
-                secret
-                or env.get(ENV_UNATTENDED_USER_ACCESS_TOKEN)
-                or env.get(ENV_UIPATH_ACCESS_TOKEN)
-            )
-
-            if not secret_value:
-                raise SecretMissingError(
-                    "Authentication failed. Please provide valid secret or client credentials."
-                )
+        base_url_value = base_url or env.get(ENV_BASE_URL) or ""
 
         try:
             self._config = Config(
-                base_url=base_url_value,  # type: ignore
-                secret=secret_value,  # type: ignore
+                base_url=base_url_value,
+                secret=resolve_secret(
+                    base_url_value, secret, client_id, client_secret, scope
+                ),
             )
         except ValidationError as e:
             for error in e.errors():
