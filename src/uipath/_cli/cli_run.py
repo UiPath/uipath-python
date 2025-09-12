@@ -19,7 +19,7 @@ from ._runtime._contracts import (
     UiPathRuntimeError,
     UiPathRuntimeFactory,
 )
-from ._runtime._runtime import UiPathRuntime
+from ._runtime._runtime import UiPathScriptRuntime
 from ._utils._console import ConsoleLogger
 from .middlewares import MiddlewareResult, Middlewares
 
@@ -59,11 +59,14 @@ Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path
         )
 
     try:
-        runtime_factory = UiPathRuntimeFactory(UiPathRuntime, UiPathRuntimeContext)
+
+        def runtime_creator(context: UiPathRuntimeContext) -> UiPathScriptRuntime:
+            return UiPathScriptRuntime(context, entrypoint)
+
+        runtime_factory = UiPathRuntimeFactory(runtime_creator, UiPathRuntimeContext)
         context = (
             UiPathRuntimeContextBuilder()
             .with_defaults(**kwargs)
-            .with_entrypoint(entrypoint)
             .with_input(input)
             .with_resume(resume)
             .build()

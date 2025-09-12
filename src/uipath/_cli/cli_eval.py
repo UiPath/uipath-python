@@ -13,8 +13,9 @@ from uipath._cli._runtime._contracts import (
     UiPathRuntimeContextBuilder,
     UiPathRuntimeFactory,
 )
-from uipath._cli._runtime._runtime import UiPathRuntime
+from uipath._cli._runtime._runtime import UiPathScriptRuntime
 from uipath._cli.middlewares import MiddlewareResult, Middlewares
+from uipath.eval._helpers import auto_discover_entrypoint
 
 from .._utils.constants import ENV_JOB_ID
 from ..telemetry import track
@@ -62,12 +63,16 @@ def eval_agent_middleware(
         )
 
     try:
-        runtime_factory = UiPathRuntimeFactory(UiPathRuntime, UiPathRuntimeContext)
+
+        def runtime_creator(context: UiPathRuntimeContext) -> UiPathScriptRuntime:
+            return UiPathScriptRuntime(
+                context, entrypoint or auto_discover_entrypoint()
+            )
+
+        runtime_factory = UiPathRuntimeFactory(runtime_creator, UiPathRuntimeContext)
         context = (
             UiPathRuntimeContextBuilder()
             .with_defaults(**kwargs)
-            .with_entrypoint(entrypoint)
-            .with_entrypoint(entrypoint)
             .mark_eval_run()
             .build()
         )
