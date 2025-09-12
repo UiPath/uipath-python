@@ -6,8 +6,6 @@ from typing import Dict, Generic, List, Optional, Sequence, TypeVar
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
-from uipath.eval._helpers import auto_discover_entrypoint
-
 from .._runtime._contracts import (
     UiPathBaseRuntime,
     UiPathRuntimeContext,
@@ -83,9 +81,6 @@ class UiPathEvalContext(UiPathRuntimeContext, Generic[C]):
         self._auto_discover()
 
     def _auto_discover(self):
-        self.runtime_context.entrypoint = (
-            self.runtime_context.entrypoint or auto_discover_entrypoint()
-        )
         self.eval_set = self.eval_set or EvalHelpers.auto_discover_eval_set()
 
 

@@ -212,18 +212,6 @@ class UiPathRuntimeContextBuilder:
 
         return self
 
-    def with_entrypoint(self, entrypoint: str) -> "UiPathRuntimeContextBuilder":
-        """Set the entrypoint for the runtime context.
-
-        Args:
-            entrypoint: The entrypoint to execute
-
-        Returns:
-            Self for method chaining
-        """
-        self._kwargs["entrypoint"] = entrypoint
-        return self
-
     def with_input(
         self, input_data: Optional[str] = None, input_file: Optional[str] = None
     ) -> "UiPathRuntimeContextBuilder":
@@ -287,7 +275,6 @@ class UiPathRuntimeContextBuilder:
 class UiPathRuntimeContext(BaseModel):
     """Context information passed throughout the runtime execution."""
 
-    entrypoint: Optional[str] = None
     input: Optional[str] = None
     input_json: Optional[Any] = None
     input_message: Optional[UiPathConversationMessage] = None
@@ -439,19 +426,6 @@ class UiPathBaseRuntime(ABC):
 
     def __init__(self, context: UiPathRuntimeContext):
         self.context = context
-
-    @classmethod
-    def from_context(cls, context: UiPathRuntimeContext):
-        """Factory method to create a runtime instance from a context.
-
-        Args:
-            context: The runtime context with configuration
-
-        Returns:
-            An initialized Runtime instance
-        """
-        runtime = cls(context)
-        return runtime
 
     async def __aenter__(self):
         """Async enter method called when entering the 'async with' block.
@@ -627,18 +601,17 @@ C = TypeVar("C", bound=UiPathRuntimeContext)
 class UiPathRuntimeFactory(Generic[T, C]):
     """Generic factory for UiPath runtime classes."""
 
-    def __init__(self, runtime_class: Type[T], context_class: Type[C]):
-        if not issubclass(runtime_class, UiPathBaseRuntime):
-            raise TypeError(
-                f"runtime_class {runtime_class.__name__} must inherit from UiPathBaseRuntime"
-            )
-
+    def __init__(
+        self,
+        runtime_creator: Callable[[C], T],
+        context_class: Type[C],
+    ):
         if not issubclass(context_class, UiPathRuntimeContext):
             raise TypeError(
                 f"context_class {context_class.__name__} must inherit from UiPathRuntimeContext"
             )
 
-        self.runtime_class = runtime_class
+        self.runtime_creator = runtime_creator
         self.context_class = context_class
         self.tracer_provider: TracerProvider = TracerProvider()
         self.tracer_span_processors: List[SpanProcessor] = []
@@ -678,7 +651,7 @@ class UiPathRuntimeFactory(Generic[T, C]):
 
     def from_context(self, context: C) -> T:
         """Create runtime instance from context."""
-        return self.runtime_class.from_context(context)
+        return self.runtime_creator(context)
 
     async def execute(self, context: C) -> Optional[UiPathRuntimeResult]:
         """Execute runtime with context."""
