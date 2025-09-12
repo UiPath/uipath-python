@@ -170,6 +170,8 @@ class AssetsService(FolderContext, BaseService):
         response = self.request(
             spec.method,
             url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
             content=spec.content,
             headers=spec.headers,
         )
@@ -223,6 +225,8 @@ class AssetsService(FolderContext, BaseService):
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
             content=spec.content,
             headers=spec.headers,
         )
@@ -267,6 +271,8 @@ class AssetsService(FolderContext, BaseService):
         response = self.request(
             spec.method,
             url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
             content=spec.content,
             headers=spec.headers,
         )
@@ -298,6 +304,8 @@ class AssetsService(FolderContext, BaseService):
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
             content=spec.content,
             headers=spec.headers,
         )
@@ -337,7 +345,7 @@ class AssetsService(FolderContext, BaseService):
             endpoint=Endpoint(
                 "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
             ),
-            content=str({"assetName": name, "robotKey": robot_key}),
+            json={"assetName": name, "robotKey": robot_key},
             headers={
                 **header_folder(folder_key, folder_path),
             },
@@ -355,12 +363,10 @@ class AssetsService(FolderContext, BaseService):
             endpoint=Endpoint(
                 "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.SetRobotAssetByRobotKey"
             ),
-            content=str(
-                {
-                    "robotKey": self._execution_context.robot_key,
-                    "robotAsset": robot_asset,
-                }
-            ),
+            json={
+                "robotKey": self._execution_context.robot_key,
+                "robotAsset": robot_asset.model_dump(by_alias=True, exclude_none=True),
+            },
             headers={
                 **header_folder(folder_key, folder_path),
             },

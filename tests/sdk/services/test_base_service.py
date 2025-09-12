@@ -19,7 +19,6 @@ class TestBaseService:
     def test_base_service_default_headers(self, service: BaseService, secret: str):
         assert service.default_headers == {
             "Accept": "application/json",
-            "Content-Type": "application/json",
             "Authorization": f"Bearer {secret}",
         }
 

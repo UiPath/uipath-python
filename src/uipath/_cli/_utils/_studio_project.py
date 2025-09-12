@@ -311,7 +311,6 @@ class StudioClient:
                 files=files_data,
                 url=f"{self.file_operations_base_url}/File/{remote_file.id}",
                 scoped="org",
-                infer_content_type=True,
                 headers=headers or {},
             )
             action = "Updated"
@@ -322,7 +321,6 @@ class StudioClient:
                 data={"parentId": folder.id} if folder else None,
                 files=files_data,
                 scoped="org",
-                infer_content_type=True,
                 headers=headers or {},
             )
             action = "Uploaded"
@@ -451,7 +449,6 @@ class StudioClient:
             url=f"{self.file_operations_base_url}/StructuralMigration",
             scoped="org",
             files=files,
-            infer_content_type=True,
             headers=headers or {},
         )
 

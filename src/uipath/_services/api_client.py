@@ -25,7 +25,6 @@ class ApiClient(FolderContext, BaseService):
         method: str,
         url: Union[URL, str],
         scoped: Literal["org", "tenant"] = "tenant",
-        infer_content_type=False,
         **kwargs: Any,
     ) -> Response:
         if kwargs.get("include_folder_headers", False):
@@ -37,16 +36,13 @@ class ApiClient(FolderContext, BaseService):
         if "include_folder_headers" in kwargs:
             del kwargs["include_folder_headers"]
 
-        return super().request(
-            method, url, scoped=scoped, infer_content_type=infer_content_type, **kwargs
-        )
+        return super().request(method, url, scoped=scoped, **kwargs)
 
     async def request_async(
         self,
         method: str,
         url: Union[URL, str],
         scoped: Literal["org", "tenant"] = "tenant",
-        infer_content_type=False,
         **kwargs: Any,
     ) -> Response:
         if kwargs.get("include_folder_headers", False):
@@ -58,6 +54,4 @@ class ApiClient(FolderContext, BaseService):
         if "include_folder_headers" in kwargs:
             del kwargs["include_folder_headers"]
 
-        return await super().request_async(
-            method, url, scoped=scoped, infer_content_type=infer_content_type, **kwargs
-        )
+        return await super().request_async(method, url, scoped=scoped, **kwargs)
