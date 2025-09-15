@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,9 +10,7 @@ class Process(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
-
     key: str = Field(alias="Key")
     process_key: str = Field(alias="ProcessKey")
     process_version: str = Field(alias="ProcessVersion")

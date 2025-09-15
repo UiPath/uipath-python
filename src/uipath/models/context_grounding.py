@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,7 +10,6 @@ class ContextGroundingMetadata(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
     operation_id: str = Field(alias="operation_id")
     strategy: str = Field(alias="strategy")
@@ -24,7 +22,6 @@ class ContextGroundingQueryResponse(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
     source: str = Field(alias="source")
     page_number: str = Field(alias="page_number")

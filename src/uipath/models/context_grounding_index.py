@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class ContextGroundingField(BaseModel):
@@ -21,7 +21,6 @@ class ContextGroundingDataSource(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
     id: Optional[str] = Field(default=None, alias="id")
     folder: Optional[str] = Field(default=None, alias="folder")
@@ -35,8 +34,14 @@ class ContextGroundingIndex(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("last_ingested", "last_queried", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
+
     id: Optional[str] = Field(default=None, alias="id")
     name: Optional[str] = Field(default=None, alias="name")
     description: Optional[str] = Field(default=None, alias="description")

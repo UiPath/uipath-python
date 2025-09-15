@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,9 +10,7 @@ class JobErrorInfo(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
-
     code: Optional[str] = Field(default=None, alias="Code")
     title: Optional[str] = Field(default=None, alias="Title")
     detail: Optional[str] = Field(default=None, alias="Detail")
@@ -28,9 +25,7 @@ class Job(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
-
     key: Optional[str] = Field(default=None, alias="Key")
     start_time: Optional[str] = Field(default=None, alias="StartTime")
     end_time: Optional[str] = Field(default=None, alias="EndTime")

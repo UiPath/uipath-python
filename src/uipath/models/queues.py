@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 from typing_extensions import Annotated
 
 
@@ -25,8 +25,13 @@ class QueueItem(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("defer_date", "due_date", "risk_sla_date", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
 
     name: str = Field(
         description="The name of the queue into which the item will be added.",
@@ -81,8 +86,13 @@ class TransactionItem(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("defer_date", "due_date", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
 
     name: str = Field(
         description="The name of the queue in which to search for the next item or in which to insert the item before marking it as InProgress and sending it to the robot.",
@@ -124,8 +134,13 @@ class TransactionItemResult(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
+
+    @field_serializer("defer_date", "due_date", when_used="json")
+    def serialize_datetime(self, value):
+        if isinstance(value, datetime):
+            return value.isoformat() if value else None
+        return value
 
     is_successful: Optional[bool] = Field(
         default=None,
