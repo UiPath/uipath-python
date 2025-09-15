@@ -10,15 +10,16 @@ import click
 from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath._cli._runtime._contracts import (
     UiPathRuntimeContext,
-    UiPathRuntimeContextBuilder,
     UiPathRuntimeFactory,
 )
 from uipath._cli._runtime._runtime import UiPathScriptRuntime
 from uipath._cli.middlewares import MiddlewareResult, Middlewares
+from uipath.eval._helpers import auto_discover_entrypoint
 
 from .._utils.constants import ENV_JOB_ID
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
+from ._utils._eval_set import EvalHelpers
 
 console = ConsoleLogger()
 
@@ -39,43 +40,35 @@ def eval_agent_middleware(
     no_report: bool = False,
     **kwargs,
 ) -> MiddlewareResult:
-    def generate_eval_context(
-        runtime_context: UiPathRuntimeContext,
-    ) -> UiPathEvalContext:
-        os.makedirs("evals/results", exist_ok=True)
-        timestamp = datetime.now(timezone.utc).strftime("%M-%H-%d-%m-%Y")
-        base_context = UiPathRuntimeContextBuilder().with_defaults().build()
-        # TODO: the name should include the eval_set name. those files should not be commited to SW
-        base_context.execution_output_file = (
-            f"evals/results/{timestamp}.json"
-            if not os.getenv("UIPATH_JOB_KEY")
-            else None
-        )
-        return UiPathEvalContext(
-            runtime_context=runtime_context,
-            no_report=no_report,
-            workers=workers,
-            eval_set=eval_set,
-            eval_ids=eval_ids,
-            **kwargs,
-            **base_context.model_dump(),
-        )
+    """Middleware to run an evaluation set against the agent."""
+    timestamp = datetime.now(timezone.utc).strftime("%M-%H-%d-%m-%Y")
+
+    eval_context = UiPathEvalContext.with_defaults()
+    eval_context.no_report = no_report
+    eval_context.workers = workers
+    eval_context.eval_set = eval_set or EvalHelpers.auto_discover_eval_set()
+    eval_context.eval_ids = eval_ids
+    eval_context.execution_output_file = (
+        f"evals/results/{timestamp}.json" if not os.getenv("UIPATH_JOB_KEY") else None
+    )
+
+    runtime_entrypoint = entrypoint or auto_discover_entrypoint()
+
+    def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
+        runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
+        runtime_context.entrypoint = runtime_entrypoint
+        return runtime_context
 
     try:
         runtime_factory = UiPathRuntimeFactory(
-            UiPathScriptRuntime, UiPathRuntimeContext
-        )
-        context = (
-            UiPathRuntimeContextBuilder()
-            .with_defaults(**kwargs)
-            .with_entrypoint(entrypoint)
-            .mark_eval_run()
-            .build()
+            UiPathScriptRuntime,
+            UiPathRuntimeContext,
+            context_generator=generate_runtime_context,
         )
 
         async def execute():
             async with UiPathEvalRuntime.from_eval_context(
-                factory=runtime_factory, context=generate_eval_context(context)
+                factory=runtime_factory, context=eval_context
             ) as eval_runtime:
                 await eval_runtime.execute()
 

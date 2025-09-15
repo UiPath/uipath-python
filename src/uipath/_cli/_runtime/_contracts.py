@@ -30,6 +30,9 @@ from ._logging import LogsInterceptor
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound="UiPathBaseRuntime")
+C = TypeVar("C", bound="UiPathRuntimeContext")
+
 
 class UiPathResumeTriggerType(str, Enum):
     """Constants representing different types of resume job triggers in the system."""
@@ -315,21 +318,43 @@ class UiPathRuntimeContext(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     @classmethod
-    def from_config(cls, config_path=None, **kwargs):
-        """Load configuration from uipath.json file.
+    def with_defaults(cls: type[C], config_path: Optional[str] = None, **kwargs) -> C:
+        """Construct a context with defaults, reading env vars and config file."""
+        resolved_config_path = config_path or os.environ.get(
+            "UIPATH_CONFIG_PATH", "uipath.json"
+        )
 
-        Args:
-            config_path: Path to the configuration file. If None, uses the default "uipath.json"
-            **kwargs: Additional keyword arguments to use as fallback for configuration values
+        base = cls.from_config(resolved_config_path)
 
-        Returns:
-            An instance of the class with fields populated from the config file
-        """
-        import json
-        import os
+        # Apply defaults from env
+        base.job_id = os.environ.get("UIPATH_JOB_KEY")
+        base.trace_id = os.environ.get("UIPATH_TRACE_ID")
+        base.tracing_enabled = os.environ.get("UIPATH_TRACING_ENABLED", True)
+        base.logs_min_level = os.environ.get("LOG_LEVEL", "INFO")
 
+        base.trace_context = UiPathTraceContext(
+            trace_id=os.environ.get("UIPATH_TRACE_ID"),
+            parent_span_id=os.environ.get("UIPATH_PARENT_SPAN_ID"),
+            root_span_id=os.environ.get("UIPATH_ROOT_SPAN_ID"),
+            enabled=os.environ.get("UIPATH_TRACING_ENABLED", True),
+            job_id=os.environ.get("UIPATH_JOB_KEY"),
+            org_id=os.environ.get("UIPATH_ORGANIZATION_ID"),
+            tenant_id=os.environ.get("UIPATH_TENANT_ID"),
+            process_key=os.environ.get("UIPATH_PROCESS_UUID"),
+            folder_key=os.environ.get("UIPATH_FOLDER_KEY"),
+            reference_id=os.environ.get("UIPATH_JOB_KEY") or str(uuid4()),
+        )
+
+        # Override with kwargs
+        for k, v in kwargs.items():
+            setattr(base, k, v)
+
+        return base
+
+    @classmethod
+    def from_config(cls: type[C], config_path: Optional[str] = None, **kwargs) -> C:
+        """Load configuration from uipath.json file."""
         path = config_path or "uipath.json"
-
         config = {}
 
         if os.path.exists(path):
@@ -346,7 +371,6 @@ class UiPathRuntimeContext(BaseModel):
         }
 
         attributes_set = set()
-        # set values from config file if available
         if "runtime" in config:
             runtime_config = config["runtime"]
             for config_key, attr_name in mapping.items():
@@ -354,10 +378,8 @@ class UiPathRuntimeContext(BaseModel):
                     attributes_set.add(attr_name)
                     setattr(instance, attr_name, runtime_config[config_key])
 
-        # fallback to kwargs for any values not set from config file
         for _, attr_name in mapping.items():
             if attr_name in kwargs and hasattr(instance, attr_name):
-                # Only set from kwargs if not already set from config file
                 if attr_name not in attributes_set:
                     setattr(instance, attr_name, kwargs[attr_name])
 
@@ -635,14 +657,16 @@ class UiPathBaseRuntime(ABC):
         return os.path.join("__uipath", "state.db")
 
 
-T = TypeVar("T", bound=UiPathBaseRuntime)
-C = TypeVar("C", bound=UiPathRuntimeContext)
-
-
 class UiPathRuntimeFactory(Generic[T, C]):
     """Generic factory for UiPath runtime classes."""
 
-    def __init__(self, runtime_class: Type[T], context_class: Type[C]):
+    def __init__(
+        self,
+        runtime_class: Type[T],
+        context_class: Type[C],
+        runtime_generator: Optional[Callable[[C], T]] = None,
+        context_generator: Optional[Callable[..., C]] = None,
+    ):
         if not issubclass(runtime_class, UiPathBaseRuntime):
             raise TypeError(
                 f"runtime_class {runtime_class.__name__} must inherit from UiPathBaseRuntime"
@@ -655,10 +679,11 @@ class UiPathRuntimeFactory(Generic[T, C]):
 
         self.runtime_class = runtime_class
         self.context_class = context_class
+        self.runtime_generator = runtime_generator
+        self.context_generator = context_generator
         self.tracer_provider: TracerProvider = TracerProvider()
         self.tracer_span_processors: List[SpanProcessor] = []
         trace.set_tracer_provider(self.tracer_provider)
-
         if os.getenv("UIPATH_JOB_KEY"):
             self.add_span_exporter(LlmOpsHttpExporter())
 
@@ -689,36 +714,49 @@ class UiPathRuntimeFactory(Generic[T, C]):
 
     def new_context(self, **kwargs) -> C:
         """Create a new context instance."""
+        if self.context_generator:
+            return self.context_generator(**kwargs)
         return self.context_class(**kwargs)
+
+    def new_runtime(self) -> T:
+        """Create a new runtime instance."""
+        context = self.new_context()
+        if self.runtime_generator:
+            return self.runtime_generator(context)
+        return self.runtime_class.from_context(context)
 
     def from_context(self, context: C) -> T:
         """Create runtime instance from context."""
+        if self.runtime_generator:
+            return self.runtime_generator(context)
         return self.runtime_class.from_context(context)
 
     async def execute(self, context: C) -> Optional[UiPathRuntimeResult]:
         """Execute runtime with context."""
         async with self.from_context(context) as runtime:
-            result = await runtime.execute()
-            for span_processor in self.tracer_span_processors:
-                span_processor.force_flush()
-            return result
+            try:
+                return await runtime.execute()
+            finally:
+                for span_processor in self.tracer_span_processors:
+                    span_processor.force_flush()
 
     async def execute_in_root_span(
         self, context: C, root_span: str = "root"
     ) -> Optional[UiPathRuntimeResult]:
         """Execute runtime with context."""
         async with self.from_context(context) as runtime:
-            tracer: Tracer = trace.get_tracer("uipath-runtime")
-            with tracer.start_as_current_span(
-                root_span,
-                attributes={"execution.id": context.execution_id}
-                if context.execution_id
-                else {},
-            ):
-                result = await runtime.execute()
-            for span_processor in self.tracer_span_processors:
-                span_processor.force_flush()
-            return result
+            try:
+                tracer: Tracer = trace.get_tracer("uipath-runtime")
+                with tracer.start_as_current_span(
+                    root_span,
+                    attributes={"execution.id": context.execution_id}
+                    if context.execution_id
+                    else {},
+                ):
+                    return await runtime.execute()
+            finally:
+                for span_processor in self.tracer_span_processors:
+                    span_processor.force_flush()
 
 
 class UiPathExecutionTraceProcessorMixin:
