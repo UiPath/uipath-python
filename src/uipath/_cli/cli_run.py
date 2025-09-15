@@ -1,9 +1,8 @@
 # type: ignore
 import asyncio
 import os
-import traceback
 from os import environ as env
-from typing import Optional, Tuple
+from typing import Optional
 
 import click
 
@@ -21,132 +20,9 @@ from ._runtime._contracts import (
 )
 from ._runtime._runtime import UiPathScriptRuntime
 from ._utils._console import ConsoleLogger
-from .middlewares import MiddlewareResult, Middlewares
+from .middlewares import Middlewares
 
 console = ConsoleLogger()
-
-
-def python_run_middleware(
-    entrypoint: Optional[str],
-    input: Optional[str],
-    resume: bool,
-    **kwargs,
-) -> MiddlewareResult:
-    """Middleware to handle Python script execution.
-
-    Args:
-        entrypoint: Path to the Python script to execute
-        input: JSON string with input data
-        resume: Flag indicating if this is a resume execution
-        debug: Enable debugging with debugpy
-        debug_port: Port for debug server (default: 5678)
-
-    Returns:
-        MiddlewareResult with execution status and messages
-    """
-    if not entrypoint:
-        return MiddlewareResult(
-            should_continue=False,
-            error_message="""No entrypoint specified. Please provide a path to a Python script.
-Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""",
-        )
-
-    if not os.path.exists(entrypoint):
-        return MiddlewareResult(
-            should_continue=False,
-            error_message=f"""Script not found at path {entrypoint}.
-Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""",
-        )
-
-    try:
-        runtime_factory = UiPathRuntimeFactory(
-            UiPathScriptRuntime, UiPathRuntimeContext
-        )
-        context = (
-            UiPathRuntimeContextBuilder()
-            .with_defaults(**kwargs)
-            .with_entrypoint(entrypoint)
-            .with_input(input, input_file=kwargs.get("input_file"))
-            .with_resume(resume)
-            .build()
-        )
-
-        asyncio.run(runtime_factory.execute(context))
-
-        return MiddlewareResult(should_continue=False)
-
-    except UiPathRuntimeError as e:
-        return MiddlewareResult(
-            should_continue=False,
-            error_message=f"Error: {e.error_info.title} - {e.error_info.detail}",
-            should_include_stacktrace=False,
-        )
-    except Exception as e:
-        # Handle unexpected errors
-        return MiddlewareResult(
-            should_continue=False,
-            error_message=f"Error: Unexpected error occurred - {str(e)}",
-            should_include_stacktrace=True,
-        )
-
-
-def run_core(
-    entrypoint: Optional[str],
-    resume: bool,
-    input: Optional[str] = None,
-    input_file: Optional[str] = None,
-    execution_output_file: Optional[str] = None,
-    logs_file: Optional[str] = None,
-    **kwargs,
-) -> Tuple[bool, Optional[str], Optional[str]]:
-    """Core execution logic that can be called programmatically.
-
-    Args:
-        entrypoint: Path to the Python script to execute
-        input: JSON string with input data
-        resume: Flag indicating if this is a resume execution
-        input_file: Path to input JSON file
-        execution_output_file: Path to execution output file
-        logs_file: Path where execution output will be written
-        **kwargs: Additional arguments to be forwarded to the middleware
-
-    Returns:
-        Tuple containing:
-            - success: True if execution was successful
-            - error_message: Error message if any
-            - info_message: Info message if any
-    """
-    # Process through middleware chain
-    result = Middlewares.next(
-        "run",
-        entrypoint,
-        input,
-        resume,
-        input_file=input_file,
-        execution_output_file=execution_output_file,
-        logs_file=logs_file,
-        **kwargs,
-    )
-
-    if result.should_continue:
-        result = python_run_middleware(
-            entrypoint=entrypoint,
-            input=input,
-            resume=resume,
-            input_file=input_file,
-            execution_output_file=execution_output_file,
-            logs_file=logs_file,
-            **kwargs,
-        )
-
-    if result.should_continue:
-        return False, "Could not process the request with any available handler.", None
-
-    return (
-        not bool(result.error_message),
-        result.error_message,
-        result.info_message,
-    )
 
 
 @click.command()
@@ -200,27 +76,57 @@ def run(
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
 
-    success, error_message, info_message = run_core(
-        entrypoint=entrypoint,
-        input=input,
-        resume=resume,
+    result = Middlewares.next(
+        "run",
+        entrypoint,
+        input,
+        resume,
         input_file=input_file,
         execution_output_file=output_file,
         debug=debug,
         debug_port=debug_port,
     )
 
-    if error_message:
-        console.error(error_message, include_traceback=True)
-        if not success:  # If there was an error and execution failed
-            console.error(traceback.format_exc())
-        click.get_current_context().exit(1)
+    if result.error_message:
+        console.error(result.error_message)
 
-    if info_message:
-        console.info(info_message)
+    if result.should_continue:
+        if not entrypoint:
+            console.error("""No entrypoint specified. Please provide a path to a Python script.
+    Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
 
-    if success:
-        console.success("Successful execution.")
+        if not os.path.exists(entrypoint):
+            console.error(f"""Script not found at path {entrypoint}.
+    Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
+
+        try:
+            runtime_factory = UiPathRuntimeFactory(
+                UiPathScriptRuntime, UiPathRuntimeContext
+            )
+            context = (
+                UiPathRuntimeContextBuilder()
+                .with_defaults(
+                    execution_output_file=output_file,
+                    debug=debug,
+                    debug_port=debug_port,
+                )
+                .with_entrypoint(entrypoint)
+                .with_input(input, input_file=input_file)
+                .with_resume(resume)
+                .build()
+            )
+
+            asyncio.run(runtime_factory.execute(context))
+
+        except UiPathRuntimeError as e:
+            console.error(f"{e.error_info.title} - {e.error_info.detail}")
+        except Exception as e:
+            # Handle unexpected errors
+            console.error(
+                f"Error: Unexpected error occurred - {str(e)}", include_traceback=True
+            )
+
+    console.success("Successful execution.")
 
 
 if __name__ == "__main__":

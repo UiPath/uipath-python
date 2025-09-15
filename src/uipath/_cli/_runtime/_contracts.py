@@ -383,7 +383,7 @@ class UiPathRuntimeError(Exception):
             if (
                 tb and tb.strip() != "NoneType: None"
             ):  # Ensure there's an actual traceback
-                detail = f"{detail}\n\nTraceback:\n{tb}"
+                detail = f"{detail}\n\n{tb}"
 
         if status is None:
             status = self._extract_http_status()
