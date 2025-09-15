@@ -120,7 +120,6 @@ class TestRun:
                         debug=False,
                         debug_port=5678,
                         execution_output_file=None,
-                        logs_file=None,
                     )
 
     class TestMiddleware:
@@ -220,10 +219,7 @@ class TestRun:
                 f.write(uipath_json.to_json())
             result = runner.invoke(cli, ["run", script_file_path, "{}"])
             assert result.exit_code == 1
-            assert (
-                "No entry function found - No main function (main, run, or execute)"
-                in result.output
-            )
+            assert "No main function (main, run, or execute)" in result.output
             assert "Successful execution." not in result.output
 
     def test_middleware_error(
