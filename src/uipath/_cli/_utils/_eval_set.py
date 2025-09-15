@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import click
 
-from uipath._cli._evals._models import EvaluationSet
+from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._utils._console import ConsoleLogger
 
 console = ConsoleLogger()

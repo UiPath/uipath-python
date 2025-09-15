@@ -1,16 +1,18 @@
-import copy
+"""JSON similarity evaluator for flexible structural comparison of outputs."""
+
 import math
-from typing import Any, Dict, Tuple
+from typing import Any, Tuple, TypeVar
 
-from uipath._cli._evals._evaluators._deterministic_evaluator_base import (
-    DeterministicEvaluatorBase,
-)
-from uipath._cli._evals._models import EvaluationResult
-from uipath._cli._evals._models._evaluators import ScoreType
+from uipath.eval.models import EvaluationResult, NumericEvaluationResult
+
+from ..models.models import AgentExecution
+from .deterministic_evaluator_base import DeterministicEvaluatorBase
+
+T = TypeVar("T")
 
 
-class JsonSimilarityEvaluator(DeterministicEvaluatorBase):
-    """Deterministic evaluator that scores structural JSON similarity.
+class JsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
+    """Deterministic evaluator that scores structural JSON similarity between expected and actual output.
 
     Compares expected versus actual JSON-like structures and returns a
     numerical score in the range [0, 100]. The comparison is token-based
@@ -18,43 +20,24 @@ class JsonSimilarityEvaluator(DeterministicEvaluatorBase):
     """
 
     async def evaluate(
-        self,
-        evaluation_id: str,
-        evaluation_name: str,
-        input_data: Dict[str, Any],
-        expected_output: Dict[str, Any],
-        actual_output: Dict[str, Any],
+        self, agent_execution: AgentExecution, evaluation_criteria: dict[str, Any]
     ) -> EvaluationResult:
         """Evaluate similarity between expected and actual JSON outputs.
 
-        Args:
-            evaluation_id: Unique identifier for this evaluation run.
-            evaluation_name: Human friendly evaluation name.
-            input_data: Input payload used to produce the outputs.
-            expected_output: Ground-truth JSON structure.
-            actual_output: Produced JSON structure to compare against the ground truth.
+        Uses token-based comparison with tolerance for numeric differences
+        and Levenshtein distance for string similarity.
+
+            agent_execution: The execution details containing:
+                - agent_input: The input received by the agent
+                - actual_output: The actual output from the agent
+                - spans: The execution spans to use for the evaluation
+            evaluation_criteria: The criteria to evaluate
 
         Returns:
-            EvaluationResult: Structured result with the numerical similarity score.
+            EvaluationResult: Numerical score between 0-100 indicating similarity
         """
-        actual_output_copy = copy.deepcopy(actual_output)
-        expected_output_copy = copy.deepcopy(expected_output)
-
-        actual_output, expected_output = self._select_targets(
-            expected_output, actual_output
-        )
-        similarity = self._compare_json(expected_output, actual_output)
-
-        return EvaluationResult(
-            evaluation_id=evaluation_id,
-            evaluation_name=evaluation_name,
-            evaluator_id=self.id,
-            evaluator_name=self.name,
-            score=similarity,
-            input=input_data,
-            expected_output=expected_output_copy,
-            actual_output=actual_output_copy,
-            score_type=ScoreType.NUMERICAL,
+        return NumericEvaluationResult(
+            score=self._compare_json(evaluation_criteria, agent_execution.agent_output)
         )
 
     def _compare_json(self, expected: Any, actual: Any) -> float:
