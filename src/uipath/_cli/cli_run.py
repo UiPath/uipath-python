@@ -14,7 +14,6 @@ from .._utils.constants import (
 from ..telemetry import track
 from ._runtime._contracts import (
     UiPathRuntimeContext,
-    UiPathRuntimeContextBuilder,
     UiPathRuntimeError,
     UiPathRuntimeFactory,
 )
@@ -103,17 +102,13 @@ def run(
             runtime_factory = UiPathRuntimeFactory(
                 UiPathScriptRuntime, UiPathRuntimeContext
             )
-            context = (
-                UiPathRuntimeContextBuilder()
-                .with_defaults(
-                    execution_output_file=output_file,
-                    debug=debug,
-                    debug_port=debug_port,
-                )
-                .with_entrypoint(entrypoint)
-                .with_input(input, input_file=input_file)
-                .with_resume(resume)
-                .build()
+            context = UiPathRuntimeContext.with_defaults(
+                entrypoint=entrypoint,
+                input=input,
+                input_file=input_file,
+                resume=resume,
+                execution_output_file=output_file,
+                debug=debug,
             )
 
             asyncio.run(runtime_factory.execute(context))
