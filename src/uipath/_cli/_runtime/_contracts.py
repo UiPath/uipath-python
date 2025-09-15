@@ -326,17 +326,22 @@ class UiPathRuntimeContext(BaseModel):
 
         base = cls.from_config(resolved_config_path)
 
+        bool_map = {"true": True, "false": False}
+        tracing_enabled = os.environ.get("UIPATH_TRACING_ENABLED", True)
+        if isinstance(tracing_enabled, str) and tracing_enabled.lower() in bool_map:
+            tracing_enabled = bool_map[tracing_enabled.lower()]
+
         # Apply defaults from env
         base.job_id = os.environ.get("UIPATH_JOB_KEY")
         base.trace_id = os.environ.get("UIPATH_TRACE_ID")
-        base.tracing_enabled = os.environ.get("UIPATH_TRACING_ENABLED", True)
+        base.tracing_enabled = tracing_enabled
         base.logs_min_level = os.environ.get("LOG_LEVEL", "INFO")
 
         base.trace_context = UiPathTraceContext(
             trace_id=os.environ.get("UIPATH_TRACE_ID"),
             parent_span_id=os.environ.get("UIPATH_PARENT_SPAN_ID"),
             root_span_id=os.environ.get("UIPATH_ROOT_SPAN_ID"),
-            enabled=os.environ.get("UIPATH_TRACING_ENABLED", True),
+            enabled=tracing_enabled,
             job_id=os.environ.get("UIPATH_JOB_KEY"),
             org_id=os.environ.get("UIPATH_ORGANIZATION_ID"),
             tenant_id=os.environ.get("UIPATH_TENANT_ID"),
