@@ -6,7 +6,7 @@ import click
 
 from uipath._cli._dev._terminal import UiPathDevTerminal
 from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
-from uipath._cli._runtime._runtime import UiPathRuntime
+from uipath._cli._runtime._runtime import UiPathScriptRuntime
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli.cli_init import init  # type: ignore[attr-defined]
@@ -53,7 +53,9 @@ def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
 
     try:
         if interface == "terminal":
-            runtime_factory = UiPathRuntimeFactory(UiPathRuntime, UiPathRuntimeContext)
+            runtime_factory = UiPathRuntimeFactory(
+                UiPathScriptRuntime, UiPathRuntimeContext
+            )
             app = UiPathDevTerminal(runtime_factory)
             asyncio.run(app.run_async())
         else:
