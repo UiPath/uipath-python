@@ -62,8 +62,18 @@ class EvaluationRunResultDto(BaseModel):
 class EvaluationRunResult(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+    score: float = 0.0
     evaluation_name: str
     evaluation_run_results: List[EvaluationRunResultDto]
+
+    def compute_average_score(self) -> None:
+        """Compute average score for this single eval_item."""
+        if not self.evaluation_run_results:
+            self.score = 0.0
+            return
+
+        total_score = sum(dto.result.score for dto in self.evaluation_run_results)
+        self.score = total_score / len(self.evaluation_run_results)
 
 
 class UiPathEvalOutput(BaseModel):
@@ -74,12 +84,15 @@ class UiPathEvalOutput(BaseModel):
     evaluation_set_results: List[EvaluationRunResult]
 
     def compute_average_score(self) -> None:
-        total_score = 0.0
-        total_count = 0
+        """Compute overall average by calling eval_item.compute_average_score()."""
+        if not self.evaluation_set_results:
+            self.score = 0.0
+            return
 
-        for evaluation_set_result in self.evaluation_set_results:
-            for evaluation_run_result in evaluation_set_result.evaluation_run_results:
-                total_score += evaluation_run_result.result.score
-                total_count += 1
+        for eval_result in self.evaluation_set_results:
+            eval_result.compute_average_score()
 
-        self.score = total_score / total_count if total_count > 0 else 0.0
+        eval_item_scores = [
+            eval_result.score for eval_result in self.evaluation_set_results
+        ]
+        self.score = sum(eval_item_scores) / len(eval_item_scores)

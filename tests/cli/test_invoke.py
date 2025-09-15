@@ -140,7 +140,7 @@ class TestInvoke:
         # mock start job response
         httpx_mock.add_response(
             url=f"{base_url}/orchestrator_/odata/Users/UiPath.Server.Configuration.OData.GetCurrentUserExtended?$expand=PersonalWorkspace",
-            status_code=401,
+            status_code=204,
         )
 
         file_name = "input.json"

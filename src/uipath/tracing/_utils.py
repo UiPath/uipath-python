@@ -76,6 +76,10 @@ class UiPathSpan:
     process_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
     )
+    reference_id: Optional[str] = field(
+        default_factory=lambda: env.get("TRACE_REFERENCE_ID")
+    )
+
     job_key: Optional[str] = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -99,6 +103,7 @@ class UiPathSpan:
             "SpanType": self.span_type,
             "ProcessKey": self.process_key,
             "JobKey": self.job_key,
+            "ReferenceId": self.reference_id,
         }
 
 
@@ -148,7 +153,9 @@ class _SpanUtils:
         return uuid.UUID(hex_str)
 
     @staticmethod
-    def otel_span_to_uipath_span(otel_span: ReadableSpan) -> UiPathSpan:
+    def otel_span_to_uipath_span(
+        otel_span: ReadableSpan, custom_trace_id: Optional[str] = None
+    ) -> UiPathSpan:
         """Convert an OpenTelemetry span to a UiPathSpan."""
         # Extract the context information from the OTel span
         span_context = otel_span.get_span_context()
@@ -157,7 +164,7 @@ class _SpanUtils:
         trace_id = _SpanUtils.trace_id_to_uuid4(span_context.trace_id)
         span_id = _SpanUtils.span_id_to_uuid4(span_context.span_id)
 
-        trace_id_str = os.environ.get("UIPATH_TRACE_ID")
+        trace_id_str = custom_trace_id or os.environ.get("UIPATH_TRACE_ID")
         if trace_id_str:
             trace_id = uuid.UUID(trace_id_str)
 
