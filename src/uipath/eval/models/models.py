@@ -70,7 +70,7 @@ EvaluationResult = Annotated[
 class EvalItemResult(BaseModel):
     """Result of a single evaluation item."""
 
-    evaluator_name: str
+    evaluator_id: str
     result: EvaluationResult
 
 

@@ -1,4 +1,5 @@
 # type: ignore
+import asyncio
 import json
 import os
 
@@ -9,7 +10,7 @@ from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
-from ._utils._folders import get_personal_workspace_info
+from ._utils._folders import get_personal_workspace_info_async
 from ._utils._processes import get_release_info
 
 console = ConsoleLogger()
@@ -106,8 +107,8 @@ def publish(feed):
 
         if feed and feed != "tenant":
             # Check user personal workspace
-            personal_workspace_feed_id, personal_workspace_folder_id = (
-                get_personal_workspace_info(base_url, token)
+            personal_workspace_feed_id, personal_workspace_folder_id = asyncio.run(
+                get_personal_workspace_info_async()
             )
             if feed == "personal" or feed == personal_workspace_feed_id:
                 is_personal_workspace = True

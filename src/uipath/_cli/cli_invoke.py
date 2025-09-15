@@ -1,4 +1,5 @@
 # type: ignore
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -16,7 +17,7 @@ except ImportError:
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..telemetry import track
 from ._utils._common import get_env_vars
-from ._utils._folders import get_personal_workspace_info
+from ._utils._folders import get_personal_workspace_info_async
 from ._utils._processes import get_release_info
 from .middlewares import Middlewares
 
@@ -65,7 +66,9 @@ def invoke(
         [base_url, token] = get_env_vars()
 
         url = f"{base_url}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
-        _, personal_workspace_folder_id = get_personal_workspace_info(base_url, token)
+        _, personal_workspace_folder_id = asyncio.run(
+            get_personal_workspace_info_async()
+        )
         project_name, project_version = _read_project_details()
         if not personal_workspace_folder_id:
             console.error(
