@@ -315,7 +315,7 @@ class UiPathRuntimeContext(BaseModel):
     chat_handler: Optional[UiPathConversationHandler] = None
     is_conversational: Optional[bool] = None
 
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = {"arbitrary_types_allowed": True, "extra": "allow"}
 
     @classmethod
     def with_defaults(cls: type[C], config_path: Optional[str] = None, **kwargs) -> C:
