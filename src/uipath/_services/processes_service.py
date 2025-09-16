@@ -7,7 +7,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
-from .._utils.constants import ENV_JOB_ID, HEADER_JOB_KEY
+from .._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
 from ..models.job import Job
 from ..tracing._traced import traced
 from . import AttachmentsService
@@ -87,6 +87,8 @@ class ProcessesService(FolderContext, BaseService):
         response = self.request(
             spec.method,
             url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
             content=spec.content,
             headers=spec.headers,
         )
@@ -146,6 +148,8 @@ class ProcessesService(FolderContext, BaseService):
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
             content=spec.content,
             headers=spec.headers,
         )
@@ -230,18 +234,18 @@ class ProcessesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        input_dict = {"startInfo": {"ReleaseName": name, **(input_data or {})}}
-        request_scope = RequestSpec(
+        request_spec = RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
             ),
-            content=str(input_dict),
+            json={"startInfo": {"ReleaseName": name, **(input_data or {})}},
             headers={
                 **header_folder(folder_key, folder_path),
             },
         )
-        job_key = os.environ.get(ENV_JOB_ID, None)
+        job_key = os.environ.get(ENV_JOB_KEY, None)
         if job_key:
-            request_scope.headers[HEADER_JOB_KEY] = job_key
-        return request_scope
+            request_spec.headers[HEADER_JOB_KEY] = job_key
+
+        return request_spec

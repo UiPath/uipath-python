@@ -1,12 +1,9 @@
-import copy
 from collections import defaultdict
 from time import time
 from typing import Dict, Generic, List, Optional, Sequence, TypeVar
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
-
-from uipath.eval._helpers import auto_discover_entrypoint
 
 from .._runtime._contracts import (
     UiPathBaseRuntime,
@@ -54,58 +51,30 @@ class ExecutionSpanExporter(SpanExporter):
         self.clear()
 
 
-class UiPathEvalContext(UiPathRuntimeContext, Generic[C]):
+class UiPathEvalContext(UiPathRuntimeContext):
     """Context used for evaluation runs."""
 
-    runtime_context: C
-    no_report: bool
-    workers: int
+    no_report: Optional[bool] = False
+    workers: Optional[int] = 1
     eval_set: Optional[str] = None
     eval_ids: Optional[List[str]] = None
-
-    def __init__(
-        self,
-        runtime_context: C,
-        no_report: bool,
-        workers: int,
-        eval_set: Optional[str] = None,
-        eval_ids: Optional[List[str]] = None,
-        **kwargs,
-    ):
-        super().__init__(
-            runtime_context=runtime_context,  # type: ignore
-            no_report=no_report,
-            workers=workers,
-            eval_set=eval_set,
-            eval_ids=eval_ids,
-            **kwargs,
-        )
-        self._auto_discover()
-
-    def _auto_discover(self):
-        self.runtime_context.entrypoint = (
-            self.runtime_context.entrypoint or auto_discover_entrypoint()
-        )
-        self.eval_set = self.eval_set or EvalHelpers.auto_discover_eval_set()
 
 
 class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     """Specialized runtime for evaluation runs, with access to the factory."""
 
-    def __init__(
-        self, context: "UiPathEvalContext[C]", factory: "UiPathRuntimeFactory[T, C]"
-    ):
+    def __init__(self, context: UiPathEvalContext, factory: UiPathRuntimeFactory[T, C]):
         super().__init__(context)
-        self.context: "UiPathEvalContext[C]" = context
+        self.context: UiPathEvalContext = context
         self.factory: UiPathRuntimeFactory[T, C] = factory
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
         self.factory.add_span_exporter(self.span_exporter)
 
     @classmethod
-    def from__eval_context(
+    def from_eval_context(
         cls,
-        context: "UiPathEvalContext[C]",
-        factory: "UiPathRuntimeFactory[T, C]",
+        context: UiPathEvalContext,
+        factory: UiPathRuntimeFactory[T, C],
     ) -> "UiPathEvalRuntime[T, C]":
         return cls(context, factory)
 
@@ -119,30 +88,26 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         )
         execution_output_list: list[UiPathEvalRunExecutionOutput] = []
         for eval_item in evaluation_set.evaluations:
-            execution_output_list.append(await self.execute_agent(eval_item))
+            execution_output = await self.execute_runtime(eval_item)
+            execution_output_list.append(execution_output)
 
         self.context.result = UiPathRuntimeResult(
             output={
                 "results": execution_output_list,
             },
             status=UiPathRuntimeStatus.SUCCESSFUL,
-            resume=None,
         )
 
-        return self.context.runtime_context.result
+        return self.context.result
 
-    def _prepare_new_runtime_context(self, eval_item: EvaluationItem) -> C:
-        runtime_context = copy.deepcopy(self.context.runtime_context)
-        runtime_context.execution_id = eval_item.id
-        runtime_context.input_json = eval_item.inputs
-        # here we can pass other values from eval_item: expectedAgentBehavior, simulationInstructions etc.
-        return runtime_context
-
-    # TODO: this would most likely need to be ported to a public AgentEvaluator class
-    async def execute_agent(
+    async def execute_runtime(
         self, eval_item: EvaluationItem
-    ) -> "UiPathEvalRunExecutionOutput":
-        runtime_context = self._prepare_new_runtime_context(eval_item)
+    ) -> UiPathEvalRunExecutionOutput:
+        runtime_context: C = self.factory.new_context(
+            execution_id=eval_item.id,
+            input_json=eval_item.inputs,
+            is_eval_run=True,
+        )
         start_time = time()
         result = await self.factory.execute_in_root_span(
             runtime_context, root_span=eval_item.name

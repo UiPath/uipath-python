@@ -1,6 +1,5 @@
 import os
 import uuid
-from json import dumps
 from typing import Any, Dict, List, Optional, Tuple
 
 from .._config import Config
@@ -81,30 +80,28 @@ def _create_spec(
     return RequestSpec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
-        content=dumps(
-            {
-                "appId": app_key,
-                "appVersion": app_version,
-                "title": title,
-                "data": data if data is not None else {},
-                "actionableMessageMetaData": {
-                    "fieldSet": {
-                        "id": str(uuid.uuid4()),
-                        "fields": field_list,
-                    }
-                    if len(field_list) != 0
-                    else {},
-                    "actionSet": {
-                        "id": str(uuid.uuid4()),
-                        "actions": outcome_list,
-                    }
-                    if len(outcome_list) != 0
-                    else {},
+        json={
+            "appId": app_key,
+            "appVersion": app_version,
+            "title": title,
+            "data": data if data is not None else {},
+            "actionableMessageMetaData": {
+                "fieldSet": {
+                    "id": str(uuid.uuid4()),
+                    "fields": field_list,
                 }
-                if action_schema is not None
+                if len(field_list) != 0
+                else {},
+                "actionSet": {
+                    "id": str(uuid.uuid4()),
+                    "actions": outcome_list,
+                }
+                if len(outcome_list) != 0
                 else {},
             }
-        ),
+            if action_schema is not None
+            else {},
+        },
         headers=folder_headers(app_folder_key, app_folder_path),
     )
 
@@ -126,9 +123,7 @@ def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
         endpoint=Endpoint(
             "/orchestrator_/odata/Tasks/UiPath.Server.Configuration.OData.AssignTasks"
         ),
-        content=dumps(
-            {"taskAssignments": [{"taskId": task_key, "UserNameOrEmail": assignee}]}
-        ),
+        json={"taskAssignments": [{"taskId": task_key, "UserNameOrEmail": assignee}]},
     )
 
 
@@ -224,12 +219,18 @@ class ActionsService(FolderContext, BaseService):
         )
 
         response = await self.request_async(
-            spec.method, spec.endpoint, content=spec.content, headers=spec.headers
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
         )
         json_response = response.json()
         if assignee:
             spec = _assign_task_spec(json_response["id"], assignee)
-            await self.request_async(spec.method, spec.endpoint, content=spec.content)
+            await self.request_async(
+                spec.method, spec.endpoint, json=spec.json, content=spec.content
+            )
         return Action.model_validate(json_response)
 
     @traced(name="actions_create", run_type="uipath")
@@ -284,12 +285,18 @@ class ActionsService(FolderContext, BaseService):
         )
 
         response = self.request(
-            spec.method, spec.endpoint, content=spec.content, headers=spec.headers
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
         )
         json_response = response.json()
         if assignee:
             spec = _assign_task_spec(json_response["id"], assignee)
-            self.request(spec.method, spec.endpoint, content=spec.content)
+            self.request(
+                spec.method, spec.endpoint, json=spec.json, content=spec.content
+            )
         return Action.model_validate(json_response)
 
     @traced(name="actions_retrieve", run_type="uipath")

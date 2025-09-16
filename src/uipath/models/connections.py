@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,9 +10,7 @@ class Connection(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
-
     id: Optional[str] = None
     name: Optional[str] = None
     owner: Optional[str] = None
@@ -40,9 +37,7 @@ class ConnectionToken(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
-
     access_token: str = Field(alias="accessToken")
     token_type: Optional[str] = Field(default=None, alias="tokenType")
     scope: Optional[str] = None

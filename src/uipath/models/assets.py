@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,9 +10,7 @@ class CredentialsConnectionData(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
-
     url: str
     body: str
     bearer_token: str = Field(alias="bearerToken")
@@ -26,9 +23,7 @@ class UserAsset(BaseModel):
         use_enum_values=True,
         arbitrary_types_allowed=True,
         extra="allow",
-        json_encoders={datetime: lambda v: v.isoformat() if v else None},
     )
-
     name: Optional[str] = Field(default=None, alias="Name")
     value: Optional[str] = Field(default=None, alias="Value")
     value_type: Optional[str] = Field(default=None, alias="ValueType")
