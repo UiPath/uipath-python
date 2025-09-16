@@ -135,52 +135,6 @@ class TestInitWithAgentsMd:
                 assert " Created 'AGENTS.md' file." in result.output
                 assert os.path.exists("AGENTS.md")
 
-    def test_init_creates_agents_md_in_real_scenario(
-        self, runner: CliRunner, temp_dir: str
-    ) -> None:
-        """Test that AGENTS.md is created in a real scenario."""
-        with runner.isolated_filesystem(temp_dir=temp_dir):
-            # Create a simple Python file
-            with open("main.py", "w") as f:
-                f.write("def main(input): return input")
-
-            # Mock the AGENTS.md source file
-            mock_source = (
-                Path(__file__).parent.parent.parent
-                / "src"
-                / "uipath"
-                / "_resources"
-                / "AGENTS.md"
-            )
-
-            with (
-                patch("uipath._cli.cli_init.importlib.resources.files") as mock_files,
-                patch(
-                    "uipath._cli.cli_init.importlib.resources.as_file"
-                ) as mock_as_file,
-            ):
-                # Setup mocks
-                mock_path = MagicMock()
-                mock_files.return_value.joinpath.return_value = mock_path
-
-                # Check if the actual AGENTS.md exists, if so use it
-                if mock_source.exists():
-                    mock_as_file.return_value.__enter__.return_value = mock_source
-                else:
-                    # Create a temp file to copy
-                    temp_agents = Path(temp_dir) / "temp_agents.md"
-                    temp_agents.write_text("Test AGENTS.md content")
-                    mock_as_file.return_value.__enter__.return_value = temp_agents
-
-                mock_as_file.return_value.__exit__.return_value = None
-
-                # Run init (AGENTS.md should be created by default)
-                result = runner.invoke(cli, ["init"])
-
-                assert result.exit_code == 0
-                assert " Created 'AGENTS.md'" in result.output
-                assert os.path.exists("AGENTS.md")
-
     def test_init_does_not_overwrite_existing_agents_md(
         self, runner: CliRunner, temp_dir: str
     ) -> None:

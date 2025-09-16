@@ -241,24 +241,6 @@ sdk.buckets.upload(name="MonthlyReports", source_path="report.pdf", blob_file_pa
 sdk.buckets.download(name="InputFiles", blob_file_path="data/customers.xlsx", destination_path="local_customers.xlsx")
 ```
 
-#### Action Center – suspend & resume (HITL)
-
-```python
-from uipath.models import CreateAction, WaitAction
-
-async def main(input_args: dict):
-    sdk = UiPath()
-    if "decision" in input_args:
-        return {"status": "complete", "decision": input_args["decision"]}
-
-    action = await sdk.actions.create_async(CreateAction(
-        title="Approve expense report for $5000",
-        data={"amount": 5000, "reason": "Team offsite"},
-        app_name="My_Approval_App",
-    ))
-    return WaitAction(action=action)
-```
-
 #### Context Grounding – RAG
 
 ```python
@@ -401,29 +383,7 @@ docs = retriever.invoke("Vacation policy?")
 print(llm.invoke(prompt.format(context=docs, question="Vacation policy? ")).content)
 ```
 
-### 4.5 HITL – Action Center + `interrupt`
-
-```python
-from uipath import UiPath
-from uipath.models import CreateAction
-from langgraph.types import interrupt
-
-sdk = UiPath()
-
-async def human_approval_node(state):
-    action = await sdk.actions.create_async(CreateAction(
-        title="Approve Email Rule",
-        action_catalog="email_rules",
-        priority="Normal",
-        assignee="user@company.com",
-        data={"rule": state.rule_data},
-    ))
-    result = interrupt(action.model_dump())
-    state.human_approved = bool(result.get("approved"))
-    return state
-```
-
-### 4.6 Embeddings & structured outputs
+### 4.5 Embeddings & structured outputs
 
 ```python
 from uipath_langchain.embeddings import UiPathAzureOpenAIEmbeddings
@@ -442,7 +402,7 @@ schema_chat = UiPathChat(model="gpt-4o-2024-08-06").with_structured_output(Email
 rule = schema_chat.invoke("Create a rule to move emails from noreply@company.com to Archive")
 ```
 
-### 4.7 Observability – Async tracer
+### 4.6 Observability – Async tracer
 
 ```python
 from uipath_langchain.tracers import AsyncUiPathTracer
