@@ -1,6 +1,7 @@
 import json
 import os
 from functools import wraps
+from pathlib import PurePath
 from typing import Any, Callable, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -103,7 +104,7 @@ class ProjectFolder(BaseModel):
         return v
 
 
-class ProjectStructure(BaseModel):
+class ProjectStructure(ProjectFolder):
     """Model representing the complete file structure of a UiPath project.
 
     Attributes:
@@ -114,34 +115,7 @@ class ProjectStructure(BaseModel):
         folder_type: The type of the root folder (optional)
     """
 
-    model_config = ConfigDict(
-        validate_by_name=True,
-        validate_by_alias=True,
-        use_enum_values=True,
-        arbitrary_types_allowed=True,
-        extra="allow",
-    )
-
-    id: Optional[str] = Field(default=None, alias="id")
-    name: Optional[str] = Field(default=None, alias="name")
-    folders: List[ProjectFolder] = Field(default_factory=list)
-    files: List[ProjectFile] = Field(default_factory=list)
-    folder_type: Optional[str] = Field(default=None, alias="folderType")
-
-    @field_validator("folder_type", mode="before")
-    @classmethod
-    def convert_folder_type(cls, v: Union[str, int, None]) -> Optional[str]:
-        """Convert numeric folder type to string.
-
-        Args:
-            v: The value to convert
-
-        Returns:
-            Optional[str]: The converted value or None
-        """
-        if isinstance(v, int):
-            return str(v)
-        return v
+    pass
 
 
 class LockInfo(BaseModel):
@@ -172,6 +146,33 @@ def get_folder_by_name(
         if folder.name == folder_name:
             return folder
     return None
+
+
+def resolve_path(
+    folder: ProjectFolder,
+    path: PurePath,
+) -> ProjectFile | ProjectFolder:
+    """Resolve a path relative to the folder.
+
+    Args:
+        folder: Project folder
+        path: Path relative to the folder
+
+    Returns: The resolved folder or file. If resolution fails, an assertion is raised.
+    """
+    root = path.parts
+    while len(root) > 1:
+        child = next(
+            (folder for folder in folder.folders if folder.name == root[0]), None
+        )
+        assert child, "Path not found."
+        folder = child
+        root = root[1:]
+    file = next((f for f in folder.files if f.name == root[0]), None)
+    child = next((folder for folder in folder.folders if folder.name == root[0]), None)
+    resolved = file or child
+    assert resolved, "Path not found."
+    return resolved
 
 
 class AddedResource(BaseModel):
