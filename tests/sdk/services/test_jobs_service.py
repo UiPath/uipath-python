@@ -214,7 +214,8 @@ class TestJobsService:
             sent_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/api/JobTriggers/DeliverPayload/{inbox_id}"
         )
-        assert json.loads(sent_request.content) == {"payload": payload}
+
+        assert json.loads(sent_request.content.decode()) == {"payload": payload}
 
         assert HEADER_USER_AGENT in sent_request.headers
         assert (
@@ -255,7 +256,8 @@ class TestJobsService:
             sent_requests[1].url
             == f"{base_url}{org}{tenant}/orchestrator_/api/JobTriggers/DeliverPayload/{inbox_id}"
         )
-        assert json.loads(sent_requests[1].content) == {"payload": payload}
+
+        assert json.loads(sent_requests[1].content.decode()) == {"payload": payload}
 
         assert HEADER_USER_AGENT in sent_requests[1].headers
         assert (
@@ -289,7 +291,8 @@ class TestJobsService:
             sent_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/api/JobTriggers/DeliverPayload/{inbox_id}"
         )
-        assert json.loads(sent_request.content) == {"payload": payload}
+
+        assert json.loads(sent_request.content.decode()) == {"payload": payload}
 
         assert HEADER_USER_AGENT in sent_request.headers
         assert (
@@ -331,7 +334,8 @@ class TestJobsService:
             sent_requests[1].url
             == f"{base_url}{org}{tenant}/orchestrator_/api/JobTriggers/DeliverPayload/{inbox_id}"
         )
-        assert json.loads(sent_requests[1].content) == {"payload": payload}
+
+        assert json.loads(sent_requests[1].content.decode()) == {"payload": payload}
 
         assert HEADER_USER_AGENT in sent_requests[1].headers
         assert (

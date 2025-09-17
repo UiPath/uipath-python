@@ -16,7 +16,6 @@ Classes:
     UiPathLlmChatService: Service using UiPath's normalized API format
 """
 
-import json
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
@@ -195,7 +194,7 @@ class UiPathOpenAIService(BaseService):
         response = await self.request_async(
             "POST",
             endpoint,
-            content=json.dumps({"input": input}),
+            json={"input": input},
             params={"api-version": API_VERSION},
             headers=DEFAULT_LLM_HEADERS,
         )
@@ -322,7 +321,7 @@ class UiPathOpenAIService(BaseService):
         response = await self.request_async(
             "POST",
             endpoint,
-            content=json.dumps(request_body),
+            json=request_body,
             params={"api-version": API_VERSION},
             headers=DEFAULT_LLM_HEADERS,
         )
@@ -534,7 +533,7 @@ class UiPathLlmChatService(BaseService):
         response = await self.request_async(
             "POST",
             endpoint,
-            content=json.dumps(request_body),
+            json=request_body,
             params={"api-version": NORMALIZED_API_VERSION},
             headers=headers,
         )

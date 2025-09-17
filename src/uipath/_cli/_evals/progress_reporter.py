@@ -65,7 +65,7 @@ class ProgressReporter:
             method=spec.method,
             url=spec.endpoint,
             params=spec.params,
-            content=spec.content,
+            json=spec.json,
             headers=spec.headers,
         )
         self._eval_set_run_id = json.loads(response.content)["id"]
@@ -84,7 +84,7 @@ class ProgressReporter:
             method=spec.method,
             url=spec.endpoint,
             params=spec.params,
-            content=spec.content,
+            json=spec.json,
             headers=spec.headers,
         )
         return json.loads(response.content)["id"]
@@ -116,7 +116,7 @@ class ProgressReporter:
             method=spec.method,
             url=spec.endpoint,
             params=spec.params,
-            content=spec.content,
+            json=spec.json,
             headers=spec.headers,
         )
 
@@ -127,7 +127,7 @@ class ProgressReporter:
             method=spec.method,
             url=spec.endpoint,
             params=spec.params,
-            content=spec.content,
+            json=spec.json,
             headers=spec.headers,
         )
 
@@ -201,18 +201,16 @@ class ProgressReporter:
             endpoint=Endpoint(
                 f"agentsruntime_/api/execution/agents/{self._project_id}/evalRun"
             ),
-            content=json.dumps(
-                {
-                    "evalRunId": eval_run_id,
-                    "status": EvaluationStatus.COMPLETED.value,
-                    "result": {
-                        "output": {"content": {**actual_output}},
-                        "evaluatorScores": evaluator_scores,
-                    },
-                    "completionMetrics": {"duration": int(execution_time)},
-                    "assertionRuns": assertion_runs,
-                }
-            ),
+            json={
+                "evalRunId": eval_run_id,
+                "status": EvaluationStatus.COMPLETED.value,
+                "result": {
+                    "output": {"content": {**actual_output}},
+                    "evaluatorScores": evaluator_scores,
+                },
+                "completionMetrics": {"duration": int(execution_time)},
+                "assertionRuns": assertion_runs,
+            },
             headers=self._tenant_header(),
         )
 
@@ -222,18 +220,16 @@ class ProgressReporter:
             endpoint=Endpoint(
                 f"agentsruntime_/api/execution/agents/{self._project_id}/evalRun"
             ),
-            content=json.dumps(
-                {
-                    "evalSetRunId": self._eval_set_run_id,
-                    "evalSnapshot": {
-                        "id": eval_item["id"],
-                        "name": eval_item["name"],
-                        "inputs": eval_item.get("inputs"),
-                        "expectedOutput": eval_item.get("expectedOutput", {}),
-                    },
-                    "status": EvaluationStatus.IN_PROGRESS.value,
-                }
-            ),
+            json={
+                "evalSetRunId": self._eval_set_run_id,
+                "evalSnapshot": {
+                    "id": eval_item["id"],
+                    "name": eval_item["name"],
+                    "inputs": eval_item.get("inputs"),
+                    "expectedOutput": eval_item.get("expectedOutput", {}),
+                },
+                "status": EvaluationStatus.IN_PROGRESS.value,
+            },
             headers=self._tenant_header(),
         )
 
@@ -247,15 +243,13 @@ class ProgressReporter:
             endpoint=Endpoint(
                 f"agentsruntime_/api/execution/agents/{self._project_id}/evalSetRun"
             ),
-            content=json.dumps(
-                {
-                    "agentId": self._project_id,
-                    "evalSetId": self._eval_set_id,
-                    "agentSnapshot": agent_snapshot_dict,
-                    "status": EvaluationStatus.IN_PROGRESS.value,
-                    "numberOfEvalsExecuted": self._no_of_evals,
-                }
-            ),
+            json={
+                "agentId": self._project_id,
+                "evalSetId": self._eval_set_id,
+                "agentSnapshot": agent_snapshot_dict,
+                "status": EvaluationStatus.IN_PROGRESS.value,
+                "numberOfEvalsExecuted": self._no_of_evals,
+            },
             headers=self._tenant_header(),
         )
 
@@ -293,13 +287,11 @@ class ProgressReporter:
             endpoint=Endpoint(
                 f"agentsruntime_/api/execution/agents/{self._project_id}/evalSetRun"
             ),
-            content=json.dumps(
-                {
-                    "evalSetRunId": self._eval_set_run_id,
-                    "status": EvaluationStatus.COMPLETED.value,
-                    "evaluatorScores": evaluator_scores,
-                }
-            ),
+            json={
+                "evalSetRunId": self._eval_set_run_id,
+                "status": EvaluationStatus.COMPLETED.value,
+                "evaluatorScores": evaluator_scores,
+            },
             headers=self._tenant_header(),
         )
 

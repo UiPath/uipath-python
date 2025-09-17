@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import tempfile
@@ -81,7 +80,7 @@ class JobsService(FolderContext, BaseService):
             spec.method,
             url=spec.endpoint,
             headers=spec.headers,
-            content=spec.content,
+            json=spec.json,
         )
 
     async def resume_async(
@@ -142,7 +141,7 @@ class JobsService(FolderContext, BaseService):
             spec.method,
             url=spec.endpoint,
             headers=spec.headers,
-            content=spec.content,
+            json=spec.json,
         )
 
     @property
@@ -412,7 +411,7 @@ class JobsService(FolderContext, BaseService):
             endpoint=Endpoint(
                 f"/orchestrator_/api/JobTriggers/DeliverPayload/{inbox_id}"
             ),
-            content=json.dumps({"payload": payload}),
+            json={"payload": payload},
             headers={
                 **header_folder(folder_key, folder_path),
             },
