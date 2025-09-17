@@ -1,4 +1,3 @@
-import json
 from typing import Any, List, Optional, Tuple, Union
 
 import httpx
@@ -353,7 +352,7 @@ class ContextGroundingService(FolderContext, BaseService):
         response = self.request(
             spec.method,
             spec.endpoint,
-            content=spec.content,
+            json=spec.json,
         )
 
         return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
@@ -403,7 +402,7 @@ class ContextGroundingService(FolderContext, BaseService):
         response = await self.request_async(
             spec.method,
             spec.endpoint,
-            content=spec.content,
+            json=spec.json,
         )
 
         return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
@@ -592,21 +591,19 @@ class ContextGroundingService(FolderContext, BaseService):
         return RequestSpec(
             method="POST",
             endpoint=Endpoint("/ecs_/v2/indexes/create"),
-            content=json.dumps(
-                {
-                    "name": name,
-                    "description": description,
-                    "dataSource": {
-                        "@odata.type": ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
-                        "folder": storage_bucket_folder_path,
-                        "bucketName": storage_bucket_name,
-                        "fileNameGlob": file_name_glob
-                        if file_name_glob is not None
-                        else "*",
-                        "directoryPath": "/",
-                    },
-                }
-            ),
+            json={
+                "name": name,
+                "description": description,
+                "dataSource": {
+                    "@odata.type": ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
+                    "folder": storage_bucket_folder_path,
+                    "bucketName": storage_bucket_name,
+                    "fileNameGlob": file_name_glob
+                    if file_name_glob is not None
+                    else "*",
+                    "directoryPath": "/",
+                },
+            },
             headers={
                 **header_folder(folder_key, None),
             },
@@ -657,12 +654,10 @@ class ContextGroundingService(FolderContext, BaseService):
         return RequestSpec(
             method="POST",
             endpoint=Endpoint("/ecs_/v1/search"),
-            content=json.dumps(
-                {
-                    "query": {"query": query, "numberOfResults": number_of_results},
-                    "schema": {"name": name},
-                }
-            ),
+            json={
+                "query": {"query": query, "numberOfResults": number_of_results},
+                "schema": {"name": name},
+            },
             headers={
                 **header_folder(folder_key, None),
             },

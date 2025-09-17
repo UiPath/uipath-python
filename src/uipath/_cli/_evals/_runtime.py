@@ -1,10 +1,15 @@
+import json
 from collections import defaultdict
+from pathlib import Path
 from time import time
-from typing import Dict, Generic, List, Optional, Sequence, TypeVar
+from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
+from ...eval.evaluators import BaseEvaluator
+from ...eval.models import EvaluationResult
+from ...eval.models.models import AgentExecution
 from .._runtime._contracts import (
     UiPathBaseRuntime,
     UiPathRuntimeContext,
@@ -13,8 +18,15 @@ from .._runtime._contracts import (
     UiPathRuntimeStatus,
 )
 from .._utils._eval_set import EvalHelpers
-from ._models import EvaluationItem
-from ._models._agent_execution_output import UiPathEvalRunExecutionOutput
+from ._evaluator_factory import EvaluatorFactory
+from ._models._evaluation_set import EvaluationItem, EvaluationSet
+from ._models._output import (
+    EvaluationResultDto,
+    EvaluationRunResult,
+    EvaluationRunResultDto,
+    UiPathEvalOutput,
+    UiPathEvalRunExecutionOutput,
+)
 
 T = TypeVar("T", bound=UiPathBaseRuntime)
 C = TypeVar("C", bound=UiPathRuntimeContext)
@@ -86,15 +98,36 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         evaluation_set = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
-        execution_output_list: list[UiPathEvalRunExecutionOutput] = []
+        evaluators = self._load_evaluators(evaluation_set)
+        results = UiPathEvalOutput(
+            evaluation_set_name=evaluation_set.name, score=0, evaluation_set_results=[]
+        )
         for eval_item in evaluation_set.evaluations:
-            execution_output = await self.execute_runtime(eval_item)
-            execution_output_list.append(execution_output)
+            evaluation_run_results = EvaluationRunResult(
+                evaluation_name=eval_item.name, evaluation_run_results=[]
+            )
 
+            results.evaluation_set_results.append(evaluation_run_results)
+            agent_execution_output = await self.execute_runtime(eval_item)
+            # we run each evaluator on the agent_output
+            for evaluator in evaluators:
+                evaluation_result = await self.run_evaluator(
+                    evaluator=evaluator,
+                    execution_output=agent_execution_output,
+                    eval_item=eval_item,
+                )
+                evaluation_run_results.evaluation_run_results.append(
+                    EvaluationRunResultDto(
+                        evaluator_name=evaluator.name,
+                        result=EvaluationResultDto.from_evaluation_result(
+                            evaluation_result
+                        ),
+                    )
+                )
+
+        results.compute_average_score()
         self.context.result = UiPathRuntimeResult(
-            output={
-                "results": execution_output_list,
-            },
+            output={**results.model_dump(by_alias=True)},
             status=UiPathRuntimeStatus.SUCCESSFUL,
         )
 
@@ -127,6 +160,65 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             spans=spans,
             result=result,
         )
+
+    async def run_evaluator(
+        self,
+        evaluator: BaseEvaluator[Any],
+        execution_output: UiPathEvalRunExecutionOutput,
+        eval_item: EvaluationItem,
+    ) -> EvaluationResult:
+        agent_execution = AgentExecution(
+            agent_input=eval_item.inputs,
+            agent_output=execution_output.result.output or {},
+            agent_trace=execution_output.spans,
+        )
+
+        result = await evaluator.evaluate(
+            agent_execution=agent_execution,
+            # at the moment evaluation_criteria is always the expected output
+            evaluation_criteria=eval_item.expected_output,
+        )
+
+        return result
+
+    def _load_evaluators(
+        self, evaluation_set: EvaluationSet
+    ) -> List[BaseEvaluator[Any]]:
+        """Load evaluators referenced by the evaluation set."""
+        evaluators = []
+        evaluators_dir = Path(self.context.eval_set).parent.parent / "evaluators"  # type: ignore
+        evaluator_refs = set(evaluation_set.evaluator_refs)
+        found_evaluator_ids = set()
+
+        for file in evaluators_dir.glob("*.json"):
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"Invalid JSON in evaluator file '{file}': {str(e)}. "
+                    f"Please check the file for syntax errors."
+                ) from e
+
+            try:
+                evaluator_id = data.get("id")
+                if evaluator_id in evaluator_refs:
+                    evaluator = EvaluatorFactory.create_evaluator(data)
+                    evaluators.append(evaluator)
+                    found_evaluator_ids.add(evaluator_id)
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to create evaluator from file '{file}': {str(e)}. "
+                    f"Please verify the evaluator configuration."
+                ) from e
+
+        missing_evaluators = evaluator_refs - found_evaluator_ids
+        if missing_evaluators:
+            raise ValueError(
+                f"Could not find the following evaluators: {missing_evaluators}"
+            )
+
+        return evaluators
 
     async def cleanup(self) -> None:
         """Cleanup runtime resources."""

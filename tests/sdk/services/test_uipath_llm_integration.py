@@ -1,4 +1,3 @@
-import json
 import os
 from unittest.mock import MagicMock, patch
 
@@ -280,9 +279,9 @@ class TestUiPathLLMServiceMocked:
         # Verify the correct endpoint and payload
         args, kwargs = mock_request.call_args
         assert "/llmgateway_/api/chat/completions" in args[1]
-        assert json.loads(kwargs["content"])["messages"] == messages
-        assert json.loads(kwargs["content"])["max_tokens"] == 50
-        assert json.loads(kwargs["content"])["temperature"] == 0
+        assert kwargs["json"]["messages"] == messages
+        assert kwargs["json"]["max_tokens"] == 50
+        assert kwargs["json"]["temperature"] == 0
 
     @pytest.mark.asyncio
     @patch.object(UiPathLlmChatService, "request_async")
@@ -509,6 +508,6 @@ class TestUiPathLLMServiceMocked:
 
         # Verify the correct payload was sent
         args, kwargs = mock_request.call_args
-        assert json.loads(kwargs["content"])["messages"] == messages
-        assert json.loads(kwargs["content"])["max_tokens"] == 100
-        assert json.loads(kwargs["content"])["temperature"] == 0.7
+        assert kwargs["json"]["messages"] == messages
+        assert kwargs["json"]["max_tokens"] == 100
+        assert kwargs["json"]["temperature"] == 0.7
