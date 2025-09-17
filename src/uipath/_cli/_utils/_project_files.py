@@ -69,6 +69,7 @@ def get_project_config(directory: str) -> dict[str, str]:
         "authors": toml_data["authors"],
         "dependencies": toml_data.get("dependencies", {}),
         "requires-python": toml_data.get("requires-python", None),
+        "settings": config_data.get("settings", {}),
     }
 
 
