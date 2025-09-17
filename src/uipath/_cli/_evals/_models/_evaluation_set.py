@@ -1,40 +1,45 @@
 from enum import IntEnum
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 
 class EvaluationItem(BaseModel):
     """Individual evaluation item within an evaluation set."""
 
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     id: str
     name: str
     inputs: Dict[str, Any]
-    expectedOutput: Dict[str, Any]
-    expectedAgentBehavior: str = ""
-    simulationInstructions: str = ""
-    simulateInput: bool = False
-    inputGenerationInstructions: str = ""
-    simulateTools: bool = False
-    toolsToSimulate: List[str] = Field(default_factory=list)
-    evalSetId: str
-    createdAt: str
-    updatedAt: str
+    expected_output: Dict[str, Any]
+    expected_agent_behavior: str = ""
+    simulation_instructions: str = ""
+    simulate_input: bool = False
+    input_generation_instructions: str = ""
+    simulate_tools: bool = False
+    tools_to_simulate: List[str] = Field(default_factory=list)
+    eval_set_id: str
+    created_at: str
+    updated_at: str
 
 
 class EvaluationSet(BaseModel):
     """Complete evaluation set model."""
 
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     id: str
-    fileName: str
-    evaluatorRefs: List[str] = Field(default_factory=list)
+    file_name: str
+    evaluator_refs: List[str] = Field(default_factory=list)
     evaluations: List[EvaluationItem] = Field(default_factory=list)
     name: str
-    batchSize: int = 10
-    timeoutMinutes: int = 20
-    modelSettings: List[Dict[str, Any]] = Field(default_factory=list)
-    createdAt: str
-    updatedAt: str
+    batch_size: int = 10
+    timeout_minutes: int = 20
+    model_settings: List[Dict[str, Any]] = Field(default_factory=list)
+    created_at: str
+    updated_at: str
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[EvaluationItem] = []
