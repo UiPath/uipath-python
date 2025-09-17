@@ -7,12 +7,12 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from uipath._cli._auth._auth_server import HTTPServer
-from uipath._cli._auth._client_credentials import ClientCredentialsService
 from uipath._cli._auth._oidc_utils import OidcUtils
 from uipath._cli._auth._portal_service import PortalService, select_tenant
 from uipath._cli._auth._url_utils import set_force_flag
 from uipath._cli._auth._utils import update_auth_file, update_env_file
 from uipath._cli._utils._console import ConsoleLogger
+from uipath._services import ExternalApplicationService
 
 
 class AuthService:
@@ -63,8 +63,8 @@ class AuthService:
             )
             return
         self._console.hint("Using client credentials authentication.")
-        credentials_service = ClientCredentialsService(self._base_url)
-        credentials_service.authenticate(
+        credentials_service = ExternalApplicationService(self._base_url)
+        credentials_service.get_access_token(
             self._client_id,  # type: ignore
             self._client_secret,  # type: ignore
             self._scope,
