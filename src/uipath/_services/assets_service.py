@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from httpx import Response
 
@@ -10,9 +10,10 @@ from .._utils._read_overwrites import OverwritesManager
 from ..models import Asset, UserAsset
 from ..tracing._traced import traced
 from ._base_service import BaseService
+from ._cli_service import ClIService
 
 
-class AssetsService(FolderContext, BaseService):
+class AssetsService(FolderContext, BaseService, ClIService):
     """Service for managing UiPath assets.
 
     Assets are key-value pairs that can be used to store configuration data,
@@ -27,6 +28,56 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
     )
+
+    def _list(self, **kwargs) -> List[Asset]:
+        """List all assets in the current folder"""
+
+        folder_path = kwargs.get('folder_path')
+        if folder_path is None:
+            if self._folder_path is None:
+                raise ValueError("Either folder_path must be provided or folder_key must be configured")
+            spec = self._list_spec(folder_key=self._folder_key)
+        else:
+            spec = self._list_spec(folder_path=folder_path)
+
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            content=spec.content,
+            headers=spec.headers,
+        )
+
+        assets_data = response.json().get("value", [])
+
+        return [Asset.model_validate(asset_data) for asset_data in assets_data]
+
+    @infer_bindings(resource_type="asset")
+    async def _list_async(
+        self,
+        folder_path: Optional[str] = None,
+        name: Optional[str] = None) -> List[Asset]:
+        """Asynchronously list all assets in the current folder"""
+
+        if folder_path is None:
+            if self._folder_path is None:
+                raise ValueError("Either folder_path must be provided or folder_key must be configured")
+            spec = self._list_spec(folder_key=self._folder_key)
+        else:
+            spec = self._list_spec(folder_path=folder_path)
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            content=spec.content,
+            headers=spec.headers,
+        )
+
+        assets_data = response.json().get("value", [])
+
+        return [Asset.model_validate(asset_data) for asset_data in assets_data]
+
     @infer_bindings(resource_type="asset")
     def retrieve(
         self,
@@ -367,6 +418,20 @@ class AssetsService(FolderContext, BaseService):
                 "robotKey": self._execution_context.robot_key,
                 "robotAsset": robot_asset.model_dump(by_alias=True, exclude_none=True),
             },
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _list_spec(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered"),
+            params={"$top": 100},
             headers={
                 **header_folder(folder_key, folder_path),
             },

@@ -16,7 +16,7 @@ from .cli_publish import publish as publish  # type: ignore
 from .cli_pull import pull as pull  # type: ignore
 from .cli_push import push as push  # type: ignore
 from .cli_run import run as run  # type: ignore
-
+from .cli_list import get as get # type: ignore
 
 def _get_safe_version() -> str:
     """Get the version of the uipath package."""
@@ -73,3 +73,4 @@ cli.add_command(push)
 cli.add_command(pull)
 cli.add_command(eval)
 cli.add_command(dev)
+cli.add_command(get)
