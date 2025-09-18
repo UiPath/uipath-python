@@ -2,25 +2,28 @@ import importlib
 import inspect
 import json
 import logging
+from contextvars import ContextVar
 from functools import wraps
 from typing import Any, Callable, List, Optional, Tuple
 
-from opentelemetry import trace
+from opentelemetry import context, trace
+from opentelemetry.trace import set_span_in_context
 
 from ._utils import _SpanUtils
 
 logger = logging.getLogger(__name__)
 
 _tracer_instance: Optional[trace.Tracer] = None
+# ContextVar to track the currently active span for nesting
+_active_traced_span: ContextVar[Optional[trace.Span]] = ContextVar(
+    "_active_traced_span", default=None
+)
 
 
 def get_tracer() -> trace.Tracer:
     """Lazily initializes and returns the tracer instance."""
     global _tracer_instance
     if _tracer_instance is None:
-        logger.warning(
-            "Initializing tracer instance. This should only be done once per process."
-        )
         _tracer_instance = trace.get_tracer(__name__)
     return _tracer_instance
 
@@ -53,24 +56,24 @@ class TracingManager:
         """
         cls._current_span_provider = current_span_provider
 
-    @classmethod
-    def get_parent_context(cls):
-        """Get the parent context using the registered current span provider.
+    @staticmethod
+    def get_parent_context():
+        # Always use the currently active OTel span if valid (recursion / children)
+        current_span = trace.get_current_span()
+        if current_span is not None and current_span.get_span_context().is_valid:
+            return set_span_in_context(current_span)
 
-        Returns:
-            Context object with the current span set, or None if no provider is registered.
-        """
-        if cls._current_span_provider is not None:
+        # Only for the very top-level call, fallback to LangGraph span
+        if TracingManager._current_span_provider is not None:
             try:
-                current_span = cls._current_span_provider()
-                if current_span is not None:
-                    from opentelemetry.trace import set_span_in_context
-
-                    return set_span_in_context(current_span)
+                external_span = TracingManager._current_span_provider()
+                if external_span is not None:
+                    return set_span_in_context(external_span)
             except Exception as e:
                 logger.warning(f"Error getting current span from provider: {e}")
-                return None
-        return None
+
+        # Last fallback
+        return context.get_current()
 
     @classmethod
     def register_traced_function(cls, original_func, decorated_func, params):
@@ -176,176 +179,169 @@ def _opentelemetry_traced(
     """Default tracer implementation using OpenTelemetry."""
 
     def decorator(func):
-        trace_name = name if name is not None else func.__name__
+        trace_name = name or func.__name__
 
+        def get_parent_context():
+            """Return a context object for starting the new span."""
+            current_span = _active_traced_span.get()
+            if current_span is not None and current_span.get_span_context().is_valid:
+                return set_span_in_context(current_span)
+
+            if TracingManager._current_span_provider is not None:
+                try:
+                    external_span = TracingManager._current_span_provider()
+                    if external_span is not None:
+                        return set_span_in_context(external_span)
+                except Exception as e:
+                    logger.warning(f"Error getting current span from provider: {e}")
+
+            return context.get_current()
+
+        # --------- Sync wrapper ---------
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            context = TracingManager.get_parent_context()
-
-            with get_tracer().start_as_current_span(
-                trace_name, context=context
-            ) as span:
-                default_span_type = "function_call_sync"
-                span.set_attribute(
-                    "span_type",
-                    span_type if span_type is not None else default_span_type,
-                )
+            ctx = get_parent_context()
+            span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
+            span = span_cm.__enter__()
+            token = _active_traced_span.set(span)
+            try:
+                span.set_attribute("span_type", span_type or "function_call_sync")
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
-                # Format arguments for tracing
                 inputs = _SpanUtils.format_args_for_trace_json(
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
-                if input_processor is not None:
+                if input_processor:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
                 span.set_attribute("inputs", inputs)
-                try:
-                    result = func(*args, **kwargs)
-                    # Process output if processor is provided
-                    output = result
-                    if output_processor is not None:
-                        output = output_processor(result)
-                    span.set_attribute("output", json.dumps(output, default=str))
-                    return result
-                except Exception as e:
-                    span.record_exception(e)
-                    span.set_status(
-                        trace.status.Status(trace.status.StatusCode.ERROR, str(e))
-                    )
-                    raise
 
+                result = func(*args, **kwargs)
+                output = output_processor(result) if output_processor else result
+                span.set_attribute("output", json.dumps(output, default=str))
+                return result
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(
+                    trace.status.Status(trace.status.StatusCode.ERROR, str(e))
+                )
+                raise
+            finally:
+                _active_traced_span.reset(token)
+                span_cm.__exit__(None, None, None)
+
+        # --------- Async wrapper ---------
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            context = TracingManager.get_parent_context()
-
-            with get_tracer().start_as_current_span(
-                trace_name, context=context
-            ) as span:
-                default_span_type = "function_call_async"
-                span.set_attribute(
-                    "span_type",
-                    span_type if span_type is not None else default_span_type,
-                )
+            ctx = get_parent_context()
+            span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
+            span = span_cm.__enter__()
+            token = _active_traced_span.set(span)
+            try:
+                span.set_attribute("span_type", span_type or "function_call_async")
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
-                # Format arguments for tracing
                 inputs = _SpanUtils.format_args_for_trace_json(
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
-                if input_processor is not None:
+                if input_processor:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
                 span.set_attribute("inputs", inputs)
-                try:
-                    result = await func(*args, **kwargs)
-                    # Process output if processor is provided
-                    output = result
-                    if output_processor is not None:
-                        output = output_processor(result)
-                    span.set_attribute("output", json.dumps(output, default=str))
-                    return result
-                except Exception as e:
-                    span.record_exception(e)
-                    span.set_status(
-                        trace.status.Status(trace.status.StatusCode.ERROR, str(e))
-                    )
-                    raise
 
+                result = await func(*args, **kwargs)
+                output = output_processor(result) if output_processor else result
+                span.set_attribute("output", json.dumps(output, default=str))
+                return result
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(
+                    trace.status.Status(trace.status.StatusCode.ERROR, str(e))
+                )
+                raise
+            finally:
+                _active_traced_span.reset(token)
+                span_cm.__exit__(None, None, None)
+
+        # --------- Generator wrapper ---------
         @wraps(func)
         def generator_wrapper(*args, **kwargs):
-            context = TracingManager.get_parent_context()
-
-            with get_tracer().start_as_current_span(
-                trace_name, context=context
-            ) as span:
-                span.get_span_context()
-                default_span_type = "function_call_generator_sync"
+            ctx = get_parent_context()
+            span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
+            span = span_cm.__enter__()
+            token = _active_traced_span.set(span)
+            try:
                 span.set_attribute(
-                    "span_type",
-                    span_type if span_type is not None else default_span_type,
+                    "span_type", span_type or "function_call_generator_sync"
                 )
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
-                # Format arguments for tracing
                 inputs = _SpanUtils.format_args_for_trace_json(
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
-                if input_processor is not None:
+                if input_processor:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
                 span.set_attribute("inputs", inputs)
+
                 outputs = []
-                try:
-                    for item in func(*args, **kwargs):
-                        outputs.append(item)
-                        span.add_event(f"Yielded: {item}")  # Add event for each yield
-                        yield item
+                for item in func(*args, **kwargs):
+                    outputs.append(item)
+                    span.add_event(f"Yielded: {item}")
+                    yield item
+                output = output_processor(outputs) if output_processor else outputs
+                span.set_attribute("output", json.dumps(output, default=str))
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(
+                    trace.status.Status(trace.status.StatusCode.ERROR, str(e))
+                )
+                raise
+            finally:
+                _active_traced_span.reset(token)
+                span_cm.__exit__(None, None, None)
 
-                    # Process output if processor is provided
-                    output_to_record = outputs
-                    if output_processor is not None:
-                        output_to_record = output_processor(outputs)
-                    span.set_attribute(
-                        "output", json.dumps(output_to_record, default=str)
-                    )
-                except Exception as e:
-                    span.record_exception(e)
-                    span.set_status(
-                        trace.status.Status(trace.status.StatusCode.ERROR, str(e))
-                    )
-                    raise
-
+        # --------- Async generator wrapper ---------
         @wraps(func)
         async def async_generator_wrapper(*args, **kwargs):
-            context = TracingManager.get_parent_context()
-
-            with get_tracer().start_as_current_span(
-                trace_name, context=context
-            ) as span:
-                default_span_type = "function_call_generator_async"
+            ctx = get_parent_context()
+            span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
+            span = span_cm.__enter__()
+            token = _active_traced_span.set(span)
+            try:
                 span.set_attribute(
-                    "span_type",
-                    span_type if span_type is not None else default_span_type,
+                    "span_type", span_type or "function_call_generator_async"
                 )
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
-                # Format arguments for tracing
                 inputs = _SpanUtils.format_args_for_trace_json(
                     inspect.signature(func), *args, **kwargs
                 )
-                # Apply input processor if provided
-                if input_processor is not None:
+                if input_processor:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
                 span.set_attribute("inputs", inputs)
-                outputs = []
-                try:
-                    async for item in func(*args, **kwargs):
-                        outputs.append(item)
-                        span.add_event(f"Yielded: {item}")  # Add event for each yield
-                        yield item
 
-                    # Process output if processor is provided
-                    output_to_record = outputs
-                    if output_processor is not None:
-                        output_to_record = output_processor(outputs)
-                    span.set_attribute(
-                        "output", json.dumps(output_to_record, default=str)
-                    )
-                except Exception as e:
-                    span.record_exception(e)
-                    span.set_status(
-                        trace.status.Status(trace.status.StatusCode.ERROR, str(e))
-                    )
-                    raise
+                outputs = []
+                async for item in func(*args, **kwargs):
+                    outputs.append(item)
+                    span.add_event(f"Yielded: {item}")
+                    yield item
+                output = output_processor(outputs) if output_processor else outputs
+                span.set_attribute("output", json.dumps(output, default=str))
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(
+                    trace.status.Status(trace.status.StatusCode.ERROR, str(e))
+                )
+                raise
+            finally:
+                _active_traced_span.reset(token)
+                span_cm.__exit__(None, None, None)
 
         if inspect.iscoroutinefunction(func):
             return async_wrapper
