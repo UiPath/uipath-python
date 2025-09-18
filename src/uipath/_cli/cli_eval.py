@@ -14,6 +14,7 @@ from uipath._cli._runtime._contracts import (
 from uipath._cli._runtime._runtime import UiPathScriptRuntime
 from uipath._cli.middlewares import Middlewares
 from uipath.eval._helpers import auto_discover_entrypoint
+from uipath.tracing import LlmOpsHttpExporter
 
 from .._utils.constants import ENV_JOB_ID
 from ..telemetry import track
@@ -108,6 +109,8 @@ def eval(
                 UiPathRuntimeContext,
                 context_generator=generate_runtime_context,
             )
+            if not no_report or eval_context.job_id:
+                runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 
             async def execute():
                 async with UiPathEvalRuntime.from_eval_context(
