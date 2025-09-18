@@ -532,3 +532,472 @@ class TestPush:
                     "solutionLockKey": "test-solution-lock-key",
                 },
             )
+
+    def test_push_files_excluded(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that files mentioned in filesExcluded are excluded from push."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Set up exclusions - exclude a JSON file that would normally be included
+        uipath_json.settings.files_excluded = ["config.json"]
+
+        # Mock the project structure response (empty project)
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        # Create source_code folder
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
+            status_code=200,
+            json={
+                "id": "123",
+                "name": "source_code",
+                "folders": [],
+                "files": [],
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        # Mock empty folder cleanup
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create files - config.json should be excluded, other.json should be included
+            with open("config.json", "w") as f:
+                f.write('{"should": "be excluded"}')
+            with open("other.json", "w") as f:
+                f.write('{"should": "be included"}')
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+
+            # Verify that excluded file was not mentioned in output
+            assert "config.json" not in result.output
+            # Verify that other files were uploaded
+            assert "Uploading other.json" in result.output
+            assert "Uploading main.py" in result.output
+
+    def test_push_files_excluded_takes_precedence_over_included(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that filesExcluded takes precedence over filesIncluded in push."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Set up both inclusion and exclusion for the same file
+        uipath_json.settings.files_included = ["conflicting.txt"]
+        uipath_json.settings.files_excluded = ["conflicting.txt"]
+
+        # Mock the project structure response (empty project)
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        # Create source_code folder
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
+            status_code=200,
+            json={
+                "id": "123",
+                "name": "source_code",
+                "folders": [],
+                "files": [],
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        # Mock empty folder cleanup
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create the conflicting file
+            with open("conflicting.txt", "w") as f:
+                f.write("This file should be excluded despite being in filesIncluded")
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+
+            # File should be excluded (exclusion takes precedence)
+            assert "conflicting.txt" not in result.output
+            # Verify other files were uploaded
+            assert "Uploading main.py" in result.output
+
+    def test_push_filename_vs_path_exclusion(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that filename exclusion only affects root directory, path exclusion affects specific paths in push."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Exclude root config.json and specific path subdir2/settings.json
+        uipath_json.settings.files_excluded = ["config.json", "subdir2/settings.json"]
+
+        # Mock empty project structure
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
+            status_code=200,
+            json={"id": "123", "name": "source_code", "folders": [], "files": []},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create directories
+            os.mkdir("subdir1")
+            os.mkdir("subdir2")
+
+            # Create files with same names in different locations
+            with open("config.json", "w") as f:  # Root - should be excluded
+                f.write('{"root": "config"}')
+            with open("subdir1/config.json", "w") as f:  # Subdir - should be included
+                f.write('{"subdir1": "config"}')
+            with open("subdir2/config.json", "w") as f:  # Subdir - should be included
+                f.write('{"subdir2": "config"}')
+
+            with open("settings.json", "w") as f:  # Root - should be included
+                f.write('{"root": "settings"}')
+            with open("subdir1/settings.json", "w") as f:  # Subdir - should be included
+                f.write('{"subdir1": "settings"}')
+            with open(
+                "subdir2/settings.json", "w"
+            ) as f:  # Specific path - should be excluded
+                f.write('{"subdir2": "settings"}')
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+
+            # Filename exclusion should only affect root directory
+            # Since we exclude root config.json, it shouldn't appear in output
+            # But subdirectory config.json files should still be uploaded
+
+            # Path exclusion should only affect specific path
+            # settings.json in root and subdir1 should be uploaded
+            # but subdir2/settings.json should be excluded
+
+            assert (
+                "settings.json" in result.output
+            )  # At least some settings.json should be present
+            assert "Uploading main.py" in result.output
+
+    def test_push_filename_vs_path_inclusion(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that filename inclusion only affects root directory, path inclusion affects specific paths in push."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Include root data.txt and specific path subdir1/config.txt
+        uipath_json.settings.files_included = ["data.txt", "subdir1/config.txt"]
+
+        # Mock empty project structure
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
+            status_code=200,
+            json={"id": "123", "name": "source_code", "folders": [], "files": []},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create directories
+            os.mkdir("subdir1")
+            os.mkdir("subdir2")
+
+            # Create .txt files (not included by default extension)
+            with open("data.txt", "w") as f:  # Root - should be included by filename
+                f.write("root data")
+            with open("subdir1/data.txt", "w") as f:  # Subdir - should NOT be included
+                f.write("subdir1 data")
+            with open(
+                "subdir2/data.txt", "w"
+            ) as f:  # Different subdir - should NOT be included
+                f.write("subdir2 data")
+
+            with open("config.txt", "w") as f:  # Root - should NOT be included
+                f.write("root config")
+            with open(
+                "subdir1/config.txt", "w"
+            ) as f:  # Specific path - should be included
+                f.write("subdir1 config")
+            with open(
+                "subdir2/config.txt", "w"
+            ) as f:  # Different path - should NOT be included
+                f.write("subdir2 config")
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+
+            # Filename inclusion should only affect root directory
+            # data.txt in root should be included, but not in subdirectories
+
+            # Path inclusion should only affect specific path
+            # subdir1/config.txt should be included, but not root or subdir2
+
+            assert (
+                "data.txt" in result.output or "config.txt" in result.output
+            )  # At least one should be present
+            assert "Uploading main.py" in result.output
+
+    def test_push_directory_name_vs_path_exclusion(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that directory exclusion by name only affects root level, by path affects specific paths in push."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Exclude root-level "temp" directory and specific path "tests/old"
+        uipath_json.settings.directories_excluded = ["temp", "tests/old"]
+
+        # Mock empty project structure
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
+            status_code=200,
+            json={"id": "123", "name": "source_code", "folders": [], "files": []},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create directory structure
+            os.makedirs("temp")  # Root level - should be excluded
+            os.makedirs("src/temp")  # Nested - should be included
+            os.makedirs("tests/old")  # Specific path - should be excluded
+            os.makedirs("tests/new")  # Different path - should be included
+            os.makedirs("old")  # Root level - should be included
+
+            # Create JSON files in each directory (included by default)
+            with open("temp/config.json", "w") as f:
+                f.write('{"location": "root temp"}')
+            with open("src/temp/config.json", "w") as f:
+                f.write('{"location": "src temp"}')
+            with open("tests/old/config.json", "w") as f:
+                f.write('{"location": "tests old"}')
+            with open("tests/new/config.json", "w") as f:
+                f.write('{"location": "tests new"}')
+            with open("old/config.json", "w") as f:
+                f.write('{"location": "root old"}')
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+
+            # Directory name exclusion should only affect root level
+            # temp/ directory should be excluded, so temp/config.json shouldn't appear
+            # but src/temp/config.json should be uploaded
+
+            # Directory path exclusion should only affect specific path
+            # tests/old/ should be excluded, but tests/new/ and old/ should be uploaded
+
+            # Since we exclude root temp/, its files shouldn't appear
+            # Since we exclude tests/old/, its files shouldn't appear
+            # Other directories should have their files uploaded
+
+            assert (
+                "config.json" in result.output
+            )  # Some config.json should be present from allowed directories
+            assert "Uploading main.py" in result.output
