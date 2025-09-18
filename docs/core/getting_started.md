@@ -239,9 +239,9 @@ Selected feed: Orchestrator Tenant Processes Feed
 
 After selecting your publishing destination (tenant or personal workspace), you'll see details about your package and a confirmation message.
 
-## Getting Started with the SDK
+## Integrating with the UiPath Platform
 
-Create a new project following the same steps as above.
+Create a **new project** (separate from the one you just packaged and published) following the same steps as above. This new project will invoke your previous process using the UiPath SDK.
 
 Open `main.py` in your code editor and add the following code:
 
@@ -261,6 +261,10 @@ def main():
         folder_path="PROCESS_FOLDER_PATH_HERE"
     )
 ```
+
+/// warning
+An agent can invoke itself if needed, but this must be done with caution. Be mindful that using the same name for invocation may lead to unintentional loops. To prevent recursion issues, implement safeguards like exit conditions.
+///
 
 ### Verifying the Execution
 
