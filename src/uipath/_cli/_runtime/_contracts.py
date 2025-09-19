@@ -24,7 +24,7 @@ from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
 
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
-from uipath.tracing import LlmOpsHttpExporter, TracingManager
+from uipath.tracing import TracingManager
 
 from ._logging import LogsInterceptor
 
@@ -698,8 +698,6 @@ class UiPathRuntimeFactory(Generic[T, C]):
         self.tracer_provider: TracerProvider = TracerProvider()
         self.tracer_span_processors: List[SpanProcessor] = []
         trace.set_tracer_provider(self.tracer_provider)
-        if os.getenv("UIPATH_JOB_KEY"):
-            self.add_span_exporter(LlmOpsHttpExporter())
 
     def add_span_exporter(
         self,

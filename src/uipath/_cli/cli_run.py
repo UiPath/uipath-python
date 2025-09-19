@@ -7,6 +7,7 @@ from typing import Optional
 import click
 
 from uipath._cli._utils._debug import setup_debugging
+from uipath.tracing import LlmOpsHttpExporter
 
 from .._utils.constants import (
     ENV_JOB_ID,
@@ -102,6 +103,7 @@ def run(
             runtime_factory = UiPathRuntimeFactory(
                 UiPathScriptRuntime, UiPathRuntimeContext
             )
+
             context = UiPathRuntimeContext.with_defaults(
                 entrypoint=entrypoint,
                 input=input,
@@ -110,6 +112,8 @@ def run(
                 execution_output_file=output_file,
                 debug=debug,
             )
+            if context.job_id:
+                runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 
             asyncio.run(runtime_factory.execute(context))
 
