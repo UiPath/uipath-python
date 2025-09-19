@@ -330,6 +330,10 @@ def files_to_include(
     """
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml", ".md"]
     files_included = ["pyproject.toml"]
+    files_excluded = []
+
+    if directories_to_ignore is None:
+        directories_to_ignore = []
     if include_uv_lock:
         files_included += ["uv.lock"]
     if "settings" in config_data:
@@ -338,8 +342,10 @@ def files_to_include(
             file_extensions_included.extend(settings["fileExtensionsIncluded"])
         if "filesIncluded" in settings:
             files_included.extend(settings["filesIncluded"])
-    if directories_to_ignore is None:
-        directories_to_ignore = []
+        if "filesExcluded" in settings:
+            files_excluded.extend(settings["filesExcluded"])
+        if "directoriesExcluded" in settings:
+            directories_to_ignore.extend(settings["directoriesExcluded"])
 
     def is_venv_dir(d: str) -> bool:
         """Check if a directory is a Python virtual environment.
@@ -359,20 +365,63 @@ def files_to_include(
     extra_files: list[FileInfo] = []
     # Walk through directory and return all files in the allowlist
     for root, dirs, files in os.walk(directory):
-        # Skip all directories that start with . or are a venv
-        dirs[:] = [
-            d
-            for d in dirs
-            if not d.startswith(".")
-            and not is_venv_dir(os.path.join(root, d))
-            and (directories_to_ignore is not None and d not in directories_to_ignore)
-        ]
+        # Skip all directories that start with . or are a venv or are excluded
+        included_dirs = []
+        for d in dirs:
+            if d.startswith(".") or is_venv_dir(os.path.join(root, d)):
+                continue
+
+            # Check if directory should be excluded
+            dir_path = os.path.join(root, d)
+            dir_rel_path = os.path.relpath(dir_path, directory)
+            normalized_dir_rel_path = dir_rel_path.replace(os.sep, "/")
+
+            # Check exclusion: by dirname (for root level) or by relative path
+            should_exclude_dir = (
+                (
+                    (
+                        d in directories_to_ignore and normalized_dir_rel_path == d
+                    )  # name match for root level only
+                    or normalized_dir_rel_path
+                    in directories_to_ignore  # path match for nested directories
+                )
+                if directories_to_ignore is not None
+                else False
+            )
+
+            if not should_exclude_dir:
+                included_dirs.append(d)
+
+        dirs[:] = included_dirs
         for file in files:
             file_extension = os.path.splitext(file)[1].lower()
-            if file_extension in file_extensions_included or file in files_included:
-                file_path = os.path.join(root, file)
-                file_name = os.path.basename(file_path)
-                rel_path = os.path.relpath(file_path, directory)
+            file_path = os.path.join(root, file)
+            file_name = os.path.basename(file_path)
+            rel_path = os.path.relpath(file_path, directory)
+
+            # Normalize the path
+            normalized_rel_path = rel_path.replace(os.sep, "/")
+
+            # Check inclusion: by extension, by filename (for base directory), or by relative path
+            should_include = (
+                file_extension in file_extensions_included
+                or (
+                    file in files_included and normalized_rel_path == file
+                )  # filename match for base directory only
+                or normalized_rel_path
+                in files_included  # path match for subdirectories
+            )
+
+            # Check exclusion: by filename (for base directory only) or by relative path
+            should_exclude = (
+                (
+                    file in files_excluded and normalized_rel_path == file
+                )  # filename match for base directory only
+                or normalized_rel_path
+                in files_excluded  # path match for subdirectories
+            )
+
+            if should_include and not should_exclude:
                 extra_files.append(
                     FileInfo(
                         file_name=file_name,
