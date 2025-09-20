@@ -44,6 +44,10 @@ class UiPathSpan:
     process_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
     )
+    reference_id: Optional[str] = field(
+        default_factory=lambda: env.get("TRACE_REFERENCE_ID")
+    )
+
     job_key: Optional[str] = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -67,6 +71,7 @@ class UiPathSpan:
             "SpanType": self.span_type,
             "ProcessKey": self.process_key,
             "JobKey": self.job_key,
+            "ReferenceId": self.reference_id,
         }
 
 

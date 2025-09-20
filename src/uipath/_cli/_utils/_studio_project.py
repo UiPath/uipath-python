@@ -82,7 +82,7 @@ class ProjectFolder(BaseModel):
         extra="allow",
     )
 
-    id: str = Field(alias="id")
+    id: Optional[str] = Field(alias="id")
     name: str = Field(alias="name")
     folders: List["ProjectFolder"] = Field(default_factory=list)
     files: List[ProjectFile] = Field(default_factory=list)

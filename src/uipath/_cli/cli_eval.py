@@ -6,12 +6,17 @@ from typing import List, Optional
 
 import click
 
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath._cli._evals._progress_handler import StudioWebProgressHandler
+from uipath._cli._evals._runtime import (
+    UiPathEvalContext,
+    UiPathEvalRuntime,
+)
 from uipath._cli._runtime._contracts import (
     UiPathRuntimeContext,
     UiPathRuntimeFactory,
 )
 from uipath._cli._runtime._runtime import UiPathScriptRuntime
+from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli.middlewares import Middlewares
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.tracing import LlmOpsHttpExporter
@@ -72,6 +77,9 @@ def eval(
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """
+    if not no_report and not os.getenv("UIPATH_FOLDER_KEY"):
+        os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(get_personal_workspace_key_async())
+
     result = Middlewares.next(
         "eval",
         entrypoint,
@@ -114,7 +122,9 @@ def eval(
 
             async def execute():
                 async with UiPathEvalRuntime.from_eval_context(
-                    factory=runtime_factory, context=eval_context
+                    factory=runtime_factory,
+                    context=eval_context,
+                    progress_handler=StudioWebProgressHandler() if not no_report else None,
                 ) as eval_runtime:
                     await eval_runtime.execute()
 

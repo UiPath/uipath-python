@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import httpx
 from opentelemetry.sdk.trace import ReadableSpan
@@ -34,6 +34,7 @@ class LlmOpsHttpExporter(SpanExporter):
         client_kwargs = get_httpx_client_kwargs()
 
         self.http_client = httpx.Client(**client_kwargs, headers=self.headers)
+        self.eval_trace_id: Optional[str] = None
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to UiPath LLM Ops."""
@@ -44,20 +45,29 @@ class LlmOpsHttpExporter(SpanExporter):
         span_list = [
             _SpanUtils.otel_span_to_uipath_span(span).to_dict() for span in spans
         ]
-        url = self._build_url(span_list)
+        result = SpanExportResult.SUCCESS
 
-        logger.debug("Payload: %s", json.dumps(span_list))
+        if self.eval_trace_id:
+            eval_url = self._build_url(span_list, override_trace_id=self.eval_trace_id)
+            result = self._send_with_retries(eval_url, span_list)
 
-        return self._send_with_retries(url, span_list)
+        if result == SpanExportResult.SUCCESS and os.environ.get("UIPATH_TRACE_ID"):
+            url = self._build_url(span_list)
+            logger.debug("Payload: %s", json.dumps(span_list))
+            result = self._send_with_retries(url, span_list)
+
+        return result
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush the exporter."""
         return True
 
-    def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
+    def _build_url(
+        self, span_list: list[Dict[str, Any]], override_trace_id: Optional[str] = None
+    ) -> str:
         """Construct the URL for the API request."""
-        trace_id = str(span_list[0]["TraceId"])
-        return f"{self.base_url}/llmopstenant_/api/Traces/spans?traceId={trace_id}&source=Robots"
+        trace_id = override_trace_id or str(span_list[0]["TraceId"])
+        return f"{self.base_url}/llmopstenant_/api/Traces/spans?traceId={trace_id}&source=Agents"
 
     def _send_with_retries(
         self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4
