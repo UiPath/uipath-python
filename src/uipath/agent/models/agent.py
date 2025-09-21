@@ -5,6 +5,8 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
+from uipath.models import Connection
+
 
 class AgentResourceType(str, Enum):
     """Enum for resource types."""
@@ -95,10 +97,27 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     )
 
 
+class AgentIntegrationToolProperties(BaseModel):
+    """Properties specific to tool configuration."""
+
+    tool_path: str = Field(..., alias="toolPath")
+    object_name: str = Field(..., alias="objectName")
+    tool_display_name: str = Field(..., alias="toolDisplayName")
+    tool_description: str = Field(..., alias="toolDescription")
+    method: str = Field(..., alias="method")
+    connection: Connection = Field(..., alias="connection")
+    body_structure: dict[str, Any] = Field(..., alias="bodyStructure")
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
     """Tool resource with tool-specific properties."""
 
     type: Literal[AgentToolType.INTEGRATION] = AgentToolType.INTEGRATION
+    properties: AgentIntegrationToolProperties
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
