@@ -291,7 +291,8 @@ class SwFileHandler:
 
             # Check if the current folder is empty after processing its children
             if self._is_folder_empty(subfolder):
-                empty_folders.append({"id": subfolder.id, "name": subfolder.name})
+                if subfolder.id is not None:
+                    empty_folders.append({"id": subfolder.id, "name": subfolder.name})
 
         return empty_folders
 

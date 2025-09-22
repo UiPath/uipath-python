@@ -67,7 +67,7 @@ class ProjectFolder(BaseModel):
     """Model representing a folder in a UiPath project structure.
 
     Attributes:
-        id: The unique identifier of the folder
+        id: The unique identifier of the folder. Root folder id may be None.
         name: The name of the folder
         folders: List of subfolders
         files: List of files in the folder
@@ -82,7 +82,7 @@ class ProjectFolder(BaseModel):
         extra="allow",
     )
 
-    id: str = Field(alias="id")
+    id: Optional[str] = Field(default=None, alias="id")
     name: str = Field(alias="name")
     folders: List["ProjectFolder"] = Field(default_factory=list)
     files: List[ProjectFile] = Field(default_factory=list)
