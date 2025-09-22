@@ -4,15 +4,47 @@ import logging
 import os
 import random
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import asdict, dataclass, field, is_dataclass
+from datetime import datetime, timezone
+from enum import Enum
 from os import environ as env
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
 
 logger = logging.getLogger(__name__)
+
+
+def _simple_serialize_defaults(obj):
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(exclude_none=True, mode="json")
+    if hasattr(obj, "dict"):
+        return obj.dict()
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
+
+    # Handle dataclasses
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return asdict(obj)
+
+    # Handle enums
+    if isinstance(obj, Enum):
+        return obj.value
+
+    if isinstance(obj, (set, tuple)):
+        if hasattr(obj, "_asdict") and callable(obj._asdict):
+            return obj._asdict()
+        return list(obj)
+
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+
+    if isinstance(obj, (timezone, ZoneInfo)):
+        return obj.tzname(None)
+
+    return str(obj)
 
 
 @dataclass
@@ -150,30 +182,32 @@ class _SpanUtils:
             status = 2  # Error
             attributes_dict["error"] = otel_span.status.description
 
-        original_inputs = attributes_dict.get("inputs", None)
-        original_outputs = attributes_dict.get("outputs", None)
+        original_inputs = attributes_dict.get("input", None)
+        original_outputs = attributes_dict.get("output", None)
 
         if original_inputs:
             try:
                 if isinstance(original_inputs, str):
                     json_inputs = json.loads(original_inputs)
-                    attributes_dict["inputs"] = json_inputs
+                    attributes_dict["input.value"] = json_inputs
+                    attributes_dict["input.mime_type"] = "application/json"
                 else:
-                    attributes_dict["inputs"] = original_inputs
+                    attributes_dict["input.value"] = original_inputs
             except Exception as e:
-                print(f"Error parsing inputs: {e}")
-                attributes_dict["inputs"] = str(original_inputs)
+                logger.warning(f"Error parsing inputs: {e}")
+                attributes_dict["input.value"] = str(original_inputs)
 
         if original_outputs:
             try:
                 if isinstance(original_outputs, str):
                     json_outputs = json.loads(original_outputs)
-                    attributes_dict["outputs"] = json_outputs
+                    attributes_dict["output.value"] = json_outputs
+                    attributes_dict["output.mime_type"] = "application/json"
                 else:
-                    attributes_dict["outputs"] = original_outputs
+                    attributes_dict["output.value"] = original_outputs
             except Exception as e:
-                print(f"Error parsing outputs: {e}")
-                attributes_dict["outputs"] = str(original_outputs)
+                logger.warning(f"Error parsing output: {e}")
+                attributes_dict["output.value"] = str(original_outputs)
 
         # Add events as additional attributes if they exist
         if otel_span.events:
@@ -233,7 +267,14 @@ class _SpanUtils:
     ) -> str:
         """Return a JSON string of inputs from the function signature."""
         result = _SpanUtils.format_args_for_trace(signature, *args, **kwargs)
-        return json.dumps(result, default=str)
+        return json.dumps(result, default=_simple_serialize_defaults)
+
+    @staticmethod
+    def format_object_for_trace_json(
+        input_object: Any,
+    ) -> str:
+        """Return a JSON string of inputs from the function signature."""
+        return json.dumps(input_object, default=_simple_serialize_defaults)
 
     @staticmethod
     def format_args_for_trace(

@@ -1,6 +1,7 @@
 import json
 from asyncio import sleep
 from dataclasses import asdict, dataclass
+from enum import Enum
 from typing import Any, Dict, List, Sequence
 
 import pytest
@@ -70,9 +71,9 @@ def test_traced_sync_function(setup_tracer):
     span = spans[0]
     assert span.name == "sample_function"
     assert span.attributes["span_type"] == "function_call_sync"
-    assert "inputs" in span.attributes
-    assert "output" in span.attributes
-    assert span.attributes["output"] == "5"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "5"
 
 
 @pytest.mark.asyncio
@@ -95,9 +96,9 @@ async def test_traced_async_function(setup_tracer):
     span = spans[0]
     assert span.name == "sample_async_function"
     assert span.attributes["span_type"] == "function_call_async"
-    assert "inputs" in span.attributes
-    assert "output" in span.attributes
-    assert span.attributes["output"] == "6"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "6"
 
 
 def test_traced_generator_function(setup_tracer):
@@ -118,9 +119,9 @@ def test_traced_generator_function(setup_tracer):
     span = spans[0]
     assert span.name == "sample_generator_function"
     assert span.attributes["span_type"] == "function_call_generator_sync"
-    assert "inputs" in span.attributes
-    assert "output" in span.attributes
-    assert span.attributes["output"] == "[0, 1, 2]"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "[0, 1, 2]"
 
 
 @pytest.mark.asyncio
@@ -142,9 +143,9 @@ async def test_traced_async_generator_function(setup_tracer):
     span = spans[0]
     assert span.name == "sample_async_generator_function"
     assert span.attributes["span_type"] == "function_call_generator_async"
-    assert "inputs" in span.attributes
-    assert "output" in span.attributes
-    assert span.attributes["output"] == "[0, 1, 2]"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "[0, 1, 2]"
 
 
 def test_traced_with_basic_processors(setup_tracer):
@@ -178,13 +179,13 @@ def test_traced_with_basic_processors(setup_tracer):
     span = spans[0]
 
     # Check that input processor was applied (doubles the inputs)
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["x"] == 6  # 3 doubled to 6
     assert inputs["y"] == 8  # 4 doubled to 8
 
     # Check that output processor was applied (formatted as string in dict)
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output == {"result": "12"}  # Result wrapped in dict with string conversion
 
@@ -225,13 +226,13 @@ async def test_traced_async_with_basic_processors(setup_tracer):
     span = spans[0]
 
     # Check that input processor was applied
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["message"] == "hello"
     assert inputs["context"] == "test"  # Added by processor
 
     # Check that output processor was applied
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output["status"] == "completed"
     assert output["message"] == "hello"
@@ -345,7 +346,7 @@ def test_traced_with_input_processor(setup_tracer):
     assert span.name == "process_payment"
 
     # Verify inputs were processed
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert "card_number" in inputs
     assert inputs["card_number"] == "**** **** **** 1111"  # Should be masked
@@ -381,7 +382,7 @@ def test_traced_with_output_processor(setup_tracer):
     span = spans[0]
 
     # Verify output was processed for tracing
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output["user_info"]["name"] == "Anonymous User"
     assert output["user_info"]["email"] == "anonymous@example.com"
@@ -412,7 +413,7 @@ def test_traced_with_dataclass_output(setup_tracer):
     spans = exporter.get_exported_spans()
 
     # Verify the output was processed for tracing
-    output_json = spans[0].attributes["output"]
+    output_json = spans[0].attributes["output.value"]
     output = json.loads(output_json)
     assert "email" in output
     assert output["email"] == "anonymous@example.com"  # Masked in the trace
@@ -450,12 +451,12 @@ async def test_traced_async_with_processors(setup_tracer):
     span = spans[0]
 
     # Verify inputs were processed
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["card_number"] == "**** **** **** 4444"
 
     # Verify outputs were processed
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output["user_info"]["name"] == "Anonymous User"
     assert output["user_info"]["email"] == "anonymous@example.com"
@@ -488,12 +489,12 @@ def test_traced_generator_with_processors(setup_tracer):
     span = spans[0]
 
     # Verify inputs were processed
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["card_number"] == "**** **** **** 1111"
 
     # Verify outputs were processed
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert len(output) == 3
     for transaction in output:
@@ -532,12 +533,12 @@ async def test_traced_async_generator_with_processors(setup_tracer):
     span = spans[0]
 
     # Verify inputs were processed
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["card_number"] == "**** **** **** 4444"
 
     # Verify outputs were processed
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert len(output) == 2
     for transaction in output:
@@ -565,10 +566,87 @@ def test_traced_with_hide_input_outputs(setup_tracer):
     span = spans[0]
 
     # Verify both inputs and outputs were redacted
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs == {"redacted": "Input data not logged for privacy/security"}
 
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output == {"redacted": "Output data not logged for privacy/security"}
+
+
+class Operator(Enum):
+    ADD = "+"
+    SUBTRACT = "-"
+    MULTIPLY = "*"
+    DIVIDE = "/"
+
+
+@dataclass
+class CalculatorInput:
+    a: float = 0.0
+    b: float = 0.0
+    operator: Operator = Operator.ADD
+
+
+@dataclass
+class CalculatorOutput:
+    result: float = 0.0
+    operator: Operator = Operator.ADD
+
+
+def test_traced_complex_input_serialization(setup_tracer):
+    """Test that traced decorator properly serializes complex inputs like dataclasses with enums."""
+    exporter, provider = setup_tracer
+
+    @traced()
+    def test_complex_input(input: CalculatorInput) -> CalculatorOutput:
+        assert isinstance(input.a, float)
+        assert isinstance(input.b, float)
+        assert isinstance(input.operator, Operator)
+        return CalculatorOutput(result=(input.a * input.b), operator=Operator.MULTIPLY)
+
+    # Create a complex input with dataclass and enum
+    calculator_input = CalculatorInput(a=10.5, b=5.2, operator=Operator.MULTIPLY)
+    test_complex_input(calculator_input)
+
+    provider.shutdown()  # Ensure spans are flushed
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "test_complex_input"
+    assert span.attributes["span_type"] == "function_call_sync"
+
+    # Verify that inputs are properly serialized as JSON
+    assert "input.value" in span.attributes
+    inputs_json = span.attributes["input.value"]
+    inputs = json.loads(inputs_json)
+
+    # Debug: Print the actual inputs structure
+    print(f"Inputs JSON: {inputs_json}")
+    print(f"Parsed inputs: {inputs}")
+
+    # Check that the dataclass is properly serialized
+    assert "input" in inputs
+    input_data = inputs["input"]
+
+    # Verify the dataclass fields are properly serialized
+    assert input_data["a"] == 10.5
+    assert input_data["b"] == 5.2
+    # Verify the enum is serialized as its value
+    assert input_data["operator"] == "*"
+
+    # Verify that outputs are properly serialized as JSON
+    assert "output.value" in span.attributes
+    output_json = span.attributes["output.value"]
+    output = json.loads(output_json)
+
+    # Debug: Print the actual output structure
+    print(f"Output JSON: {output_json}")
+    print(f"Parsed output: {output}")
+
+    # Verify the output dataclass fields are properly serialized
+    assert output["result"] == 54.6  # 10.5 * 5.2 = 54.6
+    # Verify the enum is serialized as its value
+    assert output["operator"] == "*"
