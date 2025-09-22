@@ -4,15 +4,47 @@ import logging
 import os
 import random
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import asdict, dataclass, field, is_dataclass
+from datetime import datetime, timezone
+from enum import Enum
 from os import environ as env
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
 
 logger = logging.getLogger(__name__)
+
+
+def _simple_serialize_defaults(obj):
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(exclude_none=True, mode="json")
+    if hasattr(obj, "dict"):
+        return obj.dict()
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
+
+    # Handle dataclasses
+    if is_dataclass(obj):
+        return asdict(obj)
+
+    # Handle enums
+    if isinstance(obj, Enum):
+        return obj.value
+
+    if isinstance(obj, (set, tuple)):
+        if hasattr(obj, "_asdict") and callable(obj._asdict):
+            return obj._asdict()
+        return list(obj)
+
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+
+    if isinstance(obj, (timezone, ZoneInfo)):
+        return obj.tzname(None)
+
+    return str(obj)
 
 
 @dataclass
@@ -233,7 +265,14 @@ class _SpanUtils:
     ) -> str:
         """Return a JSON string of inputs from the function signature."""
         result = _SpanUtils.format_args_for_trace(signature, *args, **kwargs)
-        return json.dumps(result, default=str)
+        return json.dumps(result, default=_simple_serialize_defaults)
+
+    @staticmethod
+    def format_object_for_trace_json(
+        input_object: Any,
+    ) -> str:
+        """Return a JSON string of inputs from the function signature."""
+        return json.dumps(input_object, default=_simple_serialize_defaults)
 
     @staticmethod
     def format_args_for_trace(

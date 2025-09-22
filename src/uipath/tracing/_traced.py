@@ -219,7 +219,9 @@ def _opentelemetry_traced(
 
                 result = func(*args, **kwargs)
                 output = output_processor(result) if output_processor else result
-                span.set_attribute("output", json.dumps(output, default=str))
+                span.set_attribute(
+                    "output", _SpanUtils.format_object_for_trace_json(output)
+                )
                 return result
             except Exception as e:
                 span.record_exception(e)
@@ -253,7 +255,9 @@ def _opentelemetry_traced(
 
                 result = await func(*args, **kwargs)
                 output = output_processor(result) if output_processor else result
-                span.set_attribute("output", json.dumps(output, default=str))
+                span.set_attribute(
+                    "output", _SpanUtils.format_object_for_trace_json(output)
+                )
                 return result
             except Exception as e:
                 span.record_exception(e)
@@ -293,7 +297,9 @@ def _opentelemetry_traced(
                     span.add_event(f"Yielded: {item}")
                     yield item
                 output = output_processor(outputs) if output_processor else outputs
-                span.set_attribute("output", json.dumps(output, default=str))
+                span.set_attribute(
+                    "output", _SpanUtils.format_object_for_trace_json(output)
+                )
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(
@@ -332,7 +338,9 @@ def _opentelemetry_traced(
                     span.add_event(f"Yielded: {item}")
                     yield item
                 output = output_processor(outputs) if output_processor else outputs
-                span.set_attribute("output", json.dumps(output, default=str))
+                span.set_attribute(
+                    "output", _SpanUtils.format_object_for_trace_json(output)
+                )
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(

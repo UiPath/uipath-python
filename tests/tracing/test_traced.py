@@ -1,6 +1,7 @@
 import json
 from asyncio import sleep
 from dataclasses import asdict, dataclass
+from enum import Enum
 from typing import Any, Dict, List, Sequence
 
 import pytest
@@ -572,3 +573,80 @@ def test_traced_with_hide_input_outputs(setup_tracer):
     output_json = span.attributes["output"]
     output = json.loads(output_json)
     assert output == {"redacted": "Output data not logged for privacy/security"}
+
+
+class Operator(Enum):
+    ADD = "+"
+    SUBTRACT = "-"
+    MULTIPLY = "*"
+    DIVIDE = "/"
+
+
+@dataclass
+class CalculatorInput:
+    a: float = 0.0
+    b: float = 0.0
+    operator: Operator = Operator.ADD
+
+
+@dataclass
+class CalculatorOutput:
+    result: float = 0.0
+    operator: Operator = Operator.ADD
+
+
+def test_traced_complex_input_serialization(setup_tracer):
+    """Test that traced decorator properly serializes complex inputs like dataclasses with enums."""
+    exporter, provider = setup_tracer
+
+    @traced()
+    def test_complex_input(input: CalculatorInput) -> CalculatorOutput:
+        assert isinstance(input.a, float)
+        assert isinstance(input.b, float)
+        assert isinstance(input.operator, Operator)
+        return CalculatorOutput(result=(input.a * input.b), operator=Operator.MULTIPLY)
+
+    # Create a complex input with dataclass and enum
+    calculator_input = CalculatorInput(a=10.5, b=5.2, operator=Operator.MULTIPLY)
+    test_complex_input(calculator_input)
+
+    provider.shutdown()  # Ensure spans are flushed
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "test_complex_input"
+    assert span.attributes["span_type"] == "function_call_sync"
+
+    # Verify that inputs are properly serialized as JSON
+    assert "inputs" in span.attributes
+    inputs_json = span.attributes["inputs"]
+    inputs = json.loads(inputs_json)
+
+    # Debug: Print the actual inputs structure
+    print(f"Inputs JSON: {inputs_json}")
+    print(f"Parsed inputs: {inputs}")
+
+    # Check that the dataclass is properly serialized
+    assert "input" in inputs
+    input_data = inputs["input"]
+
+    # Verify the dataclass fields are properly serialized
+    assert input_data["a"] == 10.5
+    assert input_data["b"] == 5.2
+    # Verify the enum is serialized as its value
+    assert input_data["operator"] == "*"
+
+    # Verify that outputs are properly serialized as JSON
+    assert "output" in span.attributes
+    output_json = span.attributes["output"]
+    output = json.loads(output_json)
+
+    # Debug: Print the actual output structure
+    print(f"Output JSON: {output_json}")
+    print(f"Parsed output: {output}")
+
+    # Verify the output dataclass fields are properly serialized
+    assert output["result"] == 54.6  # 10.5 * 5.2 = 54.6
+    # Verify the enum is serialized as its value
+    assert output["operator"] == "*"
