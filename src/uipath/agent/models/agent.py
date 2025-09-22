@@ -158,6 +158,18 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     )
 
 
+class AgentEscalationRecipient(BaseModel):
+    """Recipient for escalation."""
+
+    type: int = Field(..., alias="type")
+    value: str = Field(..., alias="value")
+    display_name: Optional[str] = Field(default=None, alias="displayName")
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
 class AgentEscalationChannelProperties(BaseModel):
     """Agent escalation channel properties."""
 
@@ -193,6 +205,7 @@ class AgentEscalationChannel(BaseModel):
         description="Output schema for the escalation channel",
     )
     properties: AgentEscalationChannelProperties = Field(..., alias="properties")
+    recipients: List[AgentEscalationRecipient] = Field(..., alias="recipients")
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
