@@ -71,9 +71,9 @@ def test_traced_sync_function(setup_tracer):
     span = spans[0]
     assert span.name == "sample_function"
     assert span.attributes["span_type"] == "function_call_sync"
-    assert "inputs" in span.attributes
-    assert "output" in span.attributes
-    assert span.attributes["output"] == "5"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "5"
 
 
 @pytest.mark.asyncio
@@ -96,9 +96,9 @@ async def test_traced_async_function(setup_tracer):
     span = spans[0]
     assert span.name == "sample_async_function"
     assert span.attributes["span_type"] == "function_call_async"
-    assert "inputs" in span.attributes
-    assert "output" in span.attributes
-    assert span.attributes["output"] == "6"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "6"
 
 
 def test_traced_generator_function(setup_tracer):
@@ -119,9 +119,9 @@ def test_traced_generator_function(setup_tracer):
     span = spans[0]
     assert span.name == "sample_generator_function"
     assert span.attributes["span_type"] == "function_call_generator_sync"
-    assert "inputs" in span.attributes
-    assert "output" in span.attributes
-    assert span.attributes["output"] == "[0, 1, 2]"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "[0, 1, 2]"
 
 
 @pytest.mark.asyncio
@@ -143,9 +143,9 @@ async def test_traced_async_generator_function(setup_tracer):
     span = spans[0]
     assert span.name == "sample_async_generator_function"
     assert span.attributes["span_type"] == "function_call_generator_async"
-    assert "inputs" in span.attributes
-    assert "output" in span.attributes
-    assert span.attributes["output"] == "[0, 1, 2]"
+    assert "input.value" in span.attributes
+    assert "output.value" in span.attributes
+    assert span.attributes["output.value"] == "[0, 1, 2]"
 
 
 def test_traced_with_basic_processors(setup_tracer):
@@ -179,13 +179,13 @@ def test_traced_with_basic_processors(setup_tracer):
     span = spans[0]
 
     # Check that input processor was applied (doubles the inputs)
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["x"] == 6  # 3 doubled to 6
     assert inputs["y"] == 8  # 4 doubled to 8
 
     # Check that output processor was applied (formatted as string in dict)
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output == {"result": "12"}  # Result wrapped in dict with string conversion
 
@@ -226,13 +226,13 @@ async def test_traced_async_with_basic_processors(setup_tracer):
     span = spans[0]
 
     # Check that input processor was applied
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["message"] == "hello"
     assert inputs["context"] == "test"  # Added by processor
 
     # Check that output processor was applied
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output["status"] == "completed"
     assert output["message"] == "hello"
@@ -346,7 +346,7 @@ def test_traced_with_input_processor(setup_tracer):
     assert span.name == "process_payment"
 
     # Verify inputs were processed
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert "card_number" in inputs
     assert inputs["card_number"] == "**** **** **** 1111"  # Should be masked
@@ -382,7 +382,7 @@ def test_traced_with_output_processor(setup_tracer):
     span = spans[0]
 
     # Verify output was processed for tracing
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output["user_info"]["name"] == "Anonymous User"
     assert output["user_info"]["email"] == "anonymous@example.com"
@@ -413,7 +413,7 @@ def test_traced_with_dataclass_output(setup_tracer):
     spans = exporter.get_exported_spans()
 
     # Verify the output was processed for tracing
-    output_json = spans[0].attributes["output"]
+    output_json = spans[0].attributes["output.value"]
     output = json.loads(output_json)
     assert "email" in output
     assert output["email"] == "anonymous@example.com"  # Masked in the trace
@@ -451,12 +451,12 @@ async def test_traced_async_with_processors(setup_tracer):
     span = spans[0]
 
     # Verify inputs were processed
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["card_number"] == "**** **** **** 4444"
 
     # Verify outputs were processed
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output["user_info"]["name"] == "Anonymous User"
     assert output["user_info"]["email"] == "anonymous@example.com"
@@ -489,12 +489,12 @@ def test_traced_generator_with_processors(setup_tracer):
     span = spans[0]
 
     # Verify inputs were processed
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["card_number"] == "**** **** **** 1111"
 
     # Verify outputs were processed
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert len(output) == 3
     for transaction in output:
@@ -533,12 +533,12 @@ async def test_traced_async_generator_with_processors(setup_tracer):
     span = spans[0]
 
     # Verify inputs were processed
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs["card_number"] == "**** **** **** 4444"
 
     # Verify outputs were processed
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert len(output) == 2
     for transaction in output:
@@ -566,11 +566,11 @@ def test_traced_with_hide_input_outputs(setup_tracer):
     span = spans[0]
 
     # Verify both inputs and outputs were redacted
-    inputs_json = span.attributes["inputs"]
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
     assert inputs == {"redacted": "Input data not logged for privacy/security"}
 
-    output_json = span.attributes["output"]
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
     assert output == {"redacted": "Output data not logged for privacy/security"}
 
@@ -619,8 +619,8 @@ def test_traced_complex_input_serialization(setup_tracer):
     assert span.attributes["span_type"] == "function_call_sync"
 
     # Verify that inputs are properly serialized as JSON
-    assert "inputs" in span.attributes
-    inputs_json = span.attributes["inputs"]
+    assert "input.value" in span.attributes
+    inputs_json = span.attributes["input.value"]
     inputs = json.loads(inputs_json)
 
     # Debug: Print the actual inputs structure
@@ -638,8 +638,8 @@ def test_traced_complex_input_serialization(setup_tracer):
     assert input_data["operator"] == "*"
 
     # Verify that outputs are properly serialized as JSON
-    assert "output" in span.attributes
-    output_json = span.attributes["output"]
+    assert "output.value" in span.attributes
+    output_json = span.attributes["output.value"]
     output = json.loads(output_json)
 
     # Debug: Print the actual output structure

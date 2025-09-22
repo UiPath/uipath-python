@@ -26,7 +26,7 @@ def _simple_serialize_defaults(obj):
         return obj.to_dict()
 
     # Handle dataclasses
-    if is_dataclass(obj):
+    if is_dataclass(obj) and not isinstance(obj, type):
         return asdict(obj)
 
     # Handle enums
@@ -182,30 +182,32 @@ class _SpanUtils:
             status = 2  # Error
             attributes_dict["error"] = otel_span.status.description
 
-        original_inputs = attributes_dict.get("inputs", None)
-        original_outputs = attributes_dict.get("outputs", None)
+        original_inputs = attributes_dict.get("input", None)
+        original_outputs = attributes_dict.get("output", None)
 
         if original_inputs:
             try:
                 if isinstance(original_inputs, str):
                     json_inputs = json.loads(original_inputs)
-                    attributes_dict["inputs"] = json_inputs
+                    attributes_dict["input.value"] = json_inputs
+                    attributes_dict["input.mime_type"] = "application/json"
                 else:
-                    attributes_dict["inputs"] = original_inputs
+                    attributes_dict["input.value"] = original_inputs
             except Exception as e:
-                print(f"Error parsing inputs: {e}")
-                attributes_dict["inputs"] = str(original_inputs)
+                logger.warning(f"Error parsing inputs: {e}")
+                attributes_dict["input.value"] = str(original_inputs)
 
         if original_outputs:
             try:
                 if isinstance(original_outputs, str):
                     json_outputs = json.loads(original_outputs)
-                    attributes_dict["outputs"] = json_outputs
+                    attributes_dict["output.value"] = json_outputs
+                    attributes_dict["output.mime_type"] = "application/json"
                 else:
-                    attributes_dict["outputs"] = original_outputs
+                    attributes_dict["output.value"] = original_outputs
             except Exception as e:
-                print(f"Error parsing outputs: {e}")
-                attributes_dict["outputs"] = str(original_outputs)
+                logger.warning(f"Error parsing output: {e}")
+                attributes_dict["output.value"] = str(original_outputs)
 
         # Add events as additional attributes if they exist
         if otel_span.events:
