@@ -146,3 +146,47 @@ class TestAuth:
             assert result.exit_code == 1
             assert "Malformed UIPATH_URL" in result.output
             assert "custom.uipath.com" in result.output
+
+    def test_auth_with_tenant_flag(self):
+        """
+        Test that providing --tenant bypasses interactive tenant selection
+        and uses the specified tenant name.
+        """
+        runner = CliRunner()
+        with (
+            patch("uipath._cli._auth._auth_service.webbrowser.open") as mock_open,
+            patch("uipath._cli._auth._auth_service.HTTPServer") as mock_server,
+            patch(
+                "uipath._cli._auth._auth_service.PortalService"
+            ) as mock_portal_service,
+            patch(
+                "uipath._cli._auth._auth_service.select_tenant"
+            ) as mock_select_tenant,
+            patch(
+                "uipath._cli._auth._url_utils.get_base_url",
+                return_value="https://alpha.uipath.com",
+            ),
+        ):
+            mock_server.return_value.start = AsyncMock(
+                return_value={"access_token": "test_token"}
+            )
+
+            mock_portal_service.return_value.__enter__.return_value.get_tenants_and_organizations.return_value = {
+                "tenants": [
+                    {"name": "MyTenantName", "id": "tenant-id"},
+                    {"name": "OtherTenant", "id": "other-id"},
+                ],
+                "organization": {"name": "MyOrg", "id": "org-id"},
+            }
+
+            result = runner.invoke(
+                cli, ["auth", "--alpha", "--tenant", "MyTenantName", "--force"]
+            )
+
+            assert result.exit_code == 0, result.output
+            mock_open.assert_called_once()
+
+            assert not mock_select_tenant.called
+
+            portal = mock_portal_service.return_value.__enter__.return_value
+            assert portal.get_tenants_and_organizations.called
