@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -28,6 +29,11 @@ class Connection(BaseModel):
     )
     folder: Optional[Any] = None
     element_version: Optional[str] = Field(default=None, alias="elementVersion")
+
+
+class ConnectionTokenType(str, Enum):
+    DIRECT = "direct"
+    BEARER = "bearer"
 
 
 class ConnectionToken(BaseModel):

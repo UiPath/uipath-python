@@ -97,6 +97,31 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     )
 
 
+class AgentIntegrationToolParameter(BaseModel):
+    """Agent integration tool parameter."""
+
+    name: str = Field(..., alias="name")
+    type: str = Field(..., alias="type")
+    value: Optional[Any] = Field(None, alias="value")
+    field_location: str = Field(..., alias="fieldLocation")
+
+    # Useful Metadata
+    display_name: Optional[str] = Field(None, alias="displayName")
+    display_value: Optional[str] = Field(None, alias="displayValue")
+    description: Optional[str] = Field(None, alias="description")
+    position: Optional[str] = Field(None, alias="position")
+    field_variant: Optional[str] = Field(None, alias="fieldVariant")
+    dynamic: Optional[bool] = Field(None, alias="dynamic")
+    is_cascading: Optional[bool] = Field(None, alias="isCascading")
+    sort_order: Optional[int] = Field(..., alias="sortOrder")
+    required: Optional[bool] = Field(None, alias="required")
+    # enum_values, dynamic_behavior and reference not typed currently
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
 class AgentIntegrationToolProperties(BaseModel):
     """Properties specific to tool configuration."""
 
@@ -107,6 +132,7 @@ class AgentIntegrationToolProperties(BaseModel):
     method: str = Field(..., alias="method")
     connection: Connection = Field(..., alias="connection")
     body_structure: dict[str, Any] = Field(..., alias="bodyStructure")
+    parameters: List[AgentIntegrationToolParameter] = Field([], alias="parameters")
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
@@ -118,7 +144,6 @@ class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
 
     type: Literal[AgentToolType.INTEGRATION] = AgentToolType.INTEGRATION
     properties: AgentIntegrationToolProperties
-
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
