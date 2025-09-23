@@ -181,7 +181,7 @@ class TestPublish:
                 patch("uipath._cli.cli_publish.console.prompt") as mock_prompt,
                 patch("uipath._cli.cli_publish.get_available_feeds") as mock_feeds,
                 patch(
-                    "uipath._cli.cli_publish.get_personal_workspace_info"
+                    "uipath._cli.cli_publish.get_personal_workspace_info_async"
                 ) as mock_workspace,
             ):
                 mock_prompt.return_value = 1  # Select second feed (index 1)
@@ -200,9 +200,7 @@ class TestPublish:
                 # Verify the methods were called correctly
                 mock_prompt.assert_called_once_with("Select feed number", type=int)
                 mock_feeds.assert_called_once()
-                mock_workspace.assert_called_once_with(
-                    base_url, mock_env_vars.get("UIPATH_ACCESS_TOKEN")
-                )
+                mock_workspace.assert_called_once()
 
     def test_publish_personal_workspace_not_found(
         self,
@@ -218,7 +216,7 @@ class TestPublish:
                 f.write(b"dummy package content")
 
             with patch(
-                "uipath._cli.cli_publish.get_personal_workspace_info"
+                "uipath._cli.cli_publish.get_personal_workspace_info_async"
             ) as mock_workspace:
                 _create_env_file(mock_env_vars)
                 mock_workspace.return_value = (None, None)

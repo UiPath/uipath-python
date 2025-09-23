@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import httpx
 from opentelemetry.sdk.trace import ReadableSpan
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class LlmOpsHttpExporter(SpanExporter):
     """An OpenTelemetry span exporter that sends spans to UiPath LLM Ops."""
 
-    def __init__(self, **client_kwargs):
+    def __init__(self, trace_id: Optional[str] = None, **client_kwargs):
         """Initialize the exporter with the base URL and authentication token."""
         super().__init__(**client_kwargs)
         self.base_url = self._get_base_url()
@@ -34,6 +34,7 @@ class LlmOpsHttpExporter(SpanExporter):
         client_kwargs = get_httpx_client_kwargs()
 
         self.http_client = httpx.Client(**client_kwargs, headers=self.headers)
+        self.trace_id = trace_id
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to UiPath LLM Ops."""
@@ -42,7 +43,10 @@ class LlmOpsHttpExporter(SpanExporter):
         )
 
         span_list = [
-            _SpanUtils.otel_span_to_uipath_span(span).to_dict() for span in spans
+            _SpanUtils.otel_span_to_uipath_span(
+                span, custom_trace_id=self.trace_id
+            ).to_dict()
+            for span in spans
         ]
         url = self._build_url(span_list)
 

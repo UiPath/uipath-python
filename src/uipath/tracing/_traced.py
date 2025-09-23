@@ -215,11 +215,19 @@ def _opentelemetry_traced(
                 if input_processor:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
+
+                # kept for backwards compatibility
+                span.set_attribute("inputs", inputs)
                 span.set_attribute("input.mime_type", "application/json")
                 span.set_attribute("input.value", inputs)
 
                 result = func(*args, **kwargs)
                 output = output_processor(result) if output_processor else result
+                # kept for backwards compatibility
+                span.set_attribute(
+                    "output", _SpanUtils.format_object_for_trace_json(output)
+                )
+
                 span.set_attribute(
                     "output.value", _SpanUtils.format_object_for_trace_json(output)
                 )
@@ -253,11 +261,19 @@ def _opentelemetry_traced(
                 if input_processor:
                     processed_inputs = input_processor(json.loads(inputs))
                     inputs = json.dumps(processed_inputs, default=str)
+
+                # kept for backwards compatibility
+                span.set_attribute("inputs", inputs)
+
                 span.set_attribute("input.mime_type", "application/json")
                 span.set_attribute("input.value", inputs)
 
                 result = await func(*args, **kwargs)
                 output = output_processor(result) if output_processor else result
+                # kept for backwards compatibility
+                span.set_attribute(
+                    "output", _SpanUtils.format_object_for_trace_json(output)
+                )
                 span.set_attribute(
                     "output.value", _SpanUtils.format_object_for_trace_json(output)
                 )
