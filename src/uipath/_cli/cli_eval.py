@@ -101,7 +101,7 @@ def eval(
         event_bus = EventBus()
 
         if not no_report:
-            progress_reporter = StudioWebProgressReporter()
+            progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
