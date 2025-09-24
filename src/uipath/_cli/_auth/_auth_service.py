@@ -9,7 +9,11 @@ from urllib.parse import urlparse
 from uipath._cli._auth._auth_server import HTTPServer
 from uipath._cli._auth._client_credentials import ClientCredentialsService
 from uipath._cli._auth._oidc_utils import OidcUtils
-from uipath._cli._auth._portal_service import PortalService, select_tenant
+from uipath._cli._auth._portal_service import (
+    PortalService,
+    get_tenant_id,
+    select_tenant,
+)
 from uipath._cli._auth._url_utils import set_force_flag
 from uipath._cli._auth._utils import update_auth_file, update_env_file
 from uipath._cli._utils._console import ConsoleLogger
@@ -24,6 +28,7 @@ class AuthService:
         client_id: Optional[str],
         client_secret: Optional[str],
         base_url: Optional[str],
+        tenant: Optional[str],
         scope: Optional[str],
     ):
         self._force = force
@@ -32,6 +37,7 @@ class AuthService:
         self._client_id = client_id
         self._client_secret = client_secret
         self._base_url = base_url
+        self._tenant = tenant
         self._scope = scope
         set_force_flag(self._force)
 
@@ -108,7 +114,14 @@ class AuthService:
             update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
 
             tenants_and_organizations = portal_service.get_tenants_and_organizations()
-            base_url = select_tenant(self._domain, tenants_and_organizations)
+
+            if self._tenant:
+                base_url = get_tenant_id(
+                    self._domain, self._tenant, tenants_and_organizations
+                )
+            else:
+                base_url = select_tenant(self._domain, tenants_and_organizations)
+
             try:
                 portal_service.post_auth(base_url)
             except Exception:
