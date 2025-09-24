@@ -264,6 +264,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             agent_input=eval_item.inputs,
             agent_output=execution_output.result.output or {},
             agent_trace=execution_output.spans,
+            expected_agent_behavior=eval_item.expected_agent_behavior,
         )
 
         result = await evaluator.evaluate(
