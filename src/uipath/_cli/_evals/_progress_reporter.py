@@ -59,7 +59,9 @@ def gracefully_handle_errors(func):
 class StudioWebProgressReporter:
     """Handles reporting evaluation progress to StudioWeb."""
 
-    def __init__(self):
+    def __init__(self, spans_exporter: LlmOpsHttpExporter):
+        self.spans_exporter = spans_exporter
+
         logging.getLogger("uipath._cli.middlewares").setLevel(logging.CRITICAL)
         console_logger = ConsoleLogger.get_instance()
         uipath = UiPath()
@@ -199,11 +201,11 @@ class StudioWebProgressReporter:
 
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
-            spans_exporter = LlmOpsHttpExporter(
-                trace_id=self.eval_set_run_ids.get(payload.execution_id),
+            self.spans_exporter.trace_id = self.eval_set_run_ids.get(
+                payload.execution_id
             )
 
-            spans_exporter.export(payload.spans)
+            self.spans_exporter.export(payload.spans)
 
             for eval_result in payload.eval_results:
                 evaluator_id = eval_result.evaluator_id
