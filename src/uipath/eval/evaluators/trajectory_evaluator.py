@@ -38,7 +38,7 @@ class TrajectoryEvaluator(BaseEvaluator[dict[str, Any]]):
             )
         return v
 
-    def model_post_init(self, __context):
+    def model_post_init(self, __context: Any):
         """Initialize the LLM service after model creation."""
         super().model_post_init(__context)
         self._initialize_llm()
@@ -160,4 +160,4 @@ class TrajectoryEvaluator(BaseEvaluator[dict[str, Any]]):
         }
 
         response = await self.llm.chat_completions(**request_data)
-        return LLMResponse(**json.loads(response.choices[-1].message.content))
+        return LLMResponse(**json.loads(response.choices[-1].message.content or "{}"))

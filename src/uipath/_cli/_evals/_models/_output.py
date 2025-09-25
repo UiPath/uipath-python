@@ -1,9 +1,12 @@
 import logging
 from typing import List, Optional
+from collections import defaultdict
+from typing import Any, Dict, List, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, model_serializer
 from pydantic.alias_generators import to_camel
+from pydantic_core import core_schema
 
 from uipath._cli._runtime._contracts import UiPathRuntimeResult
 from uipath.eval.models.models import EvaluationResult, ScoreType
@@ -24,11 +27,15 @@ class EvaluationResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     score: float
-    details: Optional[str] = None
+    details: Optional[str | BaseModel] = None
     evaluation_time: Optional[float] = None
 
     @model_serializer(mode="wrap")
-    def serialize_model(self, serializer, info):
+    def serialize_model(
+        self,
+        serializer: core_schema.SerializerFunctionWrapHandler,
+        info: core_schema.SerializationInfo,
+    ) -> Any:
         data = serializer(self)
         if self.details is None and isinstance(data, dict):
             data.pop("details", None)
@@ -98,3 +105,82 @@ class UiPathEvalOutput(BaseModel):
             eval_result.score for eval_result in self.evaluation_set_results
         ]
         self.score = sum(eval_item_scores) / len(eval_item_scores)
+
+    def calculate_final_score(
+        self,
+        evaluator_weights: Dict[str, float] | None = None,
+        default_weight: float = 1.0,
+    ) -> tuple[float, Dict[str, float]]:
+        """Aggregate evaluation results with deduplication and weighted scoring.
+
+        This function performs the following steps:
+        1. Flattens the nested evaluation_set_results structure
+        2. Deduplicates results by datapoint_id (evaluation_name) and evaluator_name (averages duplicates)
+        3. Calculates average score per evaluator across all datapoints
+        4. Computes final weighted score across evaluators
+
+        Args:
+            evaluator_weights: Optional dict mapping evaluator names to weights
+            default_weight: Default weight for evaluators not in evaluator_weights (default: 1.0)
+
+        Returns:
+            Tuple of (final_score, agg_metrics_per_evaluator)
+            - final_score: Weighted average across evaluators
+            - agg_metrics_per_evaluator: Dict mapping evaluator names to their average scores
+        """
+        if not self.evaluation_set_results:
+            return 0.0, {}
+
+        if evaluator_weights is None:
+            evaluator_weights = {}
+
+        # Step 1: Flatten the nested structure and group by datapoint_id and evaluator_name for deduplication
+        # datapoint_id = evaluation_name, evaluator_name from EvaluationRunResultDto
+        grouped_by_datapoint_evaluator: defaultdict[
+            str, defaultdict[str, list[float]]
+        ] = defaultdict(lambda: defaultdict(list))
+
+        for eval_run_result in self.evaluation_set_results:
+            datapoint_id = eval_run_result.evaluation_name
+            for eval_run_result_dto in eval_run_result.evaluation_run_results:
+                evaluator_name = eval_run_result_dto.evaluator_name
+                score = eval_run_result_dto.result.score
+                grouped_by_datapoint_evaluator[datapoint_id][evaluator_name].append(
+                    score
+                )
+
+        # Step 2: Deduplicate by averaging same evaluator results for same datapoint
+        dedup_scores: list[tuple[str, str, float]] = []
+        for datapoint_id, evaluators_dict in grouped_by_datapoint_evaluator.items():
+            for evaluator_name, scores_list in evaluators_dict.items():
+                if scores_list:
+                    # Average the scores for this evaluator on this datapoint
+                    avg_score = sum(scores_list) / len(scores_list)
+                    dedup_scores.append((datapoint_id, evaluator_name, avg_score))
+
+        # Step 3: Group by evaluator and calculate average score per evaluator
+        grouped_by_evaluator: defaultdict[str, list[float]] = defaultdict(list)
+        for _datapoint_id, evaluator_name, score in dedup_scores:
+            grouped_by_evaluator[evaluator_name].append(score)
+
+        agg_metrics_per_evaluator = {}
+        for evaluator_name, scores_list in grouped_by_evaluator.items():
+            avg_score = sum(scores_list) / len(scores_list)
+            agg_metrics_per_evaluator[evaluator_name] = avg_score
+
+        # Step 4: Calculate final weighted score
+        if not agg_metrics_per_evaluator:
+            return 0.0, {}
+
+        total_weighted_score = 0.0
+        total_weight = 0.0
+
+        for evaluator_name, avg_score in agg_metrics_per_evaluator.items():
+            weight = evaluator_weights.get(evaluator_name, default_weight)
+            total_weighted_score += avg_score * weight
+            total_weight += weight
+
+        final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
+
+        self.score = final_score
+        return final_score, agg_metrics_per_evaluator
