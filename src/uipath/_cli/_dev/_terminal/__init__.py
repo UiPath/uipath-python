@@ -29,6 +29,7 @@ from ..._runtime._contracts import (
     UiPathRuntimeFactory,
     UiPathRuntimeStatus,
 )
+from ..._utils._common import load_environment_variables
 from ._components._details import RunDetailsPanel
 from ._components._history import RunHistoryPanel
 from ._components._new import NewRunPanel
@@ -210,6 +211,8 @@ class UiPathDevTerminal(App[Any]):
 
     async def _execute_runtime(self, run: ExecutionRun):
         """Execute the script using UiPath runtime."""
+        load_environment_variables()
+
         try:
             context: UiPathRuntimeContext = self.runtime_factory.new_context(
                 entrypoint=run.entrypoint,
@@ -222,7 +225,9 @@ class UiPathDevTerminal(App[Any]):
                 ),
                 chat_handler=RunContextChatHandler(
                     run_id=run.id, callback=self._handle_chat_event
-                ),
+                )
+                if run.conversational
+                else None,
             )
 
             if run.status == "suspended":
