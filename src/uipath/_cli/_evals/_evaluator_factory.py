@@ -123,6 +123,22 @@ class EvaluatorFactory:
     @staticmethod
     def _create_trajectory_evaluator(
         base_params: EvaluatorBaseParams, data: Dict[str, Any]
-    ) -> TrajectoryEvaluator[Any]:
+    ) -> TrajectoryEvaluator:
         """Create a trajectory evaluator."""
-        raise NotImplementedError()
+        prompt = data.get("prompt", "")
+        if not prompt:
+            raise ValueError("Trajectory evaluator must include 'prompt' field")
+
+        model = data.get("model", "")
+        if not model:
+            raise ValueError("LLM evaluator must include 'model' field")
+        if model == "same-as-agent":
+            raise ValueError(
+                "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
+            )
+
+        return TrajectoryEvaluator(
+            **base_params.model_dump(),
+            prompt=prompt,
+            model=model,
+        )
