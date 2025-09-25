@@ -6,6 +6,7 @@ from .buckets_service import BucketsService
 from .connections_service import ConnectionsService
 from .context_grounding_service import ContextGroundingService
 from .entities_service import EntitiesService
+from .external_application_service import ExternalApplicationService
 from .folder_service import FolderService
 from .jobs_service import JobsService
 from .llm_gateway_service import UiPathLlmChatService, UiPathOpenAIService
@@ -27,4 +28,5 @@ __all__ = [
     "UiPathLlmChatService",
     "FolderService",
     "EntitiesService",
+    "ExternalApplicationService",
 ]
