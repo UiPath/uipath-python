@@ -1,5 +1,14 @@
 from typing import Any, Dict
 
+from pydantic import TypeAdapter
+
+from uipath._cli._evals._models._evaluator import (
+    EqualsEvaluatorParams,
+    Evaluator,
+    JsonSimilarityEvaluatorParams,
+    LLMEvaluatorParams,
+    TrajectoryEvaluatorParams,
+)
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import (
     BaseEvaluator,
@@ -8,7 +17,6 @@ from uipath.eval.evaluators import (
     LlmAsAJudgeEvaluator,
     TrajectoryEvaluator,
 )
-from uipath.eval.models.models import EvaluatorCategory, EvaluatorType
 
 
 class EvaluatorFactory:
@@ -35,110 +43,64 @@ class EvaluatorFactory:
         if not id:
             raise ValueError("Evaluator configuration must include 'id' field")
 
-        category = EvaluatorCategory.from_int(data.get("category"))
-        evaluator_type = EvaluatorType.from_int(data.get("type", EvaluatorType.Unknown))
-        description = data.get("description", "")
-        created_at = data.get("createdAt", "")
-        updated_at = data.get("updatedAt", "")
-        target_output_key = data.get("targetOutputKey", "")
+        params: EvaluatorBaseParams = TypeAdapter(Evaluator).validate_python(data)
 
-        # Create base parameters
-        base_params = EvaluatorBaseParams(
-            id=id,
-            category=category,
-            evaluator_type=evaluator_type,
-            name=name,
-            description=description,
-            created_at=created_at,
-            updated_at=updated_at,
-            target_output_key=target_output_key,
-        )
-
-        match category:
-            case EvaluatorCategory.Deterministic:
-                if evaluator_type == evaluator_type.Equals:
-                    return EvaluatorFactory._create_exact_match_evaluator(
-                        base_params, data
-                    )
-                elif evaluator_type == evaluator_type.JsonSimilarity:
-                    return EvaluatorFactory._create_json_similarity_evaluator(
-                        base_params, data
-                    )
-                else:
-                    raise ValueError(
-                        f"Unknown evaluator type {evaluator_type} for category {category}"
-                    )
-            case EvaluatorCategory.LlmAsAJudge:
-                return EvaluatorFactory._create_llm_as_judge_evaluator(
-                    base_params, data
-                )
-            case EvaluatorCategory.AgentScorer:
-                raise NotImplementedError()
-            case EvaluatorCategory.Trajectory:
-                return EvaluatorFactory._create_trajectory_evaluator(base_params, data)
+        match params:
+            case EqualsEvaluatorParams():
+                return EvaluatorFactory._create_exact_match_evaluator(params)
+            case JsonSimilarityEvaluatorParams():
+                return EvaluatorFactory._create_json_similarity_evaluator(params)
+            case LLMEvaluatorParams():
+                return EvaluatorFactory._create_llm_as_judge_evaluator(params)
+            case TrajectoryEvaluatorParams():
+                return EvaluatorFactory._create_trajectory_evaluator(params)
             case _:
-                raise ValueError(f"Unknown evaluator category: {category}")
+                raise ValueError(f"Unknown evaluator category: {params}")
 
     @staticmethod
     def _create_exact_match_evaluator(
-        base_params: EvaluatorBaseParams, data: Dict[str, Any]
+        params: EqualsEvaluatorParams,
     ) -> ExactMatchEvaluator:
         """Create a deterministic evaluator."""
-        return ExactMatchEvaluator(
-            **base_params.model_dump(),
-        )
+        return ExactMatchEvaluator(**params.model_dump())
 
     @staticmethod
     def _create_json_similarity_evaluator(
-        base_params: EvaluatorBaseParams, data: Dict[str, Any]
+        params: JsonSimilarityEvaluatorParams,
     ) -> JsonSimilarityEvaluator:
         """Create a deterministic evaluator."""
-        return JsonSimilarityEvaluator(
-            **base_params.model_dump(),
-        )
+        return JsonSimilarityEvaluator(**params.model_dump())
 
     @staticmethod
     def _create_llm_as_judge_evaluator(
-        base_params: EvaluatorBaseParams, data: Dict[str, Any]
+        params: LLMEvaluatorParams,
     ) -> LlmAsAJudgeEvaluator:
         """Create an LLM-as-a-judge evaluator."""
-        prompt = data.get("prompt", "")
-        if not prompt:
+        if not params.prompt:
             raise ValueError("LLM evaluator must include 'prompt' field")
 
-        model = data.get("model", "")
-        if not model:
+        if not params.model:
             raise ValueError("LLM evaluator must include 'model' field")
-        if model == "same-as-agent":
+        if params.model == "same-as-agent":
             raise ValueError(
                 "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
             )
 
-        return LlmAsAJudgeEvaluator(
-            **base_params.model_dump(),
-            prompt=prompt,
-            model=model,
-        )
+        return LlmAsAJudgeEvaluator(**params.model_dump())
 
     @staticmethod
     def _create_trajectory_evaluator(
-        base_params: EvaluatorBaseParams, data: Dict[str, Any]
+        params: TrajectoryEvaluatorParams,
     ) -> TrajectoryEvaluator:
         """Create a trajectory evaluator."""
-        prompt = data.get("prompt", "")
-        if not prompt:
+        if not params.prompt:
             raise ValueError("Trajectory evaluator must include 'prompt' field")
 
-        model = data.get("model", "")
-        if not model:
+        if not params.model:
             raise ValueError("LLM evaluator must include 'model' field")
-        if model == "same-as-agent":
+        if params.model == "same-as-agent":
             raise ValueError(
                 "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
             )
 
-        return TrajectoryEvaluator(
-            **base_params.model_dump(),
-            prompt=prompt,
-            model=model,
-        )
+        return TrajectoryEvaluator(**params.model_dump())

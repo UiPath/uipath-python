@@ -72,7 +72,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/uipath"]
-include = ["src/uipath/_resources"]
+include = [
+    "src/uipath/_resources"
+]
 
 [tool.ruff]
 line-length = 88

@@ -31,6 +31,52 @@ async def load_agent_definition(project_id: str):
         await get_file(project_structure, PurePath("agent.json"), studio_client)
     ).json()
 
+    evaluators = []
+    try:
+        evaluators_path = resolve_path(
+            project_structure, PurePath("evals", "evaluators")
+        )
+        if isinstance(evaluators_path, ProjectFolder):
+            for file in evaluators_path.files:
+                evaluators.append(
+                    (
+                        await get_file(
+                            evaluators_path, PurePath(file.name), studio_client
+                        )
+                    ).json()
+                )
+        else:
+            logger.warning(
+                "Unable to read evaluators from project. Defaulting to empty evaluators."
+            )
+    except Exception:
+        logger.warning(
+            "Unable to read evaluators from project. Defaulting to empty evaluators."
+        )
+
+    evaluation_sets = []
+    try:
+        evaluation_sets_path = resolve_path(
+            project_structure, PurePath("evals", "eval-sets")
+        )
+        if isinstance(evaluation_sets_path, ProjectFolder):
+            for file in evaluation_sets_path.files:
+                evaluation_sets.append(
+                    (
+                        await get_file(
+                            evaluation_sets_path, PurePath(file.name), studio_client
+                        )
+                    ).json()
+                )
+        else:
+            logger.warning(
+                "Unable to read eval-sets from project. Defaulting to empty eval-sets."
+            )
+    except Exception:
+        logger.warning(
+            "Unable to read eval-sets from project. Defaulting to empty eval-sets."
+        )
+
     resolved_path = resolve_path(project_structure, PurePath("resources"))
     if isinstance(resolved_path, ProjectFolder):
         resource_folders = resolved_path.folders
@@ -50,6 +96,8 @@ async def load_agent_definition(project_id: str):
         "id": project_id,
         "name": project_structure.name,
         "resources": resources,
+        "evaluators": evaluators,
+        "evaluationSets": evaluation_sets,
         **agent,
     }
     return TypeAdapter(AgentDefinition).validate_python(agent_definition)
