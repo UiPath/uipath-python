@@ -25,6 +25,18 @@ HEADER_SW_LOCK_KEY = "x-uipath-sw-lockkey"
 ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (
     "#UiPath.Vdbs.Domain.Api.V20Models.StorageBucketDataSourceRequest"
 )
+CONFLUENCE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.ConfluenceDataSourceRequest"
+DROPBOX_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.DropboxDataSourceRequest"
+GOOGLE_DRIVE_DATA_SOURCE = (
+    "#UiPath.Vdbs.Domain.Api.V20Models.GoogleDriveDataSourceRequest"
+)
+ONEDRIVE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.OneDriveDataSourceRequest"
+
+# Preprocessing request types
+LLMV3Mini = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV3MiniPreProcessingRequest"
+LLMV4 = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest"
+NativeV1 = "#UiPath.Vdbs.Domain.Api.V20Models.NativeV1PreProcessingRequest"
+
 
 # Local storage
 TEMP_ATTACHMENTS_FOLDER = "uipath_attachments"
