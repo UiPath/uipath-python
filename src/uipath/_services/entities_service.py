@@ -12,9 +12,10 @@ from ..models.entities import (
 )
 from ..tracing import traced
 from ._base_service import BaseService
+from ._cli_service import ClIService
 
 
-class EntitiesService(BaseService):
+class EntitiesService(BaseService, ClIService):
     """Service for managing UiPath Data Service entities.
 
     Entities are database tables in UiPath Data Service that can store
@@ -23,6 +24,9 @@ class EntitiesService(BaseService):
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
+
+    def _list(self, **kwargs) -> List[Entity]:
+        return self.list_entities()
 
     @traced(name="entity_retrieve", run_type="uipath")
     def retrieve(self, entity_key: str) -> Entity:
