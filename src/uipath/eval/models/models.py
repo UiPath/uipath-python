@@ -16,6 +16,7 @@ class AgentExecution(BaseModel):
     agent_output: Dict[str, Any]
     agent_trace: list[ReadableSpan]
     expected_agent_behavior: Optional[str] = None
+    simulation_instructions: str = ""
 
 
 class LLMResponse(BaseModel):
@@ -84,7 +85,7 @@ class EvaluatorCategory(IntEnum):
     Trajectory = 3
 
     @classmethod
-    def from_int(cls, value):
+    def from_int(cls, value: int) -> "EvaluatorCategory":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
@@ -107,7 +108,7 @@ class EvaluatorType(IntEnum):
     Faithfulness = 9
 
     @classmethod
-    def from_int(cls, value):
+    def from_int(cls, value: int) -> "EvaluatorType":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
