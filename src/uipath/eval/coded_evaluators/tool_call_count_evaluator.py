@@ -11,6 +11,7 @@ from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 
 
@@ -29,8 +30,18 @@ class ToolCallCountEvaluatorConfig(BaseEvaluatorConfig):
     default_evaluation_criteria: ToolCallCountEvaluationCriteria | None = None
 
 
+class ToolCallCountEvaluatorJustification(BaseEvaluatorJustification):
+    """Justification for the tool call count evaluator."""
+
+    explained_tool_calls_count: dict[str, str]
+
+
 class ToolCallCountEvaluator(
-    BaseEvaluator[ToolCallCountEvaluationCriteria, ToolCallCountEvaluatorConfig]
+    BaseEvaluator[
+        ToolCallCountEvaluationCriteria,
+        ToolCallCountEvaluatorConfig,
+        ToolCallCountEvaluatorJustification,
+    ]
 ):
     """Evaluator that checks if the tool calls match the expected count.
 
@@ -62,7 +73,8 @@ class ToolCallCountEvaluator(
             evaluation_criteria.tool_calls_count,
             self.evaluator_config.strict,
         )
+        validated_justification = self.validate_justification(justification)
         return NumericEvaluationResult(
             score=score,
-            details=justification,
+            details=validated_justification,
         )

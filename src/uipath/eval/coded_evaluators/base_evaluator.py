@@ -5,7 +5,7 @@ import json
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, Generic, TypeVar, get_args
+from typing import Any, Generic, TypeVar, Union, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -47,11 +47,18 @@ class BaseEvaluatorConfig(BaseModel):
     default_evaluation_criteria: BaseEvaluationCriteria | None = None
 
 
+class BaseEvaluatorJustification(BaseModel):
+    """Base class for all evaluator justifications."""
+
+    pass
+
+
 T = TypeVar("T", bound=BaseEvaluationCriteria)
 C = TypeVar("C", bound=BaseEvaluatorConfig)
+J = TypeVar("J", bound=Union[str, None, BaseEvaluatorJustification])
 
 
-class BaseEvaluator(BaseModel, Generic[T, C], ABC):
+class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
     """Abstract base class for all evaluators."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -60,6 +67,9 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
     config_type: type[C] = Field(description="The config type class")
     evaluation_criteria_type: type[T] = Field(
         description="The type used for evaluation criteria validation and creation"
+    )
+    justification_type: type[J] = Field(
+        description="The type used for justification validation and creation"
     )
     evaluator_config: C = Field(
         exclude=True, description="The validated config object instance"
@@ -100,6 +110,10 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
             # Always extract and set config_type
             config_type = cls._extract_config_type()
             values["config_type"] = config_type
+
+            # Always extract and set justification_type
+            justification_type = cls._extract_justification_type()
+            values["justification_type"] = justification_type
 
             # Validate and create the config object if config dict is provided
             if config_dict := values.get("config"):
@@ -182,6 +196,33 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
             f"Ensure the class properly inherits from BaseEvaluator with correct Generic parameters."
         )
 
+    @classmethod
+    def _extract_justification_type(cls) -> type[J]:
+        """Extract the justification type from Pydantic model fields.
+
+        Returns:
+            The justification type (str, None, or BaseEvaluatorJustification subclass)
+        """
+        if cls.__name__ == "BaseEvaluator":
+            return cast(type[J], type(None))
+
+        if hasattr(cls, "model_fields") and "justification_type" in cls.model_fields:
+            field_info = cls.model_fields["justification_type"]
+            if hasattr(field_info, "annotation"):
+                annotation = field_info.annotation
+                if args := get_args(annotation):
+                    justification_type = args[0]
+                    # Support str, None, or BaseEvaluatorJustification subclasses
+                    if justification_type is str or justification_type is type(None):
+                        return cast(type[J], justification_type)
+                    elif isinstance(justification_type, type) and issubclass(
+                        justification_type, BaseEvaluatorJustification
+                    ):
+                        return cast(type[J], justification_type)
+
+        # Default to None if we can't determine the type
+        return cast(type[J], type(None))
+
     def validate_evaluation_criteria(self, criteria: Any) -> T:
         """Validate and convert input to the correct evaluation criteria type.
 
@@ -212,6 +253,64 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
                 raise ValueError(
                     f"Cannot convert {type(criteria)} to {self.evaluation_criteria_type}: {e}"
                 ) from e
+
+    def validate_justification(self, justification: Any) -> J:
+        """Validate and convert input to the correct justification type.
+
+        Args:
+            justification: The justification to validate (str, None, dict, BaseEvaluatorJustification, or other)
+
+        Returns:
+            The validated justification of the correct type
+        """
+        # The key insight: J is constrained to be one of str, None, or BaseEvaluatorJustification
+        # At instantiation time, J gets bound to exactly one of these types
+        # We need to handle each case and ensure the return matches the bound type
+
+        # Handle None type - when J is bound to None (the literal None type)
+        if self.justification_type is type(None):
+            # When J is None, we can only return None
+            return cast(J, justification if justification is None else None)
+
+        # Handle str type - when J is bound to str
+        if self.justification_type is str:
+            # When J is str, we must return a str
+            if justification is None:
+                return cast(J, "")
+            return cast(J, str(justification))
+
+        # Handle BaseEvaluatorJustification subclasses - when J is bound to a specific subclass
+        if isinstance(self.justification_type, type) and issubclass(
+            self.justification_type, BaseEvaluatorJustification
+        ):
+            # When J is a BaseEvaluatorJustification subclass, we must return that type
+            if justification is None:
+                raise ValueError(
+                    f"None is not allowed for justification type {self.justification_type}"
+                )
+
+            if isinstance(justification, self.justification_type):
+                return cast(J, justification)
+            elif isinstance(justification, dict):
+                return cast(J, self.justification_type.model_validate(justification))
+            elif hasattr(justification, "__dict__"):
+                return cast(
+                    J, self.justification_type.model_validate(justification.__dict__)
+                )
+            else:
+                try:
+                    return cast(
+                        J, self.justification_type.model_validate(justification)
+                    )
+                except Exception as e:
+                    raise ValueError(
+                        f"Cannot convert {type(justification)} to {self.justification_type}: {e}"
+                    ) from e
+
+        # Fallback: try to return as-is or raise error
+        raise ValueError(
+            f"Unsupported justification type {self.justification_type} for input {type(justification)}"
+        )
 
     @classmethod
     def get_evaluation_criteria_schema(cls) -> dict[str, Any]:

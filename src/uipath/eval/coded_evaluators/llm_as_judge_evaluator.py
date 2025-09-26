@@ -36,7 +36,7 @@ T = TypeVar("T", bound=BaseEvaluationCriteria)
 C = TypeVar("C", bound=BaseLLMJudgeEvaluatorConfig)
 
 
-class LLMJudgeMixin(BaseEvaluator[T, C]):
+class LLMJudgeMixin(BaseEvaluator[T, C, str]):
     """Mixin that provides common LLM judge functionality."""
 
     system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
@@ -94,10 +94,13 @@ class LLMJudgeMixin(BaseEvaluator[T, C]):
         )
 
         llm_response = await self._get_llm_response(evaluation_prompt)
+        validated_justification = self.validate_justification(
+            llm_response.justification
+        )
 
         return NumericEvaluationResult(
             score=round(llm_response.score / 100.0, 2),
-            details=llm_response.justification,
+            details=validated_justification,
         )
 
     def _create_evaluation_prompt(

@@ -8,6 +8,7 @@ This module tests:
 """
 
 import pytest
+from pytest_mock.plugin import MockerFixture
 
 from src.uipath.eval.coded_evaluators.exact_match_evaluator import (
     ExactMatchEvaluator,
@@ -195,6 +196,64 @@ class TestEvaluatorSchemas:
         assert "expected_agent_behavior" in criteria_schema["properties"]
 
 
+class TestJustificationSchemas:
+    """Test justification schema generation and validation for all evaluators."""
+
+    def test_exact_match_evaluator_justification_schema(self) -> None:
+        """Test ExactMatchEvaluator justification schema generation."""
+        # Test justification type extraction
+        justification_type = ExactMatchEvaluator._extract_justification_type()
+        assert justification_type is type(None)
+
+    def test_json_similarity_evaluator_justification_schema(self) -> None:
+        """Test JsonSimilarityEvaluator justification schema generation."""
+        # Test justification type extraction - JSON similarity provides str justification
+        justification_type = JsonSimilarityEvaluator._extract_justification_type()
+        assert justification_type is str
+
+    def test_tool_call_order_evaluator_justification_schema(self) -> None:
+        """Test ToolCallOrderEvaluator justification schema generation."""
+        # Test justification type extraction - tool call evaluators have their own justification types
+        from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+            ToolCallOrderEvaluatorJustification,
+        )
+
+        justification_type = ToolCallOrderEvaluator._extract_justification_type()
+        assert justification_type is ToolCallOrderEvaluatorJustification
+
+    def test_tool_call_count_evaluator_justification_schema(self) -> None:
+        """Test ToolCallCountEvaluator justification schema generation."""
+        # Test justification type extraction - tool call evaluators have their own justification types
+        from src.uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+            ToolCallCountEvaluatorJustification,
+        )
+
+        justification_type = ToolCallCountEvaluator._extract_justification_type()
+        assert justification_type is ToolCallCountEvaluatorJustification
+
+    def test_tool_call_args_evaluator_justification_schema(self) -> None:
+        """Test ToolCallArgsEvaluator justification schema generation."""
+        # Test justification type extraction - tool call evaluators have their own justification types
+        from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+            ToolCallArgsEvaluatorJustification,
+        )
+
+        justification_type = ToolCallArgsEvaluator._extract_justification_type()
+        assert justification_type is ToolCallArgsEvaluatorJustification
+
+    def test_llm_judge_output_evaluator_justification_schema(self) -> None:
+        """Test LLMJudgeOutputEvaluator justification schema generation."""
+        # Test justification type extraction - LLM evaluators use str for justification
+        justification_type = LLMJudgeOutputEvaluator._extract_justification_type()
+        assert justification_type is str
+
+    def test_llm_judge_trajectory_evaluator_justification_schema(self) -> None:
+        """Test LLMJudgeTrajectoryEvaluator justification schema generation."""
+        # Test justification type extraction - LLM evaluators use str for justification
+        justification_type = LLMJudgeTrajectoryEvaluator._extract_justification_type()
+        assert justification_type is str
+
+
 class TestBaseEvaluatorFunctionality:
     """Test base evaluator functionality."""
 
@@ -283,14 +342,17 @@ class TestBaseEvaluatorFunctionality:
         assert isinstance(validated, ToolCallOrderEvaluationCriteria)
         assert validated.tool_calls_order == ["tool1", "tool2", "tool3"]
 
-    def test_criteria_validation_llm_judge_output(self) -> None:
+    def test_criteria_validation_llm_judge_output(self, mocker: MockerFixture) -> None:
         """Test criteria validation for LLMJudgeOutputEvaluator."""
         config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
             "model": "gpt-4o-2024-08-06",
         }
-        evaluator = LLMJudgeOutputEvaluator.model_validate({"config": config_dict})
+        mock_llm_service = mocker.MagicMock()
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"config": config_dict, "llm_service": mock_llm_service}
+        )
 
         # Test dict validation
         criteria_dict = {"expected_output": "test output"}
@@ -311,6 +373,62 @@ class TestBaseEvaluatorFunctionality:
         # Types should be set correctly
         assert evaluator.evaluation_criteria_type == OutputEvaluationCriteria
         assert evaluator.config_type.__name__ == "JsonSimilarityEvaluatorConfig"
+
+    def test_justification_validation_none_type(self) -> None:
+        """Test justification validation for evaluators with None justification type."""
+        config_dict = {
+            "name": "Test",
+            "default_evaluation_criteria": {"expected_output": "test"},
+        }
+        evaluator = ExactMatchEvaluator.model_validate({"config": config_dict})
+
+        # Test None validation
+        assert evaluator.validate_justification(None) is None
+        assert evaluator.validate_justification("any string") is None
+
+    def test_justification_validation_str_type(self, mocker: MockerFixture) -> None:
+        """Test justification validation for evaluators with str justification type."""
+        config_dict = {
+            "name": "Test",
+            "default_evaluation_criteria": {"expected_output": "test"},
+            "model": "gpt-4o-2024-08-06",
+        }
+        mock_llm_service = mocker.MagicMock()
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"config": config_dict, "llm_service": mock_llm_service}
+        )
+
+        # Test string validation
+        assert (
+            evaluator.validate_justification("test justification")
+            == "test justification"
+        )
+        assert evaluator.validate_justification(123) == "123"
+        assert evaluator.validate_justification(None) == ""
+
+    def test_justification_type_consistency(self, mocker: MockerFixture) -> None:
+        """Test that justification_type field matches the generic parameter."""
+        # Test None type evaluators
+        config_dict = {
+            "name": "Test",
+            "default_evaluation_criteria": {"expected_output": "test"},
+        }
+        exact_match_evaluator = ExactMatchEvaluator.model_validate(
+            {"config": config_dict}
+        )
+        assert exact_match_evaluator.justification_type is type(None)
+
+        # Test str type evaluators
+        llm_config_dict = {
+            "name": "Test",
+            "default_evaluation_criteria": {"expected_output": "test"},
+            "model": "gpt-4o-2024-08-06",
+        }
+        mock_llm_service = mocker.MagicMock()
+        llm_evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"config": llm_config_dict, "llm_service": mock_llm_service}
+        )
+        assert llm_evaluator.justification_type is str
 
 
 class TestEvaluatorInstances:

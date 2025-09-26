@@ -20,7 +20,7 @@ class ContainsEvaluatorConfig(BaseEvaluatorConfig):
 
 
 class ContainsEvaluator(
-    BaseEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig]
+    BaseEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, None]
 ):
     """Evaluator that checks if the actual output contains the expected output.
 

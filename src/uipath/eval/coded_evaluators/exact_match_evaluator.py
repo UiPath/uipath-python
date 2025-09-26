@@ -16,7 +16,7 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig):
     negated: bool = False
 
 
-class ExactMatchEvaluator(OutputEvaluator[ExactMatchEvaluatorConfig]):
+class ExactMatchEvaluator(OutputEvaluator[ExactMatchEvaluatorConfig, type(None)]):
     """Evaluator that performs exact structural matching between expected and actual outputs.
 
     This evaluator returns True if the actual output exactly matches the expected output
