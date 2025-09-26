@@ -1,0 +1,7 @@
+test:uipath-llamaindex:
+  - changed-files:
+    - any-glob-to-any-file: ['src/**/*.py']
+
+test:uipath-langchain:
+  - changed-files:
+    - any-glob-to-any-file: ['src/**/*.py']
