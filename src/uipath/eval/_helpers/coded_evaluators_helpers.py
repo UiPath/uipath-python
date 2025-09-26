@@ -92,7 +92,7 @@ def tool_calls_order_score(
     actual_tool_calls_names: Sequence[str],
     expected_tool_calls_names: Sequence[str],
     strict: bool = False,
-) -> tuple[float, str]:
+) -> tuple[float, dict[str, Any]]:
     """The function calculates a score based on LCS applied to the order of the tool calls.
 
     It calculates the longest common subsequence between the actual tool calls
@@ -107,18 +107,22 @@ def tool_calls_order_score(
     Returns:
         tuple[float, str]: Ratio of the LCS length to the number of expected, and the LCS string
     """
-    justification_template = f"Expected tool calls: {expected_tool_calls_names}\nActual tool calls: {actual_tool_calls_names}"
-    if not strict:
-        justification_template += "\nLongest common subsequence: {lcs}"
+    justification = {
+        "actual_tool_calls_order": actual_tool_calls_names,
+        "expected_tool_calls_order": expected_tool_calls_names,
+        "lcs": [],
+    }
+
     if expected_tool_calls_names == actual_tool_calls_names:
-        return 1.0, justification_template.format(lcs=actual_tool_calls_names)
+        justification["lcs"] = actual_tool_calls_names
+        return 1.0, justification
     elif (
         not expected_tool_calls_names
         or not actual_tool_calls_names
         or strict
         and actual_tool_calls_names != expected_tool_calls_names
     ):
-        return 0.0, justification_template.format(lcs="")
+        return 0.0, justification
 
     # Calculate LCS with full DP table for efficient reconstruction
     m, n = len(actual_tool_calls_names), len(expected_tool_calls_names)
@@ -147,14 +151,16 @@ def tool_calls_order_score(
 
     lcs.reverse()  # Reverse to get correct order
     lcs_length = len(lcs)
-    return lcs_length / n, justification_template.format(lcs=" ".join(lcs))
+    justification["lcs"] = lcs
+    return lcs_length / n, justification
 
 
 def tool_calls_count_score(
     actual_tool_calls_count: Mapping[str, int],
     expected_tool_calls_count: Mapping[str, tuple[str, int]],
     strict: bool = False,
-) -> tuple[float, str]:
+    justification_key: str = "explained_tool_calls_count",
+) -> tuple[float, dict[str, Any]]:
     """Check if the expected tool calls are correctly called, where expected args must be a subset of actual args.
 
     Args:
@@ -166,12 +172,14 @@ def tool_calls_count_score(
         tuple[float, str]: Score based on the number of matches, and the justification.
     """
     if not expected_tool_calls_count and not actual_tool_calls_count:
-        return 1.0, "Both expected and actual tool calls are empty"
+        return 1.0, {justification_key: "Both expected and actual tool calls are empty"}
     elif not expected_tool_calls_count or not actual_tool_calls_count:
-        return 0.0, "Either expected or actual tool calls are empty"
+        return 0.0, {
+            justification_key: "Either expected or actual tool calls are empty"
+        }
 
     score = 0.0
-    justifications = []
+    justifications = {justification_key: {}}
     for tool_name, (
         expected_comparator,
         expected_count,
@@ -179,13 +187,14 @@ def tool_calls_count_score(
         actual_count = actual_tool_calls_count.get(tool_name, 0.0)
         comparator = f"__{COMPARATOR_MAPPINGS[expected_comparator]}__"
         to_add = float(getattr(actual_count, comparator)(expected_count))
-        justifications.append(
-            f"{tool_name}: Actual count: {actual_count}, Expected count: {expected_count}, Score: {to_add}"
+
+        justifications[justification_key][tool_name] = (
+            f"Actual: {actual_count}, Expected: {expected_count}, Score: {to_add}"
         )
         if strict and to_add == 0.0:
-            return 0.0, justifications[-1]
+            return 0.0, justifications
         score += to_add
-    return score / len(expected_tool_calls_count), "\n".join(justifications)
+    return score / len(expected_tool_calls_count), justifications
 
 
 def tool_calls_args_score(
@@ -193,7 +202,8 @@ def tool_calls_args_score(
     expected_tool_calls: list[ToolCall],
     strict: bool = False,
     subset: bool = False,
-) -> tuple[float, str]:
+    justification_key: str = "explained_tool_calls_args",
+) -> tuple[float, dict[str, Any]]:
     """Check if the expected tool calls are correctly called, where expected args must be a subset of actual args.
 
     This function does not check the order of the tool calls!
@@ -208,13 +218,15 @@ def tool_calls_args_score(
         tuple[float, str]: Score based on the number of matches, and the justification
     """
     if not expected_tool_calls and not actual_tool_calls:
-        return 1.0, "Both expected and actual tool calls are empty"
+        return 1.0, {justification_key: "Both expected and actual tool calls are empty"}
     elif not expected_tool_calls or not actual_tool_calls:
-        return 0.0, "Either expected or actual tool calls are empty"
+        return 0.0, {
+            justification_key: "Either expected or actual tool calls are empty"
+        }
 
     cnt = 0
     visited: set[int] = set()
-    justifications = []
+    justifications = {justification_key: {}}
     for expected_tool_call in expected_tool_calls:
         for idx, call in enumerate(actual_tool_calls):
             if call.name == expected_tool_call.name and idx not in visited:
@@ -237,7 +249,9 @@ def tool_calls_args_score(
                     # Only possible in exact mode when key is missing
                     args_match = False
 
-                justifications.append(f"{call.name}: Args match: {args_match}")
+                justifications[justification_key][call.name] = (
+                    f"Actual: {call.args}, Expected: {expected_tool_call.args}, Score: {float(args_match)}"
+                )
                 if args_match:
                     cnt += 1
                     visited.add(idx)
@@ -247,7 +261,7 @@ def tool_calls_args_score(
         cnt / len(expected_tool_calls)
         if not strict
         else float(cnt == len(expected_tool_calls))
-    ), "\n".join(justifications)
+    ), justifications
 
 
 def tool_output_score(

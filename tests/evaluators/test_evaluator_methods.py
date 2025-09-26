@@ -506,7 +506,7 @@ class TestLlmAsAJudgeEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_judge_basic_evaluation(
-        self, sample_agent_execution: AgentExecution, mocker: "MockerFixture"
+        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM as judge basic evaluation functionality."""
         # Mock the UiPath constructor to avoid authentication
@@ -550,7 +550,7 @@ class TestLlmAsAJudgeEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_judge_basic_evaluation_with_llm_service(
-        self, sample_agent_execution: AgentExecution, mocker: "MockerFixture"
+        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM judge basic evaluation functionality with a custom LLM service."""
         mock_response = mocker.MagicMock()
@@ -586,7 +586,7 @@ class TestLlmAsAJudgeEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_judge_validate_and_evaluate_criteria(
-        self, sample_agent_execution: AgentExecution, mocker: "MockerFixture"
+        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM judge using validate_and_evaluate_criteria."""
         # Mock the UiPath constructor to avoid authentication
@@ -636,7 +636,7 @@ class TestLlmJudgeTrajectoryEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_trajectory_basic_evaluation(
-        self, sample_agent_execution: AgentExecution, mocker: "MockerFixture"
+        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM trajectory judge basic evaluation functionality."""
         # Mock the UiPath constructor to avoid authentication
@@ -683,7 +683,7 @@ class TestLlmJudgeTrajectoryEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_trajectory_validate_and_evaluate_criteria(
-        self, sample_agent_execution: AgentExecution, mocker: "MockerFixture"
+        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM trajectory judge using validate_and_evaluate_criteria."""
         # Mock the UiPath constructor to avoid authentication
@@ -775,3 +775,307 @@ class TestEvaluationResultTypes:
 
         assert hasattr(result, "score")
         assert isinstance(result.score, (int, float))
+
+
+class TestJustificationHandling:
+    """Test justification handling in all evaluators."""
+
+    @pytest.mark.asyncio
+    async def test_exact_match_evaluator_justification(
+        self, sample_agent_execution: AgentExecution
+    ) -> None:
+        """Test that ExactMatchEvaluator handles None justification correctly."""
+        config = {
+            "name": "ExactMatchTest",
+            "case_sensitive": True,
+        }
+        evaluator = ExactMatchEvaluator.model_validate({"config": config})
+        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})
+
+        result = await evaluator.evaluate(sample_agent_execution, criteria)
+
+        # Should be NumericEvaluationResult with no justification (None)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        # Justification should be None for non-LLM evaluators
+        assert (
+            not hasattr(result, "justification")
+            or getattr(result, "justification", None) is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_json_similarity_evaluator_justification(self) -> None:
+        """Test that JsonSimilarityEvaluator handles None justification correctly."""
+        execution = AgentExecution(
+            agent_input={"input": "Test"},
+            agent_output={"name": "John", "age": 30, "city": "NYC"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "JsonSimilarityTest",
+        }
+        evaluator = JsonSimilarityEvaluator.model_validate({"config": config})
+        criteria = OutputEvaluationCriteria(
+            expected_output={"name": "John", "age": 30, "city": "NYC"}
+        )
+
+        result = await evaluator.evaluate(execution, criteria)
+
+        # Should be NumericEvaluationResult with no justification (None)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        # Justification should be None for non-LLM evaluators
+        assert (
+            not hasattr(result, "justification")
+            or getattr(result, "justification", None) is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_call_order_evaluator_justification(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test that ToolCallOrderEvaluator handles None justification correctly."""
+        config = {
+            "name": "ToolOrderTest",
+            "strict": True,
+        }
+        evaluator = ToolCallOrderEvaluator.model_validate({"config": config})
+        criteria = ToolCallOrderEvaluationCriteria(
+            tool_calls_order=["tool1", "tool2", "tool1", "tool2"]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        # Should be NumericEvaluationResult with no justification (None)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        # Justification should be None for non-LLM evaluators
+        assert (
+            not hasattr(result, "justification")
+            or getattr(result, "justification", None) is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_call_count_evaluator_justification(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test that ToolCallCountEvaluator handles None justification correctly."""
+        config = {
+            "name": "ToolCountTest",
+            "strict": True,
+        }
+        evaluator = ToolCallCountEvaluator.model_validate({"config": config})
+        criteria = ToolCallCountEvaluationCriteria(
+            tool_calls_count={"tool1": ("=", 2), "tool2": ("=", 2)}
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        # Should be NumericEvaluationResult with no justification (None)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        # Justification should be None for non-LLM evaluators
+        assert (
+            not hasattr(result, "justification")
+            or getattr(result, "justification", None) is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_call_args_evaluator_justification(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test that ToolCallArgsEvaluator handles None justification correctly."""
+        config = {
+            "name": "ToolArgsTest",
+            "strict": True,
+        }
+        evaluator = ToolCallArgsEvaluator.model_validate({"config": config})
+        criteria = ToolCallArgsEvaluationCriteria(
+            tool_calls=[
+                ToolCall(name="tool1", args={"arg1": "value1"}),
+                ToolCall(name="tool2", args={"arg2": "value2"}),
+                ToolCall(name="tool1", args={"arg1": "value1"}),
+                ToolCall(name="tool2", args={"arg2": "value2"}),
+            ]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        # Should be NumericEvaluationResult with no justification (None)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        # Justification should be None for non-LLM evaluators
+        assert (
+            not hasattr(result, "justification")
+            or getattr(result, "justification", None) is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_output_evaluator_justification(
+        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+    ) -> None:
+        """Test that LLMJudgeOutputEvaluator handles str justification correctly."""
+        # Mock the UiPath constructor to avoid authentication
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        # Mock the chat completions response with justification
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(
+                    content='{"score": 80, "justification": "The response meets most criteria but could be more detailed"}'
+                )
+            )
+        ]
+
+        # Make chat_completions an async method
+        async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
+            return mock_response
+
+        mock_llm.chat_completions = mock_chat_completions
+        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+
+        config = {
+            "name": "LlmJudgeTest",
+            "prompt": "Rate this output: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": "gpt-4o-2024-08-06",
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate({"config": config})
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")
+
+        result = await evaluator.evaluate(sample_agent_execution, criteria)
+
+        # Should have string justification in details field
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.8
+        assert hasattr(result, "details")
+        # The justification is stored in the details field for LLM evaluators
+        assert isinstance(result.details, str)
+        assert (
+            result.details
+            == "The response meets most criteria but could be more detailed"
+        )
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_trajectory_evaluator_justification(
+        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+    ) -> None:
+        """Test that LLMJudgeTrajectoryEvaluator handles str justification correctly."""
+        # Mock the UiPath constructor to avoid authentication
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        # Mock the chat completions response with justification
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(
+                    content='{"score": 85, "justification": "The agent trajectory shows good decision making and follows expected behavior patterns"}'
+                )
+            )
+        ]
+
+        # Make chat_completions an async method
+        async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
+            return mock_response
+
+        mock_llm.chat_completions = mock_chat_completions
+        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+
+        config = {
+            "name": "LlmTrajectoryTest",
+            "prompt": "Evaluate this trajectory: {{AgentRunHistory}} vs {{ExpectedAgentBehavior}}",
+            "model": "gpt-4",
+        }
+        evaluator = LLMJudgeTrajectoryEvaluator.model_validate({"config": config})
+        criteria = TrajectoryEvaluationCriteria(
+            expected_agent_behavior="Agent should respond helpfully"
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution, criteria)
+
+        # Should have string justification in details field (not justification attribute)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.85
+        assert isinstance(result.details, str)
+        assert (
+            result.details
+            == "The agent trajectory shows good decision making and follows expected behavior patterns"
+        )
+
+    def test_justification_validation_edge_cases(self, mocker: MockerFixture) -> None:
+        """Test edge cases for justification validation."""
+        # Test None type evaluator
+        config_dict = {
+            "name": "Test",
+            "default_evaluation_criteria": {"expected_output": "test"},
+        }
+        none_evaluator = ExactMatchEvaluator.model_validate({"config": config_dict})
+
+        # All inputs should return None for None type evaluators
+        assert none_evaluator.validate_justification(None) is None
+        assert none_evaluator.validate_justification("") is None
+        assert none_evaluator.validate_justification("some text") is None
+        assert none_evaluator.validate_justification(123) is None
+        assert none_evaluator.validate_justification({"key": "value"}) is None
+
+        # Test str type evaluator - need to provide llm_service to avoid authentication
+        llm_config_dict = {
+            "name": "Test",
+            "default_evaluation_criteria": {"expected_output": "test"},
+            "model": "gpt-4o-2024-08-06",
+        }
+        mock_llm_service = mocker.MagicMock()
+        str_evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"config": llm_config_dict, "llm_service": mock_llm_service}
+        )
+
+        # Different inputs should be converted to strings
+        assert str_evaluator.validate_justification("test") == "test"
+        assert str_evaluator.validate_justification("") == ""
+        assert str_evaluator.validate_justification(123) == "123"
+        assert str_evaluator.validate_justification(True) == "True"
+        assert (
+            str_evaluator.validate_justification(None) == ""
+        )  # None becomes empty string
+
+    def test_justification_type_extraction_all_evaluators(self) -> None:
+        """Test that all evaluators have correct justification type extraction."""
+        # Different evaluators have different justification types
+        assert ExactMatchEvaluator._extract_justification_type() is type(
+            None
+        )  # No justification
+        assert (
+            JsonSimilarityEvaluator._extract_justification_type() is str
+        )  # String justification
+
+        # Tool call evaluators have their own justification types
+        from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+            ToolCallArgsEvaluatorJustification,
+        )
+        from src.uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+            ToolCallCountEvaluatorJustification,
+        )
+        from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+            ToolCallOrderEvaluatorJustification,
+        )
+
+        assert (
+            ToolCallOrderEvaluator._extract_justification_type()
+            is ToolCallOrderEvaluatorJustification
+        )
+        assert (
+            ToolCallCountEvaluator._extract_justification_type()
+            is ToolCallCountEvaluatorJustification
+        )
+        assert (
+            ToolCallArgsEvaluator._extract_justification_type()
+            is ToolCallArgsEvaluatorJustification
+        )
+
+        # LLM evaluators should have str justification type
+        assert LLMJudgeOutputEvaluator._extract_justification_type() is str
+        assert LLMJudgeTrajectoryEvaluator._extract_justification_type() is str
