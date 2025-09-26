@@ -1,5 +1,7 @@
 """LLM judge output evaluators for evaluating agent outputs."""
 
+from typing import TypeVar
+
 from pydantic import BaseModel
 
 from ..models import AgentExecution, EvaluationResult
@@ -35,18 +37,18 @@ class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(LLMJudgeOutputEvaluatorC
     )
 
 
-class LLMJudgeOutputEvaluator(
-    OutputEvaluator[LLMJudgeOutputEvaluatorConfig],
-    LLMJudgeMixin[OutputEvaluationCriteria, LLMJudgeOutputEvaluatorConfig],
+OC = TypeVar("OC", bound=LLMJudgeOutputEvaluatorConfig)
+
+
+class BaseLLMOutputEvaluator(
+    OutputEvaluator[OC],
+    LLMJudgeMixin[OutputEvaluationCriteria, OC],
 ):
-    """Evaluator that uses an LLM to judge the quality of agent output.
+    """Base class for LLM judge output evaluators that contains all shared functionality.
 
-    Inherits from both LLMJudgeMixin (for LLM functionality) and OutputEvaluator
-    (for output-specific methods like _get_actual_output and _get_expected_output).
+    This class encapsulates the common evaluation logic for output-based LLM evaluators,
+    combining OutputEvaluator (for output extraction) with LLMJudgeMixin (for LLM functionality).
     """
-
-    system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
-    output_schema: type[BaseModel] = LLMJudgeOutputSchema
 
     async def evaluate(
         self,
@@ -58,24 +60,27 @@ class LLMJudgeOutputEvaluator(
         return await LLMJudgeMixin.evaluate(self, agent_execution, evaluation_criteria)
 
 
+class LLMJudgeOutputEvaluator(BaseLLMOutputEvaluator[LLMJudgeOutputEvaluatorConfig]):
+    """Evaluator that uses an LLM to judge the quality of agent output.
+
+    Inherits all functionality from BaseLLMOutputEvaluator but uses the standard
+    system prompt and output schema for general output evaluation.
+    """
+
+    system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
+    output_schema: type[BaseModel] = LLMJudgeOutputSchema
+
+
 class LLMJudgeStrictJSONSimilarityOutputEvaluator(
-    OutputEvaluator[LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig],
-    LLMJudgeMixin[
-        OutputEvaluationCriteria, LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig
-    ],
+    BaseLLMOutputEvaluator[LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig]
 ):
-    """Evaluator that uses an LLM to judge the quality of agent output with strict JSON similarity."""
+    """Evaluator that uses an LLM to judge the quality of agent output with strict JSON similarity.
+
+    Inherits all functionality from BaseLLMOutputEvaluator but uses a different system prompt
+    and output schema specific to strict JSON similarity evaluation.
+    """
 
     system_prompt: str = (
         LLMJudgePromptTemplates.LLM_JUDGE_STRICT_JSON_SIMILARITY_SYSTEM_PROMPT
     )
     output_schema: type[BaseModel] = LLMJudgeStrictJSONSimilarityOutputSchema
-
-    async def evaluate(
-        self,
-        agent_execution: AgentExecution,
-        evaluation_criteria: OutputEvaluationCriteria,
-    ) -> EvaluationResult:
-        """Evaluate using an LLM as a judge with strict JSON similarity."""
-        # Explicitly delegate to LLMJudgeMixin's evaluate method to override BaseEvaluator
-        return await LLMJudgeMixin.evaluate(self, agent_execution, evaluation_criteria)

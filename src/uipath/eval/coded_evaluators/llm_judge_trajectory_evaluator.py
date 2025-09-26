@@ -1,6 +1,6 @@
 """LLM judge trajectory evaluator for evaluating agent execution trajectories."""
 
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
@@ -41,12 +41,16 @@ class LLMJudgeSimulationEvaluatorConfig(BaseLLMJudgeEvaluatorConfig):
     )
 
 
-class LLMJudgeTrajectoryEvaluator(
-    LLMJudgeMixin[TrajectoryEvaluationCriteria, LLMJudgeTrajectoryEvaluatorConfig]
-):
-    """Evaluator that uses an LLM to judge the quality of agent trajectory."""
+TC = TypeVar("TC", bound=BaseLLMJudgeEvaluatorConfig)
 
-    system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_TRAJECTORY_SYSTEM_PROMPT
+
+class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]):
+    """Base class for LLM trajectory evaluators that contains all shared functionality.
+
+    This class encapsulates the common evaluation logic for trajectory-based LLM evaluators,
+    including output extraction, prompt formatting, and evaluation criteria handling.
+    """
+
     output_schema: type[BaseModel] = LLMJudgeTrajectoryOutputSchema
     actual_output_placeholder: str = "{{AgentRunHistory}}"
     expected_output_placeholder: str = "{{ExpectedAgentBehavior}}"
@@ -83,23 +87,27 @@ class LLMJudgeTrajectoryEvaluator(
         return formatted_prompt
 
 
-class LlmJudgeSimulationTrajectoryEvaluator(
-    LLMJudgeMixin[TrajectoryEvaluationCriteria, LLMJudgeSimulationEvaluatorConfig]
+class LLMJudgeTrajectoryEvaluator(
+    BaseLLMTrajectoryEvaluator[LLMJudgeTrajectoryEvaluatorConfig]
 ):
-    """Evaluator that uses an LLM to judge the quality of agent trajectory."""
+    """Evaluator that uses an LLM to judge the quality of agent trajectory.
+
+    Inherits all functionality from BaseLLMTrajectoryEvaluator but uses the standard
+    system prompt and configuration for general trajectory evaluation.
+    """
+
+    system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_TRAJECTORY_SYSTEM_PROMPT
+
+
+class LlmJudgeSimulationTrajectoryEvaluator(
+    BaseLLMTrajectoryEvaluator[LLMJudgeSimulationEvaluatorConfig]
+):
+    """Evaluator that uses an LLM to judge the quality of agent trajectory for simulations.
+
+    Inherits all functionality from BaseLLMTrajectoryEvaluator but uses a different system prompt
+    and configuration specific to simulation evaluation.
+    """
 
     system_prompt: str = (
         LLMJudgePromptTemplates.LLM_JUDGE_SIMULATION_TRAJECTORY_SYSTEM_PROMPT
     )
-    actual_output_placeholder: str = "{{AgentRunHistory}}"
-    expected_output_placeholder: str = "{{ExpectedAgentBehavior}}"
-
-    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
-        """Get the actual output from the agent execution."""
-        return trace_to_str(agent_execution.agent_trace)
-
-    def _get_expected_output(
-        self, evaluation_criteria: TrajectoryEvaluationCriteria
-    ) -> Any:
-        """Get the expected agent behavior from the evaluation criteria."""
-        return evaluation_criteria.expected_agent_behavior
