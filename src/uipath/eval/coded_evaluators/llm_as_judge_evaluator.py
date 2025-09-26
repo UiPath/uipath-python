@@ -2,12 +2,12 @@
 
 import json
 from abc import abstractmethod
+from collections.abc import Callable
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
-from ..._services import UiPathLlmChatService
-from ..._utils.constants import COMMUNITY_agents_SUFFIX
+from .._helpers.coded_evaluators_helpers import COMMUNITY_agents_SUFFIX
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -43,7 +43,9 @@ class LLMJudgeMixin(BaseEvaluator[T, C]):
     output_schema: type[BaseModel] = LLMJudgeOutputSchema
     actual_output_placeholder: str = "{{ActualOutput}}"
     expected_output_placeholder: str = "{{ExpectedOutput}}"
-    llm_service: UiPathLlmChatService | None = None
+    llm_service: Callable | None = Field(
+        default=None, exclude=True, description="The LLM service for evaluation"
+    )
 
     @model_validator(mode="after")
     def validate_prompt_placeholders(self) -> "LLMJudgeMixin":
@@ -57,17 +59,18 @@ class LLMJudgeMixin(BaseEvaluator[T, C]):
             )
         return self
 
-    def model_post_init(self, __context: Any):
-        """Initialize the LLM service after model creation."""
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize the LLM service if not provided."""
         super().model_post_init(__context)
-        self._initialize_llm_service()
+        if self.llm_service is None:
+            self.llm_service = self._get_llm_service()
 
-    def _initialize_llm_service(self):
-        """Initialize the LLM used for evaluation."""
+    def _get_llm_service(self):
+        """Get the LLM service from the UiPath instance."""
         from uipath import UiPath
 
         uipath = UiPath()
-        self.llm_service = uipath.llm
+        return uipath.llm.chat_completions
 
     @abstractmethod
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
@@ -138,5 +141,5 @@ class LLMJudgeMixin(BaseEvaluator[T, C]):
         }
 
         assert self.llm_service is not None, "LLM service not initialized"
-        response = await self.llm_service.chat_completions(**request_data)
+        response = await self.llm_service(**request_data)
         return LLMResponse(**json.loads(str(response.choices[-1].message.content)))

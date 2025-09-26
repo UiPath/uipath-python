@@ -530,15 +530,50 @@ class TestLlmAsAJudgeEvaluator:
 
         mock_llm.chat_completions = mock_chat_completions
 
-        # Mock the UiPath import and constructor
         mocker.patch("uipath.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmJudgeTest",
             "prompt": "Rate this output: {{ActualOutput}} vs {{ExpectedOutput}}",
-            "model": "gpt-4",
+            "model": "gpt-4o-2024-08-06",
         }
         evaluator = LLMJudgeOutputEvaluator.model_validate({"config": config})
+
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")
+
+        result = await evaluator.evaluate(sample_agent_execution, criteria)
+
+        # Verify the result
+        assert hasattr(result, "score")
+        assert isinstance(result, NumericEvaluationResult), f"Result is {result}"
+        assert result.score == 0.8, f"Result score is {result.score}"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_basic_evaluation_with_llm_service(
+        self, sample_agent_execution: AgentExecution, mocker: "MockerFixture"
+    ) -> None:
+        """Test LLM judge basic evaluation functionality with a custom LLM service."""
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(
+                    content='{"score": 80, "justification": "Good response that meets criteria"}'
+                )
+            )
+        ]
+
+        # Make chat_completions an async method
+        async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
+            return mock_response
+
+        config = {
+            "name": "LlmJudgeTest",
+            "prompt": "Rate this output: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": "gpt-4o-2024-08-06",
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"config": config, "llm_service": mock_chat_completions}
+        )
 
         criteria = OutputEvaluationCriteria(expected_output="Expected output")
 
