@@ -9,11 +9,6 @@ from typing import Any, Dict, List
 from opentelemetry import trace
 
 from uipath import UiPath
-from uipath._cli._evals._models._evaluation_set import EvaluationItem, EvaluationStatus
-from uipath._cli._evals._models._sw_reporting import (
-    StudioWebAgentSnapshot,
-    StudioWebProgressItem,
-)
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._project_files import (  # type: ignore
     get_project_config,
@@ -28,6 +23,11 @@ from uipath._events._events import (
 )
 from uipath._utils import Endpoint, RequestSpec
 from uipath._utils.constants import ENV_TENANT_ID, HEADER_INTERNAL_TENANT_ID
+from uipath.eval._models._evaluation_set import EvaluationItem, EvaluationStatus
+from uipath.eval._models._sw_reporting import (
+    StudioWebAgentSnapshot,
+    StudioWebProgressItem,
+)
 from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.tracing import LlmOpsHttpExporter

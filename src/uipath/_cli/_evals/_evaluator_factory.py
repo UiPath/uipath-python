@@ -2,14 +2,14 @@ from typing import Any, Dict
 
 from pydantic import TypeAdapter
 
-from uipath._cli._evals._models._evaluator import (
+from uipath.eval._models._evaluator import (
     EqualsEvaluatorParams,
     Evaluator,
     JsonSimilarityEvaluatorParams,
     LLMEvaluatorParams,
     TrajectoryEvaluatorParams,
 )
-from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
+from uipath.eval._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import (
     BaseEvaluator,
     ExactMatchEvaluator,

@@ -529,7 +529,7 @@ class UiPathBaseRuntime(ABC):
             is_debug_run=self.is_debug_run(),
             log_handler=self.context.log_handler,
         )
-        self.logs_interceptor.setup()
+        # self.logs_interceptor.setup()
 
         logger.debug(f"Starting runtime with job id: {self.context.job_id}")
 

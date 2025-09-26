@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
+from uipath.eval._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import JsonSimilarityEvaluator
 from uipath.eval.models.models import AgentExecution, EvaluatorCategory, EvaluatorType
 
