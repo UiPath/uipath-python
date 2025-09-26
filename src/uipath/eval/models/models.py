@@ -114,3 +114,10 @@ class EvaluatorType(IntEnum):
             return cls(value)
         else:
             raise ValueError(f"{value} is not a valid EvaluatorType value")
+
+
+class ToolCall(BaseModel):
+    """Represents a tool call with its arguments."""
+
+    name: str
+    args: dict[str, Any]

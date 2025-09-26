@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 from collections.abc import Mapping
@@ -9,6 +10,8 @@ from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils.constants import UIPATH_CONFIG_FILE
+
+from ..models.models import ToolCall
 
 COMPARATOR_MAPPINGS = {
     ">": "gt",
@@ -79,7 +82,7 @@ def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     return tool_calls_names
 
 
-def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[dict[str, Any]]:
+def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
     """Extract the tool calls from execution spans with their arguments.
 
     Args:
@@ -93,22 +96,31 @@ def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[dict[str, Any]]:
     for span in spans:
         if span.attributes and (tool_name := span.attributes.get("tool.name")):
             try:
-                input_value = span.attributes.get("input.value", "{}")
+                input_value = span.attributes.get("input.value", {})
                 # Ensure input_value is a string before parsing
                 if isinstance(input_value, str):
-                    arguments = json.loads(input_value.replace("'", '"'))
+                    arguments = ast.literal_eval(input_value)
+                elif isinstance(input_value, dict):
+                    arguments = input_value
                 else:
                     arguments = {}
-                tool_calls.append({"name": tool_name, "args": arguments})
+                tool_calls.append(ToolCall(name=str(tool_name), args=arguments))
             except json.JSONDecodeError:
                 # Handle case where input.value is not valid JSON
-                tool_calls.append({"name": tool_name, "args": {}})
+                tool_calls.append(ToolCall(name=str(tool_name), args={}))
 
     return tool_calls
 
 
 def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[dict[str, Any]]:
-    """Extract the outputs of the tool calls from execution spans."""
+    """Extract the outputs of the tool calls from execution spans.
+
+    Args:
+        spans: List of ReadableSpan objects from agent execution.
+
+    Returns:
+        List of tool calls outputs.
+    """
     tool_calls_outputs = []
     for span in spans:
         if span.attributes and (tool_name := span.attributes.get("tool.name")):
@@ -187,7 +199,13 @@ def tool_calls_count_score(
 ) -> tuple[float, str]:
     """Check if the expected tool calls are correctly called, where expected args must be a subset of actual args.
 
-    It does not check the order of the tool calls!
+    Args:
+        actual_tool_calls_count: List of actual tool calls count.
+        expected_tool_calls_count: List of expected tool calls count.
+        strict: If True, the function will return 0 if not all expected tool calls are matched.
+
+    Returns:
+        tuple[float, str]: Score based on the number of matches, and the justification.
     """
     if not expected_tool_calls_count and not actual_tool_calls_count:
         return 1.0, "Both expected and actual tool calls are empty"
@@ -212,12 +230,12 @@ def tool_calls_count_score(
     return score / len(expected_tool_calls_count), "\n".join(justifications)
 
 
-def tool_args_score(
-    actual_tool_calls: list[dict[str, Any]],
-    expected_tool_calls: list[dict[str, Any]],
+def tool_calls_args_score(
+    actual_tool_calls: list[ToolCall],
+    expected_tool_calls: list[ToolCall],
     strict: bool = False,
     subset: bool = False,
-) -> float:
+) -> tuple[float, str]:
     """Check if the expected tool calls are correctly called, where expected args must be a subset of actual args.
 
     This function does not check the order of the tool calls!
@@ -229,52 +247,40 @@ def tool_args_score(
         subset (bool): If True, the function will check if the expected args are a subset of the actual args
 
     Returns:
-        float: Score based on the number of matches
+        tuple[float, str]: Score based on the number of matches, and the justification
     """
+    if not expected_tool_calls and not actual_tool_calls:
+        return 1.0, "Both expected and actual tool calls are empty"
+    elif not expected_tool_calls or not actual_tool_calls:
+        return 0.0, "Either expected or actual tool calls are empty"
+
     cnt = 0
     visited: set[int] = set()
-
+    justifications = []
     for expected_tool_call in expected_tool_calls:
         for idx, call in enumerate(actual_tool_calls):
-            if (
-                call.get("name") == expected_tool_call.get("name")
-                and idx not in visited
-            ):
+            if call.name == expected_tool_call.name and idx not in visited:
                 # Check arguments based on mode
                 if subset:
                     # Subset mode: safely check if all expected args exist and match
                     args_check = (  # noqa: E731
-                        lambda k, v: k in call.get("args", {})  # noqa: B023
-                        and call.get("args", {})[k] == v  # noqa: B023
+                        lambda k, v: k in call.args  # noqa: B023
+                        and call.args[k] == v  # noqa: B023
                     )
-                    validator_check = lambda k, validator: k not in call.get(  # noqa: E731, B023
-                        "args", {}
-                    ) or validator(call.get("args", {})[k])  # noqa: B023
                 else:
                     # Exact mode: direct access (may raise KeyError)
-                    args_check = lambda k, v: call.get("args", {})[k] == v  # noqa: E731, B023
-                    validator_check = lambda k, validator: validator(  # noqa: E731
-                        call.get("args", {})[k]  # noqa: B023
-                    )
+                    args_check = lambda k, v: call.args[k] == v  # noqa: E731, B023
 
                 try:
                     args_match = all(
-                        args_check(k, v)
-                        for k, v in expected_tool_call.get("args", {}).items()
+                        args_check(k, v) for k, v in expected_tool_call.args.items()
                     )
-                    validators_match = True
-                    if expected_tool_call.get("args_validators", {}):
-                        validators_match = all(
-                            validator_check(k, validator)
-                            for k, validator in expected_tool_call.get(
-                                "args_validators", {}
-                            ).items()
-                        )
                 except KeyError:
                     # Only possible in exact mode when key is missing
                     args_match = False
-                    validators_match = False
-                if args_match and validators_match:
+
+                justifications.append(f"{call.name}: Args match: {args_match}")
+                if args_match:
                     cnt += 1
                     visited.add(idx)
                     break
@@ -283,7 +289,7 @@ def tool_args_score(
         cnt / len(expected_tool_calls)
         if not strict
         else float(cnt == len(expected_tool_calls))
-    )
+    ), "\n".join(justifications)
 
 
 def tool_output_score(
@@ -293,7 +299,13 @@ def tool_output_score(
 ) -> float:
     """Check if the expected tool calls are correctly called, where expected args must be a subset of actual args.
 
-    This function does not check the order of the tool calls!
+    Args:
+        actual_tool_calls_outputs: List of actual tool calls outputs.
+        expected_tool_calls_outputs: List of expected tool calls outputs.
+        strict: If True, the function will return 0 if not all expected tool calls are matched.
+
+    Returns:
+        tuple[float, str]: Score based on the number of matches, and the justification.
     """
     if not expected_tool_calls_outputs and not actual_tool_calls_outputs:
         return 1.0
@@ -362,13 +374,7 @@ def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
 
             # Get tool call information
             tool_args = span.attributes.get("input.value", {})
-            tool_result = span.attributes.get("output.value", "{}")
-            # Attempt to extract only the content of the tool result if it is a string
-            if isinstance(tool_result, str):
-                try:
-                    tool_result = json.loads(tool_result.replace("'", '"'))["content"]
-                except (json.JSONDecodeError, KeyError):
-                    tool_result = tool_result
+            tool_result = str(span.attributes.get("output.value", {})).strip()
 
             span_id = (
                 span.context.span_id
@@ -398,7 +404,7 @@ def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
             platform_history.append(
                 f"[{end_timestamp_str}] Tool Call Response - {tool_name}:"
             )
-            platform_history.append(f"{str(tool_result).strip()}")
+            platform_history.append(f"{tool_result}")
             platform_history.append("")
 
     return "\n".join(platform_history)
