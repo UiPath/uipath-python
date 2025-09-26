@@ -7,7 +7,6 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from uipath._cli._auth._auth_server import HTTPServer
-from uipath._cli._auth._client_credentials import ClientCredentialsService
 from uipath._cli._auth._oidc_utils import OidcUtils
 from uipath._cli._auth._portal_service import (
     PortalService,
@@ -15,8 +14,10 @@ from uipath._cli._auth._portal_service import (
     select_tenant,
 )
 from uipath._cli._auth._url_utils import set_force_flag
-from uipath._cli._auth._utils import update_auth_file, update_env_file
+from uipath._cli._auth._utils import update_auth_file
 from uipath._cli._utils._console import ConsoleLogger
+from uipath._services import ExternalApplicationService
+from uipath._utils._auth import parse_access_token, update_env_file
 
 
 class AuthService:
@@ -63,18 +64,22 @@ class AuthService:
         self._authenticate_authorization_code()
 
     def _authenticate_client_credentials(self) -> None:
-        if not self._base_url:
-            self._console.error(
-                "--base-url is required when using client credentials authentication."
-            )
-            return
         self._console.hint("Using client credentials authentication.")
-        credentials_service = ClientCredentialsService(self._base_url)
-        credentials_service.authenticate(
+        external_app_service = ExternalApplicationService(self._base_url)
+        access_token = external_app_service.get_access_token(
             self._client_id,  # type: ignore
             self._client_secret,  # type: ignore
             self._scope,
         )
+        parsed_access_token = parse_access_token(access_token)
+
+        env_vars = {
+            "UIPATH_ACCESS_TOKEN": access_token,
+            "UIPATH_URL": external_app_service._base_url,
+            "UIPATH_ORGANIZATION_ID": parsed_access_token.get("prt_id", ""),
+        }
+
+        update_env_file(env_vars)
 
     def _authenticate_authorization_code(self) -> None:
         with PortalService(self._domain) as portal_service:
