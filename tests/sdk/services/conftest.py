@@ -1,5 +1,6 @@
 import importlib
 from functools import wraps
+from pathlib import Path
 
 import pytest
 
@@ -44,6 +45,11 @@ def version(monkeypatch: pytest.MonkeyPatch) -> str:
 def execution_context(monkeypatch: pytest.MonkeyPatch) -> ExecutionContext:
     monkeypatch.setenv("UIPATH_ROBOT_KEY", "test-robot-key")
     return ExecutionContext()
+
+
+@pytest.fixture
+def tests_data_path() -> Path:
+    return Path(__file__).resolve().parent / "tests_data"
 
 
 @pytest.fixture(autouse=True)

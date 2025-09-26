@@ -5,6 +5,7 @@ from .attachments_service import AttachmentsService
 from .buckets_service import BucketsService
 from .connections_service import ConnectionsService
 from .context_grounding_service import ContextGroundingService
+from .documents_service import DocumentsService
 from .entities_service import EntitiesService
 from .folder_service import FolderService
 from .jobs_service import JobsService
@@ -19,6 +20,7 @@ __all__ = [
     "BucketsService",
     "ConnectionsService",
     "ContextGroundingService",
+    "DocumentsService",
     "ProcessesService",
     "ApiClient",
     "QueuesService",

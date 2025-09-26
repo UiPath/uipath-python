@@ -1,0 +1,29 @@
+{
+  "actionData": {
+    "type": "Validation",
+    "id": 7372483,
+    "status": "Unassigned",
+    "title": "Auto Validation",
+    "priority": "Medium",
+    "taskCatalogName": "default_du_actions",
+    "taskUrl": "https://dummy.uipath.com/40921a85-2b9d-44ea-8655-abf869de8588/f994a44a-10d7-44cf-a1c1-a9f20b469ac3/actions_/tasks/7372483",
+    "folderPath": "Shared",
+    "folderId": 249142,
+    "data": {
+      "automaticExtractionResultsPath": "Dummy/e777cf4c-2083-f011-b484-000d3a2a9e3c/input_results.zip",
+      "validatedExtractionResultsPath": "Dummy/e777cf4c-2083-f011-b484-000d3a2a9e3c/output_results.zip",
+      "documentRejectionDetails": null
+    },
+    "action": null,
+    "isDeleted": false,
+    "assignedToUser": null,
+    "creatorUser": null,
+    "deleterUser": null,
+    "lastModifierUser": null,
+    "completedByUser": null,
+    "creationTime": "2025-08-27T08:32:02.7115597Z",
+    "lastAssignedTime": null,
+    "completionTime": null
+  },
+  "actionStatus": "Unassigned"
+}
