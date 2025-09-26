@@ -19,6 +19,7 @@ COMPARATOR_MAPPINGS = {
     ">=": "ge",
     "<=": "le",
     "=": "eq",
+    "==": "eq",
     "!=": "ne",
 }
 
