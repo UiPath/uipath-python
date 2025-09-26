@@ -1,0 +1,59 @@
+name: Test UiPath LlamaIndex
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened, labeled ]
+
+jobs:
+  test-uipath-llamaindex:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [ "3.10", "3.11", "3.12", "3.13" ]
+        os: [ ubuntu-latest, windows-latest ]
+
+    permissions:
+      contents: read
+
+    # Only run if PR has the test:uipath-llamaindex label
+    if: contains(github.event.pull_request.labels.*.name, 'test:uipath-llamaindex')
+
+    steps:
+      - name: Checkout uipath-python
+        uses: actions/checkout@v4
+        with:
+          path: 'uipath-python'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build uipath-python package
+        run: |
+          cd uipath-python
+          uv build
+
+      - name: Checkout uipath-llamaindex-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-llamaindex-python'
+          path: 'uipath-llamaindex-python'
+          token: ${{ secrets.REPO_ACCESS }}
+
+      - name: Update uipath-python version
+        shell: bash
+        run: |
+          cd uipath-llamaindex-python
+          uv add ../uipath-python/dist/*.whl --dev
+
+      - name: Run uipath-llamaindex tests
+        run: |
+          cd uipath-llamaindex-python
+          uv sync
+          uv run pytest
+
+
