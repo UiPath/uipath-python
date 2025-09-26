@@ -35,6 +35,7 @@ from ._models._output import (
     UiPathEvalOutput,
     UiPathEvalRunExecutionOutput,
 )
+from .mocks.mocks import set_evaluation_item
 
 T = TypeVar("T", bound=UiPathBaseRuntime)
 C = TypeVar("C", bound=UiPathRuntimeContext)
@@ -137,6 +138,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluation_set_name=evaluation_set.name, score=0, evaluation_set_results=[]
         )
         for eval_item in evaluation_set.evaluations:
+            set_evaluation_item(eval_item)
             await event_bus.publish(
                 EvaluationEvents.CREATE_EVAL_RUN,
                 EvalRunCreatedEvent(
