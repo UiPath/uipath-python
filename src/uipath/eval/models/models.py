@@ -16,6 +16,7 @@ class AgentExecution(BaseModel):
     agent_output: Dict[str, Any]
     agent_trace: list[ReadableSpan]
     expected_agent_behavior: Optional[str] = None
+    simulation_instructions: str = ""
 
 
 class LLMResponse(BaseModel):
@@ -36,7 +37,7 @@ class ScoreType(IntEnum):
 class BaseEvaluationResult(BaseModel):
     """Base class for evaluation results."""
 
-    details: Optional[str] = None
+    details: Optional[str | BaseModel] = None
     # this is marked as optional, as it is populated inside the 'measure_execution_time' decorator
     evaluation_time: Optional[float] = None
 
@@ -84,7 +85,7 @@ class EvaluatorCategory(IntEnum):
     Trajectory = 3
 
     @classmethod
-    def from_int(cls, value):
+    def from_int(cls, value: int) -> "EvaluatorCategory":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
@@ -107,9 +108,16 @@ class EvaluatorType(IntEnum):
     Faithfulness = 9
 
     @classmethod
-    def from_int(cls, value):
+    def from_int(cls, value: int) -> "EvaluatorType":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
         else:
             raise ValueError(f"{value} is not a valid EvaluatorType value")
+
+
+class ToolCall(BaseModel):
+    """Represents a tool call with its arguments."""
+
+    name: str
+    args: dict[str, Any]

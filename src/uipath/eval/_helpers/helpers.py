@@ -3,9 +3,6 @@ import os
 
 import click
 
-from uipath._cli._utils._console import ConsoleLogger
-from uipath._utils.constants import UIPATH_CONFIG_FILE
-
 
 def auto_discover_entrypoint() -> str:
     """Auto-discover entrypoint from config file.
@@ -16,6 +13,9 @@ def auto_discover_entrypoint() -> str:
     Raises:
         ValueError: If no entrypoint found or multiple entrypoints exist
     """
+    from uipath._cli._utils._console import ConsoleLogger
+    from uipath._utils.constants import UIPATH_CONFIG_FILE
+
     console = ConsoleLogger()
 
     if not os.path.isfile(UIPATH_CONFIG_FILE):

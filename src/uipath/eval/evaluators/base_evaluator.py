@@ -3,7 +3,8 @@
 import functools
 import time
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -16,11 +17,11 @@ from uipath.eval.models.models import (
 )
 
 
-def track_evaluation_metrics(func):
+def track_evaluation_metrics(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to track evaluation metrics and handle errors gracefully."""
 
     @functools.wraps(func)
-    async def wrapper(*args, **kwargs) -> EvaluationResult:
+    async def wrapper(*args: Any, **kwargs: Any) -> EvaluationResult:
         start_time = time.time()
         try:
             result = await func(*args, **kwargs)
@@ -55,7 +56,7 @@ class BaseEvaluator(BaseModel, Generic[T], ABC):
     category: EvaluatorCategory
     evaluator_type: EvaluatorType
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any):
         """Hook for subclass creation - automatically applies evaluation metrics tracking."""
         super().__init_subclass__(**kwargs)
 
@@ -65,7 +66,7 @@ class BaseEvaluator(BaseModel, Generic[T], ABC):
             cls.evaluate = track_evaluation_metrics(cls.evaluate)  # type: ignore[method-assign]
             cls.evaluate._has_metrics_decorator = True  # type: ignore[attr-defined]
 
-    def model_post_init(self, __context):
+    def model_post_init(self, __context: Any):
         """Post-initialization hook for Pydantic models."""
         pass
 
