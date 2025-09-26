@@ -1,7 +1,7 @@
 """Base class for all output evaluator configurations."""
 
 import json
-from typing import Any, TypeVar
+from typing import Any, TypeVar, Union
 
 from pydantic import Field
 
@@ -10,6 +10,7 @@ from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 
 
@@ -29,9 +30,10 @@ class OutputEvaluatorConfig(BaseEvaluatorConfig):
 
 
 C = TypeVar("C", bound=OutputEvaluatorConfig)
+J = TypeVar("J", bound=Union[str, None, BaseEvaluatorJustification])
 
 
-class OutputEvaluator(BaseEvaluator[OutputEvaluationCriteria, C]):
+class OutputEvaluator(BaseEvaluator[OutputEvaluationCriteria, C, J]):
     """Abstract base class for all output evaluators."""
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:

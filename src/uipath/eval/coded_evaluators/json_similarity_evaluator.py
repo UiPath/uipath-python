@@ -20,7 +20,7 @@ class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig):
     target_output_key: str = Field(default="*", frozen=True, exclude=True)
 
 
-class JsonSimilarityEvaluator(OutputEvaluator[JsonSimilarityEvaluatorConfig]):
+class JsonSimilarityEvaluator(OutputEvaluator[JsonSimilarityEvaluatorConfig, str]):
     """Deterministic evaluator that scores structural JSON similarity between expected and actual output.
 
     Compares expected versus actual JSON-like structures and returns a
@@ -51,9 +51,10 @@ class JsonSimilarityEvaluator(OutputEvaluator[JsonSimilarityEvaluatorConfig]):
             self._get_expected_output(evaluation_criteria),
             self._get_actual_output(agent_execution),
         )
+        validated_justification = self.validate_justification(justification)
         return NumericEvaluationResult(
             score=score,
-            details=justification,
+            details=validated_justification,
         )
 
     def _compare_json(self, expected: Any, actual: Any) -> tuple[float, str]:

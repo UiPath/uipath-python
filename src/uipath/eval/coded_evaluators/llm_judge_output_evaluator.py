@@ -41,7 +41,7 @@ OC = TypeVar("OC", bound=LLMJudgeOutputEvaluatorConfig)
 
 
 class BaseLLMOutputEvaluator(
-    OutputEvaluator[OC],
+    OutputEvaluator[OC, str],
     LLMJudgeMixin[OutputEvaluationCriteria, OC],
 ):
     """Base class for LLM judge output evaluators that contains all shared functionality.

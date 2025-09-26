@@ -9,6 +9,7 @@ from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 
 
@@ -28,8 +29,18 @@ class ToolCallArgsEvaluatorConfig(BaseEvaluatorConfig):
     default_evaluation_criteria: ToolCallArgsEvaluationCriteria | None = None
 
 
+class ToolCallArgsEvaluatorJustification(BaseEvaluatorJustification):
+    """Justification for the tool call args evaluator."""
+
+    explained_tool_calls_args: dict[str, str]
+
+
 class ToolCallArgsEvaluator(
-    BaseEvaluator[ToolCallArgsEvaluationCriteria, ToolCallArgsEvaluatorConfig]
+    BaseEvaluator[
+        ToolCallArgsEvaluationCriteria,
+        ToolCallArgsEvaluatorConfig,
+        ToolCallArgsEvaluatorJustification,
+    ]
 ):
     """Evaluator that checks if the tool calls are in the correct order.
 
@@ -59,7 +70,8 @@ class ToolCallArgsEvaluator(
             self.evaluator_config.strict,
             self.evaluator_config.subset,
         )
+        validated_justification = self.validate_justification(justification)
         return NumericEvaluationResult(
             score=score,
-            details=justification,
+            details=validated_justification,
         )

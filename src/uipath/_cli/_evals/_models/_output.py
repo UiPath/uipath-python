@@ -22,7 +22,7 @@ class EvaluationResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     score: float
-    details: Optional[str] = None
+    details: Optional[str | BaseModel] = None
     evaluation_time: Optional[float] = None
 
     @model_serializer(mode="wrap")
