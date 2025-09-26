@@ -15,6 +15,7 @@ class AgentExecution(BaseModel):
     agent_input: Optional[Dict[str, Any]]
     agent_output: Dict[str, Any]
     agent_trace: list[ReadableSpan]
+    expected_agent_behavior: Optional[str] = None
 
 
 class LLMResponse(BaseModel):
@@ -70,7 +71,7 @@ EvaluationResult = Annotated[
 class EvalItemResult(BaseModel):
     """Result of a single evaluation item."""
 
-    evaluator_name: str
+    evaluator_id: str
     result: EvaluationResult
 
 

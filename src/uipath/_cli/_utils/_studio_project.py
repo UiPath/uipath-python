@@ -67,7 +67,7 @@ class ProjectFolder(BaseModel):
     """Model representing a folder in a UiPath project structure.
 
     Attributes:
-        id: The unique identifier of the folder
+        id: The unique identifier of the folder. Root folder id may be None.
         name: The name of the folder
         folders: List of subfolders
         files: List of files in the folder
@@ -82,7 +82,7 @@ class ProjectFolder(BaseModel):
         extra="allow",
     )
 
-    id: str = Field(alias="id")
+    id: Optional[str] = Field(default=None, alias="id")
     name: str = Field(alias="name")
     folders: List["ProjectFolder"] = Field(default_factory=list)
     files: List[ProjectFile] = Field(default_factory=list)
@@ -126,8 +126,8 @@ class LockInfo(BaseModel):
         arbitrary_types_allowed=True,
         extra="allow",
     )
-    project_lock_key: str = Field(alias="projectLockKey")
-    solution_lock_key: str = Field(alias="solutionLockKey")
+    project_lock_key: Optional[str] = Field(alias="projectLockKey")
+    solution_lock_key: Optional[str] = Field(alias="solutionLockKey")
 
 
 def get_folder_by_name(
@@ -203,6 +203,8 @@ def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
     async def wrapper(self, *args, **kwargs):
         try:
             lock_info = await self._retrieve_lock()
+            if not lock_info.project_lock_key:
+                raise RuntimeError("Failed to retrieve project lock key.")
 
             headers = kwargs.get("headers", {}) or {}
             headers[HEADER_SW_LOCK_KEY] = lock_info.project_lock_key

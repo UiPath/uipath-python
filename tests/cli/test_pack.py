@@ -614,3 +614,256 @@ class TestPack:
                 assert "content/uv.lock" not in actual_files, (
                     "uv.lock should not be in nupkg when --nolock is used"
                 )
+
+    def test_files_excluded(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that files mentioned in filesExcluded are excluded from the package."""
+        json_file_to_exclude = "config.json"
+        json_file_to_include = "other.json"
+
+        # Set up exclusions
+        uipath_json.settings.files_excluded = [json_file_to_exclude]
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create files - .json files are included by default
+            with open(json_file_to_exclude, "w") as f:
+                f.write('{"should": "be excluded"}')
+            with open(json_file_to_include, "w") as f:
+                f.write('{"should": "be included"}')
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 0
+
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                # Excluded file should not be present
+                assert f"content/{json_file_to_exclude}" not in z.namelist()
+                # Other JSON file should still be present
+                assert f"content/{json_file_to_include}" in z.namelist()
+
+    def test_files_excluded_takes_precedence_over_included(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that filesExcluded takes precedence over filesIncluded."""
+        conflicting_file = "conflicting.txt"
+
+        # Set up both inclusion and exclusion for the same file
+        uipath_json.settings.files_included = [conflicting_file]
+        uipath_json.settings.files_excluded = [conflicting_file]
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create the conflicting file
+            with open(conflicting_file, "w") as f:
+                f.write("This file should be excluded despite being in filesIncluded")
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 0
+
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                # File should be excluded (exclusion takes precedence)
+                assert f"content/{conflicting_file}" not in z.namelist()
+
+    def test_filename_vs_path_exclusion(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that filename exclusion only affects root directory, path exclusion affects specific paths."""
+        # Exclude root config.json and specific path subdir2/settings.json
+        uipath_json.settings.files_excluded = ["config.json", "subdir2/settings.json"]
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create directories
+            os.mkdir("subdir1")
+            os.mkdir("subdir2")
+
+            # Create files with same names in different locations
+            with open("config.json", "w") as f:  # Root - should be excluded
+                f.write('{"root": "config"}')
+            with open("subdir1/config.json", "w") as f:  # Subdir - should be included
+                f.write('{"subdir1": "config"}')
+            with open("subdir2/config.json", "w") as f:  # Subdir - should be included
+                f.write('{"subdir2": "config"}')
+
+            with open("settings.json", "w") as f:  # Root - should be included
+                f.write('{"root": "settings"}')
+            with open("subdir1/settings.json", "w") as f:  # Subdir - should be included
+                f.write('{"subdir1": "settings"}')
+            with open(
+                "subdir2/settings.json", "w"
+            ) as f:  # Specific path - should be excluded
+                f.write('{"subdir2": "settings"}')
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 0
+
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                # Filename exclusion: only affects root directory
+                assert "content/config.json" not in z.namelist()  # Root excluded
+                assert "content/subdir1/config.json" in z.namelist()  # Subdir included
+                assert "content/subdir2/config.json" in z.namelist()  # Subdir included
+
+                # Path exclusion: only affects specific path
+                assert "content/settings.json" in z.namelist()  # Root included
+                assert (
+                    "content/subdir1/settings.json" in z.namelist()
+                )  # Different path included
+                assert (
+                    "content/subdir2/settings.json" not in z.namelist()
+                )  # Specific path excluded
+
+    def test_filename_vs_path_inclusion(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that filename inclusion only affects root directory, path inclusion affects specific paths."""
+        # Include root data.txt and specific path subdir2/config.txt
+        uipath_json.settings.files_included = ["data.txt", "subdir1/config.txt"]
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create directories
+            os.mkdir("subdir1")
+            os.mkdir("subdir2")
+
+            # Create .txt files (not included by default extension)
+            with open("data.txt", "w") as f:  # Root - should be included by filename
+                f.write("root data")
+            with open("subdir1/data.txt", "w") as f:  # Subdir - should NOT be included
+                f.write("subdir1 data")
+            with open(
+                "subdir2/data.txt", "w"
+            ) as f:  # Different subdir - should NOT be included
+                f.write("subdir2 data")
+
+            with open("config.txt", "w") as f:  # Root - should NOT be included
+                f.write("root config")
+            with open(
+                "subdir1/config.txt", "w"
+            ) as f:  # Specific path - should be included
+                f.write("subdir1 config")
+            with open(
+                "subdir2/config.txt", "w"
+            ) as f:  # Different path - should NOT be included
+                f.write("subdir2 config")
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 0
+
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                # Filename inclusion: only affects root directory
+                assert "content/data.txt" in z.namelist()  # Root included
+                assert (
+                    "content/subdir1/data.txt" not in z.namelist()
+                )  # Subdir not included
+                assert (
+                    "content/subdir2/data.txt" not in z.namelist()
+                )  # Subdir not included
+
+                # Path inclusion: only affects specific path
+                assert "content/config.txt" not in z.namelist()  # Root not included
+                assert (
+                    "content/subdir1/config.txt" in z.namelist()
+                )  # Specific path included
+                assert (
+                    "content/subdir2/config.txt" not in z.namelist()
+                )  # Different path not included
+
+    def test_directory_name_vs_path_exclusion(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that directory exclusion by name only affects root level, by path affects specific paths."""
+        # Exclude root-level "temp" directory and specific path "tests/old"
+        uipath_json.settings.directories_excluded = ["temp", "tests/old"]
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create directory structure
+            os.makedirs("temp")  # Root level - should be excluded
+            os.makedirs("src/temp")  # Nested - should be included
+            os.makedirs("tests/old")  # Specific path - should be excluded
+            os.makedirs("tests/new")  # Different path - should be included
+            os.makedirs("old")  # Root level - should be included
+
+            # Create JSON files in each directory (included by default)
+            with open("temp/config.json", "w") as f:
+                f.write('{"location": "root temp"}')
+            with open("src/temp/config.json", "w") as f:
+                f.write('{"location": "src temp"}')
+            with open("tests/old/config.json", "w") as f:
+                f.write('{"location": "tests old"}')
+            with open("tests/new/config.json", "w") as f:
+                f.write('{"location": "tests new"}')
+            with open("old/config.json", "w") as f:
+                f.write('{"location": "root old"}')
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 0
+
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                # Directory name exclusion: only affects root level
+                assert (
+                    "content/temp/config.json" not in z.namelist()
+                )  # Root temp excluded
+                assert (
+                    "content/src/temp/config.json" in z.namelist()
+                )  # Nested temp included
+
+                # Directory path exclusion: only affects specific path
+                assert (
+                    "content/tests/old/config.json" not in z.namelist()
+                )  # Specific path excluded
+                assert (
+                    "content/tests/new/config.json" in z.namelist()
+                )  # Different path included
+                assert "content/old/config.json" in z.namelist()  # Root old included

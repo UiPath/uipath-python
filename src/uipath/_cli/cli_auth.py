@@ -36,6 +36,11 @@ console = ConsoleLogger()
     help="Base URL for the UiPath tenant instance (required for client credentials)",
 )
 @click.option(
+    "--tenant",
+    required=False,
+    help="Tenant name within UiPath Automation Cloud",
+)
+@click.option(
     "--scope",
     required=False,
     default="OR.Execution",
@@ -48,6 +53,7 @@ def auth(
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
     base_url: Optional[str] = None,
+    tenant: Optional[str] = None,
     scope: Optional[str] = None,
 ):
     """Authenticate with UiPath Cloud Platform.
@@ -69,6 +75,7 @@ def auth(
         client_id=client_id,
         client_secret=client_secret,
         base_url=base_url,
+        tenant=tenant,
         scope=scope,
     )
     with console.spinner("Authenticating with UiPath ..."):

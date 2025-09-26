@@ -63,7 +63,7 @@ class TestAgentBuilderConfig:
                             },
                             "recipients": [
                                 {
-                                    "type": "UserId",
+                                    "type": 1,
                                     "value": "e314e6a1-2499-4ff4-af0b-bb81dc29a6ec",
                                 }
                             ],

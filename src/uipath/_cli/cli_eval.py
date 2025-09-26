@@ -2,17 +2,24 @@
 import ast
 import asyncio
 import os
+import uuid
 from typing import List, Optional
 
 import click
 
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
+from uipath._cli._evals._runtime import (
+    UiPathEvalContext,
+    UiPathEvalRuntime,
+)
 from uipath._cli._runtime._contracts import (
     UiPathRuntimeContext,
     UiPathRuntimeFactory,
 )
 from uipath._cli._runtime._runtime import UiPathScriptRuntime
+from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli.middlewares import Middlewares
+from uipath._events._event_bus import EventBus
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -72,6 +79,11 @@ def eval(
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """
+    if not no_report and not os.getenv("UIPATH_FOLDER_KEY"):
+        os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(
+            get_personal_workspace_key_async()
+        )
+
     result = Middlewares.next(
         "eval",
         entrypoint,
@@ -86,14 +98,23 @@ def eval(
         console.error(result.error_message)
 
     if result.should_continue:
+        event_bus = EventBus()
+
+        if not no_report:
+            progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
+            asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
             runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
             runtime_context.entrypoint = runtime_entrypoint
             return runtime_context
 
+        runtime_entrypoint = entrypoint or auto_discover_entrypoint()
+
         eval_context = UiPathEvalContext.with_defaults(
-            execution_output_file=output_file
+            execution_output_file=output_file,
+            entrypoint=runtime_entrypoint,
+            execution_id=str(uuid.uuid4()),
         )
 
         eval_context.no_report = no_report
@@ -101,22 +122,23 @@ def eval(
         eval_context.eval_set = eval_set or EvalHelpers.auto_discover_eval_set()
         eval_context.eval_ids = eval_ids
 
-        runtime_entrypoint = entrypoint or auto_discover_entrypoint()
-
         try:
             runtime_factory = UiPathRuntimeFactory(
                 UiPathScriptRuntime,
                 UiPathRuntimeContext,
                 context_generator=generate_runtime_context,
             )
-            if not no_report or eval_context.job_id:
+            if eval_context.job_id:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 
             async def execute():
                 async with UiPathEvalRuntime.from_eval_context(
-                    factory=runtime_factory, context=eval_context
+                    factory=runtime_factory,
+                    context=eval_context,
+                    event_bus=event_bus,
                 ) as eval_runtime:
                     await eval_runtime.execute()
+                    await event_bus.wait_for_all(timeout=10)
 
             asyncio.run(execute())
         except Exception as e:

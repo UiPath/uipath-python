@@ -6,6 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec, infer_bindings
 from ..models import Connection, ConnectionToken, EventArguments
+from ..models.connections import ConnectionTokenType
 from ..tracing._traced import traced
 from ._base_service import BaseService
 
@@ -71,7 +72,9 @@ class ConnectionsService(BaseService):
         run_type="uipath",
         hide_output=True,
     )
-    def retrieve_token(self, key: str) -> ConnectionToken:
+    def retrieve_token(
+        self, key: str, token_type: ConnectionTokenType = ConnectionTokenType.DIRECT
+    ) -> ConnectionToken:
         """Retrieve an authentication token for a connection.
 
         This method obtains a fresh authentication token that can be used to
@@ -80,12 +83,13 @@ class ConnectionsService(BaseService):
 
         Args:
             key (str): The unique identifier of the connection.
+            token_type (ConnectionTokenType): The token type to use.
 
         Returns:
             ConnectionToken: The authentication token details, including the token
                 value and any associated metadata.
         """
-        spec = self._retrieve_token_spec(key)
+        spec = self._retrieve_token_spec(key, token_type)
         response = self.request(spec.method, url=spec.endpoint, params=spec.params)
         return ConnectionToken.model_validate(response.json())
 
@@ -94,7 +98,9 @@ class ConnectionsService(BaseService):
         run_type="uipath",
         hide_output=True,
     )
-    async def retrieve_token_async(self, key: str) -> ConnectionToken:
+    async def retrieve_token_async(
+        self, key: str, token_type: ConnectionTokenType = ConnectionTokenType.DIRECT
+    ) -> ConnectionToken:
         """Asynchronously retrieve an authentication token for a connection.
 
         This method obtains a fresh authentication token that can be used to
@@ -103,12 +109,13 @@ class ConnectionsService(BaseService):
 
         Args:
             key (str): The unique identifier of the connection.
+            token_type (ConnectionTokenType): The token type to use.
 
         Returns:
             ConnectionToken: The authentication token details, including the token
                 value and any associated metadata.
         """
-        spec = self._retrieve_token_spec(key)
+        spec = self._retrieve_token_spec(key, token_type)
         response = await self.request_async(
             spec.method, url=spec.endpoint, params=spec.params
         )
@@ -198,9 +205,11 @@ class ConnectionsService(BaseService):
             endpoint=Endpoint(f"/connections_/api/v1/Connections/{key}"),
         )
 
-    def _retrieve_token_spec(self, key: str) -> RequestSpec:
+    def _retrieve_token_spec(
+        self, key: str, token_type: ConnectionTokenType = ConnectionTokenType.DIRECT
+    ) -> RequestSpec:
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/connections_/api/v1/Connections/{key}/token"),
-            params={"tokenType": "direct"},
+            params={"tokenType": token_type.value},
         )

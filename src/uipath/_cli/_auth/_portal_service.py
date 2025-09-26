@@ -231,3 +231,32 @@ def select_tenant(
     )
 
     return uipath_url
+
+
+def get_tenant_id(
+    domain: str,
+    tenant_name: str,
+    tenants_and_organizations: TenantsAndOrganizationInfoResponse,
+) -> str:
+    tenants = tenants_and_organizations["tenants"]
+
+    matched_tenant = next((t for t in tenants if t["name"] == tenant_name), None)
+    if not matched_tenant:
+        console.error(f"Tenant '{tenant_name}' not found.")
+        raise ValueError(f"Tenant '{tenant_name}' not found.")
+
+    domain = get_base_url(domain)
+    account_name = tenants_and_organizations["organization"]["name"]
+
+    base_url = get_base_url(domain)
+    uipath_url = f"{base_url}/{account_name}/{tenant_name}"
+
+    update_env_file(
+        {
+            "UIPATH_URL": uipath_url,
+            "UIPATH_TENANT_ID": matched_tenant["id"],
+            "UIPATH_ORGANIZATION_ID": tenants_and_organizations["organization"]["id"],
+        }
+    )
+
+    return uipath_url

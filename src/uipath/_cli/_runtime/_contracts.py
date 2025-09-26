@@ -753,17 +753,24 @@ class UiPathRuntimeFactory(Generic[T, C]):
                     span_processor.force_flush()
 
     async def execute_in_root_span(
-        self, context: C, root_span: str = "root"
+        self,
+        context: C,
+        root_span: str = "root",
+        attributes: Optional[dict[str, str]] = None,
     ) -> Optional[UiPathRuntimeResult]:
         """Execute runtime with context."""
         async with self.from_context(context) as runtime:
             try:
                 tracer: Tracer = trace.get_tracer("uipath-runtime")
+                span_attributes = {}
+                if context.execution_id:
+                    span_attributes["execution.id"] = context.execution_id
+                if attributes:
+                    span_attributes.update(attributes)
+
                 with tracer.start_as_current_span(
                     root_span,
-                    attributes={"execution.id": context.execution_id}
-                    if context.execution_id
-                    else {},
+                    attributes=span_attributes,
                 ):
                     return await runtime.execute()
             finally:
