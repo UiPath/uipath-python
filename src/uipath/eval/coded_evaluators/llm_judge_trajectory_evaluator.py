@@ -4,7 +4,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from .._helpers.helpers import trace_to_str
+from .._helpers.coded_evaluators_helpers import trace_to_str
 from ..models import (
     AgentExecution,
 )

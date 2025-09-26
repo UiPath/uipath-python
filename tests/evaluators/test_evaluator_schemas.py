@@ -7,10 +7,7 @@ This module tests:
 - Generic type parameter handling
 """
 
-from typing import Any
-
 import pytest
-from pytest_mock.plugin import MockerFixture
 
 from src.uipath.eval.coded_evaluators.exact_match_evaluator import (
     ExactMatchEvaluator,
@@ -286,32 +283,8 @@ class TestBaseEvaluatorFunctionality:
         assert isinstance(validated, ToolCallOrderEvaluationCriteria)
         assert validated.tool_calls_order == ["tool1", "tool2", "tool3"]
 
-    def test_criteria_validation_llm_judge_output(self, mocker: MockerFixture) -> None:
+    def test_criteria_validation_llm_judge_output(self) -> None:
         """Test criteria validation for LLMJudgeOutputEvaluator."""
-
-        # Mock the UiPath constructor to avoid authentication
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
-        # Mock the chat completions response as an async method
-        mock_response = mocker.MagicMock()
-        mock_response.choices = [
-            mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 80, "justification": "Good response that meets criteria"}'
-                )
-            )
-        ]
-
-        # Make chat_completions an async method
-        async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
-            return mock_response
-
-        mock_llm.chat_completions = mock_chat_completions
-
-        # Mock the UiPath import and constructor
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
         config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
