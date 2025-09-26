@@ -1,4 +1,3 @@
-from os import environ as env
 from typing import Optional
 
 from pydantic import ValidationError
@@ -23,11 +22,7 @@ from ._services import (
     UiPathOpenAIService,
 )
 from ._utils import setup_logging
-from ._utils.constants import (
-    ENV_BASE_URL,
-    ENV_UIPATH_ACCESS_TOKEN,
-    ENV_UNATTENDED_USER_ACCESS_TOKEN,
-)
+from ._utils._auth import resolve_config
 from .models.errors import BaseUrlMissingError, SecretMissingError
 
 
@@ -37,19 +32,18 @@ class UiPath:
         *,
         base_url: Optional[str] = None,
         secret: Optional[str] = None,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+        scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
-        base_url_value = base_url or env.get(ENV_BASE_URL)
-        secret_value = (
-            secret
-            or env.get(ENV_UNATTENDED_USER_ACCESS_TOKEN)
-            or env.get(ENV_UIPATH_ACCESS_TOKEN)
-        )
-
         try:
+            base_url, secret = resolve_config(
+                base_url, secret, client_id, client_secret, scope
+            )
             self._config = Config(
-                base_url=base_url_value,  # type: ignore
-                secret=secret_value,  # type: ignore
+                base_url=base_url,
+                secret=secret,
             )
         except ValidationError as e:
             for error in e.errors():
