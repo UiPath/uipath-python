@@ -1,6 +1,7 @@
 """LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
 
 import json
+from abc import abstractmethod
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, model_validator
@@ -16,37 +17,27 @@ from ..models import (
 from ..models.llm_judge_types import (
     LLMJudgeOutputSchema,
     LLMJudgePromptTemplates,
-    LLMJudgeStrictJSONSimilarityOutputSchema,
 )
-from .output_evaluator import (
-    OutputEvaluationCriteria,
-    OutputEvaluator,
-    OutputEvaluatorConfig,
+from .base_evaluator import (
+    BaseEvaluationCriteria,
+    BaseEvaluator,
+    BaseEvaluatorConfig,
 )
 
 
-class LLMJudgeEvaluatorConfig(OutputEvaluatorConfig):
-    """Configuration for the llm as a judge evaluator."""
+class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig):
+    """Base config for all LLM evaluators."""
 
-    name: str = "LLMJudgeEvaluator"
-    prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_DEFAULT_USER_PROMPT
+    prompt: str
     model: str
 
 
-class LLMJudgeStrictJSONSimilarityEvaluatorConfig(LLMJudgeEvaluatorConfig):
-    """Configuration for the llm as a judge strict json similarity evaluator."""
-
-    name: str = "LLMJudgeStrictJSONSimilarityEvaluator"
-    prompt: str = (
-        LLMJudgePromptTemplates.LLM_JUDGE_STRICT_JSON_SIMILARITY_DEFAULT_USER_PROMPT
-    )
+T = TypeVar("T", bound=BaseEvaluationCriteria)
+C = TypeVar("C", bound=BaseLLMJudgeEvaluatorConfig)
 
 
-C = TypeVar("C", bound=LLMJudgeEvaluatorConfig)
-
-
-class BaseLLMJudgeEvaluator(OutputEvaluator[C]):
-    """Evaluator that uses an LLM to judge the quality of agent output."""
+class LLMJudgeMixin(BaseEvaluator[T, C]):
+    """Mixin that provides common LLM judge functionality."""
 
     system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
     output_schema: type[BaseModel] = LLMJudgeOutputSchema
@@ -55,7 +46,7 @@ class BaseLLMJudgeEvaluator(OutputEvaluator[C]):
     llm_service: UiPathLlmChatService | None = None
 
     @model_validator(mode="after")
-    def validate_prompt_placeholders(self) -> "BaseLLMJudgeEvaluator":
+    def validate_prompt_placeholders(self) -> "LLMJudgeMixin":
         """Validate that prompt contains required placeholders."""
         if (
             self.actual_output_placeholder not in self.evaluator_config.prompt
@@ -78,26 +69,22 @@ class BaseLLMJudgeEvaluator(OutputEvaluator[C]):
         uipath = UiPath()
         self.llm_service = uipath.llm
 
+    @abstractmethod
+    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
+        """Get the actual output from the agent execution. Must be implemented by concrete evaluator classes."""
+        pass
+
+    @abstractmethod
+    def _get_expected_output(self, evaluation_criteria: T) -> Any:
+        """Get the expected output from the evaluation criteria. Must be implemented by concrete evaluator classes."""
+        pass
+
     async def evaluate(
         self,
         agent_execution: AgentExecution,
-        evaluation_criteria: OutputEvaluationCriteria,
+        evaluation_criteria: T,
     ) -> EvaluationResult:
-        """Evaluate using an LLM as a judge.
-
-        Sends the formatted prompt to the configured LLM and expects a JSON response
-        with a numerical score (0-100) and justification.
-
-            agent_execution: The execution details containing:
-                - agent_input: The input received by the agent
-                - agent_output: The final output of the agent
-                - agent_trace: The execution spans to use for the evaluation
-            evaluation_criteria: The criteria to evaluate
-
-        Returns:
-            EvaluationResult: Numerical score with LLM justification as details
-        """
-        # Create the evaluation prompt
+        """Evaluate using an LLM as a judge."""
         evaluation_prompt = self._create_evaluation_prompt(
             agent_execution=agent_execution,
             evaluation_criteria=evaluation_criteria,
@@ -113,7 +100,7 @@ class BaseLLMJudgeEvaluator(OutputEvaluator[C]):
     def _create_evaluation_prompt(
         self,
         agent_execution: AgentExecution,
-        evaluation_criteria: OutputEvaluationCriteria,
+        evaluation_criteria: T,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
         formatted_prompt = self.evaluator_config.prompt.replace(
@@ -128,14 +115,7 @@ class BaseLLMJudgeEvaluator(OutputEvaluator[C]):
         return formatted_prompt
 
     async def _get_llm_response(self, evaluation_prompt: str) -> LLMResponse:
-        """Get response from the LLM.
-
-        Args:
-            evaluation_prompt: The formatted prompt to send to the LLM
-
-        Returns:
-            LLMResponse with score and justification
-        """
+        """Get response from the LLM."""
         # remove community-agents suffix from llm model name
         model = self.evaluator_config.model
         if model.endswith(COMMUNITY_agents_SUFFIX):
@@ -160,21 +140,3 @@ class BaseLLMJudgeEvaluator(OutputEvaluator[C]):
         assert self.llm_service is not None, "LLM service not initialized"
         response = await self.llm_service.chat_completions(**request_data)
         return LLMResponse(**json.loads(str(response.choices[-1].message.content)))
-
-
-class LLMJudgeEvaluator(BaseLLMJudgeEvaluator[LLMJudgeEvaluatorConfig]):
-    """Evaluator that uses an LLM to judge the quality of agent output."""
-
-    system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
-    output_schema: type[BaseModel] = LLMJudgeOutputSchema
-
-
-class LLMJudgeStrictJSONSimilarityEvaluator(
-    BaseLLMJudgeEvaluator[LLMJudgeStrictJSONSimilarityEvaluatorConfig]
-):
-    """Evaluator that uses an LLM to judge the quality of agent output."""
-
-    system_prompt: str = (
-        LLMJudgePromptTemplates.LLM_JUDGE_STRICT_JSON_SIMILARITY_SYSTEM_PROMPT
-    )
-    output_schema: type[BaseModel] = LLMJudgeStrictJSONSimilarityOutputSchema

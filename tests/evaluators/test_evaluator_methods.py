@@ -20,9 +20,12 @@ from src.uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEva
 from src.uipath.eval.coded_evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
 )
-from src.uipath.eval.coded_evaluators.llm_as_judge_evaluator import LLMJudgeEvaluator
+from src.uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
+    LLMJudgeOutputEvaluator,
+)
 from src.uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluator,
+    TrajectoryEvaluationCriteria,
 )
 from src.uipath.eval.coded_evaluators.output_evaluator import OutputEvaluationCriteria
 from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
@@ -433,7 +436,7 @@ class TestLlmAsAJudgeEvaluator:
             "prompt": "Rate this output: {{ActualOutput}} vs {{ExpectedOutput}}",
             "model": "gpt-4",
         }
-        evaluator = LLMJudgeEvaluator.model_validate({"config": config})
+        evaluator = LLMJudgeOutputEvaluator.model_validate({"config": config})
 
         criteria = OutputEvaluationCriteria(expected_output="Expected output")
 
@@ -484,8 +487,8 @@ class TestLlmJudgeTrajectoryEvaluator:
         }
         evaluator = LLMJudgeTrajectoryEvaluator.model_validate({"config": config})
 
-        criteria = OutputEvaluationCriteria(
-            expected_output="Agent should respond helpfully"
+        criteria = TrajectoryEvaluationCriteria(
+            expected_agent_behavior="Agent should respond helpfully"
         )
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
@@ -522,7 +525,7 @@ class TestEvaluatorErrorHandling:
 
         with pytest.raises(ValueError, match="Failed to validate config"):
             # Missing required field 'model'
-            LLMJudgeEvaluator.model_validate({"config": config})
+            LLMJudgeOutputEvaluator.model_validate({"config": config})
 
 
 class TestEvaluationResultTypes:

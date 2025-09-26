@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .._helpers.helpers import trace_to_str
 from ..models import (
@@ -12,24 +12,27 @@ from ..models.llm_judge_types import (
     LLMJudgePromptTemplates,
     LLMJudgeTrajectoryOutputSchema,
 )
+from .base_evaluator import BaseEvaluationCriteria
 from .llm_as_judge_evaluator import (
-    BaseLLMJudgeEvaluator,
-    LLMJudgeEvaluatorConfig,
-)
-from .output_evaluator import (
-    OutputEvaluationCriteria,
+    BaseLLMJudgeEvaluatorConfig,
+    LLMJudgeMixin,
 )
 
 
-class LLMJudgeTrajectoryEvaluatorConfig(LLMJudgeEvaluatorConfig):
+class TrajectoryEvaluationCriteria(BaseEvaluationCriteria):
+    """Evaluation criteria for trajectory-based evaluations."""
+
+    expected_agent_behavior: str
+
+
+class LLMJudgeTrajectoryEvaluatorConfig(BaseLLMJudgeEvaluatorConfig):
     """Configuration for the llm judge trajectory evaluator."""
 
     name: str = "LlmJudgeTrajectoryEvaluator"
     prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_TRAJECTORY_DEFAULT_USER_PROMPT
-    target_output_key: str = Field(default="*", frozen=True)
 
 
-class LLMJudgeSimulationEvaluatorConfig(LLMJudgeEvaluatorConfig):
+class LLMJudgeSimulationEvaluatorConfig(BaseLLMJudgeEvaluatorConfig):
     """Configuration for the llm judge simulation trajectory evaluator."""
 
     name: str = "LlmJudgeSimulationEvaluator"
@@ -39,7 +42,7 @@ class LLMJudgeSimulationEvaluatorConfig(LLMJudgeEvaluatorConfig):
 
 
 class LLMJudgeTrajectoryEvaluator(
-    BaseLLMJudgeEvaluator[LLMJudgeTrajectoryEvaluatorConfig]
+    LLMJudgeMixin[TrajectoryEvaluationCriteria, LLMJudgeTrajectoryEvaluatorConfig]
 ):
     """Evaluator that uses an LLM to judge the quality of agent trajectory."""
 
@@ -54,10 +57,16 @@ class LLMJudgeTrajectoryEvaluator(
         """Get the actual output from the agent execution."""
         return trace_to_str(agent_execution.agent_trace)
 
+    def _get_expected_output(
+        self, evaluation_criteria: TrajectoryEvaluationCriteria
+    ) -> Any:
+        """Get the expected agent behavior from the evaluation criteria."""
+        return evaluation_criteria.expected_agent_behavior
+
     def _create_evaluation_prompt(
         self,
         agent_execution: AgentExecution,
-        evaluation_criteria: OutputEvaluationCriteria,
+        evaluation_criteria: TrajectoryEvaluationCriteria,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
         formatted_prompt = super()._create_evaluation_prompt(
@@ -75,10 +84,22 @@ class LLMJudgeTrajectoryEvaluator(
 
 
 class LlmJudgeSimulationTrajectoryEvaluator(
-    BaseLLMJudgeEvaluator[LLMJudgeSimulationEvaluatorConfig]
+    LLMJudgeMixin[TrajectoryEvaluationCriteria, LLMJudgeSimulationEvaluatorConfig]
 ):
     """Evaluator that uses an LLM to judge the quality of agent trajectory."""
 
     system_prompt: str = (
         LLMJudgePromptTemplates.LLM_JUDGE_SIMULATION_TRAJECTORY_SYSTEM_PROMPT
     )
+    actual_output_placeholder: str = "{{AgentRunHistory}}"
+    expected_output_placeholder: str = "{{ExpectedAgentBehavior}}"
+
+    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
+        """Get the actual output from the agent execution."""
+        return trace_to_str(agent_execution.agent_trace)
+
+    def _get_expected_output(
+        self, evaluation_criteria: TrajectoryEvaluationCriteria
+    ) -> Any:
+        """Get the expected agent behavior from the evaluation criteria."""
+        return evaluation_criteria.expected_agent_behavior
