@@ -1,22 +1,27 @@
 """Contains evaluator for agent outputs."""
 
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
-from .output_evaluator import (
-    OutputEvaluationCriteria,
-    OutputEvaluator,
-    OutputEvaluatorConfig,
-)
+from .base_evaluator import BaseEvaluationCriteria, BaseEvaluator, BaseEvaluatorConfig
 
 
-class ContainsEvaluatorConfig(OutputEvaluatorConfig):
-    """Configuration for the exact match evaluator."""
+class ContainsEvaluationCriteria(BaseEvaluationCriteria):
+    """Evaluation criteria for the contains evaluator."""
+
+    search_text: str
+
+
+class ContainsEvaluatorConfig(BaseEvaluatorConfig):
+    """Configuration for the contains evaluator."""
 
     name: str = "ContainsEvaluator"
+    default_evaluation_criteria: ContainsEvaluationCriteria | None = None
     case_sensitive: bool = False
     negated: bool = False
 
 
-class ContainsEvaluator(OutputEvaluator[ContainsEvaluatorConfig]):
+class ContainsEvaluator(
+    BaseEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig]
+):
     """Evaluator that checks if the actual output contains the expected output.
 
     This evaluator returns True if the actual output contains the expected output,
@@ -26,7 +31,7 @@ class ContainsEvaluator(OutputEvaluator[ContainsEvaluatorConfig]):
     async def evaluate(
         self,
         agent_execution: AgentExecution,
-        evaluation_criteria: OutputEvaluationCriteria,
+        evaluation_criteria: ContainsEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate whether actual output contains the expected output.
 
@@ -53,3 +58,13 @@ class ContainsEvaluator(OutputEvaluator[ContainsEvaluatorConfig]):
             is_contains = not is_contains
 
         return NumericEvaluationResult(score=float(is_contains))
+
+    def _get_actual_output(self, agent_execution: AgentExecution) -> str:
+        """Get the actual output from the agent execution."""
+        return str(agent_execution.agent_output)
+
+    def _get_expected_output(
+        self, evaluation_criteria: ContainsEvaluationCriteria
+    ) -> str:
+        """Get the expected output from the evaluation criteria."""
+        return evaluation_criteria.search_text

@@ -204,16 +204,16 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
             ValueError: If the criteria cannot be converted to the expected type
         """
         if isinstance(criteria, self.evaluation_criteria_type):
-            return criteria  # type: ignore[return-value]
+            return criteria
         elif isinstance(criteria, dict):
-            return self.evaluation_criteria_type.model_validate(criteria)  # type: ignore[return-value]
+            return self.evaluation_criteria_type.model_validate(criteria)
         elif hasattr(criteria, "__dict__"):
             # Try to convert from another object type
-            return self.evaluation_criteria_type.model_validate(criteria.__dict__)  # type: ignore[return-value]
+            return self.evaluation_criteria_type.model_validate(criteria.__dict__)
         else:
             # Try to let Pydantic handle the conversion
             try:
-                return self.evaluation_criteria_type.model_validate(criteria)  # type: ignore[return-value]
+                return self.evaluation_criteria_type.model_validate(criteria)
             except Exception as e:
                 raise ValueError(
                     f"Cannot convert {type(criteria)} to {self.evaluation_criteria_type}: {e}"

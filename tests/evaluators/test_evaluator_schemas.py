@@ -7,7 +7,10 @@ This module tests:
 - Generic type parameter handling
 """
 
+from typing import Any
+
 import pytest
+from pytest_mock.plugin import MockerFixture
 
 from src.uipath.eval.coded_evaluators.exact_match_evaluator import (
     ExactMatchEvaluator,
@@ -18,9 +21,11 @@ from src.uipath.eval.coded_evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluatorConfig,
 )
 from src.uipath.eval.coded_evaluators.llm_as_judge_evaluator import (
-    BaseLLMJudgeEvaluator,
-    LLMJudgeEvaluator,
-    LLMJudgeEvaluatorConfig,
+    LLMJudgeMixin,
+)
+from src.uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
+    LLMJudgeOutputEvaluator,
+    LLMJudgeOutputEvaluatorConfig,
 )
 from src.uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluator,
@@ -137,8 +142,9 @@ class TestEvaluatorSchemas:
     def test_base_llm_judge_evaluator_schemas(self) -> None:
         """Test BaseLLMJudgeEvaluator schema generation."""
         # Test config schema
-        config_schema = BaseLLMJudgeEvaluator[
-            LLMJudgeEvaluatorConfig
+        config_schema = LLMJudgeMixin[
+            OutputEvaluationCriteria,
+            LLMJudgeOutputEvaluatorConfig,
         ].get_config_schema()
         assert isinstance(config_schema, dict)
         assert "properties" in config_schema
@@ -149,8 +155,9 @@ class TestEvaluatorSchemas:
         assert "model" in config_schema["properties"]
 
         # Test criteria schema
-        criteria_schema = BaseLLMJudgeEvaluator[
-            LLMJudgeEvaluatorConfig
+        criteria_schema = LLMJudgeMixin[
+            OutputEvaluationCriteria,
+            LLMJudgeOutputEvaluatorConfig,
         ].get_evaluation_criteria_schema()
         assert isinstance(criteria_schema, dict)
         assert "properties" in criteria_schema
@@ -159,15 +166,16 @@ class TestEvaluatorSchemas:
     def test_llm_judge_evaluator_schemas(self) -> None:
         """Test LLMJudgeEvaluator schema generation."""
         # Test config schema
-        config_schema = LLMJudgeEvaluator.get_config_schema()
+        config_schema = LLMJudgeOutputEvaluator.get_config_schema()
         assert isinstance(config_schema, dict)
         assert "properties" in config_schema
         assert "name" in config_schema["properties"]
         assert "prompt" in config_schema["properties"]
         assert "model" in config_schema["properties"]
+        assert "target_output_key" in config_schema["properties"]
 
         # Test criteria schema
-        criteria_schema = LLMJudgeEvaluator.get_evaluation_criteria_schema()
+        criteria_schema = LLMJudgeOutputEvaluator.get_evaluation_criteria_schema()
         assert isinstance(criteria_schema, dict)
         assert "properties" in criteria_schema
         assert "expected_output" in criteria_schema["properties"]
@@ -181,12 +189,13 @@ class TestEvaluatorSchemas:
         assert "name" in config_schema["properties"]
         assert "prompt" in config_schema["properties"]
         assert "model" in config_schema["properties"]
+        assert "target_output_key" not in config_schema["properties"]
 
         # Test criteria schema
         criteria_schema = LLMJudgeTrajectoryEvaluator.get_evaluation_criteria_schema()
         assert isinstance(criteria_schema, dict)
         assert "properties" in criteria_schema
-        assert "expected_output" in criteria_schema["properties"]
+        assert "expected_agent_behavior" in criteria_schema["properties"]
 
 
 class TestBaseEvaluatorFunctionality:
@@ -276,6 +285,46 @@ class TestBaseEvaluatorFunctionality:
 
         assert isinstance(validated, ToolCallOrderEvaluationCriteria)
         assert validated.tool_calls_order == ["tool1", "tool2", "tool3"]
+
+    def test_criteria_validation_llm_judge_output(self, mocker: MockerFixture) -> None:
+        """Test criteria validation for LLMJudgeOutputEvaluator."""
+
+        # Mock the UiPath constructor to avoid authentication
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        # Mock the chat completions response as an async method
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(
+                    content='{"score": 80, "justification": "Good response that meets criteria"}'
+                )
+            )
+        ]
+
+        # Make chat_completions an async method
+        async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
+            return mock_response
+
+        mock_llm.chat_completions = mock_chat_completions
+
+        # Mock the UiPath import and constructor
+        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        config_dict = {
+            "name": "Test",
+            "default_evaluation_criteria": {"expected_output": "test"},
+            "model": "gpt-4o-2024-08-06",
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate({"config": config_dict})
+
+        # Test dict validation
+        criteria_dict = {"expected_output": "test output"}
+        validated = evaluator.validate_evaluation_criteria(criteria_dict)
+
+        assert isinstance(validated, OutputEvaluationCriteria)
+        assert validated.expected_output == "test output"
 
     def test_automatic_type_detection(self) -> None:
         """Test that types are automatically detected from Generic parameters."""
