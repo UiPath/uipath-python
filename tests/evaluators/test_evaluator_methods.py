@@ -153,6 +153,25 @@ class TestExactMatchEvaluator:
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.0
 
+    @pytest.mark.asyncio
+    async def test_exact_match_validate_and_evaluate_criteria(
+        self, sample_agent_execution: AgentExecution
+    ) -> None:
+        """Test exact match using validate_and_evaluate_criteria."""
+        config = {
+            "name": "ExactMatchTest",
+            "case_sensitive": True,
+        }
+        evaluator = ExactMatchEvaluator.model_validate({"config": config})
+        raw_criteria = {"expected_output": {"output": "Test output"}}
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution, raw_criteria
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
 
 class TestJsonSimilarityEvaluator:
     """Test JsonSimilarityEvaluator.evaluate() method."""
@@ -199,6 +218,25 @@ class TestJsonSimilarityEvaluator:
 
         assert isinstance(result, NumericEvaluationResult)
         assert math.isclose(result.score, 0.666, abs_tol=1e-3)
+
+    @pytest.mark.asyncio
+    async def test_json_similarity_validate_and_evaluate_criteria(self) -> None:
+        """Test JSON similarity using validate_and_evaluate_criteria."""
+        execution = AgentExecution(
+            agent_input={"input": "Test"},
+            agent_output={"name": "John", "age": 30, "city": "NYC"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "JsonSimilarityTest",
+        }
+        evaluator = JsonSimilarityEvaluator.model_validate({"config": config})
+        raw_criteria = {"expected_output": {"name": "John", "age": 30, "city": "NYC"}}
+
+        result = await evaluator.validate_and_evaluate_criteria(execution, raw_criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
 
 
 class TestToolCallOrderEvaluator:
@@ -265,6 +303,25 @@ class TestToolCallOrderEvaluator:
 
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.75
+
+    @pytest.mark.asyncio
+    async def test_tool_call_order_validate_and_evaluate_criteria(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call order using validate_and_evaluate_criteria."""
+        config = {
+            "name": "ToolOrderTest",
+            "strict": True,
+        }
+        evaluator = ToolCallOrderEvaluator.model_validate({"config": config})
+        raw_criteria = {"tool_calls_order": ["tool1", "tool2", "tool1", "tool2"]}
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution_with_trace, raw_criteria
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
 
 
 class TestToolCallCountEvaluator:
@@ -346,6 +403,25 @@ class TestToolCallCountEvaluator:
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.5
 
+    @pytest.mark.asyncio
+    async def test_tool_call_count_validate_and_evaluate_criteria(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call count using validate_and_evaluate_criteria."""
+        config = {
+            "name": "ToolCountTest",
+            "strict": True,
+        }
+        evaluator = ToolCallCountEvaluator.model_validate({"config": config})
+        raw_criteria = {"tool_calls_count": {"tool1": ("=", 2), "tool2": ("=", 2)}}
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution_with_trace, raw_criteria
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
 
 class TestToolCallArgsEvaluator:
     """Test ToolCallArgsEvaluator.evaluate() method."""
@@ -398,6 +474,32 @@ class TestToolCallArgsEvaluator:
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.75
 
+    @pytest.mark.asyncio
+    async def test_tool_call_args_validate_and_evaluate_criteria(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call args using validate_and_evaluate_criteria."""
+        config = {
+            "name": "ToolArgsTest",
+            "strict": True,
+        }
+        evaluator = ToolCallArgsEvaluator.model_validate({"config": config})
+        raw_criteria = {
+            "tool_calls": [
+                {"name": "tool1", "args": {"arg1": "value1"}},
+                {"name": "tool2", "args": {"arg2": "value2"}},
+                {"name": "tool1", "args": {"arg1": "value1"}},
+                {"name": "tool2", "args": {"arg2": "value2"}},
+            ]
+        }
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution_with_trace, raw_criteria
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
 
 class TestLlmAsAJudgeEvaluator:
     """Test LlmAsAJudgeEvaluator.evaluate() method."""
@@ -446,6 +548,52 @@ class TestLlmAsAJudgeEvaluator:
         assert hasattr(result, "score")
         assert isinstance(result, NumericEvaluationResult), f"Result is {result}"
         assert result.score == 0.8, f"Result score is {result.score}"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_validate_and_evaluate_criteria(
+        self, sample_agent_execution: AgentExecution, mocker: "MockerFixture"
+    ) -> None:
+        """Test LLM judge using validate_and_evaluate_criteria."""
+        # Mock the UiPath constructor to avoid authentication
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        # Mock the chat completions response as an async method
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(
+                    content='{"score": 75, "justification": "Good response using raw criteria"}'
+                )
+            )
+        ]
+
+        # Make chat_completions an async method
+        async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
+            return mock_response
+
+        mock_llm.chat_completions = mock_chat_completions
+
+        # Mock the UiPath import and constructor
+        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+
+        config = {
+            "name": "LlmJudgeTest",
+            "prompt": "Rate this output: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": "gpt-4",
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate({"config": config})
+        raw_criteria = {"expected_output": "Expected output"}
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution, raw_criteria
+        )
+
+        # Verify the result
+        assert hasattr(result, "score")
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.75
 
 
 class TestLlmJudgeTrajectoryEvaluator:
@@ -497,6 +645,52 @@ class TestLlmJudgeTrajectoryEvaluator:
         assert hasattr(result, "score")
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.9
+
+    @pytest.mark.asyncio
+    async def test_llm_trajectory_validate_and_evaluate_criteria(
+        self, sample_agent_execution: AgentExecution, mocker: "MockerFixture"
+    ) -> None:
+        """Test LLM trajectory judge using validate_and_evaluate_criteria."""
+        # Mock the UiPath constructor to avoid authentication
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        # Mock the chat completions response as an async method
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(
+                    content='{"score": 85, "justification": "The agent behavior was good using raw criteria"}'
+                )
+            )
+        ]
+
+        # Make chat_completions an async method
+        async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
+            return mock_response
+
+        mock_llm.chat_completions = mock_chat_completions
+
+        # Mock the UiPath import and constructor
+        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+
+        config = {
+            "name": "LlmTrajectoryTest",
+            "prompt": "Evaluate this trajectory: {{AgentRunHistory}} vs {{ExpectedAgentBehavior}} given the following input: {{UserOrSyntheticInput}} instructions: {{SimulationInstructions}}",
+            "model": "gpt-4",
+        }
+        evaluator = LLMJudgeTrajectoryEvaluator.model_validate({"config": config})
+        raw_criteria = {"expected_agent_behavior": "Agent should respond helpfully"}
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution, raw_criteria
+        )
+
+        # Verify the result
+        assert hasattr(result, "score")
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.85
 
 
 class TestEvaluatorErrorHandling:

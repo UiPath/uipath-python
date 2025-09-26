@@ -255,7 +255,7 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
             ensure_ascii=False,
         )
 
-    async def evaluate_from_raw_criteria(
+    async def validate_and_evaluate_criteria(
         self, agent_execution: AgentExecution, evaluation_criteria: Any
     ) -> EvaluationResult:
         """Evaluate the given data and return a result from a raw evaluation criteria."""
