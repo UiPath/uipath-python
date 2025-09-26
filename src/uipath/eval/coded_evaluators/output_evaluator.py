@@ -1,12 +1,11 @@
 """Base class for all output evaluator configurations."""
 
 import json
-from abc import abstractmethod
 from typing import Any, TypeVar
 
 from pydantic import Field
 
-from ..models import AgentExecution, EvaluationResult
+from ..models import AgentExecution
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
@@ -34,15 +33,6 @@ C = TypeVar("C", bound=OutputEvaluatorConfig)
 
 class OutputEvaluator(BaseEvaluator[OutputEvaluationCriteria, C]):
     """Abstract base class for all output evaluators."""
-
-    @abstractmethod
-    async def evaluate(
-        self,
-        agent_execution: AgentExecution,
-        evaluation_criteria: OutputEvaluationCriteria,
-    ) -> EvaluationResult:
-        """Evaluate the given data and return a result."""
-        pass
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""

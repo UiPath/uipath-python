@@ -17,7 +17,7 @@ class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig):
     """Configuration for the json similarity evaluator."""
 
     name: str = "JsonSimilarityEvaluator"
-    target_output_key: str = Field(default="*", frozen=True)
+    target_output_key: str = Field(default="*", frozen=True, exclude=True)
 
 
 class JsonSimilarityEvaluator(OutputEvaluator[JsonSimilarityEvaluatorConfig]):
