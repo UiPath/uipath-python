@@ -56,7 +56,7 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    config: dict[str, Any]
+    config: dict[str, Any] = Field(description="The config dictionary")
     config_type: type[C] = Field(description="The config type class")
     evaluation_criteria_type: type[T] = Field(
         description="The type used for evaluation criteria validation and creation"
@@ -136,8 +136,7 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
             if hasattr(field_info, "annotation"):
                 # Extract the inner type from type[SomeType]
                 annotation = field_info.annotation
-                args = get_args(annotation)
-                if args and len(args) > 0:
+                if args := get_args(annotation):
                     criteria_type = args[0]
                     if isinstance(criteria_type, type) and issubclass(
                         criteria_type, BaseEvaluationCriteria
@@ -164,29 +163,24 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
         if cls.__name__ == "BaseEvaluator":
             return BaseEvaluatorConfig
 
-        # Check if Pydantic has already resolved the evaluator_config field annotation
-        if hasattr(cls, "model_fields") and "evaluator_config" in cls.model_fields:
-            field_info = cls.model_fields["evaluator_config"]
+        # Check if Pydantic has already resolved the config_type field annotation
+        if hasattr(cls, "model_fields") and "config_type" in cls.model_fields:
+            field_info = cls.model_fields["config_type"]
             if hasattr(field_info, "annotation"):
-                config_type = field_info.annotation
-                if isinstance(config_type, type) and issubclass(
-                    config_type, BaseEvaluatorConfig
-                ):
-                    return config_type
+                # Extract the inner type from type[SomeType]
+                annotation = field_info.annotation
+                if args := get_args(annotation):
+                    config_type = args[0]
+                    if isinstance(config_type, type) and issubclass(
+                        config_type, BaseEvaluatorConfig
+                    ):
+                        return config_type
 
-        # Fallback: Look for config_type class attribute
-        if hasattr(cls, "config_type") and cls.config_type is not None:
-            if isinstance(cls.config_type, type) and issubclass(
-                cls.config_type, BaseEvaluatorConfig
-            ):
-                return cls.config_type
-            else:
-                raise ValueError(
-                    f"config_type {cls.config_type} in {cls.__name__} must be a subclass of BaseEvaluatorConfig"
-                )
-
-        # If no config_type found, use the default
-        return BaseEvaluatorConfig
+        # If we reach here, no valid type could be determined
+        raise ValueError(
+            f"Could not determine config type for {cls.__name__}. "
+            f"Ensure the class properly inherits from BaseEvaluator with correct Generic parameters."
+        )
 
     def validate_evaluation_criteria(self, criteria: Any) -> T:
         """Validate and convert input to the correct evaluation criteria type.
