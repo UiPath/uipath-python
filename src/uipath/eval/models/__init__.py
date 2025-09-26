@@ -9,6 +9,7 @@ from .models import (
     LLMResponse,
     NumericEvaluationResult,
     ScoreType,
+    ToolCall,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "BooleanEvaluationResult",
     "NumericEvaluationResult",
     "ErrorEvaluationResult",
+    "ToolCall",
 ]
