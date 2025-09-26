@@ -102,8 +102,7 @@ class BaseEvaluator(BaseModel, Generic[T, C], ABC):
             values["config_type"] = config_type
 
             # Validate and create the config object if config dict is provided
-            if "config" in values:
-                config_dict = values["config"]
+            if config_dict := values.get("config"):
                 try:
                     validated_config = config_type.model_validate(config_dict)
                     values["evaluator_config"] = validated_config

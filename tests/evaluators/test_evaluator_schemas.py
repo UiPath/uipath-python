@@ -28,6 +28,11 @@ from src.uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
 from src.uipath.eval.coded_evaluators.output_evaluator import (
     OutputEvaluationCriteria,
 )
+from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+    ToolCallArgsEvaluationCriteria,
+    ToolCallArgsEvaluator,
+    ToolCallArgsEvaluatorConfig,
+)
 from src.uipath.eval.coded_evaluators.tool_call_count_evaluator import (
     ToolCallCountEvaluationCriteria,
     ToolCallCountEvaluator,
@@ -112,6 +117,22 @@ class TestEvaluatorSchemas:
         assert isinstance(criteria_schema, dict)
         assert "properties" in criteria_schema
         assert "tool_calls_count" in criteria_schema["properties"]
+
+    def test_tool_call_args_evaluator_schemas(self) -> None:
+        """Test ToolCallArgsEvaluator schema generation."""
+        # Test config schema
+        config_schema = ToolCallArgsEvaluator.get_config_schema()
+        assert isinstance(config_schema, dict)
+        assert "properties" in config_schema
+        assert "name" in config_schema["properties"]
+        assert "strict" in config_schema["properties"]
+        assert "subset" in config_schema["properties"]
+
+        # Test criteria schema
+        criteria_schema = ToolCallArgsEvaluator.get_evaluation_criteria_schema()
+        assert isinstance(criteria_schema, dict)
+        assert "properties" in criteria_schema
+        assert "tool_calls" in criteria_schema["properties"]
 
     def test_base_llm_judge_evaluator_schemas(self) -> None:
         """Test BaseLLMJudgeEvaluator schema generation."""
@@ -202,6 +223,14 @@ class TestBaseEvaluatorFunctionality:
 
         assert criteria_type == ToolCallCountEvaluationCriteria
         assert config_type == ToolCallCountEvaluatorConfig
+
+    def test_type_extraction_tool_call_args(self) -> None:
+        """Test type extraction for ToolCallArgsEvaluator."""
+        criteria_type = ToolCallArgsEvaluator._extract_evaluation_criteria_type()
+        config_type = ToolCallArgsEvaluator._extract_config_type()
+
+        assert criteria_type == ToolCallArgsEvaluationCriteria
+        assert config_type == ToolCallArgsEvaluatorConfig
 
     def test_config_validation_exact_match(self) -> None:
         """Test config validation for ExactMatchEvaluator."""

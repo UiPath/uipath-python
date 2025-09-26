@@ -25,6 +25,10 @@ from src.uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluator,
 )
 from src.uipath.eval.coded_evaluators.output_evaluator import OutputEvaluationCriteria
+from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+    ToolCallArgsEvaluationCriteria,
+    ToolCallArgsEvaluator,
+)
 from src.uipath.eval.coded_evaluators.tool_call_count_evaluator import (
     ToolCallCountEvaluationCriteria,
     ToolCallCountEvaluator,
@@ -34,7 +38,7 @@ from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluator,
 )
 from src.uipath.eval.models import NumericEvaluationResult
-from src.uipath.eval.models.models import AgentExecution
+from src.uipath.eval.models.models import AgentExecution, ToolCall
 
 
 @pytest.fixture
@@ -56,25 +60,25 @@ def sample_agent_execution_with_trace() -> AgentExecution:
             name="tool1",
             start_time=0,
             end_time=1,
-            attributes={"tool.name": "tool1"},
+            attributes={"tool.name": "tool1", "input.value": "{'arg1': 'value1'}"},
         ),
         ReadableSpan(
             name="tool2",
             start_time=1,
             end_time=2,
-            attributes={"tool.name": "tool2"},
+            attributes={"tool.name": "tool2", "input.value": "{'arg2': 'value2'}"},
         ),
         ReadableSpan(
             name="tool1",
             start_time=2,
             end_time=3,
-            attributes={"tool.name": "tool1"},
+            attributes={"tool.name": "tool1", "input.value": "{'arg1': 'value1'}"},
         ),
         ReadableSpan(
             name="tool2",
             start_time=3,
             end_time=4,
-            attributes={"tool.name": "tool2"},
+            attributes={"tool.name": "tool2", "input.value": "{'arg2': 'value2'}"},
         ),
     ]
 
@@ -338,6 +342,58 @@ class TestToolCallCountEvaluator:
 
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.5
+
+
+class TestToolCallArgsEvaluator:
+    """Test ToolCallArgsEvaluator.evaluate() method."""
+
+    @pytest.mark.asyncio
+    async def test_tool_call_args_perfect_match(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call args with perfect match."""
+        config = {
+            "name": "ToolArgsTest",
+            "strict": True,
+        }
+        evaluator = ToolCallArgsEvaluator.model_validate({"config": config})
+        criteria = ToolCallArgsEvaluationCriteria(
+            tool_calls=[
+                ToolCall(name="tool1", args={"arg1": "value1"}),
+                ToolCall(name="tool2", args={"arg2": "value2"}),
+                ToolCall(name="tool1", args={"arg1": "value1"}),
+                ToolCall(name="tool2", args={"arg2": "value2"}),
+            ]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_tool_call_args_partial_match(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call args with partial match."""
+        config = {
+            "name": "ToolArgsTest",
+            "strict": False,
+        }
+        evaluator = ToolCallArgsEvaluator.model_validate({"config": config})
+        criteria = ToolCallArgsEvaluationCriteria(
+            tool_calls=[
+                ToolCall(name="tool1", args={"arg1": "value1"}),
+                ToolCall(name="tool2", args={"arg2": "value1"}),
+                ToolCall(name="tool1", args={"arg1": "value1"}),
+                ToolCall(name="tool2", args={"arg2": "value2"}),
+            ]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.75
 
 
 class TestLlmAsAJudgeEvaluator:
