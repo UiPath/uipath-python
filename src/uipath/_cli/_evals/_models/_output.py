@@ -24,6 +24,8 @@ class EvaluationResultDto(BaseModel):
     score: float
     details: Optional[str | BaseModel] = None
     evaluation_time: Optional[float] = None
+    evaluator_name: Optional[str] = None
+    datapoint_id: Optional[str] = None
 
     @model_serializer(mode="wrap")
     def serialize_model(self, serializer, info):
@@ -49,6 +51,8 @@ class EvaluationResultDto(BaseModel):
             score=score,
             details=evaluation_result.details,
             evaluation_time=evaluation_result.evaluation_time,
+            evaluator_name=evaluation_result.evaluator_name,
+            datapoint_id=evaluation_result.datapoint_id,
         )
 
 

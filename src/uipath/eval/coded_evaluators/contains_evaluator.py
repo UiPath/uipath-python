@@ -1,5 +1,6 @@
 """Contains evaluator for agent outputs."""
 
+from .._helpers.coded_evaluators_helpers import generate_datapoint_id
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from .base_evaluator import BaseEvaluationCriteria, BaseEvaluator, BaseEvaluatorConfig
 
@@ -57,7 +58,11 @@ class ContainsEvaluator(
         if self.evaluator_config.negated:
             is_contains = not is_contains
 
-        return NumericEvaluationResult(score=float(is_contains))
+        return NumericEvaluationResult(
+            score=float(is_contains),
+            evaluator_name=self.evaluator_config.name,
+            datapoint_id=generate_datapoint_id(agent_execution),
+        )
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> str:
         """Get the actual output from the agent execution."""

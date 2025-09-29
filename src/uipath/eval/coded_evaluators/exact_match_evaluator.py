@@ -1,5 +1,6 @@
 """Exact match evaluator for agent outputs."""
 
+from .._helpers.coded_evaluators_helpers import generate_datapoint_id
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from .output_evaluator import (
     OutputEvaluationCriteria,
@@ -52,4 +53,8 @@ class ExactMatchEvaluator(OutputEvaluator[ExactMatchEvaluatorConfig, type(None)]
         if self.evaluator_config.negated:
             is_exact_match = not is_exact_match
 
-        return NumericEvaluationResult(score=float(is_exact_match))
+        return NumericEvaluationResult(
+            score=float(is_exact_match),
+            evaluator_name=self.evaluator_config.name,
+            datapoint_id=generate_datapoint_id(agent_execution),
+        )
