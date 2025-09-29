@@ -37,7 +37,7 @@ from ._models._execution import ExecutionRun
 from ._models._messages import LogMessage, TraceMessage
 from ._utils._chat import RunContextChatHandler, build_user_message_event
 from ._utils._exporter import RunContextExporter
-from ._utils._logger import RunContextLogHandler
+from ._utils._logger import RunContextLogHandler, patch_textual_stderr
 
 
 class UiPathDevTerminal(App[Any]):
@@ -61,6 +61,8 @@ class UiPathDevTerminal(App[Any]):
         runtime_factory: UiPathRuntimeFactory[Any, Any],
         **kwargs,
     ):
+        self._stderr_write_fd: int = patch_textual_stderr(self._add_subprocess_log)
+
         super().__init__(**kwargs)
 
         self.initial_entrypoint: str = "main.py"
@@ -357,3 +359,15 @@ class UiPathDevTerminal(App[Any]):
         )
         log_msg = LogMessage(run.id, "ERROR", tb, timestamp)
         self._handle_log_message(log_msg)
+
+    def _add_subprocess_log(self, level: str, message: str) -> None:
+        """Handle a stderr line coming from subprocesses."""
+
+        def add_log() -> None:
+            details_panel = self.query_one("#details-panel", RunDetailsPanel)
+            run = getattr(details_panel, "current_run", None)
+            if run:
+                log_msg = LogMessage(run.id, level, message, datetime.now())
+                self._handle_log_message(log_msg)
+
+        self.call_from_thread(add_log)
