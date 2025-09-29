@@ -46,6 +46,11 @@ from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluator,
     ToolCallOrderEvaluatorConfig,
 )
+from src.uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+    ToolCallOutputEvaluationCriteria,
+    ToolCallOutputEvaluator,
+    ToolCallOutputEvaluatorConfig,
+)
 
 
 @pytest.fixture
@@ -136,6 +141,21 @@ class TestEvaluatorSchemas:
         assert isinstance(criteria_schema, dict)
         assert "properties" in criteria_schema
         assert "tool_calls" in criteria_schema["properties"]
+
+    def test_tool_call_output_evaluator_schemas(self) -> None:
+        """Test ToolCallOutputEvaluator schema generation."""
+        # Test config schema
+        config_schema = ToolCallOutputEvaluator.get_config_schema()
+        assert isinstance(config_schema, dict)
+        assert "properties" in config_schema
+        assert "name" in config_schema["properties"]
+        assert "strict" in config_schema["properties"]
+
+        # Test criteria schema
+        criteria_schema = ToolCallOutputEvaluator.get_evaluation_criteria_schema()
+        assert isinstance(criteria_schema, dict)
+        assert "properties" in criteria_schema
+        assert "tool_outputs" in criteria_schema["properties"]
 
     def test_base_llm_judge_evaluator_schemas(self) -> None:
         """Test BaseLLMJudgeEvaluator schema generation."""
@@ -241,6 +261,16 @@ class TestJustificationSchemas:
         justification_type = ToolCallArgsEvaluator._extract_justification_type()
         assert justification_type is ToolCallArgsEvaluatorJustification
 
+    def test_tool_call_output_evaluator_justification_schema(self) -> None:
+        """Test ToolCallOutputEvaluator justification schema generation."""
+        # Test justification type extraction - tool call evaluators have their own justification types
+        from src.uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+            ToolCallOutputEvaluatorJustification,
+        )
+
+        justification_type = ToolCallOutputEvaluator._extract_justification_type()
+        assert justification_type is ToolCallOutputEvaluatorJustification
+
     def test_llm_judge_output_evaluator_justification_schema(self) -> None:
         """Test LLMJudgeOutputEvaluator justification schema generation."""
         # Test justification type extraction - LLM evaluators use str for justification
@@ -297,6 +327,14 @@ class TestBaseEvaluatorFunctionality:
         assert criteria_type == ToolCallArgsEvaluationCriteria
         assert config_type == ToolCallArgsEvaluatorConfig
 
+    def test_type_extraction_tool_call_output(self) -> None:
+        """Test type extraction for ToolCallOutputEvaluator."""
+        criteria_type = ToolCallOutputEvaluator._extract_evaluation_criteria_type()
+        config_type = ToolCallOutputEvaluator._extract_config_type()
+
+        assert criteria_type == ToolCallOutputEvaluationCriteria
+        assert config_type == ToolCallOutputEvaluatorConfig
+
     def test_config_validation_exact_match(self) -> None:
         """Test config validation for ExactMatchEvaluator."""
         # Valid config - create minimal required config
@@ -341,6 +379,49 @@ class TestBaseEvaluatorFunctionality:
 
         assert isinstance(validated, ToolCallOrderEvaluationCriteria)
         assert validated.tool_calls_order == ["tool1", "tool2", "tool3"]
+
+    def test_config_validation_tool_call_output(self) -> None:
+        """Test config validation for ToolCallOutputEvaluator."""
+        # Valid config - create minimal required config
+        config_dict = {
+            "name": "TestToolOutputEvaluator",
+            "strict": True,
+            "default_evaluation_criteria": {
+                "tool_outputs": [{"name": "tool1", "output": "output1"}]
+            },
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config_dict})
+
+        assert isinstance(evaluator.evaluator_config, ToolCallOutputEvaluatorConfig)
+        assert evaluator.evaluator_config.name == "TestToolOutputEvaluator"
+        assert evaluator.evaluator_config.strict is True
+
+    def test_criteria_validation_tool_call_output(self) -> None:
+        """Test criteria validation for ToolCallOutputEvaluator."""
+        config_dict = {
+            "name": "Test",
+            "strict": False,
+            "default_evaluation_criteria": {
+                "tool_outputs": [{"name": "tool1", "output": "output1"}]
+            },
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config_dict})
+
+        # Test dict validation
+        criteria_dict = {
+            "tool_outputs": [
+                {"name": "tool1", "output": "output1"},
+                {"name": "tool2", "output": "output2"},
+            ]
+        }
+        validated = evaluator.validate_evaluation_criteria(criteria_dict)
+
+        assert isinstance(validated, ToolCallOutputEvaluationCriteria)
+        assert len(validated.tool_outputs) == 2
+        assert validated.tool_outputs[0].name == "tool1"
+        assert validated.tool_outputs[0].output == "output1"
+        assert validated.tool_outputs[1].name == "tool2"
+        assert validated.tool_outputs[1].output == "output2"
 
     def test_criteria_validation_llm_judge_output(self, mocker: MockerFixture) -> None:
         """Test criteria validation for LLMJudgeOutputEvaluator."""

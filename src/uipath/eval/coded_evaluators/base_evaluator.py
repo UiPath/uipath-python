@@ -3,6 +3,7 @@
 import functools
 import json
 import time
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar, Union, cast, get_args
@@ -142,26 +143,41 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             return BaseEvaluationCriteria
 
         # Check if Pydantic has already resolved the evaluation_criteria_type field annotation
-        if (
+        if not (
             hasattr(cls, "model_fields")
             and "evaluation_criteria_type" in cls.model_fields
         ):
-            field_info = cls.model_fields["evaluation_criteria_type"]
-            if hasattr(field_info, "annotation"):
-                # Extract the inner type from type[SomeType]
-                annotation = field_info.annotation
-                if args := get_args(annotation):
-                    criteria_type = args[0]
-                    if isinstance(criteria_type, type) and issubclass(
-                        criteria_type, BaseEvaluationCriteria
-                    ):
-                        return criteria_type
+            raise ValueError(
+                f"Could not find evaluation_criteria_type field in {cls.__name__}. "
+                f"Ensure the class properly inherits from BaseEvaluator with correct Generic parameters."
+            )
 
-        # If we reach here, no valid type could be determined
-        raise ValueError(
-            f"Could not determine evaluation criteria type for {cls.__name__}. "
-            f"Ensure the class properly inherits from BaseEvaluator or OutputEvaluator with correct Generic parameters."
-        )
+        field_info = cls.model_fields["evaluation_criteria_type"]
+        if not hasattr(field_info, "annotation"):
+            raise ValueError(
+                f"No annotation found for evaluation_criteria_type field in {cls.__name__}."
+            )
+
+        # Extract the inner type from type[SomeType]
+        annotation = field_info.annotation
+        args = get_args(annotation)
+        if not args:
+            raise ValueError(
+                f"Invalid annotation for evaluation_criteria_type in {cls.__name__}: {annotation}. "
+                f"Expected type[SomeEvaluationCriteria]."
+            )
+
+        criteria_type = args[0]
+        if not (
+            isinstance(criteria_type, type)
+            and issubclass(criteria_type, BaseEvaluationCriteria)
+        ):
+            raise ValueError(
+                f"Invalid evaluation criteria type {criteria_type} in {cls.__name__}. "
+                f"Must be a subclass of BaseEvaluationCriteria."
+            )
+
+        return criteria_type
 
     @classmethod
     def _extract_config_type(cls) -> type[BaseEvaluatorConfig]:
@@ -178,23 +194,38 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             return BaseEvaluatorConfig
 
         # Check if Pydantic has already resolved the config_type field annotation
-        if hasattr(cls, "model_fields") and "config_type" in cls.model_fields:
-            field_info = cls.model_fields["config_type"]
-            if hasattr(field_info, "annotation"):
-                # Extract the inner type from type[SomeType]
-                annotation = field_info.annotation
-                if args := get_args(annotation):
-                    config_type = args[0]
-                    if isinstance(config_type, type) and issubclass(
-                        config_type, BaseEvaluatorConfig
-                    ):
-                        return config_type
+        if not (hasattr(cls, "model_fields") and "config_type" in cls.model_fields):
+            raise ValueError(
+                f"Could not find config_type field in {cls.__name__}. "
+                f"Ensure the class properly inherits from BaseEvaluator with correct Generic parameters."
+            )
 
-        # If we reach here, no valid type could be determined
-        raise ValueError(
-            f"Could not determine config type for {cls.__name__}. "
-            f"Ensure the class properly inherits from BaseEvaluator with correct Generic parameters."
-        )
+        field_info = cls.model_fields["config_type"]
+        if not hasattr(field_info, "annotation"):
+            raise ValueError(
+                f"No annotation found for config_type field in {cls.__name__}."
+            )
+
+        # Extract the inner type from type[SomeType]
+        annotation = field_info.annotation
+        args = get_args(annotation)
+        if not args:
+            raise ValueError(
+                f"Invalid annotation for config_type in {cls.__name__}: {annotation}. "
+                f"Expected type[SomeEvaluatorConfig]."
+            )
+
+        config_type = args[0]
+        if not (
+            isinstance(config_type, type)
+            and issubclass(config_type, BaseEvaluatorConfig)
+        ):
+            raise ValueError(
+                f"Invalid config type {config_type} in {cls.__name__}. "
+                f"Must be a subclass of BaseEvaluatorConfig."
+            )
+
+        return config_type
 
     @classmethod
     def _extract_justification_type(cls) -> type[J]:
@@ -202,26 +233,53 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
 
         Returns:
             The justification type (str, None, or BaseEvaluatorJustification subclass)
+
+        Note:
+            Unlike the other type extraction methods, this one returns a default (type(None))
+            instead of raising an error, since justification support is optional and
+            defaults to None for evaluators that don't specify a justification type.
         """
+        # Special case: if this is the BaseEvaluator class itself, return type(None)
         if cls.__name__ == "BaseEvaluator":
             return cast(type[J], type(None))
 
-        if hasattr(cls, "model_fields") and "justification_type" in cls.model_fields:
-            field_info = cls.model_fields["justification_type"]
-            if hasattr(field_info, "annotation"):
-                annotation = field_info.annotation
-                if args := get_args(annotation):
-                    justification_type = args[0]
-                    # Support str, None, or BaseEvaluatorJustification subclasses
-                    if justification_type is str or justification_type is type(None):
-                        return cast(type[J], justification_type)
-                    elif isinstance(justification_type, type) and issubclass(
-                        justification_type, BaseEvaluatorJustification
-                    ):
-                        return cast(type[J], justification_type)
+        # Check if Pydantic has resolved the justification_type field annotation
+        if not (
+            hasattr(cls, "model_fields") and "justification_type" in cls.model_fields
+        ):
+            # Default to None if field doesn't exist (justification is optional)
+            return cast(type[J], type(None))
 
-        # Default to None if we can't determine the type
-        return cast(type[J], type(None))
+        field_info = cls.model_fields["justification_type"]
+        if not hasattr(field_info, "annotation"):
+            # Default to None if no annotation (justification is optional)
+            return cast(type[J], type(None))
+
+        # Extract the inner type from type[SomeType]
+        annotation = field_info.annotation
+        args = get_args(annotation)
+        if not args:
+            # Default to None if no type args (justification is optional)
+            return cast(type[J], type(None))
+
+        justification_type = args[0]
+
+        # Validate the justification type - must be str, type(None), or BaseEvaluatorJustification subclass
+        if justification_type is str or justification_type is type(None):
+            return cast(type[J], justification_type)
+        elif isinstance(justification_type, type) and issubclass(
+            justification_type, BaseEvaluatorJustification
+        ):
+            return cast(type[J], justification_type)
+        else:
+            # Invalid justification type - log warning but default to None for robustness
+            warnings.warn(
+                f"Invalid justification type {justification_type} in {cls.__name__}. "
+                f"Must be str, None, or subclass of BaseEvaluatorJustification. Defaulting to None.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return cast(type[J], type(None))
 
     def validate_evaluation_criteria(self, criteria: Any) -> T:
         """Validate and convert input to the correct evaluation criteria type.

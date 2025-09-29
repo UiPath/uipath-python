@@ -40,8 +40,13 @@ from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluationCriteria,
     ToolCallOrderEvaluator,
 )
+from src.uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+    ToolCallOutputEvaluationCriteria,
+    ToolCallOutputEvaluator,
+    ToolCallOutputEvaluatorJustification,
+)
 from src.uipath.eval.models import NumericEvaluationResult
-from src.uipath.eval.models.models import AgentExecution, ToolCall
+from src.uipath.eval.models.models import AgentExecution, ToolCall, ToolOutput
 
 
 @pytest.fixture
@@ -63,25 +68,41 @@ def sample_agent_execution_with_trace() -> AgentExecution:
             name="tool1",
             start_time=0,
             end_time=1,
-            attributes={"tool.name": "tool1", "input.value": "{'arg1': 'value1'}"},
+            attributes={
+                "tool.name": "tool1",
+                "input.value": "{'arg1': 'value1'}",
+                "output.value": "output1",
+            },
         ),
         ReadableSpan(
             name="tool2",
             start_time=1,
             end_time=2,
-            attributes={"tool.name": "tool2", "input.value": "{'arg2': 'value2'}"},
+            attributes={
+                "tool.name": "tool2",
+                "input.value": "{'arg2': 'value2'}",
+                "output.value": "output2",
+            },
         ),
         ReadableSpan(
             name="tool1",
             start_time=2,
             end_time=3,
-            attributes={"tool.name": "tool1", "input.value": "{'arg1': 'value1'}"},
+            attributes={
+                "tool.name": "tool1",
+                "input.value": "{'arg1': 'value1'}",
+                "output.value": "output1",
+            },
         ),
         ReadableSpan(
             name="tool2",
             start_time=3,
             end_time=4,
-            attributes={"tool.name": "tool2", "input.value": "{'arg2': 'value2'}"},
+            attributes={
+                "tool.name": "tool2",
+                "input.value": "{'arg2': 'value2'}",
+                "output.value": "output2",
+            },
         ),
     ]
 
@@ -490,6 +511,147 @@ class TestToolCallArgsEvaluator:
                 {"name": "tool2", "args": {"arg2": "value2"}},
                 {"name": "tool1", "args": {"arg1": "value1"}},
                 {"name": "tool2", "args": {"arg2": "value2"}},
+            ]
+        }
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution_with_trace, raw_criteria
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+
+class TestToolCallOutputEvaluator:
+    """Test ToolCallOutputEvaluator.evaluate() method."""
+
+    @pytest.mark.asyncio
+    async def test_tool_call_output_perfect_match(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call output with perfect output match."""
+        config = {
+            "name": "ToolOutputTest",
+            "strict": True,
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config})
+        criteria = ToolCallOutputEvaluationCriteria(
+            tool_outputs=[
+                ToolOutput(name="tool1", output="output1"),
+                ToolOutput(name="tool2", output="output2"),
+                ToolOutput(name="tool1", output="output1"),
+                ToolOutput(name="tool2", output="output2"),
+            ]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_tool_call_output_partial_match(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call output with partial output match."""
+        config = {
+            "name": "ToolOutputTest",
+            "strict": False,
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config})
+        criteria = ToolCallOutputEvaluationCriteria(
+            tool_outputs=[
+                ToolOutput(name="tool1", output="output1"),
+                ToolOutput(name="tool2", output="wrong_output"),
+                ToolOutput(name="tool1", output="output1"),
+                ToolOutput(name="tool2", output="output2"),
+            ]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.75
+
+    @pytest.mark.asyncio
+    async def test_tool_call_output_no_match_strict(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call output with no match in strict mode."""
+        config = {
+            "name": "ToolOutputTest",
+            "strict": True,
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config})
+        criteria = ToolCallOutputEvaluationCriteria(
+            tool_outputs=[
+                ToolOutput(name="tool1", output="wrong_output1"),
+                ToolOutput(name="tool2", output="output2"),
+                ToolOutput(name="tool1", output="output1"),
+                ToolOutput(name="tool2", output="output2"),
+            ]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_tool_call_output_partial_match_non_strict(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call output with partial match in non-strict mode."""
+        config = {
+            "name": "ToolOutputTest",
+            "strict": False,
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config})
+        criteria = ToolCallOutputEvaluationCriteria(
+            tool_outputs=[
+                ToolOutput(name="tool1", output="wrong_output1"),
+                ToolOutput(name="tool2", output="output2"),
+            ]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.5
+
+    @pytest.mark.asyncio
+    async def test_tool_call_output_empty_criteria(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call output with empty criteria."""
+        config = {
+            "name": "ToolOutputTest",
+            "strict": False,
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config})
+        criteria = ToolCallOutputEvaluationCriteria(tool_outputs=[])
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_tool_call_output_validate_and_evaluate_criteria(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test tool call output using validate_and_evaluate_criteria."""
+        config = {
+            "name": "ToolOutputTest",
+            "strict": True,
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config})
+        raw_criteria = {
+            "tool_outputs": [
+                {"name": "tool1", "output": "output1"},
+                {"name": "tool2", "output": "output2"},
+                {"name": "tool1", "output": "output1"},
+                {"name": "tool2", "output": "output2"},
             ]
         }
 
@@ -911,6 +1073,36 @@ class TestJustificationHandling:
         )
 
     @pytest.mark.asyncio
+    async def test_tool_call_output_evaluator_justification(
+        self, sample_agent_execution_with_trace: AgentExecution
+    ) -> None:
+        """Test that ToolCallOutputEvaluator handles justification correctly."""
+        config = {
+            "name": "ToolOutputTest",
+            "strict": True,
+        }
+        evaluator = ToolCallOutputEvaluator.model_validate({"config": config})
+        criteria = ToolCallOutputEvaluationCriteria(
+            tool_outputs=[
+                ToolOutput(name="tool1", output="output1"),
+                ToolOutput(name="tool2", output="output2"),
+                ToolOutput(name="tool1", output="output1"),
+                ToolOutput(name="tool2", output="output2"),
+            ]
+        )
+
+        result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
+
+        # Should have justification with tool call output details
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        # The justification is stored in the details field for tool call evaluators
+        assert hasattr(result, "details")
+        assert isinstance(result.details, ToolCallOutputEvaluatorJustification)
+        assert hasattr(result.details, "explained_tool_calls_outputs")
+        assert isinstance(result.details.explained_tool_calls_outputs, dict)
+
+    @pytest.mark.asyncio
     async def test_llm_judge_output_evaluator_justification(
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
@@ -1062,6 +1254,9 @@ class TestJustificationHandling:
         from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
             ToolCallOrderEvaluatorJustification,
         )
+        from src.uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+            ToolCallOutputEvaluatorJustification,
+        )
 
         assert (
             ToolCallOrderEvaluator._extract_justification_type()
@@ -1074,6 +1269,10 @@ class TestJustificationHandling:
         assert (
             ToolCallArgsEvaluator._extract_justification_type()
             is ToolCallArgsEvaluatorJustification
+        )
+        assert (
+            ToolCallOutputEvaluator._extract_justification_type()
+            is ToolCallOutputEvaluatorJustification
         )
 
         # LLM evaluators should have str justification type

@@ -6,7 +6,7 @@ from typing import Any
 
 from opentelemetry.sdk.trace import ReadableSpan
 
-from uipath.eval.models.models import ToolCall
+from ..models import ToolCall, ToolOutput
 
 COMPARATOR_MAPPINGS = {
     ">": "gt",
@@ -63,14 +63,14 @@ def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
                 else:
                     arguments = {}
                 tool_calls.append(ToolCall(name=str(tool_name), args=arguments))
-            except json.JSONDecodeError:
-                # Handle case where input.value is not valid JSON
+            except (json.JSONDecodeError, SyntaxError, ValueError):
+                # Handle case where input.value is not valid JSON/Python syntax
                 tool_calls.append(ToolCall(name=str(tool_name), args={}))
 
     return tool_calls
 
 
-def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[dict[str, Any]]:
+def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput]:
     """Extract the outputs of the tool calls from execution spans.
 
     Args:
@@ -83,7 +83,10 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[dict[str, 
     for span in spans:
         if span.attributes and (tool_name := span.attributes.get("tool.name")):
             tool_calls_outputs.append(
-                {"name": tool_name, "output": span.attributes.get("output.value", {})}
+                ToolOutput(
+                    name=str(tool_name),
+                    output=span.attributes.get("output.value", ""),
+                )
             )
     return tool_calls_outputs
 
@@ -102,26 +105,30 @@ def tool_calls_order_score(
     Args:
         actual_tool_calls_names: List of tool names in the actual order
         expected_tool_calls_names: List of tool names in the expected order
-        strict: If True, the function will return 0 if the actual calls do not match the expected calls
+        strict: If True, the function will return 0 if the actual calls do not match the expected calls exactly
 
     Returns:
-        tuple[float, str]: Ratio of the LCS length to the number of expected, and the LCS string
+        tuple[float, dict]: Ratio of the LCS length to the number of expected, and the justification dict
     """
     justification = {
-        "actual_tool_calls_order": actual_tool_calls_names,
-        "expected_tool_calls_order": expected_tool_calls_names,
+        "actual_tool_calls_order": list(actual_tool_calls_names),
+        "expected_tool_calls_order": list(expected_tool_calls_names),
         "lcs": [],
     }
 
-    if expected_tool_calls_names == actual_tool_calls_names:
-        justification["lcs"] = actual_tool_calls_names
+    # Handle empty cases
+    if not expected_tool_calls_names and not actual_tool_calls_names:
         return 1.0, justification
-    elif (
-        not expected_tool_calls_names
-        or not actual_tool_calls_names
-        or strict
-        and actual_tool_calls_names != expected_tool_calls_names
-    ):
+    elif not expected_tool_calls_names or not actual_tool_calls_names:
+        return 0.0, justification
+
+    # Handle exact match
+    if expected_tool_calls_names == actual_tool_calls_names:
+        justification["lcs"] = list(actual_tool_calls_names)
+        return 1.0, justification
+
+    # Handle strict mode - only perfect matches allowed
+    if strict:
         return 0.0, justification
 
     # Calculate LCS with full DP table for efficient reconstruction
@@ -161,21 +168,28 @@ def tool_calls_count_score(
     strict: bool = False,
     justification_key: str = "explained_tool_calls_count",
 ) -> tuple[float, dict[str, Any]]:
-    """Check if the expected tool calls are correctly called, where expected args must be a subset of actual args.
+    """Check if the expected tool call counts match the actual tool call counts.
 
     Args:
-        actual_tool_calls_count: List of actual tool calls count.
-        expected_tool_calls_count: List of expected tool calls count.
+        actual_tool_calls_count: Mapping of tool names to their actual call counts.
+        expected_tool_calls_count: Mapping of tool names to expected (comparator, count) tuples.
         strict: If True, the function will return 0 if not all expected tool calls are matched.
+        justification_key: Key to use for the justification in the returned dict.
 
     Returns:
-        tuple[float, str]: Score based on the number of matches, and the justification.
+        tuple[float, dict]: Score based on the number of matches, and the justification dict.
     """
     if not expected_tool_calls_count and not actual_tool_calls_count:
-        return 1.0, {justification_key: "Both expected and actual tool calls are empty"}
+        return 1.0, {
+            justification_key: {
+                "_result": "Both expected and actual tool calls are empty"
+            }
+        }
     elif not expected_tool_calls_count or not actual_tool_calls_count:
         return 0.0, {
-            justification_key: "Either expected or actual tool calls are empty"
+            justification_key: {
+                "_result": "Either expected or actual tool calls are empty"
+            }
         }
 
     score = 0.0
@@ -192,7 +206,13 @@ def tool_calls_count_score(
             f"Actual: {actual_count}, Expected: {expected_count}, Score: {to_add}"
         )
         if strict and to_add == 0.0:
-            return 0.0, justifications
+            # When strict is True, if the actual count does not match the expected count, return 0
+            # The justification should only include the breaching tool name
+            return 0.0, {
+                justification_key: {
+                    tool_name: justifications[justification_key][tool_name]
+                }
+            }
         score += to_add
     return score / len(expected_tool_calls_count), justifications
 
@@ -204,32 +224,46 @@ def tool_calls_args_score(
     subset: bool = False,
     justification_key: str = "explained_tool_calls_args",
 ) -> tuple[float, dict[str, Any]]:
-    """Check if the expected tool calls are correctly called, where expected args must be a subset of actual args.
+    """Check if the expected tool calls are correctly called with matching arguments.
 
     This function does not check the order of the tool calls!
 
-    Arguments:
-        actual_tool_calls (list[Dict[str, Any]]): List of actual tool calls in the format of {"name": str, "args": Dict[str, Any]}
-        expected_tool_calls (list[Dict[str, Any]]): List of expected tool calls in the format of {"name": str, "args": Dict[str, Any]}
-        strict (bool): If True, the function will return 0 if not all expected tool calls are matched
-        subset (bool): If True, the function will check if the expected args are a subset of the actual args
+    Args:
+        actual_tool_calls: List of actual tool calls with their arguments.
+        expected_tool_calls: List of expected tool calls with their arguments.
+        strict: If True, the function will return 0 if not all expected tool calls are matched.
+        subset: If True, the function will check if the expected args are a subset of the actual args.
+        justification_key: Key to use for the justification in the returned dict.
 
     Returns:
-        tuple[float, str]: Score based on the number of matches, and the justification
+        tuple[float, dict]: Score based on the number of matches, and the justification dict.
     """
     if not expected_tool_calls and not actual_tool_calls:
-        return 1.0, {justification_key: "Both expected and actual tool calls are empty"}
+        return 1.0, {
+            justification_key: {
+                "_result": "Both expected and actual tool calls are empty"
+            }
+        }
     elif not expected_tool_calls or not actual_tool_calls:
         return 0.0, {
-            justification_key: "Either expected or actual tool calls are empty"
+            justification_key: {
+                "_result": "Either expected or actual tool calls are empty"
+            }
         }
 
     cnt = 0
     visited: set[int] = set()
     justifications = {justification_key: {}}
+    tool_counters: dict[str, int] = {}
+
     for expected_tool_call in expected_tool_calls:
         for idx, call in enumerate(actual_tool_calls):
             if call.name == expected_tool_call.name and idx not in visited:
+                # Get or initialize counter for this tool name
+                tool_counters[call.name] = tool_counters.get(call.name, 0)
+                tool_key = f"{call.name}_{tool_counters[call.name]}"
+                tool_counters[call.name] += 1
+
                 # Check arguments based on mode
                 if subset:
                     # Subset mode: safely check if all expected args exist and match
@@ -249,13 +283,15 @@ def tool_calls_args_score(
                     # Only possible in exact mode when key is missing
                     args_match = False
 
-                justifications[justification_key][call.name] = (
+                justifications[justification_key][tool_key] = (
                     f"Actual: {call.args}, Expected: {expected_tool_call.args}, Score: {float(args_match)}"
                 )
                 if args_match:
                     cnt += 1
                     visited.add(idx)
                     break
+                # In case of mismatch, DON'T add to visited in non-strict mode
+                # so this actual tool call can be matched against other expected calls
 
     return (
         cnt / len(expected_tool_calls)
@@ -264,11 +300,12 @@ def tool_calls_args_score(
     ), justifications
 
 
-def tool_output_score(
-    actual_tool_calls_outputs: list[dict[str, Any]],
-    expected_tool_calls_outputs: list[dict[str, Any]],
+def tool_calls_output_score(
+    actual_tool_calls_outputs: list[ToolOutput],
+    expected_tool_calls_outputs: list[ToolOutput],
     strict: bool = False,
-) -> float:
+    justification_key: str = "explained_tool_calls_outputs",
+) -> tuple[float, dict[str, Any]]:
     """Check if the expected tool calls are correctly called, where expected args must be a subset of actual args.
 
     Args:
@@ -280,32 +317,71 @@ def tool_output_score(
         tuple[float, str]: Score based on the number of matches, and the justification.
     """
     if not expected_tool_calls_outputs and not actual_tool_calls_outputs:
-        return 1.0
-    elif (
-        not expected_tool_calls_outputs
-        or not actual_tool_calls_outputs
-        or strict
-        and actual_tool_calls_outputs != expected_tool_calls_outputs
-    ):
-        return 0.0
+        return 1.0, {
+            justification_key: {
+                "_result": "Both expected and actual tool calls outputs are empty"
+            }
+        }
+    elif not expected_tool_calls_outputs or not actual_tool_calls_outputs:
+        return 0.0, {
+            justification_key: {
+                "_result": "Either expected or actual tool calls outputs are empty"
+            }
+        }
 
     cnt = 0.0
+    justifications = {justification_key: {}}
+    visited: set[int] = set()
+    tool_counters: dict[str, int] = {}
+
     for expected_tool_call_output in expected_tool_calls_outputs:
-        for actual_tool_call_output in actual_tool_calls_outputs:
-            if actual_tool_call_output.get("name") == expected_tool_call_output.get(
-                "name"
-            ):
-                if json.loads(actual_tool_call_output.get("output", "{}")).get(
-                    "content"
-                ) == expected_tool_call_output.get("output"):
+        matched = False
+
+        # Look through ALL actual tool calls to find a match
+        for idx, actual_tool_call_output in enumerate(actual_tool_calls_outputs):
+            if idx in visited:
+                continue
+            if actual_tool_call_output.name == expected_tool_call_output.name:
+                # Get or initialize counter for this tool name
+                tool_counters[actual_tool_call_output.name] = tool_counters.get(
+                    actual_tool_call_output.name, 0
+                )
+                tool_key = f"{actual_tool_call_output.name}_{tool_counters[actual_tool_call_output.name]}"
+                tool_counters[actual_tool_call_output.name] += 1
+
+                justifications[justification_key][tool_key] = (
+                    f"Actual: {actual_tool_call_output.output}, Expected: {expected_tool_call_output.output}, Score: {float(actual_tool_call_output.output == expected_tool_call_output.output)}"
+                )
+
+                if actual_tool_call_output.output == expected_tool_call_output.output:
+                    # Perfect match found
                     cnt += 1.0
+                    visited.add(idx)
+                    matched = True
+                    break
                 elif strict:
-                    return 0.0
+                    # In strict mode, any mismatch returns 0 immediately
+                    return 0.0, {
+                        justification_key: {
+                            tool_key: justifications[justification_key][tool_key]
+                        }
+                    }
+                # In non-strict mode with mismatch, continue looking for perfect match
+                # DON'T add to visited, DON'T break
+
+        # If no match found and we're in strict mode, return 0
+        if not matched and strict:
+            return 0.0, {
+                justification_key: {
+                    "_result": f"No matching actual tool call found for expected {expected_tool_call_output.name}"
+                }
+            }
+
     return (
         cnt / len(expected_tool_calls_outputs)
         if not strict
         else float(cnt == len(expected_tool_calls_outputs))
-    )
+    ), justifications
 
 
 def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
