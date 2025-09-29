@@ -28,6 +28,7 @@ from .._runtime._contracts import (
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import EvaluationItem, EvaluationSet
+from .._utils._error_handling import extract_clean_error_message
 from ._models._output import (
     EvaluationResultDto,
     EvaluationRunResult,
@@ -269,29 +270,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             )
         except Exception as e:
             # Extract clean error message for user display
-            error_msg = str(e)
-            try:
-                if "validation error" in error_msg.lower():
-                    # For validation errors, extract the key information
-                    lines = error_msg.split('\n')
-                    for line in lines:
-                        if 'Input should be' in line:
-                            # Extract just the validation message
-                            error_msg = line.strip()
-                            if error_msg.startswith('  '):
-                                error_msg = error_msg.strip()
-                            break
-                elif "Error:" in error_msg:
-                    # Extract just the error part after "Error:"
-                    parts = error_msg.split("Error:")
-                    if len(parts) > 1:
-                        error_msg = parts[-1].strip()
-                else:
-                    # Take first line of error message
-                    lines = error_msg.split('\n')
-                    error_msg = lines[0] if lines else "Unknown error"
-            except Exception:
-                error_msg = "Agent execution error"
+            error_msg = extract_clean_error_message(e, "Agent execution error")
 
             # Create a clean exception with minimal info
             raise Exception(f"Agent execution failed: {error_msg}") from None

@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem, EvaluationStatus
+from uipath._cli._utils._error_handling import extract_clean_error_message
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -167,26 +168,10 @@ class ConsoleProgressReporter:
             else:
                 eval_item.status = "failed"
                 # Extract clean error message from the eval_item if available
-                error_msg = "Execution failed"
                 if hasattr(payload.eval_item, '_error_message'):
-                    full_error = payload.eval_item._error_message
-                    # Clean up the error message for user display
-                    try:
-                        if "validation error" in full_error.lower():
-                            if "Input should be" in full_error:
-                                lines = full_error.split('\n')
-                                for line in lines:
-                                    if 'Input should be' in line:
-                                        error_msg = line.strip()
-                                        break
-                        elif "Agent execution failed:" in full_error:
-                            error_msg = full_error.replace("Agent execution failed:", "").strip()
-                        else:
-                            # Safely get first line only
-                            lines = full_error.split('\n')
-                            error_msg = lines[0] if lines else "Unknown error"
-                    except Exception:
-                        error_msg = "Execution error"
+                    error_msg = extract_clean_error_message(Exception(payload.eval_item._error_message), "Execution failed")
+                else:
+                    error_msg = "Execution failed"
 
                 eval_item.error_message = error_msg
                 self.console.print(f"  ❌ [bold white]{eval_item.name}[/bold white] [red]{error_msg}[/red]")
