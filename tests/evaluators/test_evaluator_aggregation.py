@@ -20,10 +20,10 @@ from src.uipath.eval.models import (
 class TestDatapointIdGeneration:
     """Test datapoint ID generation from agent inputs."""
 
-    def test_generate_datapoint_id_with_query(self) -> None:
-        """Test datapoint ID generation with query field."""
+    def test_generate_datapoint_id_with_arbitrary_field(self) -> None:
+        """Test datapoint ID generation with arbitrary field name."""
         agent_execution = AgentExecution(
-            agent_input={"query": "What is the weather like today?"},
+            agent_input={"some_random_field": "What is the weather like today?"},
             agent_output={},
             agent_trace=[],
         )
@@ -37,7 +37,7 @@ class TestDatapointIdGeneration:
         """Test datapoint ID generation with long text (should truncate)."""
         agent_execution = AgentExecution(
             agent_input={
-                "question": "This is a very long question that should be truncated to fit within the 30 character limit for readability"
+                "user_message": "This is a very long question that should be truncated to fit within the 30 character limit for readability"
             },
             agent_output={},
             agent_trace=[],
@@ -52,7 +52,7 @@ class TestDatapointIdGeneration:
     def test_generate_datapoint_id_with_special_chars(self) -> None:
         """Test datapoint ID generation removes special characters."""
         agent_execution = AgentExecution(
-            agent_input={"input": "Hello, world! How are you? @#$%"},
+            agent_input={"content": "Hello, world! How are you? @#$%"},
             agent_output={},
             agent_trace=[],
         )
@@ -73,30 +73,56 @@ class TestDatapointIdGeneration:
         )
         datapoint_id = generate_datapoint_id(agent_execution)
 
-        assert datapoint_id.startswith("input_")
+        assert datapoint_id.startswith("datapoint_")
         assert len(datapoint_id.split("_")[-1]) == 8
 
-    def test_generate_datapoint_id_no_recognized_fields(self) -> None:
-        """Test datapoint ID generation with no recognized fields."""
+    def test_generate_datapoint_id_with_string_value(self) -> None:
+        """Test datapoint ID generation extracts from any string value."""
         agent_execution = AgentExecution(
-            agent_input={"some_other_field": "value", "data": {"nested": "content"}},
+            agent_input={"arbitrary_key": "extract this text", "number": 42},
             agent_output={},
             agent_trace=[],
         )
         datapoint_id = generate_datapoint_id(agent_execution)
 
-        assert datapoint_id.startswith("input_")
+        assert datapoint_id.startswith("extract_this_text")
+        assert len(datapoint_id.split("_")[-1]) == 8
+
+    def test_generate_datapoint_id_no_string_values(self) -> None:
+        """Test datapoint ID generation when no string values exist."""
+        agent_execution = AgentExecution(
+            agent_input={"number": 42, "boolean": True, "nested": {"data": 123}},
+            agent_output={},
+            agent_trace=[],
+        )
+        datapoint_id = generate_datapoint_id(agent_execution)
+
+        # Should use first key name since no string values found
+        assert datapoint_id.startswith("number_")
+        assert len(datapoint_id.split("_")[-1]) == 8
+
+    def test_generate_datapoint_id_empty_string_values(self) -> None:
+        """Test datapoint ID generation when string values are empty."""
+        agent_execution = AgentExecution(
+            agent_input={"empty": "", "whitespace": "   ", "valid": "actual content"},
+            agent_output={},
+            agent_trace=[],
+        )
+        datapoint_id = generate_datapoint_id(agent_execution)
+
+        # Should skip empty/whitespace strings and use the valid one
+        assert datapoint_id.startswith("actual_content")
         assert len(datapoint_id.split("_")[-1]) == 8
 
     def test_generate_datapoint_id_consistency(self) -> None:
         """Test that same input generates same datapoint ID."""
         agent_execution1 = AgentExecution(
-            agent_input={"query": "test query"},
+            agent_input={"user_input": "test query"},
             agent_output={},
             agent_trace=[],
         )
         agent_execution2 = AgentExecution(
-            agent_input={"query": "test query"},
+            agent_input={"user_input": "test query"},
             agent_output={},
             agent_trace=[],
         )
@@ -109,12 +135,12 @@ class TestDatapointIdGeneration:
     def test_generate_datapoint_id_different_inputs(self) -> None:
         """Test that different inputs generate different datapoint IDs."""
         agent_execution1 = AgentExecution(
-            agent_input={"query": "first query"},
+            agent_input={"user_input": "first query"},
             agent_output={},
             agent_trace=[],
         )
         agent_execution2 = AgentExecution(
-            agent_input={"query": "second query"},
+            agent_input={"user_input": "second query"},
             agent_output={},
             agent_trace=[],
         )

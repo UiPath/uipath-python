@@ -52,18 +52,30 @@ def generate_datapoint_id(agent_execution: AgentExecution) -> str:
 
     # Create readable part from input (first 30 chars, alphanumeric only)
     readable_part = ""
-    if isinstance(agent_execution.agent_input, dict):
-        # Try to extract meaningful text from common fields
-        for key in ["query", "question", "input", "prompt", "text", "message"]:
-            if key in agent_execution.agent_input and agent_execution.agent_input[key]:
-                text = str(agent_execution.agent_input[key])
+    if agent_execution.agent_input:
+        # Try to extract meaningful text from any string values in the dict
+        # Look through all values and find the first substantial string value
+        for value in agent_execution.agent_input.values():
+            if isinstance(value, str) and len(value.strip()) > 0:
+                # Use first non-empty string value
+                text = str(value).strip()
                 readable_part = "".join(c for c in text if c.isalnum() or c in " _-")
                 readable_part = readable_part.replace(" ", "_").lower()[:30]
-                break
+                if readable_part:  # Only use if we got something meaningful
+                    break
 
-    # If no readable part found, use "input" prefix
+        # If no meaningful string values found, try using the first key name
+        if not readable_part:
+            first_key = next(iter(agent_execution.agent_input.keys()), "")
+            if first_key:
+                readable_part = "".join(
+                    c for c in str(first_key) if c.isalnum() or c in "_"
+                )
+                readable_part = readable_part.lower()[:30]
+
+    # If no readable part found, use "datapoint" prefix
     if not readable_part:
-        readable_part = "input"
+        readable_part = "datapoint"
 
     # Generate 8-character hash for collision safety
     hash_part = hashlib.md5(raw_input.encode("utf-8")).hexdigest()[:8]
