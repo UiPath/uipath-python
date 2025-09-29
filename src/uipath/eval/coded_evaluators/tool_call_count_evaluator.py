@@ -4,6 +4,7 @@ from collections import Counter
 
 from .._helpers.coded_evaluators_helpers import (
     extract_tool_calls_names,
+    generate_datapoint_id,
     tool_calls_count_score,
 )
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
@@ -77,4 +78,6 @@ class ToolCallCountEvaluator(
         return NumericEvaluationResult(
             score=score,
             details=validated_justification,
+            evaluator_name=self.evaluator_config.name,
+            datapoint_id=generate_datapoint_id(agent_execution),
         )
