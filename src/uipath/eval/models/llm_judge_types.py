@@ -159,7 +159,7 @@ Never answer using text. Only use the tool to submit your score.
 
     LLM_JUDGE_SIMULATION_TRAJECTORY_DEFAULT_USER_PROMPT = """As an expert evaluator, determine how well the agent did on a scale of 0-100. Focus on if the simulation was successful and if the agent behaved according to the expected output accounting for alternative valid expressions, and reasonable variations in language while maintaining high standards for accuracy and completeness. Provide your score with a justification, explaining briefly and concisely why you gave that score.
 ----
-UserOrSyntheticInputGivenToAgent:
+AgentInput:
 {{UserOrSyntheticInput}}
 ----
 SimulationInstructions:
@@ -185,7 +185,7 @@ Never answer using text. Only use the tool to submit your score.
 
     LLM_JUDGE_TRAJECTORY_DEFAULT_USER_PROMPT = """As an expert evaluator, determine how well the agent performed on a scale of 0-100. Focus on whether the agent's actions and outputs matched the expected behavior, while allowing for alternative valid expressions and reasonable variations in language. Maintain high standards for accuracy and completeness. Provide your score with a brief and clear justification explaining your reasoning.
 ----
-UserOrSyntheticInputGivenToAgent:
+AgentInput:
 {{UserOrSyntheticInput}}
 ----
 ExpectedAgentBehavior:
