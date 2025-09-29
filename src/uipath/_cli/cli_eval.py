@@ -64,9 +64,9 @@ class LiteralOption(click.Option):
     help="File path where the output will be written",
 )
 @click.option(
-    "--verbose",
+    "--debug",
     is_flag=True,
-    help="Show detailed logging output including middleware and progress reporter logs",
+    help="Show detailed debug logging output including middleware and HTTP requests",
     default=False,
 )
 @track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
@@ -77,7 +77,7 @@ def eval(
     no_report: bool,
     workers: int,
     output_file: Optional[str],
-    verbose: bool,
+    debug: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -87,10 +87,10 @@ def eval(
         eval_ids: Optional list of evaluation IDs
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
-        verbose: Show detailed logging output
+        debug: Show detailed debug logging output
     """
-    # Suppress HTTP logs unless in verbose mode
-    if not verbose:
+    # Suppress HTTP logs unless in debug mode
+    if not debug:
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
         # Set environment variable so other components know to suppress logs
@@ -124,9 +124,10 @@ def eval(
             progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
 
-        # Set up console progress reporter
-        console_reporter = ConsoleProgressReporter()
-        asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
+        # Set up console progress reporter (only when not in debug mode)
+        if not debug:
+            console_reporter = ConsoleProgressReporter()
+            asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
             runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
