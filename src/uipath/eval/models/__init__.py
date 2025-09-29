@@ -10,6 +10,7 @@ from .models import (
     NumericEvaluationResult,
     ScoreType,
     ToolCall,
+    ToolOutput,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "NumericEvaluationResult",
     "ErrorEvaluationResult",
     "ToolCall",
+    "ToolOutput",
 ]

@@ -4,6 +4,7 @@ from enum import IntEnum
 from typing import Annotated, Any, Dict, Literal, Optional, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.util import types
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -121,3 +122,10 @@ class ToolCall(BaseModel):
 
     name: str
     args: dict[str, Any]
+
+
+class ToolOutput(BaseModel):
+    """Represents a tool output with its output."""
+
+    name: str
+    output: types.AttributeValue
