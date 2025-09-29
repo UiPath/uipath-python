@@ -6,8 +6,10 @@ import uuid
 from typing import List, Optional
 
 import click
+import logging
 
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
+from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._runtime import (
     UiPathEvalContext,
     UiPathEvalRuntime,
@@ -61,6 +63,12 @@ class LiteralOption(click.Option):
     type=click.Path(exists=False),
     help="File path where the output will be written",
 )
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Show detailed logging output including middleware and progress reporter logs",
+    default=False,
+)
 @track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
 def eval(
     entrypoint: Optional[str],
@@ -69,6 +77,7 @@ def eval(
     no_report: bool,
     workers: int,
     output_file: Optional[str],
+    verbose: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -78,7 +87,17 @@ def eval(
         eval_ids: Optional list of evaluation IDs
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
+        verbose: Show detailed logging output
     """
+    # Suppress HTTP logs unless in verbose mode
+    if not verbose:
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+        # Set environment variable so other components know to suppress logs
+        os.environ["UIPATH_EVAL_VERBOSE"] = "false"
+    else:
+        os.environ["UIPATH_EVAL_VERBOSE"] = "true"
+
     if not no_report and not os.getenv("UIPATH_FOLDER_KEY"):
         os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(
             get_personal_workspace_key_async()
@@ -100,9 +119,14 @@ def eval(
     if result.should_continue:
         event_bus = EventBus()
 
+        # Set up progress reporters
         if not no_report:
             progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
+
+        # Set up console progress reporter
+        console_reporter = ConsoleProgressReporter()
+        asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
             runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
@@ -142,11 +166,16 @@ def eval(
 
             asyncio.run(execute())
         except Exception as e:
-            console.error(
-                f"Error: Unexpected error occurred - {str(e)}", include_traceback=True
-            )
+            # For evaluation errors, show clean message without traceback
+            error_str = str(e)
+            if "Evaluation" in error_str and "failed:" in error_str:
+                # Extract clean evaluation error message
+                clean_msg = error_str.split("failed:")[-1].strip()
+                console.error(f"❌ Evaluation failed: {clean_msg}")
+            else:
+                # For other unexpected errors, show full info
+                console.error(f"❌ Unexpected error occurred: {error_str}")
 
-    console.success("Evaluation completed successfully")
 
 
 if __name__ == "__main__":

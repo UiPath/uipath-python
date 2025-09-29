@@ -151,53 +151,83 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
             results.evaluation_set_results.append(evaluation_run_results)
 
-            agent_execution_output = await self.execute_runtime(eval_item)
-            evaluation_item_results: list[EvalItemResult] = []
+            try:
+                agent_execution_output = await self.execute_runtime(eval_item)
+                evaluation_item_results: list[EvalItemResult] = []
 
-            for evaluator in evaluators:
-                evaluation_result = await self.run_evaluator(
-                    evaluator=evaluator,
-                    execution_output=agent_execution_output,
-                    eval_item=eval_item,
-                )
-
-                dto_result = EvaluationResultDto.from_evaluation_result(
-                    evaluation_result
-                )
-                evaluator_counts[evaluator.id] += 1
-                count = evaluator_counts[evaluator.id]
-                evaluator_averages[evaluator.id] += (
-                    dto_result.score - evaluator_averages[evaluator.id]
-                ) / count
-
-                evaluation_run_results.evaluation_run_results.append(
-                    EvaluationRunResultDto(
-                        evaluator_name=evaluator.name,
-                        result=dto_result,
+                for evaluator in evaluators:
+                    evaluation_result = await self.run_evaluator(
+                        evaluator=evaluator,
+                        execution_output=agent_execution_output,
+                        eval_item=eval_item,
                     )
-                )
-                evaluation_item_results.append(
-                    EvalItemResult(
-                        evaluator_id=evaluator.id,
-                        result=evaluation_result,
+
+                    dto_result = EvaluationResultDto.from_evaluation_result(
+                        evaluation_result
                     )
+                    evaluator_counts[evaluator.id] += 1
+                    count = evaluator_counts[evaluator.id]
+                    evaluator_averages[evaluator.id] += (
+                        dto_result.score - evaluator_averages[evaluator.id]
+                    ) / count
+
+                    evaluation_run_results.evaluation_run_results.append(
+                        EvaluationRunResultDto(
+                            evaluator_name=evaluator.name,
+                            result=dto_result,
+                        )
+                    )
+                    evaluation_item_results.append(
+                        EvalItemResult(
+                            evaluator_id=evaluator.id,
+                            result=evaluation_result,
+                        )
+                    )
+
+                evaluation_run_results.compute_average_score()
+
+                await event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_RUN,
+                    EvalRunUpdatedEvent(
+                        execution_id=self.context.execution_id,
+                        eval_item=eval_item,
+                        eval_results=evaluation_item_results,
+                        success=not agent_execution_output.result.error,
+                        agent_output=agent_execution_output.result.output,
+                        agent_execution_time=agent_execution_output.execution_time,
+                        spans=agent_execution_output.spans,
+                    ),
+                    wait_for_completion=False,
                 )
+            except Exception as e:
+                # Handle evaluation failure gracefully and store error info in the eval item
+                error_msg = str(e)
+                # Store error message in a way that UI can access it
+                eval_item._error_message = error_msg
 
-            evaluation_run_results.compute_average_score()
+                # Count the failure as 0 score for each evaluator
+                for evaluator in evaluators:
+                    evaluator_counts[evaluator.id] += 1
+                    count = evaluator_counts[evaluator.id]
+                    # Add 0 score to the running average
+                    evaluator_averages[evaluator.id] += (
+                        0.0 - evaluator_averages[evaluator.id]
+                    ) / count
 
-            await event_bus.publish(
-                EvaluationEvents.UPDATE_EVAL_RUN,
-                EvalRunUpdatedEvent(
-                    execution_id=self.context.execution_id,
-                    eval_item=eval_item,
-                    eval_results=evaluation_item_results,
-                    success=not agent_execution_output.result.error,
-                    agent_output=agent_execution_output.result.output,
-                    agent_execution_time=agent_execution_output.execution_time,
-                    spans=agent_execution_output.spans,
-                ),
-                wait_for_completion=False,
-            )
+                # Send failure event to UI
+                await event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_RUN,
+                    EvalRunUpdatedEvent(
+                        execution_id=self.context.execution_id,
+                        eval_item=eval_item,
+                        eval_results=[],
+                        success=False,
+                        agent_output={},
+                        agent_execution_time=0.0,
+                        spans=[],
+                    ),
+                    wait_for_completion=False,
+                )
 
         results.compute_average_score()
 
@@ -233,9 +263,38 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         start_time = time()
 
-        result = await self.factory.execute_in_root_span(
-            runtime_context, root_span=eval_item.name, attributes=attributes
-        )
+        try:
+            result = await self.factory.execute_in_root_span(
+                runtime_context, root_span=eval_item.name, attributes=attributes
+            )
+        except Exception as e:
+            # Extract clean error message for user display
+            error_msg = str(e)
+            try:
+                if "validation error" in error_msg.lower():
+                    # For validation errors, extract the key information
+                    lines = error_msg.split('\n')
+                    for line in lines:
+                        if 'Input should be' in line:
+                            # Extract just the validation message
+                            error_msg = line.strip()
+                            if error_msg.startswith('  '):
+                                error_msg = error_msg.strip()
+                            break
+                elif "Error:" in error_msg:
+                    # Extract just the error part after "Error:"
+                    parts = error_msg.split("Error:")
+                    if len(parts) > 1:
+                        error_msg = parts[-1].strip()
+                else:
+                    # Take first line of error message
+                    lines = error_msg.split('\n')
+                    error_msg = lines[0] if lines else "Unknown error"
+            except Exception:
+                error_msg = "Agent execution error"
+
+            # Create a clean exception with minimal info
+            raise Exception(f"Agent execution failed: {error_msg}") from None
 
         end_time = time()
 

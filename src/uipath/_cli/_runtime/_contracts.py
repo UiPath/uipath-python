@@ -519,16 +519,18 @@ class UiPathBaseRuntime(ABC):
 
         await self.validate()
 
-        # Intercept all stdout/stderr/logs and write them to a file (runtime/evals), stdout (debug)
-        self.logs_interceptor = LogsInterceptor(
-            min_level=self.context.logs_min_level,
-            dir=self.context.runtime_dir,
-            file=self.context.logs_file,
-            job_id=self.context.job_id,
-            is_debug_run=self.is_debug_run(),
-            log_handler=self.context.log_handler,
-        )
-        self.logs_interceptor.setup()
+        # Skip LogsInterceptor setup during eval runs to prevent conflicts
+        if not self.context.is_eval_run:
+            # Intercept all stdout/stderr/logs and write them to a file (runtime/evals), stdout (debug)
+            self.logs_interceptor = LogsInterceptor(
+                min_level=self.context.logs_min_level,
+                dir=self.context.runtime_dir,
+                file=self.context.logs_file,
+                job_id=self.context.job_id,
+                is_debug_run=self.is_debug_run(),
+                log_handler=self.context.log_handler,
+            )
+            self.logs_interceptor.setup()
 
         logger.debug(f"Starting runtime with job id: {self.context.job_id}")
 
@@ -648,7 +650,7 @@ class UiPathBaseRuntime(ABC):
             raise
         finally:
             # Restore original logging
-            if self.logs_interceptor:
+            if hasattr(self, 'logs_interceptor') and self.logs_interceptor:
                 self.logs_interceptor.teardown()
 
             await self.cleanup()

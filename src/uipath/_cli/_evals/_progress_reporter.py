@@ -270,7 +270,9 @@ class StudioWebProgressReporter:
             EvaluationEvents.UPDATE_EVAL_SET_RUN, self.handle_update_eval_set_run
         )
 
-        logger.info("StudioWeb progress reporter subscribed to evaluation events")
+        # Only log in verbose mode during evaluations
+        if os.getenv("UIPATH_EVAL_VERBOSE", "true") == "true":
+            logger.info("StudioWeb progress reporter subscribed to evaluation events")
 
     def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
         try:
