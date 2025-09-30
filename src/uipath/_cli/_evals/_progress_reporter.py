@@ -7,6 +7,7 @@ import os
 from typing import Any, Dict, List
 
 from opentelemetry import trace
+from rich.console import Console
 
 from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import EvaluationItem, EvaluationStatus
@@ -68,6 +69,7 @@ class StudioWebProgressReporter:
 
         self._client = uipath.api_client
         self._console = console_logger
+        self._rich_console = Console()
         self._project_id = os.getenv("UIPATH_PROJECT_ID", None)
         if not self._project_id:
             logger.warning(
@@ -182,7 +184,7 @@ class StudioWebProgressReporter:
             logger.debug(f"Created eval set run with ID: {eval_set_run_id}")
 
         except Exception as e:
-            logger.error(f"Failed to handle create eval set run event: {e}")
+            self._rich_console.print(f"    • ⚠️  [dim]StudioWeb create eval set run error: {e}[/dim]")
 
     async def handle_create_eval_run(self, payload: EvalRunCreatedEvent) -> None:
         try:
@@ -197,7 +199,7 @@ class StudioWebProgressReporter:
                 logger.warning("Cannot create eval run: eval_set_run_id not available")
 
         except Exception as e:
-            logger.error(f"Failed to handle create eval run event: {e}")
+            self._rich_console.print(f"    • ⚠️  [dim]StudioWeb create eval run error: {e}[/dim]")
 
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
@@ -238,7 +240,7 @@ class StudioWebProgressReporter:
                 logger.debug(f"Updated eval run with ID: {eval_run_id}")
 
         except Exception as e:
-            logger.error(f"Failed to handle update eval run event: {e}")
+            self._rich_console.print(f"    • ⚠️  [dim]StudioWeb reporting error: {e}[/dim]")
 
     async def handle_update_eval_set_run(self, payload: EvalSetRunUpdatedEvent) -> None:
         try:
@@ -254,7 +256,7 @@ class StudioWebProgressReporter:
                 )
 
         except Exception as e:
-            logger.error(f"Failed to handle update eval set run event: {e}")
+            self._rich_console.print(f"    • ⚠️  [dim]StudioWeb update eval set run error: {e}[/dim]")
 
     async def subscribe_to_eval_runtime_events(self, event_bus: EventBus) -> None:
         event_bus.subscribe(

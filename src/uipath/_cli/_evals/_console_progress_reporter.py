@@ -81,7 +81,6 @@ class ConsoleProgressReporter:
     def start_display(self):
         """Start the display."""
         if not self.display_started:
-            # Simple header with emoji and color
             self.console.print()
             self.console.print("🧪 [bold bright_blue]Running Evaluations[/bold bright_blue]")
             self.console.print()
@@ -103,11 +102,9 @@ class ConsoleProgressReporter:
             eval_item.status = "running"
             self.eval_items[payload.eval_item.id] = eval_item
 
-            # Start the display on the first evaluation
             if not self.display_started:
                 self.start_display()
 
-            # Show the running evaluation with better formatting
             self.console.print(f"  ⏳ [dim]Starting[/dim] [bold white]{eval_item.name}[/bold white]...")
         except Exception as e:
             logger.error(f"Failed to handle create eval run event: {e}")
@@ -122,39 +119,41 @@ class ConsoleProgressReporter:
 
             if payload.success:
                 eval_item.status = "completed"
-                # Calculate average score from all evaluator results
+
                 if payload.eval_results:
-                    total_score = 0.0
-                    valid_scores = 0
-
+                    # Determine overall status icon based on worst individual score
+                    min_score = float('inf')
                     for eval_result in payload.eval_results:
-                        if eval_result.result.score_type == ScoreType.NUMERICAL:
-                            total_score += eval_result.result.score
-                            valid_scores += 1
-                        elif eval_result.result.score_type == ScoreType.BOOLEAN:
-                            total_score += 100 if eval_result.result.score else 0
-                            valid_scores += 1
+                        score_value = eval_result.result.score
+                        if eval_result.result.score_type == ScoreType.BOOLEAN:
+                            score_value = 100 if score_value else 0
+                        min_score = min(min_score, score_value)
 
-                    if valid_scores > 0:
-                        eval_item.score = total_score / valid_scores
-
-                # Show completion with score using better formatting
-                if eval_item.score is not None:
-                    if eval_item.score >= 90:
-                        score_style = "bold green"
+                    if min_score >= 80:
                         icon = "✅"
-                    elif eval_item.score >= 70:
-                        score_style = "bold yellow"
+                    elif min_score >= 60:
                         icon = "⚠️"
                     else:
-                        score_style = "bold red"
                         icon = "❌"
 
-                    self.console.print(f"  {icon} [bold white]{eval_item.name}[/bold white] [{score_style}]Score: {eval_item.score:.1f}[/{score_style}]")
+                    self.console.print(f"  {icon} [bold white]{eval_item.name}[/bold white]")
+                    for eval_result in payload.eval_results:
+                        evaluator_name = self.evaluators.get(eval_result.evaluator_id, type('obj', (object,), {'name': f'Evaluator {eval_result.evaluator_id[:8]}'})()).name
+                        score_value = eval_result.result.score
+                        if eval_result.result.score_type == ScoreType.BOOLEAN:
+                            score_value = 100 if score_value else 0
+
+                        if score_value >= 80:
+                            score_style = "bold green"
+                        elif score_value >= 60:
+                            score_style = "bold yellow"
+                        else:
+                            score_style = "bold red"
+
+                        self.console.print(f"    • [{score_style}]{evaluator_name}: {score_value:.1f}[/{score_style}]")
                 else:
                     self.console.print(f"  ✅ [bold white]{eval_item.name}[/bold white] [green]Completed[/green]")
 
-                # Add a newline after each evaluation for better spacing
                 self.console.print()
                 self.completed_evaluations += 1
             else:
@@ -171,45 +170,42 @@ class ConsoleProgressReporter:
 
                 eval_item.error_message = error_msg
                 self.console.print(f"  ❌ [bold white]{eval_item.name}[/bold white] [red]{error_msg}[/red]")
-                # Add a newline after each evaluation for better spacing
                 self.console.print()
                 self.completed_evaluations += 1
         except Exception as e:
-            logger.error(f"Failed to handle update eval run event: {e}")
+            self.console.print(f"    • ⚠️  [dim]Console reporter error: {e}[/dim]")
 
     async def handle_update_eval_set_run(self, payload: EvalSetRunUpdatedEvent) -> None:
         """Handle evaluation set run completion."""
         try:
-            # Calculate overall score
-            if payload.evaluator_scores:
-                total_score = sum(payload.evaluator_scores.values())
-                self.overall_score = total_score / len(payload.evaluator_scores)
-
             self.console.print("")
 
-            if self.overall_score is not None:
-                if self.overall_score >= 80:
-                    summary_style = "bold green"
-                    summary_icon = "🎉"
-                    summary_msg = "Excellent!"
-                elif self.overall_score >= 60:
-                    summary_style = "bold yellow"
-                    summary_icon = "👍"
-                    summary_msg = "Looks good!"
-                else:
-                    summary_style = "bold red"
-                    summary_icon = "📈"
-                    summary_msg = "Needs improvement."
+            if payload.evaluator_scores:
+                # Show per-evaluator averages
+                self.console.print("🎯 [bold bright_blue]Final Results[/bold bright_blue]")
+                self.console.print()
 
-                summary_text = Text(f"{summary_icon} {summary_msg} Final Score: {self.overall_score:.1f}/100", style=summary_style)
+                for evaluator_id, avg_score in payload.evaluator_scores.items():
+                    evaluator_name = self.evaluators.get(evaluator_id, type('obj', (object,), {'name': f'Evaluator {evaluator_id[:8]}'})()).name
+
+                    if avg_score >= 80:
+                        score_style = "bold green"
+                        icon = "🎉"
+                    elif avg_score >= 60:
+                        score_style = "bold yellow"
+                        icon = "👍"
+                    else:
+                        score_style = "bold red"
+                        icon = "📈"
+
+                    self.console.print(f"  {icon} [{score_style}]{evaluator_name}: {avg_score:.1f}/100[/{score_style}]")
+
+                self.console.print()
             else:
-                summary_text = Text("🎯 All evaluations completed successfully!", style="bold green")
-
-            self.console.print()
-            self.console.print(summary_text)
-            self.console.print()
+                self.console.print("🎯 [bold green]All evaluations completed successfully![/bold green]")
+                self.console.print()
         except Exception as e:
-            logger.error(f"Failed to handle update eval set run event: {e}")
+            self.console.print(f"    • ⚠️  [dim]Console reporter error: {e}[/dim]")
 
     async def subscribe_to_eval_runtime_events(self, event_bus: EventBus) -> None:
         """Subscribe to evaluation runtime events."""
