@@ -5,7 +5,6 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.text import Text
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem, EvaluationStatus
@@ -82,17 +81,10 @@ class ConsoleProgressReporter:
     def start_display(self):
         """Start the display."""
         if not self.display_started:
-            header_text = Text("🧪 Running Evaluations", style="bold bright_blue")
-            header_panel = Panel(
-                header_text,
-                title="📊 UiPath Agent Evaluation",
-                title_align="center",
-                border_style="bright_blue",
-                padding=(1, 2)
-            )
-            self.console.print("\n")
-            self.console.print(header_panel)
-            self.console.print("")
+            # Simple header with emoji and color
+            self.console.print()
+            self.console.print("🧪 [bold bright_blue]Running Evaluations[/bold bright_blue]")
+            self.console.print()
             self.display_started = True
 
     async def handle_create_eval_set_run(self, payload: EvalSetRunCreatedEvent) -> None:
@@ -169,7 +161,11 @@ class ConsoleProgressReporter:
                 eval_item.status = "failed"
                 # Extract clean error message from the eval_item if available
                 if hasattr(payload.eval_item, '_error_message'):
-                    error_msg = extract_clean_error_message(Exception(payload.eval_item._error_message), "Execution failed")
+                    error_message = getattr(payload.eval_item, '_error_message', None)
+                    if error_message:
+                        error_msg = extract_clean_error_message(Exception(error_message), "Execution failed")
+                    else:
+                        error_msg = "Execution failed"
                 else:
                     error_msg = "Execution failed"
 
@@ -192,14 +188,14 @@ class ConsoleProgressReporter:
             self.console.print("")
 
             if self.overall_score is not None:
-                if self.overall_score >= 90:
+                if self.overall_score >= 80:
                     summary_style = "bold green"
                     summary_icon = "🎉"
                     summary_msg = "Excellent!"
-                elif self.overall_score >= 70:
+                elif self.overall_score >= 60:
                     summary_style = "bold yellow"
                     summary_icon = "👍"
-                    summary_msg = "Good job!"
+                    summary_msg = "Looks good!"
                 else:
                     summary_style = "bold red"
                     summary_icon = "📈"
@@ -209,15 +205,9 @@ class ConsoleProgressReporter:
             else:
                 summary_text = Text("🎯 All evaluations completed successfully!", style="bold green")
 
-            summary_panel = Panel(
-                summary_text,
-                title="📊 Results Summary",
-                title_align="center",
-                border_style="green" if (self.overall_score or 100) >= 70 else "yellow",
-                padding=(1, 2)
-            )
-            self.console.print(summary_panel)
-            self.console.print("")
+            self.console.print()
+            self.console.print(summary_text)
+            self.console.print()
         except Exception as e:
             logger.error(f"Failed to handle update eval set run event: {e}")
 

@@ -204,7 +204,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 # Handle evaluation failure gracefully and store error info in the eval item
                 error_msg = str(e)
                 # Store error message in a way that UI can access it
-                eval_item._error_message = error_msg
+                setattr(eval_item, '_error_message', error_msg)  # type: ignore[attr-defined]
 
                 # Count the failure as 0 score for each evaluator
                 for evaluator in evaluators:
