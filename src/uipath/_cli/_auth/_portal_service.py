@@ -5,6 +5,7 @@ from typing import Optional
 import click
 import httpx
 
+from ..._utils._auth import update_env_file
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import TenantsAndOrganizationInfoResponse, TokenData
@@ -14,7 +15,6 @@ from ._utils import (
     get_auth_data,
     get_parsed_token_data,
     update_auth_file,
-    update_env_file,
 )
 
 console = ConsoleLogger()
