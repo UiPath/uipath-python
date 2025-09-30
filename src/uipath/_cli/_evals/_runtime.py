@@ -202,7 +202,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 )
             except Exception as e:
                 error_msg = str(e)
-                setattr(eval_item, '_error_message', error_msg)  # type: ignore[attr-defined]
+                setattr(eval_item, '_error_message', error_msg)
 
                 for evaluator in evaluators:
                     evaluator_counts[evaluator.id] += 1
