@@ -45,7 +45,9 @@ class UiPathRuntime(UiPathBaseRuntime):
         try:
             script_result = await self.executor(self.context.input_json)
 
-            if self.context.job_id is None and not getattr(self.context, 'is_eval_run', False):
+            if self.context.job_id is None and not getattr(
+                self.context, "is_eval_run", False
+            ):
                 logger.info(script_result)
 
             self.context.result = UiPathRuntimeResult(

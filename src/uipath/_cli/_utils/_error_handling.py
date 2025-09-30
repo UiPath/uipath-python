@@ -1,7 +1,9 @@
 """Utility functions for error handling and message extraction."""
 
 
-def extract_clean_error_message(error: Exception, default_message: str = "Execution error") -> str:
+def extract_clean_error_message(
+    error: Exception, default_message: str = "Execution error"
+) -> str:
     """Extract a clean, user-friendly error message from an exception.
 
     This function handles common error patterns and formats them for display:
@@ -20,11 +22,11 @@ def extract_clean_error_message(error: Exception, default_message: str = "Execut
 
     try:
         if "validation error" in error_msg.lower():
-            lines = error_msg.split('\n')
+            lines = error_msg.split("\n")
             for line in lines:
-                if 'Input should be' in line:
+                if "Input should be" in line:
                     clean_msg = line.strip()
-                    if clean_msg.startswith('  '):
+                    if clean_msg.startswith("  "):
                         clean_msg = clean_msg.strip()
                     return clean_msg
         elif "Agent execution failed:" in error_msg:
@@ -34,9 +36,9 @@ def extract_clean_error_message(error: Exception, default_message: str = "Execut
             if len(parts) > 1:
                 return parts[-1].strip()
         else:
-            lines = error_msg.split('\n')
+            lines = error_msg.split("\n")
             return lines[0] if lines else "Unknown error"
     except Exception:
         pass
 
-    return default_message
+    return default_message    return default_message

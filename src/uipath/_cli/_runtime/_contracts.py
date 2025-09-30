@@ -650,7 +650,7 @@ class UiPathBaseRuntime(ABC):
             raise
         finally:
             # Restore original logging
-            if hasattr(self, 'logs_interceptor') and self.logs_interceptor:
+            if hasattr(self, "logs_interceptor") and self.logs_interceptor:
                 self.logs_interceptor.teardown()
 
             await self.cleanup()

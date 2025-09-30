@@ -1,15 +1,15 @@
 # type: ignore
 import ast
 import asyncio
+import logging
 import os
 import uuid
 from typing import List, Optional
 
 import click
-import logging
 
-from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
+from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
     UiPathEvalContext,
     UiPathEvalRuntime,
@@ -172,7 +172,6 @@ def eval(
                 console.error(f"❌ Evaluation failed: {clean_msg}")
             else:
                 console.error(f"❌ Unexpected error occurred: {error_str}")
-
 
 
 if __name__ == "__main__":

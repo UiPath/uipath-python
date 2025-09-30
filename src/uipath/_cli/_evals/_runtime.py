@@ -25,10 +25,10 @@ from .._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
+from .._utils._error_handling import extract_clean_error_message
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import EvaluationItem, EvaluationSet
-from .._utils._error_handling import extract_clean_error_message
 from ._models._output import (
     EvaluationResultDto,
     EvaluationRunResult,
@@ -202,7 +202,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 )
             except Exception as e:
                 error_msg = str(e)
-                setattr(eval_item, '_error_message', error_msg)
+                eval_item._error_message = error_msg  # type: ignore[attr-defined]
 
                 for evaluator in evaluators:
                     evaluator_counts[evaluator.id] += 1
