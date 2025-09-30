@@ -81,6 +81,10 @@ class StudioWebProgressReporter:
         self.evaluator_scores: Dict[str, List[float]] = {}
         self.eval_run_ids: Dict[str, str] = {}
 
+    def _format_error_message(self, error: Exception, context: str) -> None:
+        """Helper method to format and display error messages consistently."""
+        self._rich_console.print(f"    • ⚠️  [dim]{context}: {error}[/dim]")
+
     @gracefully_handle_errors
     async def create_eval_set_run(
         self,
@@ -184,7 +188,7 @@ class StudioWebProgressReporter:
             logger.debug(f"Created eval set run with ID: {eval_set_run_id}")
 
         except Exception as e:
-            self._rich_console.print(f"    • ⚠️  [dim]StudioWeb create eval set run error: {e}[/dim]")
+            self._format_error_message(e, "StudioWeb create eval set run error")
 
     async def handle_create_eval_run(self, payload: EvalRunCreatedEvent) -> None:
         try:
@@ -199,7 +203,7 @@ class StudioWebProgressReporter:
                 logger.warning("Cannot create eval run: eval_set_run_id not available")
 
         except Exception as e:
-            self._rich_console.print(f"    • ⚠️  [dim]StudioWeb create eval run error: {e}[/dim]")
+            self._format_error_message(e, "StudioWeb create eval run error")
 
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
@@ -240,7 +244,7 @@ class StudioWebProgressReporter:
                 logger.debug(f"Updated eval run with ID: {eval_run_id}")
 
         except Exception as e:
-            self._rich_console.print(f"    • ⚠️  [dim]StudioWeb reporting error: {e}[/dim]")
+            self._format_error_message(e, "StudioWeb reporting error")
 
     async def handle_update_eval_set_run(self, payload: EvalSetRunUpdatedEvent) -> None:
         try:
@@ -256,7 +260,7 @@ class StudioWebProgressReporter:
                 )
 
         except Exception as e:
-            self._rich_console.print(f"    • ⚠️  [dim]StudioWeb update eval set run error: {e}[/dim]")
+            self._format_error_message(e, "StudioWeb update eval set run error")
 
     async def subscribe_to_eval_runtime_events(self, event_bus: EventBus) -> None:
         event_bus.subscribe(

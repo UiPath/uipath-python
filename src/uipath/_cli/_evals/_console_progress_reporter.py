@@ -22,6 +22,8 @@ from uipath.eval.models import EvalItemResult, ScoreType
 
 logger = logging.getLogger(__name__)
 
+EXCELLENT_THRESHOLD = 80
+GOOD_THRESHOLD = 60
 
 class EvalDisplayItem:
     """Represents a single evaluation item for display purposes."""
@@ -77,6 +79,27 @@ class ConsoleProgressReporter:
         self.eval_set_name = "Evaluation Set"
         self.display_started = False
 
+    def _format_error_message(self, error: Exception, context: str) -> None:
+        """Helper method to format and display error messages consistently."""
+        self.console.print(f"    • ⚠️  [dim]{context}: {error}[/dim]")
+
+    def _get_score_style(self, score: float) -> str:
+        """Get the appropriate style for a score based on thresholds."""
+        if score >= EXCELLENT_THRESHOLD:
+            return "bold green"
+        elif score >= GOOD_THRESHOLD:
+            return "bold yellow"
+        else:
+            return "bold red"
+
+    def _get_status_icon(self, score: float) -> str:
+        """Get the appropriate status icon for a score based on thresholds."""
+        if score >= EXCELLENT_THRESHOLD:
+            return "✅"
+        elif score >= GOOD_THRESHOLD:
+            return "⚠️"
+        else:
+            return "❌"
 
     def start_display(self):
         """Start the display."""
@@ -129,12 +152,7 @@ class ConsoleProgressReporter:
                             score_value = 100 if score_value else 0
                         min_score = min(min_score, score_value)
 
-                    if min_score >= 80:
-                        icon = "✅"
-                    elif min_score >= 60:
-                        icon = "⚠️"
-                    else:
-                        icon = "❌"
+                    icon = self._get_status_icon(min_score)
 
                     self.console.print(f"  {icon} [bold white]{eval_item.name}[/bold white]")
                     for eval_result in payload.eval_results:
@@ -143,12 +161,7 @@ class ConsoleProgressReporter:
                         if eval_result.result.score_type == ScoreType.BOOLEAN:
                             score_value = 100 if score_value else 0
 
-                        if score_value >= 80:
-                            score_style = "bold green"
-                        elif score_value >= 60:
-                            score_style = "bold yellow"
-                        else:
-                            score_style = "bold red"
+                        score_style = self._get_score_style(score_value)
 
                         self.console.print(f"    • [{score_style}]{evaluator_name}: {score_value:.1f}[/{score_style}]")
                 else:
@@ -173,7 +186,7 @@ class ConsoleProgressReporter:
                 self.console.print()
                 self.completed_evaluations += 1
         except Exception as e:
-            self.console.print(f"    • ⚠️  [dim]Console reporter error: {e}[/dim]")
+            self._format_error_message(e, "Console reporter error")
 
     async def handle_update_eval_set_run(self, payload: EvalSetRunUpdatedEvent) -> None:
         """Handle evaluation set run completion."""
@@ -188,14 +201,12 @@ class ConsoleProgressReporter:
                 for evaluator_id, avg_score in payload.evaluator_scores.items():
                     evaluator_name = self.evaluators.get(evaluator_id, type('obj', (object,), {'name': f'Evaluator {evaluator_id[:8]}'})()).name
 
-                    if avg_score >= 80:
-                        score_style = "bold green"
+                    score_style = self._get_score_style(avg_score)
+                    if avg_score >= EXCELLENT_THRESHOLD:
                         icon = "🎉"
-                    elif avg_score >= 60:
-                        score_style = "bold yellow"
+                    elif avg_score >= GOOD_THRESHOLD:
                         icon = "👍"
                     else:
-                        score_style = "bold red"
                         icon = "📈"
 
                     self.console.print(f"  {icon} [{score_style}]{evaluator_name}: {avg_score:.1f}/100[/{score_style}]")
@@ -205,7 +216,7 @@ class ConsoleProgressReporter:
                 self.console.print("🎯 [bold green]All evaluations completed successfully![/bold green]")
                 self.console.print()
         except Exception as e:
-            self.console.print(f"    • ⚠️  [dim]Console reporter error: {e}[/dim]")
+            self._format_error_message(e, "Console reporter error")
 
     async def subscribe_to_eval_runtime_events(self, event_bus: EventBus) -> None:
         """Subscribe to evaluation runtime events."""
