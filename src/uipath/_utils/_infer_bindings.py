@@ -28,8 +28,10 @@ def infer_bindings(
                     all_args.get(name),  # type: ignore
                     all_args.get(folder_path, None),
                 ) as (name_overwrite_or_default, folder_path_overwrite_or_default):
-                    all_args[name] = name_overwrite_or_default
-                    all_args[folder_path] = folder_path_overwrite_or_default
+                    if name in sig.parameters:
+                        all_args[name] = name_overwrite_or_default
+                    if folder_path in sig.parameters:
+                        all_args[folder_path] = folder_path_overwrite_or_default
 
             return func(**all_args)
 
