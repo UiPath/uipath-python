@@ -27,16 +27,8 @@ from unittest.mock import Mock, patch
 import httpx
 import pytest
 
+from uipath._cli._auth._auth_service import AuthService
 from uipath._cli._auth._portal_service import PortalService
-from uipath._cli._auth._url_utils import set_force_flag
-
-
-@pytest.fixture(autouse=True)
-def reset_force_flag():
-    """Reset the force flag before each test to ensure clean state."""
-    set_force_flag(False)
-    yield
-    set_force_flag(False)
 
 
 @pytest.fixture
@@ -67,34 +59,16 @@ class TestPortalServiceRefreshToken:
     """Test class for PortalService refresh token functionality."""
 
     @pytest.mark.parametrize(
-        "domain, expected_token_url",
+        "environment, expected_token_url",
         [
             # Standard UiPath domains
             ("cloud", "https://cloud.uipath.com/identity_/connect/token"),
             ("alpha", "https://alpha.uipath.com/identity_/connect/token"),
             ("staging", "https://staging.uipath.com/identity_/connect/token"),
-            # Full URL domains
-            (
-                "https://cloud.uipath.com",
-                "https://cloud.uipath.com/identity_/connect/token",
-            ),
-            (
-                "https://alpha.uipath.com",
-                "https://alpha.uipath.com/identity_/connect/token",
-            ),
-            # Custom automation suite domains
-            (
-                "https://custom.automationsuite.org",
-                "https://custom.automationsuite.org/identity_/connect/token",
-            ),
-            (
-                "https://mycompany.uipath.com",
-                "https://mycompany.uipath.com/identity_/connect/token",
-            ),
         ],
     )
     def test_post_refresh_token_request_different_domains(
-        self, domain, expected_token_url, mock_auth_config, sample_token_data
+        self, environment, expected_token_url, mock_auth_config, sample_token_data
     ):
         """Test refresh token request with different domain configurations."""
 
@@ -109,13 +83,16 @@ class TestPortalServiceRefreshToken:
             mock_response.json.return_value = sample_token_data
             mock_client.post.return_value = mock_response
 
+            # Create AuthService instance
+            auth_service = AuthService(environment=environment, force=False)
+
             # Create PortalService instance
-            portal_service = PortalService(domain)
+            portal_service = PortalService(auth_service._domain)
             portal_service._client = mock_client
 
             # Test refresh token request
             refresh_token = "test_refresh_token"
-            result = portal_service.post_refresh_token_request(refresh_token)
+            result = portal_service.refresh_access_token(refresh_token)
 
             # Verify the correct URL was called
             mock_client.post.assert_called_once_with(
@@ -129,12 +106,13 @@ class TestPortalServiceRefreshToken:
             )
 
             # Verify the response
-            assert result == sample_token_data
+            assert result.access_token == sample_token_data["access_token"]
+            assert result.refresh_token == sample_token_data["refresh_token"]
 
     @pytest.mark.parametrize(
-        "env_var_url, domain, expected_token_url",
+        "env_var_url, environment, expected_token_url",
         [
-            # UIPATH_URL should be used when domain is "cloud" (default)
+            # UIPATH_URL should be used when environment is "cloud" (default)
             (
                 "https://custom.automationsuite.org/org/tenant",
                 "cloud",
@@ -145,7 +123,7 @@ class TestPortalServiceRefreshToken:
                 "cloud",
                 "https://mycompany.uipath.com/identity_/connect/token",
             ),
-            # Explicit domain flags should override UIPATH_URL
+            # Explicit environment flags should override UIPATH_URL
             (
                 "https://custom.automationsuite.org/org/tenant",
                 "alpha",
@@ -161,7 +139,7 @@ class TestPortalServiceRefreshToken:
     def test_post_refresh_token_request_with_uipath_url_env(
         self,
         env_var_url,
-        domain,
+        environment,
         expected_token_url,
         mock_auth_config,
         sample_token_data,
@@ -184,13 +162,16 @@ class TestPortalServiceRefreshToken:
                 mock_response.json.return_value = sample_token_data
                 mock_client.post.return_value = mock_response
 
+                # Create AuthService instance
+                auth_service = AuthService(environment=environment, force=False)
+
                 # Create PortalService instance
-                portal_service = PortalService(domain)
+                portal_service = PortalService(auth_service._domain)
                 portal_service._client = mock_client
 
                 # Test refresh token request
                 refresh_token = "test_refresh_token"
-                result = portal_service.post_refresh_token_request(refresh_token)
+                result = portal_service.refresh_access_token(refresh_token)
 
                 # Verify the correct URL was called
                 mock_client.post.assert_called_once_with(
@@ -204,7 +185,8 @@ class TestPortalServiceRefreshToken:
                 )
 
                 # Verify the response
-                assert result == sample_token_data
+                assert result.access_token == sample_token_data["access_token"]
+                assert result.refresh_token == sample_token_data["refresh_token"]
 
         finally:
             # Clean up environment variable
@@ -220,20 +202,28 @@ class TestPortalServiceRefreshToken:
             "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
             return_value=mock_auth_config,
         ):
-            with patch("uipath._cli._auth._portal_service.console") as mock_console:
+            with patch(
+                "uipath._cli._auth._portal_service.ConsoleLogger"
+            ) as mock_logger_cls:
+                mock_console = Mock()
+                mock_logger_cls.return_value = mock_console
+
                 # Create a mock HTTP client
                 mock_client = Mock(spec=httpx.Client)
                 mock_response = Mock()
                 mock_response.status_code = 401
                 mock_client.post.return_value = mock_response
 
+                # Create AuthService instance
+                auth_service = AuthService(environment="cloud", force=False)
+
                 # Create PortalService instance
-                portal_service = PortalService("cloud")
+                portal_service = PortalService(auth_service._domain)
                 portal_service._client = mock_client
 
                 # Test refresh token request - should raise exception due to console.error
                 with pytest.raises(Exception, match="Failed to refresh get token"):
-                    portal_service.post_refresh_token_request("test_refresh_token")
+                    portal_service.refresh_access_token("test_refresh_token")
 
                 # Verify error was logged
                 mock_console.error.assert_called_once_with("Unauthorized")
@@ -245,36 +235,50 @@ class TestPortalServiceRefreshToken:
             "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
             return_value=mock_auth_config,
         ):
-            with patch("uipath._cli._auth._portal_service.console") as mock_console:
+            with patch(
+                "uipath._cli._auth._portal_service.ConsoleLogger"
+            ) as mock_logger_cls:
+                mock_console = Mock()
+                mock_logger_cls.return_value = mock_console
+
                 # Create a mock HTTP client
                 mock_client = Mock(spec=httpx.Client)
                 mock_response = Mock()
                 mock_response.status_code = 500
                 mock_client.post.return_value = mock_response
 
+                # Create AuthService instance
+                auth_service = AuthService(environment="cloud", force=False)
+
                 # Create PortalService instance
-                portal_service = PortalService("cloud")
+                portal_service = PortalService(auth_service._domain)
                 portal_service._client = mock_client
 
                 # Test refresh token request - should raise exception due to console.error
                 with pytest.raises(Exception, match="Failed to refresh get token"):
-                    portal_service.post_refresh_token_request("test_refresh_token")
+                    portal_service.refresh_access_token("test_refresh_token")
 
                 # Verify error was logged
                 mock_console.error.assert_called_once_with(
                     "Failed to refresh token: 500"
                 )
 
-    def test_post_refresh_token_request_client_not_initialized(self):
-        """Test refresh token request when HTTP client is not initialized."""
+    def test_refresh_token_lazy_initializes_client(
+        self, mock_auth_config, sample_token_data
+    ):
+        portal_service = PortalService("https://cloud.uipath.com")
+        assert portal_service._client is None
 
-        # Create PortalService instance without initializing client
-        portal_service = PortalService("cloud")
-        portal_service._client = None
+        with patch("httpx.Client") as mock_client_cls:
+            mock_client = Mock()
+            mock_client.post.return_value.status_code = 200
+            mock_client.post.return_value.json.return_value = sample_token_data
+            mock_client_cls.return_value = mock_client
 
-        # Test should raise RuntimeError
-        with pytest.raises(RuntimeError, match="HTTP client is not initialized"):
-            portal_service.post_refresh_token_request("test_refresh_token")
+            result = portal_service.refresh_access_token("test_refresh_token")
+
+            assert portal_service._client is mock_client
+            assert result.access_token == sample_token_data["access_token"]
 
     def test_post_refresh_token_request_success_response_format(
         self, mock_auth_config, sample_token_data
@@ -292,24 +296,27 @@ class TestPortalServiceRefreshToken:
             mock_response.json.return_value = sample_token_data
             mock_client.post.return_value = mock_response
 
+            # Create AuthService instance
+            auth_service = AuthService(environment="cloud", force=False)
+
             # Create PortalService instance
-            portal_service = PortalService("cloud")
+            portal_service = PortalService(auth_service._domain)
             portal_service._client = mock_client
 
             # Test refresh token request
-            result = portal_service.post_refresh_token_request("test_refresh_token")
+            result = portal_service.refresh_access_token("test_refresh_token")
 
-            # Verify result has all expected TokenData fields
-            assert "access_token" in result
-            assert "refresh_token" in result
-            assert "expires_in" in result
-            assert "token_type" in result
-            assert "scope" in result
-            assert "id_token" in result
+            # Verify result is a TokenData model with all expected fields
+            assert result.access_token is not None
+            assert result.refresh_token is not None
+            assert result.expires_in is not None
+            assert result.token_type is not None
+            assert result.scope is not None
+            assert result.id_token is not None
 
             # Verify values match expected
-            assert result["access_token"] == sample_token_data["access_token"]
-            assert result["refresh_token"] == sample_token_data["refresh_token"]
+            assert result.access_token == sample_token_data["access_token"]
+            assert result.refresh_token == sample_token_data["refresh_token"]
 
     def test_post_refresh_token_request_malformed_domain_handling(
         self, mock_auth_config, sample_token_data
@@ -318,21 +325,32 @@ class TestPortalServiceRefreshToken:
 
         test_cases = [
             # Domain with trailing slash should not create double slash
-            ("https://example.com/", "https://example.com/identity_/connect/token"),
+            (
+                "https://example.uipath.com/",
+                "cloud",
+                "https://example.uipath.com/identity_/connect/token",
+            ),
             # Domain without scheme gets .uipath.com appended (current behavior)
-            ("example", "https://example.uipath.com/identity_/connect/token"),
+            (
+                "https://example.com/",
+                "example",
+                "https://example.uipath.com/identity_/connect/token",
+            ),
             # Domain with path should use base only
             (
                 "https://example.com/some/path",
-                "https://example.com/some/path/identity_/connect/token",
+                "example",
+                "https://example.uipath.com/identity_/connect/token",
             ),
         ]
 
-        for domain, expected_url in test_cases:
+        for uipath_url, environment, expected_url in test_cases:
             with patch(
                 "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                 return_value=mock_auth_config,
             ):
+                os.environ["UIPATH_URL"] = uipath_url
+
                 # Create a mock HTTP client
                 mock_client = Mock(spec=httpx.Client)
                 mock_response = Mock()
@@ -340,12 +358,15 @@ class TestPortalServiceRefreshToken:
                 mock_response.json.return_value = sample_token_data
                 mock_client.post.return_value = mock_response
 
+                # Create AuthService instance
+                auth_service = AuthService(environment=environment, force=False)
+
                 # Create PortalService instance
-                portal_service = PortalService(domain)
+                portal_service = PortalService(auth_service._domain)
                 portal_service._client = mock_client
 
                 # Test refresh token request
-                portal_service.post_refresh_token_request("test_refresh_token")
+                portal_service.refresh_access_token("test_refresh_token")
 
                 # Verify the correct URL was called
                 mock_client.post.assert_called_with(
@@ -362,7 +383,7 @@ class TestPortalServiceRefreshToken:
                 mock_client.reset_mock()
 
     @pytest.mark.parametrize(
-        "scenario_name, env_vars, domain, expected_token_url",
+        "scenario_name, env_vars, environment, expected_token_url",
         [
             # These scenarios mirror the test_auth.py test cases but focus on the refresh token endpoint
             (
@@ -407,7 +428,7 @@ class TestPortalServiceRefreshToken:
         self,
         scenario_name,
         env_vars,
-        domain,
+        environment,
         expected_token_url,
         mock_auth_config,
         sample_token_data,
@@ -435,13 +456,16 @@ class TestPortalServiceRefreshToken:
                 mock_response.json.return_value = sample_token_data
                 mock_client.post.return_value = mock_response
 
+                # Create AuthService instance
+                auth_service = AuthService(environment=environment, force=False)
+
                 # Create PortalService instance with the domain that would be determined
                 # by the auth command logic
-                portal_service = PortalService(domain)
+                portal_service = PortalService(auth_service._domain)
                 portal_service._client = mock_client
 
                 # Test refresh token request
-                result = portal_service.post_refresh_token_request("test_refresh_token")
+                result = portal_service.refresh_access_token("test_refresh_token")
 
                 # Verify the correct URL was called
                 mock_client.post.assert_called_once_with(
@@ -455,7 +479,8 @@ class TestPortalServiceRefreshToken:
                 )
 
                 # Verify the response
-                assert result == sample_token_data
+                assert result.access_token == sample_token_data["access_token"]
+                assert result.refresh_token == sample_token_data["refresh_token"]
 
         finally:
             # Restore original environment variables

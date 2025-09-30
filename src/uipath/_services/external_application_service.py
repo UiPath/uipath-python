@@ -7,6 +7,7 @@ from httpx import HTTPStatusError, Request
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from .._utils.constants import ENV_BASE_URL
+from ..models.auth import TokenData
 from ..models.exceptions import EnrichedException
 
 
@@ -19,7 +20,7 @@ class ExternalApplicationService:
                 "Base URL must be set either via constructor or the BASE_URL environment variable."
             )
         self._base_url = resolved_base_url
-        self._domain = self._extract_domain_from_base_url(self._base_url)
+        self._domain = self._extract_environment_from_base_url(self._base_url)
 
     def get_token_url(self) -> str:
         """Get the token URL for the specified domain."""
@@ -43,7 +44,7 @@ class ExternalApplicationService:
         """
         return hostname == domain or hostname.endswith(f".{domain}")
 
-    def _extract_domain_from_base_url(self, base_url: str) -> str:
+    def _extract_environment_from_base_url(self, base_url: str) -> str:
         """Extract domain from base URL.
 
         Args:
@@ -73,9 +74,9 @@ class ExternalApplicationService:
             # Default to cloud if parsing fails
             return "cloud"
 
-    def get_access_token(
+    def get_token_data(
         self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
-    ) -> str:
+    ) -> TokenData:
         """Authenticate using client credentials flow.
 
         Args:
@@ -84,7 +85,7 @@ class ExternalApplicationService:
             scope: The scope for the token (default: OR.Execution)
 
         Returns:
-            Access token if successful, None otherwise
+            Token data if successful
         """
         token_url = self.get_token_url()
 
@@ -100,8 +101,7 @@ class ExternalApplicationService:
                 response = client.post(token_url, data=data)
                 match response.status_code:
                     case 200:
-                        token_data = response.json()
-                        return token_data["access_token"]
+                        return TokenData.model_validate(response.json())
                     case 400:
                         raise EnrichedException(
                             HTTPStatusError(
