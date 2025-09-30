@@ -41,4 +41,4 @@ def extract_clean_error_message(
     except Exception:
         pass
 
-    return default_message    return default_message
+    return default_message
