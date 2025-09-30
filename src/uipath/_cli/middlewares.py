@@ -122,7 +122,6 @@ class Middlewares:
                 ]
 
             if middlewares:
-                # Only log middleware info in verbose mode during evaluations
                 if os.getenv("UIPATH_EVAL_VERBOSE", "true") == "true":
                     logger.info(f"Found {len(middlewares)} middleware plugins")
 
@@ -130,7 +129,6 @@ class Middlewares:
                     try:
                         register_func = entry_point.load()
                         register_func()
-                        # Only log plugin loading in verbose mode during evaluations
                         if os.getenv("UIPATH_EVAL_VERBOSE", "true") == "true":
                             logger.info(f"Loaded middleware plugin: {entry_point.name}")
                     except Exception as e:

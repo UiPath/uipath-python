@@ -201,21 +201,16 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                     wait_for_completion=False,
                 )
             except Exception as e:
-                # Handle evaluation failure gracefully and store error info in the eval item
                 error_msg = str(e)
-                # Store error message in a way that UI can access it
                 setattr(eval_item, '_error_message', error_msg)  # type: ignore[attr-defined]
 
-                # Count the failure as 0 score for each evaluator
                 for evaluator in evaluators:
                     evaluator_counts[evaluator.id] += 1
                     count = evaluator_counts[evaluator.id]
-                    # Add 0 score to the running average
                     evaluator_averages[evaluator.id] += (
                         0.0 - evaluator_averages[evaluator.id]
                     ) / count
 
-                # Send failure event to UI
                 await event_bus.publish(
                     EvaluationEvents.UPDATE_EVAL_RUN,
                     EvalRunUpdatedEvent(
@@ -269,10 +264,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 runtime_context, root_span=eval_item.name, attributes=attributes
             )
         except Exception as e:
-            # Extract clean error message for user display
             error_msg = extract_clean_error_message(e, "Agent execution error")
-
-            # Create a clean exception with minimal info
             raise Exception(f"Agent execution failed: {error_msg}") from None
 
         end_time = time()

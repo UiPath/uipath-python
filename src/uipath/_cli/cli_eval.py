@@ -93,7 +93,6 @@ def eval(
     if not debug:
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
-        # Set environment variable so other components know to suppress logs
         os.environ["UIPATH_EVAL_VERBOSE"] = "false"
     else:
         os.environ["UIPATH_EVAL_VERBOSE"] = "true"
@@ -167,14 +166,11 @@ def eval(
 
             asyncio.run(execute())
         except Exception as e:
-            # For evaluation errors, show clean message without traceback
             error_str = str(e)
             if "Evaluation" in error_str and "failed:" in error_str:
-                # Extract clean evaluation error message
                 clean_msg = error_str.split("failed:")[-1].strip()
                 console.error(f"❌ Evaluation failed: {clean_msg}")
             else:
-                # For other unexpected errors, show full info
                 console.error(f"❌ Unexpected error occurred: {error_str}")
 
 
