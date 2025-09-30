@@ -84,6 +84,80 @@ class ConsoleProgressReporter:
         """Helper method to format and display error messages consistently."""
         self.console.print(f"    • ⚠️  [dim]{context}: {error}[/dim]")
 
+    def _convert_score_to_numeric(self, eval_result) -> float:
+        """Convert evaluation result score to numeric value."""
+        score_value = eval_result.result.score
+        if eval_result.result.score_type == ScoreType.BOOLEAN:
+            score_value = 100 if score_value else 0
+        return score_value
+
+    def _get_evaluator_name(self, evaluator_id: str) -> str:
+        """Get evaluator name from ID, with fallback."""
+        return self.evaluators.get(
+            evaluator_id,
+            type(
+                "obj",
+                (object,),
+                {"name": f"Evaluator {evaluator_id[:8]}"},
+            )(),
+        ).name
+
+    def _display_successful_evaluation(
+        self, eval_item: EvalDisplayItem, eval_results
+    ) -> None:
+        """Display results for a successful evaluation."""
+        if eval_results:
+            # Determine overall status icon based on worst individual score
+            min_score = min(
+                self._convert_score_to_numeric(eval_result)
+                for eval_result in eval_results
+            )
+            icon = self._get_status_icon(min_score)
+
+            self.console.print(f"  {icon} [bold white]{eval_item.name}[/bold white]")
+
+            # Display individual evaluator scores
+            for eval_result in eval_results:
+                evaluator_name = self._get_evaluator_name(eval_result.evaluator_id)
+                score_value = self._convert_score_to_numeric(eval_result)
+                score_style = self._get_score_style(score_value)
+
+                self.console.print(
+                    f"    • [{score_style}]{evaluator_name}: {score_value:.1f}[/{score_style}]"
+                )
+        else:
+            self.console.print(
+                f"  ✅ [bold white]{eval_item.name}[/bold white] [green]Completed[/green]"
+            )
+
+    def _extract_error_message(self, eval_item_payload) -> str:
+        """Extract clean error message from evaluation item."""
+        if hasattr(eval_item_payload, "_error_message"):
+            error_message = getattr(eval_item_payload, "_error_message", None)
+            if error_message:
+                return extract_clean_error_message(
+                    Exception(error_message), "Execution failed"
+                )
+        return "Execution failed"
+
+    def _display_failed_evaluation(
+        self, eval_item: EvalDisplayItem, error_msg: str
+    ) -> None:
+        """Display results for a failed evaluation."""
+        eval_item.error_message = error_msg
+        self.console.print(
+            f"  ❌ [bold white]{eval_item.name}[/bold white] [red]{error_msg}[/red]"
+        )
+
+    def _get_final_results_icon(self, score: float) -> str:
+        """Get the appropriate icon for final results based on score."""
+        if score >= EXCELLENT_THRESHOLD:
+            return "🎉"
+        elif score >= GOOD_THRESHOLD:
+            return "👍"
+        else:
+            return "📈"
+
     def _get_score_style(self, score: float) -> str:
         """Get the appropriate style for a score based on thresholds."""
         if score >= EXCELLENT_THRESHOLD:
@@ -149,66 +223,14 @@ class ConsoleProgressReporter:
 
             if payload.success:
                 eval_item.status = "completed"
-
-                if payload.eval_results:
-                    # Determine overall status icon based on worst individual score
-                    min_score = float("inf")
-                    for eval_result in payload.eval_results:
-                        score_value = eval_result.result.score
-                        if eval_result.result.score_type == ScoreType.BOOLEAN:
-                            score_value = 100 if score_value else 0
-                        min_score = min(min_score, score_value)
-
-                    icon = self._get_status_icon(min_score)
-
-                    self.console.print(
-                        f"  {icon} [bold white]{eval_item.name}[/bold white]"
-                    )
-                    for eval_result in payload.eval_results:
-                        evaluator_name = self.evaluators.get(
-                            eval_result.evaluator_id,
-                            type(
-                                "obj",
-                                (object,),
-                                {"name": f"Evaluator {eval_result.evaluator_id[:8]}"},
-                            )(),
-                        ).name
-                        score_value = eval_result.result.score
-                        if eval_result.result.score_type == ScoreType.BOOLEAN:
-                            score_value = 100 if score_value else 0
-
-                        score_style = self._get_score_style(score_value)
-
-                        self.console.print(
-                            f"    • [{score_style}]{evaluator_name}: {score_value:.1f}[/{score_style}]"
-                        )
-                else:
-                    self.console.print(
-                        f"  ✅ [bold white]{eval_item.name}[/bold white] [green]Completed[/green]"
-                    )
-
-                self.console.print()
-                self.completed_evaluations += 1
+                self._display_successful_evaluation(eval_item, payload.eval_results)
             else:
                 eval_item.status = "failed"
-                # Extract clean error message from the eval_item if available
-                if hasattr(payload.eval_item, "_error_message"):
-                    error_message = getattr(payload.eval_item, "_error_message", None)
-                    if error_message:
-                        error_msg = extract_clean_error_message(
-                            Exception(error_message), "Execution failed"
-                        )
-                    else:
-                        error_msg = "Execution failed"
-                else:
-                    error_msg = "Execution failed"
+                error_msg = self._extract_error_message(payload.eval_item)
+                self._display_failed_evaluation(eval_item, error_msg)
 
-                eval_item.error_message = error_msg
-                self.console.print(
-                    f"  ❌ [bold white]{eval_item.name}[/bold white] [red]{error_msg}[/red]"
-                )
-                self.console.print()
-                self.completed_evaluations += 1
+            self.console.print()
+            self.completed_evaluations += 1
         except Exception as e:
             self._format_error_message(e, "Console reporter error")
 
@@ -225,20 +247,9 @@ class ConsoleProgressReporter:
                 self.console.print()
 
                 for evaluator_id, avg_score in payload.evaluator_scores.items():
-                    evaluator_name = self.evaluators.get(
-                        evaluator_id,
-                        type(
-                            "obj", (object,), {"name": f"Evaluator {evaluator_id[:8]}"}
-                        )(),
-                    ).name
-
+                    evaluator_name = self._get_evaluator_name(evaluator_id)
                     score_style = self._get_score_style(avg_score)
-                    if avg_score >= EXCELLENT_THRESHOLD:
-                        icon = "🎉"
-                    elif avg_score >= GOOD_THRESHOLD:
-                        icon = "👍"
-                    else:
-                        icon = "📈"
+                    icon = self._get_final_results_icon(avg_score)
 
                     self.console.print(
                         f"  {icon} [{score_style}]{evaluator_name}: {avg_score:.1f}/100[/{score_style}]"
