@@ -5,6 +5,7 @@ import subprocess
 import sys
 import termios
 import tty
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -787,8 +788,8 @@ class InteractiveEvalCLI:
             "batchSize": 10,
             "timeoutMinutes": 20,
             "modelSettings": [],
-            "createdAt": "2025-01-25T00:00:00Z",
-            "updatedAt": "2025-01-25T00:00:00Z",
+            "createdAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            "updatedAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             "evaluations": []
         }
 
@@ -895,8 +896,8 @@ class InteractiveEvalCLI:
                 "simulateTools": False,
                 "toolsToSimulate": [],
                 "evalSetId": f"eval-{len(self.eval_sets) + 1}",
-                "createdAt": "2025-01-25T00:00:00Z",
-                "updatedAt": "2025-01-25T00:00:00Z"
+                "createdAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                "updatedAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
             }
             evaluations.append(evaluation)
             test_count += 1
@@ -915,8 +916,8 @@ class InteractiveEvalCLI:
             "batchSize": 10,
             "timeoutMinutes": 20,
             "modelSettings": [],
-            "createdAt": "2025-01-25T00:00:00Z",
-            "updatedAt": "2025-01-25T00:00:00Z",
+            "createdAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            "updatedAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             "evaluations": evaluations
         }
 
@@ -986,8 +987,8 @@ class InteractiveEvalCLI:
                 "simulateTools": False,
                 "toolsToSimulate": [],
                 "evalSetId": eval_set_id,
-                "createdAt": "2025-01-25T00:00:00Z",
-                "updatedAt": "2025-01-25T00:00:00Z"
+                "createdAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                "updatedAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
             }
             evaluations.append(evaluation)
             test_count += 1
@@ -1020,8 +1021,8 @@ class InteractiveEvalCLI:
                 "category": 0,
                 "type": 1,
                 "targetOutputKey": "*",
-                "createdAt": "2025-01-25T00:00:00Z",
-                "updatedAt": "2025-01-25T00:00:00Z"
+                "createdAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                "updatedAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
             }
         else:  # JSON Similarity
             evaluator = {
@@ -1031,8 +1032,8 @@ class InteractiveEvalCLI:
                 "category": 0,
                 "type": 6,
                 "targetOutputKey": "*",
-                "createdAt": "2025-01-25T00:00:00Z",
-                "updatedAt": "2025-01-25T00:00:00Z"
+                "createdAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                "updatedAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
             }
 
         # Ensure evaluators directory exists
