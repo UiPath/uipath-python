@@ -1,0 +1,118 @@
+{
+  "id": "calc-comprehensive-001",
+  "fileName": "comprehensive_eval_set.json",
+  "evaluatorRefs": ["exact-match-eval", "json-similarity-eval"],
+  "name": "Comprehensive Calculator Tests",
+  "batchSize": 10,
+  "timeoutMinutes": 10,
+  "modelSettings": [],
+  "createdAt": "2025-01-25T00:00:00Z",
+  "updatedAt": "2025-01-25T00:00:00Z",
+  "evaluations": [
+    {
+      "id": "add-basic",
+      "name": "Basic Addition",
+      "inputs": {
+        "a": 5,
+        "b": 3,
+        "operator": "+"
+      },
+      "expectedOutput": {
+        "result": 8.0
+      },
+      "expectedAgentBehavior": "Add two positive numbers",
+      "simulationInstructions": "",
+      "simulateInput": false,
+      "inputGenerationInstructions": "",
+      "simulateTools": false,
+      "toolsToSimulate": [],
+      "evalSetId": "calc-comprehensive-001",
+      "createdAt": "2025-01-25T00:00:00Z",
+      "updatedAt": "2025-01-25T00:00:00Z"
+    },
+    {
+      "id": "sub-basic",
+      "name": "Basic Subtraction",
+      "inputs": {
+        "a": 10,
+        "b": 4,
+        "operator": "-"
+      },
+      "expectedOutput": {
+        "result": 6.0
+      },
+      "expectedAgentBehavior": "Subtract smaller from larger",
+      "simulationInstructions": "",
+      "simulateInput": false,
+      "inputGenerationInstructions": "",
+      "simulateTools": false,
+      "toolsToSimulate": [],
+      "evalSetId": "calc-comprehensive-001",
+      "createdAt": "2025-01-25T00:00:00Z",
+      "updatedAt": "2025-01-25T00:00:00Z"
+    },
+    {
+      "id": "mul-basic",
+      "name": "Basic Multiplication",
+      "inputs": {
+        "a": 7,
+        "b": 6,
+        "operator": "*"
+      },
+      "expectedOutput": {
+        "result": 42.0
+      },
+      "expectedAgentBehavior": "Multiply two integers",
+      "simulationInstructions": "",
+      "simulateInput": false,
+      "inputGenerationInstructions": "",
+      "simulateTools": false,
+      "toolsToSimulate": [],
+      "evalSetId": "calc-comprehensive-001",
+      "createdAt": "2025-01-25T00:00:00Z",
+      "updatedAt": "2025-01-25T00:00:00Z"
+    },
+    {
+      "id": "div-basic",
+      "name": "Basic Division",
+      "inputs": {
+        "a": 15,
+        "b": 3,
+        "operator": "/"
+      },
+      "expectedOutput": {
+        "result": 5.0
+      },
+      "expectedAgentBehavior": "Divide evenly",
+      "simulationInstructions": "",
+      "simulateInput": false,
+      "inputGenerationInstructions": "",
+      "simulateTools": false,
+      "toolsToSimulate": [],
+      "evalSetId": "calc-comprehensive-001",
+      "createdAt": "2025-01-25T00:00:00Z",
+      "updatedAt": "2025-01-25T00:00:00Z"
+    },
+    {
+      "id": "div-zero",
+      "name": "Division by Zero",
+      "inputs": {
+        "a": 10,
+        "b": 0,
+        "operator": "/"
+      },
+      "expectedOutput": {
+        "result": 0.0
+      },
+      "expectedAgentBehavior": "Handle division by zero",
+      "simulationInstructions": "",
+      "simulateInput": false,
+      "inputGenerationInstructions": "",
+      "simulateTools": false,
+      "toolsToSimulate": [],
+      "evalSetId": "calc-comprehensive-001",
+      "createdAt": "2025-01-25T00:00:00Z",
+      "updatedAt": "2025-01-25T00:00:00Z"
+    }
+  ]
+}

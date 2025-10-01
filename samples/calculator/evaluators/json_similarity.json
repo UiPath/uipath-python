@@ -1,0 +1,10 @@
+{
+  "id": "json-similarity-eval",
+  "name": "JSON Similarity Evaluator",
+  "description": "Tests for structural JSON similarity with tolerance",
+  "category": 0,
+  "type": 6,
+  "targetOutputKey": "*",
+  "createdAt": "2025-01-25T00:00:00Z",
+  "updatedAt": "2025-01-25T00:00:00Z"
+}
