@@ -20,21 +20,33 @@ class OutputEvaluationCriteria(BaseEvaluationCriteria):
     expected_output: dict[str, Any] | str
 
 
-class OutputEvaluatorConfig(BaseEvaluatorConfig):
-    """Base class for all output evaluator configurations."""
+T_OutputCriteria = TypeVar("T_OutputCriteria", bound=OutputEvaluationCriteria)
+
+
+class OutputEvaluatorConfig(BaseEvaluatorConfig[T_OutputCriteria]):
+    """Base class for all output evaluator configurations.
+
+    Generic over T_OutputCriteria to allow subclasses to define their own
+    specific output evaluation criteria types while maintaining type safety.
+    """
 
     target_output_key: str = Field(
         default="*", description="Key to extract output from agent execution"
     )
-    default_evaluation_criteria: OutputEvaluationCriteria | None = None
 
 
-C = TypeVar("C", bound=OutputEvaluatorConfig)
+C = TypeVar("C", bound=OutputEvaluatorConfig[Any])
 J = TypeVar("J", bound=Union[str, None, BaseEvaluatorJustification])
 
 
-class OutputEvaluator(BaseEvaluator[OutputEvaluationCriteria, C, J]):
-    """Abstract base class for all output evaluators."""
+class OutputEvaluator(BaseEvaluator[T_OutputCriteria, C, J]):
+    """Abstract base class for all output evaluators.
+
+    Generic Parameters:
+        T_OutputCriteria: The output evaluation criteria type
+        C: The output evaluator config type (bound to OutputEvaluatorConfig[T_OutputCriteria])
+        J: The justification type
+    """
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""
@@ -42,9 +54,7 @@ class OutputEvaluator(BaseEvaluator[OutputEvaluationCriteria, C, J]):
             return agent_execution.agent_output[self.evaluator_config.target_output_key]
         return agent_execution.agent_output
 
-    def _get_expected_output(
-        self, evaluation_criteria: OutputEvaluationCriteria
-    ) -> Any:
+    def _get_expected_output(self, evaluation_criteria: T_OutputCriteria) -> Any:
         """Load the expected output from the evaluation criteria."""
         expected_output = evaluation_criteria.expected_output
         if self.evaluator_config.target_output_key != "*":

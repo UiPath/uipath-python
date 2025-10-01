@@ -14,20 +14,27 @@ from .output_evaluator import (
 )
 
 
-class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig):
+class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria]):
     """Configuration for the json similarity evaluator."""
 
     name: str = "JsonSimilarityEvaluator"
     target_output_key: str = Field(default="*", frozen=True, exclude=True)
 
 
-class JsonSimilarityEvaluator(OutputEvaluator[JsonSimilarityEvaluatorConfig, str]):
+class JsonSimilarityEvaluator(
+    OutputEvaluator[OutputEvaluationCriteria, JsonSimilarityEvaluatorConfig, str]
+):
     """Deterministic evaluator that scores structural JSON similarity between expected and actual output.
 
     Compares expected versus actual JSON-like structures and returns a
     numerical score in the range [0, 100]. The comparison is token-based
     and tolerant for numbers and strings (via Levenshtein distance).
     """
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-json-similarity"
 
     async def evaluate(
         self,

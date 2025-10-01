@@ -1,38 +1,14 @@
 """Base evaluator abstract class for agent evaluation."""
 
-import functools
 import json
-import time
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from typing import Any, Generic, TypeVar, Union, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..models import AgentExecution, ErrorEvaluationResult, EvaluationResult
-
-
-def track_evaluation_metrics(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorator to track evaluation metrics and handle errors gracefully."""
-
-    @functools.wraps(func)
-    async def wrapper(*args: Any, **kwargs: Any) -> EvaluationResult:
-        start_time = time.time()
-        try:
-            result = await func(*args, **kwargs)
-        except Exception as e:
-            result = ErrorEvaluationResult(
-                details="Exception thrown by evaluator: {}".format(e),
-                evaluation_time=time.time() - start_time,
-            )
-        end_time = time.time()
-        execution_time = end_time - start_time
-
-        result.evaluation_time = execution_time
-        return result
-
-    return wrapper
+from .._helpers.helpers import track_evaluation_metrics
+from ..models import AgentExecution, EvaluationResult
 
 
 class BaseEvaluationCriteria(BaseModel):
@@ -41,11 +17,19 @@ class BaseEvaluationCriteria(BaseModel):
     pass
 
 
-class BaseEvaluatorConfig(BaseModel):
-    """Base class for all evaluator configurations."""
+# Type variable for evaluation criteria, used by both Config and Evaluator
+T = TypeVar("T", bound=BaseEvaluationCriteria)
+
+
+class BaseEvaluatorConfig(BaseModel, Generic[T]):
+    """Base class for all evaluator configurations.
+
+    Generic over T (evaluation criteria type) to ensure type safety between
+    the config's default_evaluation_criteria and the evaluator's expected criteria type.
+    """
 
     name: str
-    default_evaluation_criteria: BaseEvaluationCriteria | None = None
+    default_evaluation_criteria: T | None = None
 
 
 class BaseEvaluatorJustification(BaseModel):
@@ -54,13 +38,34 @@ class BaseEvaluatorJustification(BaseModel):
     pass
 
 
-T = TypeVar("T", bound=BaseEvaluationCriteria)
-C = TypeVar("C", bound=BaseEvaluatorConfig)
+# Additional type variables for Config and Justification
+# Note: C must be BaseEvaluatorConfig[T] to ensure type consistency
+C = TypeVar("C", bound=BaseEvaluatorConfig[Any])
 J = TypeVar("J", bound=Union[str, None, BaseEvaluatorJustification])
 
 
 class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
-    """Abstract base class for all evaluators."""
+    """Abstract base class for all evaluators.
+
+    Generic Parameters:
+        T: The evaluation criteria type (bound to BaseEvaluationCriteria)
+        C: The evaluator config type (bound to BaseEvaluatorConfig[T])
+        J: The justification type (str, None, or BaseEvaluatorJustification subclass)
+
+    Design Rationale:
+        T is explicitly specified even though C = BaseEvaluatorConfig[T] already encodes it.
+        This redundancy is intentional and provides:
+
+        1. **Type Checker Support**: Static type checkers can infer the exact criteria type
+           for the evaluate() method signature without runtime introspection
+
+        2. **Clear API**: The signature BaseEvaluator[MyCriteria, MyConfig[MyCriteria], str]
+           makes it immediately obvious what criteria type is expected
+
+        3. **IDE Support**: Autocomplete and type hints work perfectly for method parameters
+
+        Runtime validation ensures T and C's generic parameter are consistent.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -91,17 +96,16 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
     def validate_model(cls, values: Any) -> Any:
         """Pre-initialization model validator for Pydantic models.
 
-        This validator extracts the Generic type parameter T and sets it as the
-        evaluation_criteria_type if not explicitly provided.
+        This validator extracts the Generic type parameters and validates their consistency.
 
         Args:
             values: The raw input values before validation
 
         Returns:
-            The validated/transformed values with evaluation_criteria_type set
+            The validated/transformed values with types set
 
         Raises:
-            ValueError: If no valid evaluation criteria type can be determined
+            ValueError: If types cannot be determined or are inconsistent
         """
         if isinstance(values, dict):
             # Always extract and set evaluation_criteria_type
@@ -116,6 +120,9 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             justification_type = cls._extract_justification_type()
             values["justification_type"] = justification_type
 
+            # Validate consistency: config's generic parameter should match criteria_type
+            cls._validate_type_consistency(config_type, criteria_type)
+
             # Validate and create the config object if config dict is provided
             if config_dict := values.get("config"):
                 try:
@@ -127,6 +134,60 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
                     ) from e
 
         return values
+
+    @classmethod
+    def _validate_type_consistency(
+        cls,
+        config_type: type[BaseEvaluatorConfig[Any]],
+        criteria_type: type[BaseEvaluationCriteria],
+    ) -> None:
+        """Validate that the config's generic parameter matches the evaluator's criteria type.
+
+        Extracts the criteria type from the config's default_evaluation_criteria field
+        annotation and validates it matches the evaluator's expected criteria type.
+
+        Args:
+            config_type: The config type to validate
+            criteria_type: The expected evaluation criteria type
+
+        Raises:
+            ValueError: If the types are inconsistent
+        """
+        # Skip validation for base classes
+        if config_type.__name__ in (
+            "BaseEvaluatorConfig",
+            "OutputEvaluatorConfig",
+            "BaseLLMJudgeEvaluatorConfig",
+        ):
+            return
+
+        # Extract from Pydantic's model_fields which preserves generic types
+        if (
+            hasattr(config_type, "model_fields")
+            and "default_evaluation_criteria" in config_type.model_fields
+        ):
+            field_info = config_type.model_fields["default_evaluation_criteria"]
+            if hasattr(field_info, "annotation"):
+                annotation = field_info.annotation
+                # The annotation will be SomeCriteria | None
+                args = get_args(annotation)
+                if args:
+                    # Get the criteria type (the non-None arg)
+                    for arg in args:
+                        if (
+                            arg is not type(None)
+                            and isinstance(arg, type)
+                            and issubclass(arg, BaseEvaluationCriteria)
+                        ):
+                            # Found the config's criteria type, check if it matches
+                            if arg != criteria_type:
+                                raise ValueError(
+                                    f"Type inconsistency in {cls.__name__}: "
+                                    f"Config {config_type.__name__} expects criteria type {arg.__name__}, "
+                                    f"but evaluator expects {criteria_type.__name__}. "
+                                    f"Ensure BaseEvaluator[T, C[T], J] has matching T and C[T] parameters."
+                                )
+                            return  # Validation passed
 
     @classmethod
     def _extract_evaluation_criteria_type(cls) -> type[BaseEvaluationCriteria]:
@@ -390,6 +451,28 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         config_type = cls._extract_config_type()
         return config_type.model_json_schema()
 
+    @classmethod
+    def get_justification_schema(cls) -> dict[str, Any]:
+        """Get the JSON schema for the justification type.
+
+        Returns:
+            The JSON schema for the justification type
+        """
+        justification_type = cls._extract_justification_type()
+        if justification_type is type(None):
+            return {}
+        elif justification_type is str:
+            return {"type": "string"}
+        elif isinstance(justification_type, type) and issubclass(
+            justification_type, BaseEvaluatorJustification
+        ):
+            return justification_type.model_json_schema()
+        else:
+            raise ValueError(
+                f"Invalid justification type {justification_type} in {cls.__name__}. "
+                f"Must be str, None, or subclass of BaseEvaluatorJustification."
+            )
+
     def _canonical_json(self, obj: Any) -> str:
         """Convert an object to canonical JSON string for consistent comparison.
 
@@ -405,6 +488,22 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             separators=(",", ":"),
             ensure_ascii=False,
         )
+
+    @classmethod
+    @abstractmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        pass
+
+    @classmethod
+    def generate_json_type(cls) -> dict[str, Any]:
+        """Generate the JSON schema for the evaluator."""
+        return {
+            "evaluatorTypeId": cls.get_evaluator_id(),
+            "evaluatorConfigSchema": cls.get_config_schema(),
+            "evaluationCriteriaSchema": cls.get_evaluation_criteria_schema(),
+            "justificationSchema": cls.get_justification_schema(),
+        }
 
     async def validate_and_evaluate_criteria(
         self, agent_execution: AgentExecution, evaluation_criteria: Any

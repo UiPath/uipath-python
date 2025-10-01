@@ -21,7 +21,10 @@ from .output_evaluator import (
 )
 
 
-class LLMJudgeOutputEvaluatorConfig(OutputEvaluatorConfig, BaseLLMJudgeEvaluatorConfig):
+class LLMJudgeOutputEvaluatorConfig(
+    OutputEvaluatorConfig[OutputEvaluationCriteria],
+    BaseLLMJudgeEvaluatorConfig[OutputEvaluationCriteria],
+):
     """Configuration for the LLM judge output evaluator."""
 
     name: str = "LLMJudgeOutputEvaluator"
@@ -41,7 +44,7 @@ OC = TypeVar("OC", bound=LLMJudgeOutputEvaluatorConfig)
 
 
 class BaseLLMOutputEvaluator(
-    OutputEvaluator[OC, str],
+    OutputEvaluator[OutputEvaluationCriteria, OC, str],
     LLMJudgeMixin[OutputEvaluationCriteria, OC],
 ):
     """Base class for LLM judge output evaluators that contains all shared functionality.
@@ -49,6 +52,11 @@ class BaseLLMOutputEvaluator(
     This class encapsulates the common evaluation logic for output-based LLM evaluators,
     combining OutputEvaluator (for output extraction) with LLMJudgeMixin (for LLM functionality).
     """
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-llm-judge-output"
 
     async def evaluate(
         self,
@@ -70,6 +78,11 @@ class LLMJudgeOutputEvaluator(BaseLLMOutputEvaluator[LLMJudgeOutputEvaluatorConf
     system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
     output_schema: type[BaseModel] = LLMJudgeOutputSchema
 
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-llm-judge-output-semantic-similarity"
+
 
 class LLMJudgeStrictJSONSimilarityOutputEvaluator(
     BaseLLMOutputEvaluator[LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig]
@@ -84,3 +97,8 @@ class LLMJudgeStrictJSONSimilarityOutputEvaluator(
         LLMJudgePromptTemplates.LLM_JUDGE_STRICT_JSON_SIMILARITY_SYSTEM_PROMPT
     )
     output_schema: type[BaseModel] = LLMJudgeStrictJSONSimilarityOutputSchema
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-llm-judge-output-strict-json-similarity"

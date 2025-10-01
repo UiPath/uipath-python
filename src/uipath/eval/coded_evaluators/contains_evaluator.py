@@ -11,23 +11,27 @@ class ContainsEvaluationCriteria(BaseEvaluationCriteria):
     search_text: str
 
 
-class ContainsEvaluatorConfig(BaseEvaluatorConfig):
+class ContainsEvaluatorConfig(BaseEvaluatorConfig[ContainsEvaluationCriteria]):
     """Configuration for the contains evaluator."""
 
     name: str = "ContainsEvaluator"
-    default_evaluation_criteria: ContainsEvaluationCriteria | None = None
     case_sensitive: bool = False
     negated: bool = False
 
 
 class ContainsEvaluator(
-    BaseEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, None]
+    BaseEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, type(None)]
 ):
     """Evaluator that checks if the actual output contains the expected output.
 
     This evaluator returns True if the actual output contains the expected output,
     and False otherwise. It supports case sensitivity and negation options.
     """
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-contains"
 
     async def evaluate(
         self,
