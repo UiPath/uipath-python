@@ -4,7 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import select
 import sys
@@ -29,7 +29,7 @@ console = ConsoleLogger()
 class InteractiveEvalCLI:
     """Simple, fast, keyboard-driven evaluation CLI."""
 
-    def __init__(self, project_root: Path = None):
+    def __init__(self, project_root: Optional[Path] = None):
         self.project_root = project_root or Path.cwd()
         self.eval_sets: List[Tuple[str, Path]] = []
         self.evaluators: List[Tuple[str, Path]] = []
@@ -457,8 +457,9 @@ class InteractiveEvalCLI:
             )
 
             # Stream output in real-time
-            for line in process.stdout:
-                print(line.rstrip())
+            if process.stdout:
+                for line in process.stdout:
+                    print(line.rstrip())
 
             process.wait()
 
@@ -504,8 +505,9 @@ class InteractiveEvalCLI:
             )
 
             # Stream output in real-time
-            for line in process.stdout:
-                print(line.rstrip())
+            if process.stdout:
+                for line in process.stdout:
+                    print(line.rstrip())
 
             process.wait()
 
@@ -795,7 +797,7 @@ class InteractiveEvalCLI:
         # Ask if they want to add evaluations
         add_evals = self._get_input("Add evaluations now? (y/n): ").lower()
         if add_evals in ['y', 'yes']:
-            eval_set["evaluations"] = self._add_evaluations_interactive(eval_set["id"])
+            eval_set["evaluations"] = self._add_evaluations_interactive(str(eval_set["id"]))
 
         # Ensure evaluationSets directory exists
         eval_sets_dir = self.project_root / "evaluationSets"
@@ -883,7 +885,7 @@ class InteractiveEvalCLI:
                 console.warning("Invalid JSON, using empty expected output")
                 expected_output = {}
 
-            evaluation = {
+            evaluation: Dict[str, Any] = {
                 "id": f"test-{test_count}",
                 "name": test_name,
                 "inputs": inputs,
@@ -941,7 +943,7 @@ class InteractiveEvalCLI:
 
         input("\nPress Enter to continue...")
 
-    def _add_evaluations_interactive(self, eval_set_id: str) -> List[dict]:
+    def _add_evaluations_interactive(self, eval_set_id: str) -> List[Dict[str, Any]]:
         """Add evaluations interactively."""
         evaluations = []
         test_count = 1
@@ -974,7 +976,7 @@ class InteractiveEvalCLI:
                 console.warning("Invalid JSON, using empty expected output")
                 expected_output = {}
 
-            evaluation = {
+            evaluation: Dict[str, Any] = {
                 "id": f"test-{test_count}",
                 "name": test_name,
                 "inputs": inputs,
@@ -1193,7 +1195,7 @@ class InteractiveEvalCLI:
             return path.stem
 
 
-def launch_interactive_cli(project_root: Path = None) -> None:
+def launch_interactive_cli(project_root: Optional[Path] = None) -> None:
     """Launch the interactive CLI."""
     cli = InteractiveEvalCLI(project_root)
     cli.run()
