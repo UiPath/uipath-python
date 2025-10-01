@@ -3,26 +3,24 @@
 import json
 import subprocess
 import sys
+import termios
+import tty
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import select
-import sys
-import termios
-import tty
+from ._utils._console import ConsoleLogger
+
 
 def has_termios() -> bool:
     """Check if we have termios support for advanced input."""
     try:
         termios.tcgetattr(sys.stdin)
         return True
-    except:
+    except Exception:
         return False
 
+
 HAS_NAVIGATION = has_termios()
-
-from ._utils._console import ConsoleLogger
-
 console = ConsoleLogger()
 
 
@@ -76,7 +74,7 @@ class InteractiveEvalCLI:
                     if "evaluations" in data and isinstance(data.get("evaluations"), list):
                         name = data.get("name", eval_file.stem)
                         self.eval_sets.append((name, eval_file))
-                except:
+                except Exception:
                     pass
 
         # Find evaluators from evaluators folder
@@ -90,7 +88,7 @@ class InteractiveEvalCLI:
                     if "id" in data and "type" in data:
                         name = data.get("name", eval_file.stem)
                         self.evaluators.append((name, eval_file))
-                except:
+                except Exception:
                     pass
 
     def run(self) -> None:
@@ -220,13 +218,13 @@ class InteractiveEvalCLI:
                 raise KeyboardInterrupt
 
             return ''
-        except:
+        except Exception:
             return input("➤ ").strip().lower()
         finally:
             # Restore terminal settings
             try:
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-            except:
+            except Exception:
                 pass
 
     def _execute_menu_item_with_navigation(self, index: int) -> None:
@@ -291,7 +289,7 @@ class InteractiveEvalCLI:
                 console.info(f"{i}. {name}")
                 console.info(f"   Tests: {test_count} | Evaluators: {evaluator_count}")
                 console.info(f"   File: {path.name}")
-            except:
+            except Exception:
                 console.info(f"{i}. {name} (error loading)")
 
     def _list_evaluators(self) -> None:
@@ -310,7 +308,7 @@ class InteractiveEvalCLI:
                 console.info(f"{i}. {name}")
                 console.info(f"   Type: {category} | {type_name}")
                 console.info(f"   File: {path.name}")
-            except:
+            except Exception:
                 console.info(f"{i}. {name} (error loading)")
 
     def _list_eval_sets_navigation(self) -> None:
@@ -652,7 +650,7 @@ class InteractiveEvalCLI:
         """Show no items screen."""
         self._clear_screen()
         console.warning(f"No {item_type} found!")
-        console.info(f"Press Enter to go back...")
+        console.info("Press Enter to go back...")
         self._get_input("")
 
     def _show_eval_set_preview(self, path: Path) -> None:
@@ -664,7 +662,7 @@ class InteractiveEvalCLI:
             evaluator_count = len(data.get("evaluatorRefs", []))
             console.info(f"    📄 {path.name}")
             console.info(f"    📊 Tests: {test_count} | Evaluators: {evaluator_count}")
-        except:
+        except Exception:
             console.info(f"    📄 {path.name} (error loading)")
 
     def _show_evaluator_preview(self, path: Path) -> None:
@@ -676,7 +674,7 @@ class InteractiveEvalCLI:
             type_name = self._get_type_name(data.get("type", 1))
             console.info(f"    📄 {path.name}")
             console.info(f"    🎯 Type: {category} | {type_name}")
-        except:
+        except Exception:
             console.info(f"    📄 {path.name} (error loading)")
 
     def _show_eval_set_details(self, eval_set_tuple: Tuple[str, Path]) -> None:
@@ -699,13 +697,13 @@ class InteractiveEvalCLI:
 
             evaluator_refs = data.get('evaluatorRefs', [])
             if evaluator_refs:
-                console.info(f"\n🎯 Evaluator References:")
+                console.info("\n🎯 Evaluator References:")
                 for ref in evaluator_refs:
                     console.info(f"   • {ref}")
 
             evaluations = data.get('evaluations', [])
             if evaluations:
-                console.info(f"\n📝 Test Cases:")
+                console.info("\n📝 Test Cases:")
                 for i, eval_data in enumerate(evaluations[:10], 1):  # Show first 10
                     test_name = eval_data.get('name', f'Test {i}')
                     console.info(f"   {i}. {test_name}")
@@ -752,7 +750,7 @@ class InteractiveEvalCLI:
 
             if 'llmConfig' in data:
                 llm_config = data['llmConfig']
-                console.info(f"\n🤖 LLM Configuration:")
+                console.info("\n🤖 LLM Configuration:")
                 console.info(f"   Model: {llm_config.get('modelName', 'Unknown')}")
                 if 'prompt' in llm_config:
                     prompt_preview = llm_config['prompt'][:100]
@@ -1115,7 +1113,7 @@ class InteractiveEvalCLI:
             eval_type = 1
 
         # Target Output Key
-        console.info(f"\n🔍 Target Configuration")
+        console.info("\n🔍 Target Configuration")
         console.info("Target Output Key determines which part of the output to evaluate")
         console.info("Examples: '*' (all), 'result', 'answer', 'output'")
         target_key = input("➤ Target Output Key (default: '*'): ").strip() or "*"
@@ -1134,7 +1132,7 @@ class InteractiveEvalCLI:
 
         # LLM Configuration (if LLM as Judge)
         if category == 1:  # LLM as Judge
-            console.info(f"\n🤖 LLM Configuration")
+            console.info("\n🤖 LLM Configuration")
             model_name = input("➤ Model Name (default: gpt-4): ").strip() or "gpt-4"
 
             console.info("📝 Evaluation Prompt")
@@ -1191,7 +1189,7 @@ class InteractiveEvalCLI:
             with open(path) as f:
                 data = json.load(f)
             return data.get("id", path.stem)
-        except:
+        except Exception:
             return path.stem
 
 
