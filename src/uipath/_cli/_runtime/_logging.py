@@ -10,6 +10,35 @@ current_execution_id: ContextVar[Optional[str]] = ContextVar(
 )
 
 
+class ExecutionLogHandler(logging.Handler):
+    """Handler for an execution unit."""
+
+    def __init__(self, execution_id: str):
+        """Initialize the buffered handler."""
+        super().__init__()
+        self.execution_id: str = execution_id
+        self.buffer: list[logging.LogRecord] = []
+        self.setFormatter(logging.Formatter("[%(asctime)s][%(levelname)s] %(message)s"))
+
+    def emit(self, record: logging.LogRecord):
+        """Store log record in buffer grouped by execution_id."""
+        self.buffer.append(record)
+
+    def flush_execution_logs(self, target_handler: logging.Handler) -> None:
+        """Flush buffered logs to a target handler.
+
+        Args:
+            target_handler: The handler to write the logs to
+        """
+        for record in self.buffer:
+            target_handler.handle(record)
+        target_handler.flush()
+
+    def clear_execution(self) -> None:
+        """Clear buffered logs without writing them."""
+        self.buffer.clear()
+
+
 class PersistentLogsHandler(logging.FileHandler):
     """A simple log handler that always writes to a single file without rotation."""
 

@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -15,6 +16,7 @@ class UiPathEvalRunExecutionOutput(BaseModel):
 
     execution_time: float
     spans: list[ReadableSpan]
+    logs: list[logging.LogRecord]
     result: UiPathRuntimeResult
 
 
