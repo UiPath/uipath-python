@@ -7,10 +7,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
-from .._helpers.coded_evaluators_helpers import (
-    COMMUNITY_agents_SUFFIX,
-    generate_datapoint_id,
-)
+from .._helpers.coded_evaluators_helpers import COMMUNITY_agents_SUFFIX
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -111,8 +108,6 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         return NumericEvaluationResult(
             score=max(0.0, min(1.0, round(llm_response.score / 100.0, 2))),
             details=validated_justification,
-            evaluator_name=self.evaluator_config.name,
-            datapoint_id=generate_datapoint_id(agent_execution),
         )
 
     def _create_evaluation_prompt(

@@ -41,8 +41,6 @@ class BaseEvaluationResult(BaseModel):
     details: Optional[str | BaseModel] = None
     # this is marked as optional, as it is populated inside the 'measure_execution_time' decorator
     evaluation_time: Optional[float] = None
-    evaluator_name: Optional[str] = None
-    datapoint_id: Optional[str] = None
 
 
 class BooleanEvaluationResult(BaseEvaluationResult):
