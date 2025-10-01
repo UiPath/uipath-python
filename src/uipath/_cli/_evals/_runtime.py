@@ -293,9 +293,13 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         start_time = time()
 
-        result = await self.factory.execute_in_root_span(
-            runtime_context, root_span=eval_item.name, attributes=attributes
-        )
+        try:
+            result = await self.factory.execute_in_root_span(
+                runtime_context, root_span=eval_item.name, attributes=attributes
+            )
+        except Exception as e:
+            error_msg = extract_clean_error_message(e, "Agent execution error")
+            raise Exception(f"Agent execution failed: {error_msg}") from None
 
         end_time = time()
 

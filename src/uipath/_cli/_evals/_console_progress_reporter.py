@@ -1,7 +1,7 @@
 """Console progress reporter for evaluation runs with line-by-line output."""
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from rich.console import Console
 from rich.rule import Rule

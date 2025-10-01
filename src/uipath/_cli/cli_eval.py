@@ -1,6 +1,7 @@
 # type: ignore
 import ast
 import asyncio
+import logging
 import os
 from typing import List, Optional
 
@@ -61,6 +62,12 @@ class LiteralOption(click.Option):
     type=click.Path(exists=False),
     help="File path where the output will be written",
 )
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Show detailed debug logging output including middleware and HTTP requests",
+    default=False,
+)
 @track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
 def eval(
     entrypoint: Optional[str],
@@ -69,6 +76,7 @@ def eval(
     no_report: bool,
     workers: int,
     output_file: Optional[str],
+    debug: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -78,7 +86,16 @@ def eval(
         eval_ids: Optional list of evaluation IDs
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
+        debug: Show detailed debug logging output
     """
+    # Suppress HTTP logs unless in debug mode
+    if not debug:
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+        os.environ["UIPATH_EVAL_DEBUG"] = "false"
+    else:
+        os.environ["UIPATH_EVAL_DEBUG"] = "true"
+
     if not no_report and not os.getenv("UIPATH_FOLDER_KEY"):
         os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(
             get_personal_workspace_key_async()
@@ -100,9 +117,15 @@ def eval(
     if result.should_continue:
         event_bus = EventBus()
 
+        # Set up progress reporters
         if not no_report:
             progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
+
+        # Set up console progress reporter (only when not in debug mode)
+        if not debug:
+            console_reporter = ConsoleProgressReporter()
+            asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
             runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
@@ -147,7 +170,6 @@ def eval(
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True
             )
-
 
 if __name__ == "__main__":
     eval()
