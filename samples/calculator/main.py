@@ -33,6 +33,7 @@ class Wrapper:
     result: Operator
 
 @traced()
+<<<<<<< HEAD
 @mockable()
 def get_random_operator() -> Wrapper:
     """Get a random operator."""
@@ -46,6 +47,11 @@ async def main(input: CalculatorInput) -> CalculatorOutput:
     else:
         operator = input.operator
     match operator:
+=======
+def main(input: CalculatorInput) -> CalculatorOutput:
+    result = 0.0
+    match input.operator:
+>>>>>>> d766fe8 (feat: format uipath eval output to show scores)
         case Operator.ADD: result = input.a + input.b
         case Operator.SUBTRACT: result = input.a - input.b
         case Operator.MULTIPLY: result = input.a * input.b

@@ -121,20 +121,20 @@ class Middlewares:
                 ]
 
             if middlewares:
-                logger.info(f"Found {len(middlewares)} middleware plugins")
+                logger.debug(f"Found {len(middlewares)} middleware plugins")
 
                 for entry_point in middlewares:
                     try:
                         register_func = entry_point.load()
                         register_func()
-                        logger.info(f"Loaded middleware plugin: {entry_point.name}")
+                        logger.debug(f"Loaded middleware plugin: {entry_point.name}")
                     except Exception as e:
                         console.error(
                             f"Failed to load middleware plugin {entry_point.name}: {str(e)}",
                             include_traceback=True,
                         )
             else:
-                logger.info("No middleware plugins found")
+                logger.debug("No middleware plugins found")
 
         except Exception as e:
             logger.error(f"No middleware plugins loaded: {str(e)}")

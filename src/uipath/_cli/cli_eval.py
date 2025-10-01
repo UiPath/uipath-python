@@ -1,12 +1,14 @@
 # type: ignore
 import ast
 import asyncio
+import logging
 import os
 import uuid
 from typing import List, Optional
 
 import click
 
+from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
     UiPathEvalContext,
@@ -122,6 +124,21 @@ def eval(
         eval_context.eval_set = eval_set or EvalHelpers.auto_discover_eval_set()
         eval_context.eval_ids = eval_ids
 
+        # Set up HTTP logging at DEBUG level but not INFO level
+        logs_min_level_str = getattr(eval_context, "logs_min_level", "INFO")
+        logs_min_level = getattr(logging, logs_min_level_str.upper(), logging.INFO)
+        if logs_min_level <= logging.DEBUG:
+            logging.getLogger("httpx").setLevel(logging.DEBUG)
+            logging.getLogger("urllib3.connectionpool").setLevel(logging.DEBUG)
+        else:
+            logging.getLogger("httpx").setLevel(logging.WARNING)
+            logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+
+        console_reporter = None
+        if logs_min_level <= logging.INFO:
+            console_reporter = ConsoleProgressReporter()
+            asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
+
         try:
             runtime_factory = UiPathRuntimeFactory(
                 UiPathScriptRuntime,
@@ -140,13 +157,14 @@ def eval(
                     await eval_runtime.execute()
                     await event_bus.wait_for_all(timeout=10)
 
+                if console_reporter:
+                    console_reporter.display_final_results()
+
             asyncio.run(execute())
         except Exception as e:
             console.error(
-                f"Error: Unexpected error occurred - {str(e)}", include_traceback=True
+                f"Error occurred: {e or 'Execution failed'}", include_traceback=True
             )
-
-    console.success("Evaluation completed successfully")
 
 
 if __name__ == "__main__":

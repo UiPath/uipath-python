@@ -153,53 +153,78 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
             results.evaluation_set_results.append(evaluation_run_results)
 
-            agent_execution_output = await self.execute_runtime(eval_item)
-            evaluation_item_results: list[EvalItemResult] = []
+            try:
+                agent_execution_output = await self.execute_runtime(eval_item)
+                evaluation_item_results: list[EvalItemResult] = []
 
-            for evaluator in evaluators:
-                evaluation_result = await self.run_evaluator(
-                    evaluator=evaluator,
-                    execution_output=agent_execution_output,
-                    eval_item=eval_item,
-                )
-
-                dto_result = EvaluationResultDto.from_evaluation_result(
-                    evaluation_result
-                )
-                evaluator_counts[evaluator.id] += 1
-                count = evaluator_counts[evaluator.id]
-                evaluator_averages[evaluator.id] += (
-                    dto_result.score - evaluator_averages[evaluator.id]
-                ) / count
-
-                evaluation_run_results.evaluation_run_results.append(
-                    EvaluationRunResultDto(
-                        evaluator_name=evaluator.name,
-                        result=dto_result,
+                for evaluator in evaluators:
+                    evaluation_result = await self.run_evaluator(
+                        evaluator=evaluator,
+                        execution_output=agent_execution_output,
+                        eval_item=eval_item,
                     )
-                )
-                evaluation_item_results.append(
-                    EvalItemResult(
-                        evaluator_id=evaluator.id,
-                        result=evaluation_result,
+
+                    dto_result = EvaluationResultDto.from_evaluation_result(
+                        evaluation_result
                     )
+                    evaluator_counts[evaluator.id] += 1
+                    count = evaluator_counts[evaluator.id]
+                    evaluator_averages[evaluator.id] += (
+                        dto_result.score - evaluator_averages[evaluator.id]
+                    ) / count
+
+                    evaluation_run_results.evaluation_run_results.append(
+                        EvaluationRunResultDto(
+                            evaluator_name=evaluator.name,
+                            result=dto_result,
+                        )
+                    )
+                    evaluation_item_results.append(
+                        EvalItemResult(
+                            evaluator_id=evaluator.id,
+                            result=evaluation_result,
+                        )
+                    )
+
+                evaluation_run_results.compute_average_score()
+
+                await event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_RUN,
+                    EvalRunUpdatedEvent(
+                        execution_id=self.context.execution_id,
+                        eval_item=eval_item,
+                        eval_results=evaluation_item_results,
+                        success=not agent_execution_output.result.error,
+                        agent_output=agent_execution_output.result.output,
+                        agent_execution_time=agent_execution_output.execution_time,
+                        spans=agent_execution_output.spans,
+                    ),
+                    wait_for_completion=False,
                 )
+            except Exception as e:
+                error_msg = str(e)
+                eval_item._error_message = error_msg  # type: ignore[attr-defined]
 
-            evaluation_run_results.compute_average_score()
+                for evaluator in evaluators:
+                    evaluator_counts[evaluator.id] += 1
+                    count = evaluator_counts[evaluator.id]
+                    evaluator_averages[evaluator.id] += (
+                        0.0 - evaluator_averages[evaluator.id]
+                    ) / count
 
-            await event_bus.publish(
-                EvaluationEvents.UPDATE_EVAL_RUN,
-                EvalRunUpdatedEvent(
-                    execution_id=self.context.execution_id,
-                    eval_item=eval_item,
-                    eval_results=evaluation_item_results,
-                    success=not agent_execution_output.result.error,
-                    agent_output=agent_execution_output.result.output,
-                    agent_execution_time=agent_execution_output.execution_time,
-                    spans=agent_execution_output.spans,
-                ),
-                wait_for_completion=False,
-            )
+                await event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_RUN,
+                    EvalRunUpdatedEvent(
+                        execution_id=self.context.execution_id,
+                        eval_item=eval_item,
+                        eval_results=[],
+                        success=False,
+                        agent_output={},
+                        agent_execution_time=0.0,
+                        spans=[],
+                    ),
+                    wait_for_completion=False,
+                )
 
         results.compute_average_score()
 
