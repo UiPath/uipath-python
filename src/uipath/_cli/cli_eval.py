@@ -139,7 +139,7 @@ def eval(
     # Handle interactive mode
     if interactive:
         try:
-            from ._eval_interactive import launch_interactive_cli
+            from ._interactive import launch_interactive_cli
             launch_interactive_cli()
             return
         except ImportError as e:
