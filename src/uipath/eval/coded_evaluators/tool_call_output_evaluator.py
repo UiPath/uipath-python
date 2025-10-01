@@ -26,12 +26,13 @@ class ToolCallOutputEvaluationCriteria(BaseEvaluationCriteria):
     tool_outputs: list[ToolOutput]
 
 
-class ToolCallOutputEvaluatorConfig(BaseEvaluatorConfig):
+class ToolCallOutputEvaluatorConfig(
+    BaseEvaluatorConfig[ToolCallOutputEvaluationCriteria]
+):
     """Configuration for the tool call count evaluator."""
 
     name: str = "ToolCallArgsEvaluator"
     strict: bool = False
-    default_evaluation_criteria: ToolCallOutputEvaluationCriteria | None = None
 
 
 class ToolCallOutputEvaluatorJustification(BaseEvaluatorJustification):
@@ -51,6 +52,11 @@ class ToolCallOutputEvaluator(
 
     This evaluator returns True if the tool calls are in the correct order, and False otherwise.
     """
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-tool-call-output"
 
     async def evaluate(
         self,

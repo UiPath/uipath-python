@@ -25,14 +25,18 @@ class TrajectoryEvaluationCriteria(BaseEvaluationCriteria):
     expected_agent_behavior: str
 
 
-class LLMJudgeTrajectoryEvaluatorConfig(BaseLLMJudgeEvaluatorConfig):
+class LLMJudgeTrajectoryEvaluatorConfig(
+    BaseLLMJudgeEvaluatorConfig[TrajectoryEvaluationCriteria]
+):
     """Configuration for the llm judge trajectory evaluator."""
 
     name: str = "LlmJudgeTrajectoryEvaluator"
     prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_TRAJECTORY_DEFAULT_USER_PROMPT
 
 
-class LLMJudgeSimulationEvaluatorConfig(BaseLLMJudgeEvaluatorConfig):
+class LLMJudgeSimulationEvaluatorConfig(
+    BaseLLMJudgeEvaluatorConfig[TrajectoryEvaluationCriteria]
+):
     """Configuration for the llm judge simulation trajectory evaluator."""
 
     name: str = "LlmJudgeSimulationEvaluator"
@@ -41,7 +45,7 @@ class LLMJudgeSimulationEvaluatorConfig(BaseLLMJudgeEvaluatorConfig):
     )
 
 
-TC = TypeVar("TC", bound=BaseLLMJudgeEvaluatorConfig)
+TC = TypeVar("TC", bound=BaseLLMJudgeEvaluatorConfig[TrajectoryEvaluationCriteria])
 
 
 class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]):
@@ -56,6 +60,11 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
     expected_output_placeholder: str = "{{ExpectedAgentBehavior}}"
     user_input_placeholder: str = "{{UserOrSyntheticInput}}"
     simulation_instructions_placeholder: str = "{{SimulationInstructions}}"
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-llm-judge-trajectory"
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""
@@ -98,8 +107,13 @@ class LLMJudgeTrajectoryEvaluator(
 
     system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_TRAJECTORY_SYSTEM_PROMPT
 
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-llm-judge-trajectory-similarity"
 
-class LlmJudgeSimulationTrajectoryEvaluator(
+
+class LLMJudgeSimulationTrajectoryEvaluator(
     BaseLLMTrajectoryEvaluator[LLMJudgeSimulationEvaluatorConfig]
 ):
     """Evaluator that uses an LLM to judge the quality of agent trajectory for simulations.
@@ -111,3 +125,8 @@ class LlmJudgeSimulationTrajectoryEvaluator(
     system_prompt: str = (
         LLMJudgePromptTemplates.LLM_JUDGE_SIMULATION_TRAJECTORY_SYSTEM_PROMPT
     )
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-llm-judge-trajectory-simulation"

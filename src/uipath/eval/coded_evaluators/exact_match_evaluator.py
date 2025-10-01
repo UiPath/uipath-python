@@ -9,7 +9,7 @@ from .output_evaluator import (
 )
 
 
-class ExactMatchEvaluatorConfig(OutputEvaluatorConfig):
+class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria]):
     """Configuration for the exact match evaluator."""
 
     name: str = "ExactMatchEvaluator"
@@ -17,13 +17,20 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig):
     negated: bool = False
 
 
-class ExactMatchEvaluator(OutputEvaluator[ExactMatchEvaluatorConfig, type(None)]):
+class ExactMatchEvaluator(
+    OutputEvaluator[OutputEvaluationCriteria, ExactMatchEvaluatorConfig, type(None)]
+):
     """Evaluator that performs exact structural matching between expected and actual outputs.
 
     This evaluator returns True if the actual output exactly matches the expected output
     after canonical JSON normalization, and False otherwise. Numbers are normalized
     to floats for consistent comparison.
     """
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-exact-match"
 
     async def evaluate(
         self,

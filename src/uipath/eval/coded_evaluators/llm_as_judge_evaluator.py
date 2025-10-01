@@ -27,16 +27,23 @@ from .base_evaluator import (
     BaseEvaluatorConfig,
 )
 
+T = TypeVar("T", bound=BaseEvaluationCriteria)
 
-class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig):
-    """Base config for all LLM evaluators."""
+
+class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
+    """Base config for all LLM evaluators.
+
+    Generic over T (evaluation criteria type) to ensure type safety between
+    the config's default_evaluation_criteria and the evaluator's expected criteria type.
+    """
 
     prompt: str
     model: str
+    temperature: float = 0.0
+    max_tokens: int | None = None
 
 
-T = TypeVar("T", bound=BaseEvaluationCriteria)
-C = TypeVar("C", bound=BaseLLMJudgeEvaluatorConfig)
+C = TypeVar("C", bound=BaseLLMJudgeEvaluatorConfig[Any])
 
 
 class LLMJudgeMixin(BaseEvaluator[T, C, str]):
@@ -146,6 +153,8 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
                     "schema": self.output_schema.model_json_schema(),
                 },
             },
+            "max_tokens": self.evaluator_config.max_tokens,
+            "temperature": self.evaluator_config.temperature,
         }
 
         assert self.llm_service is not None, "LLM service not initialized"

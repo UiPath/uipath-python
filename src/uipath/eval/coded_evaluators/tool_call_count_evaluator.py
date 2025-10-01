@@ -23,12 +23,13 @@ class ToolCallCountEvaluationCriteria(BaseEvaluationCriteria):
     tool_calls_count: dict[str, tuple[str, int]]
 
 
-class ToolCallCountEvaluatorConfig(BaseEvaluatorConfig):
+class ToolCallCountEvaluatorConfig(
+    BaseEvaluatorConfig[ToolCallCountEvaluationCriteria]
+):
     """Configuration for the tool call count evaluator."""
 
     name: str = "ToolCallCountEvaluator"
     strict: bool = False
-    default_evaluation_criteria: ToolCallCountEvaluationCriteria | None = None
 
 
 class ToolCallCountEvaluatorJustification(BaseEvaluatorJustification):
@@ -49,6 +50,11 @@ class ToolCallCountEvaluator(
     This evaluator returns a score based on how well the actual tool call counts
     match the expected counts specified in the criteria.
     """
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-tool-call-count"
 
     async def evaluate(
         self,

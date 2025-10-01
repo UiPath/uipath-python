@@ -21,12 +21,13 @@ class ToolCallOrderEvaluationCriteria(BaseEvaluationCriteria):
     tool_calls_order: list[str]
 
 
-class ToolCallOrderEvaluatorConfig(BaseEvaluatorConfig):
+class ToolCallOrderEvaluatorConfig(
+    BaseEvaluatorConfig[ToolCallOrderEvaluationCriteria]
+):
     """Configuration for the tool call count evaluator."""
 
     name: str = "ToolCallOrderEvaluator"
     strict: bool = False
-    default_evaluation_criteria: ToolCallOrderEvaluationCriteria | None = None
 
 
 class ToolCallOrderEvaluatorJustification(BaseEvaluatorJustification):
@@ -48,6 +49,11 @@ class ToolCallOrderEvaluator(
 
     This evaluator returns True if the tool calls are in the correct order, and False otherwise.
     """
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return "uipath-tool-call-order"
 
     async def evaluate(
         self,
