@@ -5,13 +5,16 @@ def extract_clean_error_message(
     error: Exception, default_message: str = "Execution error"
 ) -> str:
     """Extract a clean, user-friendly error message from an exception.
+
     This function handles common error patterns and formats them for display:
     - Validation errors: Extracts "Input should be..." messages
     - Agent execution errors: Removes prefixes and cleans up format
     - Generic errors: Returns the first line of the error message
+
     Args:
         error: The exception to extract the message from
         default_message: Fallback message if extraction fails
+
     Returns:
         A clean, user-friendly error message string
     """
