@@ -1,7 +1,5 @@
 import ast
-import hashlib
 import json
-from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
@@ -9,9 +7,6 @@ from typing import Any
 from opentelemetry.sdk.trace import ReadableSpan
 
 from ..models import (
-    AgentExecution,
-    EvaluationResult,
-    NumericEvaluationResult,
     ToolCall,
     ToolOutput,
 )
@@ -27,60 +22,6 @@ COMPARATOR_MAPPINGS = {
 }
 
 COMMUNITY_agents_SUFFIX = "-community-agents"
-
-
-def generate_datapoint_id(agent_execution: AgentExecution) -> str:
-    """Generate a collision-safe but readable datapoint ID from agent_input.
-
-    Creates a short, readable ID that includes meaningful content from the input
-    plus a hash suffix for collision safety.
-
-    Args:
-        agent_execution: The agent execution containing agent_input
-
-    Returns:
-        String datapoint ID in format: "readable_part_HASH"
-    """
-    if not agent_execution.agent_input:
-        # Handle empty input case
-        raw_input = "empty_input"
-    else:
-        # Convert agent_input to JSON string for hashing
-        raw_input = json.dumps(
-            agent_execution.agent_input, sort_keys=True, separators=(",", ":")
-        )
-
-    # Create readable part from input (first 30 chars, alphanumeric only)
-    readable_part = ""
-    if agent_execution.agent_input:
-        # Try to extract meaningful text from any string values in the dict
-        # Look through all values and find the first substantial string value
-        for value in agent_execution.agent_input.values():
-            if isinstance(value, str) and len(value.strip()) > 0:
-                # Use first non-empty string value
-                text = str(value).strip()
-                readable_part = "".join(c for c in text if c.isalnum() or c in " _-")
-                readable_part = readable_part.replace(" ", "_").lower()[:30]
-                if readable_part:  # Only use if we got something meaningful
-                    break
-
-        # If no meaningful string values found, try using the first key name
-        if not readable_part:
-            first_key = next(iter(agent_execution.agent_input.keys()), "")
-            if first_key:
-                readable_part = "".join(
-                    c for c in str(first_key) if c.isalnum() or c in "_"
-                )
-                readable_part = readable_part.lower()[:30]
-
-    # If no readable part found, use "datapoint" prefix
-    if not readable_part:
-        readable_part = "datapoint"
-
-    # Generate 8-character hash for collision safety
-    hash_part = hashlib.md5(raw_input.encode("utf-8")).hexdigest()[:8]
-
-    return f"{readable_part}_{hash_part}"
 
 
 def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
@@ -518,89 +459,3 @@ def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
             platform_history.append("")
 
     return "\n".join(platform_history)
-
-
-def calculate_final_score(
-    evaluation_results: list[EvaluationResult],
-    evaluator_weights: dict[str, float] | None = None,
-    default_weight: float = 1.0,
-) -> tuple[float, dict[str, float]]:
-    """Aggregate evaluation results with deduplication and weighted scoring.
-
-    Only NumericEvaluationResult can be aggregated, other types of results are ignored.
-
-    This function performs the following steps:
-    1. Deduplicates results by datapoint_id and evaluator_name (averages duplicates)
-    2. Calculates average score per evaluator across all datapoints
-    3. Computes final weighted score across evaluators
-
-    Args:
-        evaluation_results: List of EvaluationResult objects with datapoint_id and evaluator_name
-        evaluator_weights: Optional dict mapping evaluator names to weights
-
-    Returns:
-        Tuple of (final_score, agg_metrics_per_evaluator)
-        - final_score: Weighted average across evaluators
-        - agg_metrics_per_evaluator: Dict mapping evaluator names to their average scores
-    """
-    if not evaluation_results:
-        return 0.0, {}
-
-    if evaluator_weights is None:
-        evaluator_weights = {}
-
-    # Step 1: Group by datapoint_id and evaluator_name for deduplication
-    grouped_by_datapoint_evaluator = defaultdict(
-        lambda: defaultdict(list[NumericEvaluationResult])
-    )
-
-    for result in evaluation_results:
-        # Only NumericEvaluationResult can be aggregated
-        if isinstance(result, NumericEvaluationResult):
-            datapoint_id = result.datapoint_id or "unknown_datapoint"
-            evaluator_name = result.evaluator_name or "unknown_evaluator"
-            grouped_by_datapoint_evaluator[datapoint_id][evaluator_name].append(result)
-
-    # Step 2: Deduplicate by averaging same evaluator results for same datapoint
-    dedup_results: list[NumericEvaluationResult] = []
-    for datapoint_id, evaluators_dict in grouped_by_datapoint_evaluator.items():
-        for evaluator_name, results_list in evaluators_dict.items():
-            if results_list:
-                # Average the scores for this evaluator on this datapoint
-                avg_score = sum(r.score for r in results_list) / len(results_list)
-                # Create a representative result (use first result as template)
-                first_result = results_list[0]
-                dedup_result = type(first_result)(
-                    score=avg_score,
-                    datapoint_id=datapoint_id,
-                    evaluator_name=evaluator_name,
-                    details=first_result.details,
-                    evaluation_time=first_result.evaluation_time,
-                )
-                dedup_results.append(dedup_result)
-
-    # Step 3: Group by evaluator and calculate average score per evaluator
-    grouped_by_evaluator = defaultdict(list[NumericEvaluationResult])
-    for result in dedup_results:
-        grouped_by_evaluator[result.evaluator_name].append(result)
-
-    agg_metrics_per_evaluator = {}
-    for evaluator_name, results_list in grouped_by_evaluator.items():
-        avg_score = sum(r.score for r in results_list) / len(results_list)
-        agg_metrics_per_evaluator[evaluator_name] = avg_score
-
-    # Step 4: Calculate final weighted score
-    if not agg_metrics_per_evaluator:
-        return 0.0, {}
-
-    total_weighted_score = 0.0
-    total_weight = 0.0
-
-    for evaluator_name, avg_score in agg_metrics_per_evaluator.items():
-        weight = evaluator_weights.get(evaluator_name, default_weight)
-        total_weighted_score += avg_score * weight
-        total_weight += weight
-
-    final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
-
-    return final_score, agg_metrics_per_evaluator

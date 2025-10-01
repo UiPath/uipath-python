@@ -5,7 +5,6 @@ from typing import Any, Tuple
 
 from pydantic import Field
 
-from .._helpers.coded_evaluators_helpers import generate_datapoint_id
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from .output_evaluator import (
     OutputEvaluationCriteria,
@@ -63,8 +62,6 @@ class JsonSimilarityEvaluator(
         return NumericEvaluationResult(
             score=score,
             details=validated_justification,
-            evaluator_name=self.evaluator_config.name,
-            datapoint_id=generate_datapoint_id(agent_execution),
         )
 
     def _compare_json(self, expected: Any, actual: Any) -> tuple[float, str]:
