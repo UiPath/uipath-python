@@ -24,25 +24,27 @@ class DrillDownMixin:
         while True:
             self._clear_screen()
             console.info("📋 Eval Sets - Navigate & Select")
-            console.info("⌨️  Navigation: ↑↓ to navigate, Enter for details, q/Backspace to go back")
+            console.info(
+                "⌨️  Navigation: ↑↓ to navigate, Enter for details, q/Backspace to go back"
+            )
             console.info("─" * 65)
 
             for i, (name, path) in enumerate(self.eval_sets):
                 if i == current_selection:
-                    console.info(f"► {i+1}. {name} ◄")
+                    console.info(f"► {i + 1}. {name} ◄")
                     self._show_eval_set_preview(path)
                 else:
-                    console.info(f"  {i+1}. {name}")
+                    console.info(f"  {i + 1}. {name}")
 
             key = self._get_key_input()
 
-            if key in ['q', 'Q', 'back']:
+            if key in ["q", "Q", "back"]:
                 break
-            elif key == 'up':
+            elif key == "up":
                 current_selection = (current_selection - 1) % len(self.eval_sets)
-            elif key == 'down':
+            elif key == "down":
                 current_selection = (current_selection + 1) % len(self.eval_sets)
-            elif key in ['enter', ' ']:
+            elif key in ["enter", " "]:
                 self._show_eval_set_details(self.eval_sets[current_selection])
             elif key.isdigit() and 1 <= int(key) <= len(self.eval_sets):
                 current_selection = int(key) - 1
@@ -57,25 +59,27 @@ class DrillDownMixin:
         while True:
             self._clear_screen()
             console.info("⚙️  Evaluators - Navigate & Select")
-            console.info("⌨️  Navigation: ↑↓ to navigate, Enter for details, q/Backspace to go back")
+            console.info(
+                "⌨️  Navigation: ↑↓ to navigate, Enter for details, q/Backspace to go back"
+            )
             console.info("─" * 65)
 
             for i, (name, path) in enumerate(self.evaluators):
                 if i == current_selection:
-                    console.info(f"► {i+1}. {name} ◄")
+                    console.info(f"► {i + 1}. {name} ◄")
                     self._show_evaluator_preview(path)
                 else:
-                    console.info(f"  {i+1}. {name}")
+                    console.info(f"  {i + 1}. {name}")
 
             key = self._get_key_input()
 
-            if key in ['q', 'Q', 'back']:
+            if key in ["q", "Q", "back"]:
                 break
-            elif key == 'up':
+            elif key == "up":
                 current_selection = (current_selection - 1) % len(self.evaluators)
-            elif key == 'down':
+            elif key == "down":
                 current_selection = (current_selection + 1) % len(self.evaluators)
-            elif key in ['enter', ' ']:
+            elif key in ["enter", " "]:
                 self._show_evaluator_details(self.evaluators[current_selection])
             elif key.isdigit() and 1 <= int(key) <= len(self.evaluators):
                 current_selection = int(key) - 1

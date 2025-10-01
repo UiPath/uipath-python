@@ -25,7 +25,9 @@ class DiscoveryMixin:
                     with open(eval_file) as f:
                         data = json.load(f)
                     # Check if it's an eval set by presence of "evaluations" array
-                    if "evaluations" in data and isinstance(data.get("evaluations"), list):
+                    if "evaluations" in data and isinstance(
+                        data.get("evaluations"), list
+                    ):
                         name = data.get("name", eval_file.stem)
                         self.eval_sets.append((name, eval_file))
                 except Exception:

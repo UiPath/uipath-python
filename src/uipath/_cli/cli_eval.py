@@ -68,7 +68,9 @@ def _display_local_results(results_data):
             result = evaluator_result.get("result", {})
             score = result.get("score", 0.0)
             eval_time = result.get("evaluationTime", 0.0)
-            console.info(f"   └─ {evaluator_name}: {score:.1f}% ({eval_time*1000:.2f}ms)")
+            console.info(
+                f"   └─ {evaluator_name}: {score:.1f}% ({eval_time * 1000:.2f}ms)"
+            )
 
     console.info(f"\n🎯 Summary: {int(passed_count)}/{total_count} tests passed")
     if overall_score == 100.0:
@@ -140,6 +142,7 @@ def eval(
     if interactive:
         try:
             from ._interactive import launch_interactive_cli
+
             launch_interactive_cli()
             return
         except ImportError as e:

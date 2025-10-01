@@ -29,13 +29,19 @@ class ExecutionMixin:
 
         # Build command - run from the project directory
         cmd = [
-            sys.executable, "-m", "uipath._cli.cli_eval",
+            sys.executable,
+            "-m",
+            "uipath._cli.cli_eval",
             str(main_py.relative_to(self.project_root)),
             str(eval_path.relative_to(self.project_root)),
-            "--no-report", "--workers", "1"
+            "--no-report",
+            "--workers",
+            "1",
         ]
 
-        console.info(f"💻 Command: uipath eval {main_py.name} {eval_path.name} --no-report")
+        console.info(
+            f"💻 Command: uipath eval {main_py.name} {eval_path.name} --no-report"
+        )
 
         try:
             # Run with real-time output from project directory
@@ -46,7 +52,7 @@ class ExecutionMixin:
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
-                cwd=self.project_root
+                cwd=self.project_root,
             )
 
             # Stream output in real-time
@@ -59,12 +65,16 @@ class ExecutionMixin:
             if process.returncode == 0:
                 console.success("\n✅ Evaluation completed successfully!")
             else:
-                console.error(f"\n❌ Evaluation failed (exit code: {process.returncode})")
+                console.error(
+                    f"\n❌ Evaluation failed (exit code: {process.returncode})"
+                )
 
         except Exception as e:
             console.error(f"Failed to run evaluation: {e}")
 
-    def _execute_evaluation_no_clear(self: "InteractiveEvalCLI", eval_path: Path) -> None:
+    def _execute_evaluation_no_clear(
+        self: "InteractiveEvalCLI", eval_path: Path
+    ) -> None:
         """Execute evaluation without clearing screen."""
         console.info("\n🚀 Running evaluation...")
 
@@ -77,13 +87,19 @@ class ExecutionMixin:
 
         # Build command - run from the project directory
         cmd = [
-            sys.executable, "-m", "uipath._cli.cli_eval",
+            sys.executable,
+            "-m",
+            "uipath._cli.cli_eval",
             str(main_py.relative_to(self.project_root)),
             str(eval_path.relative_to(self.project_root)),
-            "--no-report", "--workers", "1"
+            "--no-report",
+            "--workers",
+            "1",
         ]
 
-        console.info(f"💻 Command: uipath eval {main_py.name} {eval_path.name} --no-report")
+        console.info(
+            f"💻 Command: uipath eval {main_py.name} {eval_path.name} --no-report"
+        )
 
         try:
             # Run with real-time output from project directory
@@ -94,7 +110,7 @@ class ExecutionMixin:
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
-                cwd=self.project_root
+                cwd=self.project_root,
             )
 
             # Stream output in real-time
@@ -107,7 +123,9 @@ class ExecutionMixin:
             if process.returncode == 0:
                 console.success("\n✅ Evaluation completed successfully!")
             else:
-                console.error(f"\n❌ Evaluation failed (exit code: {process.returncode})")
+                console.error(
+                    f"\n❌ Evaluation failed (exit code: {process.returncode})"
+                )
 
         except Exception as e:
             console.error(f"Failed to run evaluation: {e}")
@@ -132,4 +150,4 @@ class ExecutionMixin:
     def _confirm(self: "InteractiveEvalCLI", prompt: str) -> bool:
         """Ask for confirmation."""
         response = self._get_input(f"{prompt} (y/n): ").lower()
-        return response in ['y', 'yes']
+        return response in ["y", "yes"]

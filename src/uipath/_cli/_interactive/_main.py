@@ -20,7 +20,7 @@ class InteractiveEvalCLI(
     EvalSetMixin,
     EvaluatorMixin,
     ExecutionMixin,
-    DrillDownMixin
+    DrillDownMixin,
 ):
     """Simple, fast, keyboard-driven evaluation CLI."""
 
@@ -35,7 +35,7 @@ class InteractiveEvalCLI(
             "⚡ Quick run (auto-select)",
             "➕ Create eval set",
             "➕ Create evaluator",
-            "🎯 Run specific combination"
+            "🎯 Run specific combination",
         ]
         self._discover_files()
 
@@ -44,7 +44,9 @@ class InteractiveEvalCLI(
         self._show_ascii_art()
 
         if not HAS_NAVIGATION:
-            console.warning("⚠️  Terminal navigation not available. Using fallback mode.")
+            console.warning(
+                "⚠️  Terminal navigation not available. Using fallback mode."
+            )
             console.info("Consider using a standard terminal for better experience.\n")
             self._run_fallback_mode()
             return
@@ -63,11 +65,15 @@ class InteractiveEvalCLI(
 
             key = self._get_key_input()
 
-            if key == 'up':
-                self.current_selection = (self.current_selection - 1) % len(self.menu_items)
-            elif key == 'down':
-                self.current_selection = (self.current_selection + 1) % len(self.menu_items)
-            elif key in ['enter', ' ']:
+            if key == "up":
+                self.current_selection = (self.current_selection - 1) % len(
+                    self.menu_items
+                )
+            elif key == "down":
+                self.current_selection = (self.current_selection + 1) % len(
+                    self.menu_items
+                )
+            elif key in ["enter", " "]:
                 self._execute_menu_item_with_navigation(self.current_selection)
             elif key.isdigit() and 1 <= int(key) <= 6:
                 self._execute_menu_item_with_navigation(int(key) - 1)
@@ -98,20 +104,20 @@ class InteractiveEvalCLI(
             try:
                 choice = input("\n➤ Select option: ").strip()
 
-                if choice == '0':
+                if choice == "0":
                     console.info("👋 Goodbye!")
                     break
-                elif choice == '1':
+                elif choice == "1":
                     self._list_eval_sets_navigation()
-                elif choice == '2':
+                elif choice == "2":
                     self._list_evaluators()
-                elif choice == '3':
+                elif choice == "3":
                     self._quick_run()
-                elif choice == '4':
+                elif choice == "4":
                     self._create_eval_set_simple()
-                elif choice == '5':
+                elif choice == "5":
                     self._create_evaluator_simple()
-                elif choice == '6':
+                elif choice == "6":
                     self._run_specific_combination()
                 else:
                     console.warning("Invalid option")

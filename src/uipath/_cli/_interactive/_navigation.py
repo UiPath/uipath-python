@@ -45,33 +45,33 @@ class NavigationMixin:
             char = sys.stdin.read(1)
 
             # Check for escape sequences (arrow keys)
-            if char == '\x1b':  # ESC
+            if char == "\x1b":  # ESC
                 next_char = sys.stdin.read(1)
-                if next_char == '[':
+                if next_char == "[":
                     arrow = sys.stdin.read(1)
-                    if arrow == 'A':
-                        return 'up'
-                    elif arrow == 'B':
-                        return 'down'
-                return ''
+                    if arrow == "A":
+                        return "up"
+                    elif arrow == "B":
+                        return "down"
+                return ""
 
             # Backspace handling
-            if char == '\x7f':  # Backspace (DEL)
-                return 'back'
-            elif char == '\x08':  # Backspace (BS)
-                return 'back'
+            if char == "\x7f":  # Backspace (DEL)
+                return "back"
+            elif char == "\x08":  # Backspace (BS)
+                return "back"
 
             # Enter key
-            if char in ['\r', '\n']:
-                return 'enter'
+            if char in ["\r", "\n"]:
+                return "enter"
 
             # Digit keys
             elif char.isdigit() and 1 <= int(char) <= 6:
                 return char
-            elif char == '\x03':  # Ctrl+C
+            elif char == "\x03":  # Ctrl+C
                 raise KeyboardInterrupt
 
-            return ''
+            return ""
         except Exception:
             return input("➤ ").strip().lower()
         finally:

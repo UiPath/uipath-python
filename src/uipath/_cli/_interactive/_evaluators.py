@@ -35,8 +35,8 @@ class EvaluatorMixin:
             "category": 0,
             "type": 1,
             "targetOutputKey": "*",
-            "createdAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-            "updatedAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "updatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
 
         # Ensure evaluators directory exists
@@ -47,7 +47,7 @@ class EvaluatorMixin:
         filename = f"{name.lower().replace(' ', '_')}.json"
         file_path = evaluators_dir / filename
 
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             json.dump(evaluator, f, indent=2)
 
         console.success(f"✅ Created evaluator: {filename}")
@@ -75,7 +75,7 @@ class EvaluatorMixin:
             0: "Deterministic",
             1: "LLM as Judge",
             2: "Agent Scorer",
-            3: "Trajectory"
+            3: "Trajectory",
         }
 
         for key, value in categories.items():
@@ -91,14 +91,25 @@ class EvaluatorMixin:
         # Type Selection
         console.info(f"\n🎯 Type Selection (Category: {categories[category]})")
         types = {
-            0: "Unknown", 1: "Exact Match", 2: "Contains", 3: "Regex",
-            4: "Factuality", 5: "Custom", 6: "JSON Similarity", 7: "Trajectory"
+            0: "Unknown",
+            1: "Exact Match",
+            2: "Contains",
+            3: "Regex",
+            4: "Factuality",
+            5: "Custom",
+            6: "JSON Similarity",
+            7: "Trajectory",
         }
 
         # Show relevant types based on category
         relevant_types = []
         if category == 0:  # Deterministic
-            relevant_types = [1, 2, 3, 6]  # Exact Match, Contains, Regex, JSON Similarity
+            relevant_types = [
+                1,
+                2,
+                3,
+                6,
+            ]  # Exact Match, Contains, Regex, JSON Similarity
         elif category == 1:  # LLM as Judge
             relevant_types = [4, 5]  # Factuality, Custom
         elif category == 3:  # Trajectory
@@ -110,7 +121,10 @@ class EvaluatorMixin:
             console.info(f"  {type_id}. {types[type_id]}")
 
         try:
-            eval_type = int(input(f"➤ Select Type ({', '.join(map(str, relevant_types))}): ") or str(relevant_types[0]))
+            eval_type = int(
+                input(f"➤ Select Type ({', '.join(map(str, relevant_types))}): ")
+                or str(relevant_types[0])
+            )
             if eval_type not in relevant_types:
                 eval_type = relevant_types[0]
         except (ValueError, IndexError):
@@ -118,7 +132,9 @@ class EvaluatorMixin:
 
         # Target Output Key
         console.info("\n🔍 Target Configuration")
-        console.info("Target Output Key determines which part of the output to evaluate")
+        console.info(
+            "Target Output Key determines which part of the output to evaluate"
+        )
         console.info("Examples: '*' (all), 'result', 'answer', 'output'")
         target_key = input("➤ Target Output Key (default: '*'): ").strip() or "*"
 
@@ -130,8 +146,8 @@ class EvaluatorMixin:
             "category": category,
             "type": eval_type,
             "targetOutputKey": target_key,
-            "createdAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-            "updatedAt": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "updatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
 
         # LLM Configuration (if LLM as Judge)
@@ -148,7 +164,7 @@ class EvaluatorMixin:
                     "modelName": model_name,
                     "prompt": prompt,
                     "temperature": 0.0,
-                    "maxTokens": 1000
+                    "maxTokens": 1000,
                 }
 
         # Ensure evaluators directory exists
@@ -160,7 +176,7 @@ class EvaluatorMixin:
         file_path = evaluators_dir / filename
 
         try:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 json.dump(evaluator, f, indent=2)
 
             console.success(f"\n✅ Created evaluator: {filename}")
@@ -205,7 +221,9 @@ class EvaluatorMixin:
         except Exception:
             console.info(f"    📄 {path.name} (error loading)")
 
-    def _show_evaluator_details(self: "InteractiveEvalCLI", evaluator_tuple: tuple[str, Path]) -> None:
+    def _show_evaluator_details(
+        self: "InteractiveEvalCLI", evaluator_tuple: tuple[str, Path]
+    ) -> None:
         """Show detailed evaluator view."""
         name, path = evaluator_tuple
         self._clear_screen()
@@ -219,17 +237,19 @@ class EvaluatorMixin:
             console.info(f"\n📄 {path.name}")
             console.info(f"🆔 ID: {data.get('id', 'Unknown')}")
             console.info(f"📝 Description: {data.get('description', 'No description')}")
-            console.info(f"🏷️  Category: {self._get_category_name(data.get('category', 0))}")
+            console.info(
+                f"🏷️  Category: {self._get_category_name(data.get('category', 0))}"
+            )
             console.info(f"🎯 Type: {self._get_type_name(data.get('type', 1))}")
             console.info(f"🔍 Target Key: {data.get('targetOutputKey', '*')}")
 
-            if 'llmConfig' in data:
-                llm_config = data['llmConfig']
+            if "llmConfig" in data:
+                llm_config = data["llmConfig"]
                 console.info("\n🤖 LLM Configuration:")
                 console.info(f"   Model: {llm_config.get('modelName', 'Unknown')}")
-                if 'prompt' in llm_config:
-                    prompt_preview = llm_config['prompt'][:100]
-                    if len(llm_config['prompt']) > 100:
+                if "prompt" in llm_config:
+                    prompt_preview = llm_config["prompt"][:100]
+                    if len(llm_config["prompt"]) > 100:
                         prompt_preview += "..."
                     console.info(f"   Prompt: {prompt_preview}")
 
@@ -245,7 +265,7 @@ class EvaluatorMixin:
             0: "Deterministic",
             1: "LLM as Judge",
             2: "Agent Scorer",
-            3: "Trajectory"
+            3: "Trajectory",
         }
         return categories.get(category, "Unknown")
 
@@ -259,7 +279,7 @@ class EvaluatorMixin:
             4: "Factuality",
             5: "Custom",
             6: "JSON Similarity",
-            7: "Trajectory"
+            7: "Trajectory",
         }
         return types.get(eval_type, "Unknown")
 
