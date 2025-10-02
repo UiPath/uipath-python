@@ -6,7 +6,7 @@ in UiPathEvalOutput.calculate_final_score().
 
 import pytest
 
-from src.uipath._cli._evals._models._output import (
+from uipath._cli._evals._models._output import (
     EvaluationResultDto,
     EvaluationRunResult,
     EvaluationRunResultDto,

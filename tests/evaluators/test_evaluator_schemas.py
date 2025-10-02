@@ -10,43 +10,43 @@ This module tests:
 import pytest
 from pytest_mock.plugin import MockerFixture
 
-from src.uipath.eval.coded_evaluators.exact_match_evaluator import (
+from uipath.eval.coded_evaluators.exact_match_evaluator import (
     ExactMatchEvaluator,
     ExactMatchEvaluatorConfig,
 )
-from src.uipath.eval.coded_evaluators.json_similarity_evaluator import (
+from uipath.eval.coded_evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
     JsonSimilarityEvaluatorConfig,
 )
-from src.uipath.eval.coded_evaluators.llm_as_judge_evaluator import (
+from uipath.eval.coded_evaluators.llm_as_judge_evaluator import (
     LLMJudgeMixin,
 )
-from src.uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
+from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
     LLMJudgeOutputEvaluator,
     LLMJudgeOutputEvaluatorConfig,
 )
-from src.uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
+from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluator,
 )
-from src.uipath.eval.coded_evaluators.output_evaluator import (
+from uipath.eval.coded_evaluators.output_evaluator import (
     OutputEvaluationCriteria,
 )
-from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
     ToolCallArgsEvaluationCriteria,
     ToolCallArgsEvaluator,
     ToolCallArgsEvaluatorConfig,
 )
-from src.uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
     ToolCallCountEvaluationCriteria,
     ToolCallCountEvaluator,
     ToolCallCountEvaluatorConfig,
 )
-from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluationCriteria,
     ToolCallOrderEvaluator,
     ToolCallOrderEvaluatorConfig,
 )
-from src.uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluationCriteria,
     ToolCallOutputEvaluator,
     ToolCallOutputEvaluatorConfig,
@@ -234,7 +234,7 @@ class TestJustificationSchemas:
     def test_tool_call_order_evaluator_justification_schema(self) -> None:
         """Test ToolCallOrderEvaluator justification schema generation."""
         # Test justification type extraction - tool call evaluators have their own justification types
-        from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+        from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
             ToolCallOrderEvaluatorJustification,
         )
 
@@ -244,7 +244,7 @@ class TestJustificationSchemas:
     def test_tool_call_count_evaluator_justification_schema(self) -> None:
         """Test ToolCallCountEvaluator justification schema generation."""
         # Test justification type extraction - tool call evaluators have their own justification types
-        from src.uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+        from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
             ToolCallCountEvaluatorJustification,
         )
 
@@ -254,7 +254,7 @@ class TestJustificationSchemas:
     def test_tool_call_args_evaluator_justification_schema(self) -> None:
         """Test ToolCallArgsEvaluator justification schema generation."""
         # Test justification type extraction - tool call evaluators have their own justification types
-        from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+        from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
             ToolCallArgsEvaluatorJustification,
         )
 
@@ -264,7 +264,7 @@ class TestJustificationSchemas:
     def test_tool_call_output_evaluator_justification_schema(self) -> None:
         """Test ToolCallOutputEvaluator justification schema generation."""
         # Test justification type extraction - tool call evaluators have their own justification types
-        from src.uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+        from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
             ToolCallOutputEvaluatorJustification,
         )
 
