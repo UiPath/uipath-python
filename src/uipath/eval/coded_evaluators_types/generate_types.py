@@ -11,9 +11,8 @@ def generate_evaluator_json_types(
     write_to_file: bool = False, indent: int | str | None = None
 ) -> dict[str, Any]:
     """Generate the JSON types for all evaluators."""
-    OUTPUT_PATH = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "coded_evaluators_types"
-    )
+    OUTPUT_PATH = os.path.dirname(os.path.abspath(__file__))
+
     os.makedirs(OUTPUT_PATH, exist_ok=True)
 
     evaluator_json_types = {}
