@@ -6,7 +6,7 @@ coded evaluators to ensure consistent behavior and proper justification structur
 
 import pytest
 
-from src.uipath.eval._helpers.coded_evaluators_helpers import (
+from uipath.eval._helpers.coded_evaluators_helpers import (
     extract_tool_calls,
     extract_tool_calls_names,
     extract_tool_calls_outputs,
@@ -15,7 +15,7 @@ from src.uipath.eval._helpers.coded_evaluators_helpers import (
     tool_calls_order_score,
     tool_calls_output_score,
 )
-from src.uipath.eval.models.models import ToolCall, ToolOutput
+from uipath.eval.models.models import ToolCall, ToolOutput
 
 
 class TestToolCallsOrderScore:

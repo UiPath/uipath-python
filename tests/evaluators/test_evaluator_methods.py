@@ -16,37 +16,37 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from pytest_mock.plugin import MockerFixture
 
-from src.uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEvaluator
-from src.uipath.eval.coded_evaluators.json_similarity_evaluator import (
+from uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEvaluator
+from uipath.eval.coded_evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
 )
-from src.uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
+from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
     LLMJudgeOutputEvaluator,
 )
-from src.uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
+from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluator,
     TrajectoryEvaluationCriteria,
 )
-from src.uipath.eval.coded_evaluators.output_evaluator import OutputEvaluationCriteria
-from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+from uipath.eval.coded_evaluators.output_evaluator import OutputEvaluationCriteria
+from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
     ToolCallArgsEvaluationCriteria,
     ToolCallArgsEvaluator,
 )
-from src.uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
     ToolCallCountEvaluationCriteria,
     ToolCallCountEvaluator,
 )
-from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluationCriteria,
     ToolCallOrderEvaluator,
 )
-from src.uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluationCriteria,
     ToolCallOutputEvaluator,
     ToolCallOutputEvaluatorJustification,
 )
-from src.uipath.eval.models import NumericEvaluationResult
-from src.uipath.eval.models.models import AgentExecution, ToolCall, ToolOutput
+from uipath.eval.models import NumericEvaluationResult
+from uipath.eval.models.models import AgentExecution, ToolCall, ToolOutput
 
 
 @pytest.fixture
@@ -1245,16 +1245,16 @@ class TestJustificationHandling:
         )  # String justification
 
         # Tool call evaluators have their own justification types
-        from src.uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+        from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
             ToolCallArgsEvaluatorJustification,
         )
-        from src.uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+        from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
             ToolCallCountEvaluatorJustification,
         )
-        from src.uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+        from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
             ToolCallOrderEvaluatorJustification,
         )
-        from src.uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+        from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
             ToolCallOutputEvaluatorJustification,
         )
 
