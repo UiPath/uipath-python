@@ -525,6 +525,7 @@ class UiPathBaseRuntime(ABC):
             dir=self.context.runtime_dir,
             file=self.context.logs_file,
             job_id=self.context.job_id,
+            execution_id=self.context.execution_id,
             is_debug_run=self.is_debug_run(),
             log_handler=self.context.log_handler,
         )
