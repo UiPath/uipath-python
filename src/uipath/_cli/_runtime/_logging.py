@@ -1,7 +1,13 @@
 import logging
 import os
 import sys
+from contextvars import ContextVar
 from typing import Optional, TextIO, Union, cast
+
+# Context variable to track current execution_id
+current_execution_id: ContextVar[Optional[str]] = ContextVar(
+    "current_execution_id", default=None
+)
 
 
 class PersistentLogsHandler(logging.FileHandler):
@@ -20,6 +26,30 @@ class PersistentLogsHandler(logging.FileHandler):
         self.setFormatter(self.formatter)
 
 
+class ExecutionContextFilter(logging.Filter):
+    """Filter that only allows logs from a specific execution context."""
+
+    def __init__(self, execution_id: str):
+        super().__init__()
+        self.execution_id = execution_id
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Allow logs that have matching execution_id attribute or context."""
+        # First check if record has execution_id attribute
+        record_execution_id = getattr(record, "execution_id", None)
+        if record_execution_id == self.execution_id:
+            return True
+
+        # Fall back to context variable
+        ctx_execution_id = current_execution_id.get()
+        if ctx_execution_id == self.execution_id:
+            # Inject execution_id into record for downstream handlers
+            record.execution_id = self.execution_id
+            return True
+
+        return False
+
+
 class LogsInterceptor:
     """Intercepts all logging and stdout/stderr, routing to either persistent log files or stdout based on whether it's running as a job or not."""
 
@@ -31,6 +61,7 @@ class LogsInterceptor:
         job_id: Optional[str] = None,
         is_debug_run: bool = False,
         log_handler: Optional[logging.Handler] = None,
+        execution_id: Optional[str] = None,
     ):
         """Initialize the log interceptor.
 
@@ -41,9 +72,11 @@ class LogsInterceptor:
             job_id (str, optional): If provided, logs go to file; otherwise, to stdout.
             is_debug_run (bool, optional): If True, log the output to stdout/stderr.
             log_handler (logging.Handler, optional): Custom log handler to use.
+            execution_id (str, optional): Unique identifier for this execution context.
         """
         min_level = min_level or "INFO"
         self.job_id = job_id
+        self.execution_id = execution_id
 
         # Convert to numeric level for consistent comparison
         self.numeric_min_level = getattr(logging, min_level.upper(), logging.INFO)
@@ -81,6 +114,12 @@ class LogsInterceptor:
                 self.log_handler = PersistentLogsHandler(file=log_file)
 
         self.log_handler.setLevel(self.numeric_min_level)
+
+        # Add execution context filter if execution_id provided
+        if execution_id:
+            self.execution_filter = ExecutionContextFilter(execution_id)
+            self.log_handler.addFilter(self.execution_filter)
+
         self.logger = logging.getLogger("runtime")
         self.patched_loggers: set[str] = set()
 
@@ -95,22 +134,37 @@ class LogsInterceptor:
 
     def setup(self) -> None:
         """Configure logging to use our persistent handler."""
-        # Use global disable to prevent all logging below our minimum level
-        if self.numeric_min_level > logging.NOTSET:
+        # Set the context variable for this execution
+        if self.execution_id:
+            current_execution_id.set(self.execution_id)
+
+        # Only use global disable if we're not in a parallel execution context
+        if not self.execution_id and self.numeric_min_level > logging.NOTSET:
             logging.disable(self.numeric_min_level - 1)
 
         # Set root logger level
         self.root_logger.setLevel(self.numeric_min_level)
 
-        # Remove ALL handlers from root logger and add only ours
-        self._clean_all_handlers(self.root_logger)
+        if self.execution_id:
+            # Parallel execution mode: add our handler without removing others
+            if self.log_handler not in self.root_logger.handlers:
+                self.root_logger.addHandler(self.log_handler)
 
-        # Set up propagation for all existing loggers
-        for logger_name in logging.root.manager.loggerDict:
-            logger = logging.getLogger(logger_name)
-            logger.propagate = False  # Prevent double-logging
-            self._clean_all_handlers(logger)
-            self.patched_loggers.add(logger_name)
+            # Set up propagation for all existing loggers
+            for logger_name in logging.root.manager.loggerDict:
+                logger = logging.getLogger(logger_name)
+                # Keep propagation enabled so logs flow to all handlers
+                self.patched_loggers.add(logger_name)
+        else:
+            # Single execution mode: remove all handlers and add only ours
+            self._clean_all_handlers(self.root_logger)
+
+            # Set up propagation for all existing loggers
+            for logger_name in logging.root.manager.loggerDict:
+                logger = logging.getLogger(logger_name)
+                logger.propagate = False  # Prevent double-logging
+                self._clean_all_handlers(logger)
+                self.patched_loggers.add(logger_name)
 
         # Set up stdout/stderr redirection
         self._redirect_stdout_stderr()
@@ -130,7 +184,7 @@ class LogsInterceptor:
                 self.level = level
                 self.min_level = min_level
                 self.buffer = ""
-                self.sys_file = sys_file  # Store reference to system stdout/stderr
+                self.sys_file = sys_file
 
             def write(self, message: str) -> None:
                 self.buffer += message
@@ -138,7 +192,7 @@ class LogsInterceptor:
                     line, self.buffer = self.buffer.split("\n", 1)
                     # Only log if the message is not empty and the level is sufficient
                     if line and self.level >= self.min_level:
-                        # Use _log to avoid potential recursive logging if logging methods are overridden
+                        # The context variable is automatically available here
                         self.logger._log(self.level, line, ())
 
             def flush(self) -> None:
@@ -160,14 +214,21 @@ class LogsInterceptor:
             def writable(self) -> bool:
                 return True
 
-        # Set up stdout and stderr loggers with propagate=False
+        # Set up stdout and stderr loggers
         stdout_logger = logging.getLogger("stdout")
-        stdout_logger.propagate = False
-        self._clean_all_handlers(stdout_logger)
-
         stderr_logger = logging.getLogger("stderr")
+
+        stdout_logger.propagate = False
         stderr_logger.propagate = False
-        self._clean_all_handlers(stderr_logger)
+
+        if self.execution_id:
+            if self.log_handler not in stdout_logger.handlers:
+                stdout_logger.addHandler(self.log_handler)
+            if self.log_handler not in stderr_logger.handlers:
+                stderr_logger.addHandler(self.log_handler)
+        else:
+            self._clean_all_handlers(stdout_logger)
+            self._clean_all_handlers(stderr_logger)
 
         # Use the min_level in the LoggerWriter to filter messages
         sys.stdout = LoggerWriter(
@@ -179,21 +240,41 @@ class LogsInterceptor:
 
     def teardown(self) -> None:
         """Restore original logging configuration."""
+        # Clear the context variable
+        if self.execution_id:
+            current_execution_id.set(None)
+
         # Restore the original disable level
-        logging.disable(self.original_disable_level)
+        if not self.execution_id:
+            logging.disable(self.original_disable_level)
 
-        if self.log_handler in self.root_logger.handlers:
-            self.root_logger.removeHandler(self.log_handler)
+        # Remove our handler and filter
+        if self.execution_id:
+            if hasattr(self, "execution_filter"):
+                self.log_handler.removeFilter(self.execution_filter)
+            if self.log_handler in self.root_logger.handlers:
+                self.root_logger.removeHandler(self.log_handler)
 
-        for logger_name in self.patched_loggers:
-            logger = logging.getLogger(logger_name)
-            if self.log_handler in logger.handlers:
-                logger.removeHandler(self.log_handler)
+            # Remove from stdout/stderr loggers too
+            stdout_logger = logging.getLogger("stdout")
+            stderr_logger = logging.getLogger("stderr")
+            if self.log_handler in stdout_logger.handlers:
+                stdout_logger.removeHandler(self.log_handler)
+            if self.log_handler in stderr_logger.handlers:
+                stderr_logger.removeHandler(self.log_handler)
+        else:
+            if self.log_handler in self.root_logger.handlers:
+                self.root_logger.removeHandler(self.log_handler)
 
-        self.root_logger.setLevel(self.original_level)
-        for handler in self.original_handlers:
-            if handler not in self.root_logger.handlers:
-                self.root_logger.addHandler(handler)
+            for logger_name in self.patched_loggers:
+                logger = logging.getLogger(logger_name)
+                if self.log_handler in logger.handlers:
+                    logger.removeHandler(self.log_handler)
+
+            self.root_logger.setLevel(self.original_level)
+            for handler in self.original_handlers:
+                if handler not in self.root_logger.handlers:
+                    self.root_logger.addHandler(handler)
 
         self.log_handler.close()
 
