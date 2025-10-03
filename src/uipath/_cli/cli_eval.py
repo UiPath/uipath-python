@@ -102,13 +102,9 @@ def eval(
     if result.should_continue:
         event_bus = EventBus()
 
-        # Set up progress reporters
         if not no_report:
             progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
-
-        # Set up console progress reporter
-        console_reporter = None
 
         def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
             runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
@@ -138,6 +134,7 @@ def eval(
             logging.getLogger("httpx").setLevel(logging.WARNING)
             logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
 
+        console_reporter = None
         if logs_min_level <= logging.INFO:
             console_reporter = ConsoleProgressReporter()
             asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))

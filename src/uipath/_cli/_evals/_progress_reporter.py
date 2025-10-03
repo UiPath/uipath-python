@@ -83,7 +83,7 @@ class StudioWebProgressReporter:
 
     def _format_error_message(self, error: Exception, context: str) -> None:
         """Helper method to format and display error messages consistently."""
-        self._rich_console.print(f"    • ⚠️  [dim]{context}: {error}[/dim]")
+        self._rich_console.print(f"    • \u26a0  [dim]{context}: {error}[/dim]")
 
     @gracefully_handle_errors
     async def create_eval_set_run(
