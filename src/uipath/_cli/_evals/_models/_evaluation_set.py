@@ -5,6 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
+class EvaluationSimulationTool(BaseModel):
+    name: str = Field(..., alias="name")
+
+
 class EvaluationItem(BaseModel):
     """Individual evaluation item within an evaluation set."""
 
@@ -14,15 +18,19 @@ class EvaluationItem(BaseModel):
     name: str
     inputs: Dict[str, Any]
     expected_output: Dict[str, Any]
-    expected_agent_behavior: str = ""
-    simulation_instructions: str = ""
-    simulate_input: bool = False
-    input_generation_instructions: str = ""
-    simulate_tools: bool = False
-    tools_to_simulate: List[str] = Field(default_factory=list)
-    eval_set_id: str
-    created_at: str
-    updated_at: str
+    expected_agent_behavior: str = Field(default="", alias="expectedAgentBehavior")
+    simulation_instructions: str = Field(default="", alias="simulationInstructions")
+    simulate_input: bool = Field(default=False, alias="simulateInput")
+    input_generation_instructions: str = Field(
+        default="", alias="inputGenerationInstructions"
+    )
+    simulate_tools: bool = Field(default=False, alias="simulateTools")
+    tools_to_simulate: List[EvaluationSimulationTool] = Field(
+        default_factory=list, alias="toolsToSimulate"
+    )
+    eval_set_id: str = Field(alias="evalSetId")
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
 
 
 class EvaluationSet(BaseModel):
@@ -31,15 +39,17 @@ class EvaluationSet(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     id: str
-    file_name: str
+    file_name: str = Field(..., alias="fileName")
     evaluator_refs: List[str] = Field(default_factory=list)
     evaluations: List[EvaluationItem] = Field(default_factory=list)
     name: str
-    batch_size: int = 10
-    timeout_minutes: int = 20
-    model_settings: List[Dict[str, Any]] = Field(default_factory=list)
-    created_at: str
-    updated_at: str
+    batch_size: int = Field(10, alias="batchSize")
+    timeout_minutes: int = Field(default=20, alias="timeoutMinutes")
+    model_settings: List[Dict[str, Any]] = Field(
+        default_factory=list, alias="modelSettings"
+    )
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[EvaluationItem] = []
