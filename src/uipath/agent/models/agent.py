@@ -309,12 +309,14 @@ class BaseAgentDefinition(BaseModel):
     resources: List[AgentResourceConfig] = Field(
         ..., description="List of tools, context, and escalation resources"
     )
-    evaluation_sets: List[EvaluationSet] = Field(
-        ...,
+    evaluation_sets: Optional[List[EvaluationSet]] = Field(
+        None,
         alias="evaluationSets",
         description="List of agent evaluation sets",
     )
-    evaluators: List[Evaluator] = Field(..., description="List of agent evaluators")
+    evaluators: Optional[List[Evaluator]] = Field(
+        None, description="List of agent evaluators"
+    )
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
