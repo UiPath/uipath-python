@@ -7,6 +7,7 @@ from httpx import HTTPStatusError, Request
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from .._utils.constants import ENV_BASE_URL
+from ..models.auth import TokenData
 from ..models.exceptions import EnrichedException
 
 
@@ -75,7 +76,7 @@ class ExternalApplicationService:
 
     def get_token_data(
         self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
-    ):
+    ) -> TokenData:
         """Authenticate using client credentials flow.
 
         Args:
@@ -84,7 +85,7 @@ class ExternalApplicationService:
             scope: The scope for the token (default: OR.Execution)
 
         Returns:
-            Token data if successful, None otherwise
+            Token data if successful
         """
         token_url = self.get_token_url()
 
@@ -100,8 +101,7 @@ class ExternalApplicationService:
                 response = client.post(token_url, data=data)
                 match response.status_code:
                     case 200:
-                        token_data = response.json()
-                        return token_data
+                        return TokenData.model_validate(response.json())
                     case 400:
                         raise EnrichedException(
                             HTTPStatusError(

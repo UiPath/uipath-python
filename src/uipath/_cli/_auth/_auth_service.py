@@ -4,16 +4,16 @@ import webbrowser
 from typing import Optional
 
 from uipath._cli._auth._auth_server import HTTPServer
-from uipath._cli._auth._models import TokenData
 from uipath._cli._auth._oidc_utils import OidcUtils
 from uipath._cli._auth._portal_service import (
     PortalService,
 )
 from uipath._cli._auth._url_utils import extract_org_tenant, resolve_domain
-from uipath._cli._auth._utils import get_parsed_token_data, update_auth_file
+from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._services import ExternalApplicationService
 from uipath._utils._auth import update_env_file
+from uipath.models.auth import TokenData
 
 
 class AuthService:
@@ -62,7 +62,7 @@ class AuthService:
             )
 
         env_vars = {
-            "UIPATH_ACCESS_TOKEN": token_data["access_token"],
+            "UIPATH_ACCESS_TOKEN": token_data.access_token,
             "UIPATH_URL": external_app_service._base_url,
             "UIPATH_ORGANIZATION_ID": get_parsed_token_data(token_data).get("prt_id"),
         }
@@ -70,7 +70,7 @@ class AuthService:
         if tenant_name:
             self._tenant = tenant_name
             with PortalService(
-                self._domain, access_token=token_data["access_token"]
+                self._domain, access_token=token_data.access_token
             ) as portal_service:
                 tenant_info = portal_service.resolve_tenant_info(self._tenant)
                 tenant_id = tenant_info["tenant_id"]
@@ -92,7 +92,7 @@ class AuthService:
 
             update_env_file(
                 {
-                    "UIPATH_ACCESS_TOKEN": token_data["access_token"],
+                    "UIPATH_ACCESS_TOKEN": token_data.access_token,
                     "UIPATH_URL": uipath_url,
                     "UIPATH_TENANT_ID": tenant_info["tenant_id"],
                     "UIPATH_ORGANIZATION_ID": tenant_info["organization_id"],
@@ -135,7 +135,7 @@ class AuthService:
             )
             raise RuntimeError("Authentication failed")
 
-        return token_data
+        return TokenData.model_validate(token_data)
 
     def _open_browser(self, url: str) -> None:
         # Try to open browser. Always print the fallback link.

@@ -8,8 +8,6 @@ from .._utils._console import ConsoleLogger
 from ._models import AuthConfig
 from ._url_utils import build_service_url
 
-console = ConsoleLogger()
-
 
 def generate_code_verifier_and_challenge():
     """Generate PKCE code verifier and challenge."""
@@ -28,6 +26,8 @@ def get_state_param() -> str:
 
 
 class OidcUtils:
+    _console = ConsoleLogger()
+
     @classmethod
     def _find_free_port(cls, candidates: list[int]):
         from socket import AF_INET, SOCK_STREAM, error, socket
@@ -58,8 +58,9 @@ class OidcUtils:
 
         port = cls._find_free_port(candidates)
         if port is None:
-            console.error(
-                "All configured ports are in use. Please close applications using these ports or configure different ports."
+            ports_str = ", ".join(str(p) for p in candidates)
+            cls._console.error(
+                f"All configured ports ({ports_str}) are in use. Please close applications using these ports or configure different ports."
             )
 
         redirect_uri = auth_config["redirect_uri"].replace(

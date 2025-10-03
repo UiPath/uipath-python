@@ -66,10 +66,17 @@ def extract_org_tenant(uipath_url: str) -> Tuple[Optional[str], Optional[str]]:
       - https://alpha.uipath.com/myOrg/myTenant/anything_else
       - cloud.uipath.com/myOrg/myTenant  (scheme will be assumed https)
 
+    Args:
+        uipath_url: The UiPath URL to parse
+
     Returns:
-        (organization, tenant)
+        A tuple of (organization, tenant) where:
           - organization: 'myOrg' or None
           - tenant: 'myTenant' or None
+
+    Example:
+        >>> extract_org_tenant('https://cloud.uipath.com/myOrg/myTenant')
+        ('myOrg', 'myTenant')
     """
     parsed = urlparse(uipath_url if "://" in uipath_url else f"https://{uipath_url}")
     parts = [p for p in parsed.path.split("/") if p]

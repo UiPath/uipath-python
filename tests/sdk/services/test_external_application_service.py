@@ -50,7 +50,7 @@ class TestExternalApplicationService:
         )
 
         token = service.get_token_data("client-id", "client-secret")
-        assert token == {"access_token": "fake-token"}
+        assert token.access_token == "fake-token"
 
     def test_get_access_token_invalid_client(self, httpx_mock: HTTPXMock):
         service = ExternalApplicationService("https://cloud.uipath.com")

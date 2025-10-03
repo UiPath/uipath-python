@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from uipath._cli._auth._portal_service import PortalService
+from uipath.models.auth import TokenData
 
 
 @pytest.fixture
@@ -112,7 +113,7 @@ class TestPortalServiceEnsureValidToken:
             ),
             patch(
                 "uipath._cli._auth._portal_service.get_auth_data",
-                return_value=expired_auth_data,
+                return_value=TokenData.model_validate(expired_auth_data),
             ),
             patch(
                 "uipath._cli._auth._portal_service.get_parsed_token_data",
@@ -164,7 +165,9 @@ class TestPortalServiceEnsureValidToken:
             )
 
             # Verify auth file was updated
-            mock_update_auth.assert_called_once_with(sample_token_data)
+            mock_update_auth.assert_called_once()
+            call_args = mock_update_auth.call_args[0][0]
+            assert call_args.access_token == sample_token_data["access_token"]
 
             # Verify env file was updated
             mock_update_env.assert_called_with(
@@ -189,7 +192,7 @@ class TestPortalServiceEnsureValidToken:
                 ),
                 patch(
                     "uipath._cli._auth._portal_service.get_auth_data",
-                    return_value=valid_auth_data,
+                    return_value=TokenData.model_validate(valid_auth_data),
                 ),
                 patch(
                     "uipath._cli._auth._portal_service.get_parsed_token_data",
@@ -236,7 +239,7 @@ class TestPortalServiceEnsureValidToken:
             ),
             patch(
                 "uipath._cli._auth._portal_service.get_auth_data",
-                return_value=auth_data_no_refresh,
+                return_value=TokenData.model_validate(auth_data_no_refresh),
             ),
             patch(
                 "uipath._cli._auth._portal_service.get_parsed_token_data",
@@ -286,7 +289,7 @@ class TestPortalServiceEnsureValidToken:
                 ),
                 patch(
                     "uipath._cli._auth._portal_service.get_auth_data",
-                    return_value=expired_auth_data,
+                    return_value=TokenData.model_validate(expired_auth_data),
                 ),
                 patch(
                     "uipath._cli._auth._portal_service.get_parsed_token_data",

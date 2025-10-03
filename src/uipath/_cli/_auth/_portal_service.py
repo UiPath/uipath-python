@@ -6,12 +6,12 @@ import httpx
 
 from ..._utils._auth import update_env_file
 from ..._utils._ssl_context import get_httpx_client_kwargs
+from ...models.auth import TokenData
 from .._utils._console import ConsoleLogger
 from ._models import (
     OrganizationInfo,
     TenantInfo,
     TenantsAndOrganizationInfoResponse,
-    TokenData,
 )
 from ._oidc_utils import OidcUtils
 from ._url_utils import build_service_url
@@ -67,11 +67,13 @@ class PortalService:
         self.close()
 
     def update_token_data(self, token_data: TokenData):
-        self.access_token = token_data["access_token"]
+        self.access_token = token_data.access_token
         self.prt_id = get_parsed_token_data(token_data).get("prt_id")
         update_auth_file(token_data)
 
-    def get_tenants_and_organizations(self) -> TenantsAndOrganizationInfoResponse:
+    def get_tenants_and_organizations(
+        self,
+    ):
         if self._tenants_and_organizations is not None:
             return self._tenants_and_organizations
 
@@ -88,12 +90,10 @@ class PortalService:
 
         if response.status_code == 401:
             self._console.error("Unauthorized")
-        else:
-            self._console.error(
-                f"Failed to get tenants and organizations: {response.status_code} {response.text}"
-            )
-        # Can't reach here, console.error exits, linting
-        raise Exception("Failed to get tenants")
+
+        self._console.error(
+            f"Failed to get tenants and organizations: {response.status_code} {response.text}"
+        )
 
     def refresh_access_token(self, refresh_token: str) -> TokenData:
         url = build_service_url(self.domain, "/identity_/connect/token")
@@ -108,13 +108,13 @@ class PortalService:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         response = self.client.post(url, data=data, headers=headers)
         if response.status_code < 400:
-            return response.json()
+            return TokenData.model_validate(response.json())
 
         if response.status_code == 401:
             self._console.error("Unauthorized")
-        else:
-            self._console.error(f"Failed to refresh token: {response.status_code}")
-        # Can't reach here, console.error exits, linting
+            raise Exception("Failed to refresh get token")
+
+        self._console.error(f"Failed to refresh token: {response.status_code}")
         raise Exception("Failed to refresh get token")
 
     def ensure_valid_token(self):
@@ -134,13 +134,13 @@ class PortalService:
 
         def finalize(token_data: TokenData):
             self.update_token_data(token_data)
-            update_env_file({"UIPATH_ACCESS_TOKEN": token_data["access_token"]})
+            update_env_file({"UIPATH_ACCESS_TOKEN": token_data.access_token})
 
         if exp is not None and float(exp) > time.time():
             finalize(auth_data)
             return
 
-        refresh_token = auth_data.get("refresh_token")
+        refresh_token = auth_data.refresh_token
         if not refresh_token:
             raise Exception("Refresh token not found")
 
@@ -162,7 +162,7 @@ class PortalService:
                 )
                 if resp.status_code >= 400:
                     self._console.warning(f"Call to {url} failed: {resp.status_code}")
-            except Exception as e:
+            except httpx.HTTPError as e:
                 self._console.warning(
                     f"Exception during enable_studio_web request to {url}: {e}"
                 )

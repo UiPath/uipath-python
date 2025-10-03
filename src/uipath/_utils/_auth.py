@@ -39,11 +39,11 @@ def update_env_file(env_contents):
 def _has_valid_client_credentials(
     client_id: Optional[str], client_secret: Optional[str]
 ) -> bool:
-    if client_id or client_secret:
-        if not (client_id and client_secret):
-            raise ValueError(
-                "Both client_id and client_secret must be provided together for Client Credentials Authentication."
-            )
+    if bool(client_id) != bool(client_secret):
+        raise ValueError(
+            "Both client_id and client_secret must be provided together for Client Credentials Authentication."
+        )
+    if client_id and client_secret:
         return True
     return False
 
@@ -62,16 +62,16 @@ def resolve_config(
             client_secret,  # type: ignore
             scope,
         )
-        parsed_access_token = parse_access_token(token_data["access_token"])
+        parsed_access_token = parse_access_token(token_data.access_token)
 
         env_vars = {
-            "UIPATH_ACCESS_TOKEN": token_data["access_token"],
+            "UIPATH_ACCESS_TOKEN": token_data.access_token,
             "UIPATH_URL": external_app_service._base_url,
             "UIPATH_ORGANIZATION_ID": parsed_access_token.get("prt_id", ""),
         }
 
         update_env_file(env_vars)
-        return external_app_service._base_url, token_data["access_token"]
+        return external_app_service._base_url, token_data.access_token
 
     base_url_value = base_url or env.get(ENV_BASE_URL)
 

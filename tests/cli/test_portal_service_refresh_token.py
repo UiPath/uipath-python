@@ -106,7 +106,8 @@ class TestPortalServiceRefreshToken:
             )
 
             # Verify the response
-            assert result == sample_token_data
+            assert result.access_token == sample_token_data["access_token"]
+            assert result.refresh_token == sample_token_data["refresh_token"]
 
     @pytest.mark.parametrize(
         "env_var_url, environment, expected_token_url",
@@ -184,7 +185,8 @@ class TestPortalServiceRefreshToken:
                 )
 
                 # Verify the response
-                assert result == sample_token_data
+                assert result.access_token == sample_token_data["access_token"]
+                assert result.refresh_token == sample_token_data["refresh_token"]
 
         finally:
             # Clean up environment variable
@@ -276,7 +278,7 @@ class TestPortalServiceRefreshToken:
             result = portal_service.refresh_access_token("test_refresh_token")
 
             assert portal_service._client is mock_client
-            assert result == sample_token_data
+            assert result.access_token == sample_token_data["access_token"]
 
     def test_post_refresh_token_request_success_response_format(
         self, mock_auth_config, sample_token_data
@@ -304,17 +306,17 @@ class TestPortalServiceRefreshToken:
             # Test refresh token request
             result = portal_service.refresh_access_token("test_refresh_token")
 
-            # Verify result has all expected TokenData fields
-            assert "access_token" in result
-            assert "refresh_token" in result
-            assert "expires_in" in result
-            assert "token_type" in result
-            assert "scope" in result
-            assert "id_token" in result
+            # Verify result is a TokenData model with all expected fields
+            assert result.access_token is not None
+            assert result.refresh_token is not None
+            assert result.expires_in is not None
+            assert result.token_type is not None
+            assert result.scope is not None
+            assert result.id_token is not None
 
             # Verify values match expected
-            assert result["access_token"] == sample_token_data["access_token"]
-            assert result["refresh_token"] == sample_token_data["refresh_token"]
+            assert result.access_token == sample_token_data["access_token"]
+            assert result.refresh_token == sample_token_data["refresh_token"]
 
     def test_post_refresh_token_request_malformed_domain_handling(
         self, mock_auth_config, sample_token_data
@@ -477,7 +479,8 @@ class TestPortalServiceRefreshToken:
                 )
 
                 # Verify the response
-                assert result == sample_token_data
+                assert result.access_token == sample_token_data["access_token"]
+                assert result.refresh_token == sample_token_data["refresh_token"]
 
         finally:
             # Restore original environment variables
