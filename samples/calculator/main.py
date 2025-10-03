@@ -25,7 +25,7 @@ class CalculatorOutput:
 # use InputTriggerEventArgs when called by UiPath EventTriggers
 @traced()
 def main(input: CalculatorInput) -> CalculatorOutput:
-    result = 0
+    result = 0.0
     match input.operator:
         case Operator.ADD: result = input.a + input.b
         case Operator.SUBTRACT: result = input.a - input.b

@@ -112,7 +112,7 @@ async def download_folder_files(
             if local_hash != remote_hash:
                 styled_path = click.style(str(file_path), fg="cyan")
                 console.warning(f"File {styled_path}" + " differs from remote version.")
-                response = click.prompt("Do you want to override it? (y/n)", type=str)
+                response = click.prompt("Do you want to overwrite it? (y/n)", type=str)
                 if response.lower() == "y":
                     with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                         f.write(remote_content)
