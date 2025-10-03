@@ -124,6 +124,7 @@ def eval(
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         # Set up console progress reporter (only when not in debug mode)
+        console_reporter = None
         if not debug:
             console_reporter = ConsoleProgressReporter()
             asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
@@ -164,14 +165,12 @@ def eval(
                     await eval_runtime.execute()
                     await event_bus.wait_for_all(timeout=10)
 
+                if console_reporter and not debug:
+                    console_reporter.display_final_results()
+
             asyncio.run(execute())
         except Exception as e:
-            error_str = str(e)
-            if "Evaluation" in error_str and "failed:" in error_str:
-                clean_msg = error_str.split("failed:")[-1].strip()
-                console.error(f"❌ Evaluation failed: {clean_msg}")
-            else:
-                console.error(f"❌ Unexpected error occurred: {error_str}")
+            console.error(f"❌ Error occurred: {e or 'Execution failed'}")
 
 
 if __name__ == "__main__":

@@ -25,7 +25,6 @@ from .._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
-from .._utils._error_handling import extract_clean_error_message
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import EvaluationItem, EvaluationSet
@@ -264,7 +263,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 runtime_context, root_span=eval_item.name, attributes=attributes
             )
         except Exception as e:
-            error_msg = extract_clean_error_message(e, "Agent execution error")
+            error_msg = str(e) or "Agent execution error"
             raise Exception(f"Agent execution failed: {error_msg}") from None
 
         end_time = time()

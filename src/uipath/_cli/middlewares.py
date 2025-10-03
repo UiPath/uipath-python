@@ -1,7 +1,6 @@
 import importlib.metadata
 import inspect
 import logging
-import os
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -122,15 +121,13 @@ class Middlewares:
                 ]
 
             if middlewares:
-                if os.getenv("UIPATH_EVAL_DEBUG", "true") == "true":
-                    logger.info(f"Found {len(middlewares)} middleware plugins")
+                logger.info(f"Found {len(middlewares)} middleware plugins")
 
                 for entry_point in middlewares:
                     try:
                         register_func = entry_point.load()
                         register_func()
-                        if os.getenv("UIPATH_EVAL_DEBUG", "true") == "true":
-                            logger.info(f"Loaded middleware plugin: {entry_point.name}")
+                        logger.info(f"Loaded middleware plugin: {entry_point.name}")
                     except Exception as e:
                         console.error(
                             f"Failed to load middleware plugin {entry_point.name}: {str(e)}",
