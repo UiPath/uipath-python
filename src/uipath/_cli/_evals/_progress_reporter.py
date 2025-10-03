@@ -276,9 +276,7 @@ class StudioWebProgressReporter:
             EvaluationEvents.UPDATE_EVAL_SET_RUN, self.handle_update_eval_set_run
         )
 
-        # Only log in debug mode during evaluations
-        if os.getenv("UIPATH_EVAL_DEBUG", "true") == "true":
-            logger.info("StudioWeb progress reporter subscribed to evaluation events")
+        logger.debug("StudioWeb progress reporter subscribed to evaluation events")
 
     def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
         try:
