@@ -13,7 +13,7 @@ console = ConsoleLogger()
 class EvalHelpers:
     @staticmethod
     def auto_discover_eval_set() -> str:
-        """Auto-discover evaluation set from evals/eval-sets directory.
+        """Auto-discover evaluation set from evaluationSets or evals/eval-sets directory.
 
         Returns:
             Path to the evaluation set file
@@ -21,19 +21,24 @@ class EvalHelpers:
         Raises:
             ValueError: If no eval set found or multiple eval sets exist
         """
-        eval_sets_dir = Path("evals/eval-sets")
+        # Try evaluationSets folder first (new structure)
+        eval_sets_dir = Path("evaluationSets")
+
+        # Fall back to evals/eval-sets (old structure)
+        if not eval_sets_dir.exists():
+            eval_sets_dir = Path("evals/eval-sets")
 
         if not eval_sets_dir.exists():
             raise ValueError(
-                "No 'evals/eval-sets' directory found. "
-                "Please set 'UIPATH_PROJECT_ID' env var and run 'uipath pull'."
+                "No 'evaluationSets' or 'evals/eval-sets' directory found. "
+                "Please create an evaluation set or set 'UIPATH_PROJECT_ID' env var and run 'uipath pull'."
             )
 
         eval_set_files = list(eval_sets_dir.glob("*.json"))
 
         if not eval_set_files:
             raise ValueError(
-                "No evaluation set files found in 'evals/eval-sets' directory. "
+                f"No evaluation set files found in '{eval_sets_dir}' directory. "
             )
 
         if len(eval_set_files) > 1:
