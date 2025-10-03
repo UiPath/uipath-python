@@ -30,12 +30,12 @@ class ToolCallOutputEvaluatorConfig(
 ):
     """Configuration for the tool call count evaluator."""
 
-    name: str = "ToolCallArgsEvaluator"
+    name: str = "ToolCallOutputEvaluator"
     strict: bool = False
 
 
 class ToolCallOutputEvaluatorJustification(BaseEvaluatorJustification):
-    """Justification for the tool call args evaluator."""
+    """Justification for the tool call output evaluator."""
 
     explained_tool_calls_outputs: dict[str, str]
 
