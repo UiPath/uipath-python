@@ -30,7 +30,7 @@ class LLMJudgeTrajectoryEvaluatorConfig(
 ):
     """Configuration for the llm judge trajectory evaluator."""
 
-    name: str = "LlmJudgeTrajectoryEvaluator"
+    name: str = "LLMJudgeTrajectoryEvaluator"
     prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_TRAJECTORY_DEFAULT_USER_PROMPT
 
 
@@ -39,7 +39,7 @@ class LLMJudgeSimulationEvaluatorConfig(
 ):
     """Configuration for the llm judge simulation trajectory evaluator."""
 
-    name: str = "LlmJudgeSimulationEvaluator"
+    name: str = "LLMJudgeSimulationEvaluator"
     prompt: str = (
         LLMJudgePromptTemplates.LLM_JUDGE_SIMULATION_TRAJECTORY_DEFAULT_USER_PROMPT
     )
