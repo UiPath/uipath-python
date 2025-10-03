@@ -73,13 +73,33 @@ class RunHistoryPanel(Container):
         self.refresh_list()
 
     def _refresh_running_items(self) -> None:
+        """Refresh display names for running items only."""
         if not any(run.status == "running" for run in self.runs):
-            return None  # No running items, skip update
+            return None
 
-        run_list = self.query_one("#run-list", ListView)
+        try:
+            run_list = self.query_one("#run-list", ListView)
+        except Exception:
+            return None
 
-        for item in run_list.children:
-            run = self.get_run_by_id(item.run_id)  # type: ignore[attr-defined]
-            if run and run.status == "running":
+        # Take a snapshot of items to avoid mid-iteration changes
+        items_snapshot = list(run_list.children)
+
+        for item in items_snapshot:
+            if not hasattr(item, "run_id"):
+                continue
+
+            run = self.get_run_by_id(item.run_id)
+            if not run or run.status != "running":
+                continue
+
+            # Check if item still exists in the list (wasn't removed)
+            if item not in run_list.children:
+                continue
+
+            try:
                 static = item.query_one(Static)
                 static.update(run.display_name)
+            except Exception:
+                # Item structure changed or was removed
+                continue
