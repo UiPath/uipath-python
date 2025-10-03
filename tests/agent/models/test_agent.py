@@ -503,8 +503,6 @@ class TestAgentBuilderConfig:
                     "extraField": {"foo": "bar"},
                 }
             ],
-            "evaluators": [],
-            "evaluationSets": [],
         }
 
         config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
@@ -552,8 +550,6 @@ class TestAgentBuilderConfig:
                 },
             },
             "resources": [],
-            "evaluators": [],
-            "evaluationSets": [],
         }
 
         config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
