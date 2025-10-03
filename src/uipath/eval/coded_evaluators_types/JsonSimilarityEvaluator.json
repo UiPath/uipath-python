@@ -45,6 +45,7 @@
       },
       "target_output_key": {
         "default": "*",
+        "description": "Key to extract output from agent execution",
         "title": "Target Output Key",
         "type": "string"
       }

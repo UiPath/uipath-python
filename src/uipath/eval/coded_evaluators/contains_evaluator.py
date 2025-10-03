@@ -1,7 +1,8 @@
 """Contains evaluator for agent outputs."""
 
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
-from .base_evaluator import BaseEvaluationCriteria, BaseEvaluator, BaseEvaluatorConfig
+from .base_evaluator import BaseEvaluationCriteria
+from .output_evaluator import BaseOutputEvaluator, OutputEvaluatorConfig
 
 
 class ContainsEvaluationCriteria(BaseEvaluationCriteria):
@@ -10,7 +11,7 @@ class ContainsEvaluationCriteria(BaseEvaluationCriteria):
     search_text: str
 
 
-class ContainsEvaluatorConfig(BaseEvaluatorConfig[ContainsEvaluationCriteria]):
+class ContainsEvaluatorConfig(OutputEvaluatorConfig[ContainsEvaluationCriteria]):
     """Configuration for the contains evaluator."""
 
     name: str = "ContainsEvaluator"
@@ -19,7 +20,7 @@ class ContainsEvaluatorConfig(BaseEvaluatorConfig[ContainsEvaluationCriteria]):
 
 
 class ContainsEvaluator(
-    BaseEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, type(None)]
+    BaseOutputEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, type(None)]
 ):
     """Evaluator that checks if the actual output contains the expected output.
 
@@ -64,10 +65,6 @@ class ContainsEvaluator(
         return NumericEvaluationResult(
             score=float(is_contains),
         )
-
-    def _get_actual_output(self, agent_execution: AgentExecution) -> str:
-        """Get the actual output from the agent execution."""
-        return str(agent_execution.agent_output)
 
     def _get_expected_output(
         self, evaluation_criteria: ContainsEvaluationCriteria
