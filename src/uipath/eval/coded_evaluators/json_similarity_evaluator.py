@@ -71,7 +71,7 @@ class JsonSimilarityEvaluator(
         sim = matched_leaves / total_leaves
         return (
             max(0.0, min(1.0, sim)),
-            "Matched leaves: {matched_leaves}, Total leaves: {total_leaves}",
+            f"Matched leaves: {matched_leaves}, Total leaves: {total_leaves}",
         )
 
     def _compare_tokens(
