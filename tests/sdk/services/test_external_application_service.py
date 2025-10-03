@@ -49,8 +49,8 @@ class TestExternalApplicationService:
             json={"access_token": "fake-token"},
         )
 
-        token = service.get_access_token("client-id", "client-secret")
-        assert token == "fake-token"
+        token = service.get_token_data("client-id", "client-secret")
+        assert token.access_token == "fake-token"
 
     def test_get_access_token_invalid_client(self, httpx_mock: HTTPXMock):
         service = ExternalApplicationService("https://cloud.uipath.com")
@@ -59,7 +59,7 @@ class TestExternalApplicationService:
         httpx_mock.add_response(url=token_url, method="POST", status_code=400, json={})
 
         with pytest.raises(EnrichedException) as exc:
-            service.get_access_token("bad-id", "bad-secret")
+            service.get_token_data("bad-id", "bad-secret")
 
         assert "400" in str(exc.value)
 
@@ -70,7 +70,7 @@ class TestExternalApplicationService:
         httpx_mock.add_response(url=token_url, method="POST", status_code=401, json={})
 
         with pytest.raises(EnrichedException) as exc:
-            service.get_access_token("bad-id", "bad-secret")
+            service.get_token_data("bad-id", "bad-secret")
 
         assert "401" in str(exc.value)
 
@@ -81,7 +81,7 @@ class TestExternalApplicationService:
         httpx_mock.add_response(url=token_url, method="POST", status_code=500, json={})
 
         with pytest.raises(EnrichedException) as exc:
-            service.get_access_token("client-id", "client-secret")
+            service.get_token_data("client-id", "client-secret")
 
         assert "500" in str(exc.value).lower()
 
@@ -94,7 +94,7 @@ class TestExternalApplicationService:
         monkeypatch.setattr(httpx.Client, "post", fake_client_post)
 
         with pytest.raises(Exception) as exc:
-            service.get_access_token("client-id", "client-secret")
+            service.get_token_data("client-id", "client-secret")
 
         assert "Network error during authentication" in str(exc.value)
 
@@ -107,6 +107,6 @@ class TestExternalApplicationService:
         monkeypatch.setattr(httpx.Client, "post", fake_client_post)
 
         with pytest.raises(Exception) as exc:
-            service.get_access_token("client-id", "client-secret")
+            service.get_token_data("client-id", "client-secret")
 
         assert "Unexpected error during authentication" in str(exc.value)

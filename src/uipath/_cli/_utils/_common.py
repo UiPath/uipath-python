@@ -12,19 +12,19 @@ from ..spinner import Spinner
 def environment_options(function):
     function = click.option(
         "--alpha",
-        "domain",
+        "environment",
         flag_value="alpha",
         help="Use alpha environment",
     )(function)
     function = click.option(
         "--staging",
-        "domain",
+        "environment",
         flag_value="staging",
         help="Use staging environment",
     )(function)
     function = click.option(
         "--cloud",
-        "domain",
+        "environment",
         flag_value="cloud",
         default=True,
         help="Use production environment",

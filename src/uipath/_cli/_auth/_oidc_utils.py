@@ -4,6 +4,7 @@ import json
 import os
 from urllib.parse import urlencode
 
+from .._utils._console import ConsoleLogger
 from ._models import AuthConfig
 from ._url_utils import build_service_url
 
@@ -25,6 +26,22 @@ def get_state_param() -> str:
 
 
 class OidcUtils:
+    _console = ConsoleLogger()
+
+    @classmethod
+    def _find_free_port(cls, candidates: list[int]):
+        from socket import AF_INET, SOCK_STREAM, error, socket
+
+        def is_free(port: int) -> bool:
+            with socket(AF_INET, SOCK_STREAM) as s:
+                try:
+                    s.bind(("localhost", port))
+                    return True
+                except error:
+                    return False
+
+        return next((p for p in candidates if is_free(p)), None)
+
     @classmethod
     def get_auth_config(cls) -> AuthConfig:
         with open(
@@ -32,7 +49,19 @@ class OidcUtils:
         ) as f:
             auth_config = json.load(f)
 
-        port = auth_config.get("port", 8104)
+        candidates = [
+            int(auth_config.get("port", 8104)),
+            int(auth_config.get("portOptionOne", 8104)),
+            int(auth_config.get("portOptionTwo", 8055)),
+            int(auth_config.get("portOptionThree", 42042)),
+        ]
+
+        port = cls._find_free_port(candidates)
+        if port is None:
+            ports_str = ", ".join(str(p) for p in candidates)
+            cls._console.error(
+                f"All configured ports ({ports_str}) are in use. Please close applications using these ports or configure different ports."
+            )
 
         redirect_uri = auth_config["redirect_uri"].replace(
             "__PY_REPLACE_PORT__", str(port)
