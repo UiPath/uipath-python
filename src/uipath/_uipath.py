@@ -98,7 +98,11 @@ class UiPath:
 
     @property
     def connections(self) -> ConnectionsService:
-        return ConnectionsService(self._config, self._execution_context)
+        if not self._folders_service:
+            self._folders_service = FolderService(self._config, self._execution_context)
+        return ConnectionsService(
+            self._config, self._execution_context, self._folders_service
+        )
 
     @property
     def context_grounding(self) -> ContextGroundingService:
