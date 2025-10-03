@@ -413,7 +413,7 @@ class TestExtractionFunctions:
                 attributes={
                     "tool.name": "tool1",
                     "input.value": "{'arg1': 'value1', 'arg2': 42}",
-                    "output.value": "result1",
+                    "output.value": '{"content": "result1"}',
                 },
             ),
             ReadableSpan(
@@ -423,7 +423,7 @@ class TestExtractionFunctions:
                 attributes={
                     "tool.name": "tool2",
                     "input.value": "{'param': 'test'}",
-                    "output.value": "result2",
+                    "output.value": '{"content": "result2"}',
                 },
             ),
             ReadableSpan(
@@ -442,7 +442,7 @@ class TestExtractionFunctions:
                 attributes={
                     "tool.name": "tool3",
                     "input.value": "{}",
-                    "output.value": "",
+                    "output.value": '{"content": ""}',
                 },
             ),
         ]
@@ -460,7 +460,7 @@ class TestExtractionFunctions:
                 attributes={
                     "tool.name": "json_tool",
                     "input.value": '{"key": "value", "number": 123}',
-                    "output.value": "json_result",
+                    "output.value": '{"content": "json_result"}',
                 },
             ),
         ]
@@ -478,14 +478,14 @@ class TestExtractionFunctions:
                 attributes={  # pyright: ignore[reportArgumentType]
                     "tool.name": "dict_tool",
                     "input.value": {"direct": "dict", "num": 456},
-                    "output.value": "dict_result",
+                    "output.value": {"content": "dict_result"},
                 },
             ),
         ]
 
     @pytest.fixture
     def spans_with_invalid_input(self) -> list:
-        """Create spans with invalid input values."""
+        """Create spans with invalid input values (for testing input parsing)."""
         from opentelemetry.sdk.trace import ReadableSpan
 
         return [
@@ -496,7 +496,7 @@ class TestExtractionFunctions:
                 attributes={
                     "tool.name": "invalid_tool",
                     "input.value": "invalid json {",
-                    "output.value": "invalid_result",
+                    "output.value": '{"content": "invalid_result"}',
                 },
             ),
         ]
@@ -684,3 +684,128 @@ class TestExtractionFunctions:
         output_names = [output.name for output in outputs]
 
         assert names == call_names == output_names
+
+    def test_extract_tool_calls_outputs_with_invalid_json(self) -> None:
+        """Test tool call output extraction with invalid JSON in output.value."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="invalid_json_output_tool",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "invalid_json_output_tool",
+                "input.value": "{}",
+                "output.value": "not valid json {",
+            },
+        )
+
+        result = extract_tool_calls_outputs([span])
+        assert len(result) == 1
+        assert result[0].name == "invalid_json_output_tool"
+        # Should use the string as-is when JSON parsing fails
+        assert result[0].output == "not valid json {"
+
+    def test_extract_tool_calls_outputs_json_without_content(self) -> None:
+        """Test tool call output extraction with JSON that has no content field."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="no_content_tool",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "no_content_tool",
+                "input.value": "{}",
+                "output.value": '{"status": "success", "data": "some data"}',
+            },
+        )
+
+        result = extract_tool_calls_outputs([span])
+        assert len(result) == 1
+        assert result[0].name == "no_content_tool"
+        # Should default to empty string when content field is missing
+        assert result[0].output == ""
+
+    def test_extract_tool_calls_outputs_with_dict_output(self) -> None:
+        """Test tool call output extraction when output.value is already a dict."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="dict_output_tool",
+            start_time=0,
+            end_time=1,
+            attributes={  # pyright: ignore[reportArgumentType]
+                "tool.name": "dict_output_tool",
+                "input.value": "{}",
+                "output.value": {"content": "dict output value"},
+            },
+        )
+
+        result = extract_tool_calls_outputs([span])
+        assert len(result) == 1
+        assert result[0].name == "dict_output_tool"
+        assert result[0].output == "dict output value"
+
+    def test_extract_tool_calls_outputs_with_dict_without_content(self) -> None:
+        """Test tool call output extraction when output.value is a dict without content field."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="dict_no_content_tool",
+            start_time=0,
+            end_time=1,
+            attributes={  # pyright: ignore[reportArgumentType]
+                "tool.name": "dict_no_content_tool",
+                "input.value": "{}",
+                "output.value": {"result": "some result", "status": "ok"},
+            },
+        )
+
+        result = extract_tool_calls_outputs([span])
+        assert len(result) == 1
+        assert result[0].name == "dict_no_content_tool"
+        # Should default to empty string when content field is missing from dict
+        assert result[0].output == ""
+
+    def test_extract_tool_calls_outputs_with_non_string_non_dict(self) -> None:
+        """Test tool call output extraction with non-string, non-dict output.value."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="numeric_output_tool",
+            start_time=0,
+            end_time=1,
+            attributes={  # pyright: ignore[reportArgumentType]
+                "tool.name": "numeric_output_tool",
+                "input.value": "{}",
+                "output.value": 12345,
+            },
+        )
+
+        result = extract_tool_calls_outputs([span])
+        assert len(result) == 1
+        assert result[0].name == "numeric_output_tool"
+        # Should convert to string for non-string, non-dict types
+        assert result[0].output == "12345"
+
+    def test_extract_tool_calls_outputs_with_json_non_dict_value(self) -> None:
+        """Test tool call output extraction when JSON parses to non-dict (e.g., array)."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="json_array_tool",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "json_array_tool",
+                "input.value": "{}",
+                "output.value": '["item1", "item2", "item3"]',
+            },
+        )
+
+        result = extract_tool_calls_outputs([span])
+        assert len(result) == 1
+        assert result[0].name == "json_array_tool"
+        # Should use the original string when parsed JSON is not a dict
+        assert result[0].output == '["item1", "item2", "item3"]'

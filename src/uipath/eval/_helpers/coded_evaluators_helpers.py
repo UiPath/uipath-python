@@ -85,10 +85,32 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
     tool_calls_outputs = []
     for span in spans:
         if span.attributes and (tool_name := span.attributes.get("tool.name")):
+            output = span.attributes.get("output.value", "")
+
+            # Handle different output formats
+            if isinstance(output, str):
+                try:
+                    # Try to parse as JSON and extract content field
+                    parsed_output = json.loads(output)
+                    if isinstance(parsed_output, dict):
+                        output = parsed_output.get("content", "")
+                    else:
+                        # If parsed JSON is not a dict, use the original string
+                        output = output
+                except (json.JSONDecodeError, ValueError):
+                    # If parsing fails, use the string as-is
+                    pass
+            elif isinstance(output, dict):
+                # If output is already a dict, extract content field
+                output = output.get("content", "")
+            else:
+                # For any other type, convert to string
+                output = str(output) if output else ""
+
             tool_calls_outputs.append(
                 ToolOutput(
                     name=str(tool_name),
-                    output=span.attributes.get("output.value", ""),
+                    output=output,
                 )
             )
     return tool_calls_outputs

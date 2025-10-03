@@ -71,7 +71,7 @@ def sample_agent_execution_with_trace() -> AgentExecution:
             attributes={
                 "tool.name": "tool1",
                 "input.value": "{'arg1': 'value1'}",
-                "output.value": "output1",
+                "output.value": '{"content": "output1"}',
             },
         ),
         ReadableSpan(
@@ -81,7 +81,7 @@ def sample_agent_execution_with_trace() -> AgentExecution:
             attributes={
                 "tool.name": "tool2",
                 "input.value": "{'arg2': 'value2'}",
-                "output.value": "output2",
+                "output.value": '{"content": "output2"}',
             },
         ),
         ReadableSpan(
@@ -91,7 +91,7 @@ def sample_agent_execution_with_trace() -> AgentExecution:
             attributes={
                 "tool.name": "tool1",
                 "input.value": "{'arg1': 'value1'}",
-                "output.value": "output1",
+                "output.value": '{"content": "output1"}',
             },
         ),
         ReadableSpan(
@@ -101,7 +101,7 @@ def sample_agent_execution_with_trace() -> AgentExecution:
             attributes={
                 "tool.name": "tool2",
                 "input.value": "{'arg2': 'value2'}",
-                "output.value": "output2",
+                "output.value": '{"content": "output2"}',
             },
         ),
     ]
