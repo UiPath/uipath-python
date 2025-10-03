@@ -4,7 +4,7 @@ from typing import Any, List, Union
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
+from uipath.eval._models._evaluation_set import EvaluationItem
 from uipath.eval.models import EvalItemResult
 
 

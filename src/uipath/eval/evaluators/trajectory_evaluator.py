@@ -6,7 +6,7 @@ from typing import Any, Optional
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import field_validator
 
-from uipath._cli._evals._models._trajectory_span import TrajectoryEvaluationTrace
+from uipath.eval._models._trajectory_span import TrajectoryEvaluationTrace
 from uipath.eval.models import EvaluationResult
 
 from ..._services import UiPathLlmChatService

@@ -15,7 +15,16 @@ from ..._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
+from ...eval._models._evaluation_set import EvaluationItem, EvaluationSet
+from ...eval._models._output import (
+    EvaluationResultDto,
+    EvaluationRunResult,
+    EvaluationRunResultDto,
+    UiPathEvalOutput,
+    UiPathEvalRunExecutionOutput,
+)
 from ...eval.evaluators import BaseEvaluator
+from ...eval.mocks.mocks import set_evaluation_item
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (
@@ -27,14 +36,6 @@ from .._runtime._contracts import (
 )
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
-from ._models._evaluation_set import EvaluationItem, EvaluationSet
-from ._models._output import (
-    EvaluationResultDto,
-    EvaluationRunResult,
-    EvaluationRunResultDto,
-    UiPathEvalOutput,
-    UiPathEvalRunExecutionOutput,
-)
 
 T = TypeVar("T", bound=UiPathBaseRuntime)
 C = TypeVar("C", bound=UiPathRuntimeContext)
@@ -137,6 +138,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluation_set_name=evaluation_set.name, score=0, evaluation_set_results=[]
         )
         for eval_item in evaluation_set.evaluations:
+            set_evaluation_item(eval_item)
             await event_bus.publish(
                 EvaluationEvents.CREATE_EVAL_RUN,
                 EvalRunCreatedEvent(

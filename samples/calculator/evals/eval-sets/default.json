@@ -10,7 +10,7 @@
     {
       "id": "test",
       "name": "Test Addition",
-      "inputs": {"a": 1, "b": 1, "operator":  "+"},
+      "inputs": {"a": 1, "b": 1, "operator":  "random"},
       "expectedOutput": {"result": 2},
       "simulationInstructions": "",
       "expectedAgentBehavior": "",
@@ -18,6 +18,39 @@
       "inputGenerationInstructions": "",
       "simulateTools": false,
       "toolsToSimulate": [],
+      "mockingStrategy": {
+        "type": "mockito",
+        "behaviors": [
+          {
+            "function": "get_random_operator",
+            "arguments": {
+              "args": [],
+              "kwargs": {}
+            },
+            "then": [
+              {
+                "type": "return",
+                "value": "+"
+              }
+            ]
+          }
+        ]
+      },
+      "evalSetId": "default-eval-set-id",
+      "createdAt": "2025-09-04T18:54:58.378Z",
+      "updatedAt": "2025-09-04T18:55:55.416Z"
+    },
+    {
+      "id": "test",
+      "name": "Test Addition",
+      "inputs": {"a": 1, "b": 1, "operator":  "random"},
+      "expectedOutput": {"result": 2},
+      "simulationInstructions": "The random operator is '+'.",
+      "expectedAgentBehavior": "",
+      "simulateInput": false,
+      "inputGenerationInstructions": "",
+      "simulateTools": true,
+      "toolsToSimulate": [{"name":  "get_random_operator"}],
       "evalSetId": "default-eval-set-id",
       "createdAt": "2025-09-04T18:54:58.378Z",
       "updatedAt": "2025-09-04T18:55:55.416Z"

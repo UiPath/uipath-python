@@ -18,6 +18,7 @@ Classes:
 
 from typing import Any, Dict, List, Optional, Union
 
+import jsonref  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 from .._config import Config
@@ -104,7 +105,8 @@ def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
         # Returns a clean schema without titles and unnecessary metadata
         ```
     """
-    schema = model_class.model_json_schema()
+    # Dereference $refs. This is required to denormalize enums and other types.
+    schema = jsonref.replace_refs(model_class.model_json_schema())
 
     def clean_properties(properties):
         """Clean property definitions by removing titles and cleaning nested items."""
