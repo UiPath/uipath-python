@@ -4,9 +4,9 @@ import json
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar, Union, cast, get_args
-from pydantic.alias_generators import to_camel
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic.alias_generators import to_camel
 
 from .._helpers.helpers import track_evaluation_metrics
 from ..models import AgentExecution, EvaluationResult
@@ -14,6 +14,7 @@ from ..models import AgentExecution, EvaluationResult
 
 class BaseEvaluationCriteria(BaseModel):
     """Base class for all evaluation criteria."""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     pass
@@ -29,10 +30,12 @@ class BaseEvaluatorConfig(BaseModel, Generic[T], ABC):
     Generic over T (evaluation criteria type) to ensure type safety between
     the config's default_evaluation_criteria and the evaluator's expected criteria type.
     """
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     name: str
     default_evaluation_criteria: T | None = None
+
 
 class BaseEvaluatorJustification(BaseModel):
     """Base class for all evaluator justifications."""

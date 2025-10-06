@@ -9,7 +9,10 @@ from typing import Any, Dict, List
 from opentelemetry import trace
 
 from uipath import UiPath
-from uipath._cli._evals._models._evaluation_set import LegacyEvaluationItem, EvaluationStatus
+from uipath._cli._evals._models._evaluation_set import (
+    EvaluationStatus,
+    LegacyEvaluationItem,
+)
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
     StudioWebProgressItem,

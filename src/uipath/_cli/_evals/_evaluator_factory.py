@@ -4,19 +4,21 @@ from pydantic import TypeAdapter
 
 from uipath._cli._evals._models._evaluator import (
     EqualsEvaluatorParams,
+    EvaluatorConfig,
     EvaluatorLegacy,
     JsonSimilarityEvaluatorParams,
     LLMEvaluatorParams,
-    TrajectoryEvaluatorParams, EvaluatorConfig,
+    TrajectoryEvaluatorParams,
 )
 from uipath.eval.coded_evaluators import BaseEvaluator
-from uipath.eval.coded_evaluators.base_evaluator import BaseEvaluatorConfig
-from uipath.eval.coded_evaluators.contains_evaluator import ContainsEvaluatorConfig, ContainsEvaluator, \
-    ContainsEvaluationCriteria
+from uipath.eval.coded_evaluators.contains_evaluator import (
+    ContainsEvaluator,
+    ContainsEvaluatorConfig,
+)
 from uipath.eval.evaluators import (
-    LegacyBaseEvaluator,
     ExactMatchEvaluator,
     JsonSimilarityEvaluator,
+    LegacyBaseEvaluator,
     LlmAsAJudgeEvaluator,
     TrajectoryEvaluator,
 )
@@ -24,6 +26,7 @@ from uipath.eval.evaluators import (
 
 class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
+
     @classmethod
     def create_evaluator(cls, data: Dict[str, Any]):
         if data.get("version", None) == "1.0":
@@ -31,7 +34,9 @@ class EvaluatorFactory:
         return cls._create_legacy_evaluator_internal(data)
 
     @staticmethod
-    def _create_evaluator_internal(data: Dict[str, Any]) -> BaseEvaluator[Any, Any, Any]:
+    def _create_evaluator_internal(
+        data: Dict[str, Any],
+    ) -> BaseEvaluator[Any, Any, Any]:
         config = TypeAdapter(EvaluatorConfig).validate_python(data)
         match config:
             case ContainsEvaluatorConfig():
@@ -47,7 +52,9 @@ class EvaluatorFactory:
         )
 
     @staticmethod
-    def _create_legacy_evaluator_internal(data: Dict[str, Any]) -> LegacyBaseEvaluator[Any]:
+    def _create_legacy_evaluator_internal(
+        data: Dict[str, Any],
+    ) -> LegacyBaseEvaluator[Any]:
         """Create an evaluator instance from configuration data.
 
         Args:

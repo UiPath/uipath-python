@@ -314,7 +314,9 @@ class BaseAgentDefinition(BaseModel):
         alias="evaluationSets",
         description="List of agent evaluation sets",
     )
-    evaluators: List[EvaluatorLegacy] = Field(..., description="List of agent evaluators")
+    evaluators: List[EvaluatorLegacy] = Field(
+        ..., description="List of agent evaluators"
+    )
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"

@@ -2,7 +2,15 @@ import json
 from collections import defaultdict
 from pathlib import Path
 from time import time
-from typing import Annotated, Any, Dict, Generic, List, Optional, Sequence, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
@@ -18,7 +26,7 @@ from ..._events._events import (
 from ...eval.coded_evaluators import BaseEvaluator
 from ...eval.evaluators import LegacyBaseEvaluator
 from ...eval.models import EvaluationResult
-from ...eval.models.models import AgentExecution, EvalItemResult, TypeConverter
+from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (
     UiPathBaseRuntime,
     UiPathRuntimeContext,
@@ -29,10 +37,13 @@ from .._runtime._contracts import (
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
+    AnyEvaluationItem,
+    AnyEvaluationSet,
+    AnyEvaluator,
+    EvaluationItem,
+    EvaluationSet,
     LegacyEvaluationItem,
     LegacyEvaluationSet,
-    EvaluationSet,
-    EvaluationItem, AnyEvaluationSet, AnyEvaluator, AnyEvaluationItem,
 )
 from ._models._output import (
     EvaluationResultDto,
@@ -170,14 +181,22 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                             eval_item=eval_item,
                         )
                         evaluator_name = evaluator.name
-                    case (EvaluationSet(), EvaluationItem()) if evaluator.id in eval_item.evaluation_criterias:
+                    case (EvaluationSet(), EvaluationItem()) if (
+                        evaluator.id in eval_item.evaluation_criterias
+                    ):
                         # run evaluator with evaluation criteria
-                        evaluation_criteria = eval_item.evaluation_criterias[evaluator.id]
+                        evaluation_criteria = eval_item.evaluation_criterias[
+                            evaluator.id
+                        ]
                         evaluation_result = await self.run_evaluator(
                             evaluator=evaluator,
                             execution_output=agent_execution_output,
                             eval_item=eval_item,
-                            evaluation_criteria=evaluator.evaluation_criteria_type(**evaluation_criteria) if evaluation_criteria else evaluator.evaluator_config.default_evaluation_criteria,
+                            evaluation_criteria=evaluator.evaluation_criteria_type(
+                                **evaluation_criteria
+                            )
+                            if evaluation_criteria
+                            else evaluator.evaluator_config.default_evaluation_criteria,
                         )
                         evaluator_name = evaluator.evaluator_config.name
                     case _:
@@ -282,7 +301,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         execution_output: UiPathEvalRunExecutionOutput,
         eval_item: LegacyEvaluationItem,
         *,
-        evaluation_criteria: Any
+        evaluation_criteria: Any,
     ) -> EvaluationResult:
         agent_execution = AgentExecution(
             agent_input=eval_item.inputs,
@@ -318,9 +337,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         return result
 
-    def _load_evaluators(
-        self, evaluation_set: AnyEvaluationSet
-    ) -> list[AnyEvaluator]:
+    def _load_evaluators(self, evaluation_set: AnyEvaluationSet) -> list[AnyEvaluator]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         evaluators_dir = Path(self.context.eval_set).parent.parent / "evaluators"  # type: ignore

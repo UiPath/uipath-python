@@ -1,10 +1,14 @@
-from typing import Annotated, Any, Dict, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
-from uipath.eval.models.models import LegacyEvaluatorCategory, LegacyEvaluatorType, EvaluatorType
 from uipath.eval.coded_evaluators.base_evaluator import BaseEvaluatorConfig
-from uipath.eval.coded_evaluators.contains_evaluator import ContainsEvaluationCriteria, ContainsEvaluatorConfig
+from uipath.eval.coded_evaluators.contains_evaluator import ContainsEvaluatorConfig
+from uipath.eval.models.models import (
+    EvaluatorType,
+    LegacyEvaluatorCategory,
+    LegacyEvaluatorType,
+)
 
 
 class EvaluatorBaseParams(BaseModel):
@@ -21,7 +25,9 @@ class EvaluatorBaseParams(BaseModel):
 
 
 class LLMEvaluatorParams(EvaluatorBaseParams):
-    category: Literal[LegacyEvaluatorCategory.LlmAsAJudge] = Field(..., alias="category")
+    category: Literal[LegacyEvaluatorCategory.LlmAsAJudge] = Field(
+        ..., alias="category"
+    )
     prompt: str = Field(..., alias="prompt")
     model: str = Field(..., alias="model")
 
@@ -57,10 +63,12 @@ class UnknownEvaluatorParams(EvaluatorBaseParams):
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
 
+
 class UnknownEvaluatorConfig(BaseEvaluatorConfig):
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
+
 
 def legacy_evaluator_discriminator(data: Any) -> str:
     if isinstance(data, dict):
@@ -84,6 +92,7 @@ def legacy_evaluator_discriminator(data: Any) -> str:
     else:
         return "UnknownEvaluatorParams"
 
+
 def evaluator_config_discriminator(data: Any) -> str:
     if isinstance(data, dict):
         evaluator_type_id = data.get("evaluatorTypeId")
@@ -94,6 +103,7 @@ def evaluator_config_discriminator(data: Any) -> str:
                 return "UnknownEvaluatorConfig"
     else:
         return "UnknownEvaluatorConfig"
+
 
 EvaluatorLegacy = Annotated[
     Union[
@@ -130,7 +140,7 @@ EvaluatorConfig = Annotated[
         Annotated[
             UnknownEvaluatorConfig,
             Tag("UnknownEvaluatorConfig"),
-        ]
+        ],
     ],
     Field(discriminator=Discriminator(evaluator_config_discriminator)),
 ]

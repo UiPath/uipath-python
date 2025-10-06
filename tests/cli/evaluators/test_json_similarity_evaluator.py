@@ -9,7 +9,11 @@ import pytest
 
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import JsonSimilarityEvaluator
-from uipath.eval.models.models import AgentExecution, LegacyEvaluatorCategory, LegacyEvaluatorType
+from uipath.eval.models.models import (
+    AgentExecution,
+    LegacyEvaluatorCategory,
+    LegacyEvaluatorType,
+)
 
 
 def _make_base_params() -> EvaluatorBaseParams:

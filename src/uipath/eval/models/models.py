@@ -116,8 +116,10 @@ class LegacyEvaluatorType(IntEnum):
         else:
             raise ValueError(f"{value} is not a valid EvaluatorType value")
 
+
 class EvaluatorType(StrEnum):
     CONTAINS = "uipath-contains"
+
 
 class TypeConverter(BaseModel):
     evaluator_type: type
