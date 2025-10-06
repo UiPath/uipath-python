@@ -53,8 +53,8 @@ class LiteralOption(click.Option):
 @click.option(
     "--workers",
     type=int,
-    default=8,
-    help="Number of parallel workers for running evaluations (default: 8)",
+    default=4,
+    help="Number of parallel workers for running evaluations (default: 4)",
 )
 @click.option(
     "--output-file",
@@ -88,6 +88,10 @@ def eval(
         no_report: Do not report the evaluation results
         debug: Show detailed debug logging output
     """
+    # Record start time for total duration calculation
+    start_time = time.time()
+    os.environ["UIPATH_EVAL_START_TIME"] = str(start_time)
+
     # Suppress HTTP logs unless in debug mode
     if not debug:
         logging.getLogger("httpx").setLevel(logging.WARNING)

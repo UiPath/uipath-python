@@ -14,6 +14,8 @@ class EvaluationEvents(str, enum.Enum):
     CREATE_EVAL_RUN = "create_eval_run"
     UPDATE_EVAL_SET_RUN = "update_eval_set_run"
     UPDATE_EVAL_RUN = "update_eval_run"
+    EVAL_PROGRESS = "eval_progress"
+    BATCH_PROGRESS = "batch_progress"
 
 
 class EvalSetRunCreatedEvent(BaseModel):
@@ -47,9 +49,25 @@ class EvalSetRunUpdatedEvent(BaseModel):
     evaluator_scores: dict[str, float]
 
 
+class EvalProgressEvent(BaseModel):
+    execution_id: str
+    completed_evals: int
+    total_evals: int
+    progress_percent: float
+
+
+class BatchProgressEvent(BaseModel):
+    execution_id: str
+    completed_batches: int
+    total_batches: int
+    batch_id: int
+
+
 ProgressEvent = Union[
     EvalSetRunCreatedEvent,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunUpdatedEvent,
+    EvalProgressEvent,
+    BatchProgressEvent,
 ]
