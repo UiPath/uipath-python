@@ -95,7 +95,7 @@ def eval(
     )
 
     if result.error_message:
-        console.error(result.error_message)
+        console.error(result.error_message, include_traceback=result.should_include_stacktrace)
 
     if result.should_continue:
         event_bus = EventBus()

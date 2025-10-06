@@ -5,8 +5,8 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
-from uipath._cli._evals._models._evaluation_set import EvaluationSet
-from uipath._cli._evals._models._evaluator import Evaluator
+from uipath._cli._evals._models._evaluation_set import LegacyEvaluationSet
+from uipath._cli._evals._models._evaluator import EvaluatorLegacy
 from uipath.models import Connection
 
 
@@ -309,12 +309,12 @@ class BaseAgentDefinition(BaseModel):
     resources: List[AgentResourceConfig] = Field(
         ..., description="List of tools, context, and escalation resources"
     )
-    evaluation_sets: List[EvaluationSet] = Field(
+    evaluation_sets: List[LegacyEvaluationSet] = Field(
         ...,
         alias="evaluationSets",
         description="List of agent evaluation sets",
     )
-    evaluators: List[Evaluator] = Field(..., description="List of agent evaluators")
+    evaluators: List[EvaluatorLegacy] = Field(..., description="List of agent evaluators")
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"

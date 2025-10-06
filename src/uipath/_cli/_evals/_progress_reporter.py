@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 from opentelemetry import trace
 
 from uipath import UiPath
-from uipath._cli._evals._models._evaluation_set import EvaluationItem, EvaluationStatus
+from uipath._cli._evals._models._evaluation_set import LegacyEvaluationItem, EvaluationStatus
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
     StudioWebProgressItem,
@@ -28,7 +28,7 @@ from uipath._events._events import (
 )
 from uipath._utils import Endpoint, RequestSpec
 from uipath._utils.constants import ENV_TENANT_ID, HEADER_INTERNAL_TENANT_ID
-from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.evaluators import LegacyBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -85,7 +85,7 @@ class StudioWebProgressReporter:
         eval_set_id: str,
         agent_snapshot: StudioWebAgentSnapshot,
         no_of_evals: int,
-        evaluators: List[BaseEvaluator[Any]],
+        evaluators: List[LegacyBaseEvaluator[Any]],
     ) -> str:
         """Create a new evaluation set run in StudioWeb."""
         spec = self._create_eval_set_run_spec(eval_set_id, agent_snapshot, no_of_evals)
@@ -101,7 +101,7 @@ class StudioWebProgressReporter:
 
     @gracefully_handle_errors
     async def create_eval_run(
-        self, eval_item: EvaluationItem, eval_set_run_id: str
+        self, eval_item: LegacyEvaluationItem, eval_set_run_id: str
     ) -> str:
         """Create a new evaluation run in StudioWeb.
 
@@ -126,7 +126,7 @@ class StudioWebProgressReporter:
     async def update_eval_run(
         self,
         sw_progress_item: StudioWebProgressItem,
-        evaluators: dict[str, BaseEvaluator[Any]],
+        evaluators: dict[str, LegacyBaseEvaluator[Any]],
     ):
         """Update an evaluation run with results."""
         assertion_runs, evaluator_scores = self._collect_results(
@@ -300,7 +300,7 @@ class StudioWebProgressReporter:
     def _collect_results(
         self,
         eval_results: list[EvalItemResult],
-        evaluators: dict[str, BaseEvaluator[Any]],
+        evaluators: dict[str, LegacyBaseEvaluator[Any]],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         assertion_runs: list[dict[str, Any]] = []
         evaluator_scores_list: list[dict[str, Any]] = []
@@ -365,7 +365,7 @@ class StudioWebProgressReporter:
         )
 
     def _create_eval_run_spec(
-        self, eval_item: EvaluationItem, eval_set_run_id: str
+        self, eval_item: LegacyEvaluationItem, eval_set_run_id: str
     ) -> RequestSpec:
         return RequestSpec(
             method="POST",
