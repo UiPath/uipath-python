@@ -16,6 +16,10 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from pytest_mock.plugin import MockerFixture
 
+from uipath.eval.coded_evaluators.contains_evaluator import (
+    ContainsEvaluationCriteria,
+    ContainsEvaluator,
+)
 from uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEvaluator
 from uipath.eval.coded_evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
@@ -108,7 +112,9 @@ def sample_agent_execution_with_trace() -> AgentExecution:
 
     return AgentExecution(
         agent_input={"input": "Test input with tools"},
-        agent_output={"output": "Test output with tools"},
+        agent_output={
+            "output": "Test output with tools",
+        },
         agent_trace=mock_spans,
     )
 
@@ -190,6 +196,63 @@ class TestExactMatchEvaluator:
             sample_agent_execution, raw_criteria
         )
 
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+
+class TestContainsEvaluator:
+    """Test ContainsEvaluator.evaluate() method."""
+
+    @pytest.mark.asyncio
+    async def test_contains_evaluator(
+        self, sample_agent_execution: AgentExecution
+    ) -> None:
+        """Test contains evaluator."""
+        config = {
+            "name": "ContainsTest",
+            "target_output_key": "output",
+            "default_evaluation_criteria": {"search_text": "Test output"},
+        }
+        evaluator = ContainsEvaluator.model_validate({"config": config})
+        criteria = ContainsEvaluationCriteria(search_text="Test output")
+        result = await evaluator.evaluate(sample_agent_execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_contains_evaluator_negated(
+        self, sample_agent_execution: AgentExecution
+    ) -> None:
+        """Test contains evaluator with negated criteria."""
+        config = {
+            "name": "ContainsTest",
+            "negated": True,
+            "target_output_key": "output",
+            "default_evaluation_criteria": {"search_text": "Test output"},
+        }
+        evaluator = ContainsEvaluator.model_validate({"config": config})
+        criteria = ContainsEvaluationCriteria(search_text="Test output")
+        result = await evaluator.evaluate(sample_agent_execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_contains_evaluator_validate_and_evaluate_criteria(
+        self, sample_agent_execution: AgentExecution
+    ) -> None:
+        """Test contains evaluator with validate_and_evaluate_criteria."""
+        config = {
+            "name": "ContainsTest",
+            "target_output_key": "*",
+            "default_evaluation_criteria": {"search_text": "Test output"},
+        }
+        evaluator = ContainsEvaluator.model_validate({"config": config})
+        criteria = ContainsEvaluationCriteria(search_text="Test output")
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution, criteria
+        )
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
 

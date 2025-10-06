@@ -124,14 +124,13 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             cls._validate_type_consistency(config_type, criteria_type)
 
             # Validate and create the config object if config dict is provided
-            if config_dict := values.get("config"):
-                try:
-                    validated_config = config_type.model_validate(config_dict)
-                    values["evaluator_config"] = validated_config
-                except Exception as e:
-                    raise ValueError(
-                        f"Failed to validate config for {cls.__name__}: {e}"
-                    ) from e
+            try:
+                validated_config = config_type.model_validate(values.get("config", {}))
+                values["evaluator_config"] = validated_config
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to validate config for {cls.__name__}: {e}"
+                ) from e
 
         return values
 

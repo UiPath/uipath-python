@@ -79,7 +79,7 @@
     "description": "Configuration for the tool call count evaluator.",
     "properties": {
       "name": {
-        "default": "ToolCallArgsEvaluator",
+        "default": "ToolCallOutputEvaluator",
         "title": "Name",
         "type": "string"
       },
@@ -179,7 +179,7 @@
     "type": "object"
   },
   "justificationSchema": {
-    "description": "Justification for the tool call args evaluator.",
+    "description": "Justification for the tool call output evaluator.",
     "properties": {
       "explained_tool_calls_outputs": {
         "additionalProperties": {

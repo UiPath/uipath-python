@@ -3,8 +3,6 @@
 import math
 from typing import Any, Tuple
 
-from pydantic import Field
-
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from .output_evaluator import (
     OutputEvaluationCriteria,
@@ -17,7 +15,6 @@ class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriter
     """Configuration for the json similarity evaluator."""
 
     name: str = "JsonSimilarityEvaluator"
-    target_output_key: str = Field(default="*", frozen=True, exclude=True)
 
 
 class JsonSimilarityEvaluator(
@@ -71,7 +68,7 @@ class JsonSimilarityEvaluator(
         sim = matched_leaves / total_leaves
         return (
             max(0.0, min(1.0, sim)),
-            "Matched leaves: {matched_leaves}, Total leaves: {total_leaves}",
+            f"Matched leaves: {matched_leaves}, Total leaves: {total_leaves}",
         )
 
     def _compare_tokens(

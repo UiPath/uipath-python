@@ -20,7 +20,7 @@
     "description": "Configuration for the llm judge simulation trajectory evaluator.",
     "properties": {
       "name": {
-        "default": "LlmJudgeSimulationEvaluator",
+        "default": "LLMJudgeSimulationEvaluator",
         "title": "Name",
         "type": "string"
       },
