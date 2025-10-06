@@ -2,7 +2,15 @@ import json
 from collections import defaultdict
 from pathlib import Path
 from time import time
-from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
@@ -15,7 +23,8 @@ from ..._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from ...eval.evaluators import BaseEvaluator
+from ...eval.coded_evaluators import BaseEvaluator
+from ...eval.evaluators import LegacyBaseEvaluator
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (
@@ -27,7 +36,15 @@ from .._runtime._contracts import (
 )
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
-from ._models._evaluation_set import EvaluationItem, EvaluationSet
+from ._models._evaluation_set import (
+    AnyEvaluationItem,
+    AnyEvaluationSet,
+    AnyEvaluator,
+    EvaluationItem,
+    EvaluationSet,
+    LegacyEvaluationItem,
+    LegacyEvaluationSet,
+)
 from ._models._output import (
     EvaluationResultDto,
     EvaluationRunResult,
@@ -117,6 +134,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         evaluation_set = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
+
         evaluators = self._load_evaluators(evaluation_set)
 
         evaluator_averages = {evaluator.id: 0.0 for evaluator in evaluators}
@@ -155,11 +173,35 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluation_item_results: list[EvalItemResult] = []
 
             for evaluator in evaluators:
-                evaluation_result = await self.run_evaluator(
-                    evaluator=evaluator,
-                    execution_output=agent_execution_output,
-                    eval_item=eval_item,
-                )
+                match (evaluation_set, eval_item):
+                    case (LegacyEvaluationSet(), LegacyEvaluationItem()):
+                        evaluation_result = await self.run_legacy_evaluator(
+                            evaluator=evaluator,
+                            execution_output=agent_execution_output,
+                            eval_item=eval_item,
+                        )
+                        evaluator_name = evaluator.name
+                    case (EvaluationSet(), EvaluationItem()) if (
+                        evaluator.id in eval_item.evaluation_criterias
+                    ):
+                        # run evaluator with evaluation criteria
+                        evaluation_criteria = eval_item.evaluation_criterias[
+                            evaluator.id
+                        ]
+                        evaluation_result = await self.run_evaluator(
+                            evaluator=evaluator,
+                            execution_output=agent_execution_output,
+                            eval_item=eval_item,
+                            evaluation_criteria=evaluator.evaluation_criteria_type(
+                                **evaluation_criteria
+                            )
+                            if evaluation_criteria
+                            else evaluator.evaluator_config.default_evaluation_criteria,
+                        )
+                        evaluator_name = evaluator.evaluator_config.name
+                    case _:
+                        # Skip if evaluator not in evaluation criteria
+                        continue
 
                 dto_result = EvaluationResultDto.from_evaluation_result(
                     evaluation_result
@@ -169,10 +211,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 evaluator_averages[evaluator.id] += (
                     dto_result.score - evaluator_averages[evaluator.id]
                 ) / count
-
                 evaluation_run_results.evaluation_run_results.append(
                     EvaluationRunResultDto(
-                        evaluator_name=evaluator.name,
+                        evaluator_name=evaluator_name,
                         result=dto_result,
                     )
                 )
@@ -217,7 +258,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         return self.context.result
 
     async def execute_runtime(
-        self, eval_item: EvaluationItem
+        self, eval_item: AnyEvaluationItem
     ) -> UiPathEvalRunExecutionOutput:
         runtime_context: C = self.factory.new_context(
             execution_id=eval_item.id,
@@ -256,9 +297,11 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def run_evaluator(
         self,
-        evaluator: BaseEvaluator[Any],
+        evaluator: BaseEvaluator[Any, Any, Any],
         execution_output: UiPathEvalRunExecutionOutput,
-        eval_item: EvaluationItem,
+        eval_item: LegacyEvaluationItem,
+        *,
+        evaluation_criteria: Any,
     ) -> EvaluationResult:
         agent_execution = AgentExecution(
             agent_input=eval_item.inputs,
@@ -269,15 +312,32 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         result = await evaluator.evaluate(
             agent_execution=agent_execution,
-            # at the moment evaluation_criteria is always the expected output
+            evaluation_criteria=evaluation_criteria,
+        )
+
+        return result
+
+    async def run_legacy_evaluator(
+        self,
+        evaluator: LegacyBaseEvaluator[Any],
+        execution_output: UiPathEvalRunExecutionOutput,
+        eval_item: LegacyEvaluationItem,
+    ) -> EvaluationResult:
+        agent_execution = AgentExecution(
+            agent_input=eval_item.inputs,
+            agent_output=execution_output.result.output or {},
+            agent_trace=execution_output.spans,
+            expected_agent_behavior=eval_item.expected_agent_behavior,
+        )
+
+        result = await evaluator.evaluate(
+            agent_execution=agent_execution,
             evaluation_criteria=eval_item.expected_output,
         )
 
         return result
 
-    def _load_evaluators(
-        self, evaluation_set: EvaluationSet
-    ) -> List[BaseEvaluator[Any]]:
+    def _load_evaluators(self, evaluation_set: AnyEvaluationSet) -> list[AnyEvaluator]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         evaluators_dir = Path(self.context.eval_set).parent.parent / "evaluators"  # type: ignore

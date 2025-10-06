@@ -12,8 +12,8 @@ from uipath.eval.models import EvaluationResult
 from uipath.eval.models.models import (
     AgentExecution,
     ErrorEvaluationResult,
-    EvaluatorCategory,
-    EvaluatorType,
+    LegacyEvaluatorCategory,
+    LegacyEvaluatorType,
 )
 
 
@@ -42,7 +42,7 @@ def track_evaluation_metrics(func: Callable[..., Any]) -> Callable[..., Any]:
 T = TypeVar("T")
 
 
-class BaseEvaluator(BaseModel, Generic[T], ABC):
+class LegacyBaseEvaluator(BaseModel, Generic[T], ABC):
     """Abstract base class for all evaluators."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -53,8 +53,8 @@ class BaseEvaluator(BaseModel, Generic[T], ABC):
     target_output_key: str = "*"
     created_at: str
     updated_at: str
-    category: EvaluatorCategory
-    evaluator_type: EvaluatorType
+    category: LegacyEvaluatorCategory
+    evaluator_type: LegacyEvaluatorType
 
     def __init_subclass__(cls, **kwargs: Any):
         """Hook for subclass creation - automatically applies evaluation metrics tracking."""

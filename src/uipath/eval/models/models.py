@@ -1,6 +1,6 @@
 """Models for evaluation framework including execution data and evaluation results."""
 
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from typing import Annotated, Any, Dict, Literal, Optional, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -77,7 +77,7 @@ class EvalItemResult(BaseModel):
     result: EvaluationResult
 
 
-class EvaluatorCategory(IntEnum):
+class LegacyEvaluatorCategory(IntEnum):
     """Types of evaluators."""
 
     Deterministic = 0
@@ -86,7 +86,7 @@ class EvaluatorCategory(IntEnum):
     Trajectory = 3
 
     @classmethod
-    def from_int(cls, value: int) -> "EvaluatorCategory":
+    def from_int(cls, value: int) -> "LegacyEvaluatorCategory":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
@@ -94,7 +94,7 @@ class EvaluatorCategory(IntEnum):
             raise ValueError(f"{value} is not a valid EvaluatorCategory value")
 
 
-class EvaluatorType(IntEnum):
+class LegacyEvaluatorType(IntEnum):
     """Subtypes of evaluators."""
 
     Unknown = 0
@@ -109,12 +109,27 @@ class EvaluatorType(IntEnum):
     Faithfulness = 9
 
     @classmethod
-    def from_int(cls, value: int) -> "EvaluatorType":
+    def from_int(cls, value: int) -> "LegacyEvaluatorType":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
         else:
             raise ValueError(f"{value} is not a valid EvaluatorType value")
+
+
+class EvaluatorType(StrEnum):
+    CONTAINS = "uipath-contains"
+
+
+class TypeConverter(BaseModel):
+    evaluator_type: type
+
+    def to_evaluator_type(self) -> str:
+        match self.evaluator_type:
+            case type(ContainsEvaluator):
+                return EvaluatorType.CONTAINS
+            case _:
+                raise ValueError("Unknown evaluator type")
 
 
 class ToolCall(BaseModel):

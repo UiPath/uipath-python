@@ -10,10 +10,10 @@ from uipath.eval.models import NumericEvaluationResult
 from ..._services import UiPathLlmChatService
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ..models.models import AgentExecution, EvaluationResult, LLMResponse
-from .base_evaluator import BaseEvaluator
+from .base_evaluator import LegacyBaseEvaluator
 
 
-class LlmAsAJudgeEvaluator(BaseEvaluator[dict[str, Any]]):
+class LlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
     """Evaluator that uses an LLM to judge the quality of agent output."""
 
     prompt: str

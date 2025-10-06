@@ -9,14 +9,18 @@ import pytest
 
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import JsonSimilarityEvaluator
-from uipath.eval.models.models import AgentExecution, EvaluatorCategory, EvaluatorType
+from uipath.eval.models.models import (
+    AgentExecution,
+    LegacyEvaluatorCategory,
+    LegacyEvaluatorType,
+)
 
 
 def _make_base_params() -> EvaluatorBaseParams:
     return EvaluatorBaseParams(
         id="json-sim",
-        category=EvaluatorCategory.Deterministic,
-        evaluator_type=EvaluatorType.JsonSimilarity,
+        category=LegacyEvaluatorCategory.Deterministic,
+        evaluator_type=LegacyEvaluatorType.JsonSimilarity,
         name="JSON Similarity",
         description="Compares JSON structures",
         created_at="2025-01-01T00:00:00Z",

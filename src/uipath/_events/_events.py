@@ -4,7 +4,7 @@ from typing import Any, List, Union
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
+from uipath._cli._evals._models._evaluation_set import AnyEvaluationItem
 from uipath.eval.models import EvalItemResult
 
 
@@ -25,14 +25,14 @@ class EvalSetRunCreatedEvent(BaseModel):
 
 class EvalRunCreatedEvent(BaseModel):
     execution_id: str
-    eval_item: EvaluationItem
+    eval_item: AnyEvaluationItem
 
 
 class EvalRunUpdatedEvent(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     execution_id: str
-    eval_item: EvaluationItem
+    eval_item: AnyEvaluationItem
     eval_results: List[EvalItemResult]
     success: bool
     agent_output: Any
