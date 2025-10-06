@@ -12,10 +12,10 @@ from uipath.eval.models import EvaluationResult
 from ..._services import UiPathLlmChatService
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ..models.models import AgentExecution, LLMResponse, NumericEvaluationResult
-from .base_evaluator import BaseEvaluator
+from .base_evaluator import LegacyBaseEvaluator
 
 
-class TrajectoryEvaluator(BaseEvaluator[dict[str, Any]]):
+class TrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
     """Evaluator that analyzes the trajectory/path taken to reach outputs."""
 
     prompt: str
