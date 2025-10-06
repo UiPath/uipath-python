@@ -6,6 +6,19 @@
     :depth: 1
     :style: table
 
+/// info | UiPath Automation Suite
+For UiPath Automation Suite deployments, you must set the `UIPATH_URL` environment variable to your dedicated instance URL before running this command.
+
+Example:
+```bash
+UIPATH_URL=https://your-instance.com/account/tenant/orchestrator_/
+```
+
+You can set this environment variable either:
+- In a `.env` file in your project directory
+- As a system-wide environment variable
+///
+
 <!-- termynal -->
 
 ```shell
