@@ -650,3 +650,81 @@ def test_traced_complex_input_serialization(setup_tracer):
     assert output["result"] == 54.6  # 10.5 * 5.2 = 54.6
     # Verify the enum is serialized as its value
     assert output["operator"] == "*"
+
+
+@pytest.mark.asyncio
+async def test_traced_with_pydantic_basemodel_class(setup_tracer):
+    """Test that Pydantic BaseModel classes can be serialized in tracing.
+
+    This tests the fix for the issue where passing a Pydantic BaseModel class
+    as a parameter (like response_format=OutputFormat) would cause JSON
+    serialization errors in tracing.
+    """
+    from pydantic import BaseModel
+
+    exporter, provider = setup_tracer
+
+    class OutputFormat(BaseModel):
+        result: str
+        confidence: float = 0.95
+
+    @traced()
+    async def llm_chat_completions(messages: List[Any], response_format=None):
+        """Simulate LLM function with BaseModel class as response_format."""
+        if response_format:
+            mock_content = '{"result": "hi!", "confidence": 0.95}'
+            return {"choices": [{"message": {"content": mock_content}}]}
+        return {"choices": [{"message": {"content": "hi!"}}]}
+
+    # Test with tuple message format and BaseModel class as parameter
+    messages = [("human", "repeat this: hi!")]
+    result = await llm_chat_completions(messages, response_format=OutputFormat)
+
+    assert result is not None
+    assert "choices" in result
+
+    provider.shutdown()  # Ensure spans are flushed
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "llm_chat_completions"
+    assert span.attributes["span_type"] == "function_call_async"
+
+    # Verify inputs are properly serialized as JSON, including BaseModel class
+    assert "input.value" in span.attributes
+    inputs_json = span.attributes["input.value"]
+    inputs = json.loads(inputs_json)
+
+    # Check BaseModel class is properly serialized with schema representation
+    assert "response_format" in inputs
+    response_format_data = inputs["response_format"]
+
+    # Verify the BaseModel class is serialized as a schema representation
+    assert "__class__" in response_format_data
+    assert "__module__" in response_format_data
+    assert "schema" in response_format_data
+    assert response_format_data["__class__"] == "OutputFormat"
+
+    # Verify the schema contains expected structure
+    schema = response_format_data["schema"]
+    assert "properties" in schema
+    assert "result" in schema["properties"]
+    assert "confidence" in schema["properties"]
+    assert schema["properties"]["result"]["type"] == "string"
+    assert schema["properties"]["confidence"]["type"] == "number"
+
+    # Verify that tuple messages are also properly serialized
+    assert "messages" in inputs
+    messages_data = inputs["messages"]
+    assert isinstance(messages_data, list)
+    assert len(messages_data) == 1
+    assert messages_data[0] == ["human", "repeat this: hi!"]
+
+    # Verify that outputs are properly serialized as JSON
+    assert "output.value" in span.attributes
+    output_json = span.attributes["output.value"]
+    output = json.loads(output_json)
+
+    assert "choices" in output
+    assert len(output["choices"]) == 1
