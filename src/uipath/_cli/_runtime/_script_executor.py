@@ -8,10 +8,7 @@ from typing import Any, Dict, Type, TypeVar, cast, get_type_hints
 
 from pydantic import BaseModel
 
-from ._contracts import (
-    UiPathErrorCategory,
-    UiPathRuntimeError,
-)
+from ._contracts import UiPathErrorCategory, UiPathErrorCode, UiPathRuntimeError
 
 T = TypeVar("T")
 
@@ -28,7 +25,7 @@ class ScriptExecutor:
         """Validate runtime inputs."""
         if not self.entrypoint:
             raise UiPathRuntimeError(
-                "ENTRYPOINT_MISSING",
+                UiPathErrorCode.ENTRYPOINT_MISSING,
                 "No entrypoint specified",
                 "Please provide a path to a Python script.",
                 UiPathErrorCategory.USER,
@@ -36,7 +33,7 @@ class ScriptExecutor:
 
         if not os.path.exists(self.entrypoint):
             raise UiPathRuntimeError(
-                "ENTRYPOINT_NOT_FOUND",
+                UiPathErrorCode.ENTRYPOINT_NOT_FOUND,
                 "Script not found",
                 f"Script not found at path {self.entrypoint}.",
                 UiPathErrorCategory.USER,
@@ -47,7 +44,7 @@ class ScriptExecutor:
         spec = importlib.util.spec_from_file_location("dynamic_module", self.entrypoint)
         if not spec or not spec.loader:
             raise UiPathRuntimeError(
-                "IMPORT_ERROR",
+                UiPathErrorCode.IMPORT_ERROR,
                 "Module import failed",
                 f"Could not load spec for {self.entrypoint}",
                 UiPathErrorCategory.USER,
@@ -58,7 +55,7 @@ class ScriptExecutor:
             spec.loader.exec_module(module)
         except Exception as e:
             raise UiPathRuntimeError(
-                "MODULE_EXECUTION_ERROR",
+                UiPathErrorCode.MODULE_EXECUTION_ERROR,
                 "Module execution failed",
                 f"Error executing module: {str(e)}",
                 UiPathErrorCategory.USER,
@@ -84,7 +81,7 @@ class ScriptExecutor:
                         )
                     except Exception as e:
                         raise UiPathRuntimeError(
-                            "FUNCTION_EXECUTION_ERROR",
+                            UiPathErrorCode.FUNCTION_EXECUTION_ERROR,
                             f"Error executing {func_name} function",
                             f"Error: {str(e)}",
                             UiPathErrorCategory.USER,
@@ -114,7 +111,7 @@ class ScriptExecutor:
                         )
                     except Exception as e:
                         raise UiPathRuntimeError(
-                            "FUNCTION_EXECUTION_ERROR",
+                            UiPathErrorCode.FUNCTION_EXECUTION_ERROR,
                             f"Error executing {func_name} function with typed input",
                             f"Error: {str(e)}",
                             UiPathErrorCategory.USER,
@@ -135,14 +132,14 @@ class ScriptExecutor:
                         )
                     except Exception as e:
                         raise UiPathRuntimeError(
-                            "FUNCTION_EXECUTION_ERROR",
+                            UiPathErrorCode.FUNCTION_EXECUTION_ERROR,
                             f"Error executing {func_name} function with dictionary input",
                             f"Error: {str(e)}",
                             UiPathErrorCategory.USER,
                         ) from e
 
         raise UiPathRuntimeError(
-            "ENTRYPOINT_FUNCTION_MISSING",
+            UiPathErrorCode.ENTRYPOINT_FUNCTION_MISSING,
             "No entry function found",
             f"No main function (main, run, or execute) found in {self.entrypoint}",
             UiPathErrorCategory.USER,
