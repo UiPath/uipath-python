@@ -4,13 +4,17 @@ from pathlib import PurePath
 from httpx import Response
 from pydantic import TypeAdapter
 
+from uipath._cli._evals._models._evaluation_set import LLMMockingStrategy
 from uipath._cli._utils._studio_project import (
     ProjectFile,
     ProjectFolder,
     StudioClient,
     resolve_path,
 )
-from uipath.agent.models.agent import AgentDefinition
+from uipath.agent.models.agent import (
+    AgentDefinition,
+    UnknownAgentDefinition,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +27,7 @@ async def get_file(
     return await studio_client.download_file_async(resolved.id)
 
 
-async def load_agent_definition(project_id: str):
+async def load_agent_definition(project_id: str) -> AgentDefinition:
     studio_client = StudioClient(project_id=project_id)
     project_structure = await studio_client.get_project_structure_async()
 
@@ -100,4 +104,21 @@ async def load_agent_definition(project_id: str):
         "evaluationSets": evaluation_sets,
         **agent,
     }
-    return TypeAdapter(AgentDefinition).validate_python(agent_definition)
+    agent_definition = TypeAdapter(AgentDefinition).validate_python(agent_definition)
+    if agent_definition and isinstance(agent_definition, UnknownAgentDefinition):
+        if agent_definition.evaluation_sets:
+            for evaluation_set in agent_definition.evaluation_sets:
+                for evaluation in evaluation_set.evaluations:
+                    if not evaluation.mocking_strategy:
+                        # Migrate lowCode evaluation definitions
+                        if evaluation.model_extra.get("simulateTools", False):
+                            tools_to_simulate = evaluation.model_extra.get(
+                                "toolsToSimulate", []
+                            )
+                            prompt = evaluation.model_extra.get(
+                                "simulationInstructions", ""
+                            )
+                            evaluation.mocking_strategy = LLMMockingStrategy(
+                                prompt=prompt, tools_to_simulate=tools_to_simulate
+                            )
+    return agent_definition
