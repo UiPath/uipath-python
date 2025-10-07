@@ -519,19 +519,19 @@ class UiPathBaseRuntime(ABC):
 
         await self.validate()
 
-        # Skip LogsInterceptor setup during eval runs to prevent conflicts
-        if not self.context.is_eval_run:
-            # Intercept all stdout/stderr/logs and write them to a file (runtime/evals), stdout (debug)
-            self.logs_interceptor = LogsInterceptor(
-                min_level=self.context.logs_min_level,
-                dir=self.context.runtime_dir,
-                file=self.context.logs_file,
-                job_id=self.context.job_id,
-                execution_id=self.context.execution_id,
-                is_debug_run=self.is_debug_run(),
-                log_handler=self.context.log_handler,
-            )
-            self.logs_interceptor.setup()
+        # Intercept all stdout/stderr/logs
+        # For eval runs: buffer logs by execution_id to flush them later grouped
+        # For regular runs: write to file (runtime) or stdout (debug)
+        self.logs_interceptor = LogsInterceptor(
+            min_level=self.context.logs_min_level,
+            dir=self.context.runtime_dir,
+            file=self.context.logs_file,
+            job_id=self.context.job_id,
+            execution_id=self.context.execution_id,
+            is_debug_run=self.is_debug_run(),
+            log_handler=self.context.log_handler,
+        )
+        self.logs_interceptor.setup()
 
         logger.debug(f"Starting runtime with job id: {self.context.job_id}")
 
@@ -700,6 +700,7 @@ class UiPathRuntimeFactory(Generic[T, C]):
         self.context_generator = context_generator
         self.tracer_provider: TracerProvider = TracerProvider()
         self.tracer_span_processors: List[SpanProcessor] = []
+        self.logs_exporter: Optional[Any] = None
         trace.set_tracer_provider(self.tracer_provider)
 
     def add_span_exporter(
@@ -715,6 +716,18 @@ class UiPathRuntimeFactory(Generic[T, C]):
             span_processor = UiPathExecutionSimpleTraceProcessor(span_exporter)
         self.tracer_span_processors.append(span_processor)
         self.tracer_provider.add_span_processor(span_processor)
+        return self
+
+    def add_logs_exporter(self, logs_exporter: Any) -> "UiPathRuntimeFactory[T, C]":
+        """Add a logs exporter to the factory.
+
+        Args:
+            logs_exporter: ExecutionLogsExporter instance that stores buffered logs
+
+        Returns:
+            Self for method chaining
+        """
+        self.logs_exporter = logs_exporter
         return self
 
     def add_instrumentor(

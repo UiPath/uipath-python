@@ -1,4 +1,6 @@
 import json
+import logging
+import uuid
 from collections import defaultdict
 from pathlib import Path
 from time import time
@@ -25,6 +27,7 @@ from .._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
+from .._runtime._logging import ExecutionLogHandler
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import EvaluationItem, EvaluationSet
@@ -72,6 +75,21 @@ class ExecutionSpanExporter(SpanExporter):
         self.clear()
 
 
+class ExecutionLogsExporter:
+    """Custom exporter that stores multiple execution log handlers."""
+
+    def __init__(self):
+        self.log_handlers: dict[str, ExecutionLogHandler] = {}
+
+    def register(self, execution_id: str, handler: ExecutionLogHandler) -> None:
+        self.log_handlers[execution_id] = handler
+
+    def flush_logs(self, execution_id: str, target_handler: logging.Handler) -> None:
+        log_handler = self.log_handlers.get(execution_id)
+        if log_handler:
+            log_handler.flush_execution_logs(target_handler)
+
+
 class UiPathEvalContext(UiPathRuntimeContext):
     """Context used for evaluation runs."""
 
@@ -89,6 +107,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         context: UiPathEvalContext,
         factory: UiPathRuntimeFactory[T, C],
         event_bus: EventBus,
+        execution_logs_exporter: ExecutionLogsExporter,
     ):
         super().__init__(context)
         self.context: UiPathEvalContext = context
@@ -96,6 +115,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self.event_bus: EventBus = event_bus
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
         self.factory.add_span_exporter(self.span_exporter)
+        self.logs_exporter: ExecutionLogsExporter = execution_logs_exporter
+        self.factory.add_logs_exporter(self.logs_exporter)
+        self.execution_id = str(uuid.uuid4())
 
     @classmethod
     def from_eval_context(
@@ -103,15 +125,14 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         context: UiPathEvalContext,
         factory: UiPathRuntimeFactory[T, C],
         event_bus: EventBus,
+        execution_logs_exporter: ExecutionLogsExporter,
     ) -> "UiPathEvalRuntime[T, C]":
-        return cls(context, factory, event_bus)
+        return cls(context, factory, event_bus, execution_logs_exporter)
 
     async def execute(self) -> Optional[UiPathRuntimeResult]:
         if self.context.eval_set is None:
             raise ValueError("eval_set must be provided for evaluation runs")
 
-        if not self.context.execution_id:
-            raise ValueError("execution_id must be provided for evaluation runs")
 
         event_bus = self.event_bus
 
@@ -126,7 +147,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         await event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
             EvalSetRunCreatedEvent(
-                execution_id=self.context.execution_id,
+                execution_id=self.execution_id,
                 entrypoint=self.context.entrypoint or "",
                 eval_set_id=evaluation_set.id,
                 no_of_evals=len(evaluation_set.evaluations),
@@ -142,7 +163,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             await event_bus.publish(
                 EvaluationEvents.CREATE_EVAL_RUN,
                 EvalRunCreatedEvent(
-                    execution_id=self.context.execution_id,
+                    execution_id=self.execution_id,
                     eval_item=eval_item,
                 ),
             )
@@ -191,7 +212,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 await event_bus.publish(
                     EvaluationEvents.UPDATE_EVAL_RUN,
                     EvalRunUpdatedEvent(
-                        execution_id=self.context.execution_id,
+                        execution_id=self.execution_id,
                         eval_item=eval_item,
                         eval_results=evaluation_item_results,
                         success=not agent_execution_output.result.error,
@@ -215,7 +236,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 await event_bus.publish(
                     EvaluationEvents.UPDATE_EVAL_RUN,
                     EvalRunUpdatedEvent(
-                        execution_id=self.context.execution_id,
+                        execution_id=self.execution_id,
                         eval_item=eval_item,
                         eval_results=[],
                         success=False,
@@ -231,7 +252,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         await event_bus.publish(
             EvaluationEvents.UPDATE_EVAL_SET_RUN,
             EvalSetRunUpdatedEvent(
-                execution_id=self.context.execution_id,
+                execution_id=self.execution_id,
                 evaluator_scores=evaluator_averages,
             ),
             wait_for_completion=False,
@@ -246,10 +267,12 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     async def execute_runtime(
         self, eval_item: EvaluationItem
     ) -> UiPathEvalRunExecutionOutput:
+        eval_item_id = eval_item.id
         runtime_context: C = self.factory.new_context(
-            execution_id=eval_item.id,
+            execution_id=eval_item_id,
             input_json=eval_item.inputs,
             is_eval_run=True,
+            log_handler=self._setup_execution_logging(eval_item_id),
         )
         attributes = {
             "evalId": eval_item.id,
@@ -280,6 +303,11 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             spans=spans,
             result=result,
         )
+
+    def _setup_execution_logging(self, eval_item_id: str) -> ExecutionLogHandler:
+        execution_log_handler = ExecutionLogHandler(eval_item_id)
+        self.logs_exporter.register(eval_item_id, execution_log_handler)
+        return execution_log_handler
 
     async def run_evaluator(
         self,

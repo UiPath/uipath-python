@@ -49,6 +49,8 @@ async def main(input: CalculatorInput) -> CalculatorOutput:
     match operator:
 =======
 def main(input: CalculatorInput) -> CalculatorOutput:
+    print(f"PRINT 1 from {input.operator.value}")
+    print(f"PRINT 2 from {input.operator.value}")
     result = 0.0
     match input.operator:
 >>>>>>> d766fe8 (feat: format uipath eval output to show scores)

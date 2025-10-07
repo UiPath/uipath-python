@@ -4,7 +4,10 @@ import logging
 from typing import Any, Dict
 
 from rich.console import Console
+from rich.rule import Rule
+from rich.table import Table
 
+from uipath._cli._evals._runtime import ExecutionLogsExporter
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -22,10 +25,11 @@ logger = logging.getLogger(__name__)
 class ConsoleProgressReporter:
     """Handles displaying evaluation progress to the console with line-by-line output."""
 
-    def __init__(self):
+    def __init__(self, logs_exporter: ExecutionLogsExporter):
         self.console = Console()
         self.evaluators: Dict[str, BaseEvaluator[Any]] = {}
         self.display_started = False
+        self.logs_exporter = logs_exporter
         self.eval_results_by_name: Dict[str, list] = {}
 
     def _convert_score_to_numeric(self, eval_result) -> float:
@@ -48,18 +52,30 @@ class ConsoleProgressReporter:
 
     def _display_successful_evaluation(self, eval_name: str, eval_results) -> None:
         """Display results for a successful evaluation."""
+        from rich.text import Text
+
         if eval_results:
-            # Create details string with evaluator scores
-            details_parts = []
+            result = Text()
+            result.append("▌", style="bold green")
+            result.append(" ", style="")
+            result.append(eval_name, style="bold green")
+            self.console.print(result)
+            table = Table(show_header=False, box=None, padding=(0, 2, 0, 2))
+
             for eval_result in eval_results:
                 evaluator_name = self._get_evaluator_name(eval_result.evaluator_id)
                 score_value = self._convert_score_to_numeric(eval_result)
-                details_parts.append(f"{evaluator_name}: {score_value:.1f}")
+                table.add_row(
+                    f"{evaluator_name}", f"[bold cyan]{score_value:.1f}[/bold cyan]"
+                )
 
-            details = " | ".join(details_parts)
-            self.console.print(f"  ✓ [green]{eval_name}[/green] - {details}")
+            self.console.print(table)
         else:
-            self.console.print(f"  ✓ [green]{eval_name}[/green] - No evaluators")
+            result = Text()
+            result.append("  ✓ ", style="bold green")
+            result.append(eval_name, style="bold white")
+            result.append(" - No evaluators", style="dim")
+            self.console.print(result)
 
     def _extract_error_message(self, eval_item_payload) -> str:
         """Extract clean error message from evaluation item."""
@@ -71,7 +87,17 @@ class ConsoleProgressReporter:
 
     def _display_failed_evaluation(self, eval_name: str, error_msg: str) -> None:
         """Display results for a failed evaluation."""
-        self.console.print(f"  ✗ [red]{eval_name}[/red] - {error_msg}")
+        from rich.text import Text
+
+        result = Text()
+        result.append("  ✗ ", style="bold red")
+        result.append(eval_name, style="bold white")
+        self.console.print(result)
+
+        error_text = Text()
+        error_text.append("    ", style="")
+        error_text.append(error_msg, style="red")
+        self.console.print(error_text)
 
     def start_display(self):
         """Start the display."""
@@ -110,6 +136,24 @@ class ConsoleProgressReporter:
             else:
                 error_msg = self._extract_error_message(payload.eval_item)
                 self._display_failed_evaluation(payload.eval_item.name, error_msg)
+
+            log_handler = self.logs_exporter.log_handlers.get(payload.eval_item.id)
+            if log_handler and log_handler.buffer:
+                self.console.print(
+                    Rule(
+                        f"[dim italic]Execution Logs: {payload.eval_item.name}[/dim italic]",
+                        style="dim",
+                        align="center",
+                    )
+                )
+
+                for record in log_handler.buffer:
+                    log_line = f"  [dim]{record.getMessage()}[/dim]"
+                    self.console.print(log_line)
+
+                self.console.print(Rule(style="dim"))
+
+                log_handler.clear_execution()
         except Exception as e:
             logger.error(f"Console reporter error: {e}")
 
