@@ -9,7 +9,9 @@ from uipath._cli._evals._models._evaluation_set import (
     LLMMockingStrategy,
     MockitoMockingStrategy,
 )
-from uipath._cli._evals.mocks.mocks import mockable, set_evaluation_item
+from uipath._cli._evals.mocks.mocker import UiPathMockResponseGenerationError
+from uipath._cli._evals.mocks.mocks import set_evaluation_item
+from uipath.eval.mocks import mockable
 
 
 def test_mockito_mockable_sync():
@@ -54,7 +56,7 @@ def test_mockito_mockable_sync():
     assert foo() == "bar2"
     assert foo() == "bar2"
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(UiPathMockResponseGenerationError):
         assert foo(x=1)
 
     with pytest.raises(NotImplementedError):
@@ -114,7 +116,7 @@ async def test_mockito_mockable_async():
     assert await foo() == "bar2"
     assert await foo() == "bar2"
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(UiPathMockResponseGenerationError):
         assert await foo(x=1)
 
     with pytest.raises(NotImplementedError):
@@ -204,6 +206,13 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     assert foo() == "bar1"
     with pytest.raises(NotImplementedError):
         assert foofoo()
+    httpx_mock.add_response(
+        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
+        status_code=200,
+        json={},
+    )
+    with pytest.raises(UiPathMockResponseGenerationError):
+        assert foo()
 
 
 @pytest.mark.asyncio
@@ -270,3 +279,11 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
     assert await foo() == "bar1"
     with pytest.raises(NotImplementedError):
         assert await foofoo()
+
+    httpx_mock.add_response(
+        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
+        status_code=200,
+        json={},
+    )
+    with pytest.raises(UiPathMockResponseGenerationError):
+        assert await foo()

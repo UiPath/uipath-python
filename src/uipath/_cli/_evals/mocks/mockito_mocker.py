@@ -13,7 +13,13 @@ from uipath._cli._evals._models._evaluation_set import (
     MockingAnswerType,
     MockitoMockingStrategy,
 )
-from uipath._cli._evals.mocks.mocker import Mocker, R, T
+from uipath._cli._evals.mocks.mocker import (
+    Mocker,
+    R,
+    T,
+    UiPathMockResponseGenerationError,
+    UiPathNoMockFoundError,
+)
 
 
 class Stub:
@@ -59,4 +65,16 @@ class MockitoMocker(Mocker):
         self, func: Callable[[T], R], params: dict[str, Any], *args: T, **kwargs
     ) -> R:
         """Respond with mocked response."""
-        return getattr(self.stub, params["name"])(*args, **kwargs)
+        if not isinstance(
+            self.evaluation_item.mocking_strategy, MockitoMockingStrategy
+        ):
+            raise UiPathMockResponseGenerationError("Mocking strategy misconfigured.")
+        if not any(
+            behavior.function == params["name"]
+            for behavior in self.evaluation_item.mocking_strategy.behaviors
+        ):
+            raise UiPathNoMockFoundError()
+        try:
+            return getattr(self.stub, params["name"])(*args, **kwargs)
+        except Exception as e:
+            raise UiPathMockResponseGenerationError() from e

@@ -19,37 +19,29 @@ class BaseMockingStrategy(BaseModel):
     pass
 
 
+class ModelSettings(BaseModel):
+    """Model Generation Parameters."""
+
+    model: str = Field(..., alias="model")
+    temperature: Optional[float] = Field(default=None, alias="temperature")
+    top_p: Optional[float] = Field(default=None, alias="topP")
+    top_k: Optional[int] = Field(default=None, alias="topK")
+    frequency_penalty: Optional[float] = Field(default=None, alias="frequencyPenalty")
+    presence_penalty: Optional[float] = Field(default=None, alias="presencePenalty")
+    max_tokens: Optional[int] = Field(default=None, alias="maxTokens")
+
+
 class LLMMockingStrategy(BaseMockingStrategy):
     type: Literal[MockingStrategyType.LLM] = MockingStrategyType.LLM
     prompt: str = Field(..., alias="prompt")
     tools_to_simulate: list[EvaluationSimulationTool] = Field(
         ..., alias="toolsToSimulate"
     )
+    model: Optional[ModelSettings] = Field(None, alias="model")
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
-
-
-"""
-{
-            "function": "postprocess",
-            "arguments": {
-              "args": [],
-              "kwargs": {"x": 3}
-            },
-            "then": [
-              {
-                "return": 3
-              },
-              {
-                "raise": {
-                  "__target__": "NotImplementedError"
-                }
-              }
-            ]
-          }
-          """
 
 
 class MockingArgument(BaseModel):
@@ -97,18 +89,6 @@ class UnknownMockingStrategy(BaseMockingStrategy):
 
 
 MockingStrategy = Union[KnownMockingStrategy, UnknownMockingStrategy]
-
-
-def migrate_mocking_strategy(data) -> MockingStrategy:
-    if data.get("simulate_tools") and "tools_to_simulate" in data:
-        return LLMMockingStrategy(
-            **{
-                "prompt": data["simulation_instructions"],
-                "toolsToSimulate": data["tools_to_simulate"],
-            }
-        )
-    else:
-        return UnknownMockingStrategy(type=MockingStrategyType.UNKNOWN)
 
 
 class EvaluationItem(BaseModel):
