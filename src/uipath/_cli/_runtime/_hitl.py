@@ -10,6 +10,7 @@ from uipath.models import CreateAction, InvokeProcess, WaitAction, WaitJob
 from .._runtime._contracts import (
     UiPathApiTrigger,
     UiPathErrorCategory,
+    UiPathErrorCode,
     UiPathResumeTrigger,
     UiPathResumeTriggerType,
     UiPathRuntimeError,
@@ -87,7 +88,7 @@ class HitlReader:
                         == UiPathRuntimeStatus.SUCCESSFUL.value.lower()
                     ):
                         raise UiPathRuntimeError(
-                            "INVOKED_PROCESS_FAILURE",
+                            UiPathErrorCode.INVOKED_PROCESS_FAILURE,
                             "Invoked process did not finish successfully.",
                             _try_convert_to_json_format(str(job.job_error or job.info))
                             or "Job error unavailable.",
@@ -103,21 +104,21 @@ class HitlReader:
                         )
                     except Exception as e:
                         raise UiPathRuntimeError(
-                            "API_CONNECTION_ERROR",
+                            UiPathErrorCode.API_CONNECTION_ERROR,
                             "Failed to get trigger payload",
                             f"Error fetching API trigger payload for inbox {resume_trigger.api_resume.inbox_id}: {str(e)}",
                             UiPathErrorCategory.SYSTEM,
                         ) from e
             case _:
                 raise UiPathRuntimeError(
-                    "UNKNOWN_TRIGGER_TYPE",
+                    UiPathErrorCode.UNKNOWN_TRIGGER_TYPE,
                     "Unexpected trigger type received",
                     f"Trigger type :{type(resume_trigger.trigger_type)} is invalid",
                     UiPathErrorCategory.USER,
                 )
 
         raise UiPathRuntimeError(
-            "HITL_FEEDBACK_FAILURE",
+            UiPathErrorCode.HITL_FEEDBACK_FAILURE,
             "Failed to receive payload from HITL action",
             detail="Failed to receive payload from HITL action",
             category=UiPathErrorCategory.SYSTEM,
@@ -242,14 +243,14 @@ class HitlProcessor:
                     )
                 case _:
                     raise UiPathRuntimeError(
-                        "UNKNOWN_HITL_MODEL",
+                        UiPathErrorCode.UNKNOWN_HITL_MODEL,
                         "Unexpected model received",
                         f"{type(hitl_input)} is not a valid Human(Robot/Agent)-In-The-Loop model",
                         UiPathErrorCategory.USER,
                     )
         except Exception as e:
             raise UiPathRuntimeError(
-                "HITL_ACTION_CREATION_FAILED",
+                UiPathErrorCode.HITL_ACTION_CREATION_FAILED,
                 "Failed to create HITL action",
                 f"{str(e)}",
                 UiPathErrorCategory.SYSTEM,
