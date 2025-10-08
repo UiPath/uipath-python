@@ -1,0 +1,10 @@
+{
+  "id": "exact-match-eval",
+  "name": "Exact Match Evaluator",
+  "description": "Tests for exact output matches",
+  "category": 0,
+  "type": 1,
+  "targetOutputKey": "*",
+  "createdAt": "2025-01-25T00:00:00Z",
+  "updatedAt": "2025-01-25T00:00:00Z"
+}
