@@ -519,12 +519,14 @@ class UiPathBaseRuntime(ABC):
 
         await self.validate()
 
-        # Intercept all stdout/stderr/logs and write them to a file (runtime/evals), stdout (debug)
+        # Intercept all stdout/stderr/logs
+        # write to file (runtime) or stdout (debug)
         self.logs_interceptor = LogsInterceptor(
             min_level=self.context.logs_min_level,
             dir=self.context.runtime_dir,
             file=self.context.logs_file,
             job_id=self.context.job_id,
+            execution_id=self.context.execution_id,
             is_debug_run=self.is_debug_run(),
             log_handler=self.context.log_handler,
         )
@@ -648,7 +650,7 @@ class UiPathBaseRuntime(ABC):
             raise
         finally:
             # Restore original logging
-            if self.logs_interceptor:
+            if hasattr(self, "logs_interceptor"):
                 self.logs_interceptor.teardown()
 
             await self.cleanup()
@@ -697,6 +699,7 @@ class UiPathRuntimeFactory(Generic[T, C]):
         self.context_generator = context_generator
         self.tracer_provider: TracerProvider = TracerProvider()
         self.tracer_span_processors: List[SpanProcessor] = []
+        self.logs_exporter: Optional[Any] = None
         trace.set_tracer_provider(self.tracer_provider)
 
     def add_span_exporter(

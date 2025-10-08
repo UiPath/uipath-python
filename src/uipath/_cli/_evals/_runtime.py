@@ -1,4 +1,6 @@
 import json
+import logging
+import uuid
 from collections import defaultdict
 from pathlib import Path
 from time import time
@@ -25,6 +27,7 @@ from .._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
+from .._runtime._logging import ExecutionLogHandler
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import EvaluationItem, EvaluationSet
@@ -35,6 +38,7 @@ from ._models._output import (
     UiPathEvalOutput,
     UiPathEvalRunExecutionOutput,
 )
+from .mocks.mocks import set_evaluation_item
 
 T = TypeVar("T", bound=UiPathBaseRuntime)
 C = TypeVar("C", bound=UiPathRuntimeContext)
@@ -71,6 +75,33 @@ class ExecutionSpanExporter(SpanExporter):
         self.clear()
 
 
+class ExecutionLogsExporter:
+    """Custom exporter that stores multiple execution log handlers."""
+
+    def __init__(self):
+        self._log_handlers: dict[str, ExecutionLogHandler] = {}
+
+    def register(self, execution_id: str, handler: ExecutionLogHandler) -> None:
+        self._log_handlers[execution_id] = handler
+
+    def get_logs(self, execution_id: str) -> list[logging.LogRecord]:
+        """Clear stored spans for one or all executions."""
+        log_handler = self._log_handlers.get(execution_id)
+        return log_handler.buffer if log_handler else []
+
+    def clear(self, execution_id: Optional[str] = None) -> None:
+        """Clear stored spans for one or all executions."""
+        if execution_id:
+            self._log_handlers.pop(execution_id, None)
+        else:
+            self._log_handlers.clear()
+
+    def flush_logs(self, execution_id: str, target_handler: logging.Handler) -> None:
+        log_handler = self._log_handlers.get(execution_id)
+        if log_handler:
+            log_handler.flush_execution_logs(target_handler)
+
+
 class UiPathEvalContext(UiPathRuntimeContext):
     """Context used for evaluation runs."""
 
@@ -95,6 +126,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self.event_bus: EventBus = event_bus
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
         self.factory.add_span_exporter(self.span_exporter)
+        self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
+        self.execution_id = str(uuid.uuid4())
 
     @classmethod
     def from_eval_context(
@@ -109,9 +142,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         if self.context.eval_set is None:
             raise ValueError("eval_set must be provided for evaluation runs")
 
-        if not self.context.execution_id:
-            raise ValueError("execution_id must be provided for evaluation runs")
-
         event_bus = self.event_bus
 
         evaluation_set = EvalHelpers.load_eval_set(
@@ -125,7 +155,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         await event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
             EvalSetRunCreatedEvent(
-                execution_id=self.context.execution_id,
+                execution_id=self.execution_id,
                 entrypoint=self.context.entrypoint or "",
                 eval_set_id=evaluation_set.id,
                 no_of_evals=len(evaluation_set.evaluations),
@@ -137,10 +167,11 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluation_set_name=evaluation_set.name, score=0, evaluation_set_results=[]
         )
         for eval_item in evaluation_set.evaluations:
+            set_evaluation_item(eval_item)
             await event_bus.publish(
                 EvaluationEvents.CREATE_EVAL_RUN,
                 EvalRunCreatedEvent(
-                    execution_id=self.context.execution_id,
+                    execution_id=self.execution_id,
                     eval_item=eval_item,
                 ),
             )
@@ -151,60 +182,87 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
             results.evaluation_set_results.append(evaluation_run_results)
 
-            agent_execution_output = await self.execute_runtime(eval_item)
-            evaluation_item_results: list[EvalItemResult] = []
+            try:
+                agent_execution_output = await self.execute_runtime(eval_item)
+                evaluation_item_results: list[EvalItemResult] = []
 
-            for evaluator in evaluators:
-                evaluation_result = await self.run_evaluator(
-                    evaluator=evaluator,
-                    execution_output=agent_execution_output,
-                    eval_item=eval_item,
-                )
-
-                dto_result = EvaluationResultDto.from_evaluation_result(
-                    evaluation_result
-                )
-                evaluator_counts[evaluator.id] += 1
-                count = evaluator_counts[evaluator.id]
-                evaluator_averages[evaluator.id] += (
-                    dto_result.score - evaluator_averages[evaluator.id]
-                ) / count
-
-                evaluation_run_results.evaluation_run_results.append(
-                    EvaluationRunResultDto(
-                        evaluator_name=evaluator.name,
-                        result=dto_result,
+                for evaluator in evaluators:
+                    evaluation_result = await self.run_evaluator(
+                        evaluator=evaluator,
+                        execution_output=agent_execution_output,
+                        eval_item=eval_item,
                     )
-                )
-                evaluation_item_results.append(
-                    EvalItemResult(
-                        evaluator_id=evaluator.id,
-                        result=evaluation_result,
+
+                    dto_result = EvaluationResultDto.from_evaluation_result(
+                        evaluation_result
                     )
+                    evaluator_counts[evaluator.id] += 1
+                    count = evaluator_counts[evaluator.id]
+                    evaluator_averages[evaluator.id] += (
+                        dto_result.score - evaluator_averages[evaluator.id]
+                    ) / count
+
+                    evaluation_run_results.evaluation_run_results.append(
+                        EvaluationRunResultDto(
+                            evaluator_name=evaluator.name,
+                            result=dto_result,
+                        )
+                    )
+                    evaluation_item_results.append(
+                        EvalItemResult(
+                            evaluator_id=evaluator.id,
+                            result=evaluation_result,
+                        )
+                    )
+
+                evaluation_run_results.compute_average_score()
+
+                await event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_RUN,
+                    EvalRunUpdatedEvent(
+                        execution_id=self.execution_id,
+                        eval_item=eval_item,
+                        eval_results=evaluation_item_results,
+                        success=not agent_execution_output.result.error,
+                        agent_output=agent_execution_output.result.output,
+                        agent_execution_time=agent_execution_output.execution_time,
+                        spans=agent_execution_output.spans,
+                        logs=agent_execution_output.logs,
+                    ),
+                    wait_for_completion=False,
                 )
+            except Exception as e:
+                error_msg = str(e)
+                eval_item._error_message = error_msg  # type: ignore[attr-defined]
 
-            evaluation_run_results.compute_average_score()
+                for evaluator in evaluators:
+                    evaluator_counts[evaluator.id] += 1
+                    count = evaluator_counts[evaluator.id]
+                    evaluator_averages[evaluator.id] += (
+                        0.0 - evaluator_averages[evaluator.id]
+                    ) / count
 
-            await event_bus.publish(
-                EvaluationEvents.UPDATE_EVAL_RUN,
-                EvalRunUpdatedEvent(
-                    execution_id=self.context.execution_id,
-                    eval_item=eval_item,
-                    eval_results=evaluation_item_results,
-                    success=not agent_execution_output.result.error,
-                    agent_output=agent_execution_output.result.output,
-                    agent_execution_time=agent_execution_output.execution_time,
-                    spans=agent_execution_output.spans,
-                ),
-                wait_for_completion=False,
-            )
+                await event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_RUN,
+                    EvalRunUpdatedEvent(
+                        execution_id=self.execution_id,
+                        eval_item=eval_item,
+                        eval_results=[],
+                        success=False,
+                        agent_output={},
+                        agent_execution_time=0.0,
+                        spans=[],
+                        logs=[],
+                    ),
+                    wait_for_completion=False,
+                )
 
         results.compute_average_score()
 
         await event_bus.publish(
             EvaluationEvents.UPDATE_EVAL_SET_RUN,
             EvalSetRunUpdatedEvent(
-                execution_id=self.context.execution_id,
+                execution_id=self.execution_id,
                 evaluator_scores=evaluator_averages,
             ),
             wait_for_completion=False,
@@ -219,10 +277,12 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     async def execute_runtime(
         self, eval_item: EvaluationItem
     ) -> UiPathEvalRunExecutionOutput:
+        eval_item_id = eval_item.id
         runtime_context: C = self.factory.new_context(
-            execution_id=eval_item.id,
+            execution_id=eval_item_id,
             input_json=eval_item.inputs,
             is_eval_run=True,
+            log_handler=self._setup_execution_logging(eval_item_id),
         )
         attributes = {
             "evalId": eval_item.id,
@@ -245,14 +305,23 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         spans = self.span_exporter.get_spans(runtime_context.execution_id)
         self.span_exporter.clear(runtime_context.execution_id)
 
+        logs = self.logs_exporter.get_logs(runtime_context.execution_id)
+        self.logs_exporter.clear(runtime_context.execution_id)
+
         if result is None:
             raise ValueError("Execution result cannot be None for eval runs")
 
         return UiPathEvalRunExecutionOutput(
             execution_time=end_time - start_time,
             spans=spans,
+            logs=logs,
             result=result,
         )
+
+    def _setup_execution_logging(self, eval_item_id: str) -> ExecutionLogHandler:
+        execution_log_handler = ExecutionLogHandler(eval_item_id)
+        self.logs_exporter.register(eval_item_id, execution_log_handler)
+        return execution_log_handler
 
     async def run_evaluator(
         self,

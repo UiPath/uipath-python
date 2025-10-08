@@ -1,4 +1,5 @@
 import enum
+import logging
 from typing import Any, List, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -38,6 +39,7 @@ class EvalRunUpdatedEvent(BaseModel):
     agent_output: Any
     agent_execution_time: float
     spans: List[ReadableSpan]
+    logs: List[logging.LogRecord]
 
 
 class EvalSetRunUpdatedEvent(BaseModel):
