@@ -1,9 +1,9 @@
 import enum
 import logging
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath.eval.models import EvalItemResult
@@ -29,6 +29,13 @@ class EvalRunCreatedEvent(BaseModel):
     eval_item: EvaluationItem
 
 
+class EvalItemExceptionDetails(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    runtime_exception: bool = False
+    exception: Exception
+
+
 class EvalRunUpdatedEvent(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -40,6 +47,13 @@ class EvalRunUpdatedEvent(BaseModel):
     agent_execution_time: float
     spans: List[ReadableSpan]
     logs: List[logging.LogRecord]
+    exception_details: Optional[EvalItemExceptionDetails] = None
+
+    @model_validator(mode="after")
+    def validate_exception_details(self):
+        if not self.success and self.exception_details is None:
+            raise ValueError("exception_details must be provided when success is False")
+        return self
 
 
 class EvalSetRunUpdatedEvent(BaseModel):
