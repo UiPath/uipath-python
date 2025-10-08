@@ -32,7 +32,6 @@ class ConnectionsService(BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
 
-    @infer_bindings(resource_type="connection", name="key")
     @traced(
         name="connections_retrieve",
         run_type="uipath",
@@ -165,7 +164,6 @@ class ConnectionsService(BaseService):
 
         return self._parse_and_validate_list_response(response)
 
-    @infer_bindings(resource_type="connection", name="key")
     @traced(
         name="connections_retrieve",
         run_type="uipath",
