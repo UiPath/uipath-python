@@ -13,16 +13,26 @@ from zoneinfo import ZoneInfo
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 
 def _simple_serialize_defaults(obj):
-    if hasattr(obj, "model_dump"):
+    # Handle Pydantic BaseModel instances
+    if hasattr(obj, "model_dump") and not isinstance(obj, type):
         return obj.model_dump(exclude_none=True, mode="json")
-    if hasattr(obj, "dict"):
+
+    # Handle classes - convert to schema representation
+    if isinstance(obj, type) and issubclass(obj, BaseModel):
+        return {
+            "__class__": obj.__name__,
+            "__module__": obj.__module__,
+            "schema": obj.model_json_schema(),
+        }
+    if hasattr(obj, "dict") and not isinstance(obj, type):
         return obj.dict()
-    if hasattr(obj, "to_dict"):
+    if hasattr(obj, "to_dict") and not isinstance(obj, type):
         return obj.to_dict()
 
     # Handle dataclasses
@@ -31,7 +41,7 @@ def _simple_serialize_defaults(obj):
 
     # Handle enums
     if isinstance(obj, Enum):
-        return obj.value
+        return _simple_serialize_defaults(obj.value)
 
     if isinstance(obj, (set, tuple)):
         if hasattr(obj, "_asdict") and callable(obj._asdict):
@@ -43,6 +53,10 @@ def _simple_serialize_defaults(obj):
 
     if isinstance(obj, (timezone, ZoneInfo)):
         return obj.tzname(None)
+
+    # Allow JSON-serializable primitives to pass through unchanged
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
 
     return str(obj)
 
