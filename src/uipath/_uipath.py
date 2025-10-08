@@ -60,6 +60,7 @@ class UiPath:
         self._folders_service: Optional[FolderService] = None
         self._buckets_service: Optional[BucketsService] = None
         self._attachments_service: Optional[AttachmentsService] = None
+        self._connections_service: Optional[ConnectionsService] = None
 
         setup_logging(debug)
         self._execution_context = ExecutionContext()
@@ -98,7 +99,15 @@ class UiPath:
 
     @property
     def connections(self) -> ConnectionsService:
-        return ConnectionsService(self._config, self._execution_context)
+        if not self._connections_service:
+            if not self._folders_service:
+                self._folders_service = FolderService(
+                    self._config, self._execution_context
+                )
+            self._connections_service = ConnectionsService(
+                self._config, self._execution_context, self._folders_service
+            )
+        return self._connections_service
 
     @property
     def context_grounding(self) -> ContextGroundingService:
