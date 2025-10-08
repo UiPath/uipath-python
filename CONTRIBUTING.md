@@ -21,7 +21,21 @@
     uv venv
     ```
 
-4. **Install dependencies**:
+4. **Activate the virtual environment**:
+    - Linux/Mac
+    ```sh
+    source .venv/bin/activate
+    ```
+    - Windows Powershell
+    ```sh
+    .venv\Scripts\Activate.ps1
+    ```
+    - Windows Bash
+    ```sh
+    source .venv/Scripts/activate
+    ```
+
+5. **Install dependencies**:
     ```sh
     uv sync --all-extras --no-cache
     ```
