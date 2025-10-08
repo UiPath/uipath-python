@@ -50,6 +50,16 @@ class ExecutionContextFilter(logging.Filter):
         return False
 
 
+class MasterExecutionFilter(logging.Filter):
+    """Filter for master handler that blocks logs from any child execution."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Block logs that belong to a child execution context."""
+        ctx_execution_id = current_execution_id.get()
+        # Block if there's an active child execution context
+        return ctx_execution_id is None
+
+
 class LogsInterceptor:
     """Intercepts all logging and stdout/stderr, routing to either persistent log files or stdout based on whether it's running as a job or not."""
 
@@ -93,7 +103,9 @@ class LogsInterceptor:
         self.original_stderr = cast(TextIO, sys.stderr)
 
         self.log_handler: Union[
-            PersistentLogsHandler, logging.StreamHandler[TextIO], logging.Handler
+            PersistentLogsHandler,
+            logging.StreamHandler[TextIO],
+            logging.Handler,
         ]
 
         if log_handler:
@@ -116,8 +128,13 @@ class LogsInterceptor:
         self.log_handler.setLevel(self.numeric_min_level)
 
         # Add execution context filter if execution_id provided
+        self.execution_filter: Optional[logging.Filter] = None
         if execution_id:
             self.execution_filter = ExecutionContextFilter(execution_id)
+            self.log_handler.addFilter(self.execution_filter)
+        else:
+            # Master execution: filter out child execution logs
+            self.execution_filter = MasterExecutionFilter()
             self.log_handler.addFilter(self.execution_filter)
 
         self.logger = logging.getLogger("runtime")
@@ -146,17 +163,23 @@ class LogsInterceptor:
         self.root_logger.setLevel(self.numeric_min_level)
 
         if self.execution_id:
-            # Parallel execution mode: add our handler without removing others
+            # Child execution mode: add our handler without removing others
             if self.log_handler not in self.root_logger.handlers:
                 self.root_logger.addHandler(self.log_handler)
 
-            # Set up propagation for all existing loggers
+            # Keep propagation enabled so logs flow through filters
+            # Our ExecutionContextFilter will ensure only our logs get through our handler
             for logger_name in logging.root.manager.loggerDict:
                 logger = logging.getLogger(logger_name)
-                # Keep propagation enabled so logs flow to all handlers
+                # Keep propagation enabled for filtering to work
+                # logger.propagate remains True (default)
                 self.patched_loggers.add(logger_name)
+
+            # Child executions should redirect stdout/stderr to their own handler
+            # This ensures print statements are captured per execution
+            self._redirect_stdout_stderr()
         else:
-            # Single execution mode: remove all handlers and add only ours
+            # Master execution mode: remove all handlers and add only ours
             self._clean_all_handlers(self.root_logger)
 
             # Set up propagation for all existing loggers
@@ -166,8 +189,8 @@ class LogsInterceptor:
                 self._clean_all_handlers(logger)
                 self.patched_loggers.add(logger_name)
 
-        # Set up stdout/stderr redirection
-        self._redirect_stdout_stderr()
+            # Master redirects stdout/stderr
+            self._redirect_stdout_stderr()
 
     def _redirect_stdout_stderr(self) -> None:
         """Redirect stdout and stderr to the logging system."""
@@ -218,15 +241,20 @@ class LogsInterceptor:
         stdout_logger = logging.getLogger("stdout")
         stderr_logger = logging.getLogger("stderr")
 
-        stdout_logger.propagate = False
-        stderr_logger.propagate = False
-
         if self.execution_id:
+            # Child execution: add our handler to stdout/stderr loggers
+            stdout_logger.propagate = False
+            stderr_logger.propagate = False
+
             if self.log_handler not in stdout_logger.handlers:
                 stdout_logger.addHandler(self.log_handler)
             if self.log_handler not in stderr_logger.handlers:
                 stderr_logger.addHandler(self.log_handler)
         else:
+            # Master execution: clean and set up handlers
+            stdout_logger.propagate = False
+            stderr_logger.propagate = False
+
             self._clean_all_handlers(stdout_logger)
             self._clean_all_handlers(stderr_logger)
 
@@ -249,23 +277,22 @@ class LogsInterceptor:
             logging.disable(self.original_disable_level)
 
         # Remove our handler and filter
-        if self.execution_id:
-            if hasattr(self, "execution_filter"):
-                self.log_handler.removeFilter(self.execution_filter)
-            if self.log_handler in self.root_logger.handlers:
-                self.root_logger.removeHandler(self.log_handler)
+        if self.execution_filter:
+            self.log_handler.removeFilter(self.execution_filter)
 
-            # Remove from stdout/stderr loggers too
-            stdout_logger = logging.getLogger("stdout")
-            stderr_logger = logging.getLogger("stderr")
-            if self.log_handler in stdout_logger.handlers:
-                stdout_logger.removeHandler(self.log_handler)
-            if self.log_handler in stderr_logger.handlers:
-                stderr_logger.removeHandler(self.log_handler)
-        else:
-            if self.log_handler in self.root_logger.handlers:
-                self.root_logger.removeHandler(self.log_handler)
+        if self.log_handler in self.root_logger.handlers:
+            self.root_logger.removeHandler(self.log_handler)
 
+        # Remove from stdout/stderr loggers
+        stdout_logger = logging.getLogger("stdout")
+        stderr_logger = logging.getLogger("stderr")
+        if self.log_handler in stdout_logger.handlers:
+            stdout_logger.removeHandler(self.log_handler)
+        if self.log_handler in stderr_logger.handlers:
+            stderr_logger.removeHandler(self.log_handler)
+
+        if not self.execution_id:
+            # Master execution: restore everything
             for logger_name in self.patched_loggers:
                 logger = logging.getLogger(logger_name)
                 if self.log_handler in logger.handlers:
@@ -278,6 +305,7 @@ class LogsInterceptor:
 
         self.log_handler.close()
 
+        # Only restore streams if we redirected them
         if self.original_stdout and self.original_stderr:
             sys.stdout = self.original_stdout
             sys.stderr = self.original_stderr
