@@ -2,11 +2,11 @@
 import ast
 import asyncio
 import os
-import uuid
 from typing import List, Optional
 
 import click
 
+from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
     UiPathEvalContext,
@@ -114,13 +114,15 @@ def eval(
         eval_context = UiPathEvalContext.with_defaults(
             execution_output_file=output_file,
             entrypoint=runtime_entrypoint,
-            execution_id=str(uuid.uuid4()),
         )
 
         eval_context.no_report = no_report
         eval_context.workers = workers
         eval_context.eval_set = eval_set or EvalHelpers.auto_discover_eval_set()
         eval_context.eval_ids = eval_ids
+
+        console_reporter = ConsoleProgressReporter()
+        asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         try:
             runtime_factory = UiPathRuntimeFactory(
@@ -143,10 +145,8 @@ def eval(
             asyncio.run(execute())
         except Exception as e:
             console.error(
-                f"Error: Unexpected error occurred - {str(e)}", include_traceback=True
+                f"Error occurred: {e or 'Execution failed'}", include_traceback=True
             )
-
-    console.success("Evaluation completed successfully")
 
 
 if __name__ == "__main__":

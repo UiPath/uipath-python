@@ -4,7 +4,8 @@
   "name": "Basic Calculator Evaluation Set",
   "batchSize": 10,
   "evaluatorRefs": [
-    "equality"
+    "equality",
+    "llm-as-a-judge"
   ],
   "evaluations": [
     {
