@@ -55,6 +55,7 @@ class AgentToolType(str, Enum):
 
     AGENT = "agent"
     INTEGRATION = "integration"
+    PROCESS = "process"
 
 
 class AgentToolSettings(BaseModel):

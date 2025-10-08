@@ -26,6 +26,7 @@ class ConsoleProgressReporter:
         self.console = Console()
         self.evaluators: Dict[str, BaseEvaluator[Any]] = {}
         self.display_started = False
+        self.eval_results_by_name: Dict[str, list] = {}
 
     def _convert_score_to_numeric(self, eval_result) -> float:
         """Convert evaluation result score to numeric value."""
@@ -101,6 +102,8 @@ class ConsoleProgressReporter:
         """Handle evaluation run updates."""
         try:
             if payload.success:
+                # Store results for final display
+                self.eval_results_by_name[payload.eval_item.name] = payload.eval_results
                 self._display_successful_evaluation(
                     payload.eval_item.name, payload.eval_results
                 )
@@ -122,18 +125,55 @@ class ConsoleProgressReporter:
         self.console.print()
 
         if hasattr(self, "final_results") and self.final_results:
-            # Show per-evaluator averages in a table
             from rich.table import Table
 
-            results_summary_table = Table(title="Final Results")
-            results_summary_table.add_column("Evaluator", style="bold")
-            results_summary_table.add_column("Average Score", justify="right")
+            # Group evaluators by ID to organize display
+            evaluator_ids = list(self.final_results.keys())
 
-            for evaluator_id, avg_score in self.final_results.items():
+            # Print title
+            self.console.print("[bold]Evaluation Results[/bold]")
+            self.console.print()
+
+            # Create single summary table
+            summary_table = Table(show_header=True, padding=(0, 2))
+            summary_table.add_column("Evaluation", style="cyan")
+
+            # Add column for each evaluator
+            for evaluator_id in evaluator_ids:
                 evaluator_name = self._get_evaluator_name(evaluator_id)
-                results_summary_table.add_row(evaluator_name, f"{avg_score:.1f}/100")
+                summary_table.add_column(evaluator_name, justify="right")
 
-            self.console.print(results_summary_table)
+            # Add row for each evaluation
+            for eval_name, eval_results in self.eval_results_by_name.items():
+                row_values = [eval_name]
+
+                # Get score for each evaluator
+                for evaluator_id in evaluator_ids:
+                    score_found = False
+                    for eval_result in eval_results:
+                        if eval_result.evaluator_id == evaluator_id:
+                            score_value = self._convert_score_to_numeric(eval_result)
+                            row_values.append(f"{score_value:.1f}")
+                            score_found = True
+                            break
+
+                    if not score_found:
+                        row_values.append("-")
+
+                summary_table.add_row(*row_values)
+
+            # Add separator row before average
+            summary_table.add_section()
+
+            # Add average row
+            avg_row_values = ["[bold]Average[/bold]"]
+            for evaluator_id in evaluator_ids:
+                avg_score = self.final_results[evaluator_id]
+                avg_row_values.append(f"[bold]{avg_score:.1f}[/bold]")
+
+            summary_table.add_row(*avg_row_values)
+
+            self.console.print(summary_table)
             self.console.print()
         else:
             self.console.print(
