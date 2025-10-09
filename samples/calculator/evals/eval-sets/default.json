@@ -55,7 +55,11 @@
       "mockingStrategy": {
         "type": "llm",
         "prompt": "The random operator is '+'.",
-        "toolsToSimulate": [{"name":  "get_random_operator"}]
+        "toolsToSimulate": [{"name":  "get_random_operator"}],
+        "model": {
+          "model": "gpt-4o-mini-2024-07-18",
+          "temperature": 0
+        }
       },
       "evalSetId": "default-eval-set-id",
       "createdAt": "2025-09-04T18:54:58.378Z",
