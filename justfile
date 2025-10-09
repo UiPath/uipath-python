@@ -9,7 +9,12 @@ lint:
 format:
     ruff format --check .
 
-build:
+validate: lint format
+
+update-agents-md: validate
+    python scripts/update_agents_md.py
+
+build: update-agents-md
     uv build
 
 install:

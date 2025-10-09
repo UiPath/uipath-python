@@ -1,724 +1,1328 @@
-# AGENTS.md – Unified Guide for UiPath Workflows & Agentic Solutions
+# Agent Code Patterns Reference
 
-This document provides a comprehensive guide to building, testing, and deploying Python automations and intelligent agents on the UiPath platform using the `uipath-python` and `uipath-langchain-python` SDK, just like the agent present in this folder.
-
----
-
-## 0) Local Environment Setup (with `uv`)
-
-This project assumes you’re using [`uv`](https://github.com/astral-sh/uv) for fast Python installs, virtualenvs, and command execution.
-
-### 0.1 Install Python & create a virtualenv
-
-```bash
-# Install a modern Python (adjust the version if you need)
-uv python install 3.12
-
-# Create a local virtual environment (uses the latest installed Python by default)
-uv venv
-```
-
-> **Tip:** You don’t need to “activate” the venv if you use `uv run ...`, but if you prefer activation:
->
-> -   macOS/Linux: `source .venv/bin/activate`
-> -   Windows PowerShell: `.venv\Scripts\Activate.ps1`
-
-### 0.2 Install dependencies
-
-```bash
-uv pip install -e .
-```
-
-### 0.3 Run the UiPath CLI via `uv`
-
-Using `uv run` means you don’t have to activate the venv:
-
-```bash
-# Log in and write credentials to .env
-uv run uipath auth
-
-# Initialize (scans entrypoints and updates uipath.json)
-uv run uipath init
-
-# Interactive dev loop (recommended)
-uv run uipath dev
-
-# Non-interactive run of classic entrypoint
-uv run uipath run main.py '{"message": "Hello from uv"}'
-
-# If you exposed a compiled graph entrypoint called "agent"
-# (name exposed in langgraph.json)
-uv run uipath run agent '{"topic": "Quarterly sales"}'
-```
-
-## 1) Core Developer Workflow (CLI)
-
-The **unified CLI** supports both classic automations and LangGraph agents.
-
-### 1.1 Authenticate
-
-```bash
-uipath auth
-```
-
--   Opens a browser login and writes credentials to `.env`.
--   Required before local runs or publishing.
-
-### 1.2 Initialize
-
-```bash
-uipath init
-
-```
-
--   Scans the classic entrypoint (`main.py`) and creates/updates `uipath.json` with **input/output schema** and **resource bindings**.
--   Re‑run when you change function signatures, add Assets/Queues/Buckets, or new graph entrypoints.
-
-### 1.3 Local Run & Debug
-
-```bash
-# Interactive development mode (recommended)
-uipath dev
-
-# Non‑interactive quick runs
-uipath run main.py '{"message": "Hello from the CLI"}'
-# For a compiled graph
-uipath run agent '{"topic": "Quarterly sales"}'
-```
-
--   `dev` shows live logs, traces, and chat history.
-
-### 1.4 Package, Publish, Deploy
-
-```bash
-uipath pack
-uipath publish
-uipath deploy
-```
-
--   `deploy` is a wrapper that packs and publishes to your Orchestrator feed.
--   Use per‑environment pipelines (Dev → Test → Prod folders/tenants).
-
-### 1.5 Other Useful Commands
-
-```bash
-uipath invoke           # Execute a process remotely (when configured)
-uipath eval             # Run evaluation scenarios for agents
-uipath --help           # Discover flags and subcommands
-```
+This document provides practical code patterns for building UiPath coded agents using LangGraph and the UiPath Python SDK.
 
 ---
 
-## 2) Environment, Credentials & Configuration
+## Core Agent Patterns
 
-Both SDKs read their configuration from **environment variables** (directly, or via `.env` loaded by `python-dotenv`).
+### Pattern 1: Simple Agent (Single LLM Call)
 
-### 2.1 Minimal local `.env`
-
-```bash
-UIPATH_URL="https://cloud.uipath.com/ORG/TENANT"
-UIPATH_ACCESS_TOKEN="your-token"
-
-# Common defaults
-UIPATH_FOLDER_PATH="Shared"
-```
-
-> **Best practice:** Commit `.env.example` (documenting required vars) but never commit `.env`.
-
-### 2.3 Loading configuration in code
+**Use Case**: Text transformation, summarization, analysis, classification
+**Components**: Input → Single LLM node → Output
 
 ```python
-from dotenv import load_dotenv
-from uipath import UiPath
-from uipath.models.errors import BaseUrlMissingError, SecretMissingError
-
-load_dotenv()
-try:
-    sdk = UiPath()
-except (BaseUrlMissingError, SecretMissingError) as e:
-    raise SystemExit(f"Config error: {e}. Run 'uipath auth' or set env vars.")
-```
-
----
-
-## 3) Classic Automation Track (Python SDK, `uipath`)
-
-### 3.1 Entrypoint shape (Pydantic IO strongly recommended)
-
-```python
-# src/main.py
-from pydantic import BaseModel
-from typing import Optional
-from dotenv import load_dotenv
-from uipath import UiPath
-
-load_dotenv()
-
-class AutomationInput(BaseModel):
-    customer_id: str
-    message: str
-
-class AutomationOutput(BaseModel):
-    status: str
-    confirmation_code: Optional[str] = None
-
-def main(input: AutomationInput) -> AutomationOutput:
-    sdk = UiPath()
-    cfg = sdk.assets.retrieve(name="GlobalConfig")
-    print(f"Using API URL from asset: {cfg.value}")
-    return AutomationOutput(status="Success", confirmation_code="ABC-123")
-```
-
-### 3.2 Core recipes
-
-#### Execute a child process
-
-```python
-import time
-from dotenv import load_dotenv
-from uipath import UiPath
-
-load_dotenv()
-sdk = UiPath()
-job = sdk.processes.invoke(
-    name="Process_To_Run_In_Finance",
-    input_arguments={"customer_id": 12345},
-    folder_path="Finance",
-)
-while job.state in ("Pending", "Running"):
-    time.sleep(5)
-    job = sdk.jobs.retrieve(key=job.key)
-print("State:", job.state, "Output:", job.output_arguments)
-```
-
-#### Assets – configuration & credentials
-
-```python
-from uipath import UiPath
-
-sdk = UiPath()
-plain = sdk.assets.retrieve(name="My_App_Config")
-print("Endpoint:", plain.value)
-
-try:
-    cred = sdk.assets.retrieve_credential(name="My_App_Credential")
-    print("Got credential username:", cred.username)
-except ValueError as e:
-    print("Credential unavailable in non‑robot context:", e)
-```
-
-#### Queues – transactional work
-
-```python
-from uipath import UiPath
-
-sdk = UiPath()
-QUEUE = "InvoiceProcessing"
-sdk.queues.create_item(
-    name=QUEUE,
-    specific_content={"invoice_id": "INV-9876", "amount": 450.75, "vendor": "Supplier Inc."},
-    priority="High",
-)
-trx = sdk.queues.create_transaction_item(name=QUEUE)
-if trx:
-    try:
-        # ... process trx.specific_content ...
-        sdk.queues.complete_transaction_item(trx.id, {"status": "Successful", "message": "OK"})
-    except Exception as e:
-        sdk.queues.complete_transaction_item(trx.id, {"status": "Failed", "is_successful": False, "processing_exception": str(e)})
-```
-
-#### Buckets – file management
-
-```python
-from uipath import UiPath
-
-sdk = UiPath()
-with open("report.pdf", "w") as f:
-    f.write("sample report")
-
-sdk.buckets.upload(name="MonthlyReports", source_path="report.pdf", blob_file_path="2024/July/report.pdf")
-sdk.buckets.download(name="InputFiles", blob_file_path="data/customers.xlsx", destination_path="local_customers.xlsx")
-```
-
-#### Context Grounding – RAG
-
-```python
-from uipath import UiPath
-
-async def main(input: dict):
-    sdk = UiPath()
-    q = input.get("query")
-    hits = sdk.context_grounding.search(name="Internal_Wiki", query=q, number_of_results=3)
-    context = "\n".join([h.content for h in hits])
-    enriched = f"Context:\n{context}\n\nAnswer: {q}"
-    resp = await sdk.llm.chat_completions(model="gpt-4o-mini-2024-07-18", messages=[{"role": "user", "content": enriched}])
-    return {"answer": resp.choices[0].message.content}
-```
-
-#### Event triggers – Integration Service
-
-```python
-from pydantic import BaseModel
-from uipath import UiPath
-from uipath.models import EventArguments
-
-class Output(BaseModel):
-    status: str
-    summary: str
-
-def main(input: EventArguments) -> Output:
-    sdk = UiPath()
-    payload = sdk.connections.retrieve_event_payload(input)
-    if "event" in payload and "text" in payload["event"]:
-        txt = payload["event"]["text"]
-        user = payload["event"].get("user", "Unknown")
-        summ = sdk.llm.chat(prompt=f"Summarize from {user}: {txt}", model="gpt-4")
-        return Output(status="Processed", summary=getattr(summ, "content", str(summ)))
-    return Output(status="Skipped", summary="Not a Slack message event")
-```
-
-#### Passing files between jobs – attachments
-
-```python
-from uipath import UiPath
-from uipath.models import InvokeProcess
-
-def main(input_args: dict):
-    sdk = UiPath()
-    csv = "id,name\n1,Alice\n2,Bob"
-    att_key = sdk.jobs.create_attachment(name="processed.csv", content=csv)
-    return InvokeProcess(name="LoadDataToSystem", input_arguments={"dataFileKey": str(att_key)})
-```
-
----
-
-## 4) Agentic Track (LangGraph/LangChain SDK, `uipath-langchain`)
-
-### 4.1 Quick start – chat model
-
-```python
-from uipath_langchain.chat import UiPathChat
-from langchain_core.messages import HumanMessage
-
-chat = UiPathChat(model="gpt-4o-2024-08-06", max_retries=3)
-print(chat.invoke([HumanMessage(content="Hello")]).content)
-```
-
-### 4.2 Simple graph example
-
-`graph = builder.compile()` is enough for the agent to run with `uipath run agent '{"topic": "Quarterly sales"}`
-
-```python
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import START, StateGraph, END
 from uipath_langchain.chat import UiPathChat
 from pydantic import BaseModel
-import os
 
-llm = UiPathChat(model="gpt-4o-mini-2024-07-18")
+class Input(BaseModel):
+    text: str
 
-class GraphState(BaseModel):
-    topic: str
+class State(BaseModel):
+    text: str
+    result: str = ""
 
-class GraphOutput(BaseModel):
-    report: str
+class Output(BaseModel):
+    result: str
 
-async def generate_report(state: GraphState) -> GraphOutput:
-    system_prompt = "You are a report generator. Please provide a brief report based on the given topic."
-    output = await llm.ainvoke([SystemMessage(system_prompt), HumanMessage(state.topic)])
-    return GraphOutput(report=output.content)
+llm = UiPathChat(model="gpt-4o-2024-08-06", temperature=0.7)
 
-builder = StateGraph(GraphState, output=GraphOutput)
+async def process(state: State) -> State:
+    response = await llm.ainvoke([
+        SystemMessage("You are a helpful assistant that summarizes text."),
+        HumanMessage(state.text)
+    ])
+    return State(text=state.text, result=response.content)
 
-builder.add_node("generate_report", generate_report)
+async def create_output(state: State) -> Output:
+    return Output(result=state.result)
 
-builder.add_edge(START, "generate_report")
-builder.add_edge("generate_report", END)
+builder = StateGraph(State, input=Input, output=Output)
+builder.add_node("process", process)
+builder.add_node("output", create_output)
+builder.add_edge(START, "process")
+builder.add_edge("process", "output")
+builder.add_edge("output", END)
 
 graph = builder.compile()
 ```
 
-### 4.3 ReAct‑style agent with tools
+**Key Points**:
+- Simplest pattern for text-to-text transformations
+- Use `SystemMessage` for instructions, `HumanMessage` for content
+- Always use async/await for LLM calls
+
+---
+
+### Pattern 2: Multi-Step Agent (Sequential Processing)
+
+**Use Case**: Data extraction → transformation → formatting, pipeline processing
+**Components**: Input → Extract → Transform → Format → Output
 
 ```python
-from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import create_react_agent
-from langchain_tavily import TavilySearch
+from langchain_core.messages import SystemMessage, HumanMessage
+from langgraph.graph import START, StateGraph, END
 from uipath_langchain.chat import UiPathChat
 from pydantic import BaseModel
+from typing import List, Dict, Any
 
-class GraphState(BaseModel):
-    company_name: str
+class Input(BaseModel):
+    document: str
 
-tavily = TavilySearch(max_results=5)
+class State(BaseModel):
+    document: str
+    extracted_data: Dict[str, Any] = {}
+    transformed_data: List[Dict] = []
+    formatted_output: str = ""
+
+class Output(BaseModel):
+    result: str
+    data: List[Dict]
+
 llm = UiPathChat(model="gpt-4o-2024-08-06")
-agent = create_react_agent(llm, tools=[tavily], prompt="You are a research assistant.")
 
-builder = StateGraph(GraphState)
-builder.add_node("research", agent)
-builder.add_edge(START, "research")
-builder.add_edge("research", END)
+async def extract_node(state: State) -> State:
+    response = await llm.ainvoke([
+        SystemMessage("Extract key-value pairs from the document. Return as JSON."),
+        HumanMessage(state.document)
+    ])
+    extracted = {"title": "Sample", "items": []}
+    return State(document=state.document, extracted_data=extracted)
+
+async def transform_node(state: State) -> State:
+    transformed = [{"id": i, "value": item} for i, item in enumerate(state.extracted_data.get("items", []))]
+    return State(
+        document=state.document,
+        extracted_data=state.extracted_data,
+        transformed_data=transformed
+    )
+
+async def format_node(state: State) -> State:
+    formatted = f"Found {len(state.transformed_data)} items"
+    return State(
+        document=state.document,
+        extracted_data=state.extracted_data,
+        transformed_data=state.transformed_data,
+        formatted_output=formatted
+    )
+
+async def output_node(state: State) -> Output:
+    return Output(result=state.formatted_output, data=state.transformed_data)
+
+builder = StateGraph(State, input=Input, output=Output)
+builder.add_node("extract", extract_node)
+builder.add_node("transform", transform_node)
+builder.add_node("format", format_node)
+builder.add_node("output", output_node)
+
+builder.add_edge(START, "extract")
+builder.add_edge("extract", "transform")
+builder.add_edge("transform", "format")
+builder.add_edge("format", "output")
+builder.add_edge("output", END)
 
 graph = builder.compile()
 ```
 
-### 4.4 RAG – Context Grounding vector store & retriever
+**Key Points**:
+- Each node does one thing well
+- State accumulates results from each step
+- Each node receives and returns State (except final node)
+- Use descriptive node names matching the operation
+
+---
+
+### Pattern 3: RAG Agent (Context Grounding)
+
+**Use Case**: Question answering from documents, knowledge base queries
+**Components**: Input → Retrieve Context → Generate Answer → Output
 
 ```python
-from uipath_langchain.vectorstores import ContextGroundingVectorStore
-from uipath_langchain.chat import UiPathAzureChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage
+from langgraph.graph import START, StateGraph, END
+from uipath_langchain.chat import UiPathChat
+from uipath_langchain.retrievers import ContextGroundingRetriever
+from pydantic import BaseModel
+from typing import List
 
-vs = ContextGroundingVectorStore(index_name="my_knowledge_base")
-retriever = vs.as_retriever(search_kwargs={"k": 3})
+class Input(BaseModel):
+    query: str
 
-prompt = ChatPromptTemplate.from_template("""Answer from context:
-{context}
-Question: {question}
-""")
-llm = UiPathAzureChatOpenAI(model="gpt-4o-2024-08-06")
+class State(BaseModel):
+    query: str
+    context: str = ""
+    answer: str = ""
 
-docs = retriever.invoke("Vacation policy?")
-print(llm.invoke(prompt.format(context=docs, question="Vacation policy? ")).content)
+class Output(BaseModel):
+    answer: str
+    sources: List[str] = []
+
+llm = UiPathChat(model="gpt-4o-2024-08-06")
+retriever = ContextGroundingRetriever(
+    index_name="CompanyKnowledgeBase",
+    number_of_results=3
+)
+
+async def retrieve_context(state: State) -> State:
+    docs = await retriever.ainvoke(state.query)
+    context = "\n\n".join([doc.page_content for doc in docs])
+    return State(query=state.query, context=context)
+
+async def generate_answer(state: State) -> State:
+    prompt = f"""Based on the following context, answer the question.
+
+Context:
+{state.context}
+
+Question: {state.query}
+
+Provide a clear, accurate answer based only on the context provided."""
+
+    response = await llm.ainvoke([HumanMessage(prompt)])
+    return State(query=state.query, context=state.context, answer=response.content)
+
+async def output_node(state: State) -> Output:
+    sources = ["Source 1", "Source 2"]
+    return Output(answer=state.answer, sources=sources)
+
+builder = StateGraph(State, input=Input, output=Output)
+builder.add_node("retrieve", retrieve_context)
+builder.add_node("generate", generate_answer)
+builder.add_node("output", output_node)
+
+builder.add_edge(START, "retrieve")
+builder.add_edge("retrieve", "generate")
+builder.add_edge("generate", "output")
+builder.add_edge("output", END)
+
+graph = builder.compile()
 ```
 
-### 4.5 Embeddings & structured outputs
+**Key Points**:
+- Use `ContextGroundingRetriever` for semantic search
+- Pass retrieved context to LLM prompt
+- Include context in prompt with clear instructions
+- Track sources for transparency
+
+---
+
+### Pattern 4: ReAct Agent (Tool Use)
+
+**Use Case**: Research, external API calls, multi-step reasoning
+**Components**: Input → ReAct Agent (tools) → Output
 
 ```python
-from uipath_langchain.embeddings import UiPathAzureOpenAIEmbeddings
+from langgraph.graph import START, StateGraph, END
+from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import tool
+from uipath_langchain.chat import UiPathChat
+from uipath import UiPath
+from pydantic import BaseModel
+
+sdk = UiPath()
+
+class Input(BaseModel):
+    task: str
+
+class State(BaseModel):
+    task: str
+    result: str = ""
+
+class Output(BaseModel):
+    result: str
+
+@tool
+def search_documents(query: str) -> str:
+    """Search internal knowledge base for information."""
+    hits = sdk.context_grounding.search(
+        name="KnowledgeBase",
+        query=query,
+        number_of_results=3
+    )
+    return "\n".join([hit.content for hit in hits])
+
+@tool
+def get_config(key: str) -> str:
+    """Retrieve configuration value from assets."""
+    asset = sdk.assets.retrieve(name=key)
+    return asset.value
+
+llm = UiPathChat(model="gpt-4o-2024-08-06")
+react_agent = create_react_agent(
+    llm,
+    tools=[search_documents, get_config],
+    prompt="You are a helpful assistant. Use tools to answer questions accurately."
+)
+
+async def agent_node(state: State) -> State:
+    result = await react_agent.ainvoke({"messages": [("user", state.task)]})
+    final_message = result["messages"][-1].content
+    return State(task=state.task, result=final_message)
+
+async def output_node(state: State) -> Output:
+    return Output(result=state.result)
+
+builder = StateGraph(State, input=Input, output=Output)
+builder.add_node("agent", agent_node)
+builder.add_node("output", output_node)
+
+builder.add_edge(START, "agent")
+builder.add_edge("agent", "output")
+builder.add_edge("output", END)
+
+graph = builder.compile()
+```
+
+**Key Points**:
+- Use `@tool` decorator for custom tools
+- Provide clear docstrings - LLM uses them to decide when to call
+- `create_react_agent` handles tool calling automatically
+- Agent iterates: think → act → observe until task complete
+
+---
+
+### Pattern 5: Conditional Routing Agent
+
+**Use Case**: Different processing paths based on input or intermediate results
+**Components**: Input → Classify → Route to appropriate processing → Output
+
+```python
+from langchain_core.messages import HumanMessage
+from langgraph.graph import START, StateGraph, END
 from uipath_langchain.chat import UiPathChat
 from pydantic import BaseModel, Field
+from typing import Literal
 
-emb = UiPathAzureOpenAIEmbeddings(model="text-embedding-3-large")
-vec = emb.embed_query("remote work policy")
+class Input(BaseModel):
+    request: str
 
-class EmailRule(BaseModel):
-    rule_name: str = Field(description="Name of the rule")
-    conditions: dict = Field(description="Rule conditions")
-    target_folder: str = Field(description="Target folder")
+class Classification(BaseModel):
+    category: Literal["urgent", "normal", "info_request"] = Field(
+        description="Category of the request"
+    )
 
-schema_chat = UiPathChat(model="gpt-4o-2024-08-06").with_structured_output(EmailRule)
-rule = schema_chat.invoke("Create a rule to move emails from noreply@company.com to Archive")
-```
+class State(BaseModel):
+    request: str
+    category: str = ""
+    result: str = ""
 
-### 4.6 Observability – Async tracer
+class Output(BaseModel):
+    result: str
+    category: str
 
-```python
-from uipath_langchain.tracers import AsyncUiPathTracer
-from uipath_langchain.chat import UiPathChat
+llm = UiPathChat(model="gpt-4o-2024-08-06")
+classifier = llm.with_structured_output(Classification)
 
-tracer = AsyncUiPathTracer(action_name="my_action", action_id="unique_id")
-chat = UiPathChat(model="gpt-4o-2024-08-06", callbacks=[tracer])
-```
+async def classify_node(state: State) -> State:
+    classification = await classifier.ainvoke(
+        f"Classify this request: {state.request}"
+    )
+    return State(request=state.request, category=classification.category)
 
----
+async def handle_urgent(state: State) -> State:
+    response = await llm.ainvoke([
+        HumanMessage(f"URGENT: {state.request}. Provide immediate action steps.")
+    ])
+    return State(request=state.request, category=state.category, result=response.content)
 
-## 5) LLM Gateway – Two ways to call models
+async def handle_normal(state: State) -> State:
+    response = await llm.ainvoke([
+        HumanMessage(f"Process this request: {state.request}")
+    ])
+    return State(request=state.request, category=state.category, result=response.content)
 
-### 5.1 OpenAI‑compatible path
+async def handle_info(state: State) -> State:
+    result = "Information retrieved from knowledge base."
+    return State(request=state.request, category=state.category, result=result)
 
-```python
-from uipath import UiPath
-sdk = UiPath()
-resp = sdk.llm_openai.chat.completions.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Summarize this invoice"}],
-)
-print(resp.choices[0].message.content)
-```
+async def output_node(state: State) -> Output:
+    return Output(result=state.result, category=state.category)
 
-### 5.2 Normalized UiPath LLM path
-
-```python
-from uipath import UiPath
-sdk = UiPath()
-answer = sdk.llm.chat(prompt="Analyze customer feedback", model="gpt-4")
-print(answer.content if hasattr(answer, "content") else answer)
-```
-
----
-
-## 6) Testing, Evaluation & Quality Gates
-
--   **Unit tests**: Pure functions in `src/` and graph nodes in `graphs/`.
--   **E2E tests**: Use `uipath run` against local mocks or a Dev folder tenant.
--   **Evaluations**: For agent behaviors, leverage `uipath eval` scenarios to benchmark prompt/graph changes.
--   **Static checks**: `ruff`, `pyright`/`mypy` with type‑strict public APIs.
-
-Minimal sanity check:
-
-```python
-import importlib.metadata, sys
-print("uipath:", importlib.metadata.version("uipath"))
-print("python:", sys.version)
-```
-
-## 8) Security, Secrets & Governance
-
--   **Never** commit secrets. Use Secret Manager / GitHub Actions secrets.
--   Scope tokens to least privilege; rotate regularly.
--   For **credential assets**, prefer Action Center/Robot context retrieval over plain text.
--   Enable **telemetry** and **tracing** for auditability.
-
----
-
-## 9) Operational Patterns & Pitfalls
-
--   **Folder context**: Prefer `folder_path`/`folder_key` explicitly in critical calls.
--   **Idempotency**: For queues and bucket uploads, include natural keys and conflict handling.
--   **Backpressure**: Poll jobs with exponential backoff; avoid tight loops.
--   **Timeouts**: Raise `UIPATH_TIMEOUT_SECONDS` for large payloads.
--   **Version pins**: For LangGraph, stay within `>=0.5,<0.7` range.
-
----
-
-## 10) Merged API Surface
-
-### 10.1 `uipath` (Python SDK)
-
-#### Processes
-
--   **`sdk.processes.invoke(name, input_arguments=None, folder_key=None, folder_path=None) -> Job`**
-    Start a process by **Release name**. Returns a `Job` with attributes like `.key`, `.state`, `.start_time`, `.end_time`, `.output_arguments` (string or JSON), and `.faulted_reason` when applicable.
-    _Common errors_: `httpx.HTTPStatusError 404 /Releases` (bad name or wrong folder), `403 Forbidden` (insufficient RBAC).
-    _Example:_
-
-    ```python
-    job = sdk.processes.invoke("ACME_Invoice_Load", {"batch_id": "B-42"}, folder_path="Finance")
-    while job.state in ("Pending", "Running"):
-        await asyncio.sleep(3)
-        job = sdk.jobs.retrieve(job.key, folder_path="Finance")
-    if job.state == "Successful":
-        print("Output:", job.output_arguments)
+def route_by_category(state: State) -> str:
+    if state.category == "urgent":
+        return "urgent"
+    elif state.category == "normal":
+        return "normal"
     else:
-        print("Failed:", job.faulted_reason)
-    ```
+        return "info"
 
--   **`sdk.processes.invoke_async(...) -> Job`** – Fire‑and‑forget; same return as `invoke` but do not block.
+builder = StateGraph(State, input=Input, output=Output)
+builder.add_node("classify", classify_node)
+builder.add_node("urgent", handle_urgent)
+builder.add_node("normal", handle_normal)
+builder.add_node("info", handle_info)
+builder.add_node("output", output_node)
 
-#### Jobs
+builder.add_edge(START, "classify")
+builder.add_conditional_edges(
+    "classify",
+    route_by_category,
+    {"urgent": "urgent", "normal": "normal", "info": "info"}
+)
+builder.add_edge("urgent", "output")
+builder.add_edge("normal", "output")
+builder.add_edge("info", "output")
+builder.add_edge("output", END)
 
--   **`sdk.jobs.retrieve(job_key, folder_key=None, folder_path=None) -> Job`** – Refresh job state and metadata.
--   **`sdk.jobs.resume(inbox_id, job_id, folder_key=None, folder_path=None, payload=None) -> None`** – Resume a suspended job (HITL continuation).
--   **`sdk.jobs.extract_output(job) -> Optional[str]`** – Convenience helper to get the output string.
--   **Attachments API**
-    -   `sdk.jobs.list_attachments(job_key, folder_key=None, folder_path=None) -> list[str]`
-    -   `sdk.jobs.create_attachment(name, content=None, source_path=None, job_key=None, category=None, folder_key=None, folder_path=None) -> uuid.UUID`
-    -   `sdk.jobs.link_attachment(attachment_key, job_key, category=None, folder_key=None, folder_path=None) -> None`
-        _Example:_
-    ```python
-    key = sdk.jobs.create_attachment("summary.csv", content="id,val\n1,9")
-    sdk.jobs.link_attachment(key, job.key, category="Output")
-    for att in sdk.jobs.list_attachments(job.key):
-        print("Attachment:", att)
-    ```
+graph = builder.compile()
+```
 
-#### Assets
+**Key Points**:
+- Use `.with_structured_output()` for classification
+- `add_conditional_edges` with routing function
+- Routing function returns node name as string
+- All paths must eventually converge to output
 
--   **`sdk.assets.retrieve(name, folder_key=None, folder_path=None) -> Asset | UserAsset`** – Read scalar/JSON assets; access `.value`.
--   **`sdk.assets.retrieve_credential(name, folder_key=None, folder_path=None)`** – Robot‑only; provides `.username` and `.password`.
--   **`sdk.assets.update(robot_asset, folder_key=None, folder_path=None) -> Response`** – Update value (admin required).
-    _Tips_: Keep secrets in **Credential** assets. For per‑environment config, store by folder and pass `folder_path` explicitly.
+---
 
-#### Queues
+### Pattern 6: Queue Processing Agent
 
--   **`sdk.queues.create_item(name, specific_content: dict, priority='Normal', reference=None, due_date=None, ... ) -> Response`** – Enqueue work. Consider setting a **`reference`** to ensure idempotency.
--   **`sdk.queues.create_transaction_item(name, no_robot: bool = False) -> TransactionItem | None`** – Claim a transaction for processing. Returned item has `.id`, `.specific_content`, `.reference`.
--   **`sdk.queues.update_progress_of_transaction_item(transaction_key, progress: str) -> Response`** – Heartbeat/progress note.
--   **`sdk.queues.complete_transaction_item(transaction_key, result: dict) -> Response`** – Mark result and, on failure, include `processing_exception`.
--   **`sdk.queues.list_items(status=None, reference=None, top=100, ... ) -> Response`** – Filter queue contents.
-    _Example:_
-    ```python
-    trx = sdk.queues.create_transaction_item("InvoiceProcessing")
-    if trx:
+**Use Case**: Batch processing, transactional work, reliable processing
+**Components**: Input → Claim Transaction → Process → Mark Complete → Output
+
+```python
+from langchain_core.messages import HumanMessage
+from langgraph.graph import START, StateGraph, END
+from uipath_langchain.chat import UiPathChat
+from uipath import UiPath
+from pydantic import BaseModel
+from typing import Dict, Any, Optional
+
+sdk = UiPath()
+
+class Input(BaseModel):
+    queue_name: str
+
+class State(BaseModel):
+    queue_name: str
+    transaction_id: Optional[str] = None
+    transaction_data: Dict[str, Any] = {}
+    processed_result: Dict[str, Any] = {}
+    status: str = "pending"
+
+class Output(BaseModel):
+    status: str
+    result: Dict[str, Any]
+
+llm = UiPathChat(model="gpt-4o-2024-08-06")
+
+async def claim_transaction(state: State) -> State:
+    trx = sdk.queues.create_transaction_item(name=state.queue_name)
+
+    if not trx:
+        return State(
+            queue_name=state.queue_name,
+            status="no_transactions"
+        )
+
+    return State(
+        queue_name=state.queue_name,
+        transaction_id=trx.id,
+        transaction_data=trx.specific_content,
+        status="claimed"
+    )
+
+async def process_transaction(state: State) -> State:
+    if state.status != "claimed":
+        return state
+
+    try:
+        response = await llm.ainvoke([
+            HumanMessage(f"Process this data: {state.transaction_data}")
+        ])
+
+        result = {
+            "processed": True,
+            "output": response.content,
+            "transaction_id": state.transaction_id
+        }
+
+        return State(
+            queue_name=state.queue_name,
+            transaction_id=state.transaction_id,
+            transaction_data=state.transaction_data,
+            processed_result=result,
+            status="processed"
+        )
+    except Exception as e:
+        return State(
+            queue_name=state.queue_name,
+            transaction_id=state.transaction_id,
+            transaction_data=state.transaction_data,
+            processed_result={"error": str(e)},
+            status="failed"
+        )
+
+async def mark_complete(state: State) -> State:
+    if state.status == "no_transactions":
+        return state
+
+    try:
+        if state.status == "processed":
+            sdk.queues.complete_transaction_item(
+                state.transaction_id,
+                {"status": "Successful", "result": state.processed_result}
+            )
+        else:
+            sdk.queues.complete_transaction_item(
+                state.transaction_id,
+                {
+                    "status": "Failed",
+                    "is_successful": False,
+                    "processing_exception": state.processed_result.get("error", "Unknown error")
+                }
+            )
+
+        return state
+    except Exception as e:
+        return state
+
+async def output_node(state: State) -> Output:
+    return Output(status=state.status, result=state.processed_result)
+
+builder = StateGraph(State, input=Input, output=Output)
+builder.add_node("claim", claim_transaction)
+builder.add_node("process", process_transaction)
+builder.add_node("complete", mark_complete)
+builder.add_node("output", output_node)
+
+builder.add_edge(START, "claim")
+builder.add_edge("claim", "process")
+builder.add_edge("process", "complete")
+builder.add_edge("complete", "output")
+builder.add_edge("output", END)
+
+graph = builder.compile()
+```
+
+**Key Points**:
+- Always claim transaction before processing
+- Always mark complete/failed (even on errors)
+- Use try/except to catch processing failures
+- Include error details in failure status
+- Check if transaction exists before processing
+
+---
+
+### Pattern 7: Asset Configuration Agent
+
+**Use Case**: Agents that need configuration or secrets from UiPath Assets
+**Components**: Load Config → Process with Config → Output
+
+```python
+from langchain_core.messages import HumanMessage
+from langgraph.graph import START, StateGraph, END
+from uipath_langchain.chat import UiPathChat
+from uipath import UiPath
+from pydantic import BaseModel
+from typing import Dict, Any
+
+sdk = UiPath()
+
+class Input(BaseModel):
+    task: str
+
+class State(BaseModel):
+    task: str
+    config: Dict[str, Any] = {}
+    result: str = ""
+
+class Output(BaseModel):
+    result: str
+
+llm = UiPathChat(model="gpt-4o-2024-08-06")
+
+async def load_config(state: State) -> State:
+    try:
+        api_url = sdk.assets.retrieve(name="ApiEndpoint")
+        max_retries = sdk.assets.retrieve(name="MaxRetries")
+
+        config = {
+            "api_url": api_url.value,
+            "max_retries": int(max_retries.value)
+        }
+
         try:
-            # process trx.specific_content...
-            sdk.queues.complete_transaction_item(trx.id, {"status": "Successful", "message": "OK"})
+            cred = sdk.assets.retrieve_credential(name="ApiCredential")
+            config["username"] = cred.username
+            config["password"] = cred.password
+        except ValueError:
+            pass
+
+        return State(task=state.task, config=config)
+
+    except Exception as e:
+        return State(
+            task=state.task,
+            config={"api_url": "https://default.api.com", "max_retries": 3}
+        )
+
+async def process_with_config(state: State) -> State:
+    prompt = f"""Task: {state.task}
+Configuration:
+- API URL: {state.config.get('api_url')}
+- Max Retries: {state.config.get('max_retries')}
+
+Process the task using the provided configuration."""
+
+    response = await llm.ainvoke([HumanMessage(prompt)])
+    return State(task=state.task, config=state.config, result=response.content)
+
+async def output_node(state: State) -> Output:
+    return Output(result=state.result)
+
+builder = StateGraph(State, input=Input, output=Output)
+builder.add_node("load_config", load_config)
+builder.add_node("process", process_with_config)
+builder.add_node("output", output_node)
+
+builder.add_edge(START, "load_config")
+builder.add_edge("load_config", "process")
+builder.add_edge("process", "output")
+builder.add_edge("output", END)
+
+graph = builder.compile()
+```
+
+**Key Points**:
+- Load assets at start of execution
+- Use try/except for asset retrieval (may not exist)
+- Provide sensible defaults if assets missing
+- Credentials only available in robot context
+- Pass config through state to all nodes
+
+---
+
+## State Management Patterns
+
+### Simple Pass-Through State
+```python
+class State(BaseModel):
+    input_data: str
+    result: str = ""
+```
+
+### Accumulating Results State
+```python
+class State(BaseModel):
+    query: str
+    results: List[str] = []  # Accumulate across nodes
+    metadata: Dict[str, Any] = {}
+```
+
+### Error Tracking State
+```python
+class State(BaseModel):
+    data: str
+    result: str = ""
+    error: Optional[str] = None
+    retry_count: int = 0
+```
+
+### Branching State (for conditional routing)
+```python
+class State(BaseModel):
+    input: str
+    classification: str = ""  # Used for routing
+    processing_path: str = ""
+    result: str = ""
+```
+
+---
+
+## Error Handling Patterns
+
+### Pattern: LLM Call with Retry
+```python
+async def safe_llm_call(state: State) -> State:
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = await llm.ainvoke(messages)
+            return State(result=response.content, error=None)
         except Exception as e:
-            sdk.queues.complete_transaction_item(trx.id, {
-                "status": "Failed", "is_successful": False, "processing_exception": str(e)
-            })
-    ```
+            if attempt == max_retries - 1:
+                return State(result="", error=str(e))
+            await asyncio.sleep(2 ** attempt)
+```
 
-#### Buckets (Storage)
+### Pattern: Asset Retrieval with Fallback
+```python
+async def get_config_with_fallback(state: State) -> State:
+    try:
+        asset = sdk.assets.retrieve(name="Config")
+        config = asset.value
+    except Exception as e:
+        config = "default_value"
 
--   **`sdk.buckets.upload(name, blob_file_path, source_path=None, content=None, content_type=None, folder_key=None, folder_path=None) -> None`** – Upload from disk or in‑memory `content`.
--   **`sdk.buckets.download(name, blob_file_path, destination_path, folder_key=None, folder_path=None) -> None`** – Save a blob to local path.
--   **`sdk.buckets.retrieve(name, key=None, folder_key=None, folder_path=None) -> Bucket`** – Inspect bucket metadata.
-    _Tip_: Use MIME `content_type` for correct downstream handling (e.g., `application/pdf`, `text/csv`).
+    return State(config=config)
+```
 
-#### Actions (Action Center)
+### Pattern: Transaction with Error Marking
+```python
+async def process_transaction_safely(state: State) -> State:
+    try:
+        result = await process_data(state.data)
 
--   **`sdk.actions.create(title=None, data=None, app_name=None, app_key=None, app_folder_path=None, app_folder_key=None, app_version=None, assignee=None) -> Action`**
--   **`sdk.actions.retrieve(action_key, app_folder_path=None, app_folder_key=None) -> Action`**
-    _Async variants available (`create_async`)._
-    _Pattern_: Create → return `WaitAction` from your `main()` → human completes → automation resumes via `jobs.resume` with payload.
+        sdk.queues.complete_transaction_item(
+            state.transaction_id,
+            {"status": "Successful", "result": result}
+        )
+        return State(status="success", result=result)
 
-#### Context Grounding (RAG)
+    except Exception as e:
+        sdk.queues.complete_transaction_item(
+            state.transaction_id,
+            {
+                "status": "Failed",
+                "is_successful": False,
+                "processing_exception": str(e)
+            }
+        )
+        return State(status="failed", error=str(e))
+```
 
--   **`sdk.context_grounding.search(name, query, number_of_results=5, folder_key=None, folder_path=None) -> list[ContextGroundingQueryResponse]`** – Retrieve top‑k chunks (`.content`, `.source`).
--   **`sdk.context_grounding.add_to_index(name, blob_file_path=None, content_type=None, content=None, source_path=None, ingest_data=True, folder_key=None, folder_path=None) -> None`** – Add docs.
--   **`sdk.context_grounding.retrieve(name, folder_key=None, folder_path=None) -> ContextGroundingIndex`** – Inspect index.
--   **`sdk.context_grounding.ingest_data(index, folder_key=None, folder_path=None) -> None`**, **`delete_index(index, ...)`** – Bulk ops.
-    _Example:_
-    ```python
-    hits = sdk.context_grounding.search("Internal_Wiki", "vacation policy", 3)
-    ctx = "\n".join(h.content for h in hits)
-    answer = await sdk.llm.chat_completions(model="gpt-4o-mini-2024-07-18",
-        messages=[{"role":"user","content": f"Use this context:\n{ctx}\n\nQ: What is our policy?"}])
-    ```
+### Pattern: File Operation with Cleanup
+```python
+async def process_file_safely(state: State) -> State:
+    file_path = None
+    try:
+        file_path = await sdk.buckets.download_async(
+            name="InputBucket",
+            blob_file_path=state.file_name,
+            destination_path=f"temp_{state.file_name}"
+        )
 
-#### Connections (Integration Service)
+        with open(file_path, 'r') as f:
+            data = f.read()
 
--   **`sdk.connections.retrieve(key) -> Connection`** – Connection metadata.
--   **`sdk.connections.retrieve_token(key) -> ConnectionToken`** – OAuth token passthrough.
--   **`sdk.connections.retrieve_event_payload(event_args) -> dict`** – Get full trigger payload for event‑driven agents.
+        result = await process_data(data)
+        return State(result=result)
 
-#### Attachments (generic)
+    except Exception as e:
+        return State(error=str(e))
 
--   **`sdk.attachments.upload(name, content=None, source_path=None, folder_key=None, folder_path=None) -> uuid.UUID`**
--   **`sdk.attachments.download(key, destination_path, folder_key=None, folder_path=None) -> str`**
--   **`sdk.attachments.delete(key, folder_key=None, folder_path=None) -> None`**
-
-#### Folders
-
--   **`sdk.folders.retrieve_key(folder_path) -> str | None`** – Resolve a path to folder key for scoping.
-
-#### LLM Gateway
-
--   **Normalized path**:
-    -   `sdk.llm.chat_completions(model, messages, max_tokens=None, temperature=None, tools=None, tool_choice=None, ...) -> ChatCompletion`
--   **OpenAI‑compatible path**:
-    -   `sdk.llm_openai.chat.completions.create(model, messages, max_tokens=None, temperature=None, ...) -> ChatCompletion`
-    -   `sdk.llm_openai.embeddings.create(input, embedding_model, openai_api_version=None) -> Embeddings`
-        _Tip_: Prefer **normalized** for UiPath‑first features; use **OpenAI‑compatible** to reuse LC/third‑party clients unchanged.
-
-#### Low‑level HTTP
-
--   **`sdk.api_client.request(method, url, scoped=True, infer_content_type=True, **kwargs) -> Response`\*\*
--   **`sdk.api_client.request_async(...) -> Response`**
-    _Use cases_: custom endpoints, preview APIs, or troubleshooting raw requests.
-
----
-
-### 10.2 `uipath-langchain` (LangGraph SDK)
-
-#### Chat Models
-
--   **`uipath_langchain.chat.UiPathChat`** (normalized) & **`UiPathAzureChatOpenAI`** (Azure passthrough)
-    **Init (common):** `model='gpt-4o-2024-08-06'`, `temperature`, `max_tokens`, `top_p`, `n`, `streaming=False`, `max_retries=2`, `request_timeout=None`, `callbacks=None`, `verbose=False`
-    **Messages:** `langchain_core.messages` (`SystemMessage`, `HumanMessage`, `AIMessage`) or plain string.
-    **Methods:**
-
-    -   `invoke(messages | str) -> AIMessage` (sync)
-    -   `ainvoke(messages | str) -> AIMessage` (async)
-    -   `astream(messages)` → async generator of chunks (for streaming UIs)
-    -   `with_structured_output(pydantic_model)` → parsed/validated output object
-        _Examples:_
-
-    ```python
-    chat = UiPathChat(model="gpt-4o-2024-08-06")
-    print(chat.invoke("Say hi").content)
-
-    class Answer(BaseModel):
-        text: str
-        score: float
-
-    tool_chat = chat.with_structured_output(Answer)
-    parsed = tool_chat.invoke("Return a JSON with text and score")
-    ```
-
-#### Embeddings
-
--   **`uipath_langchain.embeddings.UiPathAzureOpenAIEmbeddings`**
-    -   `embed_documents(list[str]) -> list[list[float]]`
-    -   `embed_query(str) -> list[float]`
-        _Params:_ `model='text-embedding-3-large'`, `dimensions=None`, `chunk_size=1000`, `max_retries=2`, `request_timeout=None`.
-
-#### Vector Store (Context Grounding)
-
--   **`uipath_langchain.vectorstores.ContextGroundingVectorStore(index_name, folder_path=None, uipath_sdk=None)`**
-    -   `similarity_search(query, k=4) -> list[Document]`
-    -   `similarity_search_with_score(query, k=4) -> list[tuple[Document, float]]`
-    -   `similarity_search_with_relevance_scores(query, k=4, score_threshold=None) -> list[tuple[Document, float]]`
-    -   `.as_retriever(search_kwargs={'k': 3}) -> BaseRetriever`
-        _Document fields_: `.page_content`, `.metadata` (source, uri, created_at).
-
-#### Retriever
-
--   **`uipath_langchain.retrievers.ContextGroundingRetriever(index_name, folder_path=None, folder_key=None, uipath_sdk=None, number_of_results=10)`**
-    -   `invoke(query) -> list[Document]` (sync/async)
-        _Tip_: Use retriever in LC chains/graphs for clean separation of concerns.
-
-#### Tracing / Observability
-
--   **`uipath_langchain.tracers.AsyncUiPathTracer(action_name=None, action_id=None, context=None)`**
-    Add to `callbacks=[tracer]` on any LC runnable to capture spans/metadata into UiPath.
-
-#### Agent Building with LangGraph
-
--   **`langgraph.prebuilt.create_react_agent(llm, tools, prompt=None, **kwargs) -> Runnable`\*\* – Get a practical ReAct agent quickly.
--   **`langgraph.graph.StateGraph`**
-    -   `add_node(name, fn)` – Node is callable (sync/async) receiving/returning your `State` model.
-    -   `add_edge(src, dst)` – Connect nodes (`START` and `END` available).
-    -   `compile() -> Graph` – Freeze DAG for execution.
-        _Pattern:_ use nodes for **tool‑use**, **HITL interrupt**, **routing**, and **post‑processing**.
+    finally:
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+```
 
 ---
 
-## 11) Troubleshooting
+## Best Practices
 
-**Classic**
+### 1. Always Use Async/Await
+```python
+# ✅ Good
+async def node(state: State) -> State:
+    result = await llm.ainvoke(messages)
+    return State(result=result.content)
 
--   `SecretMissingError` / `BaseUrlMissingError` → run `uipath auth`, verify env.
--   404 for Releases/Assets → check object names and folder context.
--   403 Forbidden → token scopes; re‑authenticate or create proper OAuth app.
--   Timeouts → network/proxy; verify `UIPATH_URL`.
+# ❌ Bad - blocks execution
+def node(state: State) -> State:
+    result = llm.invoke(messages)
+    return State(result=result.content)
+```
 
-**LangGraph**
+### 2. Handle Errors Gracefully
+```python
+async def node(state: State) -> State:
+    try:
+        result = await process(state.data)
+        return State(result=result)
+    except Exception as e:
+        return State(error=str(e))
+```
 
--   `ModuleNotFoundError: uipath_langchain` → `pip install uipath-langchain`.
--   401 Unauthorized → check `UIPATH_ACCESS_TOKEN` or OAuth pair.
--   Version mismatch → ensure `langgraph>=0.5,<0.7`.
+### 3. Type-Safe Pydantic Models
+```python
+from pydantic import BaseModel, Field, validator
+
+class Input(BaseModel):
+    text: str = Field(..., min_length=1, max_length=10000)
+    priority: int = Field(default=5, ge=1, le=10)
+
+    @validator('text')
+    def text_not_empty(cls, v):
+        if not v.strip():
+            raise ValueError('Text cannot be empty')
+        return v.strip()
+```
+
+### 4. Structured LLM Outputs
+```python
+from pydantic import BaseModel, Field
+
+class Analysis(BaseModel):
+    sentiment: Literal["positive", "negative", "neutral"]
+    confidence: float = Field(ge=0.0, le=1.0)
+    key_points: List[str]
+
+structured_llm = llm.with_structured_output(Analysis)
+result = await structured_llm.ainvoke(text)
+# result is validated Analysis object
+```
+
+### 5. Environment Configuration
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ✅ Good - from environment
+FOLDER_PATH = os.environ.get("UIPATH_FOLDER_PATH", "Shared")
+API_KEY = os.environ.get("EXTERNAL_API_KEY")
+
+# ❌ Bad - hardcoded
+API_KEY = "sk-1234567890"
+```
+
+### 6. Resource Cleanup
+```python
+async def node(state: State) -> State:
+    resources = []
+    try:
+        file = await download_file(state.file_id)
+        resources.append(file)
+
+        result = await process(file)
+        return State(result=result)
+
+    finally:
+        for resource in resources:
+            await cleanup(resource)
+```
 
 ---
 
-## 12) Glossary
-
--   **Action Center (HITL)**: Human‑in‑the‑loop task approvals.
--   **Assets**: Centralized config/secret storage.
--   **Buckets**: Cloud file storage.
--   **Context Grounding**: UiPath semantic indexing for RAG.
--   **LLM Gateway**: UiPath’s model broker (normalized and OpenAI‑compatible).
--   **Queues**: Transactional work management.
+---
 
 ---
 
-## 13) Checklists
+## Quick API Reference
 
-**Before first run**
+This section provides a concise reference for the most commonly used UiPath SDK methods.
 
--   [ ] `uipath auth`
--   [ ] Populate `.env` and copy to teammates as `.env.example` template
--   [ ] `uipath init` after defining `main()` and/or graphs
+### SDK Initialization
 
-**Pre‑publish**
+Initialize the UiPath SDK client
 
--   [ ] Unit + E2E passing
--   [ ] `uipath pack` clean
--   [ ] Secrets in Assets / Connections, not in code
+```python
+from uipath import UiPath
 
-**Production readiness**
+# Initialize with environment variables
+sdk = UiPath()
 
--   [ ] Folder scoping & RBAC verified
--   [ ] Tracing/Telemetry enabled
--   [ ] Runbooks for failures, retries, backoff
+# Or with explicit credentials
+sdk = UiPath(base_url="https://cloud.uipath.com/...", secret="your_token")
+```
+
+### Actions
+
+Actions service
+
+```python
+# Creates a new action synchronously.
+sdk.actions.create(title, data=None, app_name=None, app_key=None, app_folder_path=None, app_folder_key=None, app_version=1, assignee=None)
+
+# Creates a new action asynchronously.
+sdk.actions.create_async(title, data=None, app_name=None, app_key=None, app_folder_path=None, app_folder_key=None, app_version=1, assignee=None)
+
+# Retrieves an action by its key synchronously.
+sdk.actions.retrieve(action_key, app_folder_path="", app_folder_key="")
+
+```
+
+### Api Client
+
+Api Client service
+
+```python
+```
+
+### Assets
+
+Assets service
+
+```python
+# Retrieve an asset by its name.
+sdk.assets.retrieve(name, folder_key=None, folder_path=None)
+
+# Asynchronously retrieve an asset by its name.
+sdk.assets.retrieve_async(name, folder_key=None, folder_path=None)
+
+# Gets a specified Orchestrator credential.
+sdk.assets.retrieve_credential(name, folder_key=None, folder_path=None)
+
+```
+
+### Attachments
+
+Attachments service
+
+```python
+# Delete an attachment.
+sdk.attachments.delete(key, folder_key=None, folder_path=None)
+
+# Delete an attachment asynchronously.
+sdk.attachments.delete_async(key, folder_key=None, folder_path=None)
+
+# Download an attachment.
+sdk.attachments.download(key, destination_path, folder_key=None, folder_path=None)
+
+```
+
+### Buckets
+
+Buckets service
+
+```python
+# Download a file from a bucket.
+sdk.buckets.download(name=None, key=None, blob_file_path, destination_path, folder_key=None, folder_path=None)
+
+# Download a file from a bucket asynchronously.
+sdk.buckets.download_async(name=None, key=None, blob_file_path, destination_path, folder_key=None, folder_path=None)
+
+# Retrieve bucket information by its name.
+sdk.buckets.retrieve(name=None, key=None, folder_key=None, folder_path=None)
+
+```
+
+### Connections
+
+Connections service
+
+```python
+# Lists all connections with optional filtering.
+sdk.connections.list(name=None, folder_path=None, folder_key=None, connector_key=None, skip=None, top=None)
+
+# Asynchronously lists all connections with optional filtering.
+sdk.connections.list_async(name=None, folder_path=None, folder_key=None, connector_key=None, skip=None, top=None)
+
+# Retrieve connection details by its key.
+sdk.connections.retrieve(key)
+
+```
+
+### Context Grounding
+
+Context Grounding service
+
+```python
+# Add content to the index.
+sdk.context_grounding.add_to_index(name, blob_file_path, content_type=None, content=None, source_path=None, folder_key=None, folder_path=None, ingest_data=True)
+
+# Asynchronously add content to the index.
+sdk.context_grounding.add_to_index_async(name, blob_file_path, content_type=None, content=None, source_path=None, folder_key=None, folder_path=None, ingest_data=True)
+
+# Create a new context grounding index.
+sdk.context_grounding.create_index(name, source, description=None, cron_expression=None, time_zone_id=None, advanced_ingestion=True, preprocessing_request="#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest", folder_key=None, folder_path=None)
+
+```
+
+### Documents
+
+Documents service
+
+```python
+# Create a validation action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
+sdk.documents.create_validation_action(action_title, action_priority, action_catalog, action_folder, storage_bucket_name, storage_bucket_directory_path, extraction_response)
+
+# Asynchronously create a validation action for a document based on the extraction response.
+sdk.documents.create_validation_action_async(action_title, action_priority, action_catalog, action_folder, storage_bucket_name, storage_bucket_directory_path, extraction_response)
+
+# Extract predicted data from a document using an IXP project.
+sdk.documents.extract(project_name, tag, file=None, file_path=None)
+
+```
+
+### Entities
+
+Entities service
+
+```python
+# Delete multiple records from an entity in a single batch operation.
+sdk.entities.delete_records(entity_key, record_ids)
+
+# Asynchronously delete multiple records from an entity in a single batch operation.
+sdk.entities.delete_records_async(entity_key, record_ids)
+
+# Insert multiple records into an entity in a single batch operation.
+sdk.entities.insert_records(entity_key, records, schema=None)
+
+```
+
+### Folders
+
+Folders service
+
+```python
+# Retrieve the folder key by folder path with pagination support.
+sdk.folders.retrieve_key(folder_path)
+
+```
+
+### Jobs
+
+Jobs service
+
+```python
+# Create and upload an attachment, optionally linking it to a job.
+sdk.jobs.create_attachment(name, content=None, source_path=None, job_key=None, category=None, folder_key=None, folder_path=None)
+
+# Create and upload an attachment asynchronously, optionally linking it to a job.
+sdk.jobs.create_attachment_async(name, content=None, source_path=None, job_key=None, category=None, folder_key=None, folder_path=None)
+
+# Get the actual output data, downloading from attachment if necessary.
+sdk.jobs.extract_output(job)
+
+```
+
+### Llm
+
+Llm service
+
+```python
+# Generate chat completions using UiPath's normalized LLM Gateway API.
+sdk.llm.chat_completions(messages, model="gpt-4o-mini-2024-07-18", max_tokens=4096, temperature=0, n=1, frequency_penalty=0, presence_penalty=0, top_p=1, top_k=None, tools=None, tool_choice=None, response_format=None, api_version="2024-08-01-preview")
+
+```
+
+### Llm Openai
+
+Llm Openai service
+
+```python
+# Generate chat completions using UiPath's LLM Gateway service.
+sdk.llm_openai.chat_completions(messages, model="gpt-4o-mini-2024-07-18", max_tokens=4096, temperature=0, response_format=None, api_version="2024-10-21")
+
+# Generate text embeddings using UiPath's LLM Gateway service.
+sdk.llm_openai.embeddings(input, embedding_model="text-embedding-ada-002", openai_api_version="2024-10-21")
+
+```
+
+### Processes
+
+Processes service
+
+```python
+# Start execution of a process by its name.
+sdk.processes.invoke(name, input_arguments=None, folder_key=None, folder_path=None)
+
+# Asynchronously start execution of a process by its name.
+sdk.processes.invoke_async(name, input_arguments=None, folder_key=None, folder_path=None)
+
+```
+
+### Queues
+
+Queues service
+
+```python
+# Completes a transaction item with the specified result.
+sdk.queues.complete_transaction_item(transaction_key, result)
+
+# Asynchronously completes a transaction item with the specified result.
+sdk.queues.complete_transaction_item_async(transaction_key, result)
+
+# Creates a new queue item in the Orchestrator.
+sdk.queues.create_item(item)
+
+```
+
+For complete API documentation, visit: https://uipath.github.io/uipath-python/
+
 
 ---
 
-## 14) Links
+## CLI Commands Reference
 
--   Project README: `./README.md`
--   UiPath Python SDK docs & samples: https://uipath.github.io/uipath-python/
--   UiPath LangGraph SDK docs & samples: https://uipath.github.io/uipath-python/langchain/quick_start/
+**UiPath Python SDK Version:** `2.1.78`
+
+The UiPath Python SDK provides a comprehensive CLI for managing coded agents and automation projects.
+
+### `uipath new`
+
+Generate a quick-start project.
+
+**Arguments:**
+
+- `name` (optional)
+
+**Example:**
+
+```bash
+uipath new my-agent
+```
+
+### `uipath init`
+
+Create uipath.json with input/output schemas and bindings.
+
+**Arguments:**
+
+- `entrypoint` (optional)
+
+**Options:**
+
+- `--infer-bindings` (flag): Infer bindings from the script.
+
+**Example:**
+
+```bash
+uipath init
+```
+
+### `uipath run`
+
+Execute the project.
+
+**Arguments:**
+
+- `entrypoint` (optional)
+- `input` (optional)
+
+**Options:**
+
+- `--resume` (flag): Resume execution from a previous state
+- `-f`, `--file`: File path for the .json input
+- `--input-file`: Alias for '-f/--file' arguments
+- `--output-file`: File path where the output will be written
+- `--debug` (flag): Enable debugging with debugpy. The process will wait for a debugger to attach.
+- `--debug-port` (default: `5678`): Port for the debug server (default: 5678)
+
+**Example:**
+
+```bash
+uipath run main.py '{"input": "value"}'
+```
+
+### `uipath pack`
+
+Pack the project.
+
+**Arguments:**
+
+- `root` (optional)
+
+**Options:**
+
+- `--nolock` (flag): Skip running uv lock and exclude uv.lock from the package
+
+**Example:**
+
+```bash
+uipath pack
+```
+
+### `uipath publish`
+
+Publish the package.
+
+**Options:**
+
+- `--tenant`, `-t` (flag): Whether to publish to the tenant package feed
+- `--my-workspace`, `-w` (flag): Whether to publish to the personal workspace
+
+**Example:**
+
+```bash
+uipath publish
+```
+
+### `uipath deploy`
+
+Pack and publish the project.
+
+**Arguments:**
+
+- `root` (optional)
+
+**Options:**
+
+- `--tenant`, `-t` (flag): Whether to publish to the tenant package feed
+- `--my-workspace`, `-w` (flag): Whether to publish to the personal workspace
+
+**Example:**
+
+```bash
+uipath deploy my-process
+```
+
+### `uipath invoke`
+
+Invoke an agent published in my workspace.
+
+**Arguments:**
+
+- `entrypoint` (optional)
+- `input` (optional)
+
+**Options:**
+
+- `-f`, `--file`: File path for the .json input
+
+**Example:**
+
+```bash
+uipath invoke my-process '{"input": "value"}'
+```
+
+### `uipath push`
+
+Push local project files to Studio Web Project.
+
+    This command pushes the local project files to a UiPath Studio Web project.
+    It ensures that the remote project structure matches the local files by:
+    - Updating existing files that have changed
+    - Uploading new files
+    - Deleting remote files that no longer exist locally
+    - Optionally managing the UV lock file
+
+    Args:
+        root: The root directory of the project
+        nolock: Whether to skip UV lock operations and exclude uv.lock from push
+
+    Environment Variables:
+        UIPATH_PROJECT_ID: Required. The ID of the UiPath Cloud project
+
+    Example:
+        $ uipath push
+        $ uipath push --nolock
+    
+
+**Arguments:**
+
+- `root` (optional)
+
+**Options:**
+
+- `--nolock` (flag): Skip running uv lock and exclude uv.lock from the package
+
+**Example:**
+
+```bash
+uipath push
+```
+
+### `uipath pull`
+
+Pull remote project files from Studio Web Project.
+
+    This command pulls the remote project files from a UiPath Studio Web project.
+    It downloads files from the source_code and evals folders, maintaining the
+    folder structure locally. Files are compared using hashes before overwriting,
+    and user confirmation is required for differing files.
+
+    Args:
+        root: The root directory to pull files into
+
+    Environment Variables:
+        UIPATH_PROJECT_ID: Required. The ID of the UiPath Studio Web project
+
+    Example:
+        $ uipath pull
+        $ uipath pull /path/to/project
+    
+
+**Arguments:**
+
+- `root` (optional)
+
+**Example:**
+
+```bash
+uipath pull my-process
+```
+
+### `uipath eval`
+
+Run an evaluation set against the agent.
+
+    Args:
+        entrypoint: Path to the agent script to evaluate (optional, will auto-discover if not specified)
+        eval_set: Path to the evaluation set JSON file (optional, will auto-discover if not specified)
+        eval_ids: Optional list of evaluation IDs
+        workers: Number of parallel workers for running evaluations
+        no_report: Do not report the evaluation results
+    
+
+**Arguments:**
+
+- `entrypoint` (optional)
+- `eval_set` (optional)
+
+**Options:**
+
+- `--no-report` (flag): Do not report the evaluation results
+- `--workers` (default: `8`): Number of parallel workers for running evaluations (default: 8)
+- `--output-file`: File path where the output will be written
+
+**Example:**
+
+```bash
+uipath eval
+```
+
+### `uipath dev`
+
+Launch interactive debugging interface.
+
+**Arguments:**
+
+- `interface` (optional)
+
+**Options:**
+
+- `--debug` (flag): Enable debugging with debugpy. The process will wait for a debugger to attach.
+- `--debug-port` (default: `5678`): Port for the debug server (default: 5678)
+
+**Example:**
+
+```bash
+uipath dev
+```
+
+### `uipath auth`
+
+Authenticate with UiPath Cloud Platform.
+
+    The domain for authentication is determined by the UIPATH_URL environment variable if set.
+    Otherwise, it can be specified with --cloud (default), --staging, or --alpha flags.
+
+    Interactive mode (default): Opens browser for OAuth authentication.
+    Unattended mode: Use --client-id, --client-secret, --base-url and --scope for client credentials flow.
+
+    Network options:
+    - Set HTTP_PROXY/HTTPS_PROXY/NO_PROXY environment variables for proxy configuration
+    - Set REQUESTS_CA_BUNDLE to specify a custom CA bundle for SSL verification
+    - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)
+    
+
+**Options:**
+
+- `--cloud` (flag): Use production environment
+- `--staging` (flag): Use staging environment
+- `--alpha` (flag): Use alpha environment
+- `-f`, `--force` (flag): Force new token
+- `--client-id`: Client ID for client credentials authentication (unattended mode)
+- `--client-secret`: Client secret for client credentials authentication (unattended mode)
+- `--base-url`: Base URL for the UiPath tenant instance (required for client credentials)
+- `--tenant`: Tenant name within UiPath Automation Cloud
+- `--scope` (default: `OR.Execution`): Space-separated list of OAuth scopes to request (e.g., 'OR.Execution OR.Queues'). Defaults to 'OR.Execution'
+
+**Example:**
+
+```bash
+uipath auth login
+```
+
+---
+
+For more information on any command, run:
+```bash
+uipath <command> --help
+```
