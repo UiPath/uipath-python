@@ -7,13 +7,16 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from uipath._cli import cli, generate_agents_md
+from uipath._cli import cli
+from uipath._cli.cli_init import (  # type: ignore[attr-defined]
+    generate_agent_specific_file_md,
+)
 
 
 class TestGenerateAgentsMd:
-    """Test the generate_agents_md helper function."""
+    """Test the generate_agent_specific_file_md helper function."""
 
-    def test_generate_agents_md_creates_file(self) -> None:
+    def test_generate_agent_specific_file_md_creates_file(self) -> None:
         """Test that AGENTS.md is created successfully."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Mock importlib.resources to return our test file
@@ -39,7 +42,7 @@ class TestGenerateAgentsMd:
                 mock_as_file.return_value.__exit__.return_value = None
 
                 # Run function
-                generate_agents_md(temp_dir)
+                generate_agent_specific_file_md(temp_dir, "AGENTS.md")
 
                 # Verify console success message
                 mock_console.success.assert_called_once_with(
@@ -56,7 +59,7 @@ class TestGenerateAgentsMd:
 
             with patch("uipath._cli.cli_init.console") as mock_console:
                 # Run function
-                generate_agents_md(temp_dir)
+                generate_agent_specific_file_md(temp_dir, "AGENTS.md")
 
                 # Verify file wasn't changed
                 assert agents_path.read_text() == original_content
@@ -77,7 +80,7 @@ class TestGenerateAgentsMd:
                 mock_files.side_effect = RuntimeError("Test error")
 
                 # Run function - should not raise
-                generate_agents_md(temp_dir)
+                generate_agent_specific_file_md(temp_dir, "AGENTS.md")
 
                 # Verify warning was logged
                 mock_console.warning.assert_called_once()

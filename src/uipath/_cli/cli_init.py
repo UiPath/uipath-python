@@ -58,32 +58,28 @@ def generate_env_file(target_directory):
         console.success(f" Created '{relative_path}' file.")
 
 
-def generate_agents_md(target_directory: str) -> None:
-    """Generate AGENTS.md file from the packaged resource.
+def generate_agent_specific_file_md(target_directory: str, file_name: str) -> None:
+    """Generate an agent-specific file from the packaged resource.
 
     Args:
-        target_directory: The directory where AGENTS.md should be created.
+        target_directory: The directory where the file should be created.
+        file_name: The name of the file should be created.
     """
-    target_path = os.path.join(target_directory, "AGENTS.md")
+    target_path = os.path.join(target_directory, file_name)
 
-    # Skip if file already exists
     if os.path.exists(target_path):
-        console.info("Skipping 'AGENTS.md' creation as it already exists.")
+        console.info(f"Skipping '{file_name}' creation as it already exists.")
         return
 
     try:
-        # Get the resource path using importlib.resources
-        source_path = importlib.resources.files("uipath._resources").joinpath(
-            "AGENTS.md"
-        )
+        source_path = importlib.resources.files("uipath._resources").joinpath(file_name)
 
-        # Copy the file to the target directory
         with importlib.resources.as_file(source_path) as s_path:
             shutil.copy(s_path, target_path)
 
-        console.success(" Created 'AGENTS.md' file.")
+        console.success(f" Created '{file_name}' file.")
     except Exception as e:
-        console.warning(f"Could not create AGENTS.md: {e}")
+        console.warning(f"Could not create {file_name}: {e}")
 
 
 def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
@@ -160,7 +156,17 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
         current_directory = os.getcwd()
         generate_env_file(current_directory)
         create_telemetry_config_file(current_directory)
-        generate_agents_md(current_directory)
+        generate_agent_specific_file_md(current_directory, "AGENTS.md")
+        generate_agent_specific_file_md(
+            os.path.join(current_directory, ".agent"), "CLI_REFERENCE.md"
+        )
+        generate_agent_specific_file_md(
+            os.path.join(current_directory, ".agent"), "REQUIRED_STRUCTURE.md"
+        )
+        generate_agent_specific_file_md(
+            os.path.join(current_directory, ".agent"), "SDK_REFERENCE.md"
+        )
+        generate_agent_specific_file_md(current_directory, "CLAUDE.md")
 
         result = Middlewares.next(
             "init",
