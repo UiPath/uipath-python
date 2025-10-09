@@ -11,6 +11,7 @@ from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 from ..._events._event_bus import EventBus
 from ..._events._events import (
+    EvalItemExceptionDetails,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunCreatedEvent,
@@ -31,6 +32,7 @@ from .._runtime._logging import ExecutionLogHandler
 from .._utils._eval_set import EvalHelpers
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import EvaluationItem, EvaluationSet
+from ._models._exceptions import EvaluationRuntimeException
 from ._models._output import (
     EvaluationResultDto,
     EvaluationRunResult,
@@ -232,8 +234,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                     wait_for_completion=False,
                 )
             except Exception as e:
-                error_msg = str(e)
-                eval_item._error_message = error_msg  # type: ignore[attr-defined]
+                exception_details = EvalItemExceptionDetails(exception=e)
 
                 for evaluator in evaluators:
                     evaluator_counts[evaluator.id] += 1
@@ -242,18 +243,28 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                         0.0 - evaluator_averages[evaluator.id]
                     ) / count
 
+                eval_run_updated_event = EvalRunUpdatedEvent(
+                    execution_id=self.execution_id,
+                    eval_item=eval_item,
+                    eval_results=[],
+                    success=False,
+                    agent_output={},
+                    agent_execution_time=0.0,
+                    exception_details=exception_details,
+                    spans=[],
+                    logs=[],
+                )
+                if isinstance(e, EvaluationRuntimeException):
+                    eval_run_updated_event.spans = e.spans
+                    eval_run_updated_event.logs = e.logs
+                    eval_run_updated_event.exception_details.exception = (  # type: ignore
+                        e.root_exception
+                    )
+                    eval_run_updated_event.exception_details.runtime_exception = True  # type: ignore
+
                 await event_bus.publish(
                     EvaluationEvents.UPDATE_EVAL_RUN,
-                    EvalRunUpdatedEvent(
-                        execution_id=self.execution_id,
-                        eval_item=eval_item,
-                        eval_results=[],
-                        success=False,
-                        agent_output={},
-                        agent_execution_time=0.0,
-                        spans=[],
-                        logs=[],
-                    ),
+                    eval_run_updated_event,
                     wait_for_completion=False,
                 )
 
@@ -274,6 +285,17 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         )
         return self.context.result
 
+    def _get_and_clear_execution_data(
+        self, execution_id: str
+    ) -> tuple[List[ReadableSpan], list[logging.LogRecord]]:
+        spans = self.span_exporter.get_spans(execution_id)
+        self.span_exporter.clear(execution_id)
+
+        logs = self.logs_exporter.get_logs(execution_id)
+        self.logs_exporter.clear(execution_id)
+
+        return spans, logs
+
     async def execute_runtime(
         self, eval_item: EvaluationItem
     ) -> UiPathEvalRunExecutionOutput:
@@ -284,6 +306,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             is_eval_run=True,
             log_handler=self._setup_execution_logging(eval_item_id),
         )
+        if runtime_context.execution_id is None:
+            raise ValueError("execution_id must be set for eval runs")
+
         attributes = {
             "evalId": eval_item.id,
             "span_type": "eval",
@@ -292,21 +317,22 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             attributes["execution.id"] = runtime_context.execution_id
 
         start_time = time()
-
-        result = await self.factory.execute_in_root_span(
-            runtime_context, root_span=eval_item.name, attributes=attributes
-        )
+        try:
+            result = await self.factory.execute_in_root_span(
+                runtime_context, root_span=eval_item.name, attributes=attributes
+            )
+        except Exception as e:
+            spans, logs = self._get_and_clear_execution_data(
+                runtime_context.execution_id
+            )
+            raise EvaluationRuntimeException(
+                spans=spans,
+                logs=logs,
+                root_exception=e,
+            ) from e
 
         end_time = time()
-
-        if runtime_context.execution_id is None:
-            raise ValueError("execution_id must be set for eval runs")
-
-        spans = self.span_exporter.get_spans(runtime_context.execution_id)
-        self.span_exporter.clear(runtime_context.execution_id)
-
-        logs = self.logs_exporter.get_logs(runtime_context.execution_id)
-        self.logs_exporter.clear(runtime_context.execution_id)
+        spans, logs = self._get_and_clear_execution_data(runtime_context.execution_id)
 
         if result is None:
             raise ValueError("Execution result cannot be None for eval runs")

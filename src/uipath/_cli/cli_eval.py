@@ -17,6 +17,7 @@ from uipath._cli._runtime._contracts import (
     UiPathRuntimeFactory,
 )
 from uipath._cli._runtime._runtime import UiPathScriptRuntime
+from uipath._cli._utils._constants import UIPATH_PROJECT_ID
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli.middlewares import Middlewares
 from uipath._events._event_bus import EventBus
@@ -37,6 +38,22 @@ class LiteralOption(click.Option):
             return ast.literal_eval(value)
         except Exception as e:
             raise click.BadParameter(value) from e
+
+
+def setup_reporting_prereq(no_report: bool) -> bool:
+    if no_report:
+        return False
+
+    if not os.getenv(UIPATH_PROJECT_ID, False):
+        console.warning(
+            "UIPATH_PROJECT_ID environment variable not set. Results will no be reported to Studio Web."
+        )
+        return False
+    if not os.getenv("UIPATH_FOLDER_KEY"):
+        os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(
+            get_personal_workspace_key_async()
+        )
+    return True
 
 
 @click.command()
@@ -79,10 +96,7 @@ def eval(
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """
-    if not no_report and not os.getenv("UIPATH_FOLDER_KEY"):
-        os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(
-            get_personal_workspace_key_async()
-        )
+    should_register_progress_reporter = setup_reporting_prereq(no_report)
 
     result = Middlewares.next(
         "eval",
@@ -92,6 +106,7 @@ def eval(
         no_report=no_report,
         workers=workers,
         execution_output_file=output_file,
+        register_progress_reporter=should_register_progress_reporter,
     )
 
     if result.error_message:
@@ -100,7 +115,7 @@ def eval(
     if result.should_continue:
         event_bus = EventBus()
 
-        if not no_report:
+        if should_register_progress_reporter:
             progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
 
