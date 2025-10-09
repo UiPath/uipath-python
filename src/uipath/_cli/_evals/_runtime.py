@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import uuid
@@ -167,12 +168,18 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         eval_run_result_list = None
         # Check if parallel execution should be used
-        if self.context.workers > 1 and len(evaluation_set.evaluations) > 1:
-            print(">>>>>>>>>>> Worker count: ", self.context.workers)
-
-        eval_run_result_list = await self._execute_sequential(
-            evaluation_set, evaluators, event_bus
-        )
+        if (
+            self.context.workers
+            and self.context.workers > 1
+            and len(evaluation_set.evaluations) > 1
+        ):
+            eval_run_result_list = await self._execute_parallel(
+                evaluation_set, evaluators, event_bus
+            )
+        else:
+            eval_run_result_list = await self._execute_sequential(
+                evaluation_set, evaluators, event_bus
+            )
 
         results = UiPathEvalOutput(
             evaluation_set_name=evaluation_set.name,
@@ -220,104 +227,173 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         all_eval_run_result: list[EvaluationRunResult] = []
 
         for eval_item in evaluation_set.evaluations:
-            await event_bus.publish(
-                EvaluationEvents.CREATE_EVAL_RUN,
-                EvalRunCreatedEvent(
-                    execution_id=self.execution_id,
-                    eval_item=eval_item,
-                ),
+            all_eval_run_result.append(
+                await self._execute_eval(eval_item, evaluators, event_bus)
             )
-
-            evaluation_run_results = EvaluationRunResult(
-                evaluation_name=eval_item.name, evaluation_run_results=[]
-            )
-
-            try:
-                agent_execution_output = await self.execute_runtime(eval_item)
-                evaluation_item_results: list[EvalItemResult] = []
-
-                for evaluator in evaluators:
-                    evaluation_result = await self.run_evaluator(
-                        evaluator=evaluator,
-                        execution_output=agent_execution_output,
-                        eval_item=eval_item,
-                    )
-
-                    dto_result = EvaluationResultDto.from_evaluation_result(
-                        evaluation_result
-                    )
-
-                    evaluation_run_results.evaluation_run_results.append(
-                        EvaluationRunResultDto(
-                            evaluator_name=evaluator.name,
-                            result=dto_result,
-                            evaluator_id=evaluator.id,
-                        )
-                    )
-                    evaluation_item_results.append(
-                        EvalItemResult(
-                            evaluator_id=evaluator.id,
-                            result=evaluation_result,
-                        )
-                    )
-
-                evaluation_run_results.compute_average_score()
-
-                await event_bus.publish(
-                    EvaluationEvents.UPDATE_EVAL_RUN,
-                    EvalRunUpdatedEvent(
-                        execution_id=self.execution_id,
-                        eval_item=eval_item,
-                        eval_results=evaluation_item_results,
-                        success=not agent_execution_output.result.error,
-                        agent_output=agent_execution_output.result.output,
-                        agent_execution_time=agent_execution_output.execution_time,
-                        spans=agent_execution_output.spans,
-                        logs=agent_execution_output.logs,
-                    ),
-                    wait_for_completion=False,
-                )
-
-            except Exception as e:
-                exception_details = EvalItemExceptionDetails(exception=e)
-
-                for evaluator in evaluators:
-                    evaluation_run_results.evaluation_run_results.append(
-                        EvaluationRunResultDto(
-                            evaluator_name=evaluator.name,
-                            evaluator_id=evaluator.id,
-                            result=EvaluationResultDto(score=0),
-                        )
-                    )
-
-                eval_run_updated_event = EvalRunUpdatedEvent(
-                    execution_id=self.execution_id,
-                    eval_item=eval_item,
-                    eval_results=[],
-                    success=False,
-                    agent_output={},
-                    agent_execution_time=0.0,
-                    exception_details=exception_details,
-                    spans=[],
-                    logs=[],
-                )
-                if isinstance(e, EvaluationRuntimeException):
-                    eval_run_updated_event.spans = e.spans
-                    eval_run_updated_event.logs = e.logs
-                    eval_run_updated_event.exception_details.exception = (  # type: ignore
-                        e.root_exception
-                    )
-                    eval_run_updated_event.exception_details.runtime_exception = True  # type: ignore
-
-                await event_bus.publish(
-                    EvaluationEvents.UPDATE_EVAL_RUN,
-                    eval_run_updated_event,
-                    wait_for_completion=False,
-                )
-
-            all_eval_run_result.append(evaluation_run_results)
 
         return all_eval_run_result
+
+    async def _execute_parallel(
+        self,
+        evaluation_set: EvaluationSet,
+        evaluators: List[BaseEvaluator[Any]],
+        event_bus: EventBus,
+    ) -> List[EvaluationRunResult]:
+        # Create a queue with max concurrency
+        queue: asyncio.Queue[tuple[int, EvaluationItem]] = asyncio.Queue(
+            maxsize=self.context.workers
+        )
+
+        # Dictionary to store results with their original indices
+        results_dict: Dict[int, EvaluationRunResult] = {}
+
+        # Producer task to fill the queue
+        async def producer() -> None:
+            for index, eval_item in enumerate(evaluation_set.evaluations):
+                await queue.put((index, eval_item))
+            # Signal completion by putting None markers
+            for _ in range(self.context.workers):
+                await queue.put(None)  # type: ignore
+
+        # Worker function to process items from the queue
+        async def worker(worker_id: int) -> None:
+            while True:
+                item = await queue.get()
+
+                # Check for termination signal
+                if item is None:
+                    queue.task_done()
+                    break
+
+                index, eval_item = item
+
+                try:
+                    # Execute the evaluation
+                    result = await self._execute_eval(eval_item, evaluators, event_bus)
+
+                    # Store result with its index to maintain order
+                    results_dict[index] = result
+                finally:
+                    # Mark the task as done
+                    queue.task_done()
+
+        # Start producer
+        producer_task = asyncio.create_task(producer())
+
+        # Create worker tasks based on self.context.workers
+        worker_tasks = [
+            asyncio.create_task(worker(i)) for i in range(self.context.workers)
+        ]
+
+        # Wait for producer and all workers to complete
+        await producer_task
+        await asyncio.gather(*worker_tasks)
+
+        # Return results in the original order
+        return [results_dict[i] for i in range(len(evaluation_set.evaluations))]
+
+    async def _execute_eval(
+        self,
+        eval_item: EvaluationItem,
+        evaluators: List[BaseEvaluator[Any]],
+        event_bus: EventBus,
+    ) -> EvaluationRunResult:
+        await event_bus.publish(
+            EvaluationEvents.CREATE_EVAL_RUN,
+            EvalRunCreatedEvent(
+                execution_id=self.execution_id,
+                eval_item=eval_item,
+            ),
+        )
+
+        evaluation_run_results = EvaluationRunResult(
+            evaluation_name=eval_item.name, evaluation_run_results=[]
+        )
+
+        try:
+            agent_execution_output = await self.execute_runtime(eval_item)
+            evaluation_item_results: list[EvalItemResult] = []
+
+            for evaluator in evaluators:
+                evaluation_result = await self.run_evaluator(
+                    evaluator=evaluator,
+                    execution_output=agent_execution_output,
+                    eval_item=eval_item,
+                )
+
+                dto_result = EvaluationResultDto.from_evaluation_result(
+                    evaluation_result
+                )
+
+                evaluation_run_results.evaluation_run_results.append(
+                    EvaluationRunResultDto(
+                        evaluator_name=evaluator.name,
+                        result=dto_result,
+                        evaluator_id=evaluator.id,
+                    )
+                )
+                evaluation_item_results.append(
+                    EvalItemResult(
+                        evaluator_id=evaluator.id,
+                        result=evaluation_result,
+                    )
+                )
+
+            evaluation_run_results.compute_average_score()
+
+            await event_bus.publish(
+                EvaluationEvents.UPDATE_EVAL_RUN,
+                EvalRunUpdatedEvent(
+                    execution_id=self.execution_id,
+                    eval_item=eval_item,
+                    eval_results=evaluation_item_results,
+                    success=not agent_execution_output.result.error,
+                    agent_output=agent_execution_output.result.output,
+                    agent_execution_time=agent_execution_output.execution_time,
+                    spans=agent_execution_output.spans,
+                    logs=agent_execution_output.logs,
+                ),
+                wait_for_completion=False,
+            )
+
+        except Exception as e:
+            exception_details = EvalItemExceptionDetails(exception=e)
+
+            for evaluator in evaluators:
+                evaluation_run_results.evaluation_run_results.append(
+                    EvaluationRunResultDto(
+                        evaluator_name=evaluator.name,
+                        evaluator_id=evaluator.id,
+                        result=EvaluationResultDto(score=0),
+                    )
+                )
+
+            eval_run_updated_event = EvalRunUpdatedEvent(
+                execution_id=self.execution_id,
+                eval_item=eval_item,
+                eval_results=[],
+                success=False,
+                agent_output={},
+                agent_execution_time=0.0,
+                exception_details=exception_details,
+                spans=[],
+                logs=[],
+            )
+            if isinstance(e, EvaluationRuntimeException):
+                eval_run_updated_event.spans = e.spans
+                eval_run_updated_event.logs = e.logs
+                eval_run_updated_event.exception_details.exception = (  # type: ignore
+                    e.root_exception
+                )
+                eval_run_updated_event.exception_details.runtime_exception = True  # type: ignore
+
+            await event_bus.publish(
+                EvaluationEvents.UPDATE_EVAL_RUN,
+                eval_run_updated_event,
+                wait_for_completion=False,
+            )
+
+        return evaluation_run_results
 
     def _get_and_clear_execution_data(
         self, execution_id: str

@@ -71,8 +71,8 @@ def setup_reporting_prereq(no_report: bool) -> bool:
 @click.option(
     "--workers",
     type=int,
-    default=4,
-    help="Number of parallel workers for running evaluations (default: 4)",
+    required=False,
+    help="Number of parallel workers for running evaluations",
 )
 @click.option(
     "--output-file",
