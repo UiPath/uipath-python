@@ -23,7 +23,13 @@ class Mocker(ABC):
         raise NotImplementedError()
 
 
-class UiPathMockingNoMatcherError(Exception):
-    """Exception when a mocker is unable to find a match with the invocation."""
+class UiPathNoMockFoundError(Exception):
+    """Exception when a mocker is unable to find a match with the invocation. This is a signal to invoke the real function."""
+
+    pass
+
+
+class UiPathMockResponseGenerationError(Exception):
+    """Exception when a mocker is configured unable to generate a response."""
 
     pass

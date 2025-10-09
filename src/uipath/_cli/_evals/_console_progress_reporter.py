@@ -75,15 +75,10 @@ class ConsoleProgressReporter:
             result.append(" - No evaluators", style="dim")
             self.console.print(result)
 
-    def _extract_error_message(self, eval_item_payload) -> str:
-        """Extract clean error message from evaluation item."""
-        if hasattr(eval_item_payload, "_error_message"):
-            error_message = getattr(eval_item_payload, "_error_message", None)
-            if error_message:
-                return str(error_message) or "Execution failed"
-        return "Execution failed"
+    def _extract_error_message(self, payload: EvalRunUpdatedEvent) -> str:
+        return str(payload.exception_details.exception) or "Execution failed"  # type: ignore
 
-    def _display_failed_evaluation(self, eval_name: str, error_msg: str) -> None:
+    def _display_failed_evaluation(self, eval_name: str) -> None:
         """Display results for a failed evaluation."""
         from rich.text import Text
 
@@ -91,11 +86,6 @@ class ConsoleProgressReporter:
         result.append("  ✗ ", style="bold red")
         result.append(eval_name, style="bold white")
         self.console.print(result)
-
-        error_text = Text()
-        error_text.append("    ", style="")
-        error_text.append(error_msg, style="red")
-        self.console.print(error_text)
 
     def start_display(self):
         """Start the display."""
@@ -122,37 +112,47 @@ class ConsoleProgressReporter:
         except Exception as e:
             logger.error(f"Failed to handle create eval run event: {e}")
 
+    def _display_logs_panel(self, eval_name: str, logs, error_msg: str = "") -> None:
+        """Display execution logs panel with optional exception at the end."""
+        self.console.print(
+            Rule(
+                f"[dim italic]Execution Logs: {eval_name}[/dim italic]",
+                style="dim",
+                align="center",
+            )
+        )
+
+        if logs:
+            for record in logs:
+                self.console.print(f"  [dim]{record.getMessage()}[/dim]")
+        elif not error_msg:
+            self.console.print("  [dim italic]No execution logs[/dim italic]")
+
+        if error_msg:
+            self.console.print(f"  [red]{error_msg}[/red]")
+
+        self.console.print(Rule(style="dim"))
+
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         """Handle evaluation run updates."""
         try:
             if payload.success:
-                # Store results for final display
                 self.eval_results_by_name[payload.eval_item.name] = payload.eval_results
                 self._display_successful_evaluation(
                     payload.eval_item.name, payload.eval_results
                 )
+                self._display_logs_panel(payload.eval_item.name, payload.logs)
             else:
-                error_msg = self._extract_error_message(payload.eval_item)
-                self._display_failed_evaluation(payload.eval_item.name, error_msg)
+                error_msg = self._extract_error_message(payload)
+                self._display_failed_evaluation(payload.eval_item.name)
 
-            logs = payload.logs
-
-            self.console.print(
-                Rule(
-                    f"[dim italic]Execution Logs: {payload.eval_item.name}[/dim italic]",
-                    style="dim",
-                    align="center",
-                )
-            )
-
-            if len(logs) > 0:
-                for record in logs:
-                    log_line = f"  [dim]{record.getMessage()}[/dim]"
-                    self.console.print(log_line)
-            else:
-                self.console.print("  [dim italic]No execution logs[/dim italic]")
-
-            self.console.print(Rule(style="dim"))
+                if payload.exception_details.runtime_exception:  # type: ignore
+                    self._display_logs_panel(
+                        payload.eval_item.name, payload.logs, error_msg
+                    )
+                else:
+                    self.console.print(f"  [red]{error_msg}[/red]")
+                    self.console.print()
         except Exception as e:
             logger.error(f"Console reporter error: {e}")
 

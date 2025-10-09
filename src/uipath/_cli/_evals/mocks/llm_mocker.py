@@ -6,11 +6,18 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 
-from uipath._cli._evals._models._evaluation_set import (
+from .._models._evaluation_set import (
     EvaluationItem,
     LLMMockingStrategy,
 )
-from uipath._cli._evals.mocks.mocker import Mocker, R, T, UiPathMockingNoMatcherError
+from .._models._mocks import ExampleCall
+from .mocker import (
+    Mocker,
+    R,
+    T,
+    UiPathMockResponseGenerationError,
+    UiPathNoMockFoundError,
+)
 
 PROMPT = """You are simulating a tool call for automated testing purposes of an Agent.
 Your task is to provide a realistic response for the tool based on its schema, examples, and context.
@@ -102,8 +109,15 @@ class LLMMocker(Mocker):
                 },
             }
             try:
+                # Safely pull examples from params.
+                example_calls = params.get("example_calls", [])
+                if not isinstance(example_calls, list):
+                    example_calls = []
+                example_calls = [
+                    call for call in example_calls if isinstance(call, ExampleCall)
+                ]
                 prompt_input: dict[str, Any] = {
-                    "toolRunExamples": [],  # Taken from history. Contains id, input json, output json
+                    "toolRunExamples": example_calls,
                     "testRunHistory": [],  # This should contain ordered spans.
                     "toolInfo": {
                         "name": function_name,
@@ -132,6 +146,12 @@ class LLMMocker(Mocker):
                     k: json.dumps(pydantic_to_dict_safe(v))
                     for k, v in prompt_input.items()
                 }
+                model_parameters = self.evaluation_item.mocking_strategy.model
+                completion_kwargs = (
+                    model_parameters.model_dump(by_alias=False, exclude_none=True)
+                    if model_parameters
+                    else {}
+                )
                 response = await llm.chat_completions(
                     [
                         {
@@ -140,14 +160,13 @@ class LLMMocker(Mocker):
                         },
                     ],
                     response_format=response_format,
+                    **completion_kwargs,
                 )
                 mocked_response = OutputSchema(
                     **json.loads(response.choices[0].message.content)
                 )
-                return mocked_response.response
-            except Exception:
-                raise
+                return mocked_response.model_dump(mode="json")["response"]
+            except Exception as e:
+                raise UiPathMockResponseGenerationError() from e
         else:
-            raise UiPathMockingNoMatcherError(
-                f"Method '{function_name}' is not simulated."
-            )
+            raise UiPathNoMockFoundError(f"Method '{function_name}' is not simulated.")

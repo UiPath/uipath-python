@@ -3,10 +3,9 @@ import random
 from pydantic.dataclasses import dataclass
 from enum import Enum
 
+from uipath.eval.mocks import mockable, ExampleCall
 from uipath.tracing import traced
 import logging
-
-from uipath._cli._evals.mocks.mocks import mockable
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +31,10 @@ class Wrapper:
     # Testing nested objects
     result: Operator
 
+GET_RANDOM_OPERATOR_EXAMPLES = [ExampleCall(id="example", input="{}", output="{\"result\": \"*\"}")]
+
 @traced()
-@mockable()
+@mockable(example_calls=GET_RANDOM_OPERATOR_EXAMPLES)
 def get_random_operator() -> Wrapper:
     """Get a random operator."""
     return Wrapper(result=random.choice([Operator.ADD, Operator.SUBTRACT, Operator.MULTIPLY, Operator.DIVIDE]))
