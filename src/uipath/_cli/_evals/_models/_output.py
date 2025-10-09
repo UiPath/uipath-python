@@ -58,6 +58,7 @@ class EvaluationRunResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluator_name: str
+    evaluator_id: str
     result: EvaluationResultDto
 
 

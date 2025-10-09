@@ -151,9 +151,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         )
         evaluators = self._load_evaluators(evaluation_set)
 
-        evaluator_averages = {evaluator.id: 0.0 for evaluator in evaluators}
-        evaluator_counts = {evaluator.id: 0 for evaluator in evaluators}
-
         await event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
             EvalSetRunCreatedEvent(
@@ -165,11 +162,64 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             ),
         )
 
-        results = UiPathEvalOutput(
-            evaluation_set_name=evaluation_set.name, score=0, evaluation_set_results=[]
-        )
         for eval_item in evaluation_set.evaluations:
             set_evaluation_item(eval_item)
+
+        eval_run_result_list = None
+        # Check if parallel execution should be used
+        if self.context.workers > 1 and len(evaluation_set.evaluations) > 1:
+            print(">>>>>>>>>>> Worker count: ", self.context.workers)
+
+        eval_run_result_list = await self._execute_sequential(
+            evaluation_set, evaluators, event_bus
+        )
+
+        results = UiPathEvalOutput(
+            evaluation_set_name=evaluation_set.name,
+            score=0,
+            evaluation_set_results=eval_run_result_list,
+        )
+
+        results.compute_average_score()
+
+        # Computing evaluator averages
+        evaluator_averages = defaultdict(float)
+        evaluator_count = defaultdict(int)
+
+        for eval_run_result in results.evaluation_set_results:
+            for result_dto in eval_run_result.evaluation_run_results:
+                evaluator_averages[result_dto.evaluator_id] += result_dto.result.score
+                evaluator_count[result_dto.evaluator_id] += 1
+
+        for eval_id in evaluator_averages:
+            evaluator_averages[eval_id] = (
+                evaluator_averages[eval_id] / evaluator_count[eval_id]
+            )
+
+        await event_bus.publish(
+            EvaluationEvents.UPDATE_EVAL_SET_RUN,
+            EvalSetRunUpdatedEvent(
+                execution_id=self.execution_id,
+                evaluator_scores=evaluator_averages,
+            ),
+            wait_for_completion=False,
+        )
+
+        self.context.result = UiPathRuntimeResult(
+            output={**results.model_dump(by_alias=True)},
+            status=UiPathRuntimeStatus.SUCCESSFUL,
+        )
+        return self.context.result
+
+    async def _execute_sequential(
+        self,
+        evaluation_set: EvaluationSet,
+        evaluators: List[BaseEvaluator[Any]],
+        event_bus: EventBus,
+    ) -> List[EvaluationRunResult]:
+        all_eval_run_result: list[EvaluationRunResult] = []
+
+        for eval_item in evaluation_set.evaluations:
             await event_bus.publish(
                 EvaluationEvents.CREATE_EVAL_RUN,
                 EvalRunCreatedEvent(
@@ -181,8 +231,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluation_run_results = EvaluationRunResult(
                 evaluation_name=eval_item.name, evaluation_run_results=[]
             )
-
-            results.evaluation_set_results.append(evaluation_run_results)
 
             try:
                 agent_execution_output = await self.execute_runtime(eval_item)
@@ -198,16 +246,12 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                     dto_result = EvaluationResultDto.from_evaluation_result(
                         evaluation_result
                     )
-                    evaluator_counts[evaluator.id] += 1
-                    count = evaluator_counts[evaluator.id]
-                    evaluator_averages[evaluator.id] += (
-                        dto_result.score - evaluator_averages[evaluator.id]
-                    ) / count
 
                     evaluation_run_results.evaluation_run_results.append(
                         EvaluationRunResultDto(
                             evaluator_name=evaluator.name,
                             result=dto_result,
+                            evaluator_id=evaluator.id,
                         )
                     )
                     evaluation_item_results.append(
@@ -233,15 +277,18 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                     ),
                     wait_for_completion=False,
                 )
+
             except Exception as e:
                 exception_details = EvalItemExceptionDetails(exception=e)
 
                 for evaluator in evaluators:
-                    evaluator_counts[evaluator.id] += 1
-                    count = evaluator_counts[evaluator.id]
-                    evaluator_averages[evaluator.id] += (
-                        0.0 - evaluator_averages[evaluator.id]
-                    ) / count
+                    evaluation_run_results.evaluation_run_results.append(
+                        EvaluationRunResultDto(
+                            evaluator_name=evaluator.name,
+                            evaluator_id=evaluator.id,
+                            result=EvaluationResultDto(score=0),
+                        )
+                    )
 
                 eval_run_updated_event = EvalRunUpdatedEvent(
                     execution_id=self.execution_id,
@@ -268,22 +315,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                     wait_for_completion=False,
                 )
 
-        results.compute_average_score()
+            all_eval_run_result.append(evaluation_run_results)
 
-        await event_bus.publish(
-            EvaluationEvents.UPDATE_EVAL_SET_RUN,
-            EvalSetRunUpdatedEvent(
-                execution_id=self.execution_id,
-                evaluator_scores=evaluator_averages,
-            ),
-            wait_for_completion=False,
-        )
-
-        self.context.result = UiPathRuntimeResult(
-            output={**results.model_dump(by_alias=True)},
-            status=UiPathRuntimeStatus.SUCCESSFUL,
-        )
-        return self.context.result
+        return all_eval_run_result
 
     def _get_and_clear_execution_data(
         self, execution_id: str
