@@ -24,6 +24,11 @@ class ActionPriority(str, Enum):
     CRITICAL = "Critical"
 
 
+class ProjectType(str, Enum):
+    IXP = "IXP"
+    MODERN = "Modern"
+
+
 class FieldValueProjection(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
@@ -71,9 +76,9 @@ class ExtractionResponse(BaseModel):
 
     Attributes:
         extraction_result (ExtractionResult): The result of the extraction process.
-        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data.
         project_id (str): The ID of the project associated with the extraction.
         tag (str): The tag associated with the published model version.
+        document_type_id (str): The ID of the document type associated with the extraction.
     """
 
     model_config = ConfigDict(
@@ -82,9 +87,19 @@ class ExtractionResponse(BaseModel):
     )
 
     extraction_result: ExtractionResult = Field(alias="extractionResult")
-    data_projection: List[FieldGroupValueProjection] = Field(alias="dataProjection")
     project_id: str = Field(alias="projectId")
     tag: str
+    document_type_id: str = Field(alias="documentTypeId")
+
+
+class ExtractionResponseIXP(ExtractionResponse):
+    """A model representing the response from a document extraction process for IXP projects.
+
+    Attributes:
+        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data.
+    """
+
+    data_projection: List[FieldGroupValueProjection] = Field(alias="dataProjection")
 
 
 class ValidationAction(BaseModel):
