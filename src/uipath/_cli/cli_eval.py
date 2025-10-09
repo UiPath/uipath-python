@@ -80,12 +80,6 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     type=click.Path(exists=False),
     help="File path where the output will be written",
 )
-@click.option(
-    "--debug",
-    is_flag=True,
-    help="Show detailed debug logging output including middleware and HTTP requests",
-    default=False,
-)
 @track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
 def eval(
     entrypoint: Optional[str],
@@ -94,7 +88,6 @@ def eval(
     no_report: bool,
     workers: int,
     output_file: Optional[str],
-    debug: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -104,7 +97,6 @@ def eval(
         eval_ids: Optional list of evaluation IDs
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
-        debug: Show detailed debug logging output
     """
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
@@ -128,11 +120,6 @@ def eval(
         if should_register_progress_reporter:
             progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
-
-        # Set up console progress reporter (only when not in debug mode)
-        if not debug:
-            console_reporter = ConsoleProgressReporter()
-            asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
             runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
