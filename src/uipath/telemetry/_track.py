@@ -2,7 +2,7 @@ import json
 import os
 from functools import wraps
 from importlib.metadata import version
-from logging import INFO, LogRecord, getLogger
+from logging import WARNING, LogRecord, getLogger
 from typing import Any, Callable, Dict, Optional, Union
 
 from azure.monitor.opentelemetry import configure_azure_monitor
@@ -102,7 +102,7 @@ class _TelemetryClient:
             )
 
             _logger.addHandler(_AzureMonitorOpenTelemetryEventHandler())
-            _logger.setLevel(INFO)
+            _logger.setLevel(WARNING)
 
             _TelemetryClient._initialized = True
         except Exception:
