@@ -1,9 +1,7 @@
 """Console progress reporter for evaluation runs with line-by-line output."""
 
 import logging
-import os
-import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from rich.console import Console
 from rich.rule import Rule
@@ -11,8 +9,6 @@ from rich.table import Table
 
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
-    BatchProgressEvent,
-    EvalProgressEvent,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunCreatedEvent,
@@ -33,9 +29,6 @@ class ConsoleProgressReporter:
         self.evaluators: Dict[str, BaseEvaluator[Any]] = {}
         self.display_started = False
         self.eval_results_by_name: Dict[str, list[Any]] = {}
-        self.total_batches = 0
-        self.completed_batches = 0
-        self.is_parallel_execution = False
 
     def _convert_score_to_numeric(self, eval_result) -> float:
         """Convert evaluation result score to numeric value."""
@@ -82,15 +75,10 @@ class ConsoleProgressReporter:
             result.append(" - No evaluators", style="dim")
             self.console.print(result)
 
-    def _extract_error_message(self, eval_item_payload) -> str:
-        """Extract clean error message from evaluation item."""
-        if hasattr(eval_item_payload, "_error_message"):
-            error_message = getattr(eval_item_payload, "_error_message", None)
-            if error_message:
-                return str(error_message) or "Execution failed"
-        return "Execution failed"
+    def _extract_error_message(self, payload: EvalRunUpdatedEvent) -> str:
+        return str(payload.exception_details.exception) or "Execution failed"  # type: ignore
 
-    def _display_failed_evaluation(self, eval_name: str, error_msg: str) -> None:
+    def _display_failed_evaluation(self, eval_name: str) -> None:
         """Display results for a failed evaluation."""
         from rich.text import Text
 
@@ -98,11 +86,6 @@ class ConsoleProgressReporter:
         result.append("  ✗ ", style="bold red")
         result.append(eval_name, style="bold white")
         self.console.print(result)
-
-        error_text = Text()
-        error_text.append("    ", style="")
-        error_text.append(error_msg, style="red")
-        self.console.print(error_text)
 
     def start_display(self):
         """Start the display."""
@@ -129,37 +112,47 @@ class ConsoleProgressReporter:
         except Exception as e:
             logger.error(f"Failed to handle create eval run event: {e}")
 
+    def _display_logs_panel(self, eval_name: str, logs, error_msg: str = "") -> None:
+        """Display execution logs panel with optional exception at the end."""
+        self.console.print(
+            Rule(
+                f"[dim italic]Execution Logs: {eval_name}[/dim italic]",
+                style="dim",
+                align="center",
+            )
+        )
+
+        if logs:
+            for record in logs:
+                self.console.print(f"  [dim]{record.getMessage()}[/dim]")
+        elif not error_msg:
+            self.console.print("  [dim italic]No execution logs[/dim italic]")
+
+        if error_msg:
+            self.console.print(f"  [red]{error_msg}[/red]")
+
+        self.console.print(Rule(style="dim"))
+
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         """Handle evaluation run updates."""
         try:
             if payload.success:
-                # Store results for final display
                 self.eval_results_by_name[payload.eval_item.name] = payload.eval_results
                 self._display_successful_evaluation(
                     payload.eval_item.name, payload.eval_results
                 )
+                self._display_logs_panel(payload.eval_item.name, payload.logs)
             else:
-                error_msg = self._extract_error_message(payload.eval_item)
-                self._display_failed_evaluation(payload.eval_item.name, error_msg)
+                error_msg = self._extract_error_message(payload)
+                self._display_failed_evaluation(payload.eval_item.name)
 
-            logs = payload.logs
-
-            self.console.print(
-                Rule(
-                    f"[dim italic]Execution Logs: {payload.eval_item.name}[/dim italic]",
-                    style="dim",
-                    align="center",
-                )
-            )
-
-            if len(logs) > 0:
-                for record in logs:
-                    log_line = f"  [dim]{record.getMessage()}[/dim]"
-                    self.console.print(log_line)
-            else:
-                self.console.print("  [dim italic]No execution logs[/dim italic]")
-
-            self.console.print(Rule(style="dim"))
+                if payload.exception_details.runtime_exception:  # type: ignore
+                    self._display_logs_panel(
+                        payload.eval_item.name, payload.logs, error_msg
+                    )
+                else:
+                    self.console.print(f"  [red]{error_msg}[/red]")
+                    self.console.print()
         except Exception as e:
             logger.error(f"Console reporter error: {e}")
 
@@ -232,71 +225,6 @@ class ConsoleProgressReporter:
             )
             self.console.print()
 
-    async def handle_eval_progress(self, payload: EvalProgressEvent) -> None:
-        """Handle evaluation progress updates."""
-        try:
-            if self.is_parallel_execution:
-                progress_bar = self._create_progress_bar(
-                    payload.completed_evals, payload.total_evals, "evaluations"
-                )
-                self.console.print(f"\r  📊 {progress_bar}", end="")
-        except Exception as e:
-            logger.error(f"Failed to handle eval progress event: {e}")
-
-    async def handle_batch_progress(self, payload: BatchProgressEvent) -> None:
-        """Handle batch progress updates."""
-        try:
-            if payload.completed_batches == 1:
-                self.is_parallel_execution = True
-                self.total_batches = payload.total_batches
-                self.console.print()
-                self.console.print(
-                    f"  🔄 [bold bright_blue]Running {payload.total_batches} batches in parallel...[/bold bright_blue]"
-                )
-
-            self.completed_batches = payload.completed_batches
-
-            if self.total_batches > 1:
-                batch_progress = self._create_progress_bar(
-                    payload.completed_batches, payload.total_batches, "batches"
-                )
-                self.console.print(f"  📦 {batch_progress}")
-
-        except Exception as e:
-            logger.error(f"Failed to handle batch progress event: {e}")
-
-    def _create_progress_bar(self, completed: int, total: int, unit: str) -> str:
-        """Create a simple text progress bar."""
-        if total == 0:
-            return f"[dim]{unit}: 0/0[/dim]"
-
-        percentage = (completed / total) * 100
-        filled = int(percentage / 10)  # 10 segments
-        bar = "█" * filled + "░" * (10 - filled)
-
-        return f"[bright_blue]{bar}[/bright_blue] {completed}/{total} {unit} ([bold]{percentage:.1f}%[/bold])"
-
-    def _display_total_duration(self) -> None:
-        """Display the total evaluation duration."""
-        try:
-            start_time_str = os.environ.get("UIPATH_EVAL_START_TIME")
-            if start_time_str:
-                start_time = float(start_time_str)
-                end_time = time.time()
-                duration = end_time - start_time
-
-                if duration < 60:
-                    duration_str = f"{duration:.1f}s"
-                else:
-                    minutes = int(duration // 60)
-                    seconds = duration % 60
-                    duration_str = f"{minutes}m {seconds:.1f}s"
-
-                self.console.print(f"⏱️  [dim]Total time: {duration_str}[/dim]")
-                self.console.print()
-        except Exception:
-            pass
-
     async def subscribe_to_eval_runtime_events(self, event_bus: EventBus) -> None:
         """Subscribe to evaluation runtime events."""
         event_bus.subscribe(
@@ -311,5 +239,3 @@ class ConsoleProgressReporter:
         event_bus.subscribe(
             EvaluationEvents.UPDATE_EVAL_SET_RUN, self.handle_update_eval_set_run
         )
-        event_bus.subscribe(EvaluationEvents.EVAL_PROGRESS, self.handle_eval_progress)
-        event_bus.subscribe(EvaluationEvents.BATCH_PROGRESS, self.handle_batch_progress)

@@ -1,9 +1,9 @@
 import enum
 import logging
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath.eval.models import EvalItemResult
@@ -14,8 +14,6 @@ class EvaluationEvents(str, enum.Enum):
     CREATE_EVAL_RUN = "create_eval_run"
     UPDATE_EVAL_SET_RUN = "update_eval_set_run"
     UPDATE_EVAL_RUN = "update_eval_run"
-    EVAL_PROGRESS = "eval_progress"
-    BATCH_PROGRESS = "batch_progress"
 
 
 class EvalSetRunCreatedEvent(BaseModel):
@@ -31,6 +29,13 @@ class EvalRunCreatedEvent(BaseModel):
     eval_item: EvaluationItem
 
 
+class EvalItemExceptionDetails(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    runtime_exception: bool = False
+    exception: Exception
+
+
 class EvalRunUpdatedEvent(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -42,6 +47,13 @@ class EvalRunUpdatedEvent(BaseModel):
     agent_execution_time: float
     spans: List[ReadableSpan]
     logs: List[logging.LogRecord]
+    exception_details: Optional[EvalItemExceptionDetails] = None
+
+    @model_validator(mode="after")
+    def validate_exception_details(self):
+        if not self.success and self.exception_details is None:
+            raise ValueError("exception_details must be provided when success is False")
+        return self
 
 
 class EvalSetRunUpdatedEvent(BaseModel):
@@ -49,25 +61,9 @@ class EvalSetRunUpdatedEvent(BaseModel):
     evaluator_scores: dict[str, float]
 
 
-class EvalProgressEvent(BaseModel):
-    execution_id: str
-    completed_evals: int
-    total_evals: int
-    progress_percent: float
-
-
-class BatchProgressEvent(BaseModel):
-    execution_id: str
-    completed_batches: int
-    total_batches: int
-    batch_id: int
-
-
 ProgressEvent = Union[
     EvalSetRunCreatedEvent,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunUpdatedEvent,
-    EvalProgressEvent,
-    BatchProgressEvent,
 ]

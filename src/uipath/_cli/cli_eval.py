@@ -3,6 +3,7 @@ import ast
 import asyncio
 import logging
 import os
+import time
 from typing import List, Optional
 
 import click
@@ -174,6 +175,7 @@ def eval(
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True
             )
+
 
 if __name__ == "__main__":
     eval()
