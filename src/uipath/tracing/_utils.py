@@ -319,3 +319,44 @@ class _SpanUtils:
                 f"Error formatting arguments for trace: {e}. Using args and kwargs directly."
             )
             return {"args": args, "kwargs": kwargs}
+
+    # Markers used to identify internal LLM calls that should be excluded from LLM context
+    # (eg. for tool mocking in evals)
+    _INTERNAL_SPAN_MARKERS = [
+        "You are simulating a tool call for automated testing purposes of an Agent.",
+    ]
+
+    @staticmethod
+    def spans_to_llm_context(spans: list[ReadableSpan]) -> str:
+        """Convert spans to a formatted conversation history string suitable for LLM context.
+
+        Includes function calls (including LLM calls) with their inputs and outputs.
+        """
+        history = []
+
+        for span in spans:
+            attributes = dict(span.attributes) if span.attributes else {}
+
+            input_value = attributes.get("input.value")
+            output_value = attributes.get("output.value")
+
+            if not input_value or not output_value:
+                continue
+
+            input_str = str(input_value)
+            is_internal_span = any(
+                marker in input_str for marker in _SpanUtils._INTERNAL_SPAN_MARKERS
+            )
+
+            if is_internal_span:
+                continue
+
+            history.append(f"Function: {span.name}")
+            history.append(f"Input: {input_value}")
+            history.append(f"Output: {output_value}")
+            history.append("")
+
+        if not history:
+            return "(empty)"
+
+        return "\n".join(history)
