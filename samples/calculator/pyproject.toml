@@ -1,9 +1,10 @@
 [project]
-name = "event-agent"
+name = "calculator"
 version = "0.0.1"
-description = "calculator-agent"
+description = "calculator"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
-dependencies = [
-    "uipath>=2.1.43",
-]
 requires-python = ">=3.10"
+dependencies = [
+    "uipath-langchain>=0.0.106",
+    "langchain-anthropic>=0.3.8",
+]
