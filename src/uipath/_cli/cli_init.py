@@ -86,6 +86,34 @@ def generate_agents_md(target_directory: str) -> None:
         console.warning(f"Could not create AGENTS.md: {e}")
 
 
+def generate_claude_md(target_directory: str) -> None:
+    """Generate CLAUDE.md file from the packaged resource.
+
+    Args:
+        target_directory: The directory where CLAUDE.md should be created.
+    """
+    target_path = os.path.join(target_directory, "CLAUDE.md")
+
+    # Skip if file already exists
+    if os.path.exists(target_path):
+        console.info("Skipping 'CLAUDE.md' creation as it already exists.")
+        return
+
+    try:
+        # Get the resource path using importlib.resources
+        source_path = importlib.resources.files("uipath._resources").joinpath(
+            "CLAUDE.md"
+        )
+
+        # Copy the file to the target directory
+        with importlib.resources.as_file(source_path) as s_path:
+            shutil.copy(s_path, target_path)
+
+        console.success(" Created 'CLAUDE.md' file.")
+    except Exception as e:
+        console.warning(f"Could not create CLAUDE.md: {e}")
+
+
 def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
     """Read existing settings from uipath.json if it exists.
 
@@ -161,6 +189,7 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
         generate_env_file(current_directory)
         create_telemetry_config_file(current_directory)
         generate_agents_md(current_directory)
+        generate_claude_md(current_directory)
 
         result = Middlewares.next(
             "init",
