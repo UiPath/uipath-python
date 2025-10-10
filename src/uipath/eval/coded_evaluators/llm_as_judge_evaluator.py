@@ -183,7 +183,15 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
             ) from e
 
         try:
-            parsed_response = json.loads(str(response.choices[-1].message.content))
+            content = response.choices[-1].message.content
+            if content is None:
+                raise UiPathEvaluationError(
+                    code="EMPTY_LLM_RESPONSE",
+                    title="Empty LLM response",
+                    detail="The LLM response message content was None.",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                )
+            parsed_response = json.loads(str(content))
         except Exception as e:
             raise UiPathEvaluationError(
                 code="FAILED_TO_PARSE_LLM_RESPONSE",
