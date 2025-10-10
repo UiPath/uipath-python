@@ -1,10 +1,8 @@
 """Models for evaluation framework including execution data and evaluation results."""
 
 import traceback
-from enum import Enum, IntEnum
-from typing import Annotated, Any, Dict, Literal, Optional, Union
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum, IntEnum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -213,7 +211,11 @@ class TrajectoryEvaluationTrace(BaseModel):
             TrajectoryEvaluationTrace with converted spans
         """
         # Create a mapping of span IDs to names for parent lookup
-        span_id_to_name = {span.get_span_context().span_id: span.name for span in spans}
+        span_id_to_name = {
+            span.get_span_context().span_id: span.name  # pyright: ignore[reportOptionalMemberAccess]
+            for span in spans
+            if span.get_span_context() is not None
+        }
 
         evaluation_spans = [
             TrajectoryEvaluationSpan.from_readable_span(span, span_id_to_name)

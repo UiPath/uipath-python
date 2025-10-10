@@ -297,6 +297,8 @@ def tool_calls_args_score(
                 tool_counters[call.name] += 1
 
                 # Check arguments based on mode
+                # The linter highlights a few problems here due to using lambdas, but they're safe to ignore
+                # Breaking this down into proper functions would unnecessarily make the code more complex
                 if subset:
                     # Subset mode: safely check if all expected args exist and match
                     args_check = (  # noqa: E731

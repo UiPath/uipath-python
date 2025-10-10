@@ -1,7 +1,10 @@
 """Test module for evaluator helper functions.
 
-This module contains comprehensive tests for all helper functions used by
-coded evaluators to ensure consistent behavior and proper justification structures.
+This module contains comprehensive tests for helper functions used by coded evaluators,
+including functions for tool call extraction (`extract_tool_calls`, `extract_tool_calls_names`,
+`extract_tool_calls_outputs`) and various scoring functions (`tool_calls_args_score`,
+`tool_calls_count_score`, `tool_calls_order_score`, `tool_calls_output_score`).
+These tests ensure consistent behavior and proper justification structures for each helper.
 """
 
 from typing import Any
