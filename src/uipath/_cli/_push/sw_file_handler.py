@@ -27,6 +27,7 @@ from .._utils._studio_project import (
     ProjectStructure,
     StructuralMigration,
     StudioClient,
+    get_subfolder_by_name,
 )
 
 
@@ -466,6 +467,164 @@ class SwFileHandler:
             )
             self.console.info(f"Uploading {click.style('agent.json', fg='cyan')}")
 
+    async def _process_coded_evals_uploads(self, structure: ProjectStructure) -> None:
+        """Process coded-evals folder uploads.
+
+        Args:
+            structure: The current project structure
+        """
+        local_coded_evals_path = os.path.join(self.directory, "coded-evals")
+
+        # Check if local coded-evals directory exists
+        if not os.path.exists(local_coded_evals_path):
+            return
+
+        # Get or create coded-evals folder
+        coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
+        if not coded_evals_folder:
+            # Create coded-evals folder
+            await self._studio_client.create_folder_async("coded-evals")
+            self.console.success(
+                f"Created {click.style('coded-evals', fg='cyan')} folder"
+            )
+            # Refresh structure to get the new folder
+            structure = await self._studio_client.get_project_structure_async()
+            coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
+
+        # Process evaluators subfolder
+        local_evaluators_path = os.path.join(local_coded_evals_path, "evaluators")
+        if os.path.exists(local_evaluators_path) and coded_evals_folder:
+            await self._process_coded_evals_subfolder(
+                coded_evals_folder, "evaluators", local_evaluators_path
+            )
+
+        # Process eval-sets subfolder
+        local_eval_sets_path = os.path.join(local_coded_evals_path, "eval-sets")
+        if os.path.exists(local_eval_sets_path) and coded_evals_folder:
+            await self._process_coded_evals_subfolder(
+                coded_evals_folder, "eval-sets", local_eval_sets_path
+            )
+
+    async def _process_coded_evals_subfolder(
+        self, coded_evals_folder: ProjectFolder, subfolder_name: str, local_path: str
+    ) -> None:
+        """Process a specific coded-evals subfolder.
+
+        Args:
+            coded_evals_folder: The remote coded-evals folder
+            subfolder_name: Name of the subfolder (evaluators or eval-sets)
+            local_path: Local path to the subfolder
+        """
+        # Get or create the subfolder
+        remote_subfolder = get_subfolder_by_name(coded_evals_folder, subfolder_name)
+        if not remote_subfolder:
+            # Create the subfolder
+            await self._studio_client.create_folder_async(
+                subfolder_name, coded_evals_folder.id
+            )
+            self.console.success(
+                f"Created {click.style(f'coded-evals/{subfolder_name}', fg='cyan')} folder"
+            )
+            # Refresh structure to get the new folder
+            structure = await self._studio_client.get_project_structure_async()
+            refreshed_coded_evals_folder = self._get_folder_by_name(
+                structure, "coded-evals"
+            )
+            if refreshed_coded_evals_folder:
+                remote_subfolder = get_subfolder_by_name(
+                    refreshed_coded_evals_folder, subfolder_name
+                )
+
+        # If we still don't have a remote subfolder, something went wrong
+        if not remote_subfolder:
+            self.console.warning(f"Failed to create or find subfolder {subfolder_name}")
+            return
+
+        # Get existing files in the remote subfolder
+        remote_files: Dict[str, ProjectFile] = {}
+        self.collect_all_files(remote_subfolder, remote_files)
+
+        # Get local files to upload
+        local_files = []
+        for root, _dirs, files in os.walk(local_path):
+            for file in files:
+                if file.endswith(
+                    (".json", ".yaml", ".yml")
+                ):  # Only include eval-related files
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, local_path)
+                    local_files.append(
+                        {
+                            "file_name": file,
+                            "file_path": file_path,
+                            "relative_path": rel_path,
+                        }
+                    )
+
+        # Process each local file
+        structural_migration = StructuralMigration(
+            deleted_resources=[], added_resources=[], modified_resources=[]
+        )
+        processed_files: Set[str] = set()
+
+        for local_file in local_files:
+            remote_file = remote_files.get(
+                local_file["relative_path"].replace("\\", "/")
+            )
+
+            if remote_file:
+                # Update existing file
+                processed_files.add(remote_file.id)
+                structural_migration.modified_resources.append(
+                    ModifiedResource(
+                        id=remote_file.id, content_file_path=local_file["file_path"]
+                    )
+                )
+                file_display_path = (
+                    f"coded-evals/{subfolder_name}/{local_file['relative_path']}"
+                )
+                self.console.info(
+                    f"Updating {click.style(file_display_path, fg='yellow')}"
+                )
+            else:
+                # Add new file
+                parent_path = os.path.dirname(local_file["relative_path"])
+                full_parent_path = f"coded-evals/{subfolder_name}"
+                if parent_path and parent_path != ".":
+                    full_parent_path += f"/{parent_path}"
+
+                structural_migration.added_resources.append(
+                    AddedResource(
+                        content_file_path=local_file["file_path"],
+                        parent_path=full_parent_path,
+                    )
+                )
+                file_display_path = (
+                    f"coded-evals/{subfolder_name}/{local_file['relative_path']}"
+                )
+                self.console.info(
+                    f"Uploading {click.style(file_display_path, fg='cyan')}"
+                )
+
+        # Identify deleted files
+        for file_path, remote_file in remote_files.items():
+            if remote_file.id not in processed_files:
+                structural_migration.deleted_resources.append(remote_file.id)
+                file_display_path = f"coded-evals/{subfolder_name}/{file_path}"
+                self.console.info(
+                    f"Deleting {click.style(file_display_path, fg='bright_red')}"
+                )
+
+        # Perform the migration if there are changes
+        if (
+            structural_migration.added_resources
+            or structural_migration.modified_resources
+            or structural_migration.deleted_resources
+        ):
+            await self._studio_client.perform_structural_migration_async(
+                structural_migration
+            )
+
     async def upload_source_files(self, config_data: dict[str, Any]) -> None:
         """Main method to upload source files to the UiPath project.
 
@@ -506,3 +665,6 @@ class SwFileHandler:
             directories_to_ignore=["evals"],
         )
         await self._process_file_uploads(files, source_code_files, root_files)
+
+        # Handle coded-evals files separately
+        await self._process_coded_evals_uploads(structure)

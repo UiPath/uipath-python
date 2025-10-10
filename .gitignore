@@ -29,3 +29,9 @@ wheels/
 
 .cache/*
 .cache
+
+# Evaluation files and folders
+**/evals/
+**/coded-evals/
+**/eval-sets/
+**/evaluators/
