@@ -5,29 +5,48 @@ from contextvars import ContextVar
 from typing import Any, Callable, Optional
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem
+from uipath._cli._evals._span_collection import ExecutionSpanCollector
 from uipath._cli._evals.mocks.mocker import Mocker, UiPathNoMockFoundError
 from uipath._cli._evals.mocks.mocker_factory import MockerFactory
 
+# Context variables for evaluation items and mockers
 evaluation_context: ContextVar[Optional[EvaluationItem]] = ContextVar(
     "evaluation", default=None
 )
 
 mocker_context: ContextVar[Optional[Mocker]] = ContextVar("mocker", default=None)
 
+# Span collector for trace access during mocking
+span_collector_context: ContextVar[Optional[ExecutionSpanCollector]] = ContextVar(
+    "span_collector", default=None
+)
+
 logger = logging.getLogger(__name__)
 
 
-def set_evaluation_item(item: EvaluationItem) -> None:
-    """Set an evaluation item within an evaluation set."""
-    evaluation_context.set(item)
+def set_execution_context(
+    eval_item: EvaluationItem, span_collector: ExecutionSpanCollector
+) -> None:
+    """Set the execution context for an evaluation run for mocking and trace access."""
+    evaluation_context.set(eval_item)
+
     try:
-        if item.mocking_strategy:
-            mocker_context.set(MockerFactory.create(item))
+        if eval_item.mocking_strategy:
+            mocker_context.set(MockerFactory.create(eval_item))
         else:
             mocker_context.set(None)
     except Exception:
-        logger.warning(f"Failed to create mocker for evaluation {item.name}")
+        logger.warning(f"Failed to create mocker for evaluation {eval_item.name}")
         mocker_context.set(None)
+
+    span_collector_context.set(span_collector)
+
+
+def clear_execution_context() -> None:
+    """Clear the execution context after evaluation completes."""
+    evaluation_context.set(None)
+    mocker_context.set(None)
+    span_collector_context.set(None)
 
 
 async def get_mocked_response(

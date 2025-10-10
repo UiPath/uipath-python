@@ -1,4 +1,5 @@
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -10,8 +11,10 @@ from uipath._cli._evals._models._evaluation_set import (
     MockitoMockingStrategy,
 )
 from uipath._cli._evals.mocks.mocker import UiPathMockResponseGenerationError
-from uipath._cli._evals.mocks.mocks import set_evaluation_item
+from uipath._cli._evals.mocks.mocks import set_execution_context
 from uipath.eval.mocks import mockable
+
+_mock_span_collector = MagicMock()
 
 
 def test_mockito_mockable_sync():
@@ -51,7 +54,7 @@ def test_mockito_mockable_sync():
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
-    set_evaluation_item(evaluation)
+    set_execution_context(evaluation, _mock_span_collector)
     assert foo() == "bar1"
     assert foo() == "bar2"
     assert foo() == "bar2"
@@ -63,13 +66,13 @@ def test_mockito_mockable_sync():
         assert foofoo()
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
-    set_evaluation_item(evaluation)
+    set_execution_context(evaluation, _mock_span_collector)
     assert foo(x=1) == "bar1"
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
         "x": {"_target_": "mockito.any"}
     }
-    set_evaluation_item(evaluation)
+    set_execution_context(evaluation, _mock_span_collector)
     assert foo(x=2) == "bar1"
 
 
@@ -111,7 +114,7 @@ async def test_mockito_mockable_async():
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
-    set_evaluation_item(evaluation)
+    set_execution_context(evaluation, _mock_span_collector)
     assert await foo() == "bar1"
     assert await foo() == "bar2"
     assert await foo() == "bar2"
@@ -123,13 +126,13 @@ async def test_mockito_mockable_async():
         assert await foofoo()
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
-    set_evaluation_item(evaluation)
+    set_execution_context(evaluation, _mock_span_collector)
     assert await foo(x=1) == "bar1"
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
         "x": {"_target_": "mockito.any"}
     }
-    set_evaluation_item(evaluation)
+    set_execution_context(evaluation, _mock_span_collector)
     assert await foo(x=2) == "bar1"
 
 
@@ -201,7 +204,7 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
         },
     )
     # Act & Assert
-    set_evaluation_item(evaluation)
+    set_execution_context(evaluation, _mock_span_collector)
 
     assert foo() == "bar1"
     with pytest.raises(NotImplementedError):
@@ -274,7 +277,7 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
         },
     )
     # Act & Assert
-    set_evaluation_item(evaluation)
+    set_execution_context(evaluation, _mock_span_collector)
 
     assert await foo() == "bar1"
     with pytest.raises(NotImplementedError):
