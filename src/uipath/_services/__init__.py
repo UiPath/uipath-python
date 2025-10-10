@@ -8,6 +8,7 @@ from .context_grounding_service import ContextGroundingService
 from .documents_service import DocumentsService
 from .entities_service import EntitiesService
 from .folder_service import FolderService
+from .guardrail_service import GuardrailsService
 from .jobs_service import JobsService
 from .llm_gateway_service import UiPathLlmChatService, UiPathOpenAIService
 from .processes_service import ProcessesService
@@ -29,4 +30,5 @@ __all__ = [
     "UiPathLlmChatService",
     "FolderService",
     "EntitiesService",
+    "GuardrailsService",
 ]
