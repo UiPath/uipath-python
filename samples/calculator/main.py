@@ -35,7 +35,7 @@ GET_RANDOM_OPERATOR_EXAMPLES = [ExampleCall(id="example", input="{}", output="{\
 
 @traced()
 @mockable(example_calls=GET_RANDOM_OPERATOR_EXAMPLES)
-async def get_random_operator() -> Wrapper:
+def get_random_operator() -> Wrapper:
     """Get a random operator."""
     return Wrapper(result=random.choice([Operator.ADD, Operator.SUBTRACT, Operator.MULTIPLY, Operator.DIVIDE]))
 

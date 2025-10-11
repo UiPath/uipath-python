@@ -5,7 +5,7 @@ import functools
 import inspect
 import logging
 import threading
-from typing import Any, List, Optional
+from typing import Any, Awaitable, Callable, List, Optional, ParamSpec, TypeVar
 
 from pydantic import TypeAdapter
 from pydantic_function_models import ValidatedFunction  # type: ignore[import-untyped]
@@ -28,7 +28,13 @@ def run_coroutine(coro):
     return future.result()
 
 
-def mocked_response_decorator(func, params: dict[str, Any]):
+T = ParamSpec("T")
+R = TypeVar("R")
+
+
+def mocked_response_decorator(
+    func: Callable[T, R | Awaitable[R]], params: dict[str, Any]
+) -> Callable[T, Awaitable[R]]:
     """Mocked response decorator."""
 
     async def mock_response_generator(*args, **kwargs):
@@ -39,23 +45,16 @@ def mocked_response_decorator(func, params: dict[str, Any]):
             mocked_response = TypeAdapter(return_type).validate_python(mocked_response)
         return mocked_response
 
-    is_async = inspect.iscoroutinefunction(func)
-    if is_async:
-
-        @functools.wraps(func)
-        async def decorated_func(*args, **kwargs):
-            try:
-                return await mock_response_generator(*args, **kwargs)
-            except UiPathNoMockFoundError:
-                return await func(*args, **kwargs)
-    else:
-
-        @functools.wraps(func)
-        def decorated_func(*args, **kwargs):
-            try:
-                return run_coroutine(mock_response_generator(*args, **kwargs))
-            except UiPathNoMockFoundError:
-                return func(*args, **kwargs)
+    @functools.wraps(func)
+    async def decorated_func(*args, **kwargs) -> R:
+        try:
+            return await mock_response_generator(*args, **kwargs)
+        except UiPathNoMockFoundError:
+            result = func(*args, **kwargs)
+            if isinstance(result, Awaitable):
+                return await result
+            else:
+                return result
 
     return decorated_func
 
@@ -86,10 +85,10 @@ def mockable(
     output_schema: Optional[dict[str, Any]] = None,
     example_calls: Optional[List[ExampleCall]] = None,
     **kwargs,
-):
+) -> Callable[[Callable[T, R | Awaitable[R]]], Callable[T, Awaitable[R]]]:
     """Decorate a function to be a mockable."""
 
-    def decorator(func):
+    def decorator(func: Callable[T, R | Awaitable[R]]) -> Callable[T, Awaitable[R]]:
         params = {
             "name": name or func.__name__,
             "description": description or func.__doc__,
