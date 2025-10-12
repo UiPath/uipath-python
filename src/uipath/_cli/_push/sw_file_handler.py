@@ -27,7 +27,6 @@ from .._utils._studio_project import (
     ProjectStructure,
     StructuralMigration,
     StudioClient,
-    get_subfolder_by_name,
 )
 
 
@@ -467,82 +466,65 @@ class SwFileHandler:
             )
             self.console.info(f"Uploading {click.style('agent.json', fg='cyan')}")
 
-    async def _process_coded_evals_uploads(self, structure: ProjectStructure) -> None:
-        """Process coded-evals folder uploads.
+    async def _process_evaluation_uploads(self, structure: ProjectStructure) -> None:
+        """Process evaluation folder uploads using new structure (evaluators/, datasets/).
 
         Args:
             structure: The current project structure
         """
-        local_coded_evals_path = os.path.join(self.directory, "coded-evals")
+        # Check for local evaluation directories
+        local_evaluators_path = os.path.join(self.directory, "evaluators")
+        local_datasets_path = os.path.join(self.directory, "datasets")
 
-        # Check if local coded-evals directory exists
-        if not os.path.exists(local_coded_evals_path):
+        has_local_eval_structure = (
+            os.path.exists(local_evaluators_path) or os.path.exists(local_datasets_path)
+        )
+
+        if not has_local_eval_structure:
             return
 
-        # Get or create coded-evals folder
-        coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
-        if not coded_evals_folder:
-            # Create coded-evals folder
-            await self._studio_client.create_folder_async("coded-evals")
-            self.console.success(
-                f"Created {click.style('coded-evals', fg='cyan')} folder"
-            )
-            # Refresh structure to get the new folder
-            structure = await self._studio_client.get_project_structure_async()
-            coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
-
-        # Process evaluators subfolder
-        local_evaluators_path = os.path.join(local_coded_evals_path, "evaluators")
-        if os.path.exists(local_evaluators_path) and coded_evals_folder:
-            await self._process_coded_evals_subfolder(
-                coded_evals_folder, "evaluators", local_evaluators_path
+        # Process evaluators folder
+        if os.path.exists(local_evaluators_path):
+            await self._process_evaluation_folder(
+                structure, "evaluators", local_evaluators_path
             )
 
-        # Process eval-sets subfolder
-        local_eval_sets_path = os.path.join(local_coded_evals_path, "eval-sets")
-        if os.path.exists(local_eval_sets_path) and coded_evals_folder:
-            await self._process_coded_evals_subfolder(
-                coded_evals_folder, "eval-sets", local_eval_sets_path
+        # Process datasets folder
+        if os.path.exists(local_datasets_path):
+            await self._process_evaluation_folder(
+                structure, "datasets", local_datasets_path
             )
 
-    async def _process_coded_evals_subfolder(
-        self, coded_evals_folder: ProjectFolder, subfolder_name: str, local_path: str
+    async def _process_evaluation_folder(
+        self, structure: ProjectStructure, folder_name: str, local_path: str
     ) -> None:
-        """Process a specific coded-evals subfolder.
+        """Process a specific evaluation folder (evaluators or datasets).
 
         Args:
-            coded_evals_folder: The remote coded-evals folder
-            subfolder_name: Name of the subfolder (evaluators or eval-sets)
-            local_path: Local path to the subfolder
+            structure: The current project structure
+            folder_name: Name of the folder (evaluators or datasets)
+            local_path: Local path to the folder
         """
-        # Get or create the subfolder
-        remote_subfolder = get_subfolder_by_name(coded_evals_folder, subfolder_name)
-        if not remote_subfolder:
-            # Create the subfolder
-            await self._studio_client.create_folder_async(
-                subfolder_name, coded_evals_folder.id
-            )
+        # Get or create the folder
+        remote_folder = self._get_folder_by_name(structure, folder_name)
+        if not remote_folder:
+            # Create the folder at root level
+            await self._studio_client.create_folder_async(folder_name)
             self.console.success(
-                f"Created {click.style(f'coded-evals/{subfolder_name}', fg='cyan')} folder"
+                f"Created {click.style(folder_name, fg='cyan')} folder"
             )
             # Refresh structure to get the new folder
             structure = await self._studio_client.get_project_structure_async()
-            refreshed_coded_evals_folder = self._get_folder_by_name(
-                structure, "coded-evals"
-            )
-            if refreshed_coded_evals_folder:
-                remote_subfolder = get_subfolder_by_name(
-                    refreshed_coded_evals_folder, subfolder_name
-                )
+            remote_folder = self._get_folder_by_name(structure, folder_name)
 
-        # If we still don't have a remote subfolder, something went wrong
-        if not remote_subfolder:
-            self.console.warning(f"Failed to create or find subfolder {subfolder_name}")
+        # If we still don't have a remote folder, something went wrong
+        if not remote_folder:
+            self.console.warning(f"Failed to create or find folder {folder_name}")
             return
 
-        # Get existing files in the remote subfolder
+        # Get existing files in the remote folder
         remote_files: Dict[str, ProjectFile] = {}
-        self.collect_all_files(remote_subfolder, remote_files)
+        self.collect_all_files(remote_folder, remote_files)
 
         # Get local files to upload
         local_files = []
@@ -580,16 +562,14 @@ class SwFileHandler:
                         id=remote_file.id, content_file_path=local_file["file_path"]
                     )
                 )
-                file_display_path = (
-                    f"coded-evals/{subfolder_name}/{local_file['relative_path']}"
-                )
+                file_display_path = f"{folder_name}/{local_file['relative_path']}"
                 self.console.info(
                     f"Updating {click.style(file_display_path, fg='yellow')}"
                 )
             else:
                 # Add new file
                 parent_path = os.path.dirname(local_file["relative_path"])
-                full_parent_path = f"coded-evals/{subfolder_name}"
+                full_parent_path = folder_name
                 if parent_path and parent_path != ".":
                     full_parent_path += f"/{parent_path}"
 
@@ -599,9 +579,7 @@ class SwFileHandler:
                         parent_path=full_parent_path,
                     )
                 )
-                file_display_path = (
-                    f"coded-evals/{subfolder_name}/{local_file['relative_path']}"
-                )
+                file_display_path = f"{folder_name}/{local_file['relative_path']}"
                 self.console.info(
                     f"Uploading {click.style(file_display_path, fg='cyan')}"
                 )
@@ -610,7 +588,7 @@ class SwFileHandler:
         for file_path, remote_file in remote_files.items():
             if remote_file.id not in processed_files:
                 structural_migration.deleted_resources.append(remote_file.id)
-                file_display_path = f"coded-evals/{subfolder_name}/{file_path}"
+                file_display_path = f"{folder_name}/{file_path}"
                 self.console.info(
                     f"Deleting {click.style(file_display_path, fg='bright_red')}"
                 )
@@ -657,14 +635,24 @@ class SwFileHandler:
             )
             source_code_files = {}
 
+        # Check if new evaluation structure exists locally
+        local_evaluators_path = os.path.join(self.directory, "evaluators")
+        local_datasets_path = os.path.join(self.directory, "datasets")
+        has_new_eval_structure = (
+            os.path.exists(local_evaluators_path) or os.path.exists(local_datasets_path)
+        )
+
+        # Determine directories to ignore
+        directories_to_ignore = ["evals"] if has_new_eval_structure else []
+
         # Get files to upload and process them
         files = files_to_include(
             config_data,
             self.directory,
             self.include_uv_lock,
-            directories_to_ignore=["evals"],
+            directories_to_ignore=directories_to_ignore,
         )
         await self._process_file_uploads(files, source_code_files, root_files)
 
-        # Handle coded-evals files separately
-        await self._process_coded_evals_uploads(structure)
+        # Handle evaluation files using new structure (evaluators/, datasets/)
+        await self._process_evaluation_uploads(structure)

@@ -26,7 +26,6 @@ from ._utils._studio_project import (
     ProjectFolder,
     StudioClient,
     get_folder_by_name,
-    get_subfolder_by_name,
 )
 
 console = ConsoleLogger()
@@ -193,56 +192,56 @@ def pull(root: str) -> None:
             else:
                 console.warning("No source_code folder found in remote project")
 
-            # Process evals folder
-            evals_folder = get_folder_by_name(structure, "evals")
-            if evals_folder:
-                evals_path = os.path.join(root, "evals")
-                asyncio.run(
-                    download_folder_files(
-                        studio_client,
-                        evals_folder,
-                        evals_path,
-                        processed_files,
-                        root,
-                    )
-                )
-            else:
-                console.warning("No evals folder found in remote project")
+            # Process evaluation folders - check for new structure first
+            evaluators_folder = get_folder_by_name(structure, "evaluators")
+            datasets_folder = get_folder_by_name(structure, "datasets")
 
-            # Process coded-evals folder
-            coded_evals_folder = get_folder_by_name(structure, "coded-evals")
-            if coded_evals_folder:
-                # Process coded-evals/evaluators subfolder
-                evaluators_subfolder = get_subfolder_by_name(
-                    coded_evals_folder, "evaluators"
-                )
-                if evaluators_subfolder:
-                    evaluators_path = os.path.join(root, "coded-evals", "evaluators")
+            has_new_structure = evaluators_folder is not None or datasets_folder is not None
+
+            if has_new_structure:
+                # Use new structure: evaluators/ and datasets/ at root
+                if evaluators_folder:
+                    evaluators_path = os.path.join(root, "evaluators")
                     asyncio.run(
                         download_folder_files(
                             studio_client,
-                            evaluators_subfolder,
+                            evaluators_folder,
                             evaluators_path,
                             processed_files,
                             root,
                         )
                     )
 
-                # Process coded-evals/eval-sets subfolder
-                eval_sets_subfolder = get_subfolder_by_name(
-                    coded_evals_folder, "eval-sets"
-                )
-                if eval_sets_subfolder:
-                    eval_sets_path = os.path.join(root, "coded-evals", "eval-sets")
+                if datasets_folder:
+                    datasets_path = os.path.join(root, "datasets")
                     asyncio.run(
                         download_folder_files(
                             studio_client,
-                            eval_sets_subfolder,
-                            eval_sets_path,
+                            datasets_folder,
+                            datasets_path,
                             processed_files,
                             root,
                         )
                     )
+
+                # Skip legacy evals folder when new structure exists
+                console.info("Using new evaluation structure (evaluators/, datasets/). Skipping legacy evals/ folder.")
+            else:
+                # Fallback to legacy evals folder
+                evals_folder = get_folder_by_name(structure, "evals")
+                if evals_folder:
+                    evals_path = os.path.join(root, "evals")
+                    asyncio.run(
+                        download_folder_files(
+                            studio_client,
+                            evals_folder,
+                            evals_path,
+                            processed_files,
+                            root,
+                        )
+                    )
+                else:
+                    console.warning("No evaluation folders found in remote project")
 
         except Exception as e:
             console.error(f"Failed to pull UiPath project: {str(e)}")
