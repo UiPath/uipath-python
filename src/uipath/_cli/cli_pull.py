@@ -53,7 +53,8 @@ def compute_normalized_hash(content: str) -> str:
 
 
 def collect_files_from_folder(
-    folder: ProjectFolder, base_path: str, files_dict: Dict[str, ProjectFile]
+    folder: ProjectFolder, base_path: str, files_dict: Dict[str, ProjectFile],
+    exclude_folders: Set[str] = None
 ) -> None:
     """Recursively collect all files from a folder and its subfolders.
 
@@ -61,16 +62,21 @@ def collect_files_from_folder(
         folder: The folder to collect files from
         base_path: Base path for file paths
         files_dict: Dictionary to store collected files
+        exclude_folders: Set of folder names to exclude from processing
     """
+    if exclude_folders is None:
+        exclude_folders = set()
+
     # Add files from current folder
     for file in folder.files:
         file_path = os.path.join(base_path, file.name)
         files_dict[file_path] = file
 
-    # Recursively process subfolders
+    # Recursively process subfolders (excluding specified folders)
     for subfolder in folder.folders:
-        subfolder_path = os.path.join(base_path, subfolder.name)
-        collect_files_from_folder(subfolder, subfolder_path, files_dict)
+        if subfolder.name not in exclude_folders:
+            subfolder_path = os.path.join(base_path, subfolder.name)
+            collect_files_from_folder(subfolder, subfolder_path, files_dict, exclude_folders)
 
 
 async def download_folder_files(
@@ -79,6 +85,7 @@ async def download_folder_files(
     base_path: str,
     processed_files: Set[str],
     root_path: str = ".",
+    exclude_folders: Set[str] = None,
 ) -> None:
     """Download files from a folder recursively.
 
@@ -88,9 +95,10 @@ async def download_folder_files(
         base_path: Base path for local file storage
         processed_files: Set to track processed files
         root_path: Root path for calculating display paths
+        exclude_folders: Set of folder names to exclude from processing
     """
     files_dict: Dict[str, ProjectFile] = {}
-    collect_files_from_folder(folder, "", files_dict)
+    collect_files_from_folder(folder, "", files_dict, exclude_folders)
 
     for file_path, remote_file in files_dict.items():
         local_path = os.path.join(base_path, file_path)
@@ -178,9 +186,10 @@ def pull(root: str) -> None:
 
             processed_files: Set[str] = set()
 
-            # Process source_code folder
+            # Process source_code folder (excluding evaluation folders)
             source_code_folder = get_folder_by_name(structure, "source_code")
             if source_code_folder:
+                exclude_folders = {"coded-evals", "evals", "evaluators", "datasets"}
                 asyncio.run(
                     download_folder_files(
                         studio_client,
@@ -188,6 +197,7 @@ def pull(root: str) -> None:
                         root,
                         processed_files,
                         root,
+                        exclude_folders,
                     )
                 )
             else:
@@ -198,7 +208,6 @@ def pull(root: str) -> None:
 
             if coded_evals_folder:
                 # Map coded-evals structure to local evaluators/ and datasets/ folders
-                console.info("Found coded-evals structure, mapping to local evaluators/ and datasets/ folders.")
 
                 # Process coded-evals/evaluators → local evaluators/
                 evaluators_subfolder = get_subfolder_by_name(coded_evals_folder, "evaluators")
