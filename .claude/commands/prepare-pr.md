@@ -26,7 +26,7 @@ If formatting issues were found, I'll auto-fix them:
 ## Step 4: Type Checking
 Running mypy type checking on modified CLI files...
 
-!uv run mypy src/uipath/_cli/ --exclude src/uipath/_cli/_*/
+!uv run mypy src/uipath/_cli/ 
 
 ## Step 5: Build Check
 Ensuring the package builds correctly...
@@ -57,4 +57,4 @@ If you provided a commit message argument, I can help you create the commit. Oth
 3. Push your branch: `git push origin your-branch-name`
 4. Create a PR with a descriptive title and summary
 
-**Remember**: PR titles should be concise and follow the format: `feat/fix/docs: description - [TICKET-ID]`
+**Remember**: PR titles should be concise and follow the format: `feat/fix/docs: description`
