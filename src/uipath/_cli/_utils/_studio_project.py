@@ -148,24 +148,6 @@ def get_folder_by_name(
     return None
 
 
-def get_subfolder_by_name(
-    parent_folder: ProjectFolder, subfolder_name: str
-) -> Optional[ProjectFolder]:
-    """Get a subfolder from within a parent folder by name.
-
-    Args:
-        parent_folder: The parent folder to search within
-        subfolder_name: Name of the subfolder to find
-
-    Returns:
-        Optional[ProjectFolder]: The found subfolder or None
-    """
-    for folder in parent_folder.folders:
-        if folder.name == subfolder_name:
-            return folder
-    return None
-
-
 def resolve_path(
     folder: ProjectFolder,
     path: PurePath,

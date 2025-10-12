@@ -26,7 +26,6 @@ from ._utils._studio_project import (
     ProjectFolder,
     StudioClient,
     get_folder_by_name,
-    get_subfolder_by_name,
 )
 
 console = ConsoleLogger()
@@ -78,7 +77,6 @@ async def download_folder_files(
     folder: ProjectFolder,
     base_path: str,
     processed_files: Set[str],
-    root_path: str = ".",
 ) -> None:
     """Download files from a folder recursively.
 
@@ -87,7 +85,6 @@ async def download_folder_files(
         folder: The folder to download files from
         base_path: Base path for local file storage
         processed_files: Set to track processed files
-        root_path: Root path for calculating display paths
     """
     files_dict: Dict[str, ProjectFile] = {}
     collect_files_from_folder(folder, "", files_dict)
@@ -95,13 +92,6 @@ async def download_folder_files(
     for file_path, remote_file in files_dict.items():
         local_path = os.path.join(base_path, file_path)
         local_dir = os.path.dirname(local_path)
-
-        # Calculate display path relative to root
-        if base_path == root_path:
-            display_path = file_path
-        else:
-            relative_base = os.path.relpath(base_path, root_path)
-            display_path = os.path.join(relative_base, file_path).replace("\\", "/")
 
         # Create directory if it doesn't exist
         if not os.path.exists(local_dir):
@@ -120,28 +110,26 @@ async def download_folder_files(
 
             # Compare hashes
             if local_hash != remote_hash:
-                styled_path = click.style(str(display_path), fg="cyan")
+                styled_path = click.style(str(file_path), fg="cyan")
                 console.warning(f"File {styled_path}" + " differs from remote version.")
                 response = click.prompt("Do you want to overwrite it? (y/n)", type=str)
                 if response.lower() == "y":
                     with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                         f.write(remote_content)
-                    console.success(
-                        f"Updated {click.style(str(display_path), fg='cyan')}"
-                    )
+                    console.success(f"Updated {click.style(str(file_path), fg='cyan')}")
                 else:
-                    console.info(f"Skipped {click.style(str(display_path), fg='cyan')}")
+                    console.info(f"Skipped {click.style(str(file_path), fg='cyan')}")
             else:
                 console.info(
-                    f"File {click.style(str(display_path), fg='cyan')} is up to date"
+                    f"File {click.style(str(file_path), fg='cyan')} is up to date"
                 )
         else:
             # File doesn't exist locally, create it
             with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(remote_content)
-            console.success(f"Downloaded {click.style(str(display_path), fg='cyan')}")
+            console.success(f"Downloaded {click.style(str(file_path), fg='cyan')}")
 
-        processed_files.add(display_path)
+        processed_files.add(file_path)
 
 
 @click.command()
@@ -187,7 +175,6 @@ def pull(root: str) -> None:
                         source_code_folder,
                         root,
                         processed_files,
-                        root,
                     )
                 )
             else:
@@ -203,46 +190,10 @@ def pull(root: str) -> None:
                         evals_folder,
                         evals_path,
                         processed_files,
-                        root,
                     )
                 )
             else:
                 console.warning("No evals folder found in remote project")
-
-            # Process coded-evals folder
-            coded_evals_folder = get_folder_by_name(structure, "coded-evals")
-            if coded_evals_folder:
-                # Process coded-evals/evaluators subfolder
-                evaluators_subfolder = get_subfolder_by_name(
-                    coded_evals_folder, "evaluators"
-                )
-                if evaluators_subfolder:
-                    evaluators_path = os.path.join(root, "coded-evals", "evaluators")
-                    asyncio.run(
-                        download_folder_files(
-                            studio_client,
-                            evaluators_subfolder,
-                            evaluators_path,
-                            processed_files,
-                            root,
-                        )
-                    )
-
-                # Process coded-evals/eval-sets subfolder
-                eval_sets_subfolder = get_subfolder_by_name(
-                    coded_evals_folder, "eval-sets"
-                )
-                if eval_sets_subfolder:
-                    eval_sets_path = os.path.join(root, "coded-evals", "eval-sets")
-                    asyncio.run(
-                        download_folder_files(
-                            studio_client,
-                            eval_sets_subfolder,
-                            eval_sets_path,
-                            processed_files,
-                            root,
-                        )
-                    )
 
         except Exception as e:
             console.error(f"Failed to pull UiPath project: {str(e)}")
