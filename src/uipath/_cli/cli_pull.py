@@ -26,6 +26,7 @@ from ._utils._studio_project import (
     ProjectFolder,
     StudioClient,
     get_folder_by_name,
+    get_subfolder_by_name,
 )
 
 console = ConsoleLogger()
@@ -192,40 +193,40 @@ def pull(root: str) -> None:
             else:
                 console.warning("No source_code folder found in remote project")
 
-            # Process evaluation folders - check for new structure first
-            evaluators_folder = get_folder_by_name(structure, "evaluators")
-            datasets_folder = get_folder_by_name(structure, "datasets")
+            # Process evaluation folders - check for coded-evals structure first
+            coded_evals_folder = get_folder_by_name(structure, "coded-evals")
 
-            has_new_structure = evaluators_folder is not None or datasets_folder is not None
+            if coded_evals_folder:
+                # Map coded-evals structure to local evaluators/ and datasets/ folders
+                console.info("Found coded-evals structure, mapping to local evaluators/ and datasets/ folders.")
 
-            if has_new_structure:
-                # Use new structure: evaluators/ and datasets/ at root
-                if evaluators_folder:
+                # Process coded-evals/evaluators → local evaluators/
+                evaluators_subfolder = get_subfolder_by_name(coded_evals_folder, "evaluators")
+                if evaluators_subfolder:
                     evaluators_path = os.path.join(root, "evaluators")
                     asyncio.run(
                         download_folder_files(
                             studio_client,
-                            evaluators_folder,
+                            evaluators_subfolder,
                             evaluators_path,
                             processed_files,
                             root,
                         )
                     )
 
-                if datasets_folder:
+                # Process coded-evals/eval-sets → local datasets/
+                eval_sets_subfolder = get_subfolder_by_name(coded_evals_folder, "eval-sets")
+                if eval_sets_subfolder:
                     datasets_path = os.path.join(root, "datasets")
                     asyncio.run(
                         download_folder_files(
                             studio_client,
-                            datasets_folder,
+                            eval_sets_subfolder,
                             datasets_path,
                             processed_files,
                             root,
                         )
                     )
-
-                # Skip legacy evals folder when new structure exists
-                console.info("Using new evaluation structure (evaluators/, datasets/). Skipping legacy evals/ folder.")
             else:
                 # Fallback to legacy evals folder
                 evals_folder = get_folder_by_name(structure, "evals")
