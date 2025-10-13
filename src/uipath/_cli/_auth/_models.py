@@ -10,17 +10,6 @@ class AuthConfig(TypedDict):
     scope: str
 
 
-class TokenData(TypedDict):
-    """TypedDict for token data structure."""
-
-    access_token: str
-    refresh_token: str
-    expires_in: int
-    token_type: str
-    scope: str
-    id_token: str
-
-
 class AccessTokenData(TypedDict):
     """TypedDict for access token data structure."""
 
