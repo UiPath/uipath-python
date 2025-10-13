@@ -1,4 +1,5 @@
-from typing import Any
+import asyncio
+from typing import Any, Awaitable
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -14,63 +15,17 @@ from uipath._cli._evals.mocks.mocks import set_evaluation_item
 from uipath.eval.mocks import mockable
 
 
-def test_mockito_mockable_sync():
-    # Arrange
+def test_mockable_is_always_awaitable():
     @mockable()
-    def foo(*args, **kwargs):
-        raise NotImplementedError()
+    def foo():
+        return "success"
 
-    @mockable()
-    def foofoo(*args, **kwargs):
-        raise NotImplementedError()
-
-    evaluation_item: dict[str, Any] = {
-        "id": "evaluation-id",
-        "name": "Mock foo",
-        "inputs": {},
-        "expectedOutput": {},
-        "expectedAgentBehavior": "",
-        "mockingStrategy": {
-            "type": "mockito",
-            "behaviors": [
-                {
-                    "function": "foo",
-                    "arguments": {"args": [], "kwargs": {}},
-                    "then": [
-                        {"type": "return", "value": "bar1"},
-                        {"type": "return", "value": "bar2"},
-                    ],
-                }
-            ],
-        },
-        "evalSetId": "eval-set-id",
-        "createdAt": "2025-09-04T18:54:58.378Z",
-        "updatedAt": "2025-09-04T18:55:55.416Z",
-    }
-    evaluation = EvaluationItem(**evaluation_item)
-    assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
-
-    # Act & Assert
-    set_evaluation_item(evaluation)
-    assert foo() == "bar1"
-    assert foo() == "bar2"
-    assert foo() == "bar2"
-
-    with pytest.raises(UiPathMockResponseGenerationError):
-        assert foo(x=1)
-
-    with pytest.raises(NotImplementedError):
-        assert foofoo()
-
-    evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
-    set_evaluation_item(evaluation)
-    assert foo(x=1) == "bar1"
-
-    evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
-        "x": {"_target_": "mockito.any"}
-    }
-    set_evaluation_item(evaluation)
-    assert foo(x=2) == "bar1"
+    awaitable_result = foo()
+    assert isinstance(awaitable_result, Awaitable)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    result = loop.run_until_complete(awaitable_result)
+    assert result == "success"
 
 
 @pytest.mark.asyncio
@@ -133,88 +88,6 @@ async def test_mockito_mockable_async():
     assert await foo(x=2) == "bar1"
 
 
-def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
-    monkeypatch.setenv("UIPATH_URL", "https://example.com")
-    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
-
-    # Arrange
-    @mockable()
-    def foo(*args, **kwargs):
-        raise NotImplementedError()
-
-    @mockable()
-    def foofoo(*args, **kwargs):
-        raise NotImplementedError()
-
-    evaluation_item: dict[str, Any] = {
-        "id": "evaluation-id",
-        "name": "Mock foo",
-        "inputs": {},
-        "expectedOutput": {},
-        "expectedAgentBehavior": "",
-        "mockingStrategy": {
-            "type": "llm",
-            "prompt": "response is 'bar1'",
-            "toolsToSimulate": [{"name": "foo"}],
-        },
-        "evalSetId": "eval-set-id",
-        "createdAt": "2025-09-04T18:54:58.378Z",
-        "updatedAt": "2025-09-04T18:55:55.416Z",
-    }
-    evaluation = EvaluationItem(**evaluation_item)
-    assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
-    httpx_mock.add_response(
-        url="https://example.com/agenthub_/llm/api/capabilities",
-        status_code=200,
-        json={},
-    )
-    httpx_mock.add_response(
-        url="https://example.com/orchestrator_/llm/api/capabilities",
-        status_code=200,
-        json={},
-    )
-
-    httpx_mock.add_response(
-        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
-        status_code=200,
-        json={
-            "id": "response-id",
-            "object": "",
-            "created": 0,
-            "model": "model",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "ai",
-                        "content": '{"response": "bar1"}',
-                        "tool_calls": None,
-                    },
-                    "finish_reason": "EOS",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": 1,
-                "completion_tokens": 1,
-                "total_tokens": 2,
-            },
-        },
-    )
-    # Act & Assert
-    set_evaluation_item(evaluation)
-
-    assert foo() == "bar1"
-    with pytest.raises(NotImplementedError):
-        assert foofoo()
-    httpx_mock.add_response(
-        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
-        status_code=200,
-        json={},
-    )
-    with pytest.raises(UiPathMockResponseGenerationError):
-        assert foo()
-
-
 @pytest.mark.asyncio
 async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
@@ -247,6 +120,16 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
     evaluation = EvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
 
+    httpx_mock.add_response(
+        url="https://example.com/agenthub_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+    httpx_mock.add_response(
+        url="https://example.com/orchestrator_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
     httpx_mock.add_response(
         url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
         status_code=200,
