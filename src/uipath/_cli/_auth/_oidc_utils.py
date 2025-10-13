@@ -49,12 +49,8 @@ class OidcUtils:
         ) as f:
             auth_config = json.load(f)
 
-        candidates = [
-            int(auth_config.get("port", 8104)),
-            int(auth_config.get("portOptionOne", 8104)),
-            int(auth_config.get("portOptionTwo", 8055)),
-            int(auth_config.get("portOptionThree", 42042)),
-        ]
+        custom_port = os.getenv("UIPATH_AUTH_PORT")
+        candidates = [int(custom_port)] if custom_port else [8104, 8055, 42042]
 
         port = cls._find_free_port(candidates)
         if port is None:
@@ -75,11 +71,12 @@ class OidcUtils:
         )
 
     @classmethod
-    def get_auth_url(cls, domain: str) -> tuple[str, str, str]:
+    def get_auth_url(cls, domain: str, auth_config: AuthConfig) -> tuple[str, str, str]:
         """Get the authorization URL for OAuth2 PKCE flow.
 
         Args:
             domain (str): The UiPath domain to authenticate against (e.g. 'alpha', 'cloud')
+            auth_config (AuthConfig): The authentication configuration to use
 
         Returns:
             tuple[str, str]: A tuple containing:
@@ -87,7 +84,6 @@ class OidcUtils:
                 - The code verifier for PKCE flow
         """
         code_verifier, code_challenge = generate_code_verifier_and_challenge()
-        auth_config = cls.get_auth_config()
         state = get_state_param()
         query_params = {
             "client_id": auth_config["client_id"],
