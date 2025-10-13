@@ -1,22 +1,19 @@
 import asyncio
-import json
 import os
 import webbrowser
-from socket import AF_INET, SOCK_STREAM, error, socket
 from typing import Optional
-from urllib.parse import urlparse
 
 from uipath._cli._auth._auth_server import HTTPServer
-from uipath._cli._auth._client_credentials import ClientCredentialsService
 from uipath._cli._auth._oidc_utils import OidcUtils
 from uipath._cli._auth._portal_service import (
     PortalService,
-    get_tenant_id,
-    select_tenant,
 )
-from uipath._cli._auth._url_utils import set_force_flag
-from uipath._cli._auth._utils import update_auth_file, update_env_file
+from uipath._cli._auth._url_utils import extract_org_tenant, resolve_domain
+from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
+from uipath._services import ExternalApplicationService
+from uipath._utils._auth import update_env_file
+from uipath.models.auth import TokenData
 
 
 class AuthService:
@@ -25,35 +22,20 @@ class AuthService:
         environment: str,
         *,
         force: bool,
-        client_id: Optional[str],
-        client_secret: Optional[str],
-        base_url: Optional[str],
-        tenant: Optional[str],
-        scope: Optional[str],
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+        base_url: Optional[str] = None,
+        tenant: Optional[str] = None,
+        scope: Optional[str] = None,
     ):
         self._force = force
         self._console = ConsoleLogger()
-        self._domain = self._get_domain(environment)
         self._client_id = client_id
         self._client_secret = client_secret
         self._base_url = base_url
         self._tenant = tenant
+        self._domain = resolve_domain(self._base_url, environment, self._force)
         self._scope = scope
-        set_force_flag(self._force)
-
-    def _get_domain(self, environment: str) -> str:
-        # only search env var if not force authentication
-        if not self._force:
-            uipath_url = os.getenv("UIPATH_URL")
-            if uipath_url and environment == "cloud":  # "cloud" is the default
-                parsed_url = urlparse(uipath_url)
-                if parsed_url.scheme and parsed_url.netloc:
-                    environment = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                else:
-                    self._console.error(
-                        f"Malformed UIPATH_URL: '{uipath_url}'. Please ensure it includes both scheme and netloc (e.g., 'https://cloud.uipath.com')."
-                    )
-        return environment
 
     def authenticate(self) -> None:
         if self._client_id and self._client_secret:
@@ -62,103 +44,101 @@ class AuthService:
 
         self._authenticate_authorization_code()
 
-    def _authenticate_client_credentials(self) -> None:
-        if not self._base_url:
-            self._console.error(
-                "--base-url is required when using client credentials authentication."
-            )
-            return
-        self._console.hint("Using client credentials authentication.")
-        credentials_service = ClientCredentialsService(self._base_url)
-        credentials_service.authenticate(
+    def _authenticate_client_credentials(self):
+        external_app_service = ExternalApplicationService(self._base_url)
+        token_data = external_app_service.get_token_data(
             self._client_id,  # type: ignore
             self._client_secret,  # type: ignore
             self._scope,
         )
 
+        organization_name, tenant_name = extract_org_tenant(
+            external_app_service._base_url
+        )
+        if not (organization_name and tenant_name):
+            self._console.warning(
+                "--base-url should include both organization and tenant, "
+                "e.g., 'https://cloud.uipath.com/{organization}/{tenant}'."
+            )
+
+        env_vars = {
+            "UIPATH_ACCESS_TOKEN": token_data.access_token,
+            "UIPATH_URL": external_app_service._base_url,
+            "UIPATH_ORGANIZATION_ID": get_parsed_token_data(token_data).get("prt_id"),
+        }
+
+        if tenant_name:
+            self._tenant = tenant_name
+            with PortalService(
+                self._domain, access_token=token_data.access_token
+            ) as portal_service:
+                tenant_info = portal_service.resolve_tenant_info(self._tenant)
+                env_vars["UIPATH_TENANT_ID"] = tenant_info["tenant_id"]
+        else:
+            self._console.warning("Could not extract tenant from --base-url.")
+        update_env_file(env_vars)
+
     def _authenticate_authorization_code(self) -> None:
         with PortalService(self._domain) as portal_service:
-            if not self._force:
-                # use existing env vars
-                if (
-                    os.getenv("UIPATH_URL")
-                    and os.getenv("UIPATH_TENANT_ID")
-                    and os.getenv("UIPATH_ORGANIZATION_ID")
-                ):
-                    try:
-                        portal_service.ensure_valid_token()
-                        return
-                    except Exception:
-                        self._console.error(
-                            "Authentication token is invalid. Please reauthenticate using the '--force' flag.",
-                        )
-            auth_url, code_verifier, state = OidcUtils.get_auth_url(self._domain)
-            webbrowser.open(auth_url, 1)
-            auth_config = OidcUtils.get_auth_config()
+            if not self._force and self._can_reuse_existing_token(portal_service):
+                return
 
-            self._console.link(
-                "If a browser window did not open, please open the following URL in your browser:",
-                auth_url,
-            )
-            server = HTTPServer(port=auth_config["port"])
-            token_data = asyncio.run(server.start(state, code_verifier, self._domain))
-
-            if not token_data:
-                self._console.error(
-                    "Authentication failed. Please try again.",
-                )
-
+            token_data = self._perform_oauth_flow()
             portal_service.update_token_data(token_data)
-            update_auth_file(token_data)
-            access_token = token_data["access_token"]
-            update_env_file({"UIPATH_ACCESS_TOKEN": access_token})
 
-            tenants_and_organizations = portal_service.get_tenants_and_organizations()
+            tenant_info = portal_service.resolve_tenant_info(self._tenant)
+            uipath_url = portal_service.build_tenant_url()
 
-            if self._tenant:
-                base_url = get_tenant_id(
-                    self._domain, self._tenant, tenants_and_organizations
-                )
-            else:
-                base_url = select_tenant(self._domain, tenants_and_organizations)
+            update_env_file(
+                {
+                    "UIPATH_ACCESS_TOKEN": token_data.access_token,
+                    "UIPATH_URL": uipath_url,
+                    "UIPATH_TENANT_ID": tenant_info["tenant_id"],
+                    "UIPATH_ORGANIZATION_ID": tenant_info["organization_id"],
+                }
+            )
 
             try:
-                portal_service.post_auth(base_url)
+                portal_service.enable_studio_web(uipath_url)
             except Exception:
                 self._console.error(
-                    "Could not prepare the environment. Please try again.",
+                    "Could not prepare the environment. Please try again."
                 )
 
-    def set_port(self):
-        def is_port_in_use(target_port: int) -> bool:
-            with socket(AF_INET, SOCK_STREAM) as s:
-                try:
-                    s.bind(("localhost", target_port))
-                    s.close()
-                    return False
-                except error:
-                    return True
+    def _can_reuse_existing_token(self, portal_service: PortalService) -> bool:
+        if (
+            os.getenv("UIPATH_URL")
+            and os.getenv("UIPATH_TENANT_ID")
+            and os.getenv("UIPATH_ORGANIZATION_ID")
+        ):
+            try:
+                portal_service.ensure_valid_token()
+                return True
+            except Exception:
+                self._console.error(
+                    "Authentication token is invalid. Please reauthenticate using the '--force' flag."
+                )
+        return False
+
+    def _perform_oauth_flow(self) -> TokenData:
+        auth_url, code_verifier, state = OidcUtils.get_auth_url(self._domain)
+        self._open_browser(auth_url)
 
         auth_config = OidcUtils.get_auth_config()
-        port = int(auth_config.get("port", 8104))
-        port_option_one = int(auth_config.get("portOptionOne", 8104))  # type: ignore
-        port_option_two = int(auth_config.get("portOptionTwo", 8055))  # type: ignore
-        port_option_three = int(auth_config.get("portOptionThree", 42042))  # type: ignore
-        if is_port_in_use(port):
-            if is_port_in_use(port_option_one):
-                if is_port_in_use(port_option_two):
-                    if is_port_in_use(port_option_three):
-                        self._console.error(
-                            "All configured ports are in use. Please close applications using ports or configure different ports."
-                        )
-                    else:
-                        port = port_option_three
-                else:
-                    port = port_option_two
-            else:
-                port = port_option_one
-        auth_config["port"] = port
-        with open(
-            os.path.join(os.path.dirname(__file__), "..", "auth_config.json"), "w"
-        ) as f:
-            json.dump(auth_config, f)
+        server = HTTPServer(port=auth_config["port"])
+        token_data = asyncio.run(server.start(state, code_verifier, self._domain))
+
+        if not token_data:
+            self._console.error(
+                "Authentication failed. Please try again.",
+            )
+
+        return TokenData.model_validate(token_data)
+
+    def _open_browser(self, url: str) -> None:
+        # Try to open browser. Always print the fallback link.
+        webbrowser.open(url, new=1)
+        self._console.link(
+            "If a browser window did not open, please open the following URL in your browser:",
+            url,
+        )

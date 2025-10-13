@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
 from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._models._evaluator import Evaluator
+from uipath._cli._evals._models._mocks import ExampleCall
 from uipath.models import Connection
 
 
@@ -70,7 +71,13 @@ class AgentToolSettings(BaseModel):
     )
 
 
-class AgentProcessToolProperties(BaseModel):
+class BaseResourceProperties(BaseModel):
+    """Base resource properties."""
+
+    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
+
+
+class AgentProcessToolProperties(BaseResourceProperties):
     """Properties specific to tool configuration."""
 
     folder_path: Optional[str] = Field(None, alias="folderPath")
@@ -125,7 +132,7 @@ class AgentIntegrationToolParameter(BaseModel):
     )
 
 
-class AgentIntegrationToolProperties(BaseModel):
+class AgentIntegrationToolProperties(BaseResourceProperties):
     """Properties specific to tool configuration."""
 
     tool_path: str = Field(..., alias="toolPath")
@@ -198,7 +205,7 @@ class AgentEscalationRecipient(BaseModel):
     )
 
 
-class AgentEscalationChannelProperties(BaseModel):
+class AgentEscalationChannelProperties(BaseResourceProperties):
     """Agent escalation channel properties."""
 
     app_name: str = Field(..., alias="appName")

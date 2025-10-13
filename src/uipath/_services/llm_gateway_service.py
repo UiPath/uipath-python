@@ -351,7 +351,8 @@ class UiPathLlmChatService(BaseService):
         n: int = 1,
         frequency_penalty: float = 0,
         presence_penalty: float = 0,
-        top_p: float = 1,
+        top_p: Optional[float] = 1,
+        top_k: Optional[int] = None,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[ToolChoice] = None,
         response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
@@ -385,6 +386,8 @@ class UiPathLlmChatService(BaseService):
                 Positive values encourage discussion of new topics. Defaults to 0.
             top_p (float, optional): Nucleus sampling parameter between 0 and 1.
                 Controls diversity by considering only the top p probability mass. Defaults to 1.
+            top_k (int, optional): Nucleus sampling parameter.
+                Controls diversity by considering only the top k most probable tokens. Defaults to None.
             tools (Optional[List[ToolDefinition]], optional): List of tool definitions that the
                 model can call. Tools enable the model to perform actions or retrieve information
                 beyond text generation. Defaults to None.
@@ -486,6 +489,8 @@ class UiPathLlmChatService(BaseService):
             "presence_penalty": presence_penalty,
             "top_p": top_p,
         }
+        if top_k is not None:
+            request_body["top_k"] = top_k
 
         # Handle response_format - convert BaseModel to schema if needed
         if response_format:
