@@ -155,7 +155,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         event_bus = self.event_bus
 
-        evaluation_set = EvalHelpers.load_eval_set(
+        # Load eval set (path is already resolved in cli_eval.py)
+        evaluation_set, _ = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
         evaluators = self._load_evaluators(evaluation_set)

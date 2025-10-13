@@ -133,7 +133,11 @@ def eval(
 
         eval_context.no_report = no_report
         eval_context.workers = workers
-        eval_context.eval_set = eval_set or EvalHelpers.auto_discover_eval_set()
+
+        # Load eval set to resolve the path
+        eval_set_path = eval_set or EvalHelpers.auto_discover_eval_set()
+        _, resolved_eval_set_path = EvalHelpers.load_eval_set(eval_set_path, eval_ids)
+        eval_context.eval_set = resolved_eval_set_path
         eval_context.eval_ids = eval_ids
 
         console_reporter = ConsoleProgressReporter()

@@ -1,11 +1,11 @@
+import logging
 import random
-
-from pydantic.dataclasses import dataclass
 from enum import Enum
 
-from uipath.eval.mocks import mockable, ExampleCall
+from pydantic.dataclasses import dataclass
+
+from uipath.eval.mocks import ExampleCall, mockable
 from uipath.tracing import traced
-import logging
 
 logger = logging.getLogger(__name__)
 
