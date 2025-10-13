@@ -121,11 +121,17 @@ class AuthService:
         return False
 
     def _perform_oauth_flow(self) -> TokenData:
-        auth_url, code_verifier, state = OidcUtils.get_auth_url(self._domain)
+        auth_config = OidcUtils.get_auth_config()
+        auth_url, code_verifier, state = OidcUtils.get_auth_url(
+            self._domain, auth_config
+        )
         self._open_browser(auth_url)
 
-        auth_config = OidcUtils.get_auth_config()
-        server = HTTPServer(port=auth_config["port"])
+        server = HTTPServer(
+            port=auth_config["port"],
+            redirect_uri=auth_config["redirect_uri"],
+            client_id=auth_config["client_id"],
+        )
         token_data = asyncio.run(server.start(state, code_verifier, self._domain))
 
         if not token_data:
