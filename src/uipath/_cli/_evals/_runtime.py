@@ -7,7 +7,8 @@ from pathlib import Path
 from time import time
 from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar
 
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry import context as context_api
+from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 from ..._events._event_bus import EventBus
@@ -24,6 +25,7 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (
     UiPathBaseRuntime,
+    UiPathExecutionBatchTraceProcessor,
     UiPathRuntimeContext,
     UiPathRuntimeFactory,
     UiPathRuntimeResult,
@@ -41,7 +43,11 @@ from ._models._output import (
     UiPathEvalOutput,
     UiPathEvalRunExecutionOutput,
 )
-from .mocks.mocks import set_evaluation_item
+from ._span_collection import ExecutionSpanCollector
+from .mocks.mocks import (
+    clear_execution_context,
+    set_execution_context,
+)
 
 T = TypeVar("T", bound=UiPathBaseRuntime)
 C = TypeVar("C", bound=UiPathRuntimeContext)
@@ -76,6 +82,24 @@ class ExecutionSpanExporter(SpanExporter):
 
     def shutdown(self) -> None:
         self.clear()
+
+
+class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
+    """Span processor that adds spans to ExecutionSpanCollector when they start."""
+
+    def __init__(self, span_exporter: SpanExporter, collector: ExecutionSpanCollector):
+        super().__init__(span_exporter)
+        self.collector = collector
+
+    def on_start(
+        self, span: Span, parent_context: Optional[context_api.Context] = None
+    ) -> None:
+        super().on_start(span, parent_context)
+
+        if span.attributes and "execution.id" in span.attributes:
+            exec_id = span.attributes["execution.id"]
+            if isinstance(exec_id, str):
+                self.collector.add_span(span, exec_id)
 
 
 class ExecutionLogsExporter:
@@ -127,8 +151,15 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self.context: UiPathEvalContext = context
         self.factory: UiPathRuntimeFactory[T, C] = factory
         self.event_bus: EventBus = event_bus
+
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
-        self.factory.add_span_exporter(self.span_exporter)
+        self.span_collector: ExecutionSpanCollector = ExecutionSpanCollector()
+
+        # Span processor feeds both exporter and collector
+        span_processor = ExecutionSpanProcessor(self.span_exporter, self.span_collector)
+        self.factory.tracer_span_processors.append(span_processor)
+        self.factory.tracer_provider.add_span_processor(span_processor)
+
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
 
@@ -180,7 +211,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluation_set_name=evaluation_set.name,
             evaluation_set_results=eval_run_result_list,
         )
-
         # Computing evaluator averages
         evaluator_averages: Dict[str, float] = defaultdict(float)
         evaluator_count: Dict[str, int] = defaultdict(int)
@@ -194,7 +224,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluator_averages[eval_id] = (
                 evaluator_averages[eval_id] / evaluator_count[eval_id]
             )
-
         await event_bus.publish(
             EvaluationEvents.UPDATE_EVAL_SET_RUN,
             EvalSetRunUpdatedEvent(
@@ -289,7 +318,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         evaluators: List[BaseEvaluator[Any]],
         event_bus: EventBus,
     ) -> EvaluationRunResult:
-        set_evaluation_item(eval_item)
+        set_execution_context(eval_item, self.span_collector)
 
         await event_bus.publish(
             EvaluationEvents.CREATE_EVAL_RUN,
@@ -383,6 +412,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 eval_run_updated_event,
                 wait_for_completion=False,
             )
+        finally:
+            clear_execution_context()
 
         return evaluation_run_results
 
@@ -391,6 +422,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     ) -> tuple[List[ReadableSpan], list[logging.LogRecord]]:
         spans = self.span_exporter.get_spans(execution_id)
         self.span_exporter.clear(execution_id)
+        self.span_collector.clear(execution_id)
 
         logs = self.logs_exporter.get_logs(execution_id)
         self.logs_exporter.clear(execution_id)
