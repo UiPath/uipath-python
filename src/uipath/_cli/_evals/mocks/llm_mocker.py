@@ -7,7 +7,7 @@ from typing import Any, Callable
 from pydantic import BaseModel
 
 from .._models._evaluation_set import (
-    EvaluationItem,
+    AnyEvaluationItem,
     LLMMockingStrategy,
 )
 from .._models._mocks import ExampleCall
@@ -74,7 +74,7 @@ def pydantic_to_dict_safe(obj: Any) -> Any:
 class LLMMocker(Mocker):
     """LLM Based Mocker."""
 
-    def __init__(self, evaluation_item: EvaluationItem):
+    def __init__(self, evaluation_item: AnyEvaluationItem):
         """LLM Mocker constructor."""
         self.evaluation_item = evaluation_item
         assert isinstance(self.evaluation_item.mocking_strategy, LLMMockingStrategy)

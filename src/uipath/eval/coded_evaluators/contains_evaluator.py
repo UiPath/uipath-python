@@ -2,7 +2,10 @@
 
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from .base_evaluator import BaseEvaluationCriteria
-from .output_evaluator import BaseOutputEvaluator, OutputEvaluatorConfig
+from .output_evaluator import (
+    OutputEvaluator,
+    OutputEvaluatorConfig,
+)
 
 
 class ContainsEvaluationCriteria(BaseEvaluationCriteria):
@@ -20,7 +23,7 @@ class ContainsEvaluatorConfig(OutputEvaluatorConfig[ContainsEvaluationCriteria])
 
 
 class ContainsEvaluator(
-    BaseOutputEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, None]
+    OutputEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, type(None)]  # type: ignore
 ):
     """Evaluator that checks if the actual output contains the expected output.
 
@@ -61,7 +64,6 @@ class ContainsEvaluator(
 
         if self.evaluator_config.negated:
             is_contains = not is_contains
-
         return NumericEvaluationResult(
             score=float(is_contains),
         )

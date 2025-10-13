@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar, Union, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic.alias_generators import to_camel
 
 from .._helpers.helpers import track_evaluation_metrics
 from ..models import AgentExecution, EvaluationResult
@@ -15,6 +16,7 @@ from ..models.models import UiPathEvaluationError, UiPathEvaluationErrorCategory
 class BaseEvaluationCriteria(BaseModel):
     """Base class for all evaluation criteria."""
 
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
     pass
 
 
@@ -28,6 +30,8 @@ class BaseEvaluatorConfig(BaseModel, Generic[T]):
     Generic over T (evaluation criteria type) to ensure type safety between
     the config's default_evaluation_criteria and the evaluator's expected criteria type.
     """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     name: str
     default_evaluation_criteria: T | None = None
@@ -70,6 +74,7 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    id: str
     config: dict[str, Any] = Field(description="The config dictionary")
     config_type: type[C] = Field(description="The config type class")
     evaluation_criteria_type: type[T] = Field(
@@ -91,6 +96,11 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         ):
             cls.evaluate = track_evaluation_metrics(cls.evaluate)  # type: ignore[method-assign]
             cls.evaluate._has_metrics_decorator = True  # type: ignore[attr-defined]
+
+    @property
+    def name(self) -> str:
+        """Evaluator's name."""
+        return self.evaluator_config.name
 
     @model_validator(mode="before")
     @classmethod
@@ -205,7 +215,7 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             ValueError: If no valid evaluation criteria type can be determined from the class definition
         """
         # Special case: if this is the BaseEvaluator class itself, return BaseEvaluationCriteria
-        if cls.__name__ == "BaseEvaluator":
+        if cls.__name__ == ("BaseEvaluator" or "BaseEvaluator[Any, Any, Any]"):
             return BaseEvaluationCriteria
 
         # Check if Pydantic has already resolved the evaluation_criteria_type field annotation
@@ -248,7 +258,7 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             raise UiPathEvaluationError(
                 code="INVALID_EVALUATION_CRITERIA_TYPE",
                 title=f"Invalid evaluation criteria type {criteria_type} in {cls.__name__}",
-                detail="Must be a subclass of BaseEvaluationCriteria",
+                detail=f"{criteria_type} must be a subclass of BaseEvaluationCriteria",
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             )
 
@@ -265,9 +275,8 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             ValueError: If no valid config type can be determined from the class definition
         """
         # Special case: if this is the BaseEvaluator class itself, return BaseEvaluatorConfig
-        if cls.__name__ == "BaseEvaluator":
+        if cls.__name__ == ("BaseEvaluator" or "BaseEvaluator[Any, Any, Any]"):
             return BaseEvaluatorConfig
-
         # Check if Pydantic has already resolved the config_type field annotation
         if not (hasattr(cls, "model_fields") and "config_type" in cls.model_fields):
             raise UiPathEvaluationError(
@@ -305,7 +314,7 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             raise UiPathEvaluationError(
                 code="INVALID_CONFIG_TYPE",
                 title=f"Invalid config type {config_type} in {cls.__name__}",
-                detail="Must be a subclass of BaseEvaluatorConfig",
+                detail=f"{config_type} must be a subclass of BaseEvaluatorConfig",
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             )
 
@@ -325,7 +334,7 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         """
         try:
             # Special case: if this is the BaseEvaluator class itself, return type(None)
-            if cls.__name__ == "BaseEvaluator":
+            if cls.__name__ == "BaseEvaluator[Any, Any, Any]":
                 return cast(type[J], type(None))
 
             # Check if Pydantic has resolved the justification_type field annotation

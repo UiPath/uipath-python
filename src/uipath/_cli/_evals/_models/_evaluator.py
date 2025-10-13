@@ -2,7 +2,13 @@ from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
-from uipath.eval.models.models import EvaluatorCategory, EvaluatorType
+from uipath.eval.coded_evaluators.base_evaluator import BaseEvaluatorConfig
+from uipath.eval.coded_evaluators.contains_evaluator import ContainsEvaluatorConfig
+from uipath.eval.models.models import (
+    EvaluatorType,
+    LegacyEvaluatorCategory,
+    LegacyEvaluatorType,
+)
 
 
 class EvaluatorBaseParams(BaseModel):
@@ -11,7 +17,7 @@ class EvaluatorBaseParams(BaseModel):
     id: str
     name: str
     description: str
-    evaluator_type: EvaluatorType = Field(..., alias="type")
+    evaluator_type: LegacyEvaluatorType = Field(..., alias="type")
     created_at: str = Field(..., alias="createdAt")
     updated_at: str = Field(..., alias="updatedAt")
     target_output_key: str = Field(..., alias="targetOutputKey")
@@ -19,7 +25,9 @@ class EvaluatorBaseParams(BaseModel):
 
 
 class LLMEvaluatorParams(EvaluatorBaseParams):
-    category: Literal[EvaluatorCategory.LlmAsAJudge] = Field(..., alias="category")
+    category: Literal[LegacyEvaluatorCategory.LlmAsAJudge] = Field(
+        ..., alias="category"
+    )
     prompt: str = Field(..., alias="prompt")
     model: str = Field(..., alias="model")
 
@@ -29,7 +37,7 @@ class LLMEvaluatorParams(EvaluatorBaseParams):
 
 
 class TrajectoryEvaluatorParams(EvaluatorBaseParams):
-    category: Literal[EvaluatorCategory.Trajectory] = Field(..., alias="category")
+    category: Literal[LegacyEvaluatorCategory.Trajectory] = Field(..., alias="category")
     prompt: str = Field(..., alias="prompt")
     model: str = Field(..., alias="model")
 
@@ -61,15 +69,15 @@ def evaluator_discriminator(data: Any) -> str:
         category = data.get("category")
         evaluator_type = data.get("type")
         match category:
-            case EvaluatorCategory.LlmAsAJudge:
+            case LegacyEvaluatorCategory.LlmAsAJudge:
                 return "LLMEvaluatorParams"
-            case EvaluatorCategory.Trajectory:
+            case LegacyEvaluatorCategory.Trajectory:
                 return "TrajectoryEvaluatorParams"
-            case EvaluatorCategory.Deterministic:
+            case LegacyEvaluatorCategory.Deterministic:
                 match evaluator_type:
-                    case EvaluatorType.Equals:
+                    case LegacyEvaluatorType.Equals:
                         return "EqualsEvaluatorParams"
-                    case EvaluatorType.JsonSimilarity:
+                    case LegacyEvaluatorType.JsonSimilarity:
                         return "JsonSimilarityEvaluatorParams"
                     case _:
                         return "UnknownEvaluatorParams"
@@ -103,4 +111,86 @@ Evaluator = Annotated[
         ],
     ],
     Field(discriminator=Discriminator(evaluator_discriminator)),
+]
+
+
+class UnknownEvaluatorConfig(BaseEvaluatorConfig[Any]):
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+def legacy_evaluator_discriminator(data: Any) -> str:
+    if isinstance(data, dict):
+        category = data.get("category")
+        evaluator_type = data.get("type")
+        match category:
+            case LegacyEvaluatorCategory.LlmAsAJudge:
+                return "LLMEvaluatorParams"
+            case LegacyEvaluatorCategory.Trajectory:
+                return "TrajectoryEvaluatorParams"
+            case LegacyEvaluatorCategory.Deterministic:
+                match evaluator_type:
+                    case LegacyEvaluatorType.Equals:
+                        return "EqualsEvaluatorParams"
+                    case LegacyEvaluatorType.JsonSimilarity:
+                        return "JsonSimilarityEvaluatorParams"
+                    case _:
+                        return "UnknownEvaluatorParams"
+            case _:
+                return "UnknownEvaluatorParams"
+    else:
+        return "UnknownEvaluatorParams"
+
+
+def evaluator_config_discriminator(data: Any) -> str:
+    if isinstance(data, dict):
+        evaluator_type_id = data.get("evaluatorTypeId")
+        match evaluator_type_id:
+            case EvaluatorType.CONTAINS:
+                return "ContainsEvaluatorConfig"
+            case _:
+                return "UnknownEvaluatorConfig"
+    else:
+        return "UnknownEvaluatorConfig"
+
+
+LegacyEvaluator = Annotated[
+    Union[
+        Annotated[
+            LLMEvaluatorParams,
+            Tag("LLMEvaluatorParams"),
+        ],
+        Annotated[
+            TrajectoryEvaluatorParams,
+            Tag("TrajectoryEvaluatorParams"),
+        ],
+        Annotated[
+            EqualsEvaluatorParams,
+            Tag("EqualsEvaluatorParams"),
+        ],
+        Annotated[
+            JsonSimilarityEvaluatorParams,
+            Tag("JsonSimilarityEvaluatorParams"),
+        ],
+        Annotated[
+            UnknownEvaluatorParams,
+            Tag("UnknownEvaluatorParams"),
+        ],
+    ],
+    Field(discriminator=Discriminator(legacy_evaluator_discriminator)),
+]
+
+EvaluatorConfig = Annotated[
+    Union[
+        Annotated[
+            ContainsEvaluatorConfig,
+            Tag("ContainsEvaluatorConfig"),
+        ],
+        Annotated[
+            UnknownEvaluatorConfig,
+            Tag("UnknownEvaluatorConfig"),
+        ],
+    ],
+    Field(discriminator=Discriminator(evaluator_config_discriminator)),
 ]

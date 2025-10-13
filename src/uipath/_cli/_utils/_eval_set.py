@@ -3,8 +3,9 @@ from pathlib import Path
 from typing import List, Optional
 
 import click
+from pydantic import TypeAdapter, ValidationError
 
-from uipath._cli._evals._models._evaluation_set import EvaluationSet
+from uipath._cli._evals._models._evaluation_set import AnyEvaluationSet
 from uipath._cli._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
@@ -57,11 +58,11 @@ class EvalHelpers:
     @staticmethod
     def load_eval_set(
         eval_set_path: str, eval_ids: Optional[List[str]] = None
-    ) -> EvaluationSet:
+    ) -> AnyEvaluationSet:
         """Load the evaluation set from file.
 
         Returns:
-            The loaded evaluation set as EvaluationSet model
+            The loaded evaluation set
         """
         try:
             with open(eval_set_path, "r", encoding="utf-8") as f:
@@ -73,8 +74,10 @@ class EvalHelpers:
             ) from e
 
         try:
-            eval_set = EvaluationSet(**data)
-        except (TypeError, ValueError) as e:
+            eval_set: AnyEvaluationSet = TypeAdapter(AnyEvaluationSet).validate_python(
+                data
+            )
+        except ValidationError as e:
             raise ValueError(
                 f"Invalid evaluation set format in '{eval_set_path}': {str(e)}. "
                 f"Please verify the evaluation set structure."

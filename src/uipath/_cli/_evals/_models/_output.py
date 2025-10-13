@@ -1,5 +1,4 @@
 import logging
-from typing import List, Optional
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 

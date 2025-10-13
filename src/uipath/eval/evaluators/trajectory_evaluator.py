@@ -16,10 +16,10 @@ from ..models.models import (
     NumericEvaluationResult,
     TrajectoryEvaluationTrace,
 )
-from .base_evaluator import BaseEvaluator
+from .base_evaluator import LegacyBaseEvaluator
 
 
-class TrajectoryEvaluator(BaseEvaluator[dict[str, Any]]):
+class TrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
     """Evaluator that analyzes the trajectory/path taken to reach outputs."""
 
     prompt: str

@@ -2,18 +2,26 @@ from typing import Any, Dict
 
 from pydantic import TypeAdapter
 
+from uipath._cli._evals._models._evaluation_set import AnyEvaluator
 from uipath._cli._evals._models._evaluator import (
     EqualsEvaluatorParams,
-    Evaluator,
+    EvaluatorConfig,
     JsonSimilarityEvaluatorParams,
+    LegacyEvaluator,
     LLMEvaluatorParams,
     TrajectoryEvaluatorParams,
 )
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
+from uipath.eval.coded_evaluators import BaseEvaluator
+from uipath.eval.coded_evaluators.base_evaluator import BaseEvaluatorConfig
+from uipath.eval.coded_evaluators.contains_evaluator import (
+    ContainsEvaluator,
+    ContainsEvaluatorConfig,
+)
 from uipath.eval.evaluators import (
-    BaseEvaluator,
     ExactMatchEvaluator,
     JsonSimilarityEvaluator,
+    LegacyBaseEvaluator,
     LlmAsAJudgeEvaluator,
     TrajectoryEvaluator,
 )
@@ -23,7 +31,35 @@ class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
 
     @classmethod
-    def create_evaluator(cls, data: Dict[str, Any]) -> BaseEvaluator[Any]:
+    def create_evaluator(cls, data: Dict[str, Any]) -> AnyEvaluator:
+        if data.get("version", None) == "1.0":
+            return cls._create_evaluator_internal(data)
+        return cls._create_legacy_evaluator_internal(data)
+
+    @staticmethod
+    def _create_evaluator_internal(
+        data: Dict[str, Any],
+    ) -> BaseEvaluator[Any, Any, Any]:
+        config: BaseEvaluatorConfig[Any] = TypeAdapter(EvaluatorConfig).validate_python(
+            data
+        )
+        match config:
+            case ContainsEvaluatorConfig():
+                return EvaluatorFactory._create_contains_evaluator(data)
+            case _:
+                raise ValueError(f"Unknown evaluator configuration: {config}")
+
+    @staticmethod
+    def _create_contains_evaluator(data: Dict[str, Any]) -> ContainsEvaluator:
+        return ContainsEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_legacy_evaluator_internal(
+        data: Dict[str, Any],
+    ) -> LegacyBaseEvaluator[Any]:
         """Create an evaluator instance from configuration data.
 
         Args:
@@ -35,44 +71,36 @@ class EvaluatorFactory:
         Raises:
             ValueError: If category is unknown or required fields are missing
         """
-        # Extract common fields
-        name = data.get("name", "")
-        if not name:
-            raise ValueError("Evaluator configuration must include 'name' field")
-        id = data.get("id", "")
-        if not id:
-            raise ValueError("Evaluator configuration must include 'id' field")
-
-        params: EvaluatorBaseParams = TypeAdapter(Evaluator).validate_python(data)
+        params: EvaluatorBaseParams = TypeAdapter(LegacyEvaluator).validate_python(data)
 
         match params:
             case EqualsEvaluatorParams():
-                return EvaluatorFactory._create_exact_match_evaluator(params)
+                return EvaluatorFactory._create_legacy_exact_match_evaluator(params)
             case JsonSimilarityEvaluatorParams():
-                return EvaluatorFactory._create_json_similarity_evaluator(params)
+                return EvaluatorFactory._create_legacy_json_similarity_evaluator(params)
             case LLMEvaluatorParams():
-                return EvaluatorFactory._create_llm_as_judge_evaluator(params)
+                return EvaluatorFactory._create_legacy_llm_as_judge_evaluator(params)
             case TrajectoryEvaluatorParams():
-                return EvaluatorFactory._create_trajectory_evaluator(params)
+                return EvaluatorFactory._create_legacy_trajectory_evaluator(params)
             case _:
                 raise ValueError(f"Unknown evaluator category: {params}")
 
     @staticmethod
-    def _create_exact_match_evaluator(
+    def _create_legacy_exact_match_evaluator(
         params: EqualsEvaluatorParams,
     ) -> ExactMatchEvaluator:
         """Create a deterministic evaluator."""
         return ExactMatchEvaluator(**params.model_dump())
 
     @staticmethod
-    def _create_json_similarity_evaluator(
+    def _create_legacy_json_similarity_evaluator(
         params: JsonSimilarityEvaluatorParams,
     ) -> JsonSimilarityEvaluator:
         """Create a deterministic evaluator."""
         return JsonSimilarityEvaluator(**params.model_dump())
 
     @staticmethod
-    def _create_llm_as_judge_evaluator(
+    def _create_legacy_llm_as_judge_evaluator(
         params: LLMEvaluatorParams,
     ) -> LlmAsAJudgeEvaluator:
         """Create an LLM-as-a-judge evaluator."""
@@ -89,7 +117,7 @@ class EvaluatorFactory:
         return LlmAsAJudgeEvaluator(**params.model_dump())
 
     @staticmethod
-    def _create_trajectory_evaluator(
+    def _create_legacy_trajectory_evaluator(
         params: TrajectoryEvaluatorParams,
     ) -> TrajectoryEvaluator:
         """Create a trajectory evaluator."""

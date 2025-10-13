@@ -5,7 +5,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from pytest_httpx import HTTPXMock
 
 from uipath._cli._evals._models._evaluation_set import (
-    EvaluationItem,
+    LegacyEvaluationItem,
     LLMMockingStrategy,
     MockitoMockingStrategy,
 )
@@ -47,7 +47,7 @@ def test_mockito_mockable_sync():
         "createdAt": "2025-09-04T18:54:58.378Z",
         "updatedAt": "2025-09-04T18:55:55.416Z",
     }
-    evaluation = EvaluationItem(**evaluation_item)
+    evaluation = LegacyEvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
@@ -107,7 +107,7 @@ async def test_mockito_mockable_async():
         "createdAt": "2025-09-04T18:54:58.378Z",
         "updatedAt": "2025-09-04T18:55:55.416Z",
     }
-    evaluation = EvaluationItem(**evaluation_item)
+    evaluation = LegacyEvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
@@ -161,7 +161,7 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
         "createdAt": "2025-09-04T18:54:58.378Z",
         "updatedAt": "2025-09-04T18:55:55.416Z",
     }
-    evaluation = EvaluationItem(**evaluation_item)
+    evaluation = LegacyEvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
     httpx_mock.add_response(
         url="https://example.com/agenthub_/llm/api/capabilities",
@@ -244,7 +244,7 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
         "createdAt": "2025-09-04T18:54:58.378Z",
         "updatedAt": "2025-09-04T18:55:55.416Z",
     }
-    evaluation = EvaluationItem(**evaluation_item)
+    evaluation = LegacyEvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
 
     httpx_mock.add_response(

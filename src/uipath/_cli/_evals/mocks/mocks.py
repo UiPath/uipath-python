@@ -4,11 +4,13 @@ import logging
 from contextvars import ContextVar
 from typing import Any, Callable, Optional
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
+from uipath._cli._evals._models._evaluation_set import (
+    AnyEvaluationItem,
+)
 from uipath._cli._evals.mocks.mocker import Mocker, UiPathNoMockFoundError
 from uipath._cli._evals.mocks.mocker_factory import MockerFactory
 
-evaluation_context: ContextVar[Optional[EvaluationItem]] = ContextVar(
+evaluation_context: ContextVar[Optional[AnyEvaluationItem]] = ContextVar(
     "evaluation", default=None
 )
 
@@ -17,7 +19,7 @@ mocker_context: ContextVar[Optional[Mocker]] = ContextVar("mocker", default=None
 logger = logging.getLogger(__name__)
 
 
-def set_evaluation_item(item: EvaluationItem) -> None:
+def set_evaluation_item(item: AnyEvaluationItem) -> None:
     """Set an evaluation item within an evaluation set."""
     evaluation_context.set(item)
     try:

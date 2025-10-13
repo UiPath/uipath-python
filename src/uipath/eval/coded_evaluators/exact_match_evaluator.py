@@ -17,7 +17,7 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
 
 
 class ExactMatchEvaluator(
-    OutputEvaluator[OutputEvaluationCriteria, ExactMatchEvaluatorConfig, None]
+    OutputEvaluator[OutputEvaluationCriteria, ExactMatchEvaluatorConfig, type(None)]  # type: ignore
 ):
     """Evaluator that performs exact structural matching between expected and actual outputs.
 

@@ -78,7 +78,7 @@ class EvalItemResult(BaseModel):
     result: EvaluationResult
 
 
-class EvaluatorCategory(IntEnum):
+class LegacyEvaluatorCategory(IntEnum):
     """Types of evaluators."""
 
     Deterministic = 0
@@ -87,7 +87,7 @@ class EvaluatorCategory(IntEnum):
     Trajectory = 3
 
     @classmethod
-    def from_int(cls, value: int) -> "EvaluatorCategory":
+    def from_int(cls, value: int) -> "LegacyEvaluatorCategory":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
@@ -95,7 +95,7 @@ class EvaluatorCategory(IntEnum):
             raise ValueError(f"{value} is not a valid EvaluatorCategory value")
 
 
-class EvaluatorType(IntEnum):
+class LegacyEvaluatorType(IntEnum):
     """Subtypes of evaluators."""
 
     Unknown = 0
@@ -110,7 +110,7 @@ class EvaluatorType(IntEnum):
     Faithfulness = 9
 
     @classmethod
-    def from_int(cls, value: int) -> "EvaluatorType":
+    def from_int(cls, value: int) -> "LegacyEvaluatorType":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
@@ -228,6 +228,12 @@ class TrajectoryEvaluationTrace(BaseModel):
         """Pydantic configuration."""
 
         arbitrary_types_allowed = True
+
+
+class EvaluatorType(str, Enum):
+    """Evaluator type."""
+
+    CONTAINS = "uipath-contains"
 
 
 class ToolCall(BaseModel):
