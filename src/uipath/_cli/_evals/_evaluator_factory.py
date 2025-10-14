@@ -18,10 +18,14 @@ from uipath.eval.coded_evaluators.contains_evaluator import (
     ContainsEvaluator,
     ContainsEvaluatorConfig,
 )
-from uipath.eval.evaluators import (
+from uipath.eval.coded_evaluators.exact_match_evaluator import (
     ExactMatchEvaluator,
+    ExactMatchEvaluatorConfig,
+)
+from uipath.eval.evaluators import (
     JsonSimilarityEvaluator,
     LegacyBaseEvaluator,
+    LegacyExactMatchEvaluator,
     LlmAsAJudgeEvaluator,
     TrajectoryEvaluator,
 )
@@ -46,12 +50,23 @@ class EvaluatorFactory:
         match config:
             case ContainsEvaluatorConfig():
                 return EvaluatorFactory._create_contains_evaluator(data)
+            case ExactMatchEvaluatorConfig():
+                return EvaluatorFactory._create_exact_match_evaluator(data)
             case _:
                 raise ValueError(f"Unknown evaluator configuration: {config}")
 
     @staticmethod
     def _create_contains_evaluator(data: Dict[str, Any]) -> ContainsEvaluator:
         return ContainsEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_exact_match_evaluator(
+        data: Dict[str, Any],
+    ) -> ExactMatchEvaluator:
+        return ExactMatchEvaluator(
             id=data.get("id"),
             config=data.get("evaluatorConfig"),
         )  # type: ignore
@@ -88,9 +103,9 @@ class EvaluatorFactory:
     @staticmethod
     def _create_legacy_exact_match_evaluator(
         params: EqualsEvaluatorParams,
-    ) -> ExactMatchEvaluator:
+    ) -> LegacyExactMatchEvaluator:
         """Create a deterministic evaluator."""
-        return ExactMatchEvaluator(**params.model_dump())
+        return LegacyExactMatchEvaluator(**params.model_dump())
 
     @staticmethod
     def _create_legacy_json_similarity_evaluator(

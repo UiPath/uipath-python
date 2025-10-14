@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
 from uipath.eval.coded_evaluators.base_evaluator import BaseEvaluatorConfig
 from uipath.eval.coded_evaluators.contains_evaluator import ContainsEvaluatorConfig
+from uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
 from uipath.eval.models.models import (
     EvaluatorType,
     LegacyEvaluatorCategory,
@@ -149,6 +150,8 @@ def evaluator_config_discriminator(data: Any) -> str:
         match evaluator_type_id:
             case EvaluatorType.CONTAINS:
                 return "ContainsEvaluatorConfig"
+            case EvaluatorType.EXACT_MATCH:
+                return "ExactMatchEvaluatorConfig"
             case _:
                 return "UnknownEvaluatorConfig"
     else:
@@ -186,6 +189,10 @@ EvaluatorConfig = Annotated[
         Annotated[
             ContainsEvaluatorConfig,
             Tag("ContainsEvaluatorConfig"),
+        ],
+        Annotated[
+            ExactMatchEvaluatorConfig,
+            Tag("ExactMatchEvaluatorConfig"),
         ],
         Annotated[
             UnknownEvaluatorConfig,

@@ -1,9 +1,10 @@
 {
   "version": "1.0",
-  "id": "ClaimDenialReview",
-  "name": "Claim Denial Review",
+  "id": "NewSchemaSampleEval",
+  "name": "New Schema Sample Evaluation",
   "evaluatorRefs": [
-    "ContainsEvaluator"
+    "ContainsEvaluator",
+    "ExactMatchEvaluator"
   ],
   "evaluations": [
     {
@@ -15,7 +16,8 @@
         "operator": "+"
       },
       "evaluationCriterias": {
-        "ContainsEvaluator": null
+        "ContainsEvaluator": null,
+        "ExactMatchEvaluator": null
       }
     },
     {
@@ -29,6 +31,11 @@
       "evaluationCriterias": {
         "ContainsEvaluator": {
           "searchText": "8"
+        },
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "result": "8.0"
+          }
         }
       }
     },

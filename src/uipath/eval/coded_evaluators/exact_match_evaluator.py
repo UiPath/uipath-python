@@ -50,7 +50,6 @@ class ExactMatchEvaluator(
         """
         actual_output = str(self._get_actual_output(agent_execution))
         expected_output = str(self._get_expected_output(evaluation_criteria))
-
         if not self.evaluator_config.case_sensitive:
             actual_output = actual_output.lower()
             expected_output = expected_output.lower()

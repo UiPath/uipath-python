@@ -8,7 +8,7 @@ from ..models.models import AgentExecution
 from .deterministic_evaluator_base import DeterministicEvaluatorBase
 
 
-class ExactMatchEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
+class LegacyExactMatchEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
     """Evaluator that performs exact structural matching between expected and actual outputs.
 
     This evaluator returns True if the actual output exactly matches the expected output

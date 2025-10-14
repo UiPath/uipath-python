@@ -234,6 +234,7 @@ class EvaluatorType(str, Enum):
     """Evaluator type."""
 
     CONTAINS = "uipath-contains"
+    EXACT_MATCH = "uipath-exact-match"
 
 
 class ToolCall(BaseModel):
