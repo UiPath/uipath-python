@@ -5,10 +5,12 @@ from httpx import Response
 from pydantic import TypeAdapter
 
 from uipath._cli._evals._models._evaluation_set import LLMMockingStrategy
+from uipath._cli._push.sw_file_handler import SwFileHandler
 from uipath._cli._utils._studio_project import (
     ProjectFile,
     ProjectFolder,
     StudioClient,
+    StudioSolutionsClient,
     resolve_path,
 )
 from uipath.agent.models.agent import (
@@ -25,6 +27,20 @@ async def get_file(
     resolved = resolve_path(folder, path)
     assert isinstance(resolved, ProjectFile), "Path file not found."
     return await studio_client.download_file_async(resolved.id)
+
+
+async def create_agent_project(solution_id: str, project_name: str) -> str:
+    studio_client = StudioSolutionsClient(solution_id=solution_id)
+    project = await studio_client.create_project_async(project_name=project_name)
+    return project["id"]
+
+
+async def upload_project_files(project_id: str, root: str) -> None:
+    sw_file_handler = SwFileHandler(
+        project_id=project_id,
+        directory=root,
+    )
+    await sw_file_handler.upload_source_files({})
 
 
 async def load_agent_definition(project_id: str) -> AgentDefinition:

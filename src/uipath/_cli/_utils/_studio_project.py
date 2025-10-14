@@ -224,6 +224,45 @@ def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
+class StudioSolutionsClient:
+    def __init__(self, solution_id: str):
+        from uipath import UiPath
+
+        self.uipath: UiPath = UiPath()
+        self._solutions_base_url: str = f"/studio_/backend/api/Solution/{solution_id}"
+
+    async def create_project_async(
+        self,
+        project_name: str,
+        project_type: str = "Agent",
+        trigger_type: str = "Manual",
+    ):
+        """Create a new project in the specified solution.
+
+        Args:
+            project_name: The name for the new project
+            project_type: The type of project to create (default: "Agent")
+            trigger_type: The trigger type for the project (default: "Manual")
+
+        Returns:
+            dict: The created project details including project ID
+        """
+        data = {
+            "createDefaultProjectCommand[projectType]": project_type,
+            "createDefaultProjectCommand[triggerType]": trigger_type,
+            "createDefaultProjectCommand[name]": project_name,
+        }
+
+        response = await self.uipath.api_client.request_async(
+            "POST",
+            url=f"{self._solutions_base_url}/projects",
+            data=data,
+            scoped="org",
+        )
+
+        return response.json()
+
+
 class StudioClient:
     def __init__(self, project_id: str):
         from uipath import UiPath
@@ -464,3 +503,10 @@ class StudioClient:
             scoped="org",
         )
         return LockInfo.model_validate(response.json())
+
+    async def _put_lock(self):
+        await self.uipath.api_client.request_async(
+            "PUT",
+            url=f"{self._lock_operations_base_url}/dummy-uuid-Shared?api-version=2",
+            scoped="org",
+        )
