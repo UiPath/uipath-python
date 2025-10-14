@@ -37,7 +37,7 @@ EVALUATORS: list[type[BaseEvaluator[Any, Any, Any]]] = [
 
 __all__ = [
     "BaseEvaluator",
-    "ExactMatchEvaluator",
+    "LegacyExactMatchEvaluator",
     "ContainsEvaluator",
     "JsonSimilarityEvaluator",
     "BaseLLMOutputEvaluator",
