@@ -5,6 +5,9 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 from uipath.eval.coded_evaluators.base_evaluator import BaseEvaluatorConfig
 from uipath.eval.coded_evaluators.contains_evaluator import ContainsEvaluatorConfig
 from uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
+from uipath.eval.coded_evaluators.json_similarity_evaluator import (
+    JsonSimilarityEvaluatorConfig,
+)
 from uipath.eval.models.models import (
     EvaluatorType,
     LegacyEvaluatorCategory,
@@ -152,6 +155,8 @@ def evaluator_config_discriminator(data: Any) -> str:
                 return "ContainsEvaluatorConfig"
             case EvaluatorType.EXACT_MATCH:
                 return "ExactMatchEvaluatorConfig"
+            case EvaluatorType.JSON_SIMILARITY:
+                return "JsonSimilarityEvaluatorConfig"
             case _:
                 return "UnknownEvaluatorConfig"
     else:
@@ -193,6 +198,10 @@ EvaluatorConfig = Annotated[
         Annotated[
             ExactMatchEvaluatorConfig,
             Tag("ExactMatchEvaluatorConfig"),
+        ],
+        Annotated[
+            JsonSimilarityEvaluatorConfig,
+            Tag("JsonSimilarityEvaluatorConfig"),
         ],
         Annotated[
             UnknownEvaluatorConfig,

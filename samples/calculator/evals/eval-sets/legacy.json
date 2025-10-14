@@ -5,7 +5,8 @@
   "batchSize": 10,
   "evaluatorRefs": [
     "equality",
-    "llm-as-a-judge"
+    "llm-as-a-judge",
+    "json-similarity"
   ],
   "evaluations": [
     {

@@ -4,7 +4,8 @@
   "name": "New Schema Sample Evaluation",
   "evaluatorRefs": [
     "ContainsEvaluator",
-    "ExactMatchEvaluator"
+    "ExactMatchEvaluator",
+    "JsonSimilarityEvaluator"
   ],
   "evaluations": [
     {
@@ -17,7 +18,8 @@
       },
       "evaluationCriterias": {
         "ContainsEvaluator": null,
-        "ExactMatchEvaluator": null
+        "ExactMatchEvaluator": null,
+        "JsonSimilarityEvaluator": null
       }
     },
     {
@@ -35,6 +37,11 @@
         "ExactMatchEvaluator": {
           "expectedOutput": {
             "result": "8.0"
+          }
+        },
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
           }
         }
       }

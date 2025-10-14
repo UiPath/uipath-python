@@ -11,8 +11,8 @@ from .deterministic_evaluator_base import DeterministicEvaluatorBase
 T = TypeVar("T")
 
 
-class JsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
-    """Deterministic evaluator that scores structural JSON similarity between expected and actual output.
+class LegacyJsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
+    """Legacy deterministic evaluator that scores structural JSON similarity between expected and actual output.
 
     Compares expected versus actual JSON-like structures and returns a
     numerical score in the range [0, 100]. The comparison is token-based

@@ -8,7 +8,7 @@ import json
 import pytest
 
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
-from uipath.eval.evaluators import JsonSimilarityEvaluator
+from uipath.eval.evaluators import LegacyJsonSimilarityEvaluator
 from uipath.eval.models.models import (
     AgentExecution,
     LegacyEvaluatorCategory,
@@ -32,7 +32,7 @@ def _make_base_params() -> EvaluatorBaseParams:
 class TestJsonSimilarityEvaluator:
     @pytest.mark.asyncio
     async def test_json_similarity_exact_score_1(self) -> None:
-        evaluator = JsonSimilarityEvaluator(
+        evaluator = LegacyJsonSimilarityEvaluator(
             **_make_base_params().model_dump(),
         )
         expected_json = """
@@ -77,7 +77,7 @@ class TestJsonSimilarityEvaluator:
 
     @pytest.mark.asyncio
     async def test_json_similarity_exact_score_2(self) -> None:
-        evaluator = JsonSimilarityEvaluator(
+        evaluator = LegacyJsonSimilarityEvaluator(
             **_make_base_params().model_dump(),
         )
         expected_json = """
@@ -113,7 +113,7 @@ class TestJsonSimilarityEvaluator:
 
     @pytest.mark.asyncio
     async def test_json_similarity_exact_score_3(self) -> None:
-        evaluator = JsonSimilarityEvaluator(
+        evaluator = LegacyJsonSimilarityEvaluator(
             **_make_base_params().model_dump(),
         )
         expected_json = """
@@ -146,7 +146,7 @@ class TestJsonSimilarityEvaluator:
 
     @pytest.mark.asyncio
     async def test_json_similarity_exact_score_4(self) -> None:
-        evaluator = JsonSimilarityEvaluator(
+        evaluator = LegacyJsonSimilarityEvaluator(
             **_make_base_params().model_dump(),
         )
         expected_json = """
