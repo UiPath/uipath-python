@@ -1,3 +1,4 @@
+import json
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -312,3 +313,57 @@ class TestHitlProcessor:
         assert resume_trigger.api_resume is not None
         assert isinstance(resume_trigger.api_resume.inbox_id, str)
         assert resume_trigger.api_resume.request == api_input
+
+    @pytest.mark.anyio
+    async def test_interrupt_with_include_metadata_true_returns_full_action(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test that interrupt() with include_metadata=True returns the whole action object."""
+        action_key = "test-action-key"
+
+        # Create an action with include_metadata=True
+        create_action = CreateAction(
+            title="Test Action",
+            app_name="TestApp",
+            app_folder_path="/test/path",
+            data={"input": "test-input"},
+            include_metadata=True,
+        )
+
+        # Mock the action that would be retrieved after user interaction
+        mock_action = Action(
+            key=action_key,
+            action="Reject",
+            data={"input": "test-input"},
+            status=2,
+            title="Test Action",
+            id=12345,
+        )
+
+        with (
+            patch(
+                "uipath._services.actions_service.ActionsService.create_async"
+            ) as mock_create,
+            patch(
+                "uipath._services.actions_service.ActionsService.retrieve_async"
+            ) as mock_retrieve,
+        ):
+            mock_create.return_value = Action(key=action_key)
+            mock_retrieve.return_value = mock_action
+
+            # Simulate interrupt()
+            processor = HitlProcessor(create_action)
+            resume_trigger = await processor.create_resume_trigger()
+            if isinstance(resume_trigger.payload, dict):
+                resume_trigger.payload = json.dumps(resume_trigger.payload)
+
+            action_data = await HitlReader.read(resume_trigger)
+
+            # verify we got the whole action object
+            assert isinstance(action_data, Action)
+            assert action_data.action == "Reject", "Should contain 'action' field"
+            assert action_data.data == {"input": "test-input"}, (
+                "Should contain correct 'data' field"
+            )
+            assert action_data != mock_action.data
