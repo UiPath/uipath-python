@@ -101,6 +101,7 @@ class _TelemetryClient:
                 disable_offline_storage=True,
             )
 
+            getLogger("azure").setLevel(WARNING)
             _logger.addHandler(_AzureMonitorOpenTelemetryEventHandler())
             _logger.setLevel(WARNING)
 
