@@ -1,0 +1,192 @@
+{
+  "extractionResult": {
+    "DocumentId": "da303456-7ba3-f011-8e60-6045bd9ba6d0",
+    "ResultsVersion": 0,
+    "ResultsDocument": {
+      "Bounds": {
+        "StartPage": 0,
+        "PageCount": 1,
+        "TextStartIndex": 0,
+        "TextLength": 629,
+        "PageRange": "1"
+      },
+      "Language": "eng",
+      "DocumentGroup": "",
+      "DocumentCategory": "",
+      "DocumentTypeId": "2e4e0ad9-72a3-f011-8e61-000d3a395253",
+      "DocumentTypeName": "receipts",
+      "DocumentTypeDataVersion": 0,
+      "DataVersion": 0,
+      "DocumentTypeSource": "Automatic",
+      "DocumentTypeField": {
+        "Components": [],
+        "Value": "receipts",
+        "UnformattedValue": "",
+        "Reference": {
+          "TextStartIndex": 0,
+          "TextLength": 0,
+          "Tokens": []
+        },
+        "DerivedFields": [],
+        "Confidence": 1.0,
+        "OperatorConfirmed": false,
+        "OcrConfidence": -1.0,
+        "TextType": "Unknown",
+        "ValidatorNotes": "",
+        "ValidatorNotesInfo": ""
+      },
+      "Fields": [
+        {
+          "FieldId": "field-2",
+          "FieldName": "To",
+          "FieldType": "Text",
+          "IsMissing": true,
+          "DataSource": "Automatic",
+          "Values": [],
+          "DataVersion": 0,
+          "OperatorConfirmed": false,
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        },
+        {
+          "FieldId": "field-1",
+          "FieldName": "From",
+          "FieldType": "Text",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "Values": [
+            {
+              "Components": [],
+              "Value": "with",
+              "UnformattedValue": "with",
+              "Reference": {
+                "TextStartIndex": 275,
+                "TextLength": 4,
+                "Tokens": [
+                  {
+                    "TextStartIndex": 275,
+                    "TextLength": 4,
+                    "Page": 0,
+                    "PageWidth": 595.0,
+                    "PageHeight": 842.0,
+                    "Boxes": [[378.08, 96.32, 12.27, 8.54]]
+                  }
+                ]
+              },
+              "DerivedFields": [],
+              "Confidence": 0.56592697,
+              "OperatorConfirmed": false,
+              "OcrConfidence": 1.0,
+              "TextType": "Text",
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "DataVersion": 0,
+          "OperatorConfirmed": false,
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        },
+        {
+          "FieldId": "date",
+          "FieldName": "Transaction Date",
+          "FieldType": "Date",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "Values": [
+            {
+              "Components": [],
+              "Value": "2025-12-01",
+              "UnformattedValue": "December",
+              "Reference": {
+                "TextStartIndex": 559,
+                "TextLength": 8,
+                "Tokens": [
+                  {
+                    "TextStartIndex": 559,
+                    "TextLength": 8,
+                    "Page": 0,
+                    "PageWidth": 595.0,
+                    "PageHeight": 842.0,
+                    "Boxes": [[45.09, 464.79, 33.09, 9.87]]
+                  }
+                ]
+              },
+              "DerivedFields": [
+                {
+                  "FieldId": "Year",
+                  "Value": "2025"
+                },
+                {
+                  "FieldId": "Month",
+                  "Value": "12"
+                },
+                {
+                  "FieldId": "Day",
+                  "Value": "1"
+                }
+              ],
+              "Confidence": 0.8514132,
+              "OperatorConfirmed": false,
+              "OcrConfidence": 1.0,
+              "TextType": "Text",
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "DataVersion": 0,
+          "OperatorConfirmed": false,
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        },
+        {
+          "FieldId": "total",
+          "FieldName": "Total Amount",
+          "FieldType": "Number",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "Values": [
+            {
+              "Components": [],
+              "Value": "66.79",
+              "UnformattedValue": "66.79",
+              "Reference": {
+                "TextStartIndex": 582,
+                "TextLength": 5,
+                "Tokens": [
+                  {
+                    "TextStartIndex": 582,
+                    "TextLength": 5,
+                    "Page": 0,
+                    "PageWidth": 595.0,
+                    "PageHeight": 842.0,
+                    "Boxes": [[143.28, 500.81, 26.95, 14.68]]
+                  }
+                ]
+              },
+              "DerivedFields": [
+                {
+                  "FieldId": "Value",
+                  "Value": "66.79"
+                }
+              ],
+              "Confidence": 0.9245848,
+              "OperatorConfirmed": false,
+              "OcrConfidence": 1.0,
+              "TextType": "Text",
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "DataVersion": 0,
+          "OperatorConfirmed": false,
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        }
+      ],
+      "Tables": []
+    },
+    "ExtractorPayloads": null,
+    "BusinessRulesResults": null
+  }
+}

@@ -122,6 +122,7 @@ class ValidationAction(BaseModel):
     action_status: str = Field(alias="actionStatus")
     project_id: str = Field(alias="projectId")
     tag: str
+    document_type_id: str = Field(alias="documentTypeId")
     operation_id: str = Field(alias="operationId")
 
 
