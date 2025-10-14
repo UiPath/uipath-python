@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Set
 
 import click
 
+from ...models.exceptions import EnrichedException
 from .._utils._console import ConsoleLogger
 from .._utils._constants import (
     AGENT_INITIAL_CODE_VERSION,
@@ -483,7 +484,15 @@ class SwFileHandler:
         Raises:
             Exception: If any step in the process fails
         """
-        structure = await self._studio_client.get_project_structure_async()
+        try:
+            structure = await self._studio_client.get_project_structure_async()
+        except EnrichedException as e:
+            if e.status_code == 404:
+                structure = ProjectStructure(name="", files=[], folders=[])
+                await self._studio_client._put_lock()
+            else:
+                raise
+
         source_code_folder = self._get_folder_by_name(structure, "source_code")
         root_files, source_code_files = self._get_remote_files(
             structure, source_code_folder
