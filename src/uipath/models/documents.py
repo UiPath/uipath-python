@@ -18,15 +18,25 @@ class FieldType(str, Enum):
 
 
 class ActionPriority(str, Enum):
+    """Priority levels for validation actions. More details can be found in the [official documentation](https://docs.uipath.com/action-center/automation-cloud/latest/user-guide/create-document-validation-action#configuration)."""
+
     LOW = "Low"
+    """Low priority"""
     MEDIUM = "Medium"
+    """Medium priority"""
     HIGH = "High"
+    """High priority"""
     CRITICAL = "Critical"
+    """Critical priority"""
 
 
 class ProjectType(str, Enum):
+    """Project types available and supported by Documents Service."""
+
     IXP = "IXP"
+    """Represents an [IXP](https://docs.uipath.com/ixp/automation-cloud/latest/overview/managing-projects#creating-a-new-project) project type."""
     MODERN = "Modern"
+    """Represents a [DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project type."""
 
 
 class FieldValueProjection(BaseModel):
