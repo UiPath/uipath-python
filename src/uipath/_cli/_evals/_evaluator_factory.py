@@ -22,10 +22,14 @@ from uipath.eval.coded_evaluators.exact_match_evaluator import (
     ExactMatchEvaluator,
     ExactMatchEvaluatorConfig,
 )
-from uipath.eval.evaluators import (
+from uipath.eval.coded_evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
+    JsonSimilarityEvaluatorConfig,
+)
+from uipath.eval.evaluators import (
     LegacyBaseEvaluator,
     LegacyExactMatchEvaluator,
+    LegacyJsonSimilarityEvaluator,
     LlmAsAJudgeEvaluator,
     TrajectoryEvaluator,
 )
@@ -52,6 +56,8 @@ class EvaluatorFactory:
                 return EvaluatorFactory._create_contains_evaluator(data)
             case ExactMatchEvaluatorConfig():
                 return EvaluatorFactory._create_exact_match_evaluator(data)
+            case JsonSimilarityEvaluatorConfig():
+                return EvaluatorFactory._create_json_similarity_evaluator(data)
             case _:
                 raise ValueError(f"Unknown evaluator configuration: {config}")
 
@@ -67,6 +73,15 @@ class EvaluatorFactory:
         data: Dict[str, Any],
     ) -> ExactMatchEvaluator:
         return ExactMatchEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_json_similarity_evaluator(
+        data: Dict[str, Any],
+    ) -> JsonSimilarityEvaluator:
+        return JsonSimilarityEvaluator(
             id=data.get("id"),
             config=data.get("evaluatorConfig"),
         )  # type: ignore
@@ -110,9 +125,9 @@ class EvaluatorFactory:
     @staticmethod
     def _create_legacy_json_similarity_evaluator(
         params: JsonSimilarityEvaluatorParams,
-    ) -> JsonSimilarityEvaluator:
+    ) -> LegacyJsonSimilarityEvaluator:
         """Create a deterministic evaluator."""
-        return JsonSimilarityEvaluator(**params.model_dump())
+        return LegacyJsonSimilarityEvaluator(**params.model_dump())
 
     @staticmethod
     def _create_legacy_llm_as_judge_evaluator(
