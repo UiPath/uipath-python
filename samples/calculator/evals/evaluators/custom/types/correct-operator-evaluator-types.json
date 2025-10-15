@@ -1,0 +1,57 @@
+{
+  "evaluatorTypeId": "CorrectOperatorEvaluator",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "CorrectOperatorEvaluationCriteria": {
+        "description": "Evaluation criteria for the contains evaluator.",
+        "properties": {
+          "operator": {
+            "title": "Operator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operator"
+        ],
+        "title": "CorrectOperatorEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the contains evaluator.",
+    "properties": {
+      "name": {
+        "default": "CorrectOperatorEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "defaultEvaluationCriteria": {
+        "$ref": "#/$defs/CorrectOperatorEvaluationCriteria",
+        "default": {
+          "operator": "+"
+        }
+      },
+      "negated": {
+        "default": false,
+        "title": "Negated",
+        "type": "boolean"
+      }
+    },
+    "title": "CorrectOperatorEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Evaluation criteria for the contains evaluator.",
+    "properties": {
+      "operator": {
+        "title": "Operator",
+        "type": "string"
+      }
+    },
+    "required": [
+      "operator"
+    ],
+    "title": "CorrectOperatorEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {}
+}

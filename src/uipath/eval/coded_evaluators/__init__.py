@@ -2,7 +2,12 @@
 
 from typing import Any
 
-from .base_evaluator import BaseEvaluator
+from .base_evaluator import (
+    BaseEvaluationCriteria,
+    BaseEvaluator,
+    BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
+)
 from .contains_evaluator import ContainsEvaluator
 from .exact_match_evaluator import ExactMatchEvaluator
 from .json_similarity_evaluator import JsonSimilarityEvaluator
@@ -50,4 +55,7 @@ __all__ = [
     "ToolCallArgsEvaluator",
     "ToolCallCountEvaluator",
     "ToolCallOutputEvaluator",
+    "BaseEvaluatorJustification",
+    "BaseEvaluatorConfig",
+    "BaseEvaluationCriteria",
 ]

@@ -1,7 +1,11 @@
+import importlib.util
+import sys
+from pathlib import Path
 from typing import Any, Dict
 
 from pydantic import TypeAdapter
 
+from uipath._cli._evals._helpers import try_extract_file_and_class_name  # type: ignore
 from uipath._cli._evals._models._evaluation_set import AnyEvaluator
 from uipath._cli._evals._models._evaluator import (
     EqualsEvaluatorParams,
@@ -76,6 +80,17 @@ class EvaluatorFactory:
     def _create_evaluator_internal(
         data: Dict[str, Any],
     ) -> BaseEvaluator[Any, Any, Any]:
+        # check custom evaluator
+        evaluator_schema = data.get("evaluatorSchema", "")
+        success, file_path, class_name = try_extract_file_and_class_name(
+            evaluator_schema
+        )
+        if success:
+            return EvaluatorFactory._create_coded_evaluator_internal(
+                data, file_path, class_name
+            )
+
+        # use built-in evaluators
         config: BaseEvaluatorConfig[Any] = TypeAdapter(EvaluatorConfig).validate_python(
             data
         )
@@ -113,9 +128,79 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_contains_evaluator(data: Dict[str, Any]) -> ContainsEvaluator:
+        evaluator_id = data.get("id")
+        if not evaluator_id or not isinstance(evaluator_id, str):
+            raise ValueError("Evaluator 'id' must be a non-empty string")
         return ContainsEvaluator(
-            id=data.get("id"),
+            id=evaluator_id,
             config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_coded_evaluator_internal(
+        data: Dict[str, Any], file_path_str: str, class_name: str
+    ) -> BaseEvaluator[Any, Any, Any]:
+        """Create a coded evaluator by dynamically loading from a Python file.
+
+        Args:
+            data: Dictionary containing evaluator configuration with evaluatorTypeId
+                  in format "file://path/to/file.py:ClassName"
+
+        Returns:
+            Instance of the dynamically loaded evaluator class
+
+        Raises:
+            ValueError: If file or class cannot be loaded, or if the class is not a BaseEvaluator subclass
+        """
+        file_path = Path(file_path_str)
+        if not file_path.is_absolute():
+            if not file_path.exists():
+                file_path = (
+                    Path.cwd() / "evals" / "evaluators" / "custom" / file_path_str
+                )
+
+        if not file_path.exists():
+            raise ValueError(
+                f"Evaluator file not found: {file_path}. "
+                f"Make sure the file exists in evals/evaluators/custom/"
+            )
+
+        module_name = f"_custom_evaluator_{file_path.stem}_{id(data)}"
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        if spec is None or spec.loader is None:
+            raise ValueError(f"Could not load module from {file_path}")
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception as e:
+            raise ValueError(
+                f"Error executing module from {file_path}: {str(e)}"
+            ) from e
+
+        # Get the class from the module
+        if not hasattr(module, class_name):
+            raise ValueError(
+                f"Class '{class_name}' not found in {file_path}. "
+                f"Available classes: {[name for name in dir(module) if not name.startswith('_')]}"
+            )
+
+        evaluator_class = getattr(module, class_name)
+
+        if not isinstance(evaluator_class, type) or not issubclass(
+            evaluator_class, BaseEvaluator
+        ):
+            raise ValueError(
+                f"Class '{class_name}' must be a subclass of BaseEvaluator"
+            )
+
+        evaluator_id = data.get("id")
+        if not evaluator_id or not isinstance(evaluator_id, str):
+            raise ValueError("Evaluator 'id' must be a non-empty string")
+        return evaluator_class(
+            id=evaluator_id,
+            config=data.get("evaluatorConfig", {}),
         )  # type: ignore
 
     @staticmethod
