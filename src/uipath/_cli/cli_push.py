@@ -52,7 +52,6 @@ async def upload_source_files_to_project(
 
     await sw_file_handler.upload_source_files(config_data)
 
-    # Upload coded-evals files (files with version property) to coded-evals folder
     await sw_file_handler.upload_coded_evals_files()
 
 

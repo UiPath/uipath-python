@@ -7,7 +7,8 @@
     "ExactMatchEvaluator",
     "JsonSimilarityEvaluator",
     "LLMJudgeOutputEvaluator",
-    "LLMJudgeStrictJSONSimilarityOutputEvaluator"
+    "LLMJudgeStrictJSONSimilarityOutputEvaluator",
+    "CorrectOperatorEvaluator"
   ],
   "evaluations": [
     {
@@ -23,7 +24,8 @@
         "ExactMatchEvaluator": null,
         "JsonSimilarityEvaluator": null,
         "LLMJudgeOutputEvaluator": null,
-        "LLMJudgeStrictJSONSimilarityOutputEvaluator": null
+        "LLMJudgeStrictJSONSimilarityOutputEvaluator": null,
+        "CorrectOperatorEvaluator": null
       }
     },
     {
@@ -37,6 +39,9 @@
       "evaluationCriterias": {
         "ContainsEvaluator": {
           "searchText": "8"
+        },
+        "CorrectOperatorEvaluator": {
+          "operator": "*"
         },
         "ExactMatchEvaluator": {
           "expectedOutput": {

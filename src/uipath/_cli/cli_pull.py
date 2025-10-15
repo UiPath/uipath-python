@@ -239,7 +239,9 @@ def pull(root: str) -> None:
 
             if coded_evals_folder:
                 # New structure: coded-evals folder exists, use it and skip legacy evals
-                console.info("Found coded-evals folder, downloading to local evals structure")
+                console.info(
+                    "Found coded-evals folder, downloading to local evals structure"
+                )
                 asyncio.run(
                     download_coded_evals_files(
                         studio_client,
@@ -252,7 +254,9 @@ def pull(root: str) -> None:
                 # Fallback to legacy evals folder
                 evals_folder = get_folder_by_name(structure, "evals")
                 if evals_folder:
-                    console.info("Found legacy evals folder, downloading to local evals structure")
+                    console.info(
+                        "Found legacy evals folder, downloading to local evals structure"
+                    )
                     evals_path = os.path.join(root, "evals")
                     asyncio.run(
                         download_folder_files(
