@@ -162,10 +162,6 @@ class DocumentsService(FolderContext, BaseService):
     ) -> str:
         if project_type == ProjectType.IXP:
             return str(UUID(int=0))
-        if project_type == ProjectType.MODERN and document_type_name is None:
-            raise ValueError(
-                "`document_type_name` must be provided when `project_type` is `ProjectType.MODERN`"
-            )
 
         response = self.request(
             "GET",
@@ -193,10 +189,6 @@ class DocumentsService(FolderContext, BaseService):
     ) -> str:
         if project_type == ProjectType.IXP:
             return str(UUID(int=0))
-        if project_type == ProjectType.MODERN and document_type_name is None:
-            raise ValueError(
-                "`document_type_name` must be provided when `project_type` is `ProjectType.MODERN`"
-            )
 
         response = await self.request_async(
             "GET",
@@ -425,8 +417,8 @@ class DocumentsService(FolderContext, BaseService):
             ```python
             with open("path/to/document.pdf", "rb") as file:
                 extraction_response = service.extract(
-                    project_name="MyIXPProjectName",
-                    tag="live",
+                    project_name="MyModernProjectName",
+                    tag="Production",
                     file=file,
                     project_type=ProjectType.MODERN,
                     document_type_name="Receipts",

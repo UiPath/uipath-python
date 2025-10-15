@@ -353,28 +353,6 @@ class TestDocumentsService:
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
-    async def test_get_document_type_id_for_modern_without_document_type_name(
-        self, service: DocumentsService, mode: str
-    ):
-        with pytest.raises(
-            ValueError,
-            match="`document_type_name` must be provided when `project_type` is `ProjectType.MODERN`",
-        ):
-            if mode == "async":
-                await service._get_document_type_id_async(
-                    project_id=str(uuid4()),
-                    document_type_name=None,
-                    project_type=ProjectType.MODERN,
-                )
-            else:
-                service._get_document_type_id(
-                    project_id=str(uuid4()),
-                    document_type_name=None,
-                    project_type=ProjectType.MODERN,
-                )
-
-    @pytest.mark.parametrize("mode", ["sync", "async"])
-    @pytest.mark.asyncio
     async def test_extract_with_both_file_and_file_path_provided(
         self,
         service: DocumentsService,
