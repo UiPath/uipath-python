@@ -26,9 +26,26 @@ from ._utils._studio_project import (
     ProjectFolder,
     StudioClient,
     get_folder_by_name,
+    get_subfolder_by_name,
 )
 
 console = ConsoleLogger()
+
+
+def has_version_property(content: str) -> bool:
+    """Check if a JSON file has a version property, indicating it's a new coded-evals file.
+
+    Args:
+        content: File content to check
+
+    Returns:
+        bool: True if the file has a version property, False otherwise
+    """
+    try:
+        data = json.loads(content)
+        return "version" in data
+    except json.JSONDecodeError:
+        return False
 
 
 def compute_normalized_hash(content: str) -> str:
@@ -132,6 +149,43 @@ async def download_folder_files(
         processed_files.add(file_path)
 
 
+async def download_coded_evals_files(
+    studio_client: StudioClient,
+    coded_evals_folder: ProjectFolder,
+    root: str,
+    processed_files: Set[str],
+) -> None:
+    """Download coded-evals files and map them to local evals structure.
+
+    Args:
+        studio_client: Studio client
+        coded_evals_folder: The coded-evals folder from remote
+        root: Root path for local storage
+        processed_files: Set to track processed files
+    """
+    # Map coded-evals/evaluators → local evals/evaluators
+    evaluators_subfolder = get_subfolder_by_name(coded_evals_folder, "evaluators")
+    if evaluators_subfolder:
+        local_evaluators_path = os.path.join(root, "evals", "evaluators")
+        await download_folder_files(
+            studio_client,
+            evaluators_subfolder,
+            local_evaluators_path,
+            processed_files,
+        )
+
+    # Map coded-evals/eval-sets → local evals/eval-sets
+    eval_sets_subfolder = get_subfolder_by_name(coded_evals_folder, "eval-sets")
+    if eval_sets_subfolder:
+        local_eval_sets_path = os.path.join(root, "evals", "eval-sets")
+        await download_folder_files(
+            studio_client,
+            eval_sets_subfolder,
+            local_eval_sets_path,
+            processed_files,
+        )
+
+
 @click.command()
 @click.argument(
     "root", type=click.Path(exists=True, file_okay=False, dir_okay=True), default="."
@@ -180,20 +234,36 @@ def pull(root: str) -> None:
             else:
                 console.warning("No source_code folder found in remote project")
 
-            # Process evals folder
-            evals_folder = get_folder_by_name(structure, "evals")
-            if evals_folder:
-                evals_path = os.path.join(root, "evals")
+            # Process evaluation folders - check for coded-evals first
+            coded_evals_folder = get_folder_by_name(structure, "coded-evals")
+
+            if coded_evals_folder:
+                # New structure: coded-evals folder exists, use it and skip legacy evals
+                console.info("Found coded-evals folder, downloading to local evals structure")
                 asyncio.run(
-                    download_folder_files(
+                    download_coded_evals_files(
                         studio_client,
-                        evals_folder,
-                        evals_path,
+                        coded_evals_folder,
+                        root,
                         processed_files,
                     )
                 )
             else:
-                console.warning("No evals folder found in remote project")
+                # Fallback to legacy evals folder
+                evals_folder = get_folder_by_name(structure, "evals")
+                if evals_folder:
+                    console.info("Found legacy evals folder, downloading to local evals structure")
+                    evals_path = os.path.join(root, "evals")
+                    asyncio.run(
+                        download_folder_files(
+                            studio_client,
+                            evals_folder,
+                            evals_path,
+                            processed_files,
+                        )
+                    )
+                else:
+                    console.warning("No evaluation folders found in remote project")
 
         except Exception as e:
             console.error(f"Failed to pull UiPath project: {str(e)}")
