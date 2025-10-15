@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 from urllib.parse import unquote_plus
 
 import pytest
+from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
@@ -9,7 +10,13 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.connections_service import ConnectionsService
 from uipath._services.folder_service import FolderService
 from uipath._utils.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
-from uipath.models import Connection, ConnectionToken, EventArguments
+from uipath.models import (
+    Connection,
+    ConnectionMetadata,
+    ConnectionToken,
+    EventArguments,
+)
+from uipath.utils.dynamic_schema import jsonschema_to_pydantic
 
 
 @pytest.fixture
@@ -81,6 +88,125 @@ class TestConnectionsService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ConnectionsService.retrieve/{version}"
         )
 
+    def test_metadata(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        element_instance_id = 123
+        tool_path = "test-tool"
+        valid_choice = {
+            "index": 0,
+            "finishReason": "done",
+            "message": {"content": "foo", "role": "user"},
+        }
+        invalid_choice = {
+            "index": 0,
+            "finishReason": "done",
+            "message": {"content": 123, "role": "user"},
+        }
+        valid_object = {
+            "choices": [valid_choice],
+            "usage": {"totalTokens": 100},
+            "created": 1000,
+        }
+        invalid_object_1 = {
+            "choices": [valid_choice],
+            "usage": {"totalTokens": 100},
+            "created": "string",
+        }
+        invalid_object_2 = {
+            "choices": [invalid_choice],
+            "usage": {"totalTokens": 100},
+            "created": 1000,
+        }
+        json_schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "choices": {
+                    "title": "Choices",
+                    "type": "array",
+                    "items": {"$ref": "#/definitions/choices"},
+                },
+                "usage": {"title": "Usage", "$ref": "#/definitions/usage"},
+                "created": {
+                    "title": "Creation timestamp",
+                    "type": "integer",
+                    "format": "int64",
+                },
+            },
+            "definitions": {
+                "message": {
+                    "type": "object",
+                    "title": "Message",
+                    "properties": {
+                        "content": {
+                            "title": "Translated message content",
+                            "type": "string",
+                        },
+                        "role": {
+                            "title": "Role of the message sender",
+                            "type": "string",
+                        },
+                    },
+                },
+                "choices": {
+                    "type": "object",
+                    "title": "Choices",
+                    "properties": {
+                        "index": {
+                            "title": "Choice index",
+                            "type": "integer",
+                            "format": "int64",
+                        },
+                        "finish_reason": {
+                            "title": "Completion reason",
+                            "type": "string",
+                        },
+                        "message": {
+                            "title": "Message",
+                            "$ref": "#/definitions/message",
+                        },
+                    },
+                },
+                "usage": {
+                    "type": "object",
+                    "title": "Usage",
+                    "properties": {
+                        "total_tokens": {
+                            "title": "Total tokens used",
+                            "type": "integer",
+                            "format": "int64",
+                        }
+                    },
+                },
+            },
+        }
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{tool_path}/metadata",
+            status_code=200,
+            json={
+                "fields": json_schema,
+            },
+        )
+
+        metadata = service.metadata(element_instance_id, tool_path)
+
+        assert isinstance(metadata, ConnectionMetadata)
+        dynamic_type = jsonschema_to_pydantic(metadata.fields)
+
+        dynamic_type.model_validate(valid_object)
+        with pytest.raises(ValidationError):
+            assert dynamic_type.model_validate(invalid_object_1)
+        with pytest.raises(ValidationError):
+            assert dynamic_type.model_validate(invalid_object_2)
+        dynamic_type.model_json_schema()
+
     @pytest.mark.anyio
     async def test_retrieve_async(
         self,
@@ -126,6 +252,125 @@ class TestConnectionsService:
             sent_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ConnectionsService.retrieve_async/{version}"
         )
+
+    async def test_metadata_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        element_instance_id = 123
+        tool_path = "test-tool"
+        valid_choice = {
+            "index": 0,
+            "finishReason": "done",
+            "message": {"content": "foo", "role": "user"},
+        }
+        invalid_choice = {
+            "index": 0,
+            "finishReason": "done",
+            "message": {"content": 123, "role": "user"},
+        }
+        valid_object = {
+            "choices": [valid_choice],
+            "usage": {"totalTokens": 100},
+            "created": 1000,
+        }
+        invalid_object_1 = {
+            "choices": [valid_choice],
+            "usage": {"totalTokens": 100},
+            "created": "string",
+        }
+        invalid_object_2 = {
+            "choices": [invalid_choice],
+            "usage": {"totalTokens": 100},
+            "created": 1000,
+        }
+        json_schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "choices": {
+                    "title": "Choices",
+                    "type": "array",
+                    "items": {"$ref": "#/definitions/choices"},
+                },
+                "usage": {"title": "Usage", "$ref": "#/definitions/usage"},
+                "created": {
+                    "title": "Creation timestamp",
+                    "type": "integer",
+                    "format": "int64",
+                },
+            },
+            "definitions": {
+                "message": {
+                    "type": "object",
+                    "title": "Message",
+                    "properties": {
+                        "content": {
+                            "title": "Translated message content",
+                            "type": "string",
+                        },
+                        "role": {
+                            "title": "Role of the message sender",
+                            "type": "string",
+                        },
+                    },
+                },
+                "choices": {
+                    "type": "object",
+                    "title": "Choices",
+                    "properties": {
+                        "index": {
+                            "title": "Choice index",
+                            "type": "integer",
+                            "format": "int64",
+                        },
+                        "finish_reason": {
+                            "title": "Completion reason",
+                            "type": "string",
+                        },
+                        "message": {
+                            "title": "Message",
+                            "$ref": "#/definitions/message",
+                        },
+                    },
+                },
+                "usage": {
+                    "type": "object",
+                    "title": "Usage",
+                    "properties": {
+                        "total_tokens": {
+                            "title": "Total tokens used",
+                            "type": "integer",
+                            "format": "int64",
+                        }
+                    },
+                },
+            },
+        }
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{tool_path}/metadata",
+            status_code=200,
+            json={
+                "fields": json_schema,
+            },
+        )
+
+        metadata = await service.metadata_async(element_instance_id, tool_path)
+
+        assert isinstance(metadata, ConnectionMetadata)
+        dynamic_type = jsonschema_to_pydantic(metadata.fields)
+
+        dynamic_type.model_validate(valid_object)
+        with pytest.raises(ValidationError):
+            assert dynamic_type.model_validate(invalid_object_1)
+        with pytest.raises(ValidationError):
+            assert dynamic_type.model_validate(invalid_object_2)
+        dynamic_type.model_json_schema()
 
     def test_retrieve_token(
         self,
