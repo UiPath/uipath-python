@@ -432,12 +432,12 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     async def execute_runtime(
         self, eval_item: EvaluationItem
     ) -> UiPathEvalRunExecutionOutput:
-        eval_item_id = eval_item.id
+        execution_id = str(uuid.uuid4())
         runtime_context: C = self.factory.new_context(
-            execution_id=eval_item_id,
+            execution_id=execution_id,
             input_json=eval_item.inputs,
             is_eval_run=True,
-            log_handler=self._setup_execution_logging(eval_item_id),
+            log_handler=self._setup_execution_logging(execution_id),
         )
         if runtime_context.execution_id is None:
             raise ValueError("execution_id must be set for eval runs")
@@ -445,9 +445,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         attributes = {
             "evalId": eval_item.id,
             "span_type": "eval",
+            "execution.id": runtime_context.execution_id,
         }
-        if runtime_context.execution_id:
-            attributes["execution.id"] = runtime_context.execution_id
 
         start_time = time()
         try:
