@@ -174,7 +174,7 @@ class DocumentsService(FolderContext, BaseService):
             return next(
                 extractor["id"]
                 for extractor in response.json().get("documentTypes", [])
-                if extractor["name"].lower() == document_type_name.lower()
+                if extractor["name"].lower() == document_type_name.lower()  # type: ignore
             )
         except StopIteration:
             raise ValueError(
@@ -201,7 +201,7 @@ class DocumentsService(FolderContext, BaseService):
             return next(
                 extractor["id"]
                 for extractor in response.json().get("documentTypes", [])
-                if extractor["name"].lower() == document_type_name.lower()
+                if extractor["name"].lower() == document_type_name.lower()  # type: ignore
             )
         except StopIteration:
             raise ValueError(
