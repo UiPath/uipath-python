@@ -14,7 +14,8 @@ import asyncio
 import hashlib
 import json
 import os
-from typing import Dict, Set
+from pathlib import Path
+from typing import Dict
 
 import click
 
@@ -75,8 +76,7 @@ def collect_files_from_folder(
 async def download_folder_files(
     studio_client: StudioClient,
     folder: ProjectFolder,
-    base_path: str,
-    processed_files: Set[str],
+    base_path: Path,
 ) -> None:
     """Download files from a folder recursively.
 
@@ -84,18 +84,12 @@ async def download_folder_files(
         studio_client: Studio client
         folder: The folder to download files from
         base_path: Base path for local file storage
-        processed_files: Set to track processed files
     """
     files_dict: Dict[str, ProjectFile] = {}
     collect_files_from_folder(folder, "", files_dict)
-
     for file_path, remote_file in files_dict.items():
-        local_path = os.path.join(base_path, file_path)
-        local_dir = os.path.dirname(local_path)
-
-        # Create directory if it doesn't exist
-        if not os.path.exists(local_dir):
-            os.makedirs(local_dir)
+        local_path = base_path / file_path
+        local_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Download remote file
         response = await studio_client.download_file_async(remote_file.id)
@@ -129,15 +123,36 @@ async def download_folder_files(
                 f.write(remote_content)
             console.success(f"Downloaded {click.style(str(file_path), fg='cyan')}")
 
-        processed_files.add(file_path)
+
+async def pull_project(project_id: str, download_configuration: dict[str, Path]):
+    studio_client = StudioClient(project_id)
+
+    with console.spinner("Pulling UiPath project files..."):
+        try:
+            structure = await studio_client.get_project_structure_async()
+            for source_key, destination in download_configuration.items():
+                source_folder = get_folder_by_name(structure, source_key)
+                if source_folder:
+                    await download_folder_files(
+                        studio_client,
+                        source_folder,
+                        destination,
+                    )
+                else:
+                    console.warning(f"No {source_key} folder found in remote project")
+
+        except Exception as e:
+            console.error(f"Failed to pull UiPath project: {str(e)}")
 
 
 @click.command()
 @click.argument(
-    "root", type=click.Path(exists=True, file_okay=False, dir_okay=True), default="."
+    "root",
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path("."),
 )
 @track
-def pull(root: str) -> None:
+def pull(root: Path) -> None:
     """Pull remote project files from Studio Web Project.
 
     This command pulls the remote project files from a UiPath Studio Web project.
@@ -158,42 +173,8 @@ def pull(root: str) -> None:
     if not (project_id := os.getenv(UIPATH_PROJECT_ID, False)):
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
-    studio_client = StudioClient(project_id)
-
-    with console.spinner("Pulling UiPath project files..."):
-        try:
-            structure = asyncio.run(studio_client.get_project_structure_async())
-
-            processed_files: Set[str] = set()
-
-            # Process source_code folder
-            source_code_folder = get_folder_by_name(structure, "source_code")
-            if source_code_folder:
-                asyncio.run(
-                    download_folder_files(
-                        studio_client,
-                        source_code_folder,
-                        root,
-                        processed_files,
-                    )
-                )
-            else:
-                console.warning("No source_code folder found in remote project")
-
-            # Process evals folder
-            evals_folder = get_folder_by_name(structure, "evals")
-            if evals_folder:
-                evals_path = os.path.join(root, "evals")
-                asyncio.run(
-                    download_folder_files(
-                        studio_client,
-                        evals_folder,
-                        evals_path,
-                        processed_files,
-                    )
-                )
-            else:
-                console.warning("No evals folder found in remote project")
-
-        except Exception as e:
-            console.error(f"Failed to pull UiPath project: {str(e)}")
+    default_download_configuration = {
+        "source_code": root,
+        "evals": root / "evals",
+    }
+    asyncio.run(pull_project(project_id, default_download_configuration))
