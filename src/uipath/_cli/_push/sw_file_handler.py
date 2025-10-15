@@ -7,6 +7,10 @@ from typing import Any, Dict, Optional, Set
 
 import click
 
+from .._evals._helpers import (  # type: ignore
+    register_evaluator,
+    try_extract_file_and_class_name,
+)
 from .._utils._console import ConsoleLogger
 from .._utils._constants import (
     AGENT_INITIAL_CODE_VERSION,
@@ -28,6 +32,7 @@ from .._utils._studio_project import (
     StructuralMigration,
     StudioClient,
 )
+from .models import EvaluatorFileDetails
 
 
 class SwFileHandler:
@@ -174,13 +179,15 @@ class SwFileHandler:
                         id=remote_file.id, content_file_path=local_file.file_path
                     )
                 )
-                destination = f"source_code/{local_file.relative_path.replace(os.sep, '/')}"
-                self.console.info(
-                    f"Updating {click.style(destination, fg='yellow')}"
+                destination = (
+                    f"source_code/{local_file.relative_path.replace(os.sep, '/')}"
                 )
+                self.console.info(f"Updating {click.style(destination, fg='yellow')}")
             else:
                 parent_path = os.path.dirname(local_file.relative_path)
-                destination = f"source_code/{local_file.relative_path.replace(os.sep, '/')}"
+                destination = (
+                    f"source_code/{local_file.relative_path.replace(os.sep, '/')}"
+                )
                 structural_migration.added_resources.append(
                     AddedResource(
                         content_file_path=local_file.file_path,
@@ -189,9 +196,7 @@ class SwFileHandler:
                         else "source_code",
                     )
                 )
-                self.console.info(
-                    f"Uploading to {click.style(destination, fg='cyan')}"
-                )
+                self.console.info(f"Uploading to {click.style(destination, fg='cyan')}")
 
         # identify and add deleted files
         structural_migration.deleted_resources.extend(
@@ -510,29 +515,34 @@ class SwFileHandler:
         )
         await self._process_file_uploads(files, source_code_files, root_files)
 
-    def _has_version_property(self, file_path: str) -> bool:
-        """Check if a JSON file has a version property, indicating it's a coded-evals file.
+    def _extract_evaluator_details(self, file_path: str) -> tuple[bool, str]:
+        """Return whether an evaluator JSON file has a version property and the custom-evaluator python file (if exists).
 
         Args:
             file_path: Path to the file to check
 
         Returns:
-            bool: True if the file has a version property, False otherwise
+            tuple[bool, str]: A tuple containing:
+                        - A boolean indicating whether the JSON file contains a "version" property.
+                        - The path to the custom-evaluator Python file, if it exists; otherwise, an empty string.
         """
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return "version" in data
+            _, file_name, _ = try_extract_file_and_class_name(
+                data.get("evaluatorSchema", "")
+            )
+            return "version" in data, file_name
         except (json.JSONDecodeError, FileNotFoundError):
-            return False
+            return False, ""
 
-    def _get_coded_evals_files(self) -> tuple[list[str], list[str]]:
+    def _get_coded_evals_files(self) -> tuple[list[EvaluatorFileDetails], list[str]]:
         """Get coded-evals files from local evals directory.
 
         Returns:
             Tuple of (evaluator_files, eval_set_files) with version property
         """
-        evaluator_files = []
+        evaluator_files: list[EvaluatorFileDetails] = []
         eval_set_files = []
 
         # Check {self.directory}/evals/evaluators/ for files with version property
@@ -541,8 +551,13 @@ class SwFileHandler:
             for file_name in os.listdir(evaluators_dir):
                 if file_name.endswith(".json"):
                     file_path = os.path.join(evaluators_dir, file_name)
-                    if self._has_version_property(file_path):
-                        evaluator_files.append(file_path)
+                    version, file_name = self._extract_evaluator_details(file_path)
+                    if version:
+                        evaluator_files.append(
+                            EvaluatorFileDetails(
+                                path=file_path, custom_evaluator_file_name=file_name
+                            )
+                        )
 
         # Check {self.directory}/evals/eval-sets/ for files with version property
         eval_sets_dir = os.path.join(self.directory, "evals", "eval-sets")
@@ -550,7 +565,8 @@ class SwFileHandler:
             for file_name in os.listdir(eval_sets_dir):
                 if file_name.endswith(".json"):
                     file_path = os.path.join(eval_sets_dir, file_name)
-                    if self._has_version_property(file_path):
+                    version, _ = self._extract_evaluator_details(file_path)
+                    if version:
                         eval_set_files.append(file_path)
 
         return evaluator_files, eval_set_files
@@ -572,7 +588,9 @@ class SwFileHandler:
                 return folder
         return None
 
-    async def _ensure_coded_evals_structure(self, structure: ProjectStructure) -> ProjectFolder:
+    async def _ensure_coded_evals_structure(
+        self, structure: ProjectStructure
+    ) -> ProjectFolder:
         """Ensure coded-evals folder structure exists in remote project.
 
         Args:
@@ -584,23 +602,97 @@ class SwFileHandler:
         coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
 
         if not coded_evals_folder:
-            # Create coded-evals folder
-            coded_evals_id = await self._studio_client.create_folder_async("coded-evals")
-            self.console.success(f"Created {click.style('coded-evals', fg='cyan')} folder")
+            coded_evals_id = await self._studio_client.create_folder_async(
+                "coded-evals"
+            )
+            self.console.success(
+                f"Created {click.style('coded-evals', fg='cyan')} folder"
+            )
 
-            # Create evaluators subfolder
             await self._studio_client.create_folder_async("evaluators", coded_evals_id)
-            self.console.success(f"Created {click.style('coded-evals/evaluators', fg='cyan')} folder")
+            self.console.success(
+                f"Created {click.style('coded-evals/evaluators', fg='cyan')} folder"
+            )
 
-            # Create eval-sets subfolder
             await self._studio_client.create_folder_async("eval-sets", coded_evals_id)
-            self.console.success(f"Created {click.style('coded-evals/eval-sets', fg='cyan')} folder")
+            self.console.success(
+                f"Created {click.style('coded-evals/eval-sets', fg='cyan')} folder"
+            )
 
             # Refresh structure to get the new folders
             structure = await self._studio_client.get_project_structure_async()
             coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
 
         return coded_evals_folder
+
+    def _collect_files_from_folder(
+        self, folder: Optional[ProjectFolder]
+    ) -> Dict[str, ProjectFile]:
+        files: Dict[str, ProjectFile] = {}
+        if folder:
+            for file in folder.files:
+                files[file.name] = file
+        return files
+
+    def _process_file_sync(
+        self,
+        local_file_path: str,
+        remote_files: Dict[str, ProjectFile],
+        parent_path: str,
+        destination_prefix: str,
+        structural_migration: StructuralMigration,
+        processed_ids: Set[str],
+    ) -> None:
+        """Process a single local file for upload or update to remote.
+
+        Args:
+            local_file_path: Path to the local file to sync
+            remote_files: Dictionary of remote files indexed by filename
+            parent_path: Parent path for new file creation
+            destination_prefix: Prefix for destination path in console output
+            structural_migration: Migration object to append resources to
+            processed_ids: Set to track processed remote file IDs
+        """
+        file_name = os.path.basename(local_file_path)
+        remote_file = remote_files.get(file_name)
+        destination = f"{destination_prefix}/{file_name}"
+
+        if remote_file:
+            processed_ids.add(remote_file.id)
+            structural_migration.modified_resources.append(
+                ModifiedResource(id=remote_file.id, content_file_path=local_file_path)
+            )
+            self.console.info(f"Updating {click.style(destination, fg='yellow')}")
+        else:
+            structural_migration.added_resources.append(
+                AddedResource(
+                    content_file_path=local_file_path, parent_path=parent_path
+                )
+            )
+            self.console.info(f"Uploading to {click.style(destination, fg='cyan')}")
+
+    def _collect_deleted_remote_files(
+        self,
+        remote_files: Dict[str, ProjectFile],
+        processed_ids: Set[str],
+        destination_prefix: str,
+        structural_migration: StructuralMigration,
+    ) -> None:
+        """Collect remote files that no longer exist locally for deletion.
+
+        Args:
+            remote_files: Dictionary of remote files indexed by filename
+            processed_ids: Set of remote file IDs that were processed
+            destination_prefix: Prefix for destination path in console output
+            structural_migration: Migration object to append deleted resources to
+        """
+        for file_name, remote_file in remote_files.items():
+            if remote_file.id not in processed_ids:
+                structural_migration.deleted_resources.append(remote_file.id)
+                destination = f"{destination_prefix}/{file_name}"
+                self.console.info(
+                    f"Deleting {click.style(destination, fg='bright_red')}"
+                )
 
     async def upload_coded_evals_files(self) -> None:
         """Upload coded-evals files (files with version property) to Studio Web.
@@ -611,18 +703,18 @@ class SwFileHandler:
         3. Uploads the files to coded-evals/evaluators and coded-evals/eval-sets respectively
         4. Deletes remote files that no longer exist locally (consistent with source file behavior)
         """
-        evaluator_files, eval_set_files = self._get_coded_evals_files()
+        evaluator_details, eval_set_files = self._get_coded_evals_files()
 
         structure = await self._studio_client.get_project_structure_async()
         coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
 
         # If no coded-evals folder exists and no local files, nothing to do
-        if not coded_evals_folder and not evaluator_files and not eval_set_files:
+        if not coded_evals_folder and not evaluator_details and not eval_set_files:
             return
 
         # Ensure folder structure exists if we have local files
-        if evaluator_files or eval_set_files:
-            coded_evals_folder = await self._ensure_coded_evals_structure(structure)
+        if evaluator_details or eval_set_files:
+            await self._ensure_coded_evals_structure(structure)
             # Refresh structure to get the new folders
             structure = await self._studio_client.get_project_structure_async()
             coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
@@ -630,110 +722,114 @@ class SwFileHandler:
         if not coded_evals_folder:
             return  # Nothing to sync
 
-        evaluators_folder = self._get_subfolder_by_name(coded_evals_folder, "evaluators")
+        evaluators_folder = self._get_subfolder_by_name(
+            coded_evals_folder, "evaluators"
+        )
         eval_sets_folder = self._get_subfolder_by_name(coded_evals_folder, "eval-sets")
+        custom_evaluators_folder = self._get_subfolder_by_name(
+            evaluators_folder, "custom"
+        )
+        evaluator_types_folder = None
+        if custom_evaluators_folder:
+            evaluator_types_folder = self._get_subfolder_by_name(
+                custom_evaluators_folder, "types"
+            )
 
-        # Collect remote files
-        remote_evaluator_files: Dict[str, ProjectFile] = {}
-        remote_eval_set_files: Dict[str, ProjectFile] = {}
-
-        if evaluators_folder:
-            for file in evaluators_folder.files:
-                remote_evaluator_files[file.name] = file
-
-        if eval_sets_folder:
-            for file in eval_sets_folder.files:
-                remote_eval_set_files[file.name] = file
+        remote_evaluator_files = self._collect_files_from_folder(evaluators_folder)
+        remote_eval_set_files = self._collect_files_from_folder(eval_sets_folder)
+        remote_custom_evaluator_files = self._collect_files_from_folder(
+            custom_evaluators_folder
+        )
+        remote_custom_evaluator_type_files = self._collect_files_from_folder(
+            evaluator_types_folder
+        )
 
         # Create structural migration for coded-evals files
         structural_migration = StructuralMigration(
             deleted_resources=[], added_resources=[], modified_resources=[]
         )
 
-        # Track processed files
         processed_evaluator_ids: Set[str] = set()
         processed_eval_set_ids: Set[str] = set()
+        processed_custom_evaluator_ids: Set[str] = set()
+        processed_evaluator_type_ids: Set[str] = set()
 
-        # Process evaluator files
-        for evaluator_file in evaluator_files:
-            file_name = os.path.basename(evaluator_file)
-            remote_file = remote_evaluator_files.get(file_name)
-            destination = f"coded-evals/evaluators/{file_name}"
-
-            if remote_file:
-                # Update existing file
-                processed_evaluator_ids.add(remote_file.id)
-                structural_migration.modified_resources.append(
-                    ModifiedResource(
-                        id=remote_file.id, content_file_path=evaluator_file
-                    )
-                )
-                self.console.info(
-                    f"Updating {click.style(destination, fg='yellow')}"
-                )
-            else:
-                # Upload new file
-                structural_migration.added_resources.append(
-                    AddedResource(
-                        content_file_path=evaluator_file,
-                        parent_path="coded-evals/evaluators",
-                    )
-                )
-                self.console.info(
-                    f"Uploading to {click.style(destination, fg='cyan')}"
+        for evaluator in evaluator_details:
+            if evaluator.is_custom:
+                evaluator_schema_file_path, evaluator_types_file_path = (
+                    register_evaluator(evaluator.custom_evaluator_file_name)
                 )
 
-        # Process eval-set files
+                self._process_file_sync(
+                    evaluator_schema_file_path,
+                    remote_custom_evaluator_files,
+                    "coded-evals/evaluators/custom",
+                    "coded-evals/evaluators/custom",
+                    structural_migration,
+                    processed_custom_evaluator_ids,
+                )
+
+                self._process_file_sync(
+                    evaluator_types_file_path,
+                    remote_custom_evaluator_type_files,
+                    "coded-evals/evaluators/custom/types",
+                    "coded-evals/evaluators/custom/types",
+                    structural_migration,
+                    processed_evaluator_type_ids,
+                )
+
+            self._process_file_sync(
+                evaluator.path,
+                remote_evaluator_files,
+                "coded-evals/evaluators",
+                "coded-evals/evaluators",
+                structural_migration,
+                processed_evaluator_ids,
+            )
+
         for eval_set_file in eval_set_files:
-            file_name = os.path.basename(eval_set_file)
-            remote_file = remote_eval_set_files.get(file_name)
-            destination = f"coded-evals/eval-sets/{file_name}"
+            self._process_file_sync(
+                eval_set_file,
+                remote_eval_set_files,
+                "coded-evals/eval-sets",
+                "coded-evals/eval-sets",
+                structural_migration,
+                processed_eval_set_ids,
+            )
 
-            if remote_file:
-                # Update existing file
-                processed_eval_set_ids.add(remote_file.id)
-                structural_migration.modified_resources.append(
-                    ModifiedResource(
-                        id=remote_file.id, content_file_path=eval_set_file
-                    )
-                )
-                self.console.info(
-                    f"Updating {click.style(destination, fg='yellow')}"
-                )
-            else:
-                # Upload new file
-                structural_migration.added_resources.append(
-                    AddedResource(
-                        content_file_path=eval_set_file,
-                        parent_path="coded-evals/eval-sets",
-                    )
-                )
-                self.console.info(
-                    f"Uploading to {click.style(destination, fg='cyan')}"
-                )
+        self._collect_deleted_remote_files(
+            remote_evaluator_files,
+            processed_evaluator_ids,
+            "coded-evals/evaluators",
+            structural_migration,
+        )
 
-        # Add remote evaluator files that no longer exist locally to deletion list
-        for file_name, remote_file in remote_evaluator_files.items():
-            if remote_file.id not in processed_evaluator_ids:
-                structural_migration.deleted_resources.append(remote_file.id)
-                destination = f"coded-evals/evaluators/{file_name}"
-                self.console.info(
-                    f"Deleting {click.style(destination, fg='bright_red')}"
-                )
+        self._collect_deleted_remote_files(
+            remote_eval_set_files,
+            processed_eval_set_ids,
+            "coded-evals/eval-sets",
+            structural_migration,
+        )
 
-        # Add remote eval-set files that no longer exist locally to deletion list
-        for file_name, remote_file in remote_eval_set_files.items():
-            if remote_file.id not in processed_eval_set_ids:
-                structural_migration.deleted_resources.append(remote_file.id)
-                destination = f"coded-evals/eval-sets/{file_name}"
-                self.console.info(
-                    f"Deleting {click.style(destination, fg='bright_red')}"
-                )
+        self._collect_deleted_remote_files(
+            remote_custom_evaluator_files,
+            processed_custom_evaluator_ids,
+            "coded-evals/evaluators/custom",
+            structural_migration,
+        )
 
-        # Perform structural migration if there are any changes
-        if (structural_migration.added_resources
+        self._collect_deleted_remote_files(
+            remote_custom_evaluator_type_files,
+            processed_evaluator_type_ids,
+            "coded-evals/evaluators/custom/types",
+            structural_migration,
+        )
+
+        if (
+            structural_migration.added_resources
             or structural_migration.modified_resources
-            or structural_migration.deleted_resources):
+            or structural_migration.deleted_resources
+        ):
             await self._studio_client.perform_structural_migration_async(
                 structural_migration
             )

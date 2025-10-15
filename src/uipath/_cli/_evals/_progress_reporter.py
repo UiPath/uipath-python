@@ -40,7 +40,7 @@ from uipath._utils.constants import (
     ENV_TENANT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
-from uipath.eval.coded_evaluators import BaseEvaluator
+from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.evaluators import LegacyBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.tracing import LlmOpsHttpExporter

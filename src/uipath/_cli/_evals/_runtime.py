@@ -448,7 +448,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             raise ValueError("execution_id must be set for eval runs")
 
         attributes = {
-            "evalId": eval_item.id,
+            "evalId": eval_item_id,
             "span_type": "eval",
         }
         if runtime_context.execution_id:

@@ -1,0 +1,65 @@
+from uipath.eval.evaluators import BaseEvaluator, BaseEvaluationCriteria, BaseEvaluatorConfig
+from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult, BooleanEvaluationResult, ErrorEvaluationResult
+
+
+class $criteria_class(BaseEvaluationCriteria):
+    """Evaluation criteria for the $evaluator_name evaluator."""
+
+    # Define your evaluation criteria fields here
+    # Example: expected_value: str
+    pass
+
+
+class $config_class(BaseEvaluatorConfig[$criteria_class]):
+    """Configuration for the $evaluator_name evaluator."""
+
+    name: str = "$class_name"
+    # Set default evaluation criteria if needed
+    # default_evaluation_criteria: $criteria_class | None = $criteria_class(expected_value="example")
+
+
+class $class_name(BaseEvaluator[$criteria_class, $config_class, type(None)]):
+    """Description for $class_name"""
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator ID."""
+        return "$class_name"
+
+    async def evaluate(
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: $criteria_class
+    ) -> EvaluationResult:
+        """Evaluate the agent execution against the criteria.
+
+        Args:
+            agent_execution: The execution details containing:
+                - agent_input: The input received by the agent
+                - agent_output: The actual output from the agent
+                - agent_trace: The execution trace from the agent (list of OpenTelemetry spans)
+                - simulation_instructions: The simulation instructions for the agent
+            evaluation_criteria: The criteria to evaluate against
+
+        Returns:
+            EvaluationResult containing the score and details
+        """
+
+        '''
+        # TODO: Implement your evaluation logic here
+        Example: Check if the agent output matches expected criteria
+
+        Access agent execution data:
+        agent_input = agent_execution.agent_input
+        agent_output = agent_execution.agent_output
+        agent_trace = agent_execution.agent_trace
+
+        # Perform your evaluation
+        score = 0.0  # Replace with your scoring logic
+
+        return NumericEvaluationResult(
+            score=score,
+        )
+        '''
+
+        raise NotImplementedError(f"evaluate method not implemented")
