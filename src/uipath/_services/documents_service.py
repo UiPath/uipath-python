@@ -13,6 +13,7 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint
 from ..models.documents import (
     ActionPriority,
+    DigitizationResult,
     ExtractionResponse,
     ExtractionResponseIXP,
     ProjectType,
@@ -24,6 +25,51 @@ from ._base_service import BaseService
 
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
+
+
+def _is_provided(arg: Any) -> bool:
+    return arg is not None
+
+
+def _must_not_be_provided(**kwargs: Any) -> None:
+    for name, value in kwargs.items():
+        if value is not None:
+            raise ValueError(f"`{name}` should not be provided")
+
+
+def _must_be_provided(**kwargs: Any) -> None:
+    for name, value in kwargs.items():
+        if value is None:
+            raise ValueError(f"`{name}` should be provided")
+
+
+def _are_mutually_exclusive(**kwargs: Any) -> None:
+    provided = [name for name, value in kwargs.items() if value is not None]
+    if len(provided) > 1:
+        raise ValueError(f"`{', '.join(provided)}` are mutually exclusive")
+
+
+def _validate_extract_params(
+    project_name: Optional[str] = None,
+    file: Optional[FileContent] = None,
+    file_path: Optional[str] = None,
+    digitization_result: Optional[DigitizationResult] = None,
+    project_type: Optional[ProjectType] = ProjectType.IXP,
+    document_type_name: Optional[str] = None,
+):
+    _are_mutually_exclusive(file=file, file_path=file_path)
+
+    if _is_provided(project_name):
+        _must_not_be_provided(digitization_result=digitization_result)
+    else:
+        _must_be_provided(digitization_result=digitization_result)
+        _must_not_be_provided(project_type=project_type, file=file, file_path=file_path)
+        project_type = digitization_result.project_type
+
+    if project_type == ProjectType.MODERN:
+        _must_be_provided(document_type_name=document_type_name)
+    else:
+        _must_not_be_provided(document_type_name=document_type_name)
 
 
 class DocumentsService(FolderContext, BaseService):
@@ -96,10 +142,32 @@ class DocumentsService(FolderContext, BaseService):
         )
         return {tag["name"] for tag in response.json().get("tags", [])}
 
-    def _get_project_id_and_validate_tag(
-        self, project_name: str, project_type: ProjectType, tag: str
+    def _get_document_id(
+        self,
+        project_id: Optional[str] = None,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+        digitization_result: Optional[DigitizationResult] = None,
     ) -> str:
-        project_id = self._get_project_id_by_name(project_name, project_type)
+        if digitization_result is not None:
+            return digitization_result.document_object_model.document_id
+
+        return self._start_digitization(
+            project_id=project_id, file=file, file_path=file_path
+        )
+
+    def _get_project_id_and_validate_tag(
+        self,
+        tag: str,
+        project_name: Optional[str],
+        project_type: Optional[ProjectType],
+        digitization_result: Optional[DigitizationResult],
+    ) -> str:
+        if digitization_result is None:
+            project_id = self._get_project_id_by_name(project_name, project_type)
+        else:
+            project_id = digitization_result.project_id
+
         tags = self._get_project_tags(project_id)
         if tag not in tags:
             raise ValueError(
@@ -125,17 +193,50 @@ class DocumentsService(FolderContext, BaseService):
     def _start_digitization(
         self,
         project_id: str,
-        file: FileContent,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
     ) -> str:
-        return self.request(
-            "POST",
-            url=Endpoint(
-                f"/du_/api/framework/projects/{project_id}/digitization/start"
-            ),
-            params={"api-version": 1.1},
-            headers=self._get_common_headers(),
-            files={"File": file},
-        ).json()["documentId"]
+        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
+            return self.request(
+                "POST",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{project_id}/digitization/start"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+                files={"File": handle},
+            ).json()["documentId"]
+
+    def _wait_for_digitization(
+        self,
+        project_id: str,
+        document_id: str,
+        project_type: ProjectType,
+    ) -> DigitizationResult:
+        def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
+            result = self.request(
+                method="GET",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{project_id}/digitization/result/{document_id}"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+            ).json()
+            return (
+                result["status"],
+                result.get("error", None),
+                result.get("result", None),
+            )
+
+        digitization_response = self._wait_for_operation(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
+        digitization_response["projectId"] = project_id
+        digitization_response["projectType"] = project_type.value
+
+        return DigitizationResult.model_validate(digitization_response)
 
     async def _start_digitization_async(
         self,
@@ -384,13 +485,34 @@ class DocumentsService(FolderContext, BaseService):
 
         return ExtractionResponse.model_validate(extraction_response)
 
+    @traced(name="documents_digitize", run_type="uipath")
+    def digitize(
+        self,
+        project_name: str,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+        project_type: ProjectType = ProjectType.IXP,
+    ) -> DigitizationResult:
+        _are_mutually_exclusive(file=file, file_path=file_path)
+
+        project_id = self._get_project_id_by_name(project_name, project_type)
+
+        document_id = self._start_digitization(
+            project_id=project_id, file=file, file_path=file_path
+        )
+
+        return self._wait_for_digitization(
+            project_id=project_id, document_id=document_id, project_type=project_type
+        )
+
     @traced(name="documents_extract", run_type="uipath")
     def extract(
         self,
-        project_name: str,
         tag: str,
+        project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        digitization_result: Optional[DigitizationResult] = None,
         project_type: ProjectType = ProjectType.IXP,
         document_type_name: Optional[str] = None,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
@@ -422,32 +544,58 @@ class DocumentsService(FolderContext, BaseService):
             ```
 
             DU Modern projects:
-            ```python
-            with open("path/to/document.pdf", "rb") as file:
-                extraction_response = service.extract(
-                    project_name="MyIXPProjectName",
-                    tag="live",
-                    file=file,
-                    project_type=ProjectType.MODERN,
-                    document_type_name="Receipts",
-                )
-            ```
-        """
-        if file is None and file_path is None:
-            raise ValueError("Either `file` or `file_path` must be provided")
-        if file is not None and file_path is not None:
-            raise ValueError("`file` and `file_path` are mutually exclusive")
-        if project_type == ProjectType.MODERN and document_type_name is None:
-            raise ValueError(
-                "`document_type_name` must be provided when `project_type` is `ProjectType.MODERN`"
-            )
+                Automatic digitization:
+                ```python
+                with open("path/to/document.pdf", "rb") as file:
+                    extraction_response = service.extract(
+                        project_name="MyModernProjectName",
+                        tag="Production",
+                        file=file,
+                        project_type=ProjectType.MODERN,
+                        document_type_name="Receipts",
+                    )
+                ```
+                Using existing digitization result:
+                ```python
+                with open("path/to/document.pdf", "rb") as file:
+                    digitization_result = service.digitize(
+                        project_name="MyModernProjectName",
+                        file=file,
+                        project_type=ProjectType.MODERN,
+                    )
 
-        project_id = self._get_project_id_and_validate_tag(
-            project_name=project_name, project_type=project_type, tag=tag
+                extraction_response = service.extract(
+                    tag="Production",
+                    digitization_result=digitization_result,
+                    document_type_name="Receipts",
+                    project_type=None,
+                )
+                ```
+        """
+        _validate_extract_params(
+            project_name=project_name,
+            file=file,
+            file_path=file_path,
+            digitization_result=digitization_result,
+            project_type=project_type,
+            document_type_name=document_type_name,
         )
 
-        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
-            document_id = self._start_digitization(project_id=project_id, file=handle)  # type: ignore
+        project_id = self._get_project_id_and_validate_tag(
+            tag=tag,
+            project_name=project_name,
+            project_type=project_type,
+            digitization_result=digitization_result,
+        )
+
+        project_type = project_type or digitization_result.project_type
+
+        document_id = self._get_document_id(
+            project_id=project_id,
+            file=file,
+            file_path=file_path,
+            digitization_result=digitization_result,
+        )
 
         document_type_id = self._get_document_type_id(
             project_id=project_id,

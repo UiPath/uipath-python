@@ -151,3 +151,38 @@ class ValidatedResult(BaseModel):
 
     document_id: str = Field(alias="DocumentId")
     results_document: dict = Field(alias="ResultsDocument")  # type: ignore
+
+
+class Metadata(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    key: str
+    value: str
+
+
+class DocumentObjectModel(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    document_id: str = Field(alias="documentId")
+    contentType: str = Field(alias="contentType")
+    length: int
+    pages: List[dict]
+    documentMetadata: List[Metadata] = Field(alias="documentMetadata")
+
+
+class DigitizationResult(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    document_object_model: DocumentObjectModel = Field(alias="documentObjectModel")
+    document_text: str = Field(alias="documentText")
+    project_id: str = Field(alias="projectId")
+    project_type: ProjectType = Field(alias="projectType")
