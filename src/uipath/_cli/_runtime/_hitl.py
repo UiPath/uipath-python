@@ -62,12 +62,23 @@ class HitlReader:
         default_escalation = Escalation()
         match resume_trigger.trigger_type:
             case UiPathResumeTriggerType.ACTION:
+                include_metadata = False
+                if resume_trigger.payload:
+                    try:
+                        payload_data = json.loads(resume_trigger.payload)
+                        include_metadata = payload_data.get("include_metadata", False)
+                    except (json.JSONDecodeError, AttributeError):
+                        include_metadata = False
+
                 if resume_trigger.item_key:
                     action = await uipath.actions.retrieve_async(
                         resume_trigger.item_key,
                         app_folder_key=resume_trigger.folder_key,
                         app_folder_path=resume_trigger.folder_path,
                     )
+
+                    if include_metadata:
+                        return action
 
                     if default_escalation.enabled:
                         return default_escalation.extract_response_value(action.data)

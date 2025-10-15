@@ -28,9 +28,11 @@ class CreateAction(BaseModel):
     app_folder_key: Optional[str] = None
     app_key: Optional[str] = None
     app_version: Optional[int] = 1
+    include_metadata: bool = False
 
 
 class WaitAction(BaseModel):
     action: Action
     app_folder_path: Optional[str] = None
     app_folder_key: Optional[str] = None
+    include_metadata: bool = False
