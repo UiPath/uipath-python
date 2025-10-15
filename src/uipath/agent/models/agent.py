@@ -9,6 +9,7 @@ from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._models._evaluator import Evaluator
 from uipath._cli._evals._models._mocks import ExampleCall
 from uipath.models import Connection
+from uipath.models.guardrails import AgentEscalationRecipient, Guardrail
 
 
 class AgentResourceType(str, Enum):
@@ -193,18 +194,6 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     )
 
 
-class AgentEscalationRecipient(BaseModel):
-    """Recipient for escalation."""
-
-    type: int = Field(..., alias="type")
-    value: str = Field(..., alias="value")
-    display_name: Optional[str] = Field(default=None, alias="displayName")
-
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
 class AgentEscalationChannelProperties(BaseResourceProperties):
     """Agent escalation channel properties."""
 
@@ -314,6 +303,7 @@ class BaseAgentDefinition(BaseModel):
         ..., alias="outputSchema", description="JSON schema for output arguments"
     )
     version: str = Field("1.0.0", description="Agent version")
+
     resources: List[AgentResourceConfig] = Field(
         ..., description="List of tools, context, and escalation resources"
     )
@@ -324,6 +314,9 @@ class BaseAgentDefinition(BaseModel):
     )
     evaluators: Optional[List[Evaluator]] = Field(
         None, description="List of agent evaluators"
+    )
+    guardrails: Optional[List[Guardrail]] = Field(
+        None, description="List of agent guardrails"
     )
 
     model_config = ConfigDict(
