@@ -5,7 +5,9 @@
   "evaluatorRefs": [
     "ContainsEvaluator",
     "ExactMatchEvaluator",
-    "JsonSimilarityEvaluator"
+    "JsonSimilarityEvaluator",
+    "LLMJudgeOutputEvaluator",
+    "LLMJudgeStrictJSONSimilarityOutputEvaluator"
   ],
   "evaluations": [
     {
@@ -19,7 +21,9 @@
       "evaluationCriterias": {
         "ContainsEvaluator": null,
         "ExactMatchEvaluator": null,
-        "JsonSimilarityEvaluator": null
+        "JsonSimilarityEvaluator": null,
+        "LLMJudgeOutputEvaluator": null,
+        "LLMJudgeStrictJSONSimilarityOutputEvaluator": null
       }
     },
     {
@@ -40,6 +44,16 @@
           }
         },
         "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "LLMJudgeStrictJSONSimilarityOutputEvaluator": {
           "expectedOutput": {
             "result": 8.0
           }
