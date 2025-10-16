@@ -1,6 +1,7 @@
 # type: ignore
 import importlib.resources
 import json
+import logging
 import os
 import shutil
 import uuid
@@ -18,6 +19,7 @@ from ._utils._parse_ast import generate_bindings_json
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
+logger = logging.getLogger(__name__)
 
 CONFIG_PATH = "uipath.json"
 
@@ -55,7 +57,7 @@ def generate_env_file(target_directory):
         relative_path = os.path.relpath(env_path, target_directory)
         with open(env_path, "w"):
             pass
-        console.success(f" Created '{relative_path}' file.")
+        console.success(f"Created '{relative_path}' file.")
 
 
 def generate_agent_specific_file_md(target_directory: str, file_name: str) -> None:
@@ -65,10 +67,13 @@ def generate_agent_specific_file_md(target_directory: str, file_name: str) -> No
         target_directory: The directory where the file should be created.
         file_name: The name of the file should be created.
     """
-    target_path = os.path.join(target_directory, file_name)
+    agent_dir = os.path.join(target_directory, ".agent")
+    os.makedirs(agent_dir, exist_ok=True)
+
+    target_path = os.path.join(agent_dir, file_name)
 
     if os.path.exists(target_path):
-        console.info(f"Skipping '{file_name}' creation as it already exists.")
+        logger.debug(f"File '.agent/{target_path}' already exists.")
         return
 
     try:
@@ -77,7 +82,7 @@ def generate_agent_specific_file_md(target_directory: str, file_name: str) -> No
         with importlib.resources.as_file(source_path) as s_path:
             shutil.copy(s_path, target_path)
 
-        console.success(f" Created '{file_name}' file.")
+        console.success(f"Created '{f'.agent/{file_name}'}' file.")
     except Exception as e:
         console.warning(f"Could not create {file_name}: {e}")
 
@@ -157,15 +162,9 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
         generate_env_file(current_directory)
         create_telemetry_config_file(current_directory)
         generate_agent_specific_file_md(current_directory, "AGENTS.md")
-        generate_agent_specific_file_md(
-            os.path.join(current_directory, ".agent"), "CLI_REFERENCE.md"
-        )
-        generate_agent_specific_file_md(
-            os.path.join(current_directory, ".agent"), "REQUIRED_STRUCTURE.md"
-        )
-        generate_agent_specific_file_md(
-            os.path.join(current_directory, ".agent"), "SDK_REFERENCE.md"
-        )
+        generate_agent_specific_file_md(current_directory, "CLI_REFERENCE.md")
+        generate_agent_specific_file_md(current_directory, "REQUIRED_STRUCTURE.md")
+        generate_agent_specific_file_md(current_directory, "SDK_REFERENCE.md")
         generate_agent_specific_file_md(current_directory, "CLAUDE.md")
 
         result = Middlewares.next(
