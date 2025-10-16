@@ -1,4 +1,4 @@
-"""LowCode Agent Prompts."""
+"""ReAct Agent Meta Prompts."""
 
 AGENT_SYSTEM_PROMPT_TEMPLATE = """
 You are an advanced automatic agent equipped with a variety of tools to assist users.

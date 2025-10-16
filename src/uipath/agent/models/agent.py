@@ -53,11 +53,11 @@ class BaseAgentToolResourceConfig(BaseAgentResourceConfig):
 class AgentToolType(str, Enum):
     """Agent tool type."""
 
-    AGENT = "agent"
-    PROCESS = "process"
-    API = "api"
-    PROCESS_ORCHESTRATION = "processorchestration"
-    INTEGRATION = "integration"
+    AGENT = "Agent"
+    PROCESS = "Process"
+    API = "Api"
+    PROCESS_ORCHESTRATION = "ProcessOrchestration"
+    INTEGRATION = "Integration"
 
 
 class AgentToolSettings(BaseModel):
@@ -116,9 +116,15 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     @field_validator("type", mode="before")
     @classmethod
     def normalize_type(cls, v: Any) -> str:
-        """Normalize tool type to lowercase format."""
+        """Normalize tool type from lowercase to properly cased enum values."""
         if isinstance(v, str):
-            return v.lower()
+            lowercase_mapping = {
+                "agent": AgentToolType.AGENT,
+                "process": AgentToolType.PROCESS,
+                "api": AgentToolType.API,
+                "processorchestration": AgentToolType.PROCESS_ORCHESTRATION,
+            }
+            return lowercase_mapping.get(v.lower(), v)
         return v
 
     model_config = ConfigDict(
@@ -181,9 +187,9 @@ class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
     @field_validator("type", mode="before")
     @classmethod
     def normalize_type(cls, v: Any) -> str:
-        """Normalize tool type to lowercase format."""
-        if isinstance(v, str):
-            return v.lower()
+        """Normalize tool type from lowercase to properly cased enum values."""
+        if isinstance(v, str) and v.lower() == "integration":
+            return AgentToolType.INTEGRATION
         return v
 
     model_config = ConfigDict(
@@ -378,15 +384,20 @@ def custom_discriminator(data: Any) -> str:
             return "AgentMcpResourceConfig"
         elif resource_type == AgentResourceType.TOOL:
             tool_type = data.get("type")
-            if tool_type in [
-                AgentToolType.AGENT,
-                AgentToolType.PROCESS,
-                AgentToolType.API,
-                AgentToolType.PROCESS_ORCHESTRATION,
-            ]:
-                return "AgentProcessToolResourceConfig"
-            elif tool_type == AgentToolType.INTEGRATION:
-                return "AgentIntegrationToolResourceConfig"
+            if isinstance(tool_type, str):
+                tool_type_lower = tool_type.lower()
+                process_tool_types = {
+                    AgentToolType.AGENT.value.lower(),
+                    AgentToolType.PROCESS.value.lower(),
+                    AgentToolType.API.value.lower(),
+                    AgentToolType.PROCESS_ORCHESTRATION.value.lower(),
+                }
+                if tool_type_lower in process_tool_types:
+                    return "AgentProcessToolResourceConfig"
+                elif tool_type_lower == AgentToolType.INTEGRATION.value.lower():
+                    return "AgentIntegrationToolResourceConfig"
+                else:
+                    return "AgentUnknownToolResourceConfig"
             else:
                 return "AgentUnknownToolResourceConfig"
         else:
