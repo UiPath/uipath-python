@@ -186,3 +186,54 @@ class DigitizationResult(BaseModel):
     document_text: str = Field(alias="documentText")
     project_id: str = Field(alias="projectId")
     project_type: ProjectType = Field(alias="projectType")
+
+
+class Reference(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    text_start_index: int = Field(alias="TextStartIndex")
+    text_length: int = Field(alias="TextLength")
+    tokens: List[str] = Field(alias="Tokens")
+
+
+class DocumentBounds(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    start_page: int = Field(alias="StartPage")
+    page_count: int = Field(alias="PageCount")
+    text_start_index: int = Field(alias="TextStartIndex")
+    text_length: int = Field(alias="TextLength")
+    page_range: int = Field(alias="PageRange")
+
+
+class ClassificationResult(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    document_id: str = Field(alias="DocumentId")
+    document_type_id: str = Field(alias="DocumentTypeId")
+    confidence: float = Field(alias="Confidence")
+    ocr_confidence: float = Field(alias="OcrConfidence")
+    reference: Reference = Field(alias="Reference")
+    document_bounds: DocumentBounds = Field(alias="DocumentBounds")
+    classifier_name: str = Field(alias="ClassifierName")
+    project_id: str = Field(alias="ProjectId")
+
+
+class ClassificationResponse(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    classification_results: List[ClassificationResult] = Field(
+        alias="classificationResults"
+    )
