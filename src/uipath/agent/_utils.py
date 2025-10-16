@@ -4,7 +4,10 @@ from pathlib import PurePath
 from httpx import Response
 from pydantic import TypeAdapter
 
-from uipath._cli._evals._models._evaluation_set import LLMMockingStrategy
+from uipath._cli._evals._models._evaluation_set import (
+    InputMockingStrategy,
+    LLMMockingStrategy,
+)
 from uipath._cli._push.sw_file_handler import SwFileHandler
 from uipath._cli._utils._studio_project import (
     ProjectFile,
@@ -136,5 +139,15 @@ async def load_agent_definition(project_id: str) -> AgentDefinition:
                             )
                             evaluation.mocking_strategy = LLMMockingStrategy(
                                 prompt=prompt, tools_to_simulate=tools_to_simulate
+                            )
+
+                    if not evaluation.input_mocking_strategy:
+                        # Migrate lowCode input mocking fields
+                        if evaluation.model_extra.get("simulateInput", False):
+                            prompt = evaluation.model_extra.get(
+                                "inputGenerationInstructions",
+                            )
+                            evaluation.input_mocking_strategy = InputMockingStrategy(
+                                prompt=prompt
                             )
     return agent_definition

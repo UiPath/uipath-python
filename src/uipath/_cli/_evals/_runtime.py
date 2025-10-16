@@ -11,6 +11,10 @@ from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
+from uipath._cli._evals.mocks.input_mocker import (
+    generate_llm_input,
+)
+
 from ..._events._event_bus import EventBus
 from ..._events._events import (
     EvalItemExceptionDetails,
@@ -318,6 +322,10 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         evaluators: List[BaseEvaluator[Any]],
         event_bus: EventBus,
     ) -> EvaluationRunResult:
+        # Generate LLM-based input if input_mocking_strategy is defined
+        if eval_item.input_mocking_strategy:
+            eval_item = await self._generate_input_for_eval(eval_item)
+
         set_execution_context(eval_item, self.span_collector)
 
         await event_bus.publish(
@@ -416,6 +424,16 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             clear_execution_context()
 
         return evaluation_run_results
+
+    async def _generate_input_for_eval(
+        self, eval_item: EvaluationItem
+    ) -> EvaluationItem:
+        """Use LLM to generate a mock input for an evaluation item."""
+        # TODO(bai): get the input schema from agent definition, once it is available there.
+        input_schema: dict[str, Any] = {}
+        generated_input = await generate_llm_input(eval_item, input_schema)
+        updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
+        return updated_eval_item
 
     def _get_and_clear_execution_data(
         self, execution_id: str

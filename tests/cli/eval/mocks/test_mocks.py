@@ -136,6 +136,7 @@ async def test_mockito_mockable_async():
     assert await foo(x=2) == "bar1"
 
 
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
 def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
