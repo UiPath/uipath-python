@@ -648,7 +648,7 @@ class DocumentsService(FolderContext, BaseService):
         file_path: Optional[str] = None,
         digitization_result: Optional[DigitizationResult] = None,
         classification_result: Optional[ClassificationResult] = None,
-        project_type: ProjectType = None,
+        project_type: Optional[ProjectType] = None,
         document_type_name: Optional[str] = None,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         """Extract predicted data from a document using an IXP project.
@@ -704,6 +704,20 @@ class DocumentsService(FolderContext, BaseService):
                     digitization_result=digitization_result,
                     document_type_name="Receipts",
                     project_type=None,
+                )
+                ```
+                Using existing classification result:
+                ```python
+                with open("alex.pdf", "rb") as file:
+                    classification_results = uipath.documents.classify(
+                        tag="Production",
+                        project_name="MyModernProjectName",
+                        file=file,
+                    )
+
+                extraction_result = uipath.documents.extract(
+                    tag="Production",
+                    classification_result=max(results, key=lambda result: result.confidence),
                 )
                 ```
         """
