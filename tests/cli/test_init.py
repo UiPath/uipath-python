@@ -334,3 +334,232 @@ def main(input: Input) -> Output:
                         assert not resource["value"]["folderPath"]["isExpression"]
                     assert resource["value"]["name"]["displayName"] == "Name"
                     assert not resource["value"]["name"]["isExpression"]
+
+    def test_schema_json_draft07_compliance(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that generated schemas comply with JSON Schema draft-07 specification.
+
+        This test validates all supported types are correctly converted to their
+        JSON Schema draft-07 equivalents.
+        """
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create a comprehensive test script with all supported types
+            script_content = """
+from dataclasses import dataclass
+from enum import Enum
+from typing import List, Dict, Optional
+from pydantic import BaseModel
+
+
+# Enum types for testing
+class StringEnum(str, Enum):
+    OPTION_A = "option_a"
+    OPTION_B = "option_b"
+    OPTION_C = "option_c"
+
+
+class IntEnum(int, Enum):
+    ONE = 1
+    TWO = 2
+    THREE = 3
+
+
+class FloatEnum(float, Enum):
+    PI = 3.14
+    E = 2.71
+    GOLDEN = 1.618
+
+
+class BoolEnum(int, Enum):  # Python bools are ints
+    FALSE_VALUE = 0
+    TRUE_VALUE = 1
+
+
+# Nested Pydantic model for testing
+class NestedPydanticModel(BaseModel):
+    nested_field: str
+    nested_number: int
+
+
+# Nested dataclass for testing
+@dataclass
+class NestedDataclass:
+    nested_str: str
+    nested_int: int
+
+
+# Main Input class with all types
+@dataclass
+class Input:
+    # Basic types
+    string_field: str
+    integer_field: int
+    float_field: float
+    boolean_field: bool
+
+    # Collections
+    list_of_strings: List[str]
+    list_of_integers: List[int]
+    dict_field: Dict[str, str]
+
+    # Optional types
+    optional_string: Optional[str]
+    optional_int: Optional[int]
+    optional_list: Optional[List[str]]
+
+    # Enum types
+    string_enum_field: StringEnum
+    int_enum_field: IntEnum
+    float_enum_field: FloatEnum
+    bool_enum_field: BoolEnum
+
+    # Nested objects
+    pydantic_nested: NestedPydanticModel
+    dataclass_nested: NestedDataclass
+
+    # Complex nested types
+    list_of_objects: List[NestedDataclass]
+    nested_list: List[List[str]]
+
+    # Optional fields (with defaults)
+    optional_with_default: Optional[str] = None
+    int_with_default: int = 42
+
+
+@dataclass
+class Output:
+    result: str
+    success: bool
+
+
+def main(input: Input) -> Output:
+    return Output(result="test", success=True)
+"""
+            with open("comprehensive_types.py", "w") as f:
+                f.write(script_content)
+
+            # Run init command
+            result = runner.invoke(cli, ["init", "comprehensive_types.py"])
+            assert result.exit_code == 0
+            assert os.path.exists("uipath.json")
+
+            # Load and validate the generated config
+            with open("uipath.json", "r") as f:
+                config = json.load(f)
+                entry = config["entryPoints"][0]
+                input_schema = entry["input"]
+                output_schema = entry["output"]
+
+            # Validate top-level structure
+            assert input_schema["type"] == "object"
+            assert "properties" in input_schema
+            assert "required" in input_schema
+
+            props = input_schema["properties"]
+            required = input_schema["required"]
+
+            # Test basic types - JSON Schema draft-07 compliance
+            assert props["string_field"]["type"] == "string"
+            assert props["integer_field"]["type"] == "integer"
+            assert (
+                props["float_field"]["type"] == "number"
+            )  # draft-07 uses "number" not "double"
+            assert props["boolean_field"]["type"] == "boolean"
+
+            # Test collections
+            assert props["list_of_strings"]["type"] == "array"
+            assert "items" in props["list_of_strings"]
+            assert props["list_of_strings"]["items"]["type"] == "string"
+
+            assert props["list_of_integers"]["type"] == "array"
+            assert props["list_of_integers"]["items"]["type"] == "integer"
+
+            assert props["dict_field"]["type"] == "object"
+
+            # Test Optional types (should have the underlying type, not Union)
+            assert props["optional_string"]["type"] == "string"
+            assert props["optional_int"]["type"] == "integer"
+            assert props["optional_list"]["type"] == "array"
+            assert props["optional_list"]["items"]["type"] == "string"
+
+            # Test Enum types with proper type inference
+            assert props["string_enum_field"]["type"] == "string"
+            assert "enum" in props["string_enum_field"]
+            assert set(props["string_enum_field"]["enum"]) == {
+                "option_a",
+                "option_b",
+                "option_c",
+            }
+
+            assert props["int_enum_field"]["type"] == "integer"
+            assert "enum" in props["int_enum_field"]
+            assert set(props["int_enum_field"]["enum"]) == {1, 2, 3}
+
+            assert props["float_enum_field"]["type"] == "number"
+            assert "enum" in props["float_enum_field"]
+            assert set(props["float_enum_field"]["enum"]) == {3.14, 2.71, 1.618}
+
+            assert props["bool_enum_field"]["type"] == "integer"
+            assert "enum" in props["bool_enum_field"]
+            assert set(props["bool_enum_field"]["enum"]) == {0, 1}
+
+            # Test nested Pydantic model
+            assert props["pydantic_nested"]["type"] == "object"
+            assert "properties" in props["pydantic_nested"]
+            assert "required" in props["pydantic_nested"]
+            assert (
+                props["pydantic_nested"]["properties"]["nested_field"]["type"]
+                == "string"
+            )
+            assert (
+                props["pydantic_nested"]["properties"]["nested_number"]["type"]
+                == "integer"
+            )
+            assert set(props["pydantic_nested"]["required"]) == {
+                "nested_field",
+                "nested_number",
+            }
+
+            # Test nested dataclass
+            assert props["dataclass_nested"]["type"] == "object"
+            assert "properties" in props["dataclass_nested"]
+            assert "required" in props["dataclass_nested"]
+            assert (
+                props["dataclass_nested"]["properties"]["nested_str"]["type"]
+                == "string"
+            )
+            assert (
+                props["dataclass_nested"]["properties"]["nested_int"]["type"]
+                == "integer"
+            )
+            assert set(props["dataclass_nested"]["required"]) == {
+                "nested_str",
+                "nested_int",
+            }
+
+            # Test complex nested types
+            assert props["list_of_objects"]["type"] == "array"
+            assert props["list_of_objects"]["items"]["type"] == "object"
+            assert "properties" in props["list_of_objects"]["items"]
+
+            assert props["nested_list"]["type"] == "array"
+            assert props["nested_list"]["items"]["type"] == "array"
+            assert props["nested_list"]["items"]["items"]["type"] == "string"
+
+            # Test required fields (fields without defaults should be required)
+            # Fields with defaults should not be in required array
+            assert "string_field" in required
+            assert "integer_field" in required
+            assert "float_field" in required
+            assert "boolean_field" in required
+            assert "optional_with_default" not in required
+            assert "int_with_default" not in required
+
+            # Validate output schema
+            assert output_schema["type"] == "object"
+            assert "properties" in output_schema
+            assert "required" in output_schema
+            assert output_schema["properties"]["result"]["type"] == "string"
+            assert output_schema["properties"]["success"]["type"] == "boolean"
+            assert set(output_schema["required"]) == {"result", "success"}

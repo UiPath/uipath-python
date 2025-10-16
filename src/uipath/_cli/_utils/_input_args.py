@@ -2,6 +2,7 @@ import importlib.util
 import inspect
 import sys
 from dataclasses import fields, is_dataclass
+from enum import Enum
 from types import ModuleType
 from typing import (
     Any,
@@ -16,11 +17,11 @@ from typing import (
 
 from pydantic import BaseModel
 
-SchemaType = Literal["object", "integer", "double", "string", "boolean", "array"]
+SchemaType = Literal["object", "integer", "number", "string", "boolean", "array"]
 
 TYPE_MAP: Dict[str, SchemaType] = {
     "int": "integer",
-    "float": "double",
+    "float": "number",
     "str": "string",
     "bool": "boolean",
     "list": "array",
@@ -52,7 +53,25 @@ def get_type_schema(type_hint: Any) -> Dict[str, Any]:
         return {"type": "object"}
 
     if inspect.isclass(type_hint):
-        # Handle Pydantic models
+        if issubclass(type_hint, Enum):
+            enum_values = [member.value for member in type_hint]
+            if not enum_values:
+                return {"type": "string", "enum": []}
+
+            first_value = enum_values[0]
+            if isinstance(first_value, str):
+                enum_type = "string"
+            elif isinstance(first_value, int):
+                enum_type = "integer"
+            elif isinstance(first_value, float):
+                enum_type = "number"
+            elif isinstance(first_value, bool):
+                enum_type = "boolean"
+            else:
+                enum_type = "string"
+
+            return {"type": enum_type, "enum": enum_values}
+
         if issubclass(type_hint, BaseModel):
             properties = {}
             required = []
