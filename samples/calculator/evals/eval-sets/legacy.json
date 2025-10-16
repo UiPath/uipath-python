@@ -12,8 +12,14 @@
     {
       "id": "test-addition",
       "name": "Test Addition",
-      "inputs": {"a": 1, "b": 1, "operator":  "+"},
-      "expectedOutput": {"result": 2},
+      "inputs": {
+        "a": 1,
+        "b": 1,
+        "operator": "+"
+      },
+      "expectedOutput": {
+        "result": 2
+      },
       "expectedAgentBehavior": "",
       "evalSetId": "default-eval-set-id",
       "createdAt": "2025-09-04T18:54:58.378Z",
@@ -22,8 +28,14 @@
     {
       "id": "test-random-addition-using-mockito",
       "name": "Test Random Addition Using Mockito",
-      "inputs": {"a": 1, "b": 1, "operator":  "random"},
-      "expectedOutput": {"result": 2},
+      "inputs": {
+        "a": 1,
+        "b": 1,
+        "operator": "random"
+      },
+      "expectedOutput": {
+        "result": 2
+      },
       "expectedAgentBehavior": "",
       "mockingStrategy": {
         "type": "mockito",
@@ -37,7 +49,9 @@
             "then": [
               {
                 "type": "return",
-                "value": {"result": "+"}
+                "value": {
+                  "result": "+"
+                }
               }
             ]
           }
@@ -50,13 +64,23 @@
     {
       "id": "test-random-addition-using-llm",
       "name": "Test Random Addition Using LLM",
-      "inputs": {"a": 1, "b": 1, "operator":  "random"},
-      "expectedOutput": {"result": 2},
+      "inputs": {
+        "a": 1,
+        "b": 1,
+        "operator": "random"
+      },
+      "expectedOutput": {
+        "result": 2
+      },
       "expectedAgentBehavior": "",
       "mockingStrategy": {
         "type": "llm",
         "prompt": "The random operator is '+'.",
-        "toolsToSimulate": [{"name":  "get_random_operator"}],
+        "toolsToSimulate": [
+          {
+            "name": "get_random_operator"
+          }
+        ],
         "model": {
           "model": "gpt-4o-mini-2024-07-18",
           "temperature": 0

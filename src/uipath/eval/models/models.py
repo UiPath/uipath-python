@@ -236,6 +236,10 @@ class EvaluatorType(str, Enum):
     CONTAINS = "uipath-contains"
     EXACT_MATCH = "uipath-exact-match"
     JSON_SIMILARITY = "uipath-json-similarity"
+    LLM_JUDGE_OUTPUT_SEMANTIC_SIMILARITY = "uipath-llm-judge-output-semantic-similarity"
+    LLM_JUDGE_OUTPUT_STRICT_JSON_SIMILARITY = (
+        "uipath-llm-judge-output-strict-json-similarity"
+    )
 
 
 class ToolCall(BaseModel):

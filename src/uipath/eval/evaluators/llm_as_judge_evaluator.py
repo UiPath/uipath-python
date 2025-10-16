@@ -13,8 +13,8 @@ from ..models.models import AgentExecution, EvaluationResult, LLMResponse
 from .base_evaluator import LegacyBaseEvaluator
 
 
-class LlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
-    """Evaluator that uses an LLM to judge the quality of agent output."""
+class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
+    """Legacy evaluator that uses an LLM to judge the quality of agent output."""
 
     prompt: str
     model: str

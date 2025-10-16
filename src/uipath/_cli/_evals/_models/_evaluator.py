@@ -8,6 +8,10 @@ from uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEvaluat
 from uipath.eval.coded_evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluatorConfig,
 )
+from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
+    LLMJudgeOutputEvaluatorConfig,
+    LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
+)
 from uipath.eval.models.models import (
     EvaluatorType,
     LegacyEvaluatorCategory,
@@ -157,6 +161,10 @@ def evaluator_config_discriminator(data: Any) -> str:
                 return "ExactMatchEvaluatorConfig"
             case EvaluatorType.JSON_SIMILARITY:
                 return "JsonSimilarityEvaluatorConfig"
+            case EvaluatorType.LLM_JUDGE_OUTPUT_SEMANTIC_SIMILARITY:
+                return "LLMJudgeOutputEvaluatorConfig"
+            case EvaluatorType.LLM_JUDGE_OUTPUT_STRICT_JSON_SIMILARITY:
+                return "LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig"
             case _:
                 return "UnknownEvaluatorConfig"
     else:
@@ -202,6 +210,14 @@ EvaluatorConfig = Annotated[
         Annotated[
             JsonSimilarityEvaluatorConfig,
             Tag("JsonSimilarityEvaluatorConfig"),
+        ],
+        Annotated[
+            LLMJudgeOutputEvaluatorConfig,
+            Tag("LLMJudgeOutputEvaluatorConfig"),
+        ],
+        Annotated[
+            LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
+            Tag("LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig"),
         ],
         Annotated[
             UnknownEvaluatorConfig,

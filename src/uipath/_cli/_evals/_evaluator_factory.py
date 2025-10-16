@@ -26,11 +26,17 @@ from uipath.eval.coded_evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
     JsonSimilarityEvaluatorConfig,
 )
+from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
+    LLMJudgeOutputEvaluator,
+    LLMJudgeOutputEvaluatorConfig,
+    LLMJudgeStrictJSONSimilarityOutputEvaluator,
+    LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
+)
 from uipath.eval.evaluators import (
     LegacyBaseEvaluator,
     LegacyExactMatchEvaluator,
     LegacyJsonSimilarityEvaluator,
-    LlmAsAJudgeEvaluator,
+    LegacyLlmAsAJudgeEvaluator,
     TrajectoryEvaluator,
 )
 
@@ -58,6 +64,12 @@ class EvaluatorFactory:
                 return EvaluatorFactory._create_exact_match_evaluator(data)
             case JsonSimilarityEvaluatorConfig():
                 return EvaluatorFactory._create_json_similarity_evaluator(data)
+            case LLMJudgeOutputEvaluatorConfig():
+                return EvaluatorFactory._create_llm_judge_output_evaluator(data)
+            case LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig():
+                return EvaluatorFactory._create_llm_judge_strict_json_similarity_output_evaluator(
+                    data
+                )
             case _:
                 raise ValueError(f"Unknown evaluator configuration: {config}")
 
@@ -82,6 +94,24 @@ class EvaluatorFactory:
         data: Dict[str, Any],
     ) -> JsonSimilarityEvaluator:
         return JsonSimilarityEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_llm_judge_output_evaluator(
+        data: Dict[str, Any],
+    ) -> LLMJudgeOutputEvaluator:
+        return LLMJudgeOutputEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_llm_judge_strict_json_similarity_output_evaluator(
+        data: Dict[str, Any],
+    ) -> LLMJudgeStrictJSONSimilarityOutputEvaluator:
+        return LLMJudgeStrictJSONSimilarityOutputEvaluator(
             id=data.get("id"),
             config=data.get("evaluatorConfig"),
         )  # type: ignore
@@ -132,7 +162,7 @@ class EvaluatorFactory:
     @staticmethod
     def _create_legacy_llm_as_judge_evaluator(
         params: LLMEvaluatorParams,
-    ) -> LlmAsAJudgeEvaluator:
+    ) -> LegacyLlmAsAJudgeEvaluator:
         """Create an LLM-as-a-judge evaluator."""
         if not params.prompt:
             raise ValueError("LLM evaluator must include 'prompt' field")
@@ -144,7 +174,7 @@ class EvaluatorFactory:
                 "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
             )
 
-        return LlmAsAJudgeEvaluator(**params.model_dump())
+        return LegacyLlmAsAJudgeEvaluator(**params.model_dump())
 
     @staticmethod
     def _create_legacy_trajectory_evaluator(
