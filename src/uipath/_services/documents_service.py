@@ -263,10 +263,6 @@ class DocumentsService(FolderContext, BaseService):
     ) -> str:
         if project_type == ProjectType.IXP:
             return str(UUID(int=0))
-        if project_type == ProjectType.MODERN and document_type_name is None:
-            raise ValueError(
-                "`document_type_name` must be provided when `project_type` is `ProjectType.MODERN`"
-            )
 
         response = self.request(
             "GET",
@@ -279,7 +275,7 @@ class DocumentsService(FolderContext, BaseService):
             return next(
                 extractor["id"]
                 for extractor in response.json().get("documentTypes", [])
-                if extractor["name"].lower() == document_type_name.lower()
+                if extractor["name"].lower() == document_type_name.lower()  # type: ignore
             )
         except StopIteration:
             raise ValueError(
@@ -294,10 +290,6 @@ class DocumentsService(FolderContext, BaseService):
     ) -> str:
         if project_type == ProjectType.IXP:
             return str(UUID(int=0))
-        if project_type == ProjectType.MODERN and document_type_name is None:
-            raise ValueError(
-                "`document_type_name` must be provided when `project_type` is `ProjectType.MODERN`"
-            )
 
         response = await self.request_async(
             "GET",
@@ -310,7 +302,7 @@ class DocumentsService(FolderContext, BaseService):
             return next(
                 extractor["id"]
                 for extractor in response.json().get("documentTypes", [])
-                if extractor["name"].lower() == document_type_name.lower()
+                if extractor["name"].lower() == document_type_name.lower()  # type: ignore
             )
         except StopIteration:
             raise ValueError(
