@@ -9,6 +9,14 @@ from ..._utils.constants import DOTENV_FILE
 from ..spinner import Spinner
 
 
+def add_cwd_to_path():
+    import sys
+
+    cwd = os.getcwd()
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+
+
 def environment_options(function):
     function = click.option(
         "--alpha",

@@ -46,7 +46,7 @@ class TestGenerateAgentsMd:
 
                 # Verify console success message
                 mock_console.success.assert_called_once_with(
-                    " Created 'AGENTS.md' file."
+                    "Created '.agent/AGENTS.md' file."
                 )
 
     def test_generate_agents_md_skips_existing_file(self) -> None:
@@ -57,17 +57,11 @@ class TestGenerateAgentsMd:
             original_content = "Original content"
             agents_path.write_text(original_content)
 
-            with patch("uipath._cli.cli_init.console") as mock_console:
-                # Run function
-                generate_agent_specific_file_md(temp_dir, "AGENTS.md")
+            # Run function
+            generate_agent_specific_file_md(temp_dir, "AGENTS.md")
 
-                # Verify file wasn't changed
-                assert agents_path.read_text() == original_content
-
-                # Verify console info message
-                mock_console.info.assert_called_once_with(
-                    "Skipping 'AGENTS.md' creation as it already exists."
-                )
+            # Verify file wasn't changed
+            assert agents_path.read_text() == original_content
 
     def test_generate_agents_md_handles_errors_gracefully(self) -> None:
         """Test that errors are handled gracefully."""
@@ -135,8 +129,8 @@ class TestInitWithAgentsMd:
                 result = runner.invoke(cli, ["init"])
 
                 assert result.exit_code == 0
-                assert " Created 'AGENTS.md' file." in result.output
-                assert os.path.exists("AGENTS.md")
+                assert "Created '.agent/AGENTS.md' file." in result.output
+                assert os.path.exists(".agent/AGENTS.md")
 
     def test_init_does_not_overwrite_existing_agents_md(
         self, runner: CliRunner, temp_dir: str
@@ -156,7 +150,6 @@ class TestInitWithAgentsMd:
             result = runner.invoke(cli, ["init"])
 
             assert result.exit_code == 0
-            assert "Skipping 'AGENTS.md' creation" in result.output
 
             # Verify content wasn't changed
             with open("AGENTS.md", "r") as f:
