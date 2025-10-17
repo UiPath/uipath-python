@@ -60,7 +60,7 @@ def generate_env_file(target_directory):
         console.success(f"Created '{relative_path}' file.")
 
 
-def generate_agent_md_file(target_directory: str, file_name: str) -> None:
+def generate_agent_md_file(target_directory: str, file_name: str) -> bool:
     """Generate an agent-specific file from the packaged resource.
 
     Args:
@@ -69,9 +69,7 @@ def generate_agent_md_file(target_directory: str, file_name: str) -> None:
     """
     target_path = os.path.join(target_directory, file_name)
 
-    if os.path.exists(target_path):
-        logger.debug(f"File '{target_path}' already exists.")
-        return
+    will_override = os.path.exists(target_path)
 
     try:
         source_path = importlib.resources.files("uipath._resources").joinpath(file_name)
@@ -79,8 +77,15 @@ def generate_agent_md_file(target_directory: str, file_name: str) -> None:
         with importlib.resources.as_file(source_path) as s_path:
             shutil.copy(s_path, target_path)
 
+        if will_override:
+            logger.debug(f"File '{target_path}' has been overridden.")
+
+        return will_override
+
     except Exception as e:
         console.warning(f"Could not create {file_name}: {e}")
+
+    return False
 
 
 def generate_agent_md_files(target_directory: str) -> None:
@@ -96,13 +101,21 @@ def generate_agent_md_files(target_directory: str) -> None:
 
     agent_files = ["CLI_REFERENCE.md", "REQUIRED_STRUCTURE.md", "SDK_REFERENCE.md"]
 
+    any_overridden = False
+
     for file_name in root_files:
-        generate_agent_md_file(target_directory, file_name)
+        if generate_agent_md_file(target_directory, file_name):
+            any_overridden = True
 
     for file_name in agent_files:
-        generate_agent_md_file(agent_dir, file_name)
+        if generate_agent_md_file(agent_dir, file_name):
+            any_overridden = True
 
-    console.success(f"Created {click.style('AGENTS.md', fg='cyan')} file.")
+    if any_overridden:
+        console.success(f"Updated {click.style('AGENTS.md', fg='cyan')} related files.")
+        return
+
+    console.success(f"Created {click.style('AGENTS.md', fg='cyan')} related files.")
 
 
 def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
