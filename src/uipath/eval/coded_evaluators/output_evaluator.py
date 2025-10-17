@@ -114,4 +114,11 @@ class OutputEvaluator(BaseOutputEvaluator[T_OutputCriteria, C, J]):
 
     def _get_full_expected_output(self, evaluation_criteria: T_OutputCriteria) -> Any:
         """Get the full expected output from the evaluation criteria."""
+        if evaluation_criteria is None:
+            raise UiPathEvaluationError(
+                code="NO_EVALUATION_CRITERIA_PROVIDED",
+                title="No evaluation criteria provided for output evaluator",
+                detail="evaluation_criteria is None and no default_evaluation_criteria is configured in the evaluator config",
+                category=UiPathEvaluationErrorCategory.USER,
+            )
         return evaluation_criteria.expected_output

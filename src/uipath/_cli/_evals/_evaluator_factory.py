@@ -54,6 +54,13 @@ class EvaluatorFactory:
     def _create_evaluator_internal(
         data: Dict[str, Any],
     ) -> BaseEvaluator[Any, Any, Any]:
+        # # Validate only the evaluatorConfig part to determine type
+        # evaluator_config_data = data.get("evaluatorConfig", {})
+        # # Add evaluatorTypeId to the config data so discriminator can work
+        # evaluator_config_data_with_type = {
+        #     "evaluatorTypeId": data.get("evaluatorTypeId"),
+        #     **evaluator_config_data
+        # }
         config: BaseEvaluatorConfig[Any] = TypeAdapter(EvaluatorConfig).validate_python(
             data
         )

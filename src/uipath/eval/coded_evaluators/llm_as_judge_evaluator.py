@@ -3,7 +3,7 @@
 import json
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, Dict, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -26,6 +26,42 @@ from .base_evaluator import (
 )
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
+
+
+def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
+    """Clean up a Pydantic model schema for use with LLM Gateway.
+
+    This function removes titles and ensures additionalProperties is set on objects.
+    """
+    schema = model_class.model_json_schema()
+
+    def clean_type(type_def):
+        """Clean property definitions by removing titles and cleaning nested items."""
+        cleaned_type = {}
+        for key, value in type_def.items():
+            if key == "title" or key == "properties":
+                continue
+            else:
+                cleaned_type[key] = value
+        if type_def.get("type") == "object" and "additionalProperties" not in type_def:
+            cleaned_type["additionalProperties"] = False
+
+        if "properties" in type_def:
+            properties = type_def.get("properties", {})
+            for key, value in properties.items():
+                properties[key] = clean_type(value)
+            cleaned_type["properties"] = properties
+
+        if "$defs" in type_def:
+            cleaned_defs = {}
+            for key, value in type_def["$defs"].items():
+                cleaned_defs[key] = clean_type(value)
+            cleaned_type["$defs"] = cleaned_defs
+        return cleaned_type
+
+    # Create clean schema
+    clean_schema = clean_type(schema)
+    return clean_schema
 
 
 class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
@@ -82,7 +118,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
 
         try:
             uipath = UiPath()
-            return uipath.llm.chat_completions
+            return uipath.llm_openai.chat_completions
         except Exception as e:
             raise UiPathEvaluationError(
                 code="FAILED_TO_GET_LLM_SERVICE",
@@ -157,12 +193,15 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
                 "type": "json_schema",
                 "json_schema": {
                     "name": "evaluation_response",
-                    "schema": self.output_schema.model_json_schema(),
+                    "schema": _cleanup_schema(self.output_schema),
                 },
             },
-            "max_tokens": self.evaluator_config.max_tokens,
             "temperature": self.evaluator_config.temperature,
         }
+
+        # Only include max_tokens if it's not None
+        if self.evaluator_config.max_tokens is not None:
+            request_data["max_tokens"] = self.evaluator_config.max_tokens
 
         if self.llm_service is None:
             raise UiPathEvaluationError(

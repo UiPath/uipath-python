@@ -5,7 +5,10 @@ import os
 from typing import List, Optional
 
 import click
+from rich.console import Console
+from rich.table import Table
 
+from uipath import UiPath
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
@@ -21,6 +24,8 @@ from uipath._cli._utils._constants import UIPATH_PROJECT_ID
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli.middlewares import Middlewares
 from uipath._events._event_bus import EventBus
+from uipath._utils import Endpoint
+from uipath._utils.constants import ENV_EVAL_BACKEND_URL, ENV_BASE_URL, ENV_TENANT_ID, HEADER_INTERNAL_TENANT_ID
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -30,6 +35,102 @@ from ._utils._console import ConsoleLogger
 from ._utils._eval_set import EvalHelpers
 
 console = ConsoleLogger()
+
+
+async def list_eval_runs() -> None:
+    """List previous evaluation runs for the current agent."""
+    try:
+        project_id = os.getenv(UIPATH_PROJECT_ID)
+        if not project_id:
+            console.error("UIPATH_PROJECT_ID environment variable not set. Please set it to list previous runs.")
+            return
+
+        tenant_id = os.getenv(ENV_TENANT_ID)
+        if not tenant_id:
+            console.error(f"{ENV_TENANT_ID} env var is not set. Please run 'uipath auth'.")
+            return
+
+        # Get eval backend URL
+        eval_url = os.getenv(ENV_EVAL_BACKEND_URL)
+        if eval_url:
+            base_url = eval_url.rstrip("/")
+        else:
+            base_url = os.getenv(ENV_BASE_URL, "https://cloud.uipath.com").rstrip("/")
+
+        # Initialize UiPath client
+        uipath = UiPath()
+        client = uipath.api_client
+
+        # Build the endpoint URL
+        url = f"{base_url}/api/execution/agents/{project_id}/coded/evalSetRuns"
+
+        # Make the API call
+        response = await client.request_async(
+            method="GET",
+            url=url,
+            params={"agentId": project_id},
+            headers={HEADER_INTERNAL_TENANT_ID: tenant_id}
+        )
+
+        # Parse the response
+        import json
+        runs = json.loads(response.content)
+
+        if not runs:
+            console.info("No previous evaluation runs found for this agent.")
+            return
+
+        # Display results in a nice table
+        rich_console = Console()
+        table = Table(title=f"Evaluation Runs for Agent {project_id}")
+
+        table.add_column("Run ID", style="cyan", no_wrap=True)
+        table.add_column("Eval Set ID", style="magenta")
+        table.add_column("Status", style="green")
+        table.add_column("Evals Executed", justify="right")
+        table.add_column("Score", justify="right")
+        table.add_column("Duration (ms)", justify="right")
+        table.add_column("Created At", style="yellow")
+
+        for run in runs:
+            # Map status: API returns camelCase strings ("pending", "running", "completed")
+            status_value = run.get("status", "unknown")
+            if isinstance(status_value, str):
+                # Handle string status from API
+                status_map = {
+                    "pending": "Pending",
+                    "running": "Running",
+                    "completed": "Completed"
+                }
+                status = status_map.get(status_value.lower(), status_value.capitalize())
+            else:
+                # Handle integer status as fallback
+                status_map = {0: "Pending", 1: "Running", 2: "Completed"}
+                status = status_map.get(status_value, "Unknown")
+
+            table.add_row(
+                str(run.get("id", "N/A"))[:8] + "...",  # Truncate UUID for display
+                run.get("evalSetId", "N/A"),
+                status,
+                str(run.get("numberOfEvalsExecuted", "N/A")),
+                f"{run.get('score', 0):.2f}" if run.get("score") is not None else "N/A",
+                str(run.get("durationMilliseconds", "N/A")),
+                run.get("createdAt", "N/A")[:19],  # Truncate timestamp
+            )
+
+        rich_console.print(table)
+
+        # Show evaluator scores summary
+        rich_console.print("\n[bold]Evaluator Scores for Most Recent Run:[/bold]")
+        if runs and runs[0].get("evaluatorScores"):
+            scores = runs[0]["evaluatorScores"]
+            for score in scores:
+                evaluator_id = score.get("evaluatorId", "Unknown")
+                value = score.get("value", 0)
+                rich_console.print(f"  • {evaluator_id}: [green]{value:.2f}[/green]")
+
+    except Exception as e:
+        console.error(f"Failed to list eval runs: {e}")
 
 
 class LiteralOption(click.Option):
@@ -78,6 +179,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     type=click.Path(exists=False),
     help="File path where the output will be written",
 )
+@click.option(
+    "--list-runs",
+    is_flag=True,
+    help="List previous evaluation runs for this agent",
+    default=False,
+)
 @track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
 def eval(
     entrypoint: Optional[str],
@@ -86,6 +193,7 @@ def eval(
     no_report: bool,
     workers: int,
     output_file: Optional[str],
+    list_runs: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -95,7 +203,17 @@ def eval(
         eval_ids: Optional list of evaluation IDs
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
+        list_runs: List previous evaluation runs for this agent
     """
+    # Suppress HTTP request logs from httpx
+    import logging
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+    # Handle --list-runs flag
+    if list_runs:
+        asyncio.run(list_eval_runs())
+        return
+
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
     result = Middlewares.next(

@@ -63,9 +63,18 @@ class ConsoleProgressReporter:
             for eval_result in eval_results:
                 evaluator_name = self._get_evaluator_name(eval_result.evaluator_id)
                 score_value = self._convert_score_to_numeric(eval_result)
-                table.add_row(
-                    f"{evaluator_name}", f"[bold cyan]{score_value:.1f}[/bold cyan]"
-                )
+
+                # Show error details if score type is ERROR
+                if eval_result.result.score_type == ScoreType.ERROR:
+                    error_details = eval_result.result.details or "Unknown error"
+                    table.add_row(
+                        f"{evaluator_name}",
+                        f"[red]{score_value:.1f} (Error: {error_details})[/red]"
+                    )
+                else:
+                    table.add_row(
+                        f"{evaluator_name}", f"[bold cyan]{score_value:.1f}[/bold cyan]"
+                    )
 
             self.console.print(table)
         else:
