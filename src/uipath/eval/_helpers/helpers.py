@@ -58,10 +58,15 @@ def track_evaluation_metrics(func: Callable[..., Any]) -> Callable[..., Any]:
 
     @functools.wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> EvaluationResult:
+        import logging
+        logger = logging.getLogger(__name__)
+
         start_time = time.time()
         try:
             result = await func(*args, **kwargs)
         except Exception as e:
+            # Log the full error for debugging
+            logger.error(f"Evaluator error in {func.__name__}: {type(e).__name__}: {e}", exc_info=True)
             result = ErrorEvaluationResult(
                 details="Exception thrown by evaluator: {}".format(e),
                 evaluation_time=time.time() - start_time,

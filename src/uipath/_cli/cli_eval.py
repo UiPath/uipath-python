@@ -205,6 +205,10 @@ def eval(
         no_report: Do not report the evaluation results
         list_runs: List previous evaluation runs for this agent
     """
+    # Suppress HTTP request logs from httpx
+    import logging
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
     # Handle --list-runs flag
     if list_runs:
         asyncio.run(list_eval_runs())

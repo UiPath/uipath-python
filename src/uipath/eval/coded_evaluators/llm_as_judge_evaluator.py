@@ -193,7 +193,6 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
                 "type": "json_schema",
                 "json_schema": {
                     "name": "evaluation_response",
-                    "strict": True,
                     "schema": _cleanup_schema(self.output_schema),
                 },
             },

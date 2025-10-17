@@ -27,33 +27,11 @@ class LLMJudgeOutputEvaluatorConfig(
 ):
     """Configuration for the LLM judge output evaluator."""
 
-    name: str = Field(
-        default="LLMJudgeOutputEvaluator",
-        validation_alias=AliasPath("evaluatorConfig", "name")
-    )
-    prompt: str = Field(
-        default=LLMJudgePromptTemplates.LLM_JUDGE_DEFAULT_USER_PROMPT,
-        validation_alias=AliasPath("evaluatorConfig", "prompt")
-    )
-    model: str = Field(validation_alias=AliasPath("evaluatorConfig", "model"))
-    temperature: float = Field(
-        default=0.0,
-        validation_alias=AliasPath("evaluatorConfig", "temperature")
-    )
-    max_tokens: int | None = Field(
-        default=None,
-        validation_alias=AliasPath("evaluatorConfig", "maxTokens")
-    )
-    target_output_key: str = Field(
-        default="*",
-        validation_alias=AliasPath("evaluatorConfig", "targetOutputKey")
-    )
-    default_evaluation_criteria: OutputEvaluationCriteria | None = Field(
-        default=None,
-        validation_alias=AliasPath("evaluatorConfig", "defaultEvaluationCriteria")
-    )
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    name: str = "LLMJudgeOutputEvaluator"
+    prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_DEFAULT_USER_PROMPT
+    # Note: model, temperature, max_tokens are inherited from BaseLLMJudgeEvaluatorConfig
+    # and target_output_key, default_evaluation_criteria are inherited from OutputEvaluatorConfig/BaseEvaluatorConfig
+    # They will all use the auto-generated camelCase aliases from to_camel
 
 
 class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(LLMJudgeOutputEvaluatorConfig):

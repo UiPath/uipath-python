@@ -307,7 +307,6 @@ class UiPathOpenAIService(BaseService):
                     "type": "json_schema",
                     "json_schema": {
                         "name": response_format.__name__.lower(),
-                        "strict": True,
                         "schema": cleaned_schema,
                     },
                 }
@@ -503,7 +502,6 @@ class UiPathLlmChatService(BaseService):
                     "type": "json_schema",
                     "json_schema": {
                         "name": response_format.__name__.lower(),
-                        "strict": True,
                         "schema": cleaned_schema,
                     },
                 }

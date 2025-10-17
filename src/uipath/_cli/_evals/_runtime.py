@@ -213,15 +213,19 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                                 evaluator.id
                             ]
 
+                            # Use evaluation_criteria from the eval item, or fall back to default
+                            if evaluation_criteria is not None:
+                                typed_criteria = evaluator.evaluation_criteria_type(  # type: ignore
+                                    **evaluation_criteria
+                                )
+                            else:
+                                typed_criteria = evaluator.evaluator_config.default_evaluation_criteria  # type: ignore
+
                             evaluation_result = await self.run_evaluator(
                                 evaluator=evaluator,  # type: ignore
                                 execution_output=agent_execution_output,
                                 eval_item=eval_item,
-                                evaluation_criteria=evaluator.evaluation_criteria_type(  # type: ignore
-                                    **evaluation_criteria
-                                )
-                                if evaluation_criteria
-                                else evaluator.evaluator_config.default_evaluation_criteria,  # type: ignore
+                                evaluation_criteria=typed_criteria,
                             )
                         case _:
                             # Skip if evaluator not in evaluation criteria

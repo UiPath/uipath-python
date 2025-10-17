@@ -52,14 +52,12 @@ def gracefully_handle_errors(func):
         try:
             return await func(self, *args, **kwargs)
         except Exception as e:
-            if hasattr(self, "_console"):
-                error_type = type(e).__name__
-                logger.warning(
-                    f"Cannot report progress to SW. "
-                    f"Function: {func.__name__}, "
-                    f"Error type: {error_type}, "
-                    f"Details: {e}"
-                )
+            # Log at debug level for troubleshooting
+            logger.debug(
+                f"Cannot report progress to SW. "
+                f"Function: {func.__name__}, "
+                f"Error: {e}"
+            )
             return None
 
     return wrapper
@@ -72,6 +70,7 @@ class StudioWebProgressReporter:
         self.spans_exporter = spans_exporter
 
         logging.getLogger("uipath._cli.middlewares").setLevel(logging.CRITICAL)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
         console_logger = ConsoleLogger.get_instance()
         uipath = UiPath()
 
@@ -94,13 +93,14 @@ class StudioWebProgressReporter:
 
     def _format_error_message(self, error: Exception, context: str) -> None:
         """Helper method to format and display error messages consistently."""
-        self._rich_console.print(f"    • \u26a0  [dim]{context}: {error}[/dim]")
+        # Only show simple message without full error details
+        self._rich_console.print(f"    • ⚠  [dim]{context}[/dim]")
 
     def _get_eval_backend_url(self) -> str:
         """Get the eval backend URL from environment, falling back to UIPATH_URL."""
         eval_url = os.getenv(ENV_EVAL_BACKEND_URL)
         if eval_url:
-            logger.info(f"Using eval backend URL: {eval_url}")
+            logger.debug(f"Using eval backend URL: {eval_url}")
             return eval_url.rstrip("/")
 
         base_url = os.getenv(ENV_BASE_URL, "https://cloud.uipath.com")
@@ -225,7 +225,7 @@ class StudioWebProgressReporter:
                     self.eval_run_ids[payload.execution_id] = eval_run_id
                     logger.debug(f"Created eval run with ID: {eval_run_id}")
             else:
-                logger.warning("Cannot create eval run: eval_set_run_id not available")
+                logger.debug("Cannot create eval run: eval_set_run_id not available")
 
         except Exception as e:
             self._format_error_message(e, "StudioWeb create eval run error")
@@ -280,7 +280,7 @@ class StudioWebProgressReporter:
                 )
                 logger.debug(f"Updated eval set run with ID: {eval_set_run_id}")
             else:
-                logger.warning(
+                logger.debug(
                     "Cannot update eval set run: eval_set_run_id not available"
                 )
 
@@ -325,7 +325,7 @@ class StudioWebProgressReporter:
                 input_schema=input_schema, output_schema=output_schema
             )
         except Exception as e:
-            logger.warning(f"Failed to extract agent snapshot: {e}")
+            logger.debug(f"Failed to extract agent snapshot: {e}")
             return StudioWebAgentSnapshot(input_schema={}, output_schema={})
 
     def _collect_results(
