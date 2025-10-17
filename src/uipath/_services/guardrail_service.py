@@ -16,6 +16,14 @@ from ..models.guardrails import (
     Guardrail,
     LogAction,
 )
+    Guardrail,
+    GuardrailAction,
+    GuardrailSelector,
+    LogAction,
+    MapEnumParameterValue,
+    NumberParameterValue,
+    ValidatorParameter,
+)
 from ..tracing import traced
 from ._base_service import BaseService
 
@@ -32,7 +40,6 @@ class GuardrailViolationError(Exception):
         self.detected_issue = detected_issue
         super().__init__(f"Guardrail violation detected: {detected_issue}")
 
-
 class GuardrailsService(FolderContext, BaseService):
     """Service for validating text against UiPath Guardrails."""
 
@@ -41,12 +48,8 @@ class GuardrailsService(FolderContext, BaseService):
 
     @traced
     def evaluate_guardrail(
-        self,
         input_data: Union[str, Dict[str, Any]],
         guardrail: Guardrail,
-        *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Call the API to validate input_data with the given guardrail.
@@ -68,6 +71,8 @@ class GuardrailsService(FolderContext, BaseService):
                 json=payload,
                 headers={**header_folder(folder_key, folder_path)},
             )
+        input_data: Union[str, Dict[str, Any]],
+        guardrail: Guardrail,
             response = self.request(
                 spec.method,
                 url=spec.endpoint,
@@ -79,10 +84,8 @@ class GuardrailsService(FolderContext, BaseService):
             raise NotImplementedError(
                 "Custom guardrail validation is not yet supported by the API."
             )
-
     @traced
     async def execute_guardrail(
-        self,
         validation_result: Dict[str, Any],
         guardrail: Guardrail,
         tool_name: str,
@@ -93,9 +96,7 @@ class GuardrailsService(FolderContext, BaseService):
         """
         if validation_result.get("validation_passed", True):
             return
-
         action = guardrail.action
-
         if isinstance(action, EscalateAction):
             action_data = {
                 "GuardrailName": guardrail.name,
@@ -122,13 +123,11 @@ class GuardrailsService(FolderContext, BaseService):
                 app_version=action.app.version,
                 include_metadata=True,
             )
-
             # nu merge asta
             # action_output = interrupt(create_action)
             processor = HitlProcessor(create_action)
             resume_trigger = await processor.create_resume_trigger()
             action_output = await HitlReader.read(resume_trigger)
-
             if hasattr(action_output, "action"):
                 if action_output.action == "Approve":
                     if hasattr(action_output, "data") and action_output.data.get(
@@ -147,59 +146,43 @@ class GuardrailsService(FolderContext, BaseService):
                     if hasattr(action_output, "data") and action_output.data:
                         reason = action_output.data.get("Reason", reason)
                     raise GuardrailViolationError(reason)
-
         elif isinstance(action, BlockAction):
             raise GuardrailViolationError(action.reason)
         elif isinstance(action, LogAction):
             reason = validation_result.get("reason", "Guardrail violation detected")
             severity = action.severity_level.value
             print(f"GUARDRAIL LOG [{severity}]: {reason}")
-
         elif isinstance(action, FilterAction):
             # TODO: see what it clearly does
             # implement filtering logic
             print(
                 f"GUARDRAIL FILTER: Fields to filter: {[f.path for f in action.fields]}"
             )
-
     def _should_apply_guardrail(self, guardrail: Guardrail, tool_name: str) -> bool:
         """Check if guardrail should apply to the current tool context."""
         selector = guardrail.selector
-
         # Check scopes
         scope_values = [scope.value for scope in selector.scopes]
         if "Tool" not in scope_values:
             return False
-
         # Check match names (if specified)
         if selector.match_names:
             return tool_name in selector.match_names or "*" in selector.match_names
-
         return True
-
     @traced
     async def process_guardrails(
-        self,
         input_data: Union[str, Dict[str, Any]],
         guardrails: List[Guardrail],
         tool_name: str = "unknown",
-        *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
         stop_on_first_failure: bool = True,
-    ) -> Dict[str, Any]:
         """
         Process multiple guardrails: evaluate each one and execute its action if needed.
-
-        Args:
             input_data: Data to validate
             guardrails: List of guardrails to process
             tool_name: Name of the tool being validated
             folder_key: Optional folder key
             folder_path: Optional folder path
             stop_on_first_failure: Whether to stop processing on first failure
-
-        Returns:
             Summary of processing results
         """
         results = {
@@ -214,9 +197,7 @@ class GuardrailsService(FolderContext, BaseService):
             "all_passed": True,
             "details": [],
         }
-
         print(f"Processing {len(guardrails)} guardrail(s) for tool '{tool_name}'")
-
         for i, guardrail in enumerate(guardrails):
             detail = {
                 "guardrail_id": guardrail.id,
@@ -224,7 +205,6 @@ class GuardrailsService(FolderContext, BaseService):
                 "guardrail_type": guardrail.guardrail_type,
                 "index": i + 1,
             }
-
             try:
                 print(f"[{i + 1}/{len(guardrails)}] {guardrail.name}")
 
@@ -236,7 +216,6 @@ class GuardrailsService(FolderContext, BaseService):
                     )
                     results["details"].append(detail)
                     continue
-
                 # 1: Evaluate guardrail
                 validation_result = self.evaluate_guardrail(
                     input_data=input_data,
@@ -244,10 +223,8 @@ class GuardrailsService(FolderContext, BaseService):
                     folder_key=folder_key,
                     folder_path=folder_path,
                 )
-
                 results["processed"] += 1
                 validation_passed = validation_result.get("validation_passed", True)
-
                 if validation_passed:
                     results["passed"] += 1
                     detail.update(
@@ -257,15 +234,12 @@ class GuardrailsService(FolderContext, BaseService):
                     results["failed"] += 1
                     results["all_passed"] = False
                     reason = validation_result.get("reason", "Unknown reason")
-
                     detail.update(
-                        {
                             "status": "failed",
                             "reason": reason,
                             "validation_result": validation_result,
                         }
                     )
-
                     # 2: Execute guardrail action
                     try:
                         await self.execute_guardrail(
@@ -274,16 +248,16 @@ class GuardrailsService(FolderContext, BaseService):
                             tool_name=tool_name,
                         )
                         detail["action_executed"] = True
+        else:
+            raise NotImplementedError("Custom guardrail validation is not yet supported by the API.")
 
                     except GuardrailViolationError:
                         detail["action_executed"] = True
                         detail["blocked"] = True
                         raise
-
                     except Exception as action_error:
                         detail["action_error"] = str(action_error)
                         print(f"Action execution failed: {action_error}")
-
                     # Stop on first failure if requested
                     if stop_on_first_failure:
                         detail["stopped_early"] = True
@@ -291,6 +265,7 @@ class GuardrailsService(FolderContext, BaseService):
                         break
 
                 results["details"].append(detail)
+            # TODO fa o aplicatie in studio + review vezi ce se intmapla
 
             except GuardrailViolationError:
                 detail["status"] = "blocked"
@@ -314,3 +289,4 @@ class GuardrailsService(FolderContext, BaseService):
         print(f"  All passed: {results['all_passed']}")
 
         return results
+            print(f"GUARDRAIL FILTER: Fields to filter: {[f.path for f in action.fields]}")
