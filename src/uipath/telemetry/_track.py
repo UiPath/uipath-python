@@ -95,6 +95,7 @@ class _TelemetryClient:
                 "service.name=uipath-sdk,service.instance.id=" + version("uipath")
             )
             os.environ["OTEL_TRACES_EXPORTER"] = "none"
+            os.environ["APPLICATIONINSIGHTS_STATSBEAT_DISABLED_ALL"] = "true"
 
             configure_azure_monitor(
                 connection_string=_CONNECTION_STRING,
