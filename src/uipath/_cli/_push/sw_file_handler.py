@@ -453,7 +453,7 @@ class SwFileHandler:
             )
             logger.info("Uploading 'agent.json'")
 
-    async def upload_source_files(self, config_data: dict[str, Any]) -> None:
+    async def upload_source_files(self, settings: Optional[dict[str, Any]]) -> None:
         """Main method to upload source files to the UiPath project.
 
         - Gets project structure
@@ -462,7 +462,7 @@ class SwFileHandler:
         - Deletes removed files
 
         Args:
-            config_data: Project configuration data
+            settings: File handling settings
 
         Returns:
             Dict[str, ProjectFileExtended]: Root level files for agent.json handling
@@ -493,7 +493,7 @@ class SwFileHandler:
 
         # Get files to upload and process them
         files = files_to_include(
-            config_data,
+            settings,
             self.directory,
             self.include_uv_lock,
             directories_to_ignore=["evals"],
