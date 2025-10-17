@@ -326,7 +326,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         if eval_item.input_mocking_strategy:
             eval_item = await self._generate_input_for_eval(eval_item)
 
-        set_execution_context(eval_item, self.span_collector)
+        execution_id = str(uuid.uuid4())
+        set_execution_context(eval_item, self.span_collector, execution_id)
 
         await event_bus.publish(
             EvaluationEvents.CREATE_EVAL_RUN,
@@ -341,7 +342,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         )
 
         try:
-            agent_execution_output = await self.execute_runtime(eval_item)
+            agent_execution_output = await self.execute_runtime(eval_item, execution_id)
             evaluation_item_results: list[EvalItemResult] = []
 
             for evaluator in evaluators:
@@ -448,9 +449,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         return spans, logs
 
     async def execute_runtime(
-        self, eval_item: EvaluationItem
+        self, eval_item: EvaluationItem, execution_id: str
     ) -> UiPathEvalRunExecutionOutput:
-        execution_id = str(uuid.uuid4())
         runtime_context: C = self.factory.new_context(
             execution_id=execution_id,
             input_json=eval_item.inputs,

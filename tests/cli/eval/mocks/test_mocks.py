@@ -54,7 +54,7 @@ def test_mockito_mockable_sync():
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector)
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
     assert foo() == "bar1"
     assert foo() == "bar2"
     assert foo() == "bar2"
@@ -66,13 +66,13 @@ def test_mockito_mockable_sync():
         assert foofoo()
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
-    set_execution_context(evaluation, _mock_span_collector)
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
     assert foo(x=1) == "bar1"
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
         "x": {"_target_": "mockito.any"}
     }
-    set_execution_context(evaluation, _mock_span_collector)
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
     assert foo(x=2) == "bar1"
 
 
@@ -114,7 +114,7 @@ async def test_mockito_mockable_async():
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector)
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
     assert await foo() == "bar1"
     assert await foo() == "bar2"
     assert await foo() == "bar2"
@@ -126,13 +126,13 @@ async def test_mockito_mockable_async():
         assert await foofoo()
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
-    set_execution_context(evaluation, _mock_span_collector)
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
     assert await foo(x=1) == "bar1"
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
         "x": {"_target_": "mockito.any"}
     }
-    set_execution_context(evaluation, _mock_span_collector)
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
     assert await foo(x=2) == "bar1"
 
 
@@ -205,7 +205,7 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
         },
     )
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector)
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
 
     assert foo() == "bar1"
     with pytest.raises(NotImplementedError):
@@ -278,7 +278,7 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
         },
     )
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector)
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
 
     assert await foo() == "bar1"
     with pytest.raises(NotImplementedError):

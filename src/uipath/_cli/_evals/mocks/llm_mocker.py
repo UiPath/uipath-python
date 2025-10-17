@@ -96,7 +96,11 @@ class LLMMocker(Mocker):
             from uipath import UiPath
             from uipath._services.llm_gateway_service import _cleanup_schema
 
-            from .mocks import evaluation_context, span_collector_context
+            from .mocks import (
+                evaluation_context,
+                execution_id_context,
+                span_collector_context,
+            )
 
             llm = UiPath().llm
             return_type: Any = func.__annotations__.get("return", None)
@@ -126,8 +130,9 @@ class LLMMocker(Mocker):
                 test_run_history = "(empty)"
                 eval_item = evaluation_context.get()
                 span_collector = span_collector_context.get()
-                if eval_item and span_collector:
-                    spans = span_collector.get_spans(eval_item.id)
+                execution_id = execution_id_context.get()
+                if eval_item and span_collector and execution_id:
+                    spans = span_collector.get_spans(execution_id)
                     test_run_history = _SpanUtils.spans_to_llm_context(spans)
 
                 prompt_input: dict[str, Any] = {
