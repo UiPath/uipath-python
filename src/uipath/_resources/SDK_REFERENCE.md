@@ -1,4 +1,4 @@
-## Quick API Reference
+## API Reference
 
 This section provides a comprehensive reference for all UiPath SDK services and methods. Each service is documented with complete method signatures, including parameter types and return types.
 
@@ -130,6 +130,12 @@ sdk.connections.list(name: Optional[str]=None, folder_path: Optional[str]=None, 
 
 # Asynchronously lists all connections with optional filtering.
 sdk.connections.list_async(name: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, connector_key: Optional[str]=None, skip: Optional[int]=None, top: Optional[int]=None) -> typing.List[uipath.models.connections.Connection]
+
+# Synchronously retrieve connection API metadata.
+sdk.connections.metadata(element_instance_id: int, tool_path: str, schema_mode: bool=True) -> uipath.models.connections.ConnectionMetadata
+
+# Asynchronously retrieve connection API metadata.
+sdk.connections.metadata_async(element_instance_id: int, tool_path: str, schema_mode: bool=True) -> uipath.models.connections.ConnectionMetadata
 
 # Retrieve connection details by its key.
 sdk.connections.retrieve(key: str) -> uipath.models.connections.Connection

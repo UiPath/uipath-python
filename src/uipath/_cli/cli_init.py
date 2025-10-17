@@ -60,20 +60,17 @@ def generate_env_file(target_directory):
         console.success(f"Created '{relative_path}' file.")
 
 
-def generate_agent_specific_file_md(target_directory: str, file_name: str) -> None:
+def generate_agent_md_file(target_directory: str, file_name: str) -> None:
     """Generate an agent-specific file from the packaged resource.
 
     Args:
         target_directory: The directory where the file should be created.
         file_name: The name of the file should be created.
     """
-    agent_dir = os.path.join(target_directory, ".agent")
-    os.makedirs(agent_dir, exist_ok=True)
-
-    target_path = os.path.join(agent_dir, file_name)
+    target_path = os.path.join(target_directory, file_name)
 
     if os.path.exists(target_path):
-        logger.debug(f"File '.agent/{target_path}' already exists.")
+        logger.debug(f"File '{target_path}' already exists.")
         return
 
     try:
@@ -82,9 +79,30 @@ def generate_agent_specific_file_md(target_directory: str, file_name: str) -> No
         with importlib.resources.as_file(source_path) as s_path:
             shutil.copy(s_path, target_path)
 
-        console.success(f"Created '{f'.agent/{file_name}'}' file.")
     except Exception as e:
         console.warning(f"Could not create {file_name}: {e}")
+
+
+def generate_agent_md_files(target_directory: str) -> None:
+    """Generate an agent-specific file from the packaged resource.
+
+    Args:
+        target_directory: The directory where the files should be created.
+    """
+    agent_dir = os.path.join(target_directory, ".agent")
+    os.makedirs(agent_dir, exist_ok=True)
+
+    root_files = ["AGENTS.md", "CLAUDE.md"]
+
+    agent_files = ["CLI_REFERENCE.md", "REQUIRED_STRUCTURE.md", "SDK_REFERENCE.md"]
+
+    for file_name in root_files:
+        generate_agent_md_file(target_directory, file_name)
+
+    for file_name in agent_files:
+        generate_agent_md_file(agent_dir, file_name)
+
+    console.success(f"Created {click.style('AGENTS.md', fg='cyan')} file.")
 
 
 def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
@@ -161,11 +179,6 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
         current_directory = os.getcwd()
         generate_env_file(current_directory)
         create_telemetry_config_file(current_directory)
-        generate_agent_specific_file_md(current_directory, "AGENTS.md")
-        generate_agent_specific_file_md(current_directory, "CLI_REFERENCE.md")
-        generate_agent_specific_file_md(current_directory, "REQUIRED_STRUCTURE.md")
-        generate_agent_specific_file_md(current_directory, "SDK_REFERENCE.md")
-        generate_agent_specific_file_md(current_directory, "CLAUDE.md")
 
         result = Middlewares.next(
             "init",
@@ -185,6 +198,7 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
         if not result.should_continue:
             return
 
+        generate_agent_md_files(current_directory)
         script_path = get_user_script(current_directory, entrypoint=entrypoint)
 
         if not script_path:
