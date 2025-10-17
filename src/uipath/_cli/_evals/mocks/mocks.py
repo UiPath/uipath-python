@@ -21,11 +21,16 @@ span_collector_context: ContextVar[Optional[ExecutionSpanCollector]] = ContextVa
     "span_collector", default=None
 )
 
+# Execution ID for the current evaluation item
+execution_id_context: ContextVar[Optional[str]] = ContextVar(
+    "execution_id", default=None
+)
+
 logger = logging.getLogger(__name__)
 
 
 def set_execution_context(
-    eval_item: EvaluationItem, span_collector: ExecutionSpanCollector
+    eval_item: EvaluationItem, span_collector: ExecutionSpanCollector, execution_id: str
 ) -> None:
     """Set the execution context for an evaluation run for mocking and trace access."""
     evaluation_context.set(eval_item)
@@ -40,6 +45,7 @@ def set_execution_context(
         mocker_context.set(None)
 
     span_collector_context.set(span_collector)
+    execution_id_context.set(execution_id)
 
 
 def clear_execution_context() -> None:
@@ -47,6 +53,7 @@ def clear_execution_context() -> None:
     evaluation_context.set(None)
     mocker_context.set(None)
     span_collector_context.set(None)
+    execution_id_context.set(None)
 
 
 async def get_mocked_response(
