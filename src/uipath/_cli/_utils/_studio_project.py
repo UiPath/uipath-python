@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from uipath._utils.constants import HEADER_SW_LOCK_KEY
 from uipath.models.exceptions import EnrichedException
+from uipath.tracing import traced
 
 
 class ProjectFile(BaseModel):
@@ -231,6 +232,7 @@ class StudioSolutionsClient:
         self.uipath: UiPath = UiPath()
         self._solutions_base_url: str = f"/studio_/backend/api/Solution/{solution_id}"
 
+    @traced(name="create_project", run_type="uipath")
     async def create_project_async(
         self,
         project_name: str,
@@ -275,6 +277,7 @@ class StudioClient:
             f"/studio_/backend/api/Project/{project_id}/Lock"
         )
 
+    @traced(name="get_project_structure", run_type="uipath")
     async def get_project_structure_async(self) -> ProjectStructure:
         """Retrieve the project's file structure from UiPath Cloud.
 
@@ -293,6 +296,7 @@ class StudioClient:
 
         return ProjectStructure.model_validate(response.json())
 
+    @traced(name="create_folder", run_type="uipath")
     @with_lock_retry
     async def create_folder_async(
         self,
@@ -322,6 +326,7 @@ class StudioClient:
         )
         return response.json()
 
+    @traced(name="download_file", run_type="uipath")
     async def download_file_async(self, file_id: str) -> Any:
         response = await self.uipath.api_client.request_async(
             "GET",
@@ -330,6 +335,16 @@ class StudioClient:
         )
         return response
 
+    @traced(name="download_file", run_type="uipath")
+    async def download_project_file_async(self, file: ProjectFile) -> Any:
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url=f"{self.file_operations_base_url}/File/{file.id}",
+            scoped="org",
+        )
+        return response
+
+    @traced(name="upload_file", run_type="uipath")
     @with_lock_retry
     async def upload_file_async(
         self,
@@ -370,6 +385,7 @@ class StudioClient:
         # response contains only the uploaded file identifier
         return response.json(), action
 
+    @traced(name="delete_file", run_type="uipath")
     @with_lock_retry
     async def delete_item_async(
         self,
@@ -430,6 +446,7 @@ class StudioClient:
 
         return content_bytes, resolved_name
 
+    @traced(name="synchronize_files", run_type="uipath")
     @with_lock_retry
     async def perform_structural_migration_async(
         self,

@@ -29,7 +29,7 @@ async def get_file(
 ) -> Response:
     resolved = resolve_path(folder, path)
     assert isinstance(resolved, ProjectFile), "Path file not found."
-    return await studio_client.download_file_async(resolved.id)
+    return await studio_client.download_project_file_async(resolved)
 
 
 async def create_agent_project(solution_id: str, project_name: str) -> str:
