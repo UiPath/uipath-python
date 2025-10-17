@@ -14,6 +14,7 @@ from .._models._evaluation_set import (
     LLMMockingStrategy,
 )
 from .._models._mocks import ExampleCall
+from .cache_manager import CacheManager
 from .mocker import (
     Mocker,
     R,
@@ -171,11 +172,31 @@ class LLMMocker(Mocker):
                     if model_parameters
                     else {}
                 )
+
+                formatted_prompt = PROMPT.format(**prompt_input)
+
+                cache_key_data = {
+                    "prompt": formatted_prompt,
+                    "response_format": response_format,
+                    "completion_kwargs": completion_kwargs,
+                }
+
+                cached_response = CacheManager.get(
+                    mocker_type="llm_mocker",
+                    eval_set_id=self.evaluation_item.eval_set_id,
+                    eval_item_id=self.evaluation_item.id,
+                    cache_key_data=cache_key_data,
+                    function_name=function_name,
+                )
+
+                if cached_response is not None:
+                    return cached_response
+
                 response = await llm.chat_completions(
                     [
                         {
                             "role": "user",
-                            "content": PROMPT.format(**prompt_input),
+                            "content": formatted_prompt,
                         },
                     ],
                     response_format=response_format,
@@ -184,7 +205,18 @@ class LLMMocker(Mocker):
                 mocked_response = OutputSchema(
                     **json.loads(response.choices[0].message.content)
                 )
-                return mocked_response.model_dump(mode="json")["response"]
+                result = mocked_response.model_dump(mode="json")["response"]
+
+                CacheManager.set(
+                    mocker_type="llm_mocker",
+                    eval_set_id=self.evaluation_item.eval_set_id,
+                    eval_item_id=self.evaluation_item.id,
+                    cache_key_data=cache_key_data,
+                    response=result,
+                    function_name=function_name,
+                )
+
+                return result
             except Exception as e:
                 raise UiPathMockResponseGenerationError() from e
         else:
