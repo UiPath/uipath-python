@@ -27,6 +27,7 @@ The UiPath Python SDK provides a comprehensive CLI for managing coded agents and
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--infer-bindings` | flag | false | Infer bindings from the script. |
+| `--no-agents-md-override` | flag | false | Won't override existing .agent files and AGENTS.md file. |
 
 **Usage Examples:**
 
