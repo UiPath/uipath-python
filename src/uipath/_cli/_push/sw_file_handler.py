@@ -1,14 +1,12 @@
 """Studio Web File Handler for managing file operations in UiPath projects."""
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
-import click
-
 from ...models.exceptions import EnrichedException
-from .._utils._console import ConsoleLogger
 from .._utils._constants import (
     AGENT_INITIAL_CODE_VERSION,
     AGENT_STORAGE_VERSION,
@@ -29,6 +27,8 @@ from .._utils._studio_project import (
     StructuralMigration,
     StudioClient,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SwFileHandler:
@@ -58,7 +58,6 @@ class SwFileHandler:
         """
         self.directory = directory
         self.include_uv_lock = include_uv_lock
-        self.console = ConsoleLogger()
         self._studio_client = StudioClient(project_id)
         self._project_structure: Optional[ProjectStructure] = None
 
@@ -156,9 +155,7 @@ class SwFileHandler:
 
         for local_file in local_files:
             if not os.path.exists(local_file.file_path):
-                self.console.warning(
-                    f"File not found: {click.style(local_file.file_path, fg='cyan')}"
-                )
+                logger.info(f"File not found: '{local_file.file_path}'")
                 continue
 
             # Skip agent.json as it's handled separately
@@ -175,9 +172,7 @@ class SwFileHandler:
                         id=remote_file.id, content_file_path=local_file.file_path
                     )
                 )
-                self.console.info(
-                    f"Updating {click.style(local_file.file_name, fg='yellow')}"
-                )
+                logger.info(f"Updating '{local_file.file_name}'")
             else:
                 parent_path = os.path.dirname(local_file.relative_path)
                 structural_migration.added_resources.append(
@@ -188,9 +183,7 @@ class SwFileHandler:
                         else "source_code",
                     )
                 )
-                self.console.info(
-                    f"Uploading {click.style(local_file.relative_path, fg='cyan')}"
-                )
+                logger.info(f"Uploading '{local_file.relative_path}'")
 
         # identify and add deleted files
         structural_migration.deleted_resources.extend(
@@ -236,9 +229,7 @@ class SwFileHandler:
         for _, remote_file in source_code_files.items():
             if remote_file.id not in processed_source_file_paths:
                 deleted_files.add(remote_file.id)
-                self.console.info(
-                    f"Deleting {click.style(remote_file.name, fg='bright_red')}"
-                )
+                logger.info(f"Deleting '{remote_file.name}'")
 
         return deleted_files
 
@@ -263,16 +254,14 @@ class SwFileHandler:
             for folder_info in empty_folder_ids:
                 try:
                     await self._studio_client.delete_item_async(folder_info["id"])
-                    self.console.info(
-                        f"Deleted empty folder {click.style(folder_info['name'], fg='bright_red')}"
-                    )
+                    logger.info(f"Deleted empty folder '{folder_info['name']}'")
                 except Exception as e:
-                    self.console.warning(
-                        f"Failed to delete empty folder {folder_info['name']}: {str(e)}"
+                    logger.warning(
+                        f"Failed to delete empty folder '{folder_info['name']}': {str(e)}"
                     )
 
         except Exception as e:
-            self.console.warning(f"Failed to cleanup empty folders: {str(e)}")
+            logger.warning(f"Failed to cleanup empty folders: {str(e)}")
 
     def _collect_empty_folders(self, folder: ProjectFolder) -> list[dict[str, str]]:
         """Recursively collect IDs and names of empty folders.
@@ -335,8 +324,8 @@ class SwFileHandler:
                 entry_points_json["entryPoints"] = uipath_config["entryPoints"]
 
             except Exception:
-                self.console.warning(
-                    "Could not parse existing entry-points.json file, using default version"
+                logger.info(
+                    "Could not parse existing 'entry-points.json' file, using default version"
                 )
             structural_migration.modified_resources.append(
                 ModifiedResource(
@@ -344,12 +333,10 @@ class SwFileHandler:
                     content_string=json.dumps(entry_points_json),
                 )
             )
-            self.console.info(
-                f"Updating {click.style('entry-points.json', fg='yellow')}"
-            )
+            logger.info("Updating 'entry-points.json'")
 
         else:
-            self.console.warning(
+            logger.info(
                 "'entry-points.json' file does not exist in Studio Web project, initializing using default version"
             )
             entry_points_json = {
@@ -363,9 +350,7 @@ class SwFileHandler:
                     content_string=json.dumps(entry_points_json),
                 )
             )
-            self.console.info(
-                f"Uploading {click.style('entry-points.json', fg='cyan')}"
-            )
+            logger.info("Uploading 'entry-points.json'")
 
     async def _prepare_agent_json_migration(
         self,
@@ -400,9 +385,10 @@ class SwFileHandler:
             input_schema = uipath_config["entryPoints"][0]["input"]
             output_schema = uipath_config["entryPoints"][0]["output"]
         except (FileNotFoundError, KeyError) as e:
-            self.console.error(
+            logger.error(
                 f"Unable to extract entrypoints from configuration file. Please run 'uipath init' : {str(e)}",
             )
+            return
 
         author = get_author_from_token_or_toml()
 
@@ -444,8 +430,8 @@ class SwFileHandler:
                         AGENT_INITIAL_CODE_VERSION[:-1] + "1"
                     )
             except Exception:
-                self.console.warning(
-                    "Could not parse existing agent.json file, using default version"
+                logger.info(
+                    "Could not parse existing 'agent.json' file, using default version"
                 )
 
             structural_migration.modified_resources.append(
@@ -454,9 +440,9 @@ class SwFileHandler:
                     content_string=json.dumps(agent_json),
                 )
             )
-            self.console.info(f"Updating {click.style('agent.json', fg='yellow')}")
+            logger.info("Updating 'agent.json'")
         else:
-            self.console.warning(
+            logger.info(
                 "'agent.json' file does not exist in Studio Web project, initializing using default version"
             )
             structural_migration.added_resources.append(
@@ -465,7 +451,7 @@ class SwFileHandler:
                     content_string=json.dumps(agent_json),
                 )
             )
-            self.console.info(f"Uploading {click.style('agent.json', fg='cyan')}")
+            logger.info("Uploading 'agent.json'")
 
     async def upload_source_files(self, config_data: dict[str, Any]) -> None:
         """Main method to upload source files to the UiPath project.
@@ -502,9 +488,7 @@ class SwFileHandler:
         if not source_code_folder:
             await self._studio_client.create_folder_async("source_code")
 
-            self.console.success(
-                f"Created {click.style('source_code', fg='cyan')} folder"
-            )
+            logger.info("Created 'source_code' folder.")
             source_code_files = {}
 
         # Get files to upload and process them

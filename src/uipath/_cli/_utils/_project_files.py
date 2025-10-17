@@ -1,12 +1,12 @@
 # type: ignore
 import hashlib
 import json
+import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Protocol, Tuple
 
-import click
 from pydantic import BaseModel
 
 from .._utils._console import ConsoleLogger
@@ -22,6 +22,35 @@ try:
     import tomllib
 except ImportError:
     import tomli as tomllib
+logger = logging.getLogger(__name__)
+
+
+class FileConflictHandler(Protocol):
+    """Protocol for handling file conflicts."""
+
+    def should_overwrite(
+        self, file_path: str, local_hash: str, remote_hash: str
+    ) -> bool:
+        """Return True to overwrite, False to skip."""
+        ...
+
+
+class AlwaysOverwriteHandler:
+    """Handler that always overwrites files."""
+
+    def should_overwrite(
+        self, file_path: str, local_hash: str, remote_hash: str
+    ) -> bool:
+        return True
+
+
+class AlwaysSkipHandler:
+    """Handler that always skips conflicts."""
+
+    def should_overwrite(
+        self, file_path: str, local_hash: str, remote_hash: str
+    ) -> bool:
+        return False
 
 
 class FileInfo(BaseModel):
@@ -483,10 +512,37 @@ def collect_files_from_folder(
         collect_files_from_folder(subfolder, subfolder_path, files_dict)
 
 
+async def pull_project(
+    project_id: str,
+    download_configuration: dict[str, Path],
+    conflict_handler: Optional[FileConflictHandler] = None,
+):
+    """Pull project with configurable conflict handling."""
+    if conflict_handler is None:
+        conflict_handler = AlwaysOverwriteHandler()
+
+    studio_client = StudioClient(project_id)
+
+    try:
+        structure = await studio_client.get_project_structure_async()
+        for source_key, destination in download_configuration.items():
+            source_folder = get_folder_by_name(structure, source_key)
+            if source_folder:
+                await download_folder_files(
+                    studio_client, source_folder, destination, conflict_handler
+                )
+            else:
+                logger.warning(f"No '{source_key}' folder found in remote project")
+    except Exception:
+        logger.exception("Failed to pull UiPath project")
+        raise
+
+
 async def download_folder_files(
     studio_client: StudioClient,
     folder: ProjectFolder,
     base_path: Path,
+    conflict_handler: FileConflictHandler,
 ) -> None:
     """Download files from a folder recursively.
 
@@ -494,62 +550,36 @@ async def download_folder_files(
         studio_client: Studio client
         folder: The folder to download files from
         base_path: Base path for local file storage
+        conflict_handler: Handler for file conflicts
     """
     files_dict: Dict[str, ProjectFile] = {}
     collect_files_from_folder(folder, "", files_dict)
+
     for file_path, remote_file in files_dict.items():
         local_path = base_path / file_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Download remote file
         response = await studio_client.download_file_async(remote_file.id)
         remote_content = response.read().decode("utf-8")
         remote_hash = compute_normalized_hash(remote_content)
 
         if os.path.exists(local_path):
-            # Read and hash local file
             with open(local_path, "r", encoding="utf-8") as f:
                 local_content = f.read()
                 local_hash = compute_normalized_hash(local_content)
 
-            # Compare hashes
             if local_hash != remote_hash:
-                styled_path = click.style(str(file_path), fg="cyan")
-                console.warning(f"File {styled_path}" + " differs from remote version.")
-                response = click.prompt("Do you want to overwrite it? (y/n)", type=str)
-                if response.lower() == "y":
+                if conflict_handler.should_overwrite(
+                    file_path, local_hash, remote_hash
+                ):
                     with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                         f.write(remote_content)
-                    console.success(f"Updated {click.style(str(file_path), fg='cyan')}")
+                    logger.info(f"Updated '{file_path}'")
                 else:
-                    console.info(f"Skipped {click.style(str(file_path), fg='cyan')}")
+                    logger.info(f"Skipped '{file_path}'")
             else:
-                console.info(
-                    f"File {click.style(str(file_path), fg='cyan')} is up to date"
-                )
+                logger.info(f"File '{file_path}' is up to date")
         else:
-            # File doesn't exist locally, create it
             with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(remote_content)
-            console.success(f"Downloaded {click.style(str(file_path), fg='cyan')}")
-
-
-async def pull_project(project_id: str, download_configuration: dict[str, Path]):
-    studio_client = StudioClient(project_id)
-
-    with console.spinner("Pulling UiPath project files..."):
-        try:
-            structure = await studio_client.get_project_structure_async()
-            for source_key, destination in download_configuration.items():
-                source_folder = get_folder_by_name(structure, source_key)
-                if source_folder:
-                    await download_folder_files(
-                        studio_client,
-                        source_folder,
-                        destination,
-                    )
-                else:
-                    console.warning(f"No {source_key} folder found in remote project")
-
-        except Exception as e:
-            console.error(f"Failed to pull UiPath project: {str(e)}")
+            logger.info(f"Downloaded '{file_path}'")
