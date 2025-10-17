@@ -6,7 +6,8 @@
   "evaluatorRefs": [
     "equality",
     "llm-as-a-judge",
-    "json-similarity"
+    "json-similarity",
+    "trajectory"
   ],
   "evaluations": [
     {

@@ -1,6 +1,6 @@
 """Contains evaluator for agent outputs."""
 
-from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from ..models import AgentExecution, EvaluationResult, EvaluatorType, NumericEvaluationResult
 from .base_evaluator import BaseEvaluationCriteria
 from .output_evaluator import (
     OutputEvaluator,
@@ -34,7 +34,7 @@ class ContainsEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-contains"
+        return EvaluatorType.CONTAINS.value
 
     async def evaluate(
         self,

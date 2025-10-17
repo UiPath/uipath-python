@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from .._helpers.coded_evaluators_helpers import trace_to_str
 from ..models import (
     AgentExecution,
+    EvaluationResult,
+    EvaluatorType,
 )
 from ..models.llm_judge_types import (
     LLMJudgePromptTemplates,
@@ -66,6 +68,14 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
         """Get the evaluator id."""
         return "uipath-llm-judge-trajectory"
 
+    async def evaluate(
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: TrajectoryEvaluationCriteria,
+    ) -> EvaluationResult:
+        """Evaluate using trajectory analysis."""
+        return await super().evaluate(agent_execution, evaluation_criteria)
+
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""
         return trace_to_str(agent_execution.agent_trace)
@@ -110,7 +120,7 @@ class LLMJudgeTrajectoryEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-llm-judge-trajectory-similarity"
+        return EvaluatorType.TRAJECTORY.value
 
 
 class LLMJudgeSimulationTrajectoryEvaluator(

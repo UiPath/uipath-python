@@ -3,7 +3,7 @@
 import math
 from typing import Any, Tuple
 
-from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from ..models import AgentExecution, EvaluationResult, EvaluatorType, NumericEvaluationResult
 from .output_evaluator import (
     OutputEvaluationCriteria,
     OutputEvaluator,
@@ -30,7 +30,7 @@ class JsonSimilarityEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-json-similarity"
+        return EvaluatorType.JSON_SIMILARITY.value
 
     async def evaluate(
         self,

@@ -475,7 +475,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         if result is None:
             raise ValueError("Execution result cannot be None for eval runs")
-
         return UiPathEvalRunExecutionOutput(
             execution_time=end_time - start_time,
             spans=spans,
