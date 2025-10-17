@@ -6,7 +6,7 @@
   "evaluatorConfig": {
     "name": "LLMJudgeOutputEvaluator",
     "targetOutputKey": "*",
-    "model": "gpt-4o-mini",
+    "model": "gpt-4.1-2025-04-14",
     "prompt": "Compare the following outputs and evaluate their semantic similarity.\n\nActual Output: {{ActualOutput}}\nExpected Output: {{ExpectedOutput}}\n\nProvide a score from 0-100 where 100 means semantically identical and 0 means completely different.",
     "temperature": 0.0,
     "defaultEvaluationCriteria": {

@@ -5,6 +5,7 @@ from .._helpers.coded_evaluators_helpers import (
     tool_calls_order_score,
 )
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from ..models.models import EvaluatorType
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
@@ -52,7 +53,7 @@ class ToolCallOrderEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-tool-call-order"
+        return EvaluatorType.TOOL_CALL_ORDER.value
 
     async def evaluate(
         self,

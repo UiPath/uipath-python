@@ -36,7 +36,7 @@ class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
     """
 
     prompt: str
-    model: str
+    model: str = ""
     temperature: float = 0.0
     max_tokens: int | None = None
 

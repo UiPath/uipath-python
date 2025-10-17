@@ -5,6 +5,7 @@ from .._helpers.coded_evaluators_helpers import (
     tool_calls_args_score,
 )
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult, ToolCall
+from ..models.models import EvaluatorType
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
@@ -49,7 +50,7 @@ class ToolCallArgsEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-tool-call-args"
+        return EvaluatorType.TOOL_CALL_ARGS.value
 
     async def evaluate(
         self,

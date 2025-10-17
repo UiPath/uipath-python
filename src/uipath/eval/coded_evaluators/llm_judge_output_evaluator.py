@@ -4,6 +4,8 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
+from uipath.eval.models import EvaluatorType
+
 from ..models import AgentExecution, EvaluationResult
 from ..models.llm_judge_types import (
     LLMJudgeOutputSchema,
@@ -21,17 +23,25 @@ from .output_evaluator import (
 )
 
 
-class LLMJudgeOutputEvaluatorConfig(
+class BaseLLMJudgeOutputCriteriaEvaluatorConfig(
     OutputEvaluatorConfig[OutputEvaluationCriteria],
     BaseLLMJudgeEvaluatorConfig[OutputEvaluationCriteria],
 ):
+    """Base configuration for LLM judge output criteria evaluators."""
+
+    pass
+
+
+class LLMJudgeOutputEvaluatorConfig(BaseLLMJudgeOutputCriteriaEvaluatorConfig):
     """Configuration for the LLM judge output evaluator."""
 
     name: str = "LLMJudgeOutputEvaluator"
     prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_DEFAULT_USER_PROMPT
 
 
-class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(LLMJudgeOutputEvaluatorConfig):
+class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(
+    BaseLLMJudgeOutputCriteriaEvaluatorConfig
+):
     """Configuration for the LLM judge strict JSON similarity output evaluator."""
 
     name: str = "LLMJudgeStrictJSONSimilarityOutputEvaluator"
@@ -56,7 +66,7 @@ class BaseLLMOutputEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-llm-judge-output"
+        return EvaluatorType.LLM_JUDGE_OUTPUT.value
 
     async def evaluate(
         self,
@@ -81,7 +91,7 @@ class LLMJudgeOutputEvaluator(BaseLLMOutputEvaluator[LLMJudgeOutputEvaluatorConf
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-llm-judge-output-semantic-similarity"
+        return EvaluatorType.LLM_JUDGE_OUTPUT_SEMANTIC_SIMILARITY.value
 
 
 class LLMJudgeStrictJSONSimilarityOutputEvaluator(
@@ -101,4 +111,4 @@ class LLMJudgeStrictJSONSimilarityOutputEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-llm-judge-output-strict-json-similarity"
+        return EvaluatorType.LLM_JUDGE_OUTPUT_STRICT_JSON_SIMILARITY.value
