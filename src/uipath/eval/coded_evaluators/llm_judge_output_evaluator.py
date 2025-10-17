@@ -2,7 +2,7 @@
 
 from typing import TypeVar
 
-from pydantic import BaseModel
+from pydantic import AliasPath, BaseModel, ConfigDict, Field
 
 from ..models import AgentExecution, EvaluationResult
 from ..models.llm_judge_types import (
@@ -29,6 +29,9 @@ class LLMJudgeOutputEvaluatorConfig(
 
     name: str = "LLMJudgeOutputEvaluator"
     prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_DEFAULT_USER_PROMPT
+    # Note: model, temperature, max_tokens are inherited from BaseLLMJudgeEvaluatorConfig
+    # and target_output_key, default_evaluation_criteria are inherited from OutputEvaluatorConfig/BaseEvaluatorConfig
+    # They will all use the auto-generated camelCase aliases from to_camel
 
 
 class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(LLMJudgeOutputEvaluatorConfig):

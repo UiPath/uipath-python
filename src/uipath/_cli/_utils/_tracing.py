@@ -10,18 +10,13 @@ class IgnoreSpecificUrl(logging.Filter):
 
     def filter(self, record):
         try:
+            # Suppress all HTTP Request logs from httpx
             if record.msg == 'HTTP Request: %s %s "%s %d %s"':
-                # Ignore the log if the URL matches the one we want to ignore
-                method = record.args[0]
-                url = record.args[1]
-
-                if method == "POST" and url.path.endswith(self.url_to_ignore):
-                    # Check if the URL contains the specific path we want to ignore
-                    return True
                 return False
 
         except Exception:
             return False
+        return True
 
 
 def setup_tracer_httpx_logging(url: str):
