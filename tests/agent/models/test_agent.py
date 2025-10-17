@@ -49,12 +49,13 @@ class TestAgentBuilderConfig:
         assert isinstance(config, UnknownAgentDefinition), (
             "AgentDefinition should be an unknown type."
         )
-        assert config.id == "b2564199-e479-4b6f-9336-dc50f457afda"
-        assert config.name == "Agent"
-        assert config.version == "1.0.0"
+        config_data = config.model_dump()
+        assert config_data["id"] == "b2564199-e479-4b6f-9336-dc50f457afda"
+        assert config_data["name"] == "Agent"
+        assert config_data["version"] == "1.0.0"
 
         # Validate resources
-        assert len(config.resources) == 0
+        assert len(config_data["resources"]) == 0
 
     def test_agent_with_all_tool_types_loads(self):
         """Test that AgentDefinition can load a complete agent package with all tool types"""

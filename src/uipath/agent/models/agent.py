@@ -502,18 +502,37 @@ class AgentSettings(BaseModel):
 class BaseAgentDefinition(BaseModel):
     """Agent definition model."""
 
-    id: str = Field(..., description="Agent id or project name")
-    name: str = Field(..., description="Agent name or project name")
-    metadata: Optional[AgentMetadata] = Field(None, description="Agent metadata")
-    messages: List[AgentMessage] = Field(
-        ..., description="List of system and user messages"
-    )
     input_schema: Dict[str, Any] = Field(
         ..., alias="inputSchema", description="JSON schema for input arguments"
     )
     output_schema: Dict[str, Any] = Field(
         ..., alias="outputSchema", description="JSON schema for output arguments"
     )
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+class AgentType(str, Enum):
+    """Agent type."""
+
+    LOW_CODE = "lowCode"
+    CODED = "coded"
+
+
+class LowCodeAgentDefinition(BaseAgentDefinition):
+    """Low code agent definition."""
+
+    type: Literal[AgentType.LOW_CODE] = AgentType.LOW_CODE
+
+    id: str = Field(..., description="Agent id or project name")
+    name: str = Field(..., description="Agent name or project name")
+    metadata: Optional[AgentMetadata] = Field(None, description="Agent metadata")
+    messages: List[AgentMessage] = Field(
+        ..., description="List of system and user messages"
+    )
+
     version: str = Field("1.0.0", description="Agent version")
     resources: List[AgentResourceConfig] = Field(
         ..., description="List of tools, context, mcp and escalation resources"
@@ -526,22 +545,14 @@ class BaseAgentDefinition(BaseModel):
     )
 
 
-class AgentType(str, Enum):
-    """Agent type."""
-
-    LOW_CODE = "lowCode"
-
-
-class LowCodeAgentDefinition(BaseAgentDefinition):
-    """Low code agent definition."""
-
-    type: Literal[AgentType.LOW_CODE] = AgentType.LOW_CODE
-
-
-class CodedAgentDefinition(BaseModel):
+class CodedAgentDefinition(BaseAgentDefinition):
     """Coded agent definition."""
 
-    pass
+    type: Literal[AgentType.CODED] = AgentType.CODED
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
 
 
 KnownAgentDefinition = Annotated[
