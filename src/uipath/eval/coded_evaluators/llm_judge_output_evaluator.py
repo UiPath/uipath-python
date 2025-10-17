@@ -2,7 +2,7 @@
 
 from typing import TypeVar
 
-from pydantic import BaseModel
+from pydantic import AliasPath, BaseModel, ConfigDict, Field
 
 from ..models import AgentExecution, EvaluationResult
 from ..models.llm_judge_types import (
@@ -27,8 +27,33 @@ class LLMJudgeOutputEvaluatorConfig(
 ):
     """Configuration for the LLM judge output evaluator."""
 
-    name: str = "LLMJudgeOutputEvaluator"
-    prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_DEFAULT_USER_PROMPT
+    name: str = Field(
+        default="LLMJudgeOutputEvaluator",
+        validation_alias=AliasPath("evaluatorConfig", "name")
+    )
+    prompt: str = Field(
+        default=LLMJudgePromptTemplates.LLM_JUDGE_DEFAULT_USER_PROMPT,
+        validation_alias=AliasPath("evaluatorConfig", "prompt")
+    )
+    model: str = Field(validation_alias=AliasPath("evaluatorConfig", "model"))
+    temperature: float = Field(
+        default=0.0,
+        validation_alias=AliasPath("evaluatorConfig", "temperature")
+    )
+    max_tokens: int | None = Field(
+        default=None,
+        validation_alias=AliasPath("evaluatorConfig", "maxTokens")
+    )
+    target_output_key: str = Field(
+        default="*",
+        validation_alias=AliasPath("evaluatorConfig", "targetOutputKey")
+    )
+    default_evaluation_criteria: OutputEvaluationCriteria | None = Field(
+        default=None,
+        validation_alias=AliasPath("evaluatorConfig", "defaultEvaluationCriteria")
+    )
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
 
 class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(LLMJudgeOutputEvaluatorConfig):
