@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Script to update AGENTS.md with complete library documentation.
+"""Script to update AGENTS.md reference files with complete library documentation.
 
 This script extracts information from the uipath SDK and CLI commands and updates
-the AGENTS.md file with comprehensive documentation including
-- SDK version
-- Quick API Reference (SDK services and methods)
+the AGENTS.md reference files with comprehensive documentation including
+- API Reference (SDK services and methods)
 - CLI Commands Reference
 """
 
@@ -147,101 +146,8 @@ def get_service_methods(service_class: type) -> list[tuple[str, Any]]:
     return methods
 
 
-def generate_required_structure() -> str:
-    """Generate Required Agent Structure documentation.
-
-    Returns:
-        Markdown string with required agent structure
-    """
-    output = StringIO()
-    output.write("\n## Required Agent Structure\n\n")
-    output.write(
-        "**IMPORTANT**: All UiPath coded agents MUST follow this standard structure unless explicitly specified otherwise by the user.\n\n"
-    )
-
-    output.write("### Required Components\n\n")
-    output.write(
-        "Every agent implementation MUST include these three Pydantic models:\n\n"
-    )
-    output.write("```python\n")
-    output.write("from pydantic import BaseModel\n\n")
-    output.write("class Input(BaseModel):\n")
-    output.write('    """Define input fields that the agent accepts"""\n')
-    output.write("    # Add your input fields here\n")
-    output.write("    pass\n\n")
-    output.write("class State(BaseModel):\n")
-    output.write(
-        '    """Define the agent\'s internal state that flows between nodes"""\n'
-    )
-    output.write("    # Add your state fields here\n")
-    output.write("    pass\n\n")
-    output.write("class Output(BaseModel):\n")
-    output.write('    """Define output fields that the agent returns"""\n')
-    output.write("    # Add your output fields here\n")
-    output.write("    pass\n")
-    output.write("```\n\n")
-
-    output.write("### Required LLM Initialization\n\n")
-    output.write(
-        "Unless the user explicitly requests a different LLM provider, always use `UiPathChat`:\n\n"
-    )
-    output.write("```python\n")
-    output.write("from uipath_langchain.chat import UiPathChat\n\n")
-    output.write('llm = UiPathChat(model="gpt-4o-2024-08-06", temperature=0.7)\n')
-    output.write("```\n\n")
-    output.write("**Alternative LLMs** (only use if explicitly requested):\n")
-    output.write("- `ChatOpenAI` from `langchain_openai`\n")
-    output.write("- `ChatAnthropic` from `langchain_anthropic`\n")
-    output.write("- Other LangChain-compatible LLMs\n\n")
-
-    output.write("### Standard Agent Template\n\n")
-    output.write("Every agent should follow this basic structure:\n\n")
-    output.write("```python\n")
-    output.write("from langchain_core.messages import SystemMessage, HumanMessage\n")
-    output.write("from langgraph.graph import START, StateGraph, END\n")
-    output.write("from uipath_langchain.chat import UiPathChat\n")
-    output.write("from pydantic import BaseModel\n\n")
-    output.write("# 1. Define Input, State, and Output models\n")
-    output.write("class Input(BaseModel):\n")
-    output.write("    field: str\n\n")
-    output.write("class State(BaseModel):\n")
-    output.write("    field: str\n")
-    output.write('    result: str = ""\n\n')
-    output.write("class Output(BaseModel):\n")
-    output.write("    result: str\n\n")
-    output.write("# 2. Initialize UiPathChat LLM\n")
-    output.write('llm = UiPathChat(model="gpt-4o-2024-08-06", temperature=0.7)\n\n')
-    output.write("# 3. Define agent nodes (async functions)\n")
-    output.write("async def process_node(state: State) -> State:\n")
-    output.write("    response = await llm.ainvoke([HumanMessage(state.field)])\n")
-    output.write("    return State(field=state.field, result=response.content)\n\n")
-    output.write("async def output_node(state: State) -> Output:\n")
-    output.write("    return Output(result=state.result)\n\n")
-    output.write("# 4. Build the graph\n")
-    output.write("builder = StateGraph(State, input=Input, output=Output)\n")
-    output.write('builder.add_node("process", process_node)\n')
-    output.write('builder.add_node("output", output_node)\n')
-    output.write('builder.add_edge(START, "process")\n')
-    output.write('builder.add_edge("process", "output")\n')
-    output.write('builder.add_edge("output", END)\n\n')
-    output.write("# 5. Compile the graph\n")
-    output.write("graph = builder.compile()\n")
-    output.write("```\n\n")
-
-    output.write("**Key Rules**:\n")
-    output.write("1. Always use async/await for all node functions\n")
-    output.write("2. All nodes (except output) must accept and return `State`\n")
-    output.write("3. The final output node must return `Output`\n")
-    output.write(
-        "4. Use `StateGraph(State, input=Input, output=Output)` for initialization\n"
-    )
-    output.write("5. Always compile with `graph = builder.compile()`\n\n")
-
-    return output.getvalue()
-
-
 def generate_quick_api_docs() -> str:
-    """Generate Quick API Reference documentation for SDK.
+    """Generate API Reference documentation for SDK.
 
     Returns:
         Markdown string with SDK API documentation
@@ -249,7 +155,7 @@ def generate_quick_api_docs() -> str:
     from uipath import UiPath
 
     output = StringIO()
-    output.write("\n## Quick API Reference\n\n")
+    output.write("\n## API Reference\n\n")
     output.write(
         "This section provides a comprehensive reference for all UiPath SDK services and methods. "
         "Each service is documented with complete method signatures, including parameter types and return types.\n\n"
@@ -567,44 +473,15 @@ def generate_cli_docs() -> str:
     return output.getvalue()
 
 
-def update_agents_md() -> None:
-    """Update the AGENTS.md file and generate separate reference files."""
+def generate_agents_md_reference_files() -> None:
+    """Generate separate reference files."""
     resources_dir = Path(__file__).parent.parent / "src" / "uipath" / "_resources"
-    agents_md_path = resources_dir / "AGENTS.md"
 
-    if not agents_md_path.exists():
-        print(f"Error: AGENTS.md not found at {agents_md_path}", file=sys.stderr)
-        sys.exit(1)
-
-    with open(agents_md_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    required_structure_marker = "## Required Agent Structure"
-    api_marker = "## Quick API Reference"
-    cli_marker = "## CLI Commands Reference"
-    reference_marker = "## Documentation Structure"
-
-    if reference_marker in content:
-        header = content.split(reference_marker)[0].rstrip()
-    elif required_structure_marker in content:
-        header = content.split(required_structure_marker)[0].rstrip()
-    elif api_marker in content:
-        header = content.split(api_marker)[0].rstrip()
-    elif cli_marker in content:
-        header = content.split(cli_marker)[0].rstrip()
-    else:
-        header = content.rstrip()
-
-    required_structure_path = resources_dir / "REQUIRED_STRUCTURE.md"
     sdk_reference_path = resources_dir / "SDK_REFERENCE.md"
     cli_reference_path = resources_dir / "CLI_REFERENCE.md"
 
-    required_structure = generate_required_structure()
     api_docs = generate_quick_api_docs()
     cli_docs = generate_cli_docs()
-
-    with open(required_structure_path, "w", encoding="utf-8") as f:
-        f.write(required_structure.lstrip("\n"))
 
     with open(sdk_reference_path, "w", encoding="utf-8") as f:
         f.write(api_docs.lstrip("\n"))
@@ -612,58 +489,13 @@ def update_agents_md() -> None:
     with open(cli_reference_path, "w", encoding="utf-8") as f:
         f.write(cli_docs.lstrip("\n"))
 
-    updated_content = f"""{header}
-
-## Documentation Structure
-
-This documentation is split into multiple files for efficient context loading. Load only the files you need:
-
-### Core Documentation Files
-
-1. **@.agent/REQUIRED_STRUCTURE.md** - Agent structure patterns and templates
-   - **When to load:** Creating a new agent or understanding required patterns
-   - **Contains:** Required Pydantic models (Input, State, Output), LLM initialization patterns, standard agent template
-   - **Size:** ~90 lines
-
-2. **@.agent/SDK_REFERENCE.md** - Complete SDK API reference
-   - **When to load:** Calling UiPath SDK methods, working with services (actions, assets, jobs, etc.)
-   - **Contains:** All SDK services and methods with full signatures and type annotations
-   - **Size:** ~400 lines
-
-3. **@.agent/CLI_REFERENCE.md** - CLI commands documentation
-   - **When to load:** Working with `uipath init`, `uipath run`, or `uipath eval` commands
-   - **Contains:** Command syntax, options, usage examples, and workflows
-   - **Size:** ~200 lines
-
-### Usage Guidelines
-
-**For LLMs:**
-- Read this file (AGENTS.md) first to understand the documentation structure
-- Load .agent/REQUIRED_STRUCTURE.md when building new agents or need structure reference
-- Load .agent/SDK_REFERENCE.md only when you need to call specific SDK methods
-- Load .agent/CLI_REFERENCE.md only when working with CLI commands
-
-**Benefits:**
-- Reduced token usage by loading only relevant context
-- Faster response times
-- More focused context for specific tasks
-"""
-
-    with open(agents_md_path, "w", encoding="utf-8") as f:
-        f.write(updated_content)
-
-    print(f"Successfully updated {agents_md_path}")
-    print(f"Generated {required_structure_path}")
-    print(f"Generated {sdk_reference_path}")
-    print(f"Generated {cli_reference_path}")
-
 
 def main():
     """Main function."""
     try:
-        update_agents_md()
+        generate_agents_md_reference_files()
     except Exception as e:
-        print(f"Error updating AGENTS.md: {e}", file=sys.stderr)
+        print(f"Error updating AGENTS.md reference files: {e}", file=sys.stderr)
         sys.exit(1)
 
 
