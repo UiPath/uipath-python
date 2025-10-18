@@ -15,8 +15,9 @@ from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger
 from ._utils._input_args import generate_args
-from ._utils._parse_ast import generate_bindings_json
+from ._utils._parse_ast import generate_bindings
 from .middlewares import Middlewares
+from .models.runtime_schema import Bindings, Entrypoint, RuntimeSchema
 
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
@@ -152,13 +153,17 @@ def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optiona
         return None
 
 
-def write_config_file(config_data: Dict[str, Any]) -> None:
+def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
     existing_settings = get_existing_settings(CONFIG_PATH)
     if existing_settings is not None:
-        config_data["settings"] = existing_settings
+        config_data.settings = existing_settings
 
     with open(CONFIG_PATH, "w") as config_file:
-        json.dump(config_data, config_file, indent=4)
+        if isinstance(config_data, RuntimeSchema):
+            json_object = config_data.model_dump(by_alias=True, exclude_unset=True)
+        else:
+            json_object = config_data
+        json.dump(json_object, config_file, indent=4)
 
     return CONFIG_PATH
 
@@ -208,30 +213,29 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
             args = generate_args(script_path)
 
             relative_path = Path(script_path).relative_to(current_directory).as_posix()
-
-            config_data = {
-                "entryPoints": [
-                    {
-                        "filePath": relative_path,
-                        "uniqueId": str(uuid.uuid4()),
-                        # "type": "process", OR BE doesn't offer json schema support for type: Process
-                        "type": "agent",
-                        "input": args["input"],
-                        "output": args["output"],
-                    }
-                ]
-            }
-
-            # Generate bindings JSON based on the script path
-            try:
-                if infer_bindings:
-                    bindings_data = generate_bindings_json(script_path)
-                else:
-                    bindings_data = {}
-                # Add bindings to the config data
-                config_data["bindings"] = bindings_data
-            except Exception as e:
-                console.warning(f"Warning: Could not generate bindings: {str(e)}")
+            bindings = None
+            if infer_bindings:
+                try:
+                    bindings = generate_bindings(script_path)
+                except Exception as e:
+                    console.warning(f"Warning: Could not generate bindings: {str(e)}")
+            if bindings is None:
+                bindings = Bindings(
+                    version="2.0",
+                    resources=[],
+                )
+            config_data = RuntimeSchema(
+                entrypoints=[
+                    Entrypoint(
+                        file_path=relative_path,
+                        unique_id=str(uuid.uuid4()),
+                        type="agent",
+                        input=args["input"],
+                        output=args["output"],
+                    )
+                ],
+                bindings=bindings,
+            )
 
             config_path = write_config_file(config_data)
             console.success(f"Created '{config_path}' file.")
