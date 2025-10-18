@@ -212,8 +212,8 @@ class TestPack:
     ) -> None:
         """Test generating operate.json and its content."""
         bindings_data = cli_pack.generate_bindings_content()
-        assert bindings_data["version"] == "2.0"
-        assert bindings_data["resources"] == []
+        assert bindings_data.version == "2.0"
+        assert bindings_data.resources == []
 
     def test_generate_bindings_content(
         self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
