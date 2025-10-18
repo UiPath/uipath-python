@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "id": "TrajectoryEvaluator",
+  "description": "Evaluates the agent's execution trajectory and decision sequence.",
+  "evaluatorTypeId": "uipath-llm-judge-trajectory-similarity",
+  "evaluatorConfig": {
+    "name": "TrajectoryEvaluator",
+    "model": "gpt-4.1-2025-04-14",
+    "prompt": "Evaluate the agent's execution trajectory based on the expected behavior.\n\nExpected Agent Behavior: {{ExpectedAgentBehavior}}\nAgent Run History: {{AgentRunHistory}}\n\nProvide a score from 0-100 based on how well the agent followed the expected trajectory.",
+    "temperature": 0.0,
+    "defaultEvaluationCriteria": {
+      "expectedAgentBehavior": "The agent should correctly perform the calculation and return the result."
+    }
+  }
+}

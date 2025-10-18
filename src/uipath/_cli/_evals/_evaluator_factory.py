@@ -32,12 +32,16 @@ from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
     LLMJudgeStrictJSONSimilarityOutputEvaluator,
     LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
 )
+from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
+    LLMJudgeTrajectoryEvaluator,
+    LLMJudgeTrajectoryEvaluatorConfig,
+)
 from uipath.eval.evaluators import (
     LegacyBaseEvaluator,
     LegacyExactMatchEvaluator,
     LegacyJsonSimilarityEvaluator,
     LegacyLlmAsAJudgeEvaluator,
-    TrajectoryEvaluator,
+    LegacyTrajectoryEvaluator,
 )
 
 
@@ -70,6 +74,8 @@ class EvaluatorFactory:
                 return EvaluatorFactory._create_llm_judge_strict_json_similarity_output_evaluator(
                     data
                 )
+            case LLMJudgeTrajectoryEvaluatorConfig():
+                return EvaluatorFactory._create_trajectory_evaluator(data)
             case _:
                 raise ValueError(f"Unknown evaluator configuration: {config}")
 
@@ -112,6 +118,15 @@ class EvaluatorFactory:
         data: Dict[str, Any],
     ) -> LLMJudgeStrictJSONSimilarityOutputEvaluator:
         return LLMJudgeStrictJSONSimilarityOutputEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_trajectory_evaluator(
+        data: Dict[str, Any],
+    ) -> LLMJudgeTrajectoryEvaluator:
+        return LLMJudgeTrajectoryEvaluator(
             id=data.get("id"),
             config=data.get("evaluatorConfig"),
         )  # type: ignore
@@ -179,7 +194,7 @@ class EvaluatorFactory:
     @staticmethod
     def _create_legacy_trajectory_evaluator(
         params: TrajectoryEvaluatorParams,
-    ) -> TrajectoryEvaluator:
+    ) -> LegacyTrajectoryEvaluator:
         """Create a trajectory evaluator."""
         if not params.prompt:
             raise ValueError("Trajectory evaluator must include 'prompt' field")
@@ -191,4 +206,4 @@ class EvaluatorFactory:
                 "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
             )
 
-        return TrajectoryEvaluator(**params.model_dump())
+        return LegacyTrajectoryEvaluator(**params.model_dump())

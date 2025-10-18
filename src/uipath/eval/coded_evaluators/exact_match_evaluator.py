@@ -1,6 +1,6 @@
 """Exact match evaluator for agent outputs."""
 
-from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from ..models import AgentExecution, EvaluationResult, EvaluatorType, NumericEvaluationResult
 from .output_evaluator import (
     OutputEvaluationCriteria,
     OutputEvaluator,
@@ -29,7 +29,7 @@ class ExactMatchEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-exact-match"
+        return EvaluatorType.EXACT_MATCH.value
 
     async def evaluate(
         self,

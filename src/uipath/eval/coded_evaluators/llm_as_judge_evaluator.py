@@ -35,8 +35,8 @@ class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
     the config's default_evaluation_criteria and the evaluator's expected criteria type.
     """
 
-    prompt: str
-    model: str
+    prompt: str = ""
+    model: str = ""
     temperature: float = 0.0
     max_tokens: int | None = None
 
