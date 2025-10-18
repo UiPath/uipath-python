@@ -240,6 +240,14 @@ class EvaluatorType(str, Enum):
     LLM_JUDGE_OUTPUT_STRICT_JSON_SIMILARITY = (
         "uipath-llm-judge-output-strict-json-similarity"
     )
+    LLM_JUDGE_TRAJECTORY_SIMILARITY = "uipath-llm-judge-trajectory-similarity"
+    LLM_JUDGE_TRAJECTORY_SIMULATION = "uipath-llm-judge-trajectory-simulation"
+    LLM_JUDGE_TRAJECTORY = "uipath-llm-judge-trajectory"
+    LLM_JUDGE_OUTPUT = "uipath-llm-judge-output"
+    TOOL_CALL_ARGS = "uipath-tool-call-args"
+    TOOL_CALL_COUNT = "uipath-tool-call-count"
+    TOOL_CALL_ORDER = "uipath-tool-call-order"
+    TOOL_CALL_OUTPUT = "uipath-tool-call-output"
 
 
 class ToolCall(BaseModel):

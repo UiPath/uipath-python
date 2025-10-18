@@ -6,6 +6,7 @@ from .models import (
     ErrorEvaluationResult,
     EvalItemResult,
     EvaluationResult,
+    EvaluatorType,
     LLMResponse,
     NumericEvaluationResult,
     ScoreType,
@@ -23,5 +24,6 @@ __all__ = [
     "NumericEvaluationResult",
     "ErrorEvaluationResult",
     "ToolCall",
+    "EvaluatorType",
     "ToolOutput",
 ]

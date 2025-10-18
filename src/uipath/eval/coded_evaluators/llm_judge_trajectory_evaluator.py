@@ -12,6 +12,7 @@ from ..models.llm_judge_types import (
     LLMJudgePromptTemplates,
     LLMJudgeTrajectoryOutputSchema,
 )
+from ..models.models import EvaluatorType
 from .base_evaluator import BaseEvaluationCriteria
 from .llm_as_judge_evaluator import (
     BaseLLMJudgeEvaluatorConfig,
@@ -64,7 +65,7 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-llm-judge-trajectory"
+        return EvaluatorType.LLM_JUDGE_TRAJECTORY.value
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""
@@ -110,7 +111,7 @@ class LLMJudgeTrajectoryEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-llm-judge-trajectory-similarity"
+        return EvaluatorType.LLM_JUDGE_TRAJECTORY_SIMILARITY.value
 
 
 class LLMJudgeSimulationTrajectoryEvaluator(
@@ -129,4 +130,4 @@ class LLMJudgeSimulationTrajectoryEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-llm-judge-trajectory-simulation"
+        return EvaluatorType.LLM_JUDGE_TRAJECTORY_SIMULATION.value
