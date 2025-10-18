@@ -13,6 +13,7 @@ from ..._services import (
     ProcessesService,
 )
 from ..._utils import get_inferred_bindings_names
+from ..models.runtime_schema import BindingResource, BindingResourceValue, Bindings
 from ._constants import BINDINGS_VERSION
 
 
@@ -428,7 +429,7 @@ def parse_sdk_usage(
     return results
 
 
-def convert_to_bindings_format(sdk_usage_data):
+def convert_to_bindings_format(sdk_usage_data) -> Bindings:
     """Convert the output of parse_sdk_usage to a structure similar to bindings_v2.json.
 
     Args:
@@ -437,7 +438,7 @@ def convert_to_bindings_format(sdk_usage_data):
     Returns:
         Dictionary in bindings_v2.json format
     """
-    bindings = {"version": "2.0", "resources": []}
+    bindings = Bindings(version="2.0", resources=[])
 
     for resource_type, components in sdk_usage_data.items():
         for component in components:
@@ -448,24 +449,24 @@ def convert_to_bindings_format(sdk_usage_data):
                 )
                 is_connection_id_expression = connection_id.startswith("EXPR$")
                 connection_id = connection_id.replace("EXPR$", "")
-                resource_entry = {
-                    "resource": "connection",
-                    "key": connection_id,
-                    "value": {
-                        "ConnectionId": {
-                            "defaultValue": connection_id,
-                            "isExpression": is_connection_id_expression,
-                            "displayName": "Connection",
-                        }
+                resource_entry = BindingResource(
+                    resource="connection",
+                    key=connection_id,
+                    value={
+                        "ConnectionId": BindingResourceValue(
+                            default_value=connection_id,
+                            is_expression=is_connection_id_expression,
+                            display_name="Connection",
+                        ),
                     },
-                    "metadata": {
+                    metadata={
                         "BindingsVersion": BINDINGS_VERSION,
                         "Connector": connector_name,
                         "UseConnectionService": "True",
                     },
-                }
+                )
 
-                bindings["resources"].append(resource_entry)
+                bindings.resources.append(resource_entry)
                 continue
 
             resource_name = component.get("name", "")
@@ -481,36 +482,61 @@ def convert_to_bindings_format(sdk_usage_data):
             key = name
             if folder_path:
                 key = f"{folder_path}.{name}"
-            resource_entry = {
-                "resource": service_name_resource_mapping[resource_type],
-                "key": key,
-                "value": {
-                    "name": {
-                        "defaultValue": name,
-                        "isExpression": is_expression,
-                        "displayName": "Name",
-                    }
+            resource_entry = BindingResource(
+                resource=service_name_resource_mapping[resource_type],
+                key=key,
+                value={
+                    "name": BindingResourceValue(
+                        default_value=name,
+                        is_expression=is_expression,
+                        display_name="Name",
+                    ),
                 },
-                "metadata": {
+                metadata={
                     "ActivityName": method_name,
                     "BindingsVersion": BINDINGS_VERSION,
                     "DisplayLabel": "FullName",
                 },
-            }
+            )
 
             if folder_path:
-                resource_entry["value"]["folderPath"] = {
-                    "defaultValue": folder_path,
-                    "isExpression": is_folder_path_expression,
-                    "displayName": "Folder Path",
-                }
+                resource_entry.value["folderPath"] = BindingResourceValue(
+                    default_value=folder_path,
+                    is_expression=is_folder_path_expression,
+                    display_name="Folder Path",
+                )
 
-            bindings["resources"].append(resource_entry)
+            bindings.resources.append(resource_entry)
 
     return bindings
 
 
-def generate_bindings_json(file_path: str) -> str:
+def generate_bindings_json(file_path: str) -> dict[str, Any]:
+    """Generate bindings JSON from a Python file.
+
+    Args:
+        file_path: Path to the Python file to analyze
+
+    Returns:
+        JSON string representation of the bindings
+    """
+    try:
+        with open(file_path, "r") as f:
+            source_code = f.read()
+
+        # Get the base directory for resolving imports
+        base_dir = os.path.dirname(os.path.abspath(file_path))
+
+        sdk_usage = parse_sdk_usage(source_code, base_dir)
+        bindings = convert_to_bindings_format(sdk_usage)
+
+        return bindings.model_dump(by_alias=True)
+
+    except Exception as e:
+        raise Exception(f"Error generating bindings JSON: {e}") from e
+
+
+def generate_bindings(file_path: str) -> Bindings:
     """Generate bindings JSON from a Python file.
 
     Args:

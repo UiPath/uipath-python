@@ -7,9 +7,10 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Protocol, Tuple
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from .._utils._console import ConsoleLogger
+from ..models.runtime_schema import RuntimeSchema
 from ._constants import is_binary_file
 from ._studio_project import (
     ProjectFile,
@@ -93,21 +94,19 @@ def get_project_config(directory: str) -> dict[str, str]:
         console.error("pyproject.toml not found.")
 
     with open(config_path, "r") as config_file:
-        config_data = json.load(config_file)
-
-    validate_config_structure(config_data)
+        config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(config_file))
 
     toml_data = read_toml_project(toml_path)
 
     return {
         "project_name": toml_data["name"],
         "description": toml_data["description"],
-        "entryPoints": config_data["entryPoints"],
+        "entryPoints": [ep.model_dump(by_alias=True) for ep in config_data.entrypoints],
         "version": toml_data["version"],
         "authors": toml_data["authors"],
         "dependencies": toml_data.get("dependencies", {}),
         "requires-python": toml_data.get("requires-python", None),
-        "settings": config_data.get("settings", {}),
+        "settings": config_data.settings or {},
     }
 
 
@@ -347,7 +346,7 @@ def read_toml_project(file_path: str) -> dict:
 
 
 def files_to_include(
-    config_data: Optional[dict[Any, Any]],
+    settings: Optional[dict[str, Any]],
     directory: str,
     include_uv_lock: bool = True,
     directories_to_ignore: list[str] | None = None,
@@ -358,7 +357,7 @@ def files_to_include(
     and explicit inclusion rules. Skips virtual environments and hidden directories.
 
     Args:
-        config_data: Configuration containing file inclusion rules
+        settings: File handling settings
         directory: Root directory to search for files
         include_uv_lock: Whether to include uv.lock file
         directories_to_ignore: List of directories to ignore
@@ -374,8 +373,7 @@ def files_to_include(
         directories_to_ignore = []
     if include_uv_lock:
         files_included += ["uv.lock"]
-    if "settings" in config_data:
-        settings = config_data["settings"]
+    if settings is not None:
         if "fileExtensionsIncluded" in settings:
             file_extensions_included.extend(settings["fileExtensionsIncluded"])
         if "filesIncluded" in settings:

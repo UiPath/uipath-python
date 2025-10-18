@@ -6,6 +6,7 @@ from typing import Optional
 
 import click
 
+from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._debug import setup_debugging
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -14,11 +15,8 @@ from .._utils.constants import (
 )
 from ..telemetry import track
 from ._runtime._contracts import (
-    UiPathRuntimeContext,
     UiPathRuntimeError,
-    UiPathRuntimeFactory,
 )
-from ._runtime._runtime import UiPathScriptRuntime
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -71,6 +69,15 @@ def run(
     debug_port: int,
 ) -> None:
     """Execute the project."""
+    context_args = {
+        "entrypoint": entrypoint,
+        "input": input,
+        "resume": resume,
+        "input_file": file or input_file,
+        "execution_output_file": output_file,
+        "debug": debug,
+        "debug_port": debug_port,
+    }
     input_file = file or input_file
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
@@ -100,22 +107,15 @@ def run(
     Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
 
         try:
-            runtime_factory = UiPathRuntimeFactory(
-                UiPathScriptRuntime, UiPathRuntimeContext
-            )
 
-            context = UiPathRuntimeContext.with_defaults(
-                entrypoint=entrypoint,
-                input=input,
-                input_file=input_file,
-                resume=resume,
-                execution_output_file=output_file,
-                debug=debug,
-            )
-            if context.job_id:
-                runtime_factory.add_span_exporter(LlmOpsHttpExporter())
+            async def execute() -> None:
+                runtime_factory = generate_runtime_factory()
+                async with runtime_factory.new_runtime(**context_args) as runtime:
+                    if runtime.context.job_id:
+                        runtime_factory.add_span_exporter(LlmOpsHttpExporter())
+                    await runtime.execute()
 
-            asyncio.run(runtime_factory.execute(context))
+            asyncio.run(execute())
 
         except UiPathRuntimeError as e:
             console.error(f"{e.error_info.title} - {e.error_info.detail}")

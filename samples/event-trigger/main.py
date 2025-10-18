@@ -26,6 +26,7 @@ def main(input: EventArguments) -> EchoOut:
 
     # get the event payload, this will be different from event to event
     payload = sdk.connections.retrieve_event_payload(input)
+    sdk.processes.invoke(name="foo")
 
     handle_slack_event(payload)
 

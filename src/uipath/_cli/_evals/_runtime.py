@@ -451,12 +451,12 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     async def execute_runtime(
         self, eval_item: EvaluationItem, execution_id: str
     ) -> UiPathEvalRunExecutionOutput:
-        runtime_context: C = self.factory.new_context(
-            execution_id=execution_id,
-            input_json=eval_item.inputs,
-            is_eval_run=True,
-            log_handler=self._setup_execution_logging(execution_id),
-        )
+        context_args = self.context.model_dump()
+        context_args["execution_id"] = execution_id
+        context_args["input_json"] = eval_item.inputs
+        context_args["is_eval_run"] = True
+        context_args["log_handler"] = self._setup_execution_logging(execution_id)
+        runtime_context: C = self.factory.new_context(**context_args)
         if runtime_context.execution_id is None:
             raise ValueError("execution_id must be set for eval runs")
 
