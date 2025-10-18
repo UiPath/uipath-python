@@ -5,9 +5,11 @@ import logging
 import os
 import sys
 import traceback
+import uuid
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
+from pathlib import Path
 from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
 from uuid import uuid4
 
@@ -26,6 +28,10 @@ from pydantic import BaseModel, Field
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 from uipath.tracing import TracingManager
 
+from .._utils._console import ConsoleLogger
+from .._utils._input_args import generate_args
+from .._utils._parse_ast import generate_bindings  # type: ignore[attr-defined]
+from ..models.runtime_schema import BindingResource, Entrypoint
 from ._logging import LogsInterceptor
 
 logger = logging.getLogger(__name__)
@@ -291,6 +297,36 @@ class UiPathRuntimeContextBuilder:
             return UiPathRuntimeContext(**self._kwargs)
 
 
+console = ConsoleLogger()
+
+
+def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optional[str]:
+    """Find the Python script to process."""
+    if entrypoint:
+        script_path = os.path.join(directory, entrypoint)
+        if not os.path.isfile(script_path):
+            console.error(
+                f"The {entrypoint} file does not exist in the current directory."
+            )
+            return None
+        return script_path
+
+    python_files = [f for f in os.listdir(directory) if f.endswith(".py")]
+
+    if not python_files:
+        console.error(
+            "No python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
+        )
+        return None
+    elif len(python_files) == 1:
+        return os.path.join(directory, python_files[0])
+    else:
+        console.error(
+            "Multiple python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
+        )
+        return None
+
+
 class UiPathRuntimeContext(BaseModel):
     """Context information passed throughout the runtime execution."""
 
@@ -483,6 +519,37 @@ class UiPathBaseRuntime(ABC):
         """
         runtime = cls(context)
         return runtime
+
+    @cached_property
+    def get_binding_resources(self) -> List[BindingResource]:
+        """Get binding resources for this runtime.
+
+        Returns: A list of binding resources.
+        """
+        working_dir = self.context.runtime_dir or os.getcwd()
+        script_path = get_user_script(working_dir, entrypoint=self.context.entrypoint)
+        bindings = generate_bindings(script_path)
+        return bindings.resources
+
+    @cached_property
+    def get_entrypoint(self) -> Entrypoint:
+        """Get entrypoint for this runtime.
+
+        Returns: A entrypoint for this runtime.
+        """
+        working_dir = self.context.runtime_dir or os.getcwd()
+        script_path = get_user_script(working_dir, entrypoint=self.context.entrypoint)
+        if not script_path:
+            raise ValueError("Entrypoint not found.")
+        relative_path = Path(script_path).relative_to(working_dir).as_posix()
+        args = generate_args(script_path)
+        return Entrypoint(
+            file_path=relative_path,  # type: ignore[call-arg] # This exists
+            unique_id=str(uuid.uuid4()),
+            type="agent",
+            input=args["input"],
+            output=args["output"],
+        )
 
     async def __aenter__(self):
         """Async enter method called when entering the 'async with' block.
