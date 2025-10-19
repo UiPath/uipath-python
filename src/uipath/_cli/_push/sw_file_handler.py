@@ -319,7 +319,7 @@ class SwFileHandler:
         if existing:
             try:
                 entry_points_json = (
-                    await self._studio_client.download_file_async(existing.id)
+                    await self._studio_client.download_project_file_async(existing)
                 ).json()
                 entry_points_json["entryPoints"] = uipath_config["entryPoints"]
 
@@ -417,7 +417,7 @@ class SwFileHandler:
         if existing:
             try:
                 existing_agent_json = (
-                    await self._studio_client.download_file_async(existing.id)
+                    await self._studio_client.download_project_file_async(existing)
                 ).json()
                 version_parts = existing_agent_json["metadata"]["codeVersion"].split(
                     "."
