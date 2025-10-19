@@ -8,7 +8,19 @@ import traceback
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
-from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Literal,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+)
 from uuid import uuid4
 
 from opentelemetry import context as context_api
@@ -23,6 +35,7 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
 
+from uipath._events._events import BaseEvent
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 from uipath.tracing import TracingManager
 
@@ -141,6 +154,19 @@ class UiPathRuntimeResult(BaseModel):
             result["error"] = self.error.model_dump()
 
         return result
+
+
+class UiPathRuntimeBreakpointResult(UiPathRuntimeResult):
+    """Result for execution suspended at a breakpoint."""
+
+    # Force status to always be SUSPENDED
+    status: UiPathRuntimeStatus = Field(
+        default=UiPathRuntimeStatus.SUSPENDED, frozen=True
+    )
+    breakpoint_node: str  # Which node the breakpoint is at
+    breakpoint_type: Literal["before", "after"]  # Before or after the node
+    current_state: dict[str, Any] | Any  # Current workflow state at breakpoint
+    next_nodes: List[str]  # Which node(s) will execute next
 
 
 class UiPathConversationHandler(ABC):
@@ -547,6 +573,47 @@ class UiPathBaseRuntime(ABC):
             RuntimeError: If execution fails
         """
         pass
+
+    async def stream(
+        self,
+    ) -> AsyncGenerator[Union[BaseEvent, UiPathRuntimeResult], None]:
+        """Stream execution events in real-time.
+
+        This is an optional method that runtimes can implement to support streaming.
+        If not implemented, only the execute() method will be available.
+
+        Yields framework-agnostic BaseEvent instances during execution,
+        with the final event being UiPathRuntimeResult.
+
+        Yields:
+            BaseEvent subclasses: Framework-agnostic events (MessageCreatedEvent,
+                                  AgentStateUpdatedEvent, etc.)
+            Final yield: UiPathRuntimeResult
+
+        Raises:
+            NotImplementedError: If the runtime doesn't support streaming
+            RuntimeError: If execution fails
+
+        Example:
+            async for event in runtime.stream():
+                if isinstance(event, UiPathRuntimeResult):
+                    # Last event - execution complete
+                    print(f"Status: {event.status}")
+                    break
+                elif isinstance(event, MessageCreatedEvent):
+                    # Handle message event
+                    print(f"Message: {event.payload}")
+                elif isinstance(event, AgentStateUpdatedEvent):
+                    # Handle state update
+                    print(f"State updated by: {event.node_name}")
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement streaming. "
+            "Use execute() instead."
+        )
+        # This yield is unreachable but makes this a proper generator function
+        # Without it, the function wouldn't match the AsyncGenerator return type
+        yield
 
     @abstractmethod
     async def validate(self):
