@@ -3,8 +3,7 @@
 import math
 from typing import Any, Tuple
 
-from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
-from ..models.models import EvaluatorType
+from ..models import AgentExecution, EvaluationResult, EvaluatorType, NumericEvaluationResult
 from .output_evaluator import (
     OutputEvaluationCriteria,
     OutputEvaluator,

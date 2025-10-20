@@ -13,8 +13,8 @@ from .llm_judge_output_evaluator import (
 )
 from .llm_judge_trajectory_evaluator import (
     BaseLLMTrajectoryEvaluator,
-    LLMJudgeSimulationTrajectoryEvaluator,
     LLMJudgeTrajectoryEvaluator,
+    LLMJudgeTrajectorySimulationEvaluator,
 )
 from .tool_call_args_evaluator import ToolCallArgsEvaluator
 from .tool_call_count_evaluator import ToolCallCountEvaluator
@@ -28,7 +28,7 @@ EVALUATORS: list[type[BaseEvaluator[Any, Any, Any]]] = [
     LLMJudgeOutputEvaluator,
     LLMJudgeStrictJSONSimilarityOutputEvaluator,
     LLMJudgeTrajectoryEvaluator,
-    LLMJudgeSimulationTrajectoryEvaluator,
+    LLMJudgeTrajectorySimulationEvaluator,
     ToolCallOrderEvaluator,
     ToolCallArgsEvaluator,
     ToolCallCountEvaluator,
@@ -45,7 +45,7 @@ __all__ = [
     "LLMJudgeStrictJSONSimilarityOutputEvaluator",
     "BaseLLMTrajectoryEvaluator",
     "LLMJudgeTrajectoryEvaluator",
-    "LLMJudgeSimulationTrajectoryEvaluator",
+    "LLMJudgeTrajectorySimulationEvaluator",
     "ToolCallOrderEvaluator",
     "ToolCallArgsEvaluator",
     "ToolCallCountEvaluator",
