@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "id": "ToolCallCountEvaluator",
+  "description": "Evaluates if the correct number of tool calls were made.",
+  "evaluatorTypeId": "uipath-tool-call-count",
+  "evaluatorConfig": {
+    "name": "ToolCallCountEvaluator",
+    "strict": false,
+    "defaultEvaluationCriteria": {
+      "toolCallsCount": {
+        "get_temperature": [
+          "=",
+          1
+        ],
+        "get_weather_condition": [
+          "=",
+          1
+        ],
+        "get_humidity": [
+          "=",
+          1
+        ]
+      }
+    }
+  }
+}

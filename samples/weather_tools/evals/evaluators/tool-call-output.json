@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "id": "ToolCallOutputEvaluator",
+  "description": "Evaluates if tool calls produced the correct outputs.",
+  "evaluatorTypeId": "uipath-tool-call-output",
+  "evaluatorConfig": {
+    "name": "ToolCallOutputEvaluator",
+    "strict": false,
+    "defaultEvaluationCriteria": {
+      "toolOutputs": [
+        {
+          "name": "get_temperature",
+          "output": "{'temperature': 25.0, 'unit': 'fahrenheit'}"
+        },
+        {
+          "name": "get_weather_condition",
+          "output": "{'condition': 'cloudy'}"
+        },
+        {
+          "name": "get_humidity",
+          "output": "{'humidity': 65}"
+        },
+        {
+          "name": "get_forecast",
+          "output": "{'forecast': 'Overcast with mild temperatures'}"
+        }
+      ]
+    }
+  }
+}

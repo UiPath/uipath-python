@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "id": "ToolCallArgsEvaluator",
+  "description": "Evaluates if tool calls have the correct arguments.",
+  "evaluatorTypeId": "uipath-tool-call-args",
+  "evaluatorConfig": {
+    "name": "ToolCallArgsEvaluator",
+    "strict": false,
+    "subset": true,
+    "defaultEvaluationCriteria": {
+      "toolCalls": []
+    }
+  }
+}
