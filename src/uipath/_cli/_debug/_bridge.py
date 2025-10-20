@@ -114,6 +114,8 @@ class ConsoleDebugBridge(UiPathDebugBridge):
             return
 
         self.console.print(f"[yellow]●[/yellow] [bold]{state_event.node_name}[/bold]")
+        if state_event.payload:
+            self._print_json(state_event.payload, label="State")
 
     async def emit_breakpoint_hit(
         self, breakpoint_result: UiPathBreakpointResult

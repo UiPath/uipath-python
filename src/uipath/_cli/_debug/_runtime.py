@@ -105,15 +105,11 @@ class UiPathDebugRuntime(UiPathBaseRuntime, Generic[T, C]):
                         await self.debug_bridge.emit_breakpoint_hit(event)
                         await self.debug_bridge.wait_for_resume()
                         self._inner_runtime.context.resume = True
-                        # Break out of stream loop to restart streaming from resume point
-                        break
                     else:
                         # Normal completion or suspension with dynamic interrupt
                         execution_completed = True
-
                         # Handle dynamic interrupts if present
                         # Maybe poll for resume trigger completion here in future
-                        break
 
                 # Handle state update events - send to debug bridge
                 elif isinstance(event, UiPathAgentStateEvent):
