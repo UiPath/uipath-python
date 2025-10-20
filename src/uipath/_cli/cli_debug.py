@@ -1,12 +1,12 @@
 # type: ignore
 import asyncio
 import os
+import uuid
 from os import environ as env
 from typing import Optional
 
 import click
 
-from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._debug import setup_debugging
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -14,9 +14,13 @@ from .._utils.constants import (
     ENV_JOB_ID,
 )
 from ..telemetry import track
+from ._debug._bridge import UiPathDebugBridge, get_debug_bridge
+from ._debug._runtime import UiPathDebugRuntime
 from ._runtime._contracts import (
-    UiPathRuntimeError,
+    UiPathRuntimeContext,
+    UiPathRuntimeFactory,
 )
+from ._runtime._runtime import UiPathScriptRuntime
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -58,7 +62,7 @@ console = ConsoleLogger()
     help="Port for the debug server (default: 5678)",
 )
 @track(when=lambda *_a, **_kw: env.get(ENV_JOB_ID) is None)
-def run(
+def debug(
     entrypoint: Optional[str],
     input: Optional[str],
     resume: bool,
@@ -69,22 +73,13 @@ def run(
     debug_port: int,
 ) -> None:
     """Execute the project."""
-    context_args = {
-        "entrypoint": entrypoint,
-        "input": input,
-        "resume": resume,
-        "input_file": file or input_file,
-        "execution_output_file": output_file,
-        "debug": debug,
-        "debug_port": debug_port,
-    }
     input_file = file or input_file
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
 
     result = Middlewares.next(
-        "run",
+        "debug",
         entrypoint,
         input,
         resume,
@@ -100,35 +95,48 @@ def run(
     if result.should_continue:
         if not entrypoint:
             console.error("""No entrypoint specified. Please provide a path to a Python script.
-    Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
+    Usage: `uipath debug <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
 
         if not os.path.exists(entrypoint):
             console.error(f"""Script not found at path {entrypoint}.
-    Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
+    Usage: `uipath debug <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
 
         try:
+            debug_context = UiPathRuntimeContext.with_defaults(
+                entrypoint=entrypoint,
+                input=input,
+                input_file=input_file,
+                resume=resume,
+                execution_output_file=output_file,
+                debug=debug,
+            )
+            debug_context.execution_id = debug_context.job_id or str(uuid.uuid4())
 
-            async def execute() -> None:
-                runtime_factory = generate_runtime_factory()
-                async with runtime_factory.new_runtime(**context_args) as runtime:
-                    if runtime.context.job_id:
-                        runtime_factory.add_span_exporter(LlmOpsHttpExporter())
-                    result = await runtime.execute()
-                    if not runtime.context.job_id:
-                        console.info(result.output)
-
-            asyncio.run(execute())
-
-        except UiPathRuntimeError as e:
-            console.error(f"{e.error_info.title} - {e.error_info.detail}")
-        except Exception as e:
-            # Handle unexpected errors
-            console.error(
-                f"Error: Unexpected error occurred - {str(e)}", include_traceback=True
+            runtime_factory = UiPathRuntimeFactory(
+                UiPathScriptRuntime,
+                UiPathRuntimeContext,
+                context_generator=lambda: debug_context,
             )
 
-    console.success("Successful execution.")
+            debug_bridge: UiPathDebugBridge = get_debug_bridge(debug_context)
+
+            if debug_context.job_id:
+                runtime_factory.add_span_exporter(LlmOpsHttpExporter())
+
+            async def execute():
+                async with UiPathDebugRuntime.from_debug_context(
+                    factory=runtime_factory,
+                    context=debug_context,
+                    debug_bridge=debug_bridge,
+                ) as debug_runtime:
+                    await debug_runtime.execute()
+
+            asyncio.run(execute())
+        except Exception as e:
+            console.error(
+                f"Error occurred: {e or 'Execution failed'}", include_traceback=True
+            )
 
 
 if __name__ == "__main__":
-    run()
+    debug()

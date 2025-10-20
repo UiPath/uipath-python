@@ -72,23 +72,26 @@ ProgressEvent = Union[
 class EventType(str, Enum):
     """Types of events that can be emitted during execution."""
 
-    MESSAGE_CREATED = "message_created"
-    AGENT_STATE_UPDATED = "agent_state_updated"
+    AGENT_MESSAGE = "agent_message"
+    AGENT_STATE = "agent_state"
     ERROR = "error"
 
 
-class BaseEvent(BaseModel):
-    """Base class for all UiPath events."""
+class UiPathRuntimeEvent(BaseModel):
+    """Base class for all UiPath runtime events."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     event_type: EventType
+    execution_id: Optional[str] = Field(
+        default=None, description="The runtime execution id associated with the event"
+    )
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional event context"
     )
 
 
-class MessageCreatedEvent(BaseEvent):
+class UiPathAgentMessageEvent(UiPathRuntimeEvent):
     """Event emitted when a message is created or streamed.
 
     Wraps framework-specific message objects (e.g., LangChain BaseMessage,
@@ -96,14 +99,14 @@ class MessageCreatedEvent(BaseEvent):
 
     Attributes:
         payload: The framework-specific message object
-        event_type: Automatically set to MESSAGE_CREATED
-        metadata: Additional context (conversation_id, exchange_id, etc.)
+        event_type: Automatically set to AGENT_MESSAGE
+        metadata: Additional context
 
     Example:
         # LangChain
-        event = MessageCreatedEvent(
+        event = UiPathAgentMessageEvent(
             payload=AIMessage(content="Hello"),
-            metadata={"conversation_id": "123"}
+            metadata={"additional_prop": "123"}
         )
 
         # Access the message
@@ -112,10 +115,10 @@ class MessageCreatedEvent(BaseEvent):
     """
 
     payload: Any = Field(description="Framework-specific message object")
-    event_type: EventType = Field(default=EventType.MESSAGE_CREATED, frozen=True)
+    event_type: EventType = Field(default=EventType.AGENT_MESSAGE, frozen=True)
 
 
-class AgentStateUpdatedEvent(BaseEvent):
+class UiPathAgentStateEvent(UiPathRuntimeEvent):
     """Event emitted when agent state is updated.
 
     Wraps framework-specific state update objects, preserving the original
@@ -124,15 +127,15 @@ class AgentStateUpdatedEvent(BaseEvent):
     Attributes:
         payload: The framework-specific state update (e.g., LangGraph state dict)
         node_name: Name of the node/agent that produced this update (if available)
-        event_type: Automatically set to AGENT_STATE_UPDATED
+        event_type: Automatically set to AGENT_STATE
         metadata: Additional context
 
     Example:
         # LangGraph
-        event = AgentStateUpdatedEvent(
+        event = UiPathAgentStateEvent(
             payload={"messages": [...], "context": "..."},
             node_name="agent_node",
-            metadata={"conversation_id": "123"}
+            metadata={"additional_prop": "123"}
         )
 
         # Access the state
@@ -144,4 +147,4 @@ class AgentStateUpdatedEvent(BaseEvent):
     node_name: Optional[str] = Field(
         default=None, description="Name of the node/agent that caused this update"
     )
-    event_type: EventType = Field(default=EventType.AGENT_STATE_UPDATED, frozen=True)
+    event_type: EventType = Field(default=EventType.AGENT_STATE, frozen=True)
