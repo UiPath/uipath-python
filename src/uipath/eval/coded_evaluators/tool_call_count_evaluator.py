@@ -7,6 +7,7 @@ from .._helpers.coded_evaluators_helpers import (
     tool_calls_count_score,
 )
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from ..models.models import EvaluatorType
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
@@ -53,7 +54,7 @@ class ToolCallCountEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-tool-call-count"
+        return EvaluatorType.TOOL_CALL_COUNT.value
 
     async def evaluate(
         self,

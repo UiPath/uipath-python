@@ -10,6 +10,7 @@ from ..models import (
     NumericEvaluationResult,
     ToolOutput,
 )
+from ..models.models import EvaluatorType
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
@@ -55,7 +56,7 @@ class ToolCallOutputEvaluator(
     @classmethod
     def get_evaluator_id(cls) -> str:
         """Get the evaluator id."""
-        return "uipath-tool-call-output"
+        return EvaluatorType.TOOL_CALL_OUTPUT.value
 
     async def evaluate(
         self,
