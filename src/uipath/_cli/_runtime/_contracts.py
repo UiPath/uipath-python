@@ -35,7 +35,7 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
 
-from uipath._events._events import BaseEvent
+from uipath._events._events import UiPathRuntimeEvent
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 from uipath.tracing import TracingManager
 
@@ -156,7 +156,7 @@ class UiPathRuntimeResult(BaseModel):
         return result
 
 
-class UiPathRuntimeBreakpointResult(UiPathRuntimeResult):
+class UiPathBreakpointResult(UiPathRuntimeResult):
     """Result for execution suspended at a breakpoint."""
 
     # Force status to always be SUSPENDED
@@ -576,7 +576,7 @@ class UiPathBaseRuntime(ABC):
 
     async def stream(
         self,
-    ) -> AsyncGenerator[Union[BaseEvent, UiPathRuntimeResult], None]:
+    ) -> AsyncGenerator[Union[UiPathRuntimeEvent, UiPathRuntimeResult], None]:
         """Stream execution events in real-time.
 
         This is an optional method that runtimes can implement to support streaming.
@@ -586,9 +586,9 @@ class UiPathBaseRuntime(ABC):
         with the final event being UiPathRuntimeResult.
 
         Yields:
-            BaseEvent subclasses: Framework-agnostic events (MessageCreatedEvent,
-                                  AgentStateUpdatedEvent, etc.)
-            Final yield: UiPathRuntimeResult
+            UiPathRuntimeEvent subclasses: Framework-agnostic events (UiPathAgentMessageEvent,
+                                  UiPathAgentStateEvent, etc.)
+            Final yield: UiPathRuntimeResult (or its subclass UiPathBreakpointResult)
 
         Raises:
             NotImplementedError: If the runtime doesn't support streaming
@@ -600,10 +600,10 @@ class UiPathBaseRuntime(ABC):
                     # Last event - execution complete
                     print(f"Status: {event.status}")
                     break
-                elif isinstance(event, MessageCreatedEvent):
+                elif isinstance(event, UiPathAgentMessageEvent):
                     # Handle message event
                     print(f"Message: {event.payload}")
-                elif isinstance(event, AgentStateUpdatedEvent):
+                elif isinstance(event, UiPathAgentStateEvent):
                     # Handle state update
                     print(f"State updated by: {event.node_name}")
         """
