@@ -12,11 +12,7 @@ from uipath._cli._evals._runtime import (
     UiPathEvalContext,
     UiPathEvalRuntime,
 )
-from uipath._cli._runtime._contracts import (
-    UiPathRuntimeContext,
-    UiPathRuntimeFactory,
-)
-from uipath._cli._runtime._runtime import UiPathScriptRuntime
+from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._constants import UIPATH_PROJECT_ID
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli.middlewares import Middlewares
@@ -96,6 +92,15 @@ def eval(
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """
+    context_args = {
+        "entrypoint": entrypoint or auto_discover_entrypoint(),
+        "eval_set": eval_set,
+        "eval_ids": eval_ids,
+        "workers": workers,
+        "no_report": no_report,
+        "output_file": output_file,
+    }
+
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
     result = Middlewares.next(
@@ -119,16 +124,9 @@ def eval(
             progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
 
-        def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
-            runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
-            runtime_context.entrypoint = runtime_entrypoint
-            return runtime_context
-
-        runtime_entrypoint = entrypoint or auto_discover_entrypoint()
-
         eval_context = UiPathEvalContext.with_defaults(
             execution_output_file=output_file,
-            entrypoint=runtime_entrypoint,
+            entrypoint=context_args["entrypoint"],
         )
 
         eval_context.no_report = no_report
@@ -140,11 +138,7 @@ def eval(
         asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         try:
-            runtime_factory = UiPathRuntimeFactory(
-                UiPathScriptRuntime,
-                UiPathRuntimeContext,
-                context_generator=generate_runtime_context,
-            )
+            runtime_factory = generate_runtime_factory()
             if eval_context.job_id:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 
