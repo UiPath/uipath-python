@@ -488,6 +488,12 @@ class UiPathRuntimeError(Exception):
         return self.error_info.model_dump()
 
 
+class UiPathRuntimeStreamNotSupportedError(NotImplementedError):
+    """Raised when a runtime does not support streaming."""
+
+    pass
+
+
 class UiPathBaseRuntime(ABC):
     """Base runtime class implementing the async context manager protocol.
 
@@ -591,7 +597,7 @@ class UiPathBaseRuntime(ABC):
             Final yield: UiPathRuntimeResult (or its subclass UiPathBreakpointResult)
 
         Raises:
-            NotImplementedError: If the runtime doesn't support streaming
+            UiPathRuntimeStreamNotSupportedError: If the runtime doesn't support streaming
             RuntimeError: If execution fails
 
         Example:
@@ -607,7 +613,7 @@ class UiPathBaseRuntime(ABC):
                     # Handle state update
                     print(f"State updated by: {event.node_name}")
         """
-        raise NotImplementedError(
+        raise UiPathRuntimeStreamNotSupportedError(
             f"{self.__class__.__name__} does not implement streaming. "
             "Use execute() instead."
         )
