@@ -11,6 +11,7 @@ from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
+from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.input_mocker import (
     generate_llm_input,
 )
@@ -49,6 +50,7 @@ from ._models._output import (
 )
 from ._span_collection import ExecutionSpanCollector
 from .mocks.mocks import (
+    cache_manager_context,
     clear_execution_context,
     set_execution_context,
 )
@@ -322,6 +324,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         evaluators: List[BaseEvaluator[Any]],
         event_bus: EventBus,
     ) -> EvaluationRunResult:
+        if cache_manager_context.get() is None:
+            cache_manager_context.set(CacheManager())
+
         # Generate LLM-based input if input_mocking_strategy is defined
         if eval_item.input_mocking_strategy:
             eval_item = await self._generate_input_for_eval(eval_item)
