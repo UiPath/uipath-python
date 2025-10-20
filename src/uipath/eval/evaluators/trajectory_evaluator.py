@@ -19,8 +19,8 @@ from ..models.models import (
 from .base_evaluator import LegacyBaseEvaluator
 
 
-class TrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
-    """Evaluator that analyzes the trajectory/path taken to reach outputs."""
+class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
+    """Legacy evaluator that analyzes the trajectory/path taken to reach outputs."""
 
     prompt: str
     model: str
@@ -76,7 +76,6 @@ class TrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
             expected_agent_behavior=agent_execution.expected_agent_behavior,
             agent_run_history=agent_execution.agent_trace,
         )
-
         llm_response = await self._get_llm_response(evaluation_prompt)
 
         return NumericEvaluationResult(

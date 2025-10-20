@@ -1,7 +1,6 @@
 """Contains evaluator for agent outputs."""
 
-from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
-from ..models.models import EvaluatorType
+from ..models import AgentExecution, EvaluationResult, EvaluatorType, NumericEvaluationResult
 from .base_evaluator import BaseEvaluationCriteria
 from .output_evaluator import (
     OutputEvaluator,

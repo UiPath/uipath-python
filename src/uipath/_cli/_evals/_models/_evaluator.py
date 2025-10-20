@@ -12,7 +12,11 @@ from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
     LLMJudgeOutputEvaluatorConfig,
     LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
 )
-from uipath.eval.models.models import (
+from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
+    LLMJudgeTrajectoryEvaluatorConfig,
+    LLMJudgeTrajectorySimulationEvaluatorConfig,
+)
+from uipath.eval.models import (
     EvaluatorType,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
@@ -165,6 +169,18 @@ def evaluator_config_discriminator(data: Any) -> str:
                 return "LLMJudgeOutputEvaluatorConfig"
             case EvaluatorType.LLM_JUDGE_OUTPUT_STRICT_JSON_SIMILARITY:
                 return "LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig"
+            case EvaluatorType.LLM_JUDGE_TRAJECTORY_SIMILARITY:
+                return "LLMJudgeTrajectoryEvaluatorConfig"
+            case EvaluatorType.LLM_JUDGE_TRAJECTORY_SIMULATION:
+                return "LLMJudgeTrajectorySimulationEvaluatorConfig"
+            case EvaluatorType.TOOL_CALL_ARGS:
+                return "ToolCallArgsEvaluatorConfig"
+            case EvaluatorType.TOOL_CALL_COUNT:
+                return "ToolCallCountEvaluatorConfig"
+            case EvaluatorType.TOOL_CALL_ORDER:
+                return "ToolCallOrderEvaluatorConfig"
+            case EvaluatorType.TOOL_CALL_OUTPUT:
+                return "ToolCallOutputEvaluatorConfig"
             case _:
                 return "UnknownEvaluatorConfig"
     else:
@@ -218,6 +234,14 @@ EvaluatorConfig = Annotated[
         Annotated[
             LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
             Tag("LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig"),
+        ],
+        Annotated[
+            LLMJudgeTrajectoryEvaluatorConfig,
+            Tag("LLMJudgeTrajectoryEvaluatorConfig"),
+        ],
+        Annotated[
+            LLMJudgeTrajectorySimulationEvaluatorConfig,
+            Tag("LLMJudgeTrajectorySimulationEvaluatorConfig"),
         ],
         Annotated[
             UnknownEvaluatorConfig,
