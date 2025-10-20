@@ -557,7 +557,7 @@ async def download_folder_files(
         local_path = base_path / file_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
-        response = await studio_client.download_file_async(remote_file.id)
+        response = await studio_client.download_project_file_async(remote_file)
         remote_content = response.read().decode("utf-8")
         remote_hash = compute_normalized_hash(remote_content)
 

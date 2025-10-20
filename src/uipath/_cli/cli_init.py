@@ -1,5 +1,4 @@
 # type: ignore
-import asyncio
 import importlib.resources
 import json
 import logging
@@ -188,22 +187,20 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
             "entrypoint": script_path,
         }
 
-        async def initialize() -> None:
+        def initialize() -> None:
             try:
-                async with generate_runtime_factory().new_runtime(
-                    **context_args
-                ) as runtime:
-                    bindings = Bindings(
-                        version="2.0",
-                        resources=runtime.get_binding_resources,
-                    )
-                    config_data = RuntimeSchema(
-                        entryPoints=[runtime.get_entrypoint],
-                        bindings=bindings,
-                    )
-                    config_path = write_config_file(config_data)
-                    console.success(f"Created '{config_path}' file.")
+                runtime = generate_runtime_factory().new_runtime(**context_args)
+                bindings = Bindings(
+                    version="2.0",
+                    resources=runtime.get_binding_resources,
+                )
+                config_data = RuntimeSchema(
+                    entryPoints=[runtime.get_entrypoint],
+                    bindings=bindings,
+                )
+                config_path = write_config_file(config_data)
+                console.success(f"Created '{config_path}' file.")
             except Exception as e:
                 console.error(f"Error creating configuration file:\n {str(e)}")
 
-        asyncio.run(initialize())
+        initialize()
