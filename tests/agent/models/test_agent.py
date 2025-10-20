@@ -642,7 +642,7 @@ class TestAgentBuilderConfig:
                         {
                             "$parameterType": "map-enum",
                             "id": "entityThresholds",
-                            "value": {"Email": 1, "Address": 0.7},
+                            "value": {"Email": 0.7, "Address": 0.7},
                         },
                     ],
                     "action": {
