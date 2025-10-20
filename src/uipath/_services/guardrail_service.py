@@ -1,5 +1,7 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
+
+from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
 
 from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
 
@@ -17,12 +19,7 @@ from ..models.guardrails import (
     LogAction,
 )
     Guardrail,
-    GuardrailAction,
-    GuardrailSelector,
     LogAction,
-    MapEnumParameterValue,
-    NumberParameterValue,
-    ValidatorParameter,
 )
 from ..tracing import traced
 from ._base_service import BaseService
@@ -39,6 +36,7 @@ class GuardrailViolationError(Exception):
     def __init__(self, detected_issue: Any):
         self.detected_issue = detected_issue
         super().__init__(f"Guardrail violation detected: {detected_issue}")
+
 
 class GuardrailsService(FolderContext, BaseService):
     """Service for validating text against UiPath Guardrails."""
@@ -146,12 +144,15 @@ class GuardrailsService(FolderContext, BaseService):
                     if hasattr(action_output, "data") and action_output.data:
                         reason = action_output.data.get("Reason", reason)
                     raise GuardrailViolationError(reason)
+                        reason = action_output.data.get("Reason", reason)
+                    raise GuardrailViolationError(reason)
         elif isinstance(action, BlockAction):
             raise GuardrailViolationError(action.reason)
         elif isinstance(action, LogAction):
             reason = validation_result.get("reason", "Guardrail violation detected")
             severity = action.severity_level.value
             print(f"GUARDRAIL LOG [{severity}]: {reason}")
+
         elif isinstance(action, FilterAction):
             # TODO: see what it clearly does
             # implement filtering logic
@@ -289,4 +290,3 @@ class GuardrailsService(FolderContext, BaseService):
         print(f"  All passed: {results['all_passed']}")
 
         return results
-            print(f"GUARDRAIL FILTER: Fields to filter: {[f.path for f in action.fields]}")
