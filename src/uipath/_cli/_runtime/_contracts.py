@@ -828,6 +828,28 @@ class UiPathRuntimeFactory(Generic[T, C]):
                 for span_processor in self.tracer_span_processors:
                     span_processor.force_flush()
 
+    async def stream(
+        self, context: C
+    ) -> AsyncGenerator[Union[UiPathRuntimeEvent, UiPathRuntimeResult], None]:
+        """Stream runtime execution with context.
+
+        Args:
+            context: The runtime context
+
+        Yields:
+            UiPathRuntimeEvent instances during execution and final UiPathRuntimeResult
+
+        Raises:
+            UiPathRuntimeStreamNotSupportedError: If the runtime doesn't support streaming
+        """
+        async with self.from_context(context) as runtime:
+            try:
+                async for event in runtime.stream():
+                    yield event
+            finally:
+                for span_processor in self.tracer_span_processors:
+                    span_processor.force_flush()
+
     async def execute_in_root_span(
         self,
         context: C,
@@ -849,6 +871,44 @@ class UiPathRuntimeFactory(Generic[T, C]):
                     attributes=span_attributes,
                 ):
                     return await runtime.execute()
+            finally:
+                for span_processor in self.tracer_span_processors:
+                    span_processor.force_flush()
+
+    async def stream_in_root_span(
+        self,
+        context: C,
+        root_span: str = "root",
+        attributes: Optional[dict[str, str]] = None,
+    ) -> AsyncGenerator[Union[UiPathRuntimeEvent, UiPathRuntimeResult], None]:
+        """Stream runtime execution with context in a root span.
+
+        Args:
+            context: The runtime context
+            root_span: Name of the root span
+            attributes: Optional attributes to add to the span
+
+        Yields:
+            UiPathRuntimeEvent instances during execution and final UiPathRuntimeResult
+
+        Raises:
+            UiPathRuntimeStreamNotSupportedError: If the runtime doesn't support streaming
+        """
+        async with self.from_context(context) as runtime:
+            try:
+                tracer: Tracer = trace.get_tracer("uipath-runtime")
+                span_attributes = {}
+                if context.execution_id:
+                    span_attributes["execution.id"] = context.execution_id
+                if attributes:
+                    span_attributes.update(attributes)
+
+                with tracer.start_as_current_span(
+                    root_span,
+                    attributes=span_attributes,
+                ):
+                    async for event in runtime.stream():
+                        yield event
             finally:
                 for span_processor in self.tracer_span_processors:
                     span_processor.force_flush()

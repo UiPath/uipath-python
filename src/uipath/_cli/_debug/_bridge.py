@@ -13,6 +13,7 @@ from uipath._cli._runtime._contracts import (
     UiPathBreakpointResult,
     UiPathRuntimeContext,
     UiPathRuntimeResult,
+    UiPathRuntimeStatus,
 )
 from uipath._events._events import UiPathAgentStateEvent
 
@@ -105,8 +106,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
 
     async def emit_execution_started(self, execution_id: str, **kwargs) -> None:
         """Print execution started."""
-        self.console.print("[green]▶ Started[/green] [dim]")
-        self.console.print()
+        self.console.print("[green]▶ START[/green] [dim]")
 
     async def emit_state_update(self, state_event: UiPathAgentStateEvent) -> None:
         """Print agent state update."""
@@ -144,20 +144,18 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         """Print completion."""
         self.console.print()
 
-        status_upper = runtime_result.status.value.upper()
-        if status_upper == "SUCCESSFUL":
+        status: UiPathRuntimeStatus = runtime_result.status
+        if status == UiPathRuntimeStatus.SUCCESSFUL:
             color = "green"
-            symbol = "✓"
-        elif status_upper == "SUSPENDED":
+            symbol = "●"
+        elif status == UiPathRuntimeStatus.SUSPENDED:
             color = "yellow"
             symbol = "■"
         else:
             color = "blue"
             symbol = "●"
 
-        self.console.print(
-            f"[{color}]{symbol} Completed[/{color}] [bold]{status_upper}[/bold]"
-        )
+        self.console.print(f"[{color}]{symbol} END[/{color}]")
         if runtime_result.output:
             self._print_json(runtime_result.output, label="Output")
 
@@ -322,6 +320,7 @@ class SignalRDebugBridge(UiPathDebugBridge):
             "OnExecutionCompleted",
             {
                 "status": runtime_result.status,
+                "output": runtime_result.output,
             },
         )
 
