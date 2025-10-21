@@ -90,6 +90,7 @@ class TestGenerateAgentMdFiles:
                     "uipath._cli.cli_init.importlib.resources.as_file"
                 ) as mock_as_file,
                 patch("uipath._cli.cli_init.console"),
+                patch("uipath._cli._runtime._runtime.console"),
             ):
                 temp_source = Path(temp_dir) / "temp_source.md"
                 temp_source.write_text("Test content")

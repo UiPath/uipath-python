@@ -146,7 +146,7 @@ class TestInit:
                 assert "invalid syntax" in result.output  # Should show stacktrace
 
             # Test with generate_args raising exception
-            with patch("uipath._cli.cli_init.generate_args") as mock_generate:
+            with patch("uipath._cli._runtime._runtime.generate_args") as mock_generate:
                 mock_generate.side_effect = Exception("Generation error")
                 with open("script.py", "w") as f:
                     f.write("def main(input): return input")

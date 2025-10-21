@@ -5,7 +5,6 @@ import logging
 import os
 import shutil
 import uuid
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import click
@@ -13,11 +12,11 @@ import click
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
+from ._runtime._runtime import get_user_script
+from ._runtime._runtime_factory import generate_runtime_factory
 from ._utils._console import ConsoleLogger
-from ._utils._input_args import generate_args
-from ._utils._parse_ast import generate_bindings
 from .middlewares import Middlewares
-from .models.runtime_schema import Bindings, Entrypoint, RuntimeSchema
+from .models.runtime_schema import Bindings, RuntimeSchema
 
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
@@ -126,33 +125,6 @@ def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optional[str]:
-    """Find the Python script to process."""
-    if entrypoint:
-        script_path = os.path.join(directory, entrypoint)
-        if not os.path.isfile(script_path):
-            console.error(
-                f"The {entrypoint} file does not exist in the current directory."
-            )
-            return None
-        return script_path
-
-    python_files = [f for f in os.listdir(directory) if f.endswith(".py")]
-
-    if not python_files:
-        console.error(
-            "No python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
-        )
-        return None
-    elif len(python_files) == 1:
-        return os.path.join(directory, python_files[0])
-    else:
-        console.error(
-            "Multiple python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
-        )
-        return None
-
-
 def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
     existing_settings = get_existing_settings(CONFIG_PATH)
     if existing_settings is not None:
@@ -205,39 +177,28 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
 
         generate_agent_md_files(current_directory)
         script_path = get_user_script(current_directory, entrypoint=entrypoint)
-
         if not script_path:
             return
 
-        try:
-            args = generate_args(script_path)
+        context_args = {
+            "runtime_dir": os.getcwd(),
+            "entrypoint": script_path,
+        }
 
-            relative_path = Path(script_path).relative_to(current_directory).as_posix()
-            bindings = None
-            if infer_bindings:
-                try:
-                    bindings = generate_bindings(script_path)
-                except Exception as e:
-                    console.warning(f"Warning: Could not generate bindings: {str(e)}")
-            if bindings is None:
+        def initialize() -> None:
+            try:
+                runtime = generate_runtime_factory().new_runtime(**context_args)
                 bindings = Bindings(
                     version="2.0",
-                    resources=[],
+                    resources=runtime.get_binding_resources,
                 )
-            config_data = RuntimeSchema(
-                entrypoints=[
-                    Entrypoint(
-                        file_path=relative_path,
-                        unique_id=str(uuid.uuid4()),
-                        type="agent",
-                        input=args["input"],
-                        output=args["output"],
-                    )
-                ],
-                bindings=bindings,
-            )
+                config_data = RuntimeSchema(
+                    entryPoints=[runtime.get_entrypoint],
+                    bindings=bindings,
+                )
+                config_path = write_config_file(config_data)
+                console.success(f"Created '{config_path}' file.")
+            except Exception as e:
+                console.error(f"Error creating configuration file:\n {str(e)}")
 
-            config_path = write_config_file(config_data)
-            console.success(f"Created '{config_path}' file.")
-        except Exception as e:
-            console.error(f"Error creating configuration file:\n {str(e)}")
+        initialize()

@@ -39,6 +39,7 @@ from uipath._events._events import UiPathRuntimeEvent
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 from uipath.tracing import TracingManager
 
+from ..models.runtime_schema import BindingResource, Entrypoint
 from ._logging import LogsInterceptor
 
 logger = logging.getLogger(__name__)
@@ -516,6 +517,22 @@ class UiPathBaseRuntime(ABC):
         runtime = cls(context)
         return runtime
 
+    @property
+    def get_binding_resources(self) -> List[BindingResource]:
+        """Get binding resources for this runtime.
+
+        Returns: A list of binding resources.
+        """
+        raise NotImplementedError()
+
+    @property
+    def get_entrypoint(self) -> Entrypoint:
+        """Get entrypoint for this runtime.
+
+        Returns: A entrypoint for this runtime.
+        """
+        raise NotImplementedError()
+
     async def __aenter__(self):
         """Async enter method called when entering the 'async with' block.
 
@@ -806,9 +823,9 @@ class UiPathRuntimeFactory(Generic[T, C]):
             return self.context_generator(**kwargs)
         return self.context_class(**kwargs)
 
-    def new_runtime(self) -> T:
+    def new_runtime(self, **kwargs) -> T:
         """Create a new runtime instance."""
-        context = self.new_context()
+        context = self.new_context(**kwargs)
         if self.runtime_generator:
             return self.runtime_generator(context)
         return self.runtime_class.from_context(context)
