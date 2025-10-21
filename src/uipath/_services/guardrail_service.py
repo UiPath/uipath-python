@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
 
@@ -268,6 +268,28 @@ class GuardrailsService(FolderContext, BaseService):
                 results["details"].append(detail)
             # TODO fa o aplicatie in studio + review vezi ce se intmapla
 
+            except GuardrailViolationError:
+                detail["status"] = "blocked"
+                results["details"].append(detail)
+                raise
+
+            except Exception as e:
+                results["errors"] += 1
+                results["all_passed"] = False
+                detail.update({"status": "error", "error": str(e)})
+                results["details"].append(detail)
+
+        # Summary
+        print("  Processing Summary:")
+        print(f"  Total: {results['total_guardrails']}")
+        print(f"  Processed: {results['processed']}")
+        print(f"  Passed: {results['passed']}")
+        print(f"  Failed: {results['failed']}")
+        print(f"  Skipped: {results['skipped']}")
+        print(f"  Errors: {results['errors']}")
+        print(f"  All passed: {results['all_passed']}")
+
+        return results
             except GuardrailViolationError:
                 detail["status"] = "blocked"
                 results["details"].append(detail)
