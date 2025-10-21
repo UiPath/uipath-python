@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
 
@@ -161,3 +161,156 @@ class GuardrailsService(FolderContext, BaseService):
             print(
                 f"GUARDRAIL FILTER: Fields to filter: {[f.path for f in action.fields]}"
             )
+
+    def _should_apply_guardrail(self, guardrail: Guardrail, tool_name: str) -> bool:
+        """Check if guardrail should apply to the current tool context."""
+        selector = guardrail.selector
+
+        # Check scopes
+        scope_values = [scope.value for scope in selector.scopes]
+        if "Tool" not in scope_values:
+            return False
+
+        # Check match names (if specified)
+        if selector.match_names:
+            return tool_name in selector.match_names or "*" in selector.match_names
+
+        return True
+
+    @traced
+    async def process_guardrails(
+        self,
+        input_data: Union[str, Dict[str, Any]],
+        guardrails: List[Guardrail],
+        tool_name: str = "unknown",
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        stop_on_first_failure: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Process multiple guardrails: evaluate each one and execute its action if needed.
+
+        Args:
+            input_data: Data to validate
+            guardrails: List of guardrails to process
+            tool_name: Name of the tool being validated
+            folder_key: Optional folder key
+            folder_path: Optional folder path
+            stop_on_first_failure: Whether to stop processing on first failure
+
+        Returns:
+            Summary of processing results
+        """
+        results = {
+            "input_data": str(input_data),
+            "tool_name": tool_name,
+            "total_guardrails": len(guardrails),
+            "processed": 0,
+            "passed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "errors": 0,
+            "all_passed": True,
+            "details": [],
+        }
+
+        print(f"Processing {len(guardrails)} guardrail(s) for tool '{tool_name}'")
+
+        for i, guardrail in enumerate(guardrails):
+            detail = {
+                "guardrail_id": guardrail.id,
+                "guardrail_name": guardrail.name,
+                "guardrail_type": guardrail.guardrail_type,
+                "index": i + 1,
+            }
+
+            try:
+                print(f"[{i + 1}/{len(guardrails)}] {guardrail.name}")
+
+                # Check if guardrail applies to this context
+                if not self._should_apply_guardrail(guardrail, tool_name):
+                    results["skipped"] += 1
+                    detail.update(
+                        {"status": "skipped", "reason": "Scope or name mismatch"}
+                    )
+                    results["details"].append(detail)
+                    continue
+
+                # 1: Evaluate guardrail
+                validation_result = self.evaluate_guardrail(
+                    input_data=input_data,
+                    guardrail=guardrail,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+
+                results["processed"] += 1
+                validation_passed = validation_result.get("validation_passed", True)
+
+                if validation_passed:
+                    results["passed"] += 1
+                    detail.update(
+                        {"status": "passed", "validation_result": validation_result}
+                    )
+                else:
+                    results["failed"] += 1
+                    results["all_passed"] = False
+                    reason = validation_result.get("reason", "Unknown reason")
+
+                    detail.update(
+                        {
+                            "status": "failed",
+                            "reason": reason,
+                            "validation_result": validation_result,
+                        }
+                    )
+
+                    # 2: Execute guardrail action
+                    try:
+                        await self.execute_guardrail(
+                            validation_result=validation_result,
+                            guardrail=guardrail,
+                            tool_name=tool_name,
+                        )
+                        detail["action_executed"] = True
+
+                    except GuardrailViolationError:
+                        detail["action_executed"] = True
+                        detail["blocked"] = True
+                        raise
+
+                    except Exception as action_error:
+                        detail["action_error"] = str(action_error)
+                        print(f"Action execution failed: {action_error}")
+
+                    # Stop on first failure if requested
+                    if stop_on_first_failure:
+                        detail["stopped_early"] = True
+                        results["details"].append(detail)
+                        break
+
+                results["details"].append(detail)
+
+            except GuardrailViolationError:
+                detail["status"] = "blocked"
+                results["details"].append(detail)
+                raise
+
+            except Exception as e:
+                results["errors"] += 1
+                results["all_passed"] = False
+                detail.update({"status": "error", "error": str(e)})
+                results["details"].append(detail)
+
+        # Summary
+        print("  Processing Summary:")
+        print(f"  Total: {results['total_guardrails']}")
+        print(f"  Processed: {results['processed']}")
+        print(f"  Passed: {results['passed']}")
+        print(f"  Failed: {results['failed']}")
+        print(f"  Skipped: {results['skipped']}")
+        print(f"  Errors: {results['errors']}")
+        print(f"  All passed: {results['all_passed']}")
+
+        return results

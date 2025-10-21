@@ -650,7 +650,7 @@ class TestAgentBuilderConfig:
                         "app": {
                             "id": "cf4cb73d-7310-49b1-9a9e-e7653dad7f4e",
                             "version": "0",
-                            "name": "-Guardrail Form",
+                            "name": "Guardrail Form",
                             "folderId": "d0195402-505d-54c1-0b94-5faa5bf69ad1",
                             "folderName": "solution_folder",
                         },
