@@ -1,7 +1,6 @@
 # type: ignore
 import asyncio
 import os
-import uuid
 from os import environ as env
 from typing import Optional
 
@@ -110,7 +109,6 @@ def debug(
                 execution_output_file=output_file,
                 debug=debug,
             )
-            debug_context.execution_id = debug_context.job_id or str(uuid.uuid4())
 
             runtime_factory = UiPathRuntimeFactory(
                 UiPathScriptRuntime,

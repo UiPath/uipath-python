@@ -5,9 +5,11 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
+from pydantic import BaseModel
 from pysignalr.client import SignalRClient
 from rich.console import Console
 from rich.syntax import Syntax
+from rich.tree import Tree
 
 from uipath._cli._runtime._contracts import (
     UiPathBreakpointResult,
@@ -115,7 +117,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
 
         self.console.print(f"[yellow]●[/yellow] [bold]{state_event.node_name}[/bold]")
         if state_event.payload:
-            self._print_json(state_event.payload, label="State")
+            self._print_json(state_event.payload, label="state")
 
     async def emit_breakpoint_hit(
         self, breakpoint_result: UiPathBreakpointResult
@@ -135,7 +137,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
 
         # Display current state
         if breakpoint_result.current_state:
-            self._print_json(breakpoint_result.current_state, label="State")
+            self._print_json(breakpoint_result.current_state, label="state")
 
     async def emit_execution_completed(
         self,
@@ -157,7 +159,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
 
         self.console.print(f"[{color}]{symbol} END[/{color}]")
         if runtime_result.output:
-            self._print_json(runtime_result.output, label="Output")
+            self._print_json(runtime_result.output, label="output")
 
     async def emit_execution_error(
         self,
@@ -193,36 +195,83 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         self.console.print()
         return user_input
 
-    def _print_json(self, data: Dict[str, Any], label: str = "Data") -> None:
-        """Print JSON data in a readable format."""
+    def _print_json(self, data: Dict[str, Any], label: str = "data") -> None:
+        """Print JSON data with enhanced hierarchy."""
         try:
-            json_str = json.dumps(data, indent=2, default=str)
+            # Create a tree for nested structure
+            tree = Tree(f"[bold cyan]{label}[/bold cyan]")
 
-            # Limit output if too large
-            is_truncated = False
-            if len(json_str) > 2000:
-                json_str = json_str[:2000] + "\n..."
-                is_truncated = True
+            def process_value(
+                node: Tree, value: Any, key_label: str, depth: int
+            ) -> None:
+                """Process a single value and add it to the tree."""
+                if isinstance(value, BaseModel):
+                    branch = node.add(
+                        f"{key_label} [dim]({type(value).__name__})[/dim]"
+                    )
+                    add_to_tree(branch, value, depth + 1)
+                elif isinstance(value, dict):
+                    branch = node.add(f"{key_label} [dim](dict)[/dim]")
+                    add_to_tree(branch, value, depth + 1)
+                elif isinstance(value, list):
+                    branch = node.add(
+                        f"{key_label} [dim](list, {len(value)} items)[/dim]"
+                    )
+                    add_to_tree(branch, value, depth + 1)
+                else:
+                    val_str = str(value)
+                    if len(val_str) > 250:
+                        val_str = val_str[:250] + "..."
+                    node.add(f"{key_label}: [green]{val_str}[/green]")
 
-            syntax = Syntax(
-                json_str,
-                "json",
-                theme="monokai",
-                line_numbers=False,
-                background_color="default",
-            )
+            def add_to_tree(node: Tree, payload: Any, depth: int = 0):
+                if depth > 10:
+                    node.add("[dim]...[/dim]")
+                    return
+
+                if isinstance(payload, BaseModel):
+                    try:
+                        payload = payload.model_dump()  # Pydantic v2
+                    except AttributeError:
+                        payload = payload.dict()  # Pydantic v1
+                    add_to_tree(node, payload, depth)
+
+                elif isinstance(payload, dict):
+                    for key, value in payload.items():
+                        process_value(node, value, f"[yellow]{key}[/yellow]", depth)
+
+                elif isinstance(payload, list):
+                    for i, item in enumerate(payload):
+                        process_value(node, item, f"[cyan]#{i}[/cyan]", depth)
+
+                else:
+                    val_str = str(payload)
+                    if len(val_str) > 250:
+                        val_str = val_str[:250] + "..."
+                    node.add(f"[green]{val_str}[/green]")
+
+            add_to_tree(tree, data)
 
             self.console.print()
-            truncated_text = " (truncated)" if is_truncated else ""
-            self.console.print(f"[dim]{label}{truncated_text}:")
-            self.console.print(syntax)
+            self.console.print(tree)
             self.console.print()
+
         except Exception:
-            # Fallback to simple print
-            self.console.print()
-            self.console.print(f"[dim]{label}:")
-            self.console.print(str(data))
-            self.console.print()
+            try:
+                json_str = json.dumps(data, indent=2, default=str)
+                if len(json_str) > 10000:
+                    json_str = json_str[:10000] + "\n..."
+
+                syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
+                self.console.print(f"\n[dim]{label}:")
+                self.console.print(syntax)
+                self.console.print()
+            except Exception:
+                # Fallback to simple print
+                self.console.print()
+                self.console.print(f"[dim]{label}:")
+                self.console.print(str(data))
+                self.console.print()
 
 
 class SignalRDebugBridge(UiPathDebugBridge):
