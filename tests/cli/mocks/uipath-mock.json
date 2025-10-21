@@ -1,0 +1,66 @@
+{
+  "entryPoints": [
+    {
+      "filePath": "agent_1",
+      "uniqueId": "2d3927a6-3402-4e67-92da-df3207cc41bc",
+      "type": "agent_1",
+      "input": {
+        "type": "object",
+        "properties": {
+          "agent_1_input": {
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_1_input"
+        ]
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "agent_1_output": {
+            "title": "Report",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_1_output"
+        ]
+      }
+    },
+    {
+    "filePath": "agent_2",
+      "uniqueId": "2d3927a6-3402-4e67-92da-df3207cc41bc",
+      "type": "agent_2",
+      "input": {
+        "type": "object",
+        "properties": {
+          "agent_2_input": {
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_2_input"
+        ]
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "agent_2_output": {
+            "title": "Report",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_2_output"
+        ]
+      }
+    }
+  ],
+  "bindings": {
+    "version": "2.0",
+    "resources": []
+  }
+}

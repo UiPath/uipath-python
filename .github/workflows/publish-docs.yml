@@ -1,0 +1,55 @@
+name: Publish Docs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+  repository_dispatch:
+    types: [publish-docs]
+
+jobs:
+  publish-docs:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'UiPath/uipath-python' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Clone plugins
+        run: |
+          git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-langchain-python plugins/uipath-langchain-python
+          git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-llamaindex-python plugins/uipath-llamaindex-python
+          git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-mcp-python plugins/uipath-mcp-python
+
+      - name: Symlink plugin docs
+        run: |
+          ln -s ../plugins/uipath-langchain-python/docs docs/langchain
+          ln -s ../plugins/uipath-llamaindex-python/docs docs/llamaindex
+          ln -s ../plugins/uipath-mcp-python/docs docs/mcp
+          ls -a docs/langchain
+          ls -a docs/llamaindex
+          ls -a docs/mcp
+
+      - name: Publish Docs
+        run: uv run mkdocs gh-deploy --force

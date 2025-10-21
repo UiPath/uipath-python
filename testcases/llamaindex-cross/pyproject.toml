@@ -1,0 +1,13 @@
+[project]
+name = "agent"
+version = "0.0.1"
+description = "agent"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "uipath-llamaindex>=0.0.27",
+    "uipath"
+]
+requires-python = ">=3.10"
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }

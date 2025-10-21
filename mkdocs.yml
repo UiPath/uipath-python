@@ -1,0 +1,156 @@
+site_name: UiPath SDK
+site_url: https://uipath.github.io/uipath-python/
+
+repo_name: UiPath/uipath-python
+repo_url: https://github.com/UiPath/uipath-python
+
+copyright: Copyright &copy; 2025 UiPath
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
+
+google_tag_manager_id: GTM-PLLP8P
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  logo: assets/logo-light.svg
+  custom_logo:
+    light: assets/logo-light.svg
+    dark: assets/logo-dark.svg
+  favicon: assets/favicon.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.code.copy
+    - content.footnote.tooltips
+    - content.tabs.link
+    - content.tooltips
+    - navigation.expand
+    - navigation.footer
+    - navigation.sections
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+nav:
+  - UiPath SDK:
+        - Getting Started: core/getting_started.md
+        - Environment Variables: core/environment_variables.md
+        - CLI Reference: cli/index.md
+        - Tracing: core/traced.md
+        - Services:
+            - Actions: core/actions.md
+            - Assets: core/assets.md
+            - Buckets: core/buckets.md
+            - Connections: core/connections.md
+            - Context Grounding: core/context_grounding.md
+            - Documents: core/documents.md
+            - Jobs: core/jobs.md
+            - LLM Gateway: core/llm_gateway.md
+            - Queues: core/queues.md
+            - Processes: core/processes.md
+        - Models:
+            - Documents: core/documents_models.md
+  - UiPath MCP SDK:
+      - Getting Started: mcp/quick_start.md
+      - How To Pack Binary: mcp/how_to_pack_binary.md
+      - Sample MCP Servers: https://github.com/UiPath/uipath-mcp-python/tree/main/samples
+  - UiPath Langchain SDK:
+      - Getting Started: langchain/quick_start.md
+      - Chat Models: langchain/chat_models.md
+      - Context Grounding: langchain/context_grounding.md
+      - Human In The Loop: langchain/human_in_the_loop.md
+      - Sample Agents: https://github.com/UiPath/uipath-langchain-python/tree/main/samples
+  - UiPath LlamaIndex SDK:
+      - Getting Started: llamaindex/quick_start.md
+      - LLMs and Embeddings: llamaindex/llms_and_embeddings.md
+      - Context Grounding: llamaindex/context_grounding.md
+      - Human In The Loop: llamaindex/human_in_the_loop.md
+      - Sample Agents: https://github.com/UiPath/uipath-llamaindex-python/tree/main/samples
+  - How To Contribute: CONTRIBUTING.md
+  - FAQ: FAQ.md
+  - Release Policy: release_policy.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            modernize_annotations: true
+            show_signature_annotations: false
+            separate_signature: true
+            show_overloads: false
+            unwrap_annotated: true
+            heading_level: 2
+            show_root_heading: false
+            show_source: false
+            show_root_toc_entry: false
+            show_symbol_type_toc: true
+            show_bases: false
+  - mkdocs-simple-hooks:
+      hooks:
+        on_post_page: "docs.hooks:on_post_page"
+  - termynal:
+      prompt_literal_start:
+        - "$"
+        - ">"
+  - social
+  - open-in-new-tab
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - mkdocs-click
+  - pymdownx.blocks.tab:
+      alternate_style: true
+  - pymdownx.blocks.admonition:
+      types:
+        - note
+        - attention
+        - caution
+        - danger
+        - error
+        - tip
+        - hint
+        - warning
+        - info
+        - check
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.snippets
+  - pymdownx.fancylists
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      title: On this page
+      permalink: true

@@ -1,0 +1,261 @@
+Screen {
+    layout: horizontal;
+}
+
+.run-history {
+    width: 30%;
+    min-width: 25;
+    padding-right: 1;
+}
+
+.run-list {
+    height: 1fr;
+    margin-bottom: 1;
+}
+
+.run-item {
+    padding: 0 1;
+}
+
+.run-running {
+    border-left: solid #ffaa00;
+    color: #ffaa00;
+}
+
+.run-suspended {
+    border-left: solid #00FFFF;
+    color: #e0e0e0;
+}
+
+.run-pending {
+    border-left: solid grey;
+    color: #e0e0e0;
+}
+
+.run-completed {
+    border-left: solid #00ff88;
+    color: #e0e0e0;
+}
+
+.run-failed {
+    border-left: solid #ff4444;
+    color: #ff4444;
+}
+
+.new-run-btn {
+    width: 100%;
+    margin-bottom: 1;
+    border: none;
+    text-style: bold;
+}
+.main-content {
+    width: 70%;
+    padding-left: 1;
+}
+
+.new-run-title {
+    text-style: bold;
+    padding: 0 1;
+    height: 1;
+    margin-bottom: 0;
+}
+
+.new-run-panel {
+    height: 100%;
+}
+
+.field-label {
+    text-style: bold;
+}
+
+.run-actions {
+    dock: bottom;
+    height: auto;
+    align: left middle;
+}
+
+.action-btn {
+    margin-right: 2;
+    min-width: 8;
+    border: none;
+    text-style: bold;
+}
+
+.details-content {
+    height: 1fr;
+}
+
+.traces-section,
+.logs-section {
+    width: 50%;
+    height: 100%;
+}
+
+.traces-section {
+    width: 50%;
+}
+
+.logs-section {
+    width: 50%;
+}
+
+.detail-log {
+    height: 1fr;
+    padding: 1;
+    padding-top: 0;
+}
+
+.status-running {
+    background: #ffaa00;
+    color: #000000;
+    border: solid #ffaa00;
+}
+
+.status-success {
+    background: #00ff88;
+    color: #000000;
+    border: solid #00ff88;
+}
+
+.status-error {
+    background: #ff4444;
+    color: #ffffff;
+    border: solid #ff4444;
+}
+
+.hidden {
+    display: none;
+}
+
+Footer {
+    margin-top:1;
+    height: auto;
+    dock: bottom;
+}
+
+TabbedContent {
+    height: 100%;
+}
+
+TabPane {
+    height: 100%;
+    padding: 0;
+}
+
+.traces-content {
+    height: 100%;
+}
+
+.spans-tree-section {
+    width: 40%;
+    height: 100%;
+    padding-right: 1;
+}
+
+.span-details-section {
+    width: 60%;
+    height: 100%;
+    padding-left: 1;
+}
+
+.spans-tree {
+    height: 100%;
+    padding: 1;
+    padding-top: 0;
+}
+
+Label {
+    margin: 1 1;
+    width: 100%;
+    height: 100%;
+    border: tall $primary;
+    content-align: center middle;
+}
+
+ContentSwitcher {
+    height: 1fr;
+}
+
+SpanDetailsDisplay {
+    height: 100%;
+}
+
+#span-details-display {
+    height: 100%;
+}
+
+#span-details {
+    height: 100%;
+}
+
+.new-run-panel {
+    height: 100%;
+}
+
+.new-run-title {
+    text-style: bold;
+    padding: 0 1;
+    height: 2;
+    content-align: left middle;
+}
+
+.field-label {
+    text-style: bold;
+    margin: 1 0;
+}
+
+.script-input {
+    height: 3;
+}
+
+.json-input {
+    margin-top: 1;
+    height: auto;
+}
+
+.run-actions {
+    height: auto;
+    padding: 1;
+}
+
+.action-btn {
+    min-width: 10;
+    padding: 0 2;
+    text-style: bold;
+    border: none;
+}
+
+TextArea.invalid {
+    border: tall red;
+}
+
+
+Prompt {
+    border: wide $primary-background;
+    background: $surface;
+    color: $text;
+    margin-right: 8;
+    margin-left: 1;
+    padding: 1 1 0 1;
+}
+Response, Tool {
+    border: wide $primary-background;
+    background: $surface;
+    color: $text;
+    margin: 1;
+    margin-left: 8;
+    padding: 1 1 0 1;
+}
+
+#chat-container{
+    background: $surface;
+}
+
+#chat-input{
+    dock: bottom;
+    margin: 1;
+}
+
+Checkbox{
+    margin-top: 1;
+}

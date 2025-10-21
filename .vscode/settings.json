@@ -1,0 +1,28 @@
+{
+  "window.title": "${rootName}${separator}${activeEditorMedium}",
+  "files.exclude": {
+    "**/*.pyc": true,
+    "**/__pycache__": true,
+    ".pytest_cache": true,
+    ".mypy_cache": true,
+    ".ruff_cache": true,
+    ".venv": true
+  },
+  // Formatting
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "workbench.colorCustomizations": {
+    "titleBar.activeBackground": "#0099cc",
+    "titleBar.inactiveBackground": "#0099cc"
+  },
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
+}

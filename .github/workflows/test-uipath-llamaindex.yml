@@ -1,0 +1,153 @@
+name: Test UiPath LlamaIndex
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened, labeled ]
+
+jobs:
+  test-uipath-llamaindex:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [ "3.10", "3.11", "3.12", "3.13" ]
+        os: [ ubuntu-latest, windows-latest ]
+
+    permissions:
+      contents: read
+
+    # Only run if PR has the test:uipath-llamaindex label
+    if: contains(github.event.pull_request.labels.*.name, 'test:uipath-llamaindex')
+
+    steps:
+      - name: Checkout uipath-python
+        uses: actions/checkout@v4
+        with:
+          path: 'uipath-python'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build uipath-python package
+        run: |
+          cd uipath-python
+          uv build
+
+      - name: Checkout uipath-llamaindex-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-llamaindex-python'
+          path: 'uipath-llamaindex-python'
+
+      - name: Update uipath-python version
+        shell: bash
+        run: |
+          cd uipath-llamaindex-python
+          uv add ../uipath-python/dist/*.whl --dev
+
+      - name: Run uipath-llamaindex tests
+        run: |
+          cd uipath-llamaindex-python
+          uv sync
+          uv run pytest
+
+  discover-testcases:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: test-uipath-llamaindex
+    outputs:
+      testcases: ${{ steps.discover.outputs.testcases }}
+    steps:
+      - name: Checkout uipath-llamaindex-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-llamaindex-python'
+          path: 'uipath-llamaindex-python'
+
+      - name: Discover testcases
+        id: discover
+        run: |
+          cd uipath-llamaindex-python
+
+          # Find all testcase folders (excluding common folders like README, etc.)
+          testcase_dirs=$(find testcases -maxdepth 1 -type d -name "*-*" | sed 's|testcases/||' | sort)
+
+          echo "Found testcase directories:"
+          echo "$testcase_dirs"
+
+          # Convert to JSON array for matrix
+          testcases_json=$(echo "$testcase_dirs" | jq -R -s -c 'split("\n")[:-1]')
+          echo "testcases=$testcases_json" >> $GITHUB_OUTPUT
+
+  run-uipath-llamaindex-integration-tests:
+    runs-on: ubuntu-latest
+    needs: [discover-testcases]
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        testcase: ${{ fromJson(needs.discover-testcases.outputs.testcases) }}
+    steps:
+
+      - name: Checkout uipath-python
+        uses: actions/checkout@v4
+        with:
+          path: 'uipath-python'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build uipath-python package
+        run: |
+          cd uipath-python
+          uv build
+
+      - name: Checkout uipath-llamaindex-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-llamaindex-python'
+          path: 'uipath-llamaindex-python'
+
+      - name: Copy wheel file to uipath-llamaindex-python
+        run: |
+          mkdir -p uipath-llamaindex-python/wheels
+          cp uipath-python/dist/*.whl uipath-llamaindex-python/wheels/
+
+      - name: Update uipath-python version
+        shell: bash
+        run: |
+          cd uipath-llamaindex-python
+          WHL=$(ls wheels/*.whl | head -n1)
+          WHL_NAME=$(basename "$WHL")
+          echo "Using wheel: $WHL_NAME"
+          sed -i "s|uipath>=.*|uipath @ file:///app/wheels/$WHL_NAME\",|" pyproject.toml
+
+          if ! grep -q '\[tool.hatch.metadata\]' pyproject.toml; then
+            echo -e '\n[tool.hatch.metadata]\nallow-direct-references = true' >> pyproject.toml
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image and run integration test
+        env:
+          ALPHA_TEST_CLIENT_ID: ${{ secrets.ALPHA_TEST_CLIENT_ID }}
+          ALPHA_TEST_CLIENT_SECRET: ${{ secrets.ALPHA_TEST_CLIENT_SECRET }}
+          ALPHA_BASE_URL: ${{ secrets.ALPHA_BASE_URL }}
+        run: |
+          cd uipath-llamaindex-python
+
+          testcase="${{ matrix.testcase }}"
+          echo "Running testcase: $testcase"
+
+          docker build -f testcases/$testcase/Dockerfile \
+            -t $testcase:test \
+            --build-arg CLIENT_ID="$ALPHA_TEST_CLIENT_ID" \
+            --build-arg CLIENT_SECRET="$ALPHA_TEST_CLIENT_SECRET" \
+            --build-arg BASE_URL="$ALPHA_BASE_URL" \
+            .

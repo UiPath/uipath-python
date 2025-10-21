@@ -1,0 +1,187 @@
+# UiPath Python SDK
+
+[![PyPI downloads](https://img.shields.io/pypi/dm/uipath.svg)](https://pypi.org/project/uipath/)
+[![PyPI - Version](https://img.shields.io/pypi/v/uipath)](https://img.shields.io/pypi/v/uipath)
+[![Python versions](https://img.shields.io/pypi/pyversions/uipath.svg)](https://pypi.org/project/uipath/)
+
+A Python SDK that enables programmatic interaction with UiPath Cloud Platform services including processes, assets, buckets, context grounding, data services, jobs, and more. The package also features a CLI for creation, packaging, and deployment of automations to UiPath Cloud Platform.
+
+Use the [UiPath LangChain SDK](https://github.com/UiPath/uipath-langchain-python) to pack and publish LangGraph Agents.
+
+Use the [UiPath LlamaIndex SDK](https://github.com/UiPath/uipath-llamaindex-python) to pack and publish LlamaIndex Agents.
+
+This [quickstart guide](https://uipath.github.io/uipath-python/) walks you through deploying your first agent to UiPath Cloud Platform.
+
+## Table of Contents
+
+-   [Installation](#installation)
+-   [Configuration](#configuration)
+    -   [Environment Variables](#environment-variables)
+-   [Basic Usage](#basic-usage)
+-   [Available Services](#available-services)
+-   [Examples](#examples)
+    -   [Buckets Service](#buckets-service)
+    -   [Context Grounding Service](#context-grounding-service)
+-   [Command Line Interface (CLI)](#command-line-interface-cli)
+    -   [Authentication](#authentication)
+    -   [Initialize a Project](#initialize-a-project)
+    -   [Debug a Project](#debug-a-project)
+    -   [Package a Project](#package-a-project)
+    -   [Publish a Package](#publish-a-package)
+-   [Project Structure](#project-structure)
+-   [Development](#development)
+    -   [Setting Up a Development Environment](#setting-up-a-development-environment)
+
+## Installation
+
+```bash
+pip install uipath
+```
+
+using `uv`:
+
+```bash
+uv add uipath
+```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in your project root with the following variables:
+
+```
+UIPATH_URL=https://cloud.uipath.com/ACCOUNT_NAME/TENANT_NAME
+UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE
+```
+
+## Basic Usage
+
+```python
+from uipath import UiPath
+# Initialize the SDK
+sdk = UiPath()
+# Execute a process
+job = sdk.processes.invoke(
+    name="MyProcess",
+    input_arguments={"param1": "value1", "param2": 42}
+)
+# Work with assets
+asset = sdk.assets.retrieve(name="MyAsset")
+```
+
+## Available Services
+
+The SDK provides access to various UiPath services:
+
+-   `sdk.processes` - Manage and execute UiPath automation processes
+
+-   `sdk.assets` - Work with assets (variables, credentials) stored in UiPath
+
+-   `sdk.buckets` - Manage cloud storage containers for automation files
+
+-   `sdk.connections` - Handle connections to external systems
+
+-   `sdk.context_grounding` - Work with semantic contexts for AI-enabled automation
+
+-   `sdk.jobs` - Monitor and manage automation jobs
+
+-   `sdk.queues` - Work with transaction queues
+
+-   `sdk.actions` - Work with Action Center
+
+-   `sdk.api_client` - Direct access to the API client for custom requests
+
+## Examples
+
+### Buckets Service
+
+```python
+# Download a file from a bucket
+sdk.buckets.download(
+    bucket_key="my-bucket",
+    blob_file_path="path/to/file.xlsx",
+    destination_path="local/path/file.xlsx"
+)
+```
+
+### Context Grounding Service
+
+```python
+# Search for contextual information
+results = sdk.context_grounding.search(
+    name="my-knowledge-index",
+    query="How do I process an invoice?",
+    number_of_results=5
+)
+```
+
+## Command Line Interface (CLI)
+
+The SDK also provides a command-line interface for creating, packaging, and deploying automations:
+
+### Authentication
+
+```bash
+uipath auth
+```
+
+This command opens a browser for authentication and creates/updates your `.env` file with the proper credentials.
+
+### Initialize a Project
+
+```bash
+uipath init [ENTRYPOINT]
+```
+
+Creates a `uipath.json` configuration file for your project. If the entrypoint is not provided, it will try to find a single Python file in the current directory.
+
+### Debug a Project
+
+```bash
+uipath run ENTRYPOINT [INPUT]
+```
+
+Executes a Python script with the provided JSON input arguments.
+
+### Package a Project
+
+```bash
+uipath pack
+```
+
+Packages your project into a `.nupkg` file that can be deployed to UiPath.
+
+**Note:** Your `pyproject.toml` must include:
+
+-   A description field (avoid characters: &, <, >, ", ', ;)
+-   Author information
+
+Example:
+
+```toml
+description = "Your package description"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+```
+
+### Publish a Package
+
+```bash
+uipath publish
+```
+
+Publishes the most recently created package to your UiPath Orchestrator.
+
+## Project Structure
+
+To properly use the CLI for packaging and publishing, your project should include:
+
+-   A `pyproject.toml` file with project metadata
+-   A `uipath.json` file (generated by `uipath init`)
+-   Any Python files needed for your automation
+
+## Development
+
+### Setting Up a Development Environment
+
+Please read [CONTRIBUTING.md](https://github.com/UiPath/uipath-python/blob/main/CONTRIBUTING.md) before submitting a pull request.

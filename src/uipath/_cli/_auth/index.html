@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UiPath CLI Authentication</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background-color: rgb(241, 246, 248);
+            color: #24292e;
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e1e4e8;
+            padding: 16px 0;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 32px 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #24292e;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 120px;
+            height: 40px;
+            margin-right: 12px;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 16px;
+        }
+
+        .auth-card {
+            background: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 32px;
+            max-width: 440px;
+            width: 100%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .auth-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #24292e;
+            margin-bottom: 8px;
+        }
+
+        .auth-subtitle {
+            font-size: 16px;
+            color: #586069;
+        }
+
+        .status-section {
+            margin: 24px 0;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #e1e4e8;
+            border-top: 3px solid #fa4616;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .success-check {
+            width: 48px;
+            height: 48px;
+            background-color: #28a745;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .error-x {
+            width: 48px;
+            height: 48px;
+            background-color: #d73a49;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .status-message {
+            text-align: center;
+            font-size: 16px;
+            color: #586069;
+            margin-bottom: 16px;
+        }
+
+        .status-message.success {
+            color: #28a745;
+        }
+
+        .status-message.error {
+            color: #d73a49;
+        }
+
+        .progress-container {
+            margin: 16px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e1e4e8;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #fa4616;
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .info-box {
+            background-color: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 16px 0;
+            font-size: 14px;
+            color: #586069;
+            display: none;
+        }
+
+        .info-box.show {
+            display: block;
+        }
+
+        .info-box strong {
+            color: #24292e;
+        }
+
+        .action-buttons {
+            text-align: center;
+            margin-top: 24px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 20px;
+            white-space: nowrap;
+            vertical-align: middle;
+            cursor: pointer;
+            border: 1px solid;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: all 0.15s ease-in-out;
+        }
+
+        .btn-primary {
+            color: #ffffff;
+            background-color: #fa4616;
+            border-color: #fa4616;
+        }
+
+        .btn-primary:hover {
+            background-color: #e63e14;
+            border-color: #e63e14;
+        }
+
+        .btn-secondary {
+            color: #24292e;
+            background-color: #f6f8fa;
+            border-color: #e1e4e8;
+        }
+
+        .btn-secondary:hover {
+            background-color: #e1e4e8;
+            border-color: #d0d7de;
+        }
+
+        .debug-section {
+            margin-top: 24px;
+            border-top: 1px solid #e1e4e8;
+            padding-top: 16px;
+        }
+
+        .debug-toggle {
+            font-size: 12px;
+            color: #586069;
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .debug-toggle:hover {
+            color: #24292e;
+        }
+
+        .debug-log {
+            background-color: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 8px;
+            font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+            font-size: 12px;
+            color: #24292e;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            display: none;
+        }
+
+        .debug-log.show {
+            display: block;
+        }
+
+        @media (max-width: 544px) {
+            .auth-card {
+                border: none;
+                box-shadow: none;
+                padding: 24px 16px;
+            }
+
+            .auth-title {
+                font-size: 20px;
+            }
+        }
+
+        /* Fade in animation */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+
+    <main class="container">
+        <div class="auth-card fade-in">
+            <div class="logo">
+                <svg class="logo-icon" focusable="false" aria-hidden="false" role="img" viewBox="0 0 62 21" width="120"
+                    height="40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M10.5847 6.01996H10.2875C9.51138 6.01996 9.0293 6.49219 9.0293 7.25215V13.3657C9.0293 16.2642 8.12889 17.4465 5.92142 17.4465C3.71394 17.4465 2.81351 16.2589 2.81351 13.3474V7.25216C2.81351 6.49219 2.33141 6.01996 1.55545 6.01996H1.2581C0.482103 6.01996 0 6.49219 0 7.25216V13.3657C0 17.7812 1.9923 20.02 5.92142 20.02C9.85054 20.02 11.8427 17.7812 11.8427 13.3657V7.25216C11.8427 6.49219 11.3606 6.01996 10.5847 6.01996Z"
+                        fill="#000000"></path>
+                    <path
+                        d="M15.3983 9.7298H15.152C14.3567 9.7298 13.8628 10.2204 13.8628 11.0098V18.74C13.8628 19.5294 14.3567 20.02 15.152 20.02H15.3983C16.1934 20.02 16.6874 19.5294 16.6874 18.74V11.0098C16.6874 10.2203 16.1934 9.7298 15.3983 9.7298Z"
+                        fill="#fa4616"></path>
+                    <path
+                        d="M18.8096 4.9445C17.0123 4.66045 15.594 3.26496 15.3053 1.49653C15.2999 1.46315 15.2559 1.46315 15.2504 1.49653C14.9618 3.26496 13.5435 4.66045 11.7462 4.9445C11.7122 4.94985 11.7122 4.99314 11.7462 4.99849C13.5435 5.28248 14.9618 6.67803 15.2504 8.44646C15.2559 8.47984 15.2999 8.47984 15.3053 8.44646C15.594 6.67803 17.0123 5.28248 18.8096 4.99849C18.8435 4.99314 18.8435 4.94985 18.8096 4.9445ZM17.0437 4.98499C16.1451 5.12699 15.4359 5.82476 15.2916 6.70898C15.2889 6.72567 15.2669 6.72567 15.2642 6.70898C15.1198 5.82476 14.4107 5.12699 13.512 4.98499C13.495 4.98231 13.495 4.96067 13.512 4.958C14.4107 4.81597 15.1198 4.11822 15.2642 3.23401C15.2669 3.21732 15.2889 3.21732 15.2916 3.23401C15.4359 4.11822 16.1451 4.81597 17.0437 4.958C17.0607 4.96067 17.0607 4.98231 17.0437 4.98499Z"
+                        fill="#fa4616"></path>
+                    <path
+                        d="M19.8865 2.18349C18.9878 2.32548 18.2787 3.02325 18.1343 3.90747C18.1316 3.92416 18.1096 3.92416 18.1069 3.90747C17.9626 3.02325 17.2534 2.32548 16.3548 2.18349C16.3378 2.18081 16.3378 2.15917 16.3548 2.15649C17.2534 2.01447 17.9626 1.31672 18.1069 0.432502C18.1096 0.41581 18.1316 0.41581 18.1343 0.432502C18.2787 1.31672 18.9878 2.01446 19.8865 2.15649C19.9035 2.15917 19.9035 2.18081 19.8865 2.18349Z"
+                        fill="#fa4616"></path>
+                    <path
+                        d="M22.8632 6.01996H20.1216C19.3373 6.01996 18.8501 6.49722 18.8501 7.26531V18.7746C18.8501 19.5427 19.3374 20.02 20.1216 20.02H20.4222C21.2064 20.02 21.6937 19.5427 21.6937 18.7746V16.0502H22.8819C27.6395 16.0502 29.5801 14.5973 29.5801 11.0351C29.5801 7.47291 27.6341 6.01996 22.8632 6.01996ZM26.6991 10.9983C26.6991 12.8309 25.8116 13.4493 23.1823 13.4493H21.6937V8.5657H23.1823C25.8116 8.5657 26.6991 9.17948 26.6991 10.9983Z"
+                        fill="#000000"></path>
+                    <path
+                        d="M40.1401 8.6104H39.9147C39.1305 8.6104 38.6433 9.08767 38.6433 9.85576V9.85735C37.8378 8.94386 36.5902 8.4082 35.1642 8.4082C33.7113 8.4082 32.3975 8.93097 31.4648 9.88042C30.4488 10.9143 29.9119 12.4066 29.9119 14.1957C29.9119 15.9926 30.452 17.4935 31.4739 18.536C32.4119 19.4929 33.7291 20.02 35.1829 20.02C36.5819 20.02 37.8388 19.4777 38.6443 18.5774C38.6443 18.5783 38.6444 18.8369 38.6444 18.8378C38.6705 19.5689 39.1522 20.02 39.9147 20.02H40.1401C40.9244 20.02 41.4117 19.5429 41.4117 18.7748V9.85576C41.4117 9.08768 40.9244 8.6104 40.1401 8.6104ZM38.6996 14.1957C38.6996 16.2973 37.5536 17.6029 35.7087 17.6029C33.8407 17.6029 32.6803 16.2973 32.6803 14.1957C32.6803 12.1053 33.8263 10.8068 35.6712 10.8068C37.5108 10.8068 38.6996 12.1371 38.6996 14.1957Z"
+                        fill="#000000"></path>
+                    <path
+                        d="M56.5101 8.41922C55.0376 8.41922 53.9872 8.99357 53.3294 9.7174V7.2661C53.3294 6.49753 52.8419 6.01996 52.0571 6.01996H51.8317C51.0469 6.01996 50.5593 6.49753 50.5593 7.2661V18.7738C50.5593 19.5424 51.0469 20.02 51.8317 20.02H52.0571C52.8419 20.02 53.3294 19.5424 53.3294 18.7738V14.1551C53.3294 11.1982 54.7693 10.8562 55.8525 10.8562C57.6713 10.8562 58.4131 11.7428 58.4131 13.916V18.7738C58.4131 19.5424 58.9007 20.02 59.6855 20.02H59.911C60.6957 20.02 61.1832 19.5424 61.1832 18.7738V13.7503C61.1832 10.163 59.6547 8.41922 56.5101 8.41922Z"
+                        fill="#000000"></path>
+                    <path
+                        d="M49.7629 18.6115C49.724 18.2411 49.4976 17.7119 48.4196 17.7119C47.1449 17.7119 46.5383 17.3228 46.5383 15.112V10.8563H48.4383C49.2218 10.8563 49.7086 10.421 49.7086 9.72061C49.7086 9.03146 49.2218 8.60325 48.4383 8.60325H46.5406V7.2661C46.5406 6.49753 46.0501 6.01996 45.2606 6.01996H45.0338C44.2443 6.01996 43.7538 6.49753 43.7538 7.2661V8.60325H43.317C42.626 8.60325 42.1968 9.03147 42.1968 9.72061C42.1968 10.421 42.6836 10.8563 43.4671 10.8563H43.7538V15.3513C43.7538 18.6237 45.0538 20.02 48.1007 20.02C48.1056 20.02 48.1106 20.0198 48.1155 20.0197C48.2927 20.0195 48.4824 20.0168 48.6757 19.9999C49.0598 19.9643 49.3503 19.8316 49.5392 19.6053C49.7274 19.38 49.8027 18.9843 49.7629 18.6115Z"
+                        fill="#000000"></path>
+                </svg>
+            </div>
+
+            <div class="auth-header">
+                <h1 class="auth-title" id="main-title">Authenticate CLI</h1>
+                <p class="auth-subtitle" id="subtitle">Completing authentication flow...</p>
+            </div>
+
+            <div class="status-section">
+                <div class="status-indicator">
+                    <div class="spinner" id="spinner"></div>
+                    <div class="success-check" id="success-check">&check;</div>
+                    <div class="error-x" id="error-x">&times;</div>
+                </div>
+
+                <div class="progress-container" id="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="status-message" id="status-message">
+                    Processing authentication request...
+                </div>
+            </div>
+
+            <div class="info-box" id="info-box">
+                <strong>Authenticating...</strong><br>
+                Securely exchanging authorization code for access tokens.
+            </div>
+
+            <div class="debug-section">
+                <button class="debug-toggle" onclick="toggleDebug()">Show debug info</button>
+                <div class="debug-log" id="debug-log"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const baseUrl = '__PY_REPLACE_REDIRECT_URI__'.replace('/oidc/login', '');
+        const logs = [];
+        let debugMode = false;
+
+        // UI Helper Functions
+        function showSpinner() {
+            document.getElementById('spinner').style.display = 'block';
+            document.getElementById('progress-container').style.display = 'block';
+            updateProgress(20);
+        }
+
+        function hideSpinner() {
+            document.getElementById('spinner').style.display = 'none';
+        }
+
+        function showSuccess() {
+            hideSpinner();
+            document.getElementById('success-check').style.display = 'flex';
+            document.getElementById('progress-container').style.display = 'none';
+        }
+
+        function showError() {
+            hideSpinner();
+            document.getElementById('error-x').style.display = 'flex';
+            document.getElementById('progress-container').style.display = 'none';
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progress-fill').style.width = percent + '%';
+        }
+
+        function updateStatus(message, type = 'normal') {
+            const statusEl = document.getElementById('status-message');
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${type}`;
+        }
+
+        function showInfoBox(content) {
+            const infoBox = document.getElementById('info-box');
+            infoBox.innerHTML = content;
+            infoBox.classList.add('show');
+        }
+
+        function hideInfoBox() {
+            document.getElementById('info-box').classList.remove('show');
+        }
+
+        function toggleDebug() {
+            debugMode = !debugMode;
+            const logEl = document.getElementById('debug-log');
+            const toggleBtn = document.querySelector('.debug-toggle');
+
+            if (debugMode) {
+                logEl.textContent = JSON.stringify(logs, null, 2);
+                logEl.classList.add('show');
+                toggleBtn.textContent = 'Hide debug info';
+            } else {
+                logEl.classList.remove('show');
+                toggleBtn.textContent = 'Show debug info';
+            }
+        }
+
+        function closeWindow() {
+            try {
+                window.open('', '_self', '');
+                window.close();
+            } catch (e) {
+                window.location.href = 'about:blank';
+            }
+        }
+
+        // Parse URL query parameters
+        function getQueryParams() {
+            const params = {};
+            const queryString = window.location.search;
+            const urlParams = new URLSearchParams(queryString);
+
+            for (const [key, value] of urlParams.entries()) {
+                params[key] = value;
+            }
+            return params;
+        }
+
+        // Exchange authorization code for tokens
+        async function exchangeCodeForToken(code, codeVerifier) {
+            try {
+                updateProgress(50);
+                updateStatus('Exchanging authorization code...');
+
+                const formData = new URLSearchParams();
+                formData.append('grant_type', 'authorization_code');
+                formData.append('code', code);
+                formData.append('redirect_uri', '__PY_REPLACE_REDIRECT_URI__');
+                formData.append('client_id', '__PY_REPLACE_CLIENT_ID__');
+                formData.append('code_verifier', codeVerifier);
+
+                const domainOrUrl = '__PY_REPLACE_DOMAIN__';
+                let tokenUrl;
+                if (domainOrUrl.startsWith('http')) {
+                    tokenUrl = `${domainOrUrl}/identity_/connect/token`;
+                } else {
+                    tokenUrl = `https://${domainOrUrl}.uipath.com/identity_/connect/token`;
+                }
+
+                const response = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Token request failed: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                const tokenData = await response.json();
+                updateProgress(80);
+                return tokenData;
+            } catch (error) {
+                console.error('Error exchanging code for token:', error);
+                logs.push({
+                    timestamp: new Date().toISOString(),
+                    message: 'Error exchanging code for token:',
+                    error: error.message
+                });
+                throw error;
+            }
+        }
+
+        async function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function sendLogs(logs) {
+            await fetch(`${baseUrl}/log`, {
+                method: 'POST',
+                body: JSON.stringify(logs)
+            });
+        }
+
+        // Main authentication handler
+        async function handleAuthentication() {
+            const params = getQueryParams();
+            showSpinner();
+
+            logs.push({
+                timestamp: new Date().toISOString(),
+                message: 'Authentication started',
+                params: params
+            });
+
+            try {
+                if (params.code && params.state) {
+                    updateStatus('Validating authorization...');
+                    await delay(300);
+
+                    const codeVerifier = "__PY_REPLACE_CODE_VERIFIER__";
+                    const state = "__PY_REPLACE_EXPECTED_STATE__";
+
+                    if (!codeVerifier) {
+                        throw new Error('Code verifier not found');
+                    }
+
+                    if (!params.state || params.state != state) {
+                        throw new Error('Invalid state parameter');
+                    }
+
+                    updateProgress(30);
+                    const tokenData = await exchangeCodeForToken(params.code, codeVerifier);
+
+                    updateStatus('Sending credentials to CLI...');
+                    updateProgress(90);
+
+                    await sendLogs(logs);
+                    await fetch(`${baseUrl}/set_token`, {
+                        method: 'POST',
+                        body: JSON.stringify(tokenData)
+                    });
+
+                    updateProgress(100);
+                    await delay(300);
+
+                    // Success state
+                    showSuccess();
+                    document.getElementById('main-title').textContent = 'Authentication Complete';
+                    document.getElementById('subtitle').textContent = 'Your CLI is now authenticated and ready to use';
+                    updateStatus('You can close this tab', 'success');
+
+                    // Auto-close after 3 seconds
+                    setTimeout(closeWindow, 3000);
+
+                    window.history.replaceState({}, document.title, window.location.pathname);
+
+                } else if (params.error) {
+                    throw new Error(`OAuth error: ${params.error} - ${params.error_description || 'Unknown error'}`);
+                } else {
+                    updateStatus('Waiting for authentication...');
+                    showInfoBox(`
+                        <strong>Waiting...</strong><br>
+                        Complete the authentication process to continue.
+                    `);
+                }
+            } catch (error) {
+                console.error('Authentication error:', error);
+                logs.push({
+                    timestamp: new Date().toISOString(),
+                    message: 'Authentication failed',
+                    error: error.message
+                });
+
+                await sendLogs(logs);
+
+                showError();
+                document.getElementById('main-title').textContent = 'Authentication Failed';
+                document.getElementById('subtitle').textContent = 'Unable to complete authentication';
+                updateStatus(error.message, 'error');
+
+                showInfoBox(`
+                    <strong>Error:</strong><br>
+                    ${error.message}<br><br>
+                    Please try running the authentication command again.
+                `);
+            }
+        }
+
+        // Start when page loads
+        document.addEventListener('DOMContentLoaded', handleAuthentication);
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,30 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+.coverage
+.coverage/
+.coverage/*
+
+# Virtual environments
+.venv
+**/.env
+**/uipath.db
+**/.uipath
+**/**.nupkg
+**/__uipath/
+
+**/playground.py
+**/.idea
+
+**/docs/plugins/*
+**/docs/plugins/.*
+**/docs/langchain/*
+**/docs/llamaindex/*
+
+.cache/*
+.cache

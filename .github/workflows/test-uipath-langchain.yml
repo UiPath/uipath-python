@@ -1,0 +1,144 @@
+name: Test UiPath Langchain
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened, labeled ]
+
+jobs:
+  test-uipath-langchain:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [ "3.10", "3.11", "3.12", "3.13" ]
+        os: [ ubuntu-latest, windows-latest ]
+
+    permissions:
+      contents: read
+
+    # Only run if PR has the test:uipath-langchain label
+    if: contains(github.event.pull_request.labels.*.name, 'test:uipath-langchain')
+
+    steps:
+      - name: Checkout uipath-python
+        uses: actions/checkout@v4
+        with:
+          path: 'uipath-python'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build uipath-python package
+        working-directory: uipath-python
+        run: uv build
+
+      - name: Checkout uipath-langchain-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-langchain-python'
+          path: 'uipath-langchain-python'
+
+      - name: Update uipath-python version
+        shell: bash
+        working-directory: uipath-langchain-python
+        run: uv add ../uipath-python/dist/*.whl --dev
+
+      - name: Run uipath-langchain tests
+        working-directory: uipath-langchain-python
+        run: |
+          uv sync
+          uv run pytest
+
+  discover-testcases:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: [test-uipath-langchain]
+    outputs:
+      testcases: ${{ steps.discover.outputs.testcases }}
+    steps:
+      - name: Checkout uipath-langchain-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-langchain-python'
+          path: 'uipath-langchain-python'
+
+      - name: Discover testcases
+        id: discover
+        working-directory: uipath-langchain-python
+        run: |
+          # Find all testcase folders (excluding common folders like README, etc.)
+          testcase_dirs=$(find testcases -maxdepth 1 -type d -name "*-*" | sed 's|testcases/||' | sort)
+
+          echo "Found testcase directories:"
+          echo "$testcase_dirs"
+
+          # Convert to JSON array for matrix
+          testcases_json=$(echo "$testcase_dirs" | jq -R -s -c 'split("\n")[:-1]')
+          echo "testcases=$testcases_json" >> $GITHUB_OUTPUT
+
+  run-uipath-langchain-integration-tests:
+    runs-on: ubuntu-latest
+    needs: [discover-testcases]
+    container:
+      image: ghcr.io/astral-sh/uv:python3.12-bookworm
+      env:
+        UIPATH_JOB_KEY: "3a03d5cb-fa21-4021-894d-a8e2eda0afe0"
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        testcase: ${{ fromJson(needs.discover-testcases.outputs.testcases) }}
+        environment: [alpha, staging] # temporary disable [cloud]
+        use_azure_chat: [true, false]
+
+    name: "${{ matrix.testcase }} / ${{ matrix.environment }} / ${{ matrix.use_azure_chat && 'UiPathAzureChatOpenAI' || 'UiPathChat' }}"
+
+    steps:
+      - name: Checkout uipath-python
+        uses: actions/checkout@v4
+        with:
+          path: 'uipath-python'
+
+      - name: Build uipath-python package
+        working-directory: uipath-python
+        run: uv build
+
+      - name: Checkout uipath-langchain-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-langchain-python'
+          path: 'uipath-langchain-python'
+
+      - name: Update uipath-python version
+        shell: bash
+        working-directory: uipath-langchain-python
+        run: uv add ../uipath-python/dist/*.whl
+
+      - name: Install dependencies
+        working-directory: uipath-langchain-python
+        run: uv sync
+
+      - name: Run testcase
+        env:
+          CLIENT_ID:      ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_ID || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_ID || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_ID }}
+          CLIENT_SECRET:  ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_SECRET || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_SECRET || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_SECRET }}
+          BASE_URL:       ${{ matrix.environment == 'alpha' && secrets.ALPHA_BASE_URL || matrix.environment == 'staging' && secrets.STAGING_BASE_URL || matrix.environment == 'cloud' && secrets.CLOUD_BASE_URL }}
+          USE_AZURE_CHAT: ${{ matrix.use_azure_chat }}
+          UV_PYTHON: "3.12"
+        working-directory: uipath-langchain-python/testcases/${{ matrix.testcase }}
+        run: |
+          echo "Running testcase: ${{ matrix.testcase }}"
+          echo "Environment: ${{ matrix.environment }}"
+          echo "LLM: ${{ matrix.use_azure_chat && 'UiPathAzureChatOpenAI' || 'UiPathChat' }}"
+          echo "USE_AZURE_CHAT: ${{ matrix.use_azure_chat }}"
+
+          # Execute the testcase run script directly
+          bash run.sh
+          bash ../common/validate_output.sh
+

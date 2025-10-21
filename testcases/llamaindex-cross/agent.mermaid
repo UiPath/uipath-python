@@ -1,0 +1,17 @@
+flowchart TD
+    step__done["_done"]:::stepStyle
+    step_critique_joke["critique_joke"]:::stepStyle
+    step_generate_joke["generate_joke"]:::stepStyle
+    event_JokeEvent([<p>JokeEvent</p>]):::defaultEventStyle
+    event_CritiqueEvent([<p>CritiqueEvent</p>]):::stopEventStyle
+    event_TopicEvent([<p>TopicEvent</p>]):::defaultEventStyle
+    event_CritiqueEvent --> step__done
+    step_critique_joke --> event_CritiqueEvent
+    event_JokeEvent --> step_critique_joke
+    step_generate_joke --> event_JokeEvent
+    event_TopicEvent --> step_generate_joke
+    classDef stepStyle fill:#f2f0ff,line-height:1.2
+    classDef externalStyle fill:#f2f0ff,line-height:1.2
+    classDef defaultEventStyle fill-opacity:0
+    classDef stopEventStyle fill:#bfb6fc
+    classDef inputRequiredStyle fill:#f2f0ff,line-height:1.2

@@ -1,0 +1,47 @@
+name: Commit Lint
+
+on:
+  workflow_call
+
+jobs:
+  commitlint:
+    name: Commit Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+
+      - name: Install Git
+        run: |
+          if ! command -v git &> /dev/null; then
+              echo "Git is not installed. Installing..."
+              sudo apt-get update
+              sudo apt-get install -y git
+          else
+              echo "Git is already installed."
+          fi
+
+      - name: Install commitlint
+        run: |
+          npm install conventional-changelog-conventionalcommits
+          npm install commitlint@latest
+          npm install @commitlint/config-conventional
+
+      - name: Configure
+        run: |
+          echo "export default { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
+
+      - name: Validate PR commits with commitlint
+        run: |
+          git fetch origin pull/${{ github.event.pull_request.number }}/head:pr_branch
+          npx commitlint --from ${{ github.event.pull_request.base.sha }} --to pr_branch --verbose

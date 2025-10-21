@@ -1,0 +1,147 @@
+[project]
+name = "uipath"
+version = "2.1.96"
+description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+dependencies = [
+  "click>=8.1.8",
+  "httpx>=0.28.1",
+  "opentelemetry-sdk>=1.31.1",
+  "opentelemetry-instrumentation>=0.52b1",
+  "pydantic>=2.11.1",
+  "python-dotenv>=1.0.1",
+  "tenacity>=9.0.0",
+  "tomli>=2.2.1",
+  "pathlib>=1.0.1",
+  "rich>=13.0.0",
+  "azure-monitor-opentelemetry>=1.6.8",
+  "truststore>=0.10.1",
+  "textual>=5.3.0",
+  "pyperclip>=1.9.0",
+  "mockito>=1.5.4",
+  "hydra-core>=1.3.2",
+  "pydantic-function-models>=0.1.10",
+  "pysignalr==1.3.0",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Build Tools",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+maintainers = [
+  { name = "Marius Cosareanu", email = "marius.cosareanu@uipath.com" },
+  { name = "Cristian Pufu", email = "cristian.pufu@uipath.com" },
+]
+
+[project.urls]
+Homepage = "https://uipath.com"
+Repository = "https://github.com/UiPath/uipath-python"
+Documentation = "https://uipath.github.io/uipath-python/"
+
+[project.scripts]
+uipath = "uipath._cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "bandit>=1.8.2",
+  "mypy>=1.14.1",
+  "ruff>=0.9.4",
+  "rust-just>=1.39.0",
+  "pytest>=7.4.0",
+  "pytest-asyncio>=1.0.0",
+  "pytest-httpx>=0.35.0",
+  "pytest-trio>=0.8.0",
+  "pytest-cov>=4.1.0",
+  "pytest-mock>=3.11.1",
+  "pre-commit>=4.1.0",
+  "mkdocs>=1.6.1",
+  "mkdocs-material[imaging]>=9.6.7",
+  "mkdocstrings[python]>=0.18",
+  "termynal>=0.13.0",
+  "mkdocs-simple-hooks>=0.1.5",
+  "mkdocs-click>=0.9.0",
+  "mkdocs-open-in-new-tab>=1.0.8",
+  "toml>=0.10.2",
+  "inflection>=0.5.1",
+  "types-toml>=0.10.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uipath"]
+include = [
+    "src/uipath/_resources"
+]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+exclude = ["samples/**", "testcases/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "D"]
+ignore = ["D417"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-decorators = []
+
+[tool.ruff.lint.per-file-ignores]
+"*" = ["E501"]
+"tests/**" = ["D"]
+"*_test.py" = ["D"]
+"docs/**" = ["D"]
+# TODO: Remove this once the documentation for CLI is updated
+"uipath/_cli/**" = ["D"]
+# TODO: Remove this once model documentation is added
+"src/uipath/models/**" = ["D101", "D100", "D104", "D102", "D107"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+exclude = ["samples/.*", "testcases/.*"]
+
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+
+disallow_untyped_defs = false
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-ra -q --cov"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.coverage.run]
+source = ["src"]
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
