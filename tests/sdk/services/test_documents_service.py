@@ -37,15 +37,6 @@ def create_validation_action_response(documents_tests_data_path: Path) -> dict: 
         return json.load(f)
 
 
-@pytest.fixture
-def validated_result(documents_tests_data_path: Path) -> dict:  # type: ignore
-    with open(
-        documents_tests_data_path / "validated_result.json",
-        "r",
-    ) as f:
-        return json.load(f)
-
-
 class TestDocumentsService:
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
@@ -348,7 +339,7 @@ class TestDocumentsService:
 
         # ACT
         if mode == "async":
-            response = await service.create_validation_action_async(
+            response = await service.create_validate_extraction_action_async(
                 action_title=action_title,
                 action_priority=action_priority,
                 action_catalog=action_catalog,
@@ -360,7 +351,7 @@ class TestDocumentsService:
                 ),
             )
         else:
-            response = service.create_validation_action(
+            response = service.create_validate_extraction_action(
                 action_title=action_title,
                 action_priority=action_priority,
                 action_catalog=action_catalog,
@@ -388,7 +379,7 @@ class TestDocumentsService:
         tenant: str,
         service: DocumentsService,
         create_validation_action_response: dict,  # type: ignore
-        validated_result: dict,  # type: ignore
+        extraction_response: dict,  # type: ignore
         mode: str,
     ):
         # ARRANGE
@@ -400,7 +391,7 @@ class TestDocumentsService:
         create_validation_action_response["operationId"] = operation_id
         create_validation_action_response["actionStatus"] = "Completed"
         create_validation_action_response["validatedExtractionResults"] = (
-            validated_result
+            extraction_response["extractionResult"]
         )
 
         httpx_mock.add_response(
@@ -412,20 +403,20 @@ class TestDocumentsService:
 
         # ACT
         if mode == "async":
-            response = await service.get_validation_result_async(
+            response = await service.get_validate_extraction_result_async(
                 validation_action=ValidationAction.model_validate(
                     create_validation_action_response
                 )
             )
         else:
-            response = service.get_validation_result(
+            response = service.get_validate_extraction_result(
                 validation_action=ValidationAction.model_validate(
                     create_validation_action_response
                 )
             )
 
         # ASSERT
-        assert response.model_dump() == validated_result
+        assert response.model_dump() == extraction_response["extractionResult"]
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio

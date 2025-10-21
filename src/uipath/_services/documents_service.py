@@ -13,7 +13,7 @@ from .._utils import Endpoint
 from ..models.documents import (
     ActionPriority,
     ExtractionResponse,
-    ValidatedResult,
+    ExtractionResult,
     ValidationAction,
 )
 from ..tracing._traced import traced
@@ -502,8 +502,8 @@ class DocumentsService(FolderContext, BaseService):
         response["operationId"] = operation_id
         return ValidationAction.model_validate(response)
 
-    @traced(name="documents_create_validation_action", run_type="uipath")
-    def create_validation_action(
+    @traced(name="documents_create_validate_extraction_action", run_type="uipath")
+    def create_validate_extraction_action(
         self,
         action_title: str,
         action_priority: ActionPriority,
@@ -513,7 +513,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
     ) -> ValidationAction:
-        """Create a validation action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
+        """Create a validate extraction action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
 
         Args:
             action_title (str): Title of the action.
@@ -529,7 +529,7 @@ class DocumentsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            validation_action = service.create_validation_action(
+            validation_action = service.create_validate_extraction_action(
                 action_title="Test Validation Action",
                 action_priority=ActionPriority.MEDIUM,
                 action_catalog="default_du_actions",
@@ -558,8 +558,8 @@ class DocumentsService(FolderContext, BaseService):
             operation_id=operation_id,
         )
 
-    @traced(name="documents_create_validation_action_async", run_type="uipath")
-    async def create_validation_action_async(
+    @traced(name="documents_create_validate_extraction_action_async", run_type="uipath")
+    async def create_validate_extraction_action_async(
         self,
         action_title: str,
         action_priority: ActionPriority,
@@ -569,7 +569,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
     ) -> ValidationAction:
-        """Asynchronously create a validation action for a document based on the extraction response."""
+        """Asynchronously create a validate extraction action for a document based on the extraction response."""
         # Add reference to sync method docstring
         operation_id = await self._start_validation_async(
             project_id=extraction_response.project_id,
@@ -589,11 +589,11 @@ class DocumentsService(FolderContext, BaseService):
             operation_id=operation_id,
         )
 
-    @traced(name="documents_get_validation_result", run_type="uipath")
-    def get_validation_result(
+    @traced(name="documents_get_validate_extraction_result", run_type="uipath")
+    def get_validate_extraction_result(
         self, validation_action: ValidationAction
-    ) -> ValidatedResult:
-        """Get the result of a validation action.
+    ) -> ExtractionResult:
+        """Get the result of a validate extraction action.
 
         Note:
             This method will block until the validation action is completed, meaning the user has completed the validation in UiPath Action Center.
@@ -602,11 +602,11 @@ class DocumentsService(FolderContext, BaseService):
             validation_action (ValidationAction): The validation action to get the result for, typically obtained from the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validation_action] method.
 
         Returns:
-            ValidatedResult: The result of the validation action.
+            ExtractionResult: The result of the validation action.
 
         Examples:
             ```python
-            validated_result = service.get_validation_result(validation_action)
+            validated_result = service.get_validate_extraction_result(validation_action)
             ```
         """
         response = self._wait_for_operation(
@@ -624,13 +624,13 @@ class DocumentsService(FolderContext, BaseService):
             success_status="Completed",
         )
 
-        return ValidatedResult.model_validate(response)
+        return ExtractionResult.model_validate(response)
 
-    @traced(name="documents_get_validation_result_async", run_type="uipath")
-    async def get_validation_result_async(
+    @traced(name="documents_get_validate_extraction_result_async", run_type="uipath")
+    async def get_validate_extraction_result_async(
         self, validation_action: ValidationAction
-    ) -> ValidatedResult:
-        """Asynchronously get the result of a validation action."""
+    ) -> ExtractionResult:
+        """Asynchronously get the result of a validate extraction action."""
 
         async def result_getter() -> Tuple[str, Any]:
             result = await self._get_validation_result_async(
@@ -648,4 +648,4 @@ class DocumentsService(FolderContext, BaseService):
             success_status="Completed",
         )
 
-        return ValidatedResult.model_validate(response)
+        return ExtractionResult.model_validate(response)
