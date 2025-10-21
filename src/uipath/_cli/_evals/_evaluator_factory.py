@@ -38,6 +38,22 @@ from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectorySimulationEvaluator,
     LLMJudgeTrajectorySimulationEvaluatorConfig,
 )
+from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+    ToolCallArgsEvaluator,
+    ToolCallArgsEvaluatorConfig,
+)
+from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+    ToolCallCountEvaluator,
+    ToolCallCountEvaluatorConfig,
+)
+from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+    ToolCallOrderEvaluator,
+    ToolCallOrderEvaluatorConfig,
+)
+from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+    ToolCallOutputEvaluator,
+    ToolCallOutputEvaluatorConfig,
+)
 from uipath.eval.evaluators import (
     LegacyBaseEvaluator,
     LegacyExactMatchEvaluator,
@@ -78,6 +94,14 @@ class EvaluatorFactory:
                 )
             case LLMJudgeTrajectoryEvaluatorConfig():
                 return EvaluatorFactory._create_trajectory_evaluator(data)
+            case ToolCallArgsEvaluatorConfig():
+                return EvaluatorFactory._create_tool_call_args_evaluator(data)
+            case ToolCallCountEvaluatorConfig():
+                return EvaluatorFactory._create_tool_call_count_evaluator(data)
+            case ToolCallOrderEvaluatorConfig():
+                return EvaluatorFactory._create_tool_call_order_evaluator(data)
+            case ToolCallOutputEvaluatorConfig():
+                return EvaluatorFactory._create_tool_call_output_evaluator(data)
             case LLMJudgeTrajectorySimulationEvaluatorConfig():
                 return (
                     EvaluatorFactory._create_llm_judge_simulation_trajectory_evaluator(
@@ -135,6 +159,42 @@ class EvaluatorFactory:
         data: Dict[str, Any],
     ) -> LLMJudgeTrajectoryEvaluator:
         return LLMJudgeTrajectoryEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_tool_call_args_evaluator(
+        data: Dict[str, Any],
+    ) -> ToolCallArgsEvaluator:
+        return ToolCallArgsEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_tool_call_count_evaluator(
+        data: Dict[str, Any],
+    ) -> ToolCallCountEvaluator:
+        return ToolCallCountEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_tool_call_order_evaluator(
+        data: Dict[str, Any],
+    ) -> ToolCallOrderEvaluator:
+        return ToolCallOrderEvaluator(
+            id=data.get("id"),
+            config=data.get("evaluatorConfig"),
+        )  # type: ignore
+
+    @staticmethod
+    def _create_tool_call_output_evaluator(
+        data: Dict[str, Any],
+    ) -> ToolCallOutputEvaluator:
+        return ToolCallOutputEvaluator(
             id=data.get("id"),
             config=data.get("evaluatorConfig"),
         )  # type: ignore

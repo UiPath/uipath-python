@@ -16,6 +16,18 @@ from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluatorConfig,
     LLMJudgeTrajectorySimulationEvaluatorConfig,
 )
+from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+    ToolCallArgsEvaluatorConfig,
+)
+from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+    ToolCallCountEvaluatorConfig,
+)
+from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+    ToolCallOrderEvaluatorConfig,
+)
+from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+    ToolCallOutputEvaluatorConfig,
+)
 from uipath.eval.models import (
     EvaluatorType,
     LegacyEvaluatorCategory,
@@ -238,6 +250,22 @@ EvaluatorConfig = Annotated[
         Annotated[
             LLMJudgeTrajectoryEvaluatorConfig,
             Tag("LLMJudgeTrajectoryEvaluatorConfig"),
+        ],
+        Annotated[
+            ToolCallArgsEvaluatorConfig,
+            Tag("ToolCallArgsEvaluatorConfig"),
+        ],
+        Annotated[
+            ToolCallCountEvaluatorConfig,
+            Tag("ToolCallCountEvaluatorConfig"),
+        ],
+        Annotated[
+            ToolCallOrderEvaluatorConfig,
+            Tag("ToolCallOrderEvaluatorConfig"),
+        ],
+        Annotated[
+            ToolCallOutputEvaluatorConfig,
+            Tag("ToolCallOutputEvaluatorConfig"),
         ],
         Annotated[
             LLMJudgeTrajectorySimulationEvaluatorConfig,
