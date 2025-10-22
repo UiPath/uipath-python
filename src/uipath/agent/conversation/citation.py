@@ -52,6 +52,7 @@ class UiPathConversationCitationSource(BaseModel):
 
     # Union of Url or Media
     url: Optional[str] = None
+    number: Optional[int] = None
     mime_type: Optional[str] = Field(None, alias="mimeType")
     download_url: Optional[str] = Field(None, alias="downloadUrl")
     page_number: Optional[str] = Field(None, alias="pageNumber")
