@@ -6,6 +6,7 @@ from uipath.agent.models.agent import (
     AgentMcpResourceConfig,
     AgentProcessToolResourceConfig,
     AgentResourceType,
+    AgentToolType,
     LowCodeAgentDefinition,
     UnknownAgentDefinition,
 )
@@ -571,9 +572,10 @@ class TestAgentBuilderConfig:
             "Tool should be parsed as AgentProcessToolResourceConfig based on type='Agent'"
         )
         assert tool_resource.resource_type == AgentResourceType.TOOL
-        assert tool_resource.type == "agent"  # The discriminator field
+        assert tool_resource.type == AgentToolType.AGENT  # The discriminator field
 
         # Validate agent-level guardrails
+        assert config.guardrails is not None
         assert len(config.guardrails) == 2
 
         # Test built-in validator at agent level
