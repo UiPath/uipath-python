@@ -190,7 +190,10 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
         result = Middlewares.next(
             "init",
             entrypoint,
-            options={"infer_bindings": infer_bindings},
+            options={
+                "infer_bindings": infer_bindings,
+                "no_agents_md_override": no_agents_md_override,
+            },
             write_config=write_config_file,
         )
 
