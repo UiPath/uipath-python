@@ -60,18 +60,25 @@ def generate_env_file(target_directory):
         console.success(f"Created '{relative_path}' file.")
 
 
-def generate_agent_md_file(target_directory: str, file_name: str) -> None:
+def generate_agent_md_file(
+    target_directory: str, file_name: str, no_agents_md_override: bool
+) -> bool:
     """Generate an agent-specific file from the packaged resource.
 
     Args:
         target_directory: The directory where the file should be created.
         file_name: The name of the file should be created.
+        no_agents_md_override: Whether to override existing files.
     """
     target_path = os.path.join(target_directory, file_name)
 
-    if os.path.exists(target_path):
-        logger.debug(f"File '{target_path}' already exists.")
-        return
+    will_override = os.path.exists(target_path)
+
+    if will_override and no_agents_md_override:
+        console.success(
+            f"File {click.style(target_path, fg='cyan')} already exists. Skipping."
+        )
+        return False
 
     try:
         source_path = importlib.resources.files("uipath._resources").joinpath(file_name)
@@ -79,15 +86,23 @@ def generate_agent_md_file(target_directory: str, file_name: str) -> None:
         with importlib.resources.as_file(source_path) as s_path:
             shutil.copy(s_path, target_path)
 
+        if will_override:
+            logger.debug(f"File '{target_path}' has been overridden.")
+
+        return will_override
+
     except Exception as e:
         console.warning(f"Could not create {file_name}: {e}")
 
+    return False
 
-def generate_agent_md_files(target_directory: str) -> None:
+
+def generate_agent_md_files(target_directory: str, no_agents_md_override: bool) -> None:
     """Generate an agent-specific file from the packaged resource.
 
     Args:
         target_directory: The directory where the files should be created.
+        no_agents_md_override: Whether to override existing files.
     """
     agent_dir = os.path.join(target_directory, ".agent")
     os.makedirs(agent_dir, exist_ok=True)
@@ -96,13 +111,21 @@ def generate_agent_md_files(target_directory: str) -> None:
 
     agent_files = ["CLI_REFERENCE.md", "REQUIRED_STRUCTURE.md", "SDK_REFERENCE.md"]
 
+    any_overridden = False
+
     for file_name in root_files:
-        generate_agent_md_file(target_directory, file_name)
+        if generate_agent_md_file(target_directory, file_name, no_agents_md_override):
+            any_overridden = True
 
     for file_name in agent_files:
-        generate_agent_md_file(agent_dir, file_name)
+        if generate_agent_md_file(agent_dir, file_name, no_agents_md_override):
+            any_overridden = True
 
-    console.success(f"Created {click.style('AGENTS.md', fg='cyan')} file.")
+    if any_overridden:
+        console.success(f"Updated {click.style('AGENTS.md', fg='cyan')} related files.")
+        return
+
+    console.success(f"Created {click.style('AGENTS.md', fg='cyan')} related files.")
 
 
 def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
@@ -149,8 +172,15 @@ def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
     default=True,
     help="Infer bindings from the script.",
 )
+@click.option(
+    "--no-agents-md-override",
+    is_flag=True,
+    required=False,
+    default=False,
+    help="Won't override existing .agent files and AGENTS.md file.",
+)
 @track
-def init(entrypoint: str, infer_bindings: bool) -> None:
+def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> None:
     """Create uipath.json with input/output schemas and bindings."""
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
@@ -175,7 +205,7 @@ def init(entrypoint: str, infer_bindings: bool) -> None:
         if not result.should_continue:
             return
 
-        generate_agent_md_files(current_directory)
+        generate_agent_md_files(current_directory, no_agents_md_override)
         script_path = get_user_script(current_directory, entrypoint=entrypoint)
         if not script_path:
             return
