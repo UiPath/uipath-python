@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -82,6 +82,7 @@ class GuardrailsService(FolderContext, BaseService):
     async def execute_guardrail(
         self,
         validation_result: Dict[str, Any],
+        callable_func: Callable[[CreateAction], Any],
         guardrail: Guardrail,
         tool_name: str,
     ) -> None:
@@ -95,22 +96,19 @@ class GuardrailsService(FolderContext, BaseService):
         action = guardrail.action
 
         if isinstance(action, EscalateAction):
-            from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
-
             action_data = {
                 "GuardrailName": guardrail.name,
                 "GuardrailDescription": validation_result.get(
                     "reason", "No description provided"
                 ),
-                # TODO must see where to i extract these
-                # "TenantName": self.config.tenant_name,
-                # "AgentTrace": must see,
+                # "TenantName":
+                # "AgentTrace": ,
                 "Tool": tool_name,
-                # "ExecutionStage": validation_result.get("execution_stage", ""),
+                # "ExecutionStage": ,
                 # "ToolInputs": ,
                 # "ToolOutputs": validation_result.get("tool_outputs", {}),
             }
-            # mandatory: app_name + tittle + data + app_version + assignee (def none) + appfolderpath + includemetadata = true
+
             create_action = CreateAction(
                 title="Guardrail Escalation: " + guardrail.name,
                 data=action_data,
@@ -122,20 +120,9 @@ class GuardrailsService(FolderContext, BaseService):
                 app_version=action.app.version,
                 include_metadata=True,
             )
-            # action_output = interrupt(create_action)
-            print("Starting escalation action")
-            processor = HitlProcessor(create_action)
-            print(f"processor: {processor}")
-            resume_trigger = await processor.create_resume_trigger()
-            import json
 
-            if hasattr(resume_trigger, "payload") and isinstance(
-                resume_trigger.payload, dict
-            ):
-                resume_trigger.payload = json.dumps(resume_trigger.payload)
-            print(f"resume_trigger: {resume_trigger}")
-            action_output = await HitlReader.read(resume_trigger)
-            print(f"action_output: {action_output}")
+            action_output = callable_func(create_action)
+
             print("Escalation action completed.")
 
             if action_output:
@@ -166,8 +153,7 @@ class GuardrailsService(FolderContext, BaseService):
             print(f"GUARDRAIL LOG [{severity}]: {reason}")
 
         elif isinstance(action, FilterAction):
-            # TODO: see what it clearly does
-            # implement filtering logic
+            # TODO
             print(
                 f"GUARDRAIL FILTER: Fields to filter: {[f.path for f in action.fields]}"
             )
@@ -191,6 +177,7 @@ class GuardrailsService(FolderContext, BaseService):
     async def process_guardrails(
         self,
         input_data: Union[str, Dict[str, Any]],
+        handle_guardrail_callable: Callable[[CreateAction], Any],
         guardrails: List[Guardrail],
         tool_name: str = "unknown",
         *,
@@ -268,6 +255,7 @@ class GuardrailsService(FolderContext, BaseService):
                     # Execute the guardrail action
                     await self.execute_guardrail(
                         validation_result=validation_result,
+                        callable_func=handle_guardrail_callable,
                         guardrail=guardrail,
                         tool_name=tool_name,
                     )
