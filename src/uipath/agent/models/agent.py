@@ -6,6 +6,7 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
 
 from uipath.models import Connection
+from uipath.models.guardrails import AgentEscalationRecipient, Guardrail
 
 
 class AgentResourceType(str, Enum):
@@ -305,39 +306,6 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     )
 
 
-class AgentEscalationRecipientType(str, Enum):
-    """Enum for escalation recipient types."""
-
-    USER_ID = "UserId"
-    GROUP_ID = "GroupId"
-    USER_EMAIL = "UserEmail"
-
-
-class AgentEscalationRecipient(BaseModel):
-    """Recipient for escalation."""
-
-    type: Union[AgentEscalationRecipientType, str] = Field(..., alias="type")
-    value: str = Field(..., alias="value")
-    display_name: Optional[str] = Field(default=None, alias="displayName")
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def normalize_type(cls, v: Any) -> str:
-        """Normalize recipient type from int (1=UserId, 2=GroupId, 3=UserEmail) or string. Unknown integers are converted to string."""
-        if isinstance(v, int):
-            mapping = {
-                1: AgentEscalationRecipientType.USER_ID,
-                2: AgentEscalationRecipientType.GROUP_ID,
-                3: AgentEscalationRecipientType.USER_EMAIL,
-            }
-            return mapping.get(v, str(v))
-        return v
-
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
 class AgentEscalationChannelProperties(BaseResourceProperties):
     """Agent escalation channel properties."""
 
@@ -507,6 +475,9 @@ class BaseAgentDefinition(BaseModel):
     )
     output_schema: Dict[str, Any] = Field(
         ..., alias="outputSchema", description="JSON schema for output arguments"
+    )
+    guardrails: Optional[List[Guardrail]] = Field(
+        None, description="List of agent guardrails"
     )
 
     model_config = ConfigDict(

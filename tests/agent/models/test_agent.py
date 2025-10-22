@@ -1,11 +1,22 @@
 from pydantic import TypeAdapter
 
 from uipath.agent.models.agent import (
+    AgentDefinition,
     AgentEscalationResourceConfig,
     AgentMcpResourceConfig,
+    AgentProcessToolResourceConfig,
     AgentResourceType,
     LowCodeAgentDefinition,
     UnknownAgentDefinition,
+)
+from uipath.models.guardrails import (
+    BlockAction,
+    BuiltInValidatorGuardrail,
+    CustomGuardrail,
+    EnumListParameterValue,
+    EscalateAction,
+    MapEnumParameterValue,
+    WordRule,
 )
 
 
@@ -99,6 +110,10 @@ class TestAgentBuilderConfig:
                 {
                     "$resourceType": "tool",
                     "type": "ProcessOrchestration",
+                    "$guardrailType": "custom",
+                    "id": "001",
+                    "rules": [{"$ruleType": "always", "applyTo": "inputAndOutput"}],
+                    "selector": {"scopes": ["Tool"]},
                     "inputSchema": {
                         "type": "object",
                         "properties": {"in_arg": {"type": "string", "title": "in_arg"}},
@@ -423,3 +438,185 @@ class TestAgentBuilderConfig:
         ]
         assert len(context_resources) == 1
         assert context_resources[0].name == "MCP Documentation Index"
+
+    def test_agent_config_loads_guardrails(self):
+        """Test that AgentConfig can load and parse both Custom and Built-in guardrails from real JSON"""
+
+        json_data = {
+            "id": "55f89eb5-e4dc-4129-8c3d-da80f6c7f921",
+            "name": "NumberTranslator",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {
+                "type": "object",
+                "required": ["number"],
+                "properties": {"number": {"type": "string", "description": "number"}},
+            },
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string", "description": "Output content"}
+                },
+            },
+            "metadata": {"storageVersion": "23.0.0", "isConversational": False},
+            "type": "lowCode",
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "name": "StringToNumber",
+                    "description": "Converts word to number",
+                    "type": "agent",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"word": {"type": "string"}},
+                        "required": ["word"],
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "processName": "StringToNumber",
+                        "folderPath": "solution_folder",
+                    },
+                }
+            ],
+            "guardrails": [
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "2f36abe1-2ae1-457b-b565-ccf7a1b6d088",
+                    "name": "PII detection guardrail",
+                    "description": "This validator is designed to detect personally identifiable information using Azure Cognitive Services",
+                    "validatorType": "pii_detection",
+                    "validatorParameters": [
+                        {
+                            "$parameterType": "enum-list",
+                            "id": "entities",
+                            "value": ["Email", "Address"],
+                        },
+                        {
+                            "$parameterType": "map-enum",
+                            "id": "entityThresholds",
+                            "value": {"Email": 1, "Address": 0.7},
+                        },
+                    ],
+                    "action": {
+                        "$actionType": "escalate",
+                        "app": {
+                            "id": "cf4cb73d-7310-49b1-9a9e-e7653dad7f4e",
+                            "version": "0",
+                            "name": "-Guardrail Form",
+                            "folderId": "d0195402-505d-54c1-0b94-5faa5bf69ad1",
+                            "folderName": "solution_folder",
+                        },
+                        "recipient": {
+                            "type": 1,
+                            "value": "5f872639-fc71-4a50-b17d-f68eb357b436",
+                            "displayName": "User Name",
+                        },
+                    },
+                    "enabledForEvals": True,
+                    "selector": {"scopes": ["Tool"], "matchNames": ["StringToNumber"]},
+                },
+                {
+                    "$guardrailType": "custom",
+                    "id": "7b2a9218-c3d2-4f19-a800-8d6fe77a64e2",
+                    "name": "ExcludeHELLO",
+                    "description": 'the input shouldn\'t be "hello"',
+                    "rules": [
+                        {
+                            "$ruleType": "word",
+                            "fieldSelector": {
+                                "$selectorType": "specific",
+                                "fields": [{"path": "word", "source": "input"}],
+                            },
+                            "operator": "doesNotContain",
+                            "value": "hello",
+                        }
+                    ],
+                    "action": {"$actionType": "block", "reason": 'Input is "hello"'},
+                    "enabledForEvals": True,
+                    "selector": {"scopes": ["Tool"], "matchNames": ["StringToNumber"]},
+                },
+            ],
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a English to Romanian translator",
+                },
+                {
+                    "role": "user",
+                    "content": "Use the tool StringToNumber to convert the string {{number}} into a number type, then write the obtained number in romanian. ",
+                },
+            ],
+        }
+
+        # Parse with TypeAdapter
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        # Validate the main agent properties
+        assert isinstance(config, LowCodeAgentDefinition), (
+            "Agent should be a LowCodeAgentDefinition"
+        )
+
+        # Validate tool resource type discrimination
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig), (
+            "Tool should be parsed as AgentProcessToolResourceConfig based on type='Agent'"
+        )
+        assert tool_resource.resource_type == AgentResourceType.TOOL
+        assert tool_resource.type == "agent"  # The discriminator field
+
+        # Validate agent-level guardrails
+        assert len(config.guardrails) == 2
+
+        # Test built-in validator at agent level
+        agent_builtin_guardrail = config.guardrails[0]
+        assert isinstance(agent_builtin_guardrail, BuiltInValidatorGuardrail), (
+            "Agent guardrail should be BuiltInValidatorGuardrail"
+        )
+
+        assert agent_builtin_guardrail.guardrail_type == "builtInValidator"
+        assert agent_builtin_guardrail.validator_type == "pii_detection"
+
+        enum_param = agent_builtin_guardrail.validator_parameters[0]
+        assert isinstance(enum_param, EnumListParameterValue), (
+            "Should be EnumListParameterValue based on $parameterType='enum-list'"
+        )
+        assert enum_param.parameter_type == "enum-list"
+
+        map_param = agent_builtin_guardrail.validator_parameters[1]
+        assert isinstance(map_param, MapEnumParameterValue), (
+            "Should be MapEnumParameterValue based on $parameterType='map-enum'"
+        )
+        assert map_param.parameter_type == "map-enum"
+
+        escalate_action = agent_builtin_guardrail.action
+        assert isinstance(escalate_action, EscalateAction), (
+            "Should be EscalateAction based on $actionType='escalate'"
+        )
+        assert escalate_action.action_type == "escalate"
+
+        # Test custom guardrail at agent level
+        agent_custom_guardrail = config.guardrails[1]
+        assert isinstance(agent_custom_guardrail, CustomGuardrail), (
+            "Agent custom guardrail should be CustomGuardrail"
+        )
+        assert agent_custom_guardrail.guardrail_type == "custom"
+        assert len(agent_custom_guardrail.rules) == 1
+        rule = agent_custom_guardrail.rules[0]
+        assert isinstance(rule, WordRule), (
+            "Rule should be WordRule based on $ruleType='word'"
+        )
+        assert rule.rule_type == "word"
+        block_action = agent_custom_guardrail.action
+        assert isinstance(block_action, BlockAction), (
+            "Should be BlockAction based on $actionType='block'"
+        )
+        assert block_action.action_type == "block"
