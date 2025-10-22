@@ -21,7 +21,6 @@ from ._services import (
     UiPathLlmChatService,
     UiPathOpenAIService,
 )
-from ._utils import setup_logging
 from ._utils._auth import resolve_config
 from .models.errors import BaseUrlMissingError, SecretMissingError
 
@@ -56,7 +55,6 @@ class UiPath:
         self._attachments_service: Optional[AttachmentsService] = None
         self._connections_service: Optional[ConnectionsService] = None
 
-        setup_logging(debug)
         self._execution_context = ExecutionContext()
 
     @property
