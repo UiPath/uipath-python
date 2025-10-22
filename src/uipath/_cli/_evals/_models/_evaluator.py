@@ -2,30 +2,30 @@ from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
-from uipath.eval.coded_evaluators.base_evaluator import BaseEvaluatorConfig
-from uipath.eval.coded_evaluators.contains_evaluator import ContainsEvaluatorConfig
-from uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
-from uipath.eval.coded_evaluators.json_similarity_evaluator import (
+from uipath.eval.evaluators.base_evaluator import BaseEvaluatorConfig
+from uipath.eval.evaluators.contains_evaluator import ContainsEvaluatorConfig
+from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
+from uipath.eval.evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluatorConfig,
 )
-from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
+from uipath.eval.evaluators.llm_judge_output_evaluator import (
     LLMJudgeOutputEvaluatorConfig,
     LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
 )
-from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
+from uipath.eval.evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluatorConfig,
     LLMJudgeTrajectorySimulationEvaluatorConfig,
 )
-from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+from uipath.eval.evaluators.tool_call_args_evaluator import (
     ToolCallArgsEvaluatorConfig,
 )
-from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+from uipath.eval.evaluators.tool_call_count_evaluator import (
     ToolCallCountEvaluatorConfig,
 )
-from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+from uipath.eval.evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluatorConfig,
 )
-from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluatorConfig,
 )
 from uipath.eval.models import (

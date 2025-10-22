@@ -14,7 +14,6 @@ from ..models.llm_judge_types import (
     LLMJudgePromptTemplates,
     LLMJudgeTrajectoryOutputSchema,
 )
-from ..models.models import EvaluatorType
 from .base_evaluator import BaseEvaluationCriteria
 from .llm_as_judge_evaluator import (
     BaseLLMJudgeEvaluatorConfig,
