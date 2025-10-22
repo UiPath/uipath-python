@@ -47,3 +47,6 @@ COMMUNITY_agents_SUFFIX = "-community-agents"
 
 # File names
 UIPATH_CONFIG_FILE = "uipath.json"
+
+# Evaluators
+CUSTOM_EVALUATOR_PREFIX = "file://"

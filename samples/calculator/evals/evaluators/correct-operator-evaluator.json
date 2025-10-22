@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "id": "CorrectOperatorEvaluator",
+  "evaluatorTypeId": "file://types/correct-operator-evaluator-types.json",
+  "evaluatorSchema": "file://correct_operator.py:CorrectOperatorEvaluator",
+  "description": "A custom evaluator that checks if the correct operator is being used by the agent ",
+  "evaluatorConfig": {
+    "name": "CorrectOperatorEvaluator",
+    "defaultEvaluationCriteria": {
+      "operator": "+"
+    },
+    "negated": false
+  }
+}
