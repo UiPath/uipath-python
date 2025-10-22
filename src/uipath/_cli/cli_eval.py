@@ -12,7 +12,6 @@ from uipath._cli._evals._runtime import (
     UiPathEvalContext,
     UiPathEvalRuntime,
 )
-from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._constants import UIPATH_PROJECT_ID
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli.middlewares import Middlewares
@@ -138,7 +137,9 @@ def eval(
         asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         try:
-            runtime_factory = generate_runtime_factory()
+            # Last one is the Python script runtime factory
+            runtime_factory = Middlewares._runtime_factories[-1]
+
             if eval_context.job_id:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 

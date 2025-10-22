@@ -6,7 +6,6 @@ from typing import Optional
 
 import click
 
-from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._debug import setup_debugging
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -106,7 +105,8 @@ def run(
         try:
 
             async def execute() -> None:
-                runtime_factory = generate_runtime_factory()
+                # Last one is the Python script runtime factory
+                runtime_factory = Middlewares._runtime_factories[-1]
                 context = runtime_factory.new_context(**context_args)
                 if context.job_id:
                     runtime_factory.add_span_exporter(LlmOpsHttpExporter())

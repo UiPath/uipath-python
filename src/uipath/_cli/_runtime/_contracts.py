@@ -836,6 +836,14 @@ class UiPathRuntimeFactory(Generic[T, C]):
             return self.runtime_generator(context)
         return self.runtime_class.from_context(context)
 
+    def discover_all_runtimes(self) -> List[T]:
+        """Get a list of all available runtimes."""
+        return []
+
+    def get_runtime(self, entrypoint: str) -> Optional[T]:
+        """Get a specific runtime by entrypoint."""
+        return None
+
     async def execute(self, context: C) -> Optional[UiPathRuntimeResult]:
         """Execute runtime with context."""
         async with self.from_context(context) as runtime:

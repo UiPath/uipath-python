@@ -66,11 +66,8 @@ class TestInit:
                 f.write("def main(input): return input")
 
             result = runner.invoke(cli, ["init"])
-            assert result.exit_code == 1
-            assert (
-                "Multiple python files found in the current directory" in result.output
-            )
-            assert "Please specify the entrypoint" in result.output
+            assert result.exit_code == 0
+            assert os.path.exists("uipath.json")
 
     def test_init_with_entrypoint(self, runner: CliRunner, temp_dir: str) -> None:
         """Test init with specified entrypoint."""
@@ -78,7 +75,7 @@ class TestInit:
             # Test with non-existent file
             result = runner.invoke(cli, ["init", "nonexistent.py"])
             assert result.exit_code == 1
-            assert "does not exist in the current directory" in result.output
+            assert "error" in result.output.lower()
 
             # Test with valid Python file
             with open("script.py", "w") as f:

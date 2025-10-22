@@ -4,6 +4,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
+from ._runtime._contracts import UiPathBaseRuntime, UiPathRuntimeFactory
+from ._runtime._runtime_factory import UiPathScriptRuntimeFactory
 from ._utils._console import ConsoleLogger
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,7 @@ class Middlewares:
         "eval": [],
         "debug": [],
     }
+    _runtime_factories: List[UiPathRuntimeFactory[Any, Any]] = []
     _plugins_loaded = False
 
     @classmethod
@@ -44,6 +47,50 @@ class Middlewares:
         logger.debug(
             f"Registered middleware for command '{command}': {middleware.__name__}"
         )
+
+    @classmethod
+    def register_runtime_factory(cls, factory: UiPathRuntimeFactory[Any, Any]) -> None:
+        """Register a runtime factory in the chain."""
+        cls._runtime_factories.append(factory)
+        logger.debug(f"Registered runtime factory: {factory.__class__.__name__}")
+
+    @classmethod
+    def discover_all_runtimes(cls) -> List[UiPathBaseRuntime]:
+        """Discover all runtimes in the current directory using registered runtime factories."""
+        if not cls._plugins_loaded:
+            cls.load_plugins()
+
+        for factory in cls._runtime_factories:
+            try:
+                runtimes = factory.discover_all_runtimes()
+                if runtimes:
+                    return runtimes
+            except Exception as e:
+                logger.error(
+                    f"Runtime factory {factory.__class__.__name__} discovery failed: {e}"
+                )
+                raise
+
+        return []
+
+    @classmethod
+    def get_runtime(cls, entrypoint: str) -> Optional[UiPathBaseRuntime]:
+        """Get runtime for a specific entrypoint."""
+        if not cls._plugins_loaded:
+            cls.load_plugins()
+
+        for factory in cls._runtime_factories:
+            try:
+                runtime = factory.get_runtime(entrypoint)
+                if runtime:
+                    return runtime
+            except Exception as e:
+                logger.error(
+                    f"Runtime factory {factory.__class__.__name__} failed for {entrypoint}: {e}"
+                )
+                raise
+
+        return None
 
     @classmethod
     def get(cls, command: str) -> List[MiddlewareFunc]:
@@ -104,7 +151,7 @@ class Middlewares:
 
     @classmethod
     def load_plugins(cls) -> None:
-        """Load all middlewares registered via entry points."""
+        """Load all plugins and register runtime factories."""
         if cls._plugins_loaded:
             return
 
@@ -137,6 +184,8 @@ class Middlewares:
             else:
                 logger.debug("No middleware plugins found")
 
+            # Register the default runtime factory after all the plugin ones
+            cls.register_runtime_factory(UiPathScriptRuntimeFactory())
         except Exception as e:
             logger.error(f"No middleware plugins loaded: {str(e)}")
         finally:

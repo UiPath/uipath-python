@@ -12,8 +12,7 @@ import click
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
-from ._runtime._runtime import get_user_script
-from ._runtime._runtime_factory import generate_runtime_factory
+from ._runtime._contracts import BindingResource
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 from .models.runtime_schema import Bindings, RuntimeSchema
@@ -163,6 +162,19 @@ def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
     return CONFIG_PATH
 
 
+def deduplicate_binding_resources(
+    binding_resources: list[BindingResource],
+) -> list[BindingResource]:
+    """Deduplicate binding resources by key."""
+    unique_keys = set()
+    unique_binding_resources = []
+    for binding_resource in binding_resources:
+        if binding_resource.key not in unique_keys:
+            unique_keys.add(binding_resource.key)
+            unique_binding_resources.append(binding_resource)
+    return unique_binding_resources
+
+
 @click.command()
 @click.argument("entrypoint", required=False, default=None)
 @click.option(
@@ -209,24 +221,39 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             return
 
         generate_agent_md_files(current_directory, no_agents_md_override)
-        script_path = get_user_script(current_directory, entrypoint=entrypoint)
-        if not script_path:
-            return
-
-        context_args = {
-            "runtime_dir": os.getcwd(),
-            "entrypoint": script_path,
-        }
 
         def initialize() -> None:
             try:
-                runtime = generate_runtime_factory().new_runtime(**context_args)
+                # Discover all runtimes (or get specific one if entrypoint specified)
+                if entrypoint:
+                    runtime = Middlewares.get_runtime(entrypoint)
+                    if not runtime:
+                        raise ValueError(
+                            f"No factory can handle entrypoint: {entrypoint}"
+                        )
+                    runtimes = [runtime]
+                else:
+                    runtimes = Middlewares.discover_all_runtimes()
+                    if not runtimes:
+                        raise ValueError("No runtimes discovered in current directory")
+
+                all_entrypoints = []
+                binding_resources = []
+
+                # Generate entrypoint for each runtime
+                for runtime in runtimes:
+                    all_entrypoints.append(runtime.get_entrypoint)
+                    if infer_bindings:
+                        binding_resources.extend(runtime.get_binding_resources)
+
+                binding_resources = deduplicate_binding_resources(binding_resources)
                 bindings = Bindings(
                     version="2.0",
-                    resources=runtime.get_binding_resources,
+                    resources=binding_resources,
                 )
+
                 config_data = RuntimeSchema(
-                    entryPoints=[runtime.get_entrypoint],
+                    entryPoints=all_entrypoints,
                     bindings=bindings,
                 )
                 config_path = write_config_file(config_data)
