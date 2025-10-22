@@ -3,7 +3,6 @@ import sys
 
 import click
 
-from .._utils._logs import setup_logging
 from ._utils._common import add_cwd_to_path, load_environment_variables
 from .cli_auth import auth as auth
 from .cli_debug import debug as debug  # type: ignore
@@ -48,7 +47,6 @@ def _get_safe_version() -> str:
 def cli(lv: bool, v: bool) -> None:
     load_environment_variables()
     add_cwd_to_path()
-    setup_logging()
     if lv:
         try:
             version = importlib.metadata.version("uipath-langchain")

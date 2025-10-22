@@ -25,11 +25,15 @@ class EnrichedException(Exception):
             if error.request and error.request.method
             else "Unknown"
         )
-        self.response_content = (
-            error.response.content.decode("utf-8")
-            if error.response and error.response.content
-            else "No content"
-        )
+        max_content_length = 200
+        if error.response and error.response.content:
+            content = error.response.content.decode("utf-8")
+            if len(content) > max_content_length:
+                self.response_content = content[:max_content_length] + "... (truncated)"
+            else:
+                self.response_content = content
+        else:
+            self.response_content = "No content"
 
         enriched_message = (
             f"\nRequest URL: {self.url}"

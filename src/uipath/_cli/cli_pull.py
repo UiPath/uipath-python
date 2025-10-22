@@ -19,7 +19,7 @@ import click
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
 from ._utils._constants import UIPATH_PROJECT_ID
-from ._utils._project_files import pull_project
+from ._utils._project_files import ProjectPullError, pull_project
 
 console = ConsoleLogger()
 
@@ -63,18 +63,25 @@ def pull(root: Path) -> None:
         $ uipath pull
         $ uipath pull /path/to/project
     """
-    if not (project_id := os.getenv(UIPATH_PROJECT_ID, False)):
+    project_id = os.getenv(UIPATH_PROJECT_ID)
+    if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
     default_download_configuration = {
         "source_code": root,
         "evals": root / "evals",
     }
-    with console.spinner("Pulling UiPath project files..."):
-        asyncio.run(
-            pull_project(
+
+    async def pull_with_updates():
+        try:
+            async for update in pull_project(
                 project_id,
                 default_download_configuration,
                 InteractiveConflictHandler(console),
-            )
-        )
+            ):
+                console.info(update.message)
+        except ProjectPullError as e:
+            console.error(e.message, include_traceback=True)
+
+    with console.spinner("Pulling UiPath project files..."):
+        asyncio.run(pull_with_updates())

@@ -22,6 +22,7 @@ from ._services import (
     UiPathOpenAIService,
 )
 from ._utils._auth import resolve_config
+from ._utils._logs import setup_logging
 from .models.errors import BaseUrlMissingError, SecretMissingError
 
 
@@ -54,7 +55,7 @@ class UiPath:
         self._buckets_service: Optional[BucketsService] = None
         self._attachments_service: Optional[AttachmentsService] = None
         self._connections_service: Optional[ConnectionsService] = None
-
+        setup_logging(should_debug=debug)
         self._execution_context = ExecutionContext()
 
     @property
