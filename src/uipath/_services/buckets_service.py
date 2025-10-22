@@ -1,5 +1,8 @@
+import asyncio
 import mimetypes
-from typing import Dict, Optional, Union
+import uuid
+from pathlib import Path
+from typing import Any, AsyncIterator, Dict, Iterator, Optional, Union
 
 import httpx
 
@@ -24,6 +27,239 @@ class BucketsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self.custom_client = httpx.Client(**get_httpx_client_kwargs())
         self.custom_client_async = httpx.AsyncClient(**get_httpx_client_kwargs())
+
+    @traced(name="buckets_list", run_type="uipath")
+    def list(
+        self,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        name: Optional[str] = None,
+    ) -> Iterator[Bucket]:
+        """List buckets with auto-pagination.
+
+        Args:
+            folder_path: Folder path to filter buckets
+            folder_key: Folder key (mutually exclusive with folder_path)
+            name: Filter by bucket name (contains match)
+
+        Yields:
+            Bucket: Bucket resource instances
+
+        Examples:
+            >>> # List all buckets
+            >>> for bucket in sdk.buckets.list():
+            ...     print(bucket.name)
+            >>>
+            >>> # Filter by folder
+            >>> for bucket in sdk.buckets.list(folder_path="Production"):
+            ...     print(bucket.name)
+            >>>
+            >>> # Filter by name
+            >>> for bucket in sdk.buckets.list(name="invoice"):
+            ...     print(bucket.name)
+        """
+        skip = 0
+        top = 100
+
+        while True:
+            spec = self._list_spec(
+                folder_path=folder_path,
+                folder_key=folder_key,
+                name=name,
+                skip=skip,
+                top=top,
+            )
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            ).json()
+
+            items = response.get("value", [])
+            if not items:
+                break
+
+            for item in items:
+                bucket = Bucket.model_validate(item)
+                bucket._service = self  # Inject service reference for resource pattern
+                yield bucket
+
+            # Check if more pages available
+            if len(items) < top:
+                break
+
+            skip += top
+
+    @traced(name="buckets_list", run_type="uipath")
+    async def list_async(
+        self,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        name: Optional[str] = None,
+    ) -> AsyncIterator[Bucket]:
+        """Async version of list() with auto-pagination."""
+        skip = 0
+        top = 50
+
+        while True:
+            spec = self._list_spec(
+                folder_path=folder_path,
+                folder_key=folder_key,
+                name=name,
+                skip=skip,
+                top=top,
+            )
+            response = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                )
+            ).json()
+
+            items = response.get("value", [])
+            if not items:
+                break
+
+            for item in items:
+                bucket = Bucket.model_validate(item)
+                bucket._service = self
+                yield bucket
+
+            if len(items) < top:
+                break
+
+            skip += top
+
+    @traced(name="buckets_exists", run_type="uipath")
+    def exists(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Check if bucket exists.
+
+        Args:
+            name: Bucket name
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            bool: True if bucket exists
+
+        Examples:
+            >>> if sdk.buckets.exists("my-storage"):
+            ...     print("Bucket found")
+        """
+        try:
+            self.retrieve(name=name, folder_key=folder_key, folder_path=folder_path)
+            return True
+        except LookupError:
+            return False
+
+    @traced(name="buckets_exists", run_type="uipath")
+    async def exists_async(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Async version of exists()."""
+        try:
+            await self.retrieve_async(
+                name=name, folder_key=folder_key, folder_path=folder_path
+            )
+            return True
+        except LookupError:
+            return False
+
+    @traced(name="buckets_create", run_type="uipath")
+    def create(
+        self,
+        name: str,
+        *,
+        description: Optional[str] = None,
+        identifier: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> Bucket:
+        """Create a new bucket.
+
+        Args:
+            name: Bucket name (must be unique within folder)
+            description: Optional description
+            identifier: UUID identifier (auto-generated if not provided)
+            folder_path: Folder to create bucket in
+            folder_key: Folder key
+
+        Returns:
+            Bucket: Newly created bucket resource
+
+        Raises:
+            Exception: If bucket creation fails
+
+        Examples:
+            >>> bucket = sdk.buckets.create("my-storage")
+            >>> bucket = sdk.buckets.create(
+            ...     "data-storage",
+            ...     description="Production data"
+            ... )
+        """
+        spec = self._create_spec(
+            name=name,
+            description=description,
+            identifier=identifier or str(uuid.uuid4()),
+            folder_path=folder_path,
+            folder_key=folder_key,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        ).json()
+
+        bucket = Bucket.model_validate(response)
+        bucket._service = self
+        return bucket
+
+    @traced(name="buckets_create", run_type="uipath")
+    async def create_async(
+        self,
+        name: str,
+        *,
+        description: Optional[str] = None,
+        identifier: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> Bucket:
+        """Async version of create()."""
+        spec = self._create_spec(
+            name=name,
+            description=description,
+            identifier=identifier or str(uuid.uuid4()),
+            folder_path=folder_path,
+            folder_key=folder_key,
+        )
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                json=spec.json,
+                headers=spec.headers,
+            )
+        ).json()
+
+        bucket = Bucket.model_validate(response)
+        bucket._service = self
+        return bucket
 
     @traced(name="buckets_download", run_type="uipath")
     @infer_bindings(resource_type="bucket")
@@ -131,17 +367,17 @@ class BucketsService(FolderContext, BaseService):
             )
         }
 
-        with open(destination_path, "wb") as file:
-            # the self.request adds auth bearer token
-            if result["RequiresAuth"]:
-                file_content = (
-                    await self.request_async("GET", read_uri, headers=headers)
-                ).content
-            else:
-                file_content = (
-                    await self.custom_client_async.get(read_uri, headers=headers)
-                ).content
-            file.write(file_content)
+        # the self.request adds auth bearer token
+        if result["RequiresAuth"]:
+            file_content = (
+                await self.request_async("GET", read_uri, headers=headers)
+            ).content
+        else:
+            file_content = (
+                await self.custom_client_async.get(read_uri, headers=headers)
+            ).content
+
+        await asyncio.to_thread(Path(destination_path).write_bytes, file_content)
 
     @traced(name="buckets_upload", run_type="uipath")
     @infer_bindings(resource_type="bucket")
@@ -258,7 +494,7 @@ class BucketsService(FolderContext, BaseService):
             name (Optional[str]): The name of the bucket.
             blob_file_path (str): The path where the file will be stored in the bucket.
             content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
-            source_path (str): The local path of the file to upload.
+            source_path (Optional[str]): The local path of the file to upload.
             content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
             folder_key (Optional[str]): The key of the folder where the bucket resides.
             folder_path (Optional[str]): The path of the folder where the bucket resides.
@@ -326,16 +562,15 @@ class BucketsService(FolderContext, BaseService):
                 )
 
         if source_path is not None:
-            with open(source_path, "rb") as file:
-                file_content = file.read()
-                if result["RequiresAuth"]:
-                    await self.request_async(
-                        "PUT", write_uri, headers=headers, content=file_content
-                    )
-                else:
-                    await self.custom_client_async.put(
-                        write_uri, headers=headers, content=file_content
-                    )
+            file_content = await asyncio.to_thread(Path(source_path).read_bytes)
+            if result["RequiresAuth"]:
+                await self.request_async(
+                    "PUT", write_uri, headers=headers, content=file_content
+                )
+            else:
+                await self.custom_client_async.put(
+                    write_uri, headers=headers, content=file_content
+                )
 
     @traced(name="buckets_retrieve", run_type="uipath")
     @infer_bindings(resource_type="bucket")
@@ -356,34 +591,65 @@ class BucketsService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder where the bucket resides.
 
         Returns:
-            Response: The bucket details.
+            Bucket: The bucket resource instance.
 
         Raises:
             ValueError: If neither bucket key nor bucket name is provided.
             Exception: If the bucket with the specified name is not found.
+
+        Examples:
+            >>> bucket = sdk.buckets.retrieve(name="my-storage")
+            >>> print(bucket.name, bucket.identifier)
         """
         if not (key or name):
             raise ValueError("Must specify a bucket name or bucket key")
+
         if key:
             spec = self._retrieve_by_key_spec(
                 key, folder_key=folder_key, folder_path=folder_path
             )
+            # GetByKey may return single object or OData collection format
+            try:
+                response = self.request(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                ).json()
+                # Handle both direct object and OData collection wrapper
+                if "value" in response:
+                    items = response.get("value", [])
+                    if not items:
+                        raise LookupError(f"Bucket with key '{key}' not found")
+                    bucket_data = items[0]
+                else:
+                    bucket_data = response
+            except (KeyError, IndexError) as e:
+                raise LookupError(f"Bucket with key '{key}' not found") from e
         else:
             spec = self._retrieve_spec(
                 name,  # type: ignore
                 folder_key=folder_key,
                 folder_path=folder_path,
             )
-        try:
-            response = self.request(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-                headers=spec.headers,
-            ).json()["value"][0]
-        except (KeyError, IndexError) as e:
-            raise Exception(f"Bucket with name '{name}' not found") from e
-        return Bucket.model_validate(response)
+            # OData query returns collection in "value" array
+            try:
+                response = self.request(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                ).json()
+                items = response.get("value", [])
+                if not items:
+                    raise LookupError(f"Bucket with name '{name}' not found")
+                bucket_data = items[0]
+            except (KeyError, IndexError) as e:
+                raise LookupError(f"Bucket with name '{name}' not found") from e
+
+        bucket = Bucket.model_validate(bucket_data)
+        bucket._service = self  # Inject service reference for resource pattern
+        return bucket
 
     @traced(name="buckets_retrieve", run_type="uipath")
     @infer_bindings(resource_type="bucket")
@@ -404,41 +670,128 @@ class BucketsService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder where the bucket resides.
 
         Returns:
-            Response: The bucket details.
+            Bucket: The bucket resource instance.
 
         Raises:
             ValueError: If neither bucket key nor bucket name is provided.
             Exception: If the bucket with the specified name is not found.
+
+        Examples:
+            >>> bucket = await sdk.buckets.retrieve_async(name="my-storage")
+            >>> print(bucket.name, bucket.identifier)
         """
         if not (key or name):
             raise ValueError("Must specify a bucket name or bucket key")
+
         if key:
             spec = self._retrieve_by_key_spec(
                 key, folder_key=folder_key, folder_path=folder_path
             )
+            # GetByKey may return single object or OData collection format
+            try:
+                response = (
+                    await self.request_async(
+                        spec.method,
+                        url=spec.endpoint,
+                        params=spec.params,
+                        headers=spec.headers,
+                    )
+                ).json()
+                # Handle both direct object and OData collection wrapper
+                if "value" in response:
+                    items = response.get("value", [])
+                    if not items:
+                        raise LookupError(f"Bucket with key '{key}' not found")
+                    bucket_data = items[0]
+                else:
+                    bucket_data = response
+            except (KeyError, IndexError) as e:
+                raise LookupError(f"Bucket with key '{key}' not found") from e
         else:
             spec = self._retrieve_spec(
                 name,  # type: ignore
                 folder_key=folder_key,
                 folder_path=folder_path,
             )
+            # OData query returns collection in "value" array
+            try:
+                response = (
+                    await self.request_async(
+                        spec.method,
+                        url=spec.endpoint,
+                        params=spec.params,
+                        headers=spec.headers,
+                    )
+                ).json()
+                items = response.get("value", [])
+                if not items:
+                    raise LookupError(f"Bucket with name '{name}' not found")
+                bucket_data = items[0]
+            except (KeyError, IndexError) as e:
+                raise LookupError(f"Bucket with name '{name}' not found") from e
 
-        try:
-            response = (
-                await self.request_async(
-                    spec.method,
-                    url=spec.endpoint,
-                    params=spec.params,
-                    headers=spec.headers,
-                )
-            ).json()["value"][0]
-        except (KeyError, IndexError) as e:
-            raise Exception(f"Bucket with name '{name}' not found") from e
-        return Bucket.model_validate(response)
+        bucket = Bucket.model_validate(bucket_data)
+        bucket._service = self  # Inject service reference for resource pattern
+        return bucket
 
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
+
+    def _list_spec(
+        self,
+        folder_path: Optional[str],
+        folder_key: Optional[str],
+        name: Optional[str],
+        skip: int,
+        top: int,
+    ) -> RequestSpec:
+        """Build OData request for listing buckets."""
+        filters = []
+        if name:
+            # Case-insensitive contains using tolower
+            escaped_name = name.replace("'", "''")  # Escape single quotes
+            filters.append(f"contains(tolower(Name), tolower('{escaped_name}'))")
+
+        filter_str = " and ".join(filters) if filters else None
+
+        params: Dict[str, Any] = {"$skip": skip, "$top": top}
+        if filter_str:
+            params["$filter"] = filter_str
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/odata/Buckets"),
+            params=params,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _create_spec(
+        self,
+        name: str,
+        description: Optional[str],
+        identifier: str,
+        folder_path: Optional[str],
+        folder_key: Optional[str],
+    ) -> RequestSpec:
+        """Build request for creating bucket."""
+        body = {
+            "Name": name,
+            "Identifier": identifier,  # Required field (UUID)
+        }
+        if description:
+            body["Description"] = description
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint("/orchestrator_/odata/Buckets"),
+            json=body,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
 
     def _retrieve_spec(
         self,
@@ -446,10 +799,12 @@ class BucketsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
+        # Escape single quotes to prevent OData filter injection
+        escaped_name = name.replace("'", "''")
         return RequestSpec(
             method="GET",
             endpoint=Endpoint("/orchestrator_/odata/Buckets"),
-            params={"$filter": f"Name eq '{name}'", "$top": 1},
+            params={"$filter": f"Name eq '{escaped_name}'", "$top": 1},
             headers={
                 **header_folder(folder_key, folder_path),
             },
