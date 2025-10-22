@@ -19,8 +19,7 @@ from ..._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from ...eval.coded_evaluators import BaseEvaluator
-from ...eval.evaluators import LegacyBaseEvaluator
+from ...eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (

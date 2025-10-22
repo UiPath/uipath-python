@@ -4,7 +4,7 @@ import json
 from abc import ABC
 from typing import Any, TypeVar
 
-from .base_evaluator import LegacyBaseEvaluator
+from .legacy_base_evaluator import LegacyBaseEvaluator
 
 T = TypeVar("T")
 

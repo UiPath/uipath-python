@@ -12,54 +12,54 @@ from uipath._cli._evals._models._evaluator import (
     TrajectoryEvaluatorParams,
 )
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
-from uipath.eval.coded_evaluators import BaseEvaluator
-from uipath.eval.coded_evaluators.base_evaluator import BaseEvaluatorConfig
-from uipath.eval.coded_evaluators.contains_evaluator import (
-    ContainsEvaluator,
-    ContainsEvaluatorConfig,
-)
-from uipath.eval.coded_evaluators.exact_match_evaluator import (
-    ExactMatchEvaluator,
-    ExactMatchEvaluatorConfig,
-)
-from uipath.eval.coded_evaluators.json_similarity_evaluator import (
-    JsonSimilarityEvaluator,
-    JsonSimilarityEvaluatorConfig,
-)
-from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
-    LLMJudgeOutputEvaluator,
-    LLMJudgeOutputEvaluatorConfig,
-    LLMJudgeStrictJSONSimilarityOutputEvaluator,
-    LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
-)
-from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
-    LLMJudgeTrajectoryEvaluator,
-    LLMJudgeTrajectoryEvaluatorConfig,
-    LLMJudgeTrajectorySimulationEvaluator,
-    LLMJudgeTrajectorySimulationEvaluatorConfig,
-)
-from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
-    ToolCallArgsEvaluator,
-    ToolCallArgsEvaluatorConfig,
-)
-from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
-    ToolCallCountEvaluator,
-    ToolCallCountEvaluatorConfig,
-)
-from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
-    ToolCallOrderEvaluator,
-    ToolCallOrderEvaluatorConfig,
-)
-from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
-    ToolCallOutputEvaluator,
-    ToolCallOutputEvaluatorConfig,
-)
 from uipath.eval.evaluators import (
+    BaseEvaluator,
     LegacyBaseEvaluator,
     LegacyExactMatchEvaluator,
     LegacyJsonSimilarityEvaluator,
     LegacyLlmAsAJudgeEvaluator,
     LegacyTrajectoryEvaluator,
+)
+from uipath.eval.evaluators.base_evaluator import BaseEvaluatorConfig
+from uipath.eval.evaluators.contains_evaluator import (
+    ContainsEvaluator,
+    ContainsEvaluatorConfig,
+)
+from uipath.eval.evaluators.exact_match_evaluator import (
+    ExactMatchEvaluator,
+    ExactMatchEvaluatorConfig,
+)
+from uipath.eval.evaluators.json_similarity_evaluator import (
+    JsonSimilarityEvaluator,
+    JsonSimilarityEvaluatorConfig,
+)
+from uipath.eval.evaluators.llm_judge_output_evaluator import (
+    LLMJudgeOutputEvaluator,
+    LLMJudgeOutputEvaluatorConfig,
+    LLMJudgeStrictJSONSimilarityOutputEvaluator,
+    LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
+)
+from uipath.eval.evaluators.llm_judge_trajectory_evaluator import (
+    LLMJudgeTrajectoryEvaluator,
+    LLMJudgeTrajectoryEvaluatorConfig,
+    LLMJudgeTrajectorySimulationEvaluator,
+    LLMJudgeTrajectorySimulationEvaluatorConfig,
+)
+from uipath.eval.evaluators.tool_call_args_evaluator import (
+    ToolCallArgsEvaluator,
+    ToolCallArgsEvaluatorConfig,
+)
+from uipath.eval.evaluators.tool_call_count_evaluator import (
+    ToolCallCountEvaluator,
+    ToolCallCountEvaluatorConfig,
+)
+from uipath.eval.evaluators.tool_call_order_evaluator import (
+    ToolCallOrderEvaluator,
+    ToolCallOrderEvaluatorConfig,
+)
+from uipath.eval.evaluators.tool_call_output_evaluator import (
+    ToolCallOutputEvaluator,
+    ToolCallOutputEvaluatorConfig,
 )
 
 

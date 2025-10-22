@@ -16,7 +16,7 @@ from ..models.models import (
     NumericEvaluationResult,
     TrajectoryEvaluationTrace,
 )
-from .base_evaluator import LegacyBaseEvaluator
+from .legacy_base_evaluator import LegacyBaseEvaluator
 
 
 class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):

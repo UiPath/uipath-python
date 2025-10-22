@@ -4,8 +4,7 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 from pydantic.alias_generators import to_camel
 
-from uipath.eval.coded_evaluators import BaseEvaluator
-from uipath.eval.evaluators import LegacyBaseEvaluator
+from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
 
 
 class EvaluationSimulationTool(BaseModel):
