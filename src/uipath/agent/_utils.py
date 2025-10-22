@@ -8,7 +8,6 @@ from uipath._cli._evals._models._evaluation_set import (
     InputMockingStrategy,
     LLMMockingStrategy,
 )
-from uipath._cli._push.sw_file_handler import SwFileHandler
 from uipath._cli._utils._studio_project import (
     ProjectFile,
     ProjectFolder,
@@ -36,14 +35,6 @@ async def create_agent_project(solution_id: str, project_name: str) -> str:
     studio_client = StudioSolutionsClient(solution_id=solution_id)
     project = await studio_client.create_project_async(project_name=project_name)
     return project["id"]
-
-
-async def upload_project_files(project_id: str, root: str) -> None:
-    sw_file_handler = SwFileHandler(
-        project_id=project_id,
-        directory=root,
-    )
-    await sw_file_handler.upload_source_files({})
 
 
 async def load_agent_definition(project_id: str) -> AgentDefinition:
