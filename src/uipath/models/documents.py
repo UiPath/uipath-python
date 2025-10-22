@@ -108,20 +108,3 @@ class ValidationAction(BaseModel):
     project_id: str = Field(alias="projectId")
     tag: str
     operation_id: str = Field(alias="operationId")
-
-
-class ValidatedResult(BaseModel):
-    """A model representing the result of a validation action.
-
-    Attributes:
-        document_id (str): The ID of the validated document.
-        results_document (dict): The validated results document.
-    """
-
-    model_config = ConfigDict(
-        serialize_by_alias=True,
-        validate_by_alias=True,
-    )
-
-    document_id: str = Field(alias="DocumentId")
-    results_document: dict = Field(alias="ResultsDocument")  # type: ignore
