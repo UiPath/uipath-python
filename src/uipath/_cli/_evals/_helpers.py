@@ -125,9 +125,9 @@ def register_evaluator(filename: str) -> tuple[str, str]:
     if file_path is None:
         console.error(f"Could not find '{filename}' in evals/evaluators/custom folder")
 
-    relative_path = f"evals/evaluators/custom/{filename}"
+    relative_path = Path("evals") / "evaluators" / "custom" / filename
     console.info(
-        f"Found custom evaluator file: {click.style(relative_path, fg='cyan')}"
+        f"Found custom evaluator file: {click.style(str(relative_path), fg='cyan')}"
     )
 
     class_name = find_base_evaluator_class(file_path)
@@ -166,10 +166,10 @@ def register_evaluator(filename: str) -> tuple[str, str]:
         json.dump(evaluator_json_type, f, indent=2)
 
     relative_output_path = (
-        f"evals/evaluators/custom/types/{output_file_evaluator_types}"
+        Path("evals") / "evaluators" / "custom" / "types" / output_file_evaluator_types
     )
     console.success(
-        f"Generated evaluator types: {click.style(relative_output_path, fg='cyan')}"
+        f"Generated evaluator types: {click.style(str(relative_output_path), fg='cyan')}"
     )
 
     output = {
@@ -186,9 +186,9 @@ def register_evaluator(filename: str) -> tuple[str, str]:
     with open(evaluator_spec_output_path, "w") as f:
         json.dump(output, f, indent=2)
 
-    relative_output_path = f"evals/evaluators/{output_file_evaluator_spec}"
+    relative_output_path = Path("evals") / "evaluators" / output_file_evaluator_spec
     console.success(
-        f"Generated evaluator spec: {click.style(relative_output_path, fg='cyan')}"
+        f"Generated evaluator spec: {click.style(str(relative_output_path), fg='cyan')}"
     )
 
     return str(file_path), str(evaluator_types_output_path)
