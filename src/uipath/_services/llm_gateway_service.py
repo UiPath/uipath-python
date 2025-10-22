@@ -106,35 +106,32 @@ def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
     """
     schema = model_class.model_json_schema()
 
-    def clean_properties(properties):
-        """Clean property definitions by removing titles and cleaning nested items."""
-        cleaned_props = {}
-        for prop_name, prop_def in properties.items():
-            if isinstance(prop_def, dict):
-                cleaned_prop = {}
-                for key, value in prop_def.items():
-                    if key == "title":  # Skip title
-                        continue
-                    elif key == "items" and isinstance(value, dict):
-                        # Clean nested items
-                        cleaned_items = {}
-                        for item_key, item_value in value.items():
-                            if item_key != "title":
-                                cleaned_items[item_key] = item_value
-                        cleaned_prop[key] = cleaned_items
-                    else:
-                        cleaned_prop[key] = value
-                cleaned_props[prop_name] = cleaned_prop
-        return cleaned_props
+    def clean_type(type_def):
+        """Clean property definitions by removing titles and cleaning nested items. Additionally, `additionalProperties` is ensured on all objects."""
+        cleaned_type = {}
+        for key, value in type_def.items():
+            if key == "title" or key == "properties":
+                continue
+            else:
+                cleaned_type[key] = value
+        if type_def.get("type") == "object" and "additionalProperties" not in type_def:
+            cleaned_type["additionalProperties"] = False
+
+        if "properties" in type_def:
+            properties = type_def.get("properties", {})
+            for key, value in properties.items():
+                properties[key] = clean_type(value)
+            cleaned_type["properties"] = properties
+
+        if "$defs" in type_def:
+            cleaned_defs = {}
+            for key, value in type_def["$defs"].items():
+                cleaned_defs[key] = clean_type(value)
+            cleaned_type["$defs"] = cleaned_defs
+        return cleaned_type
 
     # Create clean schema
-    clean_schema = {
-        "type": "object",
-        "properties": clean_properties(schema.get("properties", {})),
-        "required": schema.get("required", []),
-        "additionalProperties": False,
-    }
-
+    clean_schema = clean_type(schema)
     return clean_schema
 
 
@@ -354,7 +351,8 @@ class UiPathLlmChatService(BaseService):
         n: int = 1,
         frequency_penalty: float = 0,
         presence_penalty: float = 0,
-        top_p: float = 1,
+        top_p: Optional[float] = 1,
+        top_k: Optional[int] = None,
         tools: Optional[List[ToolDefinition]] = None,
         tool_choice: Optional[ToolChoice] = None,
         response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
@@ -388,6 +386,8 @@ class UiPathLlmChatService(BaseService):
                 Positive values encourage discussion of new topics. Defaults to 0.
             top_p (float, optional): Nucleus sampling parameter between 0 and 1.
                 Controls diversity by considering only the top p probability mass. Defaults to 1.
+            top_k (int, optional): Nucleus sampling parameter.
+                Controls diversity by considering only the top k most probable tokens. Defaults to None.
             tools (Optional[List[ToolDefinition]], optional): List of tool definitions that the
                 model can call. Tools enable the model to perform actions or retrieve information
                 beyond text generation. Defaults to None.
@@ -489,6 +489,8 @@ class UiPathLlmChatService(BaseService):
             "presence_penalty": presence_penalty,
             "top_p": top_p,
         }
+        if top_k is not None:
+            request_body["top_k"] = top_k
 
         # Handle response_format - convert BaseModel to schema if needed
         if response_format:

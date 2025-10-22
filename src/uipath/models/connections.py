@@ -4,6 +4,14 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class ConnectionMetadata(BaseModel):
+    """Metadata about a connection."""
+
+    fields: dict[str, Any] = Field(default_factory=dict, alias="fields")
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
 class Connection(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True,

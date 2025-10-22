@@ -6,8 +6,10 @@ import zipfile
 from string import Template
 
 import click
+from pydantic import TypeAdapter
 
 from uipath._cli._utils._constants import UIPATH_PROJECT_ID
+from uipath._cli.models.runtime_schema import Bindings, RuntimeSchema
 
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
@@ -101,10 +103,11 @@ def generate_entrypoints_file(entryPoints):
     return entrypoint_json_data
 
 
-def generate_bindings_content():
-    bindings_content = {"version": "2.0", "resources": []}
-
-    return bindings_content
+def generate_bindings_content() -> Bindings:
+    return Bindings(
+        version="2.0",
+        resources=[],
+    )
 
 
 def generate_content_types_content():
@@ -214,11 +217,7 @@ def pack_fn(
         console.error("uipath.json not found, please run `uipath init`.")
 
     with open(config_path, "r") as f:
-        config_data = json.load(f)
-        if "bindings" in config_data:
-            bindings_content = config_data["bindings"]
-        else:
-            bindings_content = generate_bindings_content()
+        config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(f))
 
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
@@ -249,11 +248,14 @@ def pack_fn(
         )
         z.writestr("content/operate.json", json.dumps(operate_file, indent=4))
         z.writestr("content/entry-points.json", json.dumps(entrypoints_file, indent=4))
-        z.writestr("content/bindings_v2.json", json.dumps(bindings_content, indent=4))
+        z.writestr(
+            "content/bindings_v2.json",
+            json.dumps(config_data.bindings.model_dump(by_alias=True), indent=4),
+        )
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        files = files_to_include(config_data, directory, include_uv_lock)
+        files = files_to_include(config_data.settings, directory, include_uv_lock)
 
         for file in files:
             if file.is_binary:

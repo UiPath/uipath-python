@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -15,6 +16,7 @@ class UiPathEvalRunExecutionOutput(BaseModel):
 
     execution_time: float
     spans: list[ReadableSpan]
+    logs: list[logging.LogRecord]
     result: UiPathRuntimeResult
 
 
@@ -56,43 +58,46 @@ class EvaluationRunResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluator_name: str
+    evaluator_id: str
     result: EvaluationResultDto
+
+    @model_serializer(mode="wrap")
+    def serialize_model(self, serializer, info):
+        data = serializer(self)
+        if isinstance(data, dict):
+            data.pop("evaluatorId", None)
+        return data
 
 
 class EvaluationRunResult(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-    score: float = 0.0
     evaluation_name: str
     evaluation_run_results: List[EvaluationRunResultDto]
 
-    def compute_average_score(self) -> None:
+    @property
+    def score(self) -> float:
         """Compute average score for this single eval_item."""
         if not self.evaluation_run_results:
-            self.score = 0.0
-            return
+            return 0.0
 
         total_score = sum(dto.result.score for dto in self.evaluation_run_results)
-        self.score = total_score / len(self.evaluation_run_results)
+        return total_score / len(self.evaluation_run_results)
 
 
 class UiPathEvalOutput(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluation_set_name: str
-    score: float
     evaluation_set_results: List[EvaluationRunResult]
 
-    def compute_average_score(self) -> None:
-        """Compute overall average by calling eval_item.compute_average_score()."""
+    @property
+    def score(self) -> float:
+        """Compute overall average score from evaluation results."""
         if not self.evaluation_set_results:
-            self.score = 0.0
-            return
-
-        for eval_result in self.evaluation_set_results:
-            eval_result.compute_average_score()
+            return 0.0
 
         eval_item_scores = [
             eval_result.score for eval_result in self.evaluation_set_results
         ]
-        self.score = sum(eval_item_scores) / len(eval_item_scores)
+        return sum(eval_item_scores) / len(eval_item_scores)

@@ -2,21 +2,18 @@
 import ast
 import asyncio
 import os
-import uuid
 from typing import List, Optional
 
 import click
 
+from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
     UiPathEvalContext,
     UiPathEvalRuntime,
 )
-from uipath._cli._runtime._contracts import (
-    UiPathRuntimeContext,
-    UiPathRuntimeFactory,
-)
-from uipath._cli._runtime._runtime import UiPathScriptRuntime
+from uipath._cli._runtime._runtime_factory import generate_runtime_factory
+from uipath._cli._utils._constants import UIPATH_PROJECT_ID
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli.middlewares import Middlewares
 from uipath._events._event_bus import EventBus
@@ -39,6 +36,22 @@ class LiteralOption(click.Option):
             raise click.BadParameter(value) from e
 
 
+def setup_reporting_prereq(no_report: bool) -> bool:
+    if no_report:
+        return False
+
+    if not os.getenv(UIPATH_PROJECT_ID, False):
+        console.warning(
+            "UIPATH_PROJECT_ID environment variable not set. Results will no be reported to Studio Web."
+        )
+        return False
+    if not os.getenv("UIPATH_FOLDER_KEY"):
+        os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(
+            get_personal_workspace_key_async()
+        )
+    return True
+
+
 @click.command()
 @click.argument("entrypoint", required=False)
 @click.argument("eval_set", required=False)
@@ -52,8 +65,8 @@ class LiteralOption(click.Option):
 @click.option(
     "--workers",
     type=int,
-    default=8,
-    help="Number of parallel workers for running evaluations (default: 8)",
+    default=1,
+    help="Number of parallel workers for running evaluations (default: 1)",
 )
 @click.option(
     "--output-file",
@@ -79,10 +92,16 @@ def eval(
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """
-    if not no_report and not os.getenv("UIPATH_FOLDER_KEY"):
-        os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(
-            get_personal_workspace_key_async()
-        )
+    context_args = {
+        "entrypoint": entrypoint or auto_discover_entrypoint(),
+        "eval_set": eval_set,
+        "eval_ids": eval_ids,
+        "workers": workers,
+        "no_report": no_report,
+        "output_file": output_file,
+    }
+
+    should_register_progress_reporter = setup_reporting_prereq(no_report)
 
     result = Middlewares.next(
         "eval",
@@ -92,6 +111,7 @@ def eval(
         no_report=no_report,
         workers=workers,
         execution_output_file=output_file,
+        register_progress_reporter=should_register_progress_reporter,
     )
 
     if result.error_message:
@@ -100,21 +120,13 @@ def eval(
     if result.should_continue:
         event_bus = EventBus()
 
-        if not no_report:
+        if should_register_progress_reporter:
             progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
 
-        def generate_runtime_context(**context_kwargs) -> UiPathRuntimeContext:
-            runtime_context = UiPathRuntimeContext.with_defaults(**context_kwargs)
-            runtime_context.entrypoint = runtime_entrypoint
-            return runtime_context
-
-        runtime_entrypoint = entrypoint or auto_discover_entrypoint()
-
         eval_context = UiPathEvalContext.with_defaults(
             execution_output_file=output_file,
-            entrypoint=runtime_entrypoint,
-            execution_id=str(uuid.uuid4()),
+            entrypoint=context_args["entrypoint"],
         )
 
         eval_context.no_report = no_report
@@ -122,12 +134,11 @@ def eval(
         eval_context.eval_set = eval_set or EvalHelpers.auto_discover_eval_set()
         eval_context.eval_ids = eval_ids
 
+        console_reporter = ConsoleProgressReporter()
+        asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))
+
         try:
-            runtime_factory = UiPathRuntimeFactory(
-                UiPathScriptRuntime,
-                UiPathRuntimeContext,
-                context_generator=generate_runtime_context,
-            )
+            runtime_factory = generate_runtime_factory()
             if eval_context.job_id:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 
@@ -143,10 +154,8 @@ def eval(
             asyncio.run(execute())
         except Exception as e:
             console.error(
-                f"Error: Unexpected error occurred - {str(e)}", include_traceback=True
+                f"Error occurred: {e or 'Execution failed'}", include_traceback=True
             )
-
-    console.success("Evaluation completed successfully")
 
 
 if __name__ == "__main__":

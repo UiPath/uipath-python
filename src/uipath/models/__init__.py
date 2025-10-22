@@ -3,7 +3,7 @@ from .actions import Action
 from .assets import Asset, UserAsset
 from .attachment import Attachment
 from .buckets import Bucket
-from .connections import Connection, ConnectionToken, EventArguments
+from .connections import Connection, ConnectionMetadata, ConnectionToken, EventArguments
 from .context_grounding import ContextGroundingQueryResponse
 from .context_grounding_index import ContextGroundingIndex
 from .errors import BaseUrlMissingError, SecretMissingError
@@ -38,6 +38,7 @@ __all__ = [
     "QueueItemPriority",
     "TransactionItemResult",
     "Connection",
+    "ConnectionMetadata",
     "ConnectionToken",
     "EventArguments",
     "Job",

@@ -63,6 +63,9 @@ jobs:
         USE_AZURE_CHAT: ${{ matrix.use_azure_chat }}
       working-directory: testcases/${{ matrix.testcase }}
       run: |
+        # If any errors occur execution will stop with exit code
+        set -e
+      
         echo "Running testcase: ${{ matrix.testcase }}"
         echo "Environment: ${{ matrix.environment }}"
         echo "Working directory: $(pwd)"
@@ -70,3 +73,17 @@ jobs:
         # Execute the testcase run script directly
         bash run.sh
         bash ../common/validate_output.sh
+    
+  summarize-results:
+    needs: [integration-tests]
+    runs-on: ubuntu-latest
+    if: always() # This ensures the job runs even if the tests fail
+    steps:
+      - name: Check integration tests status
+        run: |
+          if [[ "${{ needs.integration-tests.result }}" == "success" ]]; then
+            echo "All integration tests passed"
+          else
+            echo "Some integration tests failed"
+            exit 1
+          fi

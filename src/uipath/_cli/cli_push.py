@@ -1,7 +1,7 @@
 # type: ignore
 import asyncio
 import os
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import click
@@ -32,7 +32,7 @@ def get_org_scoped_url(base_url: str) -> str:
 
 async def upload_source_files_to_project(
     project_id: str,
-    config_data: dict[Any, str],
+    settings: Optional[dict[str, Any]],
     directory: str,
     include_uv_lock: bool = True,
 ) -> None:
@@ -50,7 +50,7 @@ async def upload_source_files_to_project(
         include_uv_lock=include_uv_lock,
     )
 
-    await sw_file_handler.upload_source_files(config_data)
+    await sw_file_handler.upload_source_files(settings)
 
 
 @click.command()
@@ -99,7 +99,7 @@ def push(root: str, nolock: bool) -> None:
             asyncio.run(
                 upload_source_files_to_project(
                     os.getenv(UIPATH_PROJECT_ID),
-                    config,
+                    config.get("settings", {}),
                     root,
                     include_uv_lock=not nolock,
                 )

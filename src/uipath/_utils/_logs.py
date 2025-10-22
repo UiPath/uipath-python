@@ -11,5 +11,4 @@ def setup_logging(should_debug: Optional[bool] = None) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger.setLevel(logging.DEBUG if should_debug else logging.INFO)
-    logger.removeHandler(logging.StreamHandler(sys.stdout))
     logger.addHandler(logging.StreamHandler(sys.stderr))

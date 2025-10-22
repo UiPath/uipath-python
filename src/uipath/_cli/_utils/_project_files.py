@@ -1,18 +1,57 @@
 # type: ignore
+import hashlib
 import json
+import logging
 import os
 import re
-from typing import Any, Dict, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, Optional, Protocol, Tuple
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from .._utils._console import ConsoleLogger
+from ..models.runtime_schema import RuntimeSchema
 from ._constants import is_binary_file
+from ._studio_project import (
+    ProjectFile,
+    ProjectFolder,
+    StudioClient,
+    get_folder_by_name,
+)
 
 try:
     import tomllib
 except ImportError:
     import tomli as tomllib
+logger = logging.getLogger(__name__)
+
+
+class FileConflictHandler(Protocol):
+    """Protocol for handling file conflicts."""
+
+    def should_overwrite(
+        self, file_path: str, local_hash: str, remote_hash: str
+    ) -> bool:
+        """Return True to overwrite, False to skip."""
+        ...
+
+
+class AlwaysOverwriteHandler:
+    """Handler that always overwrites files."""
+
+    def should_overwrite(
+        self, file_path: str, local_hash: str, remote_hash: str
+    ) -> bool:
+        return True
+
+
+class AlwaysSkipHandler:
+    """Handler that always skips conflicts."""
+
+    def should_overwrite(
+        self, file_path: str, local_hash: str, remote_hash: str
+    ) -> bool:
+        return False
 
 
 class FileInfo(BaseModel):
@@ -55,21 +94,19 @@ def get_project_config(directory: str) -> dict[str, str]:
         console.error("pyproject.toml not found.")
 
     with open(config_path, "r") as config_file:
-        config_data = json.load(config_file)
-
-    validate_config_structure(config_data)
+        config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(config_file))
 
     toml_data = read_toml_project(toml_path)
 
     return {
         "project_name": toml_data["name"],
         "description": toml_data["description"],
-        "entryPoints": config_data["entryPoints"],
+        "entryPoints": [ep.model_dump(by_alias=True) for ep in config_data.entrypoints],
         "version": toml_data["version"],
         "authors": toml_data["authors"],
         "dependencies": toml_data.get("dependencies", {}),
         "requires-python": toml_data.get("requires-python", None),
-        "settings": config_data.get("settings", {}),
+        "settings": config_data.settings or {},
     }
 
 
@@ -309,7 +346,7 @@ def read_toml_project(file_path: str) -> dict:
 
 
 def files_to_include(
-    config_data: Optional[dict[Any, Any]],
+    settings: Optional[dict[str, Any]],
     directory: str,
     include_uv_lock: bool = True,
     directories_to_ignore: list[str] | None = None,
@@ -320,7 +357,7 @@ def files_to_include(
     and explicit inclusion rules. Skips virtual environments and hidden directories.
 
     Args:
-        config_data: Configuration containing file inclusion rules
+        settings: File handling settings
         directory: Root directory to search for files
         include_uv_lock: Whether to include uv.lock file
         directories_to_ignore: List of directories to ignore
@@ -336,8 +373,7 @@ def files_to_include(
         directories_to_ignore = []
     if include_uv_lock:
         files_included += ["uv.lock"]
-    if "settings" in config_data:
-        settings = config_data["settings"]
+    if settings is not None:
         if "fileExtensionsIncluded" in settings:
             file_extensions_included.extend(settings["fileExtensionsIncluded"])
         if "filesIncluded" in settings:
@@ -431,3 +467,117 @@ def files_to_include(
                     )
                 )
     return extra_files
+
+
+def compute_normalized_hash(content: str) -> str:
+    """Compute hash of normalized content.
+
+    Args:
+        content: Content to hash
+
+    Returns:
+        str: SHA256 hash of the normalized content
+    """
+    try:
+        # Try to parse as JSON to handle formatting
+        json_content = json.loads(content)
+        normalized = json.dumps(json_content, indent=2)
+    except json.JSONDecodeError:
+        # Not JSON, normalize line endings
+        normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def collect_files_from_folder(
+    folder: ProjectFolder, base_path: str, files_dict: Dict[str, ProjectFile]
+) -> None:
+    """Recursively collect all files from a folder and its subfolders.
+
+    Args:
+        folder: The folder to collect files from
+        base_path: Base path for file paths
+        files_dict: Dictionary to store collected files
+    """
+    # Add files from current folder
+    for file in folder.files:
+        file_path = os.path.join(base_path, file.name)
+        files_dict[file_path] = file
+
+    # Recursively process subfolders
+    for subfolder in folder.folders:
+        subfolder_path = os.path.join(base_path, subfolder.name)
+        collect_files_from_folder(subfolder, subfolder_path, files_dict)
+
+
+async def pull_project(
+    project_id: str,
+    download_configuration: dict[str, Path],
+    conflict_handler: Optional[FileConflictHandler] = None,
+):
+    """Pull project with configurable conflict handling."""
+    if conflict_handler is None:
+        conflict_handler = AlwaysOverwriteHandler()
+
+    studio_client = StudioClient(project_id)
+
+    try:
+        structure = await studio_client.get_project_structure_async()
+        for source_key, destination in download_configuration.items():
+            source_folder = get_folder_by_name(structure, source_key)
+            if source_folder:
+                await download_folder_files(
+                    studio_client, source_folder, destination, conflict_handler
+                )
+            else:
+                logger.warning(f"No '{source_key}' folder found in remote project")
+    except Exception:
+        logger.exception("Failed to pull UiPath project")
+        raise
+
+
+async def download_folder_files(
+    studio_client: StudioClient,
+    folder: ProjectFolder,
+    base_path: Path,
+    conflict_handler: FileConflictHandler,
+) -> None:
+    """Download files from a folder recursively.
+
+    Args:
+        studio_client: Studio client
+        folder: The folder to download files from
+        base_path: Base path for local file storage
+        conflict_handler: Handler for file conflicts
+    """
+    files_dict: Dict[str, ProjectFile] = {}
+    collect_files_from_folder(folder, "", files_dict)
+
+    for file_path, remote_file in files_dict.items():
+        local_path = base_path / file_path
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+
+        response = await studio_client.download_project_file_async(remote_file)
+        remote_content = response.read().decode("utf-8")
+        remote_hash = compute_normalized_hash(remote_content)
+
+        if os.path.exists(local_path):
+            with open(local_path, "r", encoding="utf-8") as f:
+                local_content = f.read()
+                local_hash = compute_normalized_hash(local_content)
+
+            if local_hash != remote_hash:
+                if conflict_handler.should_overwrite(
+                    file_path, local_hash, remote_hash
+                ):
+                    with open(local_path, "w", encoding="utf-8", newline="\n") as f:
+                        f.write(remote_content)
+                    logger.info(f"Updated '{file_path}'")
+                else:
+                    logger.info(f"Skipped '{file_path}'")
+            else:
+                logger.info(f"File '{file_path}' is up to date")
+        else:
+            with open(local_path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(remote_content)
+            logger.info(f"Downloaded '{file_path}'")

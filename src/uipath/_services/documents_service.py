@@ -30,6 +30,10 @@ class DocumentsService(FolderContext, BaseService):
     """Service for managing UiPath DocumentUnderstanding Document Operations.
 
     This service provides methods to extract data from documents using UiPath's Document Understanding capabilities.
+
+    !!! warning "Preview Feature"
+        This function is currently experimental.
+        Behavior and parameters are subject to change in future versions.
     """
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
