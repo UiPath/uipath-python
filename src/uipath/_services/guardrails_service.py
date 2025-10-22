@@ -127,6 +127,12 @@ class GuardrailsService(FolderContext, BaseService):
             processor = HitlProcessor(create_action)
             print(f"processor: {processor}")
             resume_trigger = await processor.create_resume_trigger()
+            import json
+
+            if hasattr(resume_trigger, "payload") and isinstance(
+                resume_trigger.payload, dict
+            ):
+                resume_trigger.payload = json.dumps(resume_trigger.payload)
             print(f"resume_trigger: {resume_trigger}")
             action_output = await HitlReader.read(resume_trigger)
             print(f"action_output: {action_output}")
