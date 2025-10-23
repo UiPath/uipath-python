@@ -341,6 +341,7 @@ class UiPathRuntimeContext(BaseModel):
     result: Optional[UiPathRuntimeResult] = None
     execution_output_file: Optional[str] = None
     input_file: Optional[str] = None
+    trace_file: Optional[str] = None
     is_eval_run: bool = False
     log_handler: Optional[logging.Handler] = None
     chat_handler: Optional[UiPathConversationHandler] = None
