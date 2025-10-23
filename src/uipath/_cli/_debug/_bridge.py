@@ -434,7 +434,8 @@ def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridge:
     if not context.trace_context:
         raise ValueError("trace_context is required for remote debugging")
 
-    signalr_url = uipath_url + "/agenthub_/wsstunnel?jobId=" + context.job_id
+    signalr_url = f"{uipath_url.rstrip('/')}/orchestrator_/signalr/robotdebug?sessionId={context.job_id}"
+
     return SignalRDebugBridge(
         hub_url=signalr_url,
         access_token=os.environ.get("UIPATH_ACCESS_TOKEN"),
