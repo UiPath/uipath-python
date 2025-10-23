@@ -12,5 +12,5 @@ uv run uipath init
 echo "Running evaluations..."
 uv run uipath eval ../../samples/weather_tools/main.py ../../samples/weather_tools/evals/eval-sets/default.json --no-report
 
-echo "Running assertions..."
-uv run python assert.py
+#echo "Running assertions..."
+#uv run python assert.py

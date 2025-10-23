@@ -319,3 +319,55 @@ class _SpanUtils:
                 f"Error formatting arguments for trace: {e}. Using args and kwargs directly."
             )
             return {"args": args, "kwargs": kwargs}
+
+    @staticmethod
+    def _has_ancestor_with_name(
+        span: ReadableSpan, ancestor_name: str, span_map: Dict[int, ReadableSpan]
+    ) -> bool:
+        """Check if this span or any of its ancestors has a given name."""
+        if span.name == ancestor_name:
+            return True
+
+        current = span
+        while current.parent is not None:
+            parent_span = span_map.get(current.parent.span_id)
+            if parent_span is None:
+                break
+            if parent_span.name == ancestor_name:
+                return True
+            current = parent_span
+
+        return False
+
+    @staticmethod
+    def spans_to_llm_context(spans: list[ReadableSpan]) -> str:
+        """Convert spans to a formatted conversation history string suitable for LLM context.
+
+        Includes function calls (including LLM calls) with their inputs and outputs.
+        """
+        # Build span_id -> span map for parent chain traversal
+        span_map = {span.get_span_context().span_id: span for span in spans}
+
+        history = []
+        for span in spans:
+            attributes = dict(span.attributes) if span.attributes else {}
+
+            input_value = attributes.get("input.value")
+            output_value = attributes.get("output.value")
+
+            if not input_value or not output_value:
+                continue
+
+            # Skip spans that are internal LLM calls (eg. for tool mocking in evals)
+            if _SpanUtils._has_ancestor_with_name(span, "__mocker__", span_map):
+                continue
+
+            history.append(f"Function: {span.name}")
+            history.append(f"Input: {input_value}")
+            history.append(f"Output: {output_value}")
+            history.append("")
+
+        if not history:
+            return "(empty)"
+
+        return "\n".join(history)

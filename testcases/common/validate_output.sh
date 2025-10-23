@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Common utility to print UiPath output file
-# Usage: source /app/testcases/common/print_output.sh
+# Usage: source /app/testcases/common/validate_output.sh
 
 debug_print_uipath_output() {
     echo "Printing output file..."

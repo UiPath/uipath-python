@@ -197,9 +197,9 @@ class TestPull:
             assert result.exit_code == 0
 
             # Verify source code files
-            assert "Downloaded main.py" in result.output
-            assert "Downloaded pyproject.toml" in result.output
-            assert "Downloaded uipath.json" in result.output
+            assert "Downloaded 'main.py'" in result.output
+            assert "Downloaded 'pyproject.toml'" in result.output
+            assert "Downloaded 'uipath.json'" in result.output
 
             # Verify source code file contents
             with open("main.py", "r") as f:
@@ -282,13 +282,13 @@ class TestPull:
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Mock user input to confirm override
-            monkeypatch.setattr("click.prompt", lambda *args, **kwargs: "y")
+            monkeypatch.setattr("click.confirm", lambda *args, **kwargs: True)
 
             # Run pull
             result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 0
             assert "differs from remote version" in result.output
-            assert "Updated main.py" in result.output
+            assert "Updated 'main.py'" in result.output
 
             # Verify file was updated
             with open("main.py", "r") as f:
@@ -356,13 +356,13 @@ class TestPull:
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Mock user input to reject override
-            monkeypatch.setattr("click.prompt", lambda *args, **kwargs: "n")
+            monkeypatch.setattr("click.confirm", lambda *args, **kwargs: False)
 
             # Run pull
             result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 0
             assert "differs from remote version" in result.output
-            assert "Skipped main.py" in result.output
+            assert "Skipped 'main.py'" in result.output
 
             # Verify file was not updated
             with open("main.py", "r") as f:

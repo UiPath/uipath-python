@@ -33,3 +33,9 @@ class UiPathMockResponseGenerationError(Exception):
     """Exception when a mocker is configured unable to generate a response."""
 
     pass
+
+
+class UiPathInputMockingError(Exception):
+    """Exception when input mocking fails."""
+
+    pass

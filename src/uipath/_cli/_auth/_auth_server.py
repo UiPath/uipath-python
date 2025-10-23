@@ -7,8 +7,6 @@ import threading
 import time
 from typing import Optional
 
-from ._oidc_utils import OidcUtils
-
 # Server port
 PORT = 6234
 
@@ -22,7 +20,9 @@ class TokenReceivedSignal(Exception):
         super().__init__("Token received successfully")
 
 
-def make_request_handler_class(state, code_verifier, token_callback, domain):
+def make_request_handler_class(
+    state, code_verifier, token_callback, domain, redirect_uri, client_id
+):
     class SimpleHTTPSRequestHandler(http.server.SimpleHTTPRequestHandler):
         """Simple HTTPS request handler that serves static files."""
 
@@ -73,16 +73,10 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
                 with open(index_path, "r") as f:
                     content = f.read()
 
-                # Get the redirect URI from auth config
-                auth_config = OidcUtils.get_auth_config()
-                redirect_uri = auth_config["redirect_uri"]
-
                 content = content.replace("__PY_REPLACE_EXPECTED_STATE__", state)
                 content = content.replace("__PY_REPLACE_CODE_VERIFIER__", code_verifier)
                 content = content.replace("__PY_REPLACE_REDIRECT_URI__", redirect_uri)
-                content = content.replace(
-                    "__PY_REPLACE_CLIENT_ID__", auth_config["client_id"]
-                )
+                content = content.replace("__PY_REPLACE_CLIENT_ID__", client_id)
                 content = content.replace("__PY_REPLACE_DOMAIN__", domain)
 
                 self.send_response(200)
@@ -107,14 +101,18 @@ def make_request_handler_class(state, code_verifier, token_callback, domain):
 
 
 class HTTPServer:
-    def __init__(self, port=6234):
+    def __init__(self, port=6234, redirect_uri=None, client_id=None):
         """Initialize HTTP server with configurable parameters.
 
         Args:
             port (int, optional): Port number to run the server on. Defaults to 6234.
+            redirect_uri (str, optional): OAuth redirect URI. Defaults to None.
+            client_id (str, optional): OAuth client ID. Defaults to None.
         """
         self.current_path = os.path.dirname(os.path.abspath(__file__))
         self.port = port
+        self.redirect_uri = redirect_uri
+        self.client_id = client_id
         self.httpd: Optional[socketserver.TCPServer] = None
         self.token_data = None
         self.should_shutdown = False
@@ -145,7 +143,12 @@ class HTTPServer:
         # Create server with address reuse
         socketserver.TCPServer.allow_reuse_address = True
         handler = make_request_handler_class(
-            state, code_verifier, self.token_received_callback, domain
+            state,
+            code_verifier,
+            self.token_received_callback,
+            domain,
+            self.redirect_uri,
+            self.client_id,
         )
         self.httpd = socketserver.TCPServer(("", self.port), handler)
         return self.httpd

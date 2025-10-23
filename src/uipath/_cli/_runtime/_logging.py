@@ -266,6 +266,10 @@ class LogsInterceptor:
             def writable(self) -> bool:
                 return True
 
+            def __getattr__(self, name):
+                # Delegate any unknown attributes to the original file
+                return getattr(self.sys_file, name)
+
         # Set up stdout and stderr loggers
         stdout_logger = logging.getLogger("stdout")
         stderr_logger = logging.getLogger("stderr")

@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 from enum import Enum
 from typing import Optional
 
@@ -148,10 +147,7 @@ class EndpointManager:
             return gw.value
 
         # Determine fallback order based on environment hints
-        uipath_url = os.getenv("UIPATH_URL", "")
         hdens_env = os.getenv("HDENS_ENV", "").lower()
-
-        is_cloud_url = re.match(r"https?://[^/]+\.uipath\.com", uipath_url)
 
         # Default order: AgentHub -> Orchestrator
         check_order = [
@@ -159,9 +155,9 @@ class EndpointManager:
             ("orc", orc, cls.is_orchestrator_available),
         ]
 
-        # Prioritize Orchestrator if HDENS_ENV is 'sf' or url is cloud-based
+        # Prioritize Orchestrator if HDENS_ENV is 'sf'
         # Note: The default order already prioritizes AgentHub
-        if hdens_env == "sf" or is_cloud_url:
+        if hdens_env == "sf":
             check_order.reverse()
 
         # Execute fallback checks in the determined order

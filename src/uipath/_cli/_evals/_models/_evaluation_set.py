@@ -46,6 +46,15 @@ class LLMMockingStrategy(BaseMockingStrategy):
     )
 
 
+class InputMockingStrategy(BaseModel):
+    prompt: str = Field(..., alias="prompt")
+    model: Optional[ModelSettings] = Field(None, alias="model")
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
 class MockingArgument(BaseModel):
     args: List[Any] = Field(default_factory=lambda: [], alias="args")
     kwargs: Dict[str, Any] = Field(default_factory=lambda: {}, alias="kwargs")
@@ -128,6 +137,10 @@ class LegacyEvaluationItem(BaseModel):
     mocking_strategy: Optional[MockingStrategy] = Field(
         default=None,
         alias="mockingStrategy",
+    )
+    input_mocking_strategy: Optional[InputMockingStrategy] = Field(
+        default=None,
+        alias="inputMockingStrategy",
     )
 
 

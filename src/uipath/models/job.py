@@ -15,7 +15,7 @@ class JobErrorInfo(BaseModel):
     title: Optional[str] = Field(default=None, alias="Title")
     detail: Optional[str] = Field(default=None, alias="Detail")
     category: Optional[str] = Field(default=None, alias="Category")
-    status: Optional[str] = Field(default=None, alias="Status")
+    status: Optional[int] = Field(default=None, alias="Status")
 
 
 class Job(BaseModel):

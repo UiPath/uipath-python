@@ -104,7 +104,7 @@ def test_primitive_types():
     """Test that primitive type handling still works."""
     assert get_type_schema(str) == {"type": "string"}
     assert get_type_schema(int) == {"type": "integer"}
-    assert get_type_schema(float) == {"type": "double"}
+    assert get_type_schema(float) == {"type": "number"}
     assert get_type_schema(bool) == {"type": "boolean"}
 
 

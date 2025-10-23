@@ -7,7 +7,7 @@ from httpx import Response
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
-from ..models import Connection, ConnectionToken, EventArguments
+from ..models import Connection, ConnectionMetadata, ConnectionToken, EventArguments
 from ..models.connections import ConnectionTokenType
 from ..tracing._traced import traced
 from ._base_service import BaseService
@@ -53,6 +53,31 @@ class ConnectionsService(BaseService):
         spec = self._retrieve_spec(key)
         response = self.request(spec.method, url=spec.endpoint)
         return Connection.model_validate(response.json())
+
+    @traced(
+        name="connections_metadata",
+        run_type="uipath",
+        hide_output=True,
+    )
+    def metadata(
+        self, element_instance_id: int, tool_path: str, schema_mode: bool = True
+    ) -> ConnectionMetadata:
+        """Synchronously retrieve connection API metadata.
+
+        This method fetches the metadata for a connection,
+        which can be used to establish communication with an external service.
+
+        Args:
+            element_instance_id (int): The element instance ID of the connection.
+            tool_path (str): The tool path to retrieve metadata for.
+            schema_mode (bool): Whether or not to represent the output schema in the response fields.
+
+        Returns:
+            ConnectionMetadata: The connection metadata.
+        """
+        spec = self._metadata_spec(element_instance_id, tool_path, schema_mode)
+        response = self.request(spec.method, url=spec.endpoint, headers=spec.headers)
+        return ConnectionMetadata.model_validate(response.json())
 
     @traced(name="connections_list", run_type="uipath")
     def list(
@@ -185,6 +210,33 @@ class ConnectionsService(BaseService):
         spec = self._retrieve_spec(key)
         response = await self.request_async(spec.method, url=spec.endpoint)
         return Connection.model_validate(response.json())
+
+    @traced(
+        name="connections_metadata",
+        run_type="uipath",
+        hide_output=True,
+    )
+    async def metadata_async(
+        self, element_instance_id: int, tool_path: str, schema_mode: bool = True
+    ) -> ConnectionMetadata:
+        """Asynchronously retrieve connection API metadata.
+
+        This method fetches the metadata for a connection,
+        which can be used to establish communication with an external service.
+
+        Args:
+            element_instance_id (int): The element instance ID of the connection.
+            tool_path (str): The tool path to retrieve metadata for.
+            schema_mode (bool): Whether or not to represent the output schema in the response fields.
+
+        Returns:
+            ConnectionMetadata: The connection metadata.
+        """
+        spec = self._metadata_spec(element_instance_id, tool_path, schema_mode)
+        response = await self.request_async(
+            spec.method, url=spec.endpoint, headers=spec.headers
+        )
+        return ConnectionMetadata.model_validate(response.json())
 
     @traced(
         name="connections_retrieve_token",
@@ -322,6 +374,20 @@ class ConnectionsService(BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/connections_/api/v1/Connections/{key}"),
+        )
+
+    def _metadata_spec(
+        self, element_instance_id: int, tool_path: str, schema_mode: bool
+    ) -> RequestSpec:
+        metadata_endpoint_url = f"/elements_/v3/element/instances/{element_instance_id}/elements/{tool_path}/metadata"
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(metadata_endpoint_url),
+            headers={
+                "accept": "application/schema+json"
+                if schema_mode
+                else "application/json"
+            },
         )
 
     def _retrieve_token_spec(

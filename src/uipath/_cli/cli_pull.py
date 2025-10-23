@@ -11,9 +11,8 @@ It handles:
 
 # type: ignore
 import asyncio
-import hashlib
-import json
 import os
+from pathlib import Path
 from typing import Dict, Set
 
 import click
@@ -28,6 +27,7 @@ from ._utils._studio_project import (
     get_folder_by_name,
     get_subfolder_by_name,
 )
+from ._utils._project_files import ProjectPullError, pull_project
 
 console = ConsoleLogger()
 
@@ -87,66 +87,18 @@ def collect_files_from_folder(
     for subfolder in folder.folders:
         subfolder_path = os.path.join(base_path, subfolder.name)
         collect_files_from_folder(subfolder, subfolder_path, files_dict)
+class InteractiveConflictHandler:
+    """Handler that prompts user for each conflict."""
 
+    def __init__(self, console: ConsoleLogger):
+        self.console = console
 
-async def download_folder_files(
-    studio_client: StudioClient,
-    folder: ProjectFolder,
-    base_path: str,
-    processed_files: Set[str],
-) -> None:
-    """Download files from a folder recursively.
-
-    Args:
-        studio_client: Studio client
-        folder: The folder to download files from
-        base_path: Base path for local file storage
-        processed_files: Set to track processed files
-    """
-    files_dict: Dict[str, ProjectFile] = {}
-    collect_files_from_folder(folder, "", files_dict)
-
-    for file_path, remote_file in files_dict.items():
-        local_path = os.path.join(base_path, file_path)
-        local_dir = os.path.dirname(local_path)
-
-        # Create directory if it doesn't exist
-        if not os.path.exists(local_dir):
-            os.makedirs(local_dir)
-
-        # Download remote file
-        response = await studio_client.download_file_async(remote_file.id)
-        remote_content = response.read().decode("utf-8")
-        remote_hash = compute_normalized_hash(remote_content)
-
-        if os.path.exists(local_path):
-            # Read and hash local file
-            with open(local_path, "r", encoding="utf-8") as f:
-                local_content = f.read()
-                local_hash = compute_normalized_hash(local_content)
-
-            # Compare hashes
-            if local_hash != remote_hash:
-                styled_path = click.style(str(file_path), fg="cyan")
-                console.warning(f"File {styled_path}" + " differs from remote version.")
-                response = click.prompt("Do you want to overwrite it? (y/n)", type=str)
-                if response.lower() == "y":
-                    with open(local_path, "w", encoding="utf-8", newline="\n") as f:
-                        f.write(remote_content)
-                    console.success(f"Updated {click.style(str(file_path), fg='cyan')}")
-                else:
-                    console.info(f"Skipped {click.style(str(file_path), fg='cyan')}")
-            else:
-                console.info(
-                    f"File {click.style(str(file_path), fg='cyan')} is up to date"
-                )
-        else:
-            # File doesn't exist locally, create it
-            with open(local_path, "w", encoding="utf-8", newline="\n") as f:
-                f.write(remote_content)
-            console.success(f"Downloaded {click.style(str(file_path), fg='cyan')}")
-
-        processed_files.add(file_path)
+    def should_overwrite(
+        self, file_path: str, local_hash: str, remote_hash: str
+    ) -> bool:
+        self.console.warning(f" File {file_path} differs from remote version.")
+        response = click.confirm("Do you want to overwrite it?", default=False)
+        return response
 
 
 async def download_coded_evals_files(
@@ -188,10 +140,12 @@ async def download_coded_evals_files(
 
 @click.command()
 @click.argument(
-    "root", type=click.Path(exists=True, file_okay=False, dir_okay=True), default="."
+    "root",
+    type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=Path),
+    default=Path("."),
 )
 @track
-def pull(root: str) -> None:
+def pull(root: Path) -> None:
     """Pull remote project files from Studio Web Project.
 
     This command pulls the remote project files from a UiPath Studio Web project.
@@ -209,12 +163,16 @@ def pull(root: str) -> None:
         $ uipath pull
         $ uipath pull /path/to/project
     """
-    if not (project_id := os.getenv(UIPATH_PROJECT_ID, False)):
+    project_id = os.getenv(UIPATH_PROJECT_ID)
+    if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
-    studio_client = StudioClient(project_id)
+    default_download_configuration = {
+        "source_code": root,
+        "evals": root / "evals",
+    }
 
-    with console.spinner("Pulling UiPath project files..."):
+    async def pull_with_updates():
         try:
             structure = asyncio.run(studio_client.get_project_structure_async())
 

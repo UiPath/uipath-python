@@ -16,35 +16,35 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from pytest_mock.plugin import MockerFixture
 
-from uipath.eval.coded_evaluators.contains_evaluator import (
+from uipath.eval.evaluators.contains_evaluator import (
     ContainsEvaluationCriteria,
     ContainsEvaluator,
 )
-from uipath.eval.coded_evaluators.exact_match_evaluator import ExactMatchEvaluator
-from uipath.eval.coded_evaluators.json_similarity_evaluator import (
+from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
+from uipath.eval.evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
 )
-from uipath.eval.coded_evaluators.llm_judge_output_evaluator import (
+from uipath.eval.evaluators.llm_judge_output_evaluator import (
     LLMJudgeOutputEvaluator,
 )
-from uipath.eval.coded_evaluators.llm_judge_trajectory_evaluator import (
+from uipath.eval.evaluators.llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluator,
     TrajectoryEvaluationCriteria,
 )
-from uipath.eval.coded_evaluators.output_evaluator import OutputEvaluationCriteria
-from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+from uipath.eval.evaluators.output_evaluator import OutputEvaluationCriteria
+from uipath.eval.evaluators.tool_call_args_evaluator import (
     ToolCallArgsEvaluationCriteria,
     ToolCallArgsEvaluator,
 )
-from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+from uipath.eval.evaluators.tool_call_count_evaluator import (
     ToolCallCountEvaluationCriteria,
     ToolCallCountEvaluator,
 )
-from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+from uipath.eval.evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluationCriteria,
     ToolCallOrderEvaluator,
 )
-from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluationCriteria,
     ToolCallOutputEvaluator,
     ToolCallOutputEvaluatorJustification,
@@ -1313,16 +1313,16 @@ class TestJustificationHandling:
         )  # String justification
 
         # Tool call evaluators have their own justification types
-        from uipath.eval.coded_evaluators.tool_call_args_evaluator import (
+        from uipath.eval.evaluators.tool_call_args_evaluator import (
             ToolCallArgsEvaluatorJustification,
         )
-        from uipath.eval.coded_evaluators.tool_call_count_evaluator import (
+        from uipath.eval.evaluators.tool_call_count_evaluator import (
             ToolCallCountEvaluatorJustification,
         )
-        from uipath.eval.coded_evaluators.tool_call_order_evaluator import (
+        from uipath.eval.evaluators.tool_call_order_evaluator import (
             ToolCallOrderEvaluatorJustification,
         )
-        from uipath.eval.coded_evaluators.tool_call_output_evaluator import (
+        from uipath.eval.evaluators.tool_call_output_evaluator import (
             ToolCallOutputEvaluatorJustification,
         )
 

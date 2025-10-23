@@ -1,8 +1,18 @@
 """Python script runtime implementation for executing and managing python scripts."""
 
 import logging
-from typing import Any, Awaitable, Callable, Optional, TypeVar
+import os
+import uuid
+from functools import cached_property
+from pathlib import Path
+from typing import Any, Awaitable, Callable, List, Optional, TypeVar
 
+from typing_extensions import override
+
+from .._utils._console import ConsoleLogger
+from .._utils._input_args import generate_args
+from .._utils._parse_ast import generate_bindings  # type: ignore[attr-defined]
+from ..models.runtime_schema import BindingResource, Entrypoint
 from ._contracts import (
     UiPathBaseRuntime,
     UiPathErrorCategory,
@@ -68,6 +78,36 @@ class UiPathRuntime(UiPathBaseRuntime):
             ) from e
 
 
+console = ConsoleLogger()
+
+
+def get_user_script(directory: str, entrypoint: Optional[str] = None) -> Optional[str]:
+    """Find the Python script to process."""
+    if entrypoint:
+        script_path = os.path.join(directory, entrypoint)
+        if not os.path.isfile(script_path):
+            console.error(
+                f"The {entrypoint} file does not exist in the current directory."
+            )
+            return None
+        return script_path
+
+    python_files = [f for f in os.listdir(directory) if f.endswith(".py")]
+
+    if not python_files:
+        console.error(
+            "No python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
+        )
+        return None
+    elif len(python_files) == 1:
+        return os.path.join(directory, python_files[0])
+    else:
+        console.error(
+            "Multiple python files found in the current directory.\nPlease specify the entrypoint: `uipath init <entrypoint_path>`"
+        )
+        return None
+
+
 class UiPathScriptRuntime(UiPathRuntime):
     """Runtime for executing Python scripts."""
 
@@ -79,3 +119,32 @@ class UiPathScriptRuntime(UiPathRuntime):
     def from_context(cls, context: UiPathRuntimeContext):
         """Create runtime instance from context."""
         return UiPathScriptRuntime(context, context.entrypoint or "")
+
+    @cached_property
+    @override
+    def get_binding_resources(self) -> List[BindingResource]:
+        """Get binding resources for script runtime.
+
+        Returns: A list of binding resources.
+        """
+        working_dir = self.context.runtime_dir or os.getcwd()
+        script_path = get_user_script(working_dir, entrypoint=self.context.entrypoint)
+        bindings = generate_bindings(script_path)
+        return bindings.resources
+
+    @cached_property
+    @override
+    def get_entrypoint(self) -> Entrypoint:
+        working_dir = self.context.runtime_dir or os.getcwd()
+        script_path = get_user_script(working_dir, entrypoint=self.context.entrypoint)
+        if not script_path:
+            raise ValueError("Entrypoint not found.")
+        relative_path = Path(script_path).relative_to(working_dir).as_posix()
+        args = generate_args(script_path)
+        return Entrypoint(
+            file_path=relative_path,  # type: ignore[call-arg] # This exists
+            unique_id=str(uuid.uuid4()),
+            type="agent",
+            input=args["input"],
+            output=args["output"],
+        )

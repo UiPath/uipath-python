@@ -1,0 +1,50 @@
+{
+    "entryPoints": [
+        {
+            "filePath": "main.py",
+            "uniqueId": "f62a1945-cb6f-48b2-b575-9d802e3f90c1",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "a": {
+                        "type": "number"
+                    },
+                    "b": {
+                        "type": "number"
+                    },
+                    "operator": {
+                        "type": "string",
+                        "enum": [
+                            "+",
+                            "-",
+                            "*",
+                            "/",
+                            "random"
+                        ]
+                    }
+                },
+                "required": [
+                    "a",
+                    "b",
+                    "operator"
+                ]
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        }
+    ],
+    "bindings": {
+        "version": "2.0",
+        "resources": []
+    }
+}

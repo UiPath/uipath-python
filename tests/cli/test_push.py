@@ -258,12 +258,12 @@ class TestPush:
             # Run push
             result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 0
-            assert "Updating main.py" in result.output
-            assert "Updating pyproject.toml" in result.output
-            assert "Updating uipath.json" in result.output
-            assert "Uploading uv.lock" in result.output
-            assert "Updating agent.json" in result.output
-            assert "Updating entry-points.json" in result.output
+            assert "Updating 'main.py'" in result.output
+            assert "Updating 'pyproject.toml'" in result.output
+            assert "Updating 'uipath.json'" in result.output
+            assert "Uploading 'uv.lock'" in result.output
+            assert "Updating 'agent.json'" in result.output
+            assert "Updating 'entry-points.json'" in result.output
 
             # check incremented code version via StructuralMigration payload
             structural_migration_request = httpx_mock.get_request(
@@ -359,12 +359,12 @@ class TestPush:
             # Run push
             result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 0
-            assert "Uploading main.py" in result.output
-            assert "Uploading pyproject.toml" in result.output
-            assert "Uploading uipath.json" in result.output
-            assert "Uploading uv.lock" in result.output
-            assert "Uploading agent.json" in result.output
-            assert "Uploading entry-points.json" in result.output
+            assert "Uploading 'main.py'" in result.output
+            assert "Uploading 'pyproject.toml'" in result.output
+            assert "Uploading 'uipath.json'" in result.output
+            assert "Uploading 'uv.lock'" in result.output
+            assert "Uploading 'agent.json'" in result.output
+            assert "Uploading 'entry-points.json'" in result.output
 
             # check expected agent.json fields
             structural_migration_request = httpx_mock.get_request(
@@ -516,9 +516,9 @@ class TestPush:
             # Run push with --nolock flag
             result = runner.invoke(cli, ["push", "./", "--nolock"])
             assert result.exit_code == 0
-            assert "Updating main.py" in result.output
-            assert "Uploading pyproject.toml" in result.output
-            assert "Updating uipath.json" in result.output
+            assert "Updating 'main.py'" in result.output
+            assert "Uploading 'pyproject.toml'" in result.output
+            assert "Updating 'uipath.json'" in result.output
             assert "uv.lock" not in result.output
 
     def _mock_lock_retrieval(
@@ -614,8 +614,8 @@ class TestPush:
             # Verify that excluded file was not mentioned in output
             assert "config.json" not in result.output
             # Verify that other files were uploaded
-            assert "Uploading other.json" in result.output
-            assert "Uploading main.py" in result.output
+            assert "Uploading 'other.json'" in result.output
+            assert "Uploading 'main.py'" in result.output
 
     def test_push_files_excluded_takes_precedence_over_included(
         self,
@@ -697,7 +697,7 @@ class TestPush:
             # File should be excluded (exclusion takes precedence)
             assert "conflicting.txt" not in result.output
             # Verify other files were uploaded
-            assert "Uploading main.py" in result.output
+            assert "Uploading 'main.py'" in result.output
 
     def test_push_filename_vs_path_exclusion(
         self,
@@ -797,7 +797,7 @@ class TestPush:
             assert (
                 "settings.json" in result.output
             )  # At least some settings.json should be present
-            assert "Uploading main.py" in result.output
+            assert "Uploading 'main.py'" in result.output
 
     def test_push_filename_vs_path_inclusion(
         self,
@@ -899,7 +899,7 @@ class TestPush:
             assert (
                 "data.txt" in result.output or "config.txt" in result.output
             )  # At least one should be present
-            assert "Uploading main.py" in result.output
+            assert "Uploading 'main.py'" in result.output
 
     def test_push_directory_name_vs_path_exclusion(
         self,
@@ -1000,4 +1000,4 @@ class TestPush:
             assert (
                 "config.json" in result.output
             )  # Some config.json should be present from allowed directories
-            assert "Uploading main.py" in result.output
+            assert "Uploading 'main.py'" in result.output
