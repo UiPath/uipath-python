@@ -1,4 +1,3 @@
-# type: ignore
 import ast
 import asyncio
 import os
@@ -7,10 +6,10 @@ from typing import List, Optional
 import click
 
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
+from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
     UiPathEvalContext,
-    UiPathEvalRuntime,
 )
 from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._constants import UIPATH_PROJECT_ID
@@ -46,9 +45,9 @@ def setup_reporting_prereq(no_report: bool) -> bool:
         )
         return False
     if not os.getenv("UIPATH_FOLDER_KEY"):
-        os.environ["UIPATH_FOLDER_KEY"] = asyncio.run(
-            get_personal_workspace_key_async()
-        )
+        folder_key = asyncio.run(get_personal_workspace_key_async())
+        if folder_key:
+            os.environ["UIPATH_FOLDER_KEY"] = folder_key
     return True
 
 
@@ -141,17 +140,8 @@ def eval(
             runtime_factory = generate_runtime_factory()
             if eval_context.job_id:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
+            asyncio.run(evaluate(runtime_factory, eval_context, event_bus))
 
-            async def execute():
-                async with UiPathEvalRuntime.from_eval_context(
-                    factory=runtime_factory,
-                    context=eval_context,
-                    event_bus=event_bus,
-                ) as eval_runtime:
-                    await eval_runtime.execute()
-                    await event_bus.wait_for_all(timeout=10)
-
-            asyncio.run(execute())
         except Exception as e:
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True

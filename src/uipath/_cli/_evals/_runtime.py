@@ -176,7 +176,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     ) -> "UiPathEvalRuntime[T, C]":
         return cls(context, factory, event_bus)
 
-    async def execute(self) -> Optional[UiPathRuntimeResult]:
+    async def execute(self) -> UiPathRuntimeResult:
         if self.context.eval_set is None:
             raise ValueError("eval_set must be provided for evaluation runs")
 

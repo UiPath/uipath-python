@@ -1,0 +1,11 @@
+{
+    "fileName": "equality.json",
+    "id": "equality",
+    "name": "Equality Evaluator",
+    "description": "An evaluator that judges the agent based on expected output.",
+    "category": 0,
+    "type": 1,
+    "targetOutputKey": "*",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}

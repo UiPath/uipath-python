@@ -1,0 +1,24 @@
+{
+  "fileName": "default.json",
+  "id": "default-eval-set-id",
+  "name": "Basic Calculator Evaluation Set",
+  "batchSize": 10,
+  "evaluatorRefs": [
+    "equality"
+  ],
+  "evaluations": [
+    {
+      "id": "test-addition",
+      "name": "Test Addition",
+      "inputs": {"foo":  "bar"},
+      "expectedOutput": {"foo":  "bar"},
+      "expectedAgentBehavior": "",
+      "evalSetId": "default-eval-set-id",
+      "createdAt": "2025-09-04T18:54:58.378Z",
+      "updatedAt": "2025-09-04T18:55:55.416Z"
+    }
+  ],
+  "modelSettings": [],
+  "createdAt": "2025-09-04T18:54:58.379Z",
+  "updatedAt": "2025-09-04T18:55:55.416Z"
+}
