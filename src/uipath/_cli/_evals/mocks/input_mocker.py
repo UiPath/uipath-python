@@ -67,9 +67,7 @@ async def generate_llm_input(
             if evaluation_item.input_mocking_strategy
             else "",
             expected_behavior=evaluation_item.expected_agent_behavior or "",
-            expected_output=json.dumps(evaluation_item.expected_output, indent=2)
-            if evaluation_item.expected_output
-            else "",
+            expected_output=json.dumps(evaluation_item.evaluation_criterias, indent=2),
         )
 
         response_format = {

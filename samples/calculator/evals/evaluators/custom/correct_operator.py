@@ -22,8 +22,11 @@ class CorrectOperatorEvaluator(BaseEvaluator[CorrectOperatorEvaluationCriteria, 
     def extract_operator_from_spans(self, agent_trace: list[ReadableSpan]) -> str:
         for span in agent_trace:
             if span.name == "track_operator":
-                input_value = json.loads(span.attributes.get("input.value", {}))
-                return input_value.get("operator")
+                if span.attributes:
+                    input_value_as_str = span.attributes.get("input.value", "{}")
+                    assert isinstance(input_value_as_str, str)
+                    input_value = json.loads(input_value_as_str)
+                    return input_value.get("operator")
         raise Exception(f"No 'track_operator' span found")
 
 

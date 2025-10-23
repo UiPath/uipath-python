@@ -106,13 +106,15 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
                         final_output = output
                 except (json.JSONDecodeError, ValueError):
                     # If parsing fails, use the string as-is
-                    pass
+                    final_output = output
             elif isinstance(output, dict):
                 # If output is already a dict, extract content field
                 for key in potential_output_keys:
                     if key in output:
                         final_output = output.get(key, "")
                         break
+            else:
+                final_output = str(output)
 
             tool_calls_outputs.append(
                 ToolOutput(

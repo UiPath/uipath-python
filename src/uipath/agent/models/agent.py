@@ -5,8 +5,6 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
 
-from uipath._cli._evals._models._evaluation_set import LegacyEvaluationSet
-from uipath._cli._evals._models._evaluator import Evaluator
 from uipath.models import Connection
 from uipath.models.guardrails import AgentEscalationRecipient, Guardrail
 
@@ -432,26 +430,8 @@ AgentResourceConfig = Annotated[
 class AgentMetadata(BaseModel):
     """Metadata for agent."""
 
-    id: str = Field(..., description="Agent id or project name")
-    name: str = Field(..., description="Agent name or project name")
-    input_schema: Dict[str, Any] = Field(
-        ..., alias="inputSchema", description="JSON schema for input arguments"
-    )
-    output_schema: Dict[str, Any] = Field(
-        ..., alias="outputSchema", description="JSON schema for output arguments"
-    )
-    version: str = Field("1.0.0", description="Agent version")
-    resources: List[AgentResourceConfig] = Field(
-        ..., description="List of tools, context, and escalation resources"
-    )
-    evaluation_sets: Optional[List[LegacyEvaluationSet]] = Field(
-        None,
-        alias="evaluationSets",
-        description="List of agent evaluation sets",
-    )
-    evaluators: Optional[List[Evaluator]] = Field(
-        None, description="List of agent evaluators"
-    )
+    is_conversational: bool = Field(alias="isConversational")
+    storage_version: str = Field(alias="storageVersion")
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"

@@ -7,6 +7,8 @@ This module tests:
 - Generic type parameter handling
 """
 
+import uuid
+
 import pytest
 from pytest_mock.plugin import MockerFixture
 
@@ -343,7 +345,9 @@ class TestBaseEvaluatorFunctionality:
             "case_sensitive": True,
             "default_evaluation_criteria": {"expected_output": "test"},
         }
-        evaluator = ExactMatchEvaluator.model_validate({"config": config_dict})
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"config": config_dict, "id": str(uuid.uuid4())}
+        )
 
         assert isinstance(evaluator.evaluator_config, ExactMatchEvaluatorConfig)
         assert evaluator.evaluator_config.name == "TestEvaluator"
@@ -355,7 +359,9 @@ class TestBaseEvaluatorFunctionality:
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
         }
-        evaluator = ExactMatchEvaluator.model_validate({"config": config_dict})
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"config": config_dict, "id": str(uuid.uuid4())}
+        )
 
         # Test dict validation
         criteria_dict = {"expected_output": "test output"}
@@ -371,7 +377,9 @@ class TestBaseEvaluatorFunctionality:
             "strict": False,
             "default_evaluation_criteria": {"tool_calls_order": ["tool1", "tool2"]},
         }
-        evaluator = ToolCallOrderEvaluator.model_validate({"config": config_dict})
+        evaluator = ToolCallOrderEvaluator.model_validate(
+            {"config": config_dict, "id": str(uuid.uuid4())}
+        )
 
         # Test dict validation
         criteria_dict = {"tool_calls_order": ["tool1", "tool2", "tool3"]}
@@ -390,7 +398,9 @@ class TestBaseEvaluatorFunctionality:
                 "tool_outputs": [{"name": "tool1", "output": "output1"}]
             },
         }
-        evaluator = ToolCallOutputEvaluator.model_validate({"config": config_dict})
+        evaluator = ToolCallOutputEvaluator.model_validate(
+            {"config": config_dict, "id": str(uuid.uuid4())}
+        )
 
         assert isinstance(evaluator.evaluator_config, ToolCallOutputEvaluatorConfig)
         assert evaluator.evaluator_config.name == "TestToolOutputEvaluator"
@@ -405,7 +415,9 @@ class TestBaseEvaluatorFunctionality:
                 "tool_outputs": [{"name": "tool1", "output": "output1"}]
             },
         }
-        evaluator = ToolCallOutputEvaluator.model_validate({"config": config_dict})
+        evaluator = ToolCallOutputEvaluator.model_validate(
+            {"config": config_dict, "id": str(uuid.uuid4())}
+        )
 
         # Test dict validation
         criteria_dict = {
@@ -432,7 +444,11 @@ class TestBaseEvaluatorFunctionality:
         }
         mock_llm_service = mocker.MagicMock()
         evaluator = LLMJudgeOutputEvaluator.model_validate(
-            {"config": config_dict, "llm_service": mock_llm_service}
+            {
+                "config": config_dict,
+                "llm_service": mock_llm_service,
+                "id": str(uuid.uuid4()),
+            }
         )
 
         # Test dict validation
@@ -449,7 +465,9 @@ class TestBaseEvaluatorFunctionality:
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
         }
-        evaluator = JsonSimilarityEvaluator.model_validate({"config": config_dict})
+        evaluator = JsonSimilarityEvaluator.model_validate(
+            {"config": config_dict, "id": str(uuid.uuid4())}
+        )
 
         # Types should be set correctly
         assert evaluator.evaluation_criteria_type == OutputEvaluationCriteria
@@ -461,7 +479,9 @@ class TestBaseEvaluatorFunctionality:
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
         }
-        evaluator = ExactMatchEvaluator.model_validate({"config": config_dict})
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"config": config_dict, "id": str(uuid.uuid4())}
+        )
 
         # Test None validation
         assert evaluator.validate_justification(None) is None
@@ -476,7 +496,11 @@ class TestBaseEvaluatorFunctionality:
         }
         mock_llm_service = mocker.MagicMock()
         evaluator = LLMJudgeOutputEvaluator.model_validate(
-            {"config": config_dict, "llm_service": mock_llm_service}
+            {
+                "config": config_dict,
+                "llm_service": mock_llm_service,
+                "id": str(uuid.uuid4()),
+            }
         )
 
         # Test string validation
@@ -495,7 +519,7 @@ class TestBaseEvaluatorFunctionality:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         exact_match_evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config_dict}
+            {"config": config_dict, "id": str(uuid.uuid4())}
         )
         assert exact_match_evaluator.justification_type is type(None)
 
@@ -507,7 +531,11 @@ class TestBaseEvaluatorFunctionality:
         }
         mock_llm_service = mocker.MagicMock()
         llm_evaluator = LLMJudgeOutputEvaluator.model_validate(
-            {"config": llm_config_dict, "llm_service": mock_llm_service}
+            {
+                "config": llm_config_dict,
+                "llm_service": mock_llm_service,
+                "id": str(uuid.uuid4()),
+            }
         )
         assert llm_evaluator.justification_type is str
 
@@ -522,7 +550,9 @@ class TestEvaluatorInstances:
             "case_sensitive": False,
             "default_evaluation_criteria": {"expected_output": "test"},
         }
-        evaluator = ExactMatchEvaluator.model_validate({"config": config_data})
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"config": config_data, "id": str(uuid.uuid4())}
+        )
 
         # Test direct config access
         assert evaluator.evaluator_config.name == "TestEvaluator"
@@ -537,7 +567,9 @@ class TestEvaluatorInstances:
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
         }
-        evaluator = JsonSimilarityEvaluator.model_validate({"config": config_dict})
+        evaluator = JsonSimilarityEvaluator.model_validate(
+            {"config": config_dict, "id": str(uuid.uuid4())}
+        )
 
         # Should be able to get schemas from instances
         config_schema = evaluator.get_config_schema()
