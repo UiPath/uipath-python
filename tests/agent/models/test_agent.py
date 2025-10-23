@@ -1,8 +1,13 @@
 from pydantic import TypeAdapter
 
 from uipath.agent.models.agent import (
+    AgentBuiltInValidatorGuardrail,
+    AgentCustomGuardrail,
     AgentDefinition,
+    AgentEscalationRecipientType,
     AgentEscalationResourceConfig,
+    AgentGuardrailBlockAction,
+    AgentGuardrailEscalateAction,
     AgentIntegrationToolResourceConfig,
     AgentMcpResourceConfig,
     AgentProcessToolResourceConfig,
@@ -12,11 +17,7 @@ from uipath.agent.models.agent import (
     UnknownAgentDefinition,
 )
 from uipath.models.guardrails import (
-    BlockAction,
-    BuiltInValidatorGuardrail,
-    CustomGuardrail,
     EnumListParameterValue,
-    EscalateAction,
     MapEnumParameterValue,
     WordRule,
 )
@@ -662,48 +663,96 @@ class TestAgentBuilderConfig:
 
         # Test built-in validator at agent level
         agent_builtin_guardrail = config.guardrails[0]
-        assert isinstance(agent_builtin_guardrail, BuiltInValidatorGuardrail), (
-            "Agent guardrail should be BuiltInValidatorGuardrail"
+        assert isinstance(agent_builtin_guardrail, AgentBuiltInValidatorGuardrail), (
+            "Agent guardrail should be AgentBuiltInValidatorGuardrail"
         )
 
+        # Check base guardrail properties
+        assert agent_builtin_guardrail.id == "2f36abe1-2ae1-457b-b565-ccf7a1b6d088"
+        assert agent_builtin_guardrail.name == "PII detection guardrail"
+        assert (
+            agent_builtin_guardrail.description
+            == "This validator is designed to detect personally identifiable information using Azure Cognitive Services"
+        )
+        assert agent_builtin_guardrail.enabled_for_evals is True
+        assert agent_builtin_guardrail.selector.scopes == ["Tool"]
+        assert agent_builtin_guardrail.selector.match_names == ["StringToNumber"]
+
+        # Check built-in validator specific properties
         assert agent_builtin_guardrail.guardrail_type == "builtInValidator"
         assert agent_builtin_guardrail.validator_type == "pii_detection"
+        assert len(agent_builtin_guardrail.validator_parameters) == 2
 
+        # Check validator parameters
         enum_param = agent_builtin_guardrail.validator_parameters[0]
         assert isinstance(enum_param, EnumListParameterValue), (
             "Should be EnumListParameterValue based on $parameterType='enum-list'"
         )
         assert enum_param.parameter_type == "enum-list"
+        assert enum_param.id == "entities"
+        assert enum_param.value == ["Email", "Address"]
 
         map_param = agent_builtin_guardrail.validator_parameters[1]
         assert isinstance(map_param, MapEnumParameterValue), (
             "Should be MapEnumParameterValue based on $parameterType='map-enum'"
         )
         assert map_param.parameter_type == "map-enum"
+        assert map_param.id == "entityThresholds"
+        assert map_param.value == {"Email": 1, "Address": 0.7}
 
+        # Check action
         escalate_action = agent_builtin_guardrail.action
-        assert isinstance(escalate_action, EscalateAction), (
+        assert isinstance(escalate_action, AgentGuardrailEscalateAction), (
             "Should be EscalateAction based on $actionType='escalate'"
         )
         assert escalate_action.action_type == "escalate"
+        assert escalate_action.app.id == "cf4cb73d-7310-49b1-9a9e-e7653dad7f4e"
+        assert escalate_action.app.name == "-Guardrail Form"
+        assert escalate_action.app.folder_name == "solution_folder"
+        assert escalate_action.recipient.type == AgentEscalationRecipientType.USER_ID
+        assert escalate_action.recipient.value == "5f872639-fc71-4a50-b17d-f68eb357b436"
+        assert escalate_action.recipient.display_name == "User Name"
 
         # Test custom guardrail at agent level
         agent_custom_guardrail = config.guardrails[1]
-        assert isinstance(agent_custom_guardrail, CustomGuardrail), (
-            "Agent custom guardrail should be CustomGuardrail"
+        assert isinstance(agent_custom_guardrail, AgentCustomGuardrail), (
+            "Agent custom guardrail should be AgentCustomGuardrail"
         )
+
+        # Check base guardrail properties
+        assert agent_custom_guardrail.id == "7b2a9218-c3d2-4f19-a800-8d6fe77a64e2"
+        assert agent_custom_guardrail.name == "ExcludeHELLO"
+        assert agent_custom_guardrail.description == 'the input shouldn\'t be "hello"'
+        assert agent_custom_guardrail.enabled_for_evals is True
+        assert agent_custom_guardrail.selector.scopes == ["Tool"]
+        assert agent_custom_guardrail.selector.match_names == ["StringToNumber"]
+
+        # Check custom guardrail specific properties
         assert agent_custom_guardrail.guardrail_type == "custom"
         assert len(agent_custom_guardrail.rules) == 1
+
+        # Check rule
         rule = agent_custom_guardrail.rules[0]
         assert isinstance(rule, WordRule), (
             "Rule should be WordRule based on $ruleType='word'"
         )
         assert rule.rule_type == "word"
+        assert rule.operator == "doesNotContain"  # Updated to use the correct operator
+        assert rule.value == "hello"
+
+        # Check field selector
+        assert rule.field_selector.selector_type == "specific"
+        assert len(rule.field_selector.fields) == 1
+        assert rule.field_selector.fields[0].path == "word"
+        assert rule.field_selector.fields[0].source == "input"
+
+        # Check action
         block_action = agent_custom_guardrail.action
-        assert isinstance(block_action, BlockAction), (
+        assert isinstance(block_action, AgentGuardrailBlockAction), (
             "Should be BlockAction based on $actionType='block'"
         )
         assert block_action.action_type == "block"
+        assert block_action.reason == 'Input is "hello"'
 
     def test_agent_with_gmail_send_email_integration(self):
         """Test agent with Gmail Send Email integration tool"""
