@@ -4,11 +4,15 @@ from pathlib import PurePath
 from httpx import Response
 from pydantic import TypeAdapter
 
-from uipath._cli._evals._models._evaluation_set import LLMMockingStrategy
+from uipath._cli._evals._models._evaluation_set import (
+    InputMockingStrategy,
+    LLMMockingStrategy,
+)
 from uipath._cli._utils._studio_project import (
     ProjectFile,
     ProjectFolder,
     StudioClient,
+    StudioSolutionsClient,
     resolve_path,
 )
 from uipath.agent.models.agent import (
@@ -24,7 +28,13 @@ async def get_file(
 ) -> Response:
     resolved = resolve_path(folder, path)
     assert isinstance(resolved, ProjectFile), "Path file not found."
-    return await studio_client.download_file_async(resolved.id)
+    return await studio_client.download_project_file_async(resolved)
+
+
+async def create_agent_project(solution_id: str, project_name: str) -> str:
+    studio_client = StudioSolutionsClient(solution_id=solution_id)
+    project = await studio_client.create_project_async(project_name=project_name)
+    return project["id"]
 
 
 async def load_agent_definition(project_id: str) -> AgentDefinition:
@@ -120,5 +130,15 @@ async def load_agent_definition(project_id: str) -> AgentDefinition:
                             )
                             evaluation.mocking_strategy = LLMMockingStrategy(
                                 prompt=prompt, tools_to_simulate=tools_to_simulate
+                            )
+
+                    if not evaluation.input_mocking_strategy:
+                        # Migrate lowCode input mocking fields
+                        if evaluation.model_extra.get("simulateInput", False):
+                            prompt = evaluation.model_extra.get(
+                                "inputGenerationInstructions",
+                            )
+                            evaluation.input_mocking_strategy = InputMockingStrategy(
+                                prompt=prompt
                             )
     return agent_definition

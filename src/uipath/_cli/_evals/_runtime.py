@@ -7,8 +7,13 @@ from pathlib import Path
 from time import time
 from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar
 
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry import context as context_api
+from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+
+from uipath._cli._evals.mocks.input_mocker import (
+    generate_llm_input,
+)
 
 from ..._events._event_bus import EventBus
 from ..._events._events import (
@@ -24,6 +29,7 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (
     UiPathBaseRuntime,
+    UiPathExecutionBatchTraceProcessor,
     UiPathRuntimeContext,
     UiPathRuntimeFactory,
     UiPathRuntimeResult,
@@ -37,6 +43,7 @@ from ._models._evaluation_set import (
     AnyEvaluationSet,
     AnyEvaluator,
     EvaluationItem,
+    EvaluationSet,
     LegacyEvaluationItem,
 )
 from ._models._exceptions import EvaluationRuntimeException
@@ -47,7 +54,11 @@ from ._models._output import (
     UiPathEvalOutput,
     UiPathEvalRunExecutionOutput,
 )
-from .mocks.mocks import set_evaluation_item
+from ._span_collection import ExecutionSpanCollector
+from .mocks.mocks import (
+    clear_execution_context,
+    set_execution_context,
+)
 
 T = TypeVar("T", bound=UiPathBaseRuntime)
 C = TypeVar("C", bound=UiPathRuntimeContext)
@@ -82,6 +93,24 @@ class ExecutionSpanExporter(SpanExporter):
 
     def shutdown(self) -> None:
         self.clear()
+
+
+class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
+    """Span processor that adds spans to ExecutionSpanCollector when they start."""
+
+    def __init__(self, span_exporter: SpanExporter, collector: ExecutionSpanCollector):
+        super().__init__(span_exporter)
+        self.collector = collector
+
+    def on_start(
+        self, span: Span, parent_context: Optional[context_api.Context] = None
+    ) -> None:
+        super().on_start(span, parent_context)
+
+        if span.attributes and "execution.id" in span.attributes:
+            exec_id = span.attributes["execution.id"]
+            if isinstance(exec_id, str):
+                self.collector.add_span(span, exec_id)
 
 
 class ExecutionLogsExporter:
@@ -133,8 +162,15 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self.context: UiPathEvalContext = context
         self.factory: UiPathRuntimeFactory[T, C] = factory
         self.event_bus: EventBus = event_bus
+
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
-        self.factory.add_span_exporter(self.span_exporter)
+        self.span_collector: ExecutionSpanCollector = ExecutionSpanCollector()
+
+        # Span processor feeds both exporter and collector
+        span_processor = ExecutionSpanProcessor(self.span_exporter, self.span_collector)
+        self.factory.tracer_span_processors.append(span_processor)
+        self.factory.tracer_provider.add_span_processor(span_processor)
+
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
 
@@ -201,7 +237,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluator_averages[eval_id] = (
                 evaluator_averages[eval_id] / evaluator_count[eval_id]
             )
-
         await event_bus.publish(
             EvaluationEvents.UPDATE_EVAL_SET_RUN,
             EvalSetRunUpdatedEvent(
@@ -219,7 +254,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_sequential(
         self,
-        evaluation_set: AnyEvaluationSet,
+        evaluation_set: EvaluationSet,
         evaluators: List[AnyEvaluator],
         event_bus: EventBus,
     ) -> List[EvaluationRunResult]:
@@ -234,7 +269,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_parallel(
         self,
-        evaluation_set: AnyEvaluationSet,
+        evaluation_set: EvaluationSet,
         evaluators: List[AnyEvaluator],
         event_bus: EventBus,
         workers: int,
@@ -296,7 +331,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         evaluators: List[AnyEvaluator],
         event_bus: EventBus,
     ) -> EvaluationRunResult:
-        set_evaluation_item(eval_item)
+        execution_id = str(uuid.uuid4())
+
+        set_execution_context(eval_item, self.span_collector, execution_id)
 
         await event_bus.publish(
             EvaluationEvents.CREATE_EVAL_RUN,
@@ -311,7 +348,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         )
 
         try:
-            agent_execution_output = await self.execute_runtime(eval_item)
+            agent_execution_output = await self.execute_runtime(eval_item, execution_id)
             evaluation_item_results: list[EvalItemResult] = []
 
             for evaluator in evaluators:
@@ -420,14 +457,27 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 eval_run_updated_event,
                 wait_for_completion=False,
             )
+        finally:
+            clear_execution_context()
 
         return evaluation_run_results
+
+    async def _generate_input_for_eval(
+        self, eval_item: EvaluationItem
+    ) -> EvaluationItem:
+        """Use LLM to generate a mock input for an evaluation item."""
+        # TODO(bai): get the input schema from agent definition, once it is available there.
+        input_schema: dict[str, Any] = {}
+        generated_input = await generate_llm_input(eval_item, input_schema)
+        updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
+        return updated_eval_item
 
     def _get_and_clear_execution_data(
         self, execution_id: str
     ) -> tuple[List[ReadableSpan], list[logging.LogRecord]]:
         spans = self.span_exporter.get_spans(execution_id)
         self.span_exporter.clear(execution_id)
+        self.span_collector.clear(execution_id)
 
         logs = self.logs_exporter.get_logs(execution_id)
         self.logs_exporter.clear(execution_id)
@@ -435,24 +485,22 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         return spans, logs
 
     async def execute_runtime(
-        self, eval_item: AnyEvaluationItem
+        self, eval_item: AnyEvaluationItem, execution_id: str
     ) -> UiPathEvalRunExecutionOutput:
-        eval_item_id = eval_item.id
-        runtime_context: C = self.factory.new_context(
-            execution_id=eval_item_id,
-            input_json=eval_item.inputs,
-            is_eval_run=True,
-            log_handler=self._setup_execution_logging(eval_item_id),
-        )
+        context_args = self.context.model_dump()
+        context_args["execution_id"] = execution_id
+        context_args["input_json"] = eval_item.inputs
+        context_args["is_eval_run"] = True
+        context_args["log_handler"] = self._setup_execution_logging(execution_id)
+        runtime_context: C = self.factory.new_context(**context_args)
         if runtime_context.execution_id is None:
             raise ValueError("execution_id must be set for eval runs")
 
         attributes = {
-            "evalId": eval_item_id,
+            "evalId": eval_item.id,
             "span_type": "eval",
+            "execution.id": runtime_context.execution_id,
         }
-        if runtime_context.execution_id:
-            attributes["execution.id"] = runtime_context.execution_id
 
         start_time = time()
         try:
@@ -501,7 +549,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             expected_agent_behavior=eval_item.expected_agent_behavior,
         )
 
-        result = await evaluator.evaluate(
+        result = await evaluator.validate_and_evaluate_criteria(
             agent_execution=agent_execution,
             evaluation_criteria=evaluation_criteria,
         )

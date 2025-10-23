@@ -112,7 +112,7 @@ def generate_evaluator_config(evaluator_class: type, class_name: str) -> dict[st
 
 
 def register_evaluator(filename: str) -> tuple[str, str]:
-    """Infers the schema and types of a custom evaluator
+    """Infers the schema and types of a custom evaluator.
 
     Returns:
         tuple[str, str]:

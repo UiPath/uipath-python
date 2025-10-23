@@ -3,7 +3,7 @@
 from typing import Any
 
 # Current coded evaluators
-from .base_evaluator import BaseEvaluator, BaseEvaluationCriteria, BaseEvaluatorConfig
+from .base_evaluator import BaseEvaluationCriteria, BaseEvaluator, BaseEvaluatorConfig
 from .contains_evaluator import ContainsEvaluator
 from .exact_match_evaluator import ExactMatchEvaluator
 from .json_similarity_evaluator import JsonSimilarityEvaluator
@@ -66,5 +66,5 @@ __all__ = [
     "ToolCallCountEvaluator",
     "ToolCallOutputEvaluator",
     "BaseEvaluationCriteria",
-    "BaseEvaluatorConfig"
+    "BaseEvaluatorConfig",
 ]

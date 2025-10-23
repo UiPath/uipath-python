@@ -16,7 +16,6 @@ from uipath._cli._evals._models._evaluation_set import (
     AnyEvaluator,
     EvaluationItem,
     EvaluationStatus,
-    LegacyEvaluationItem,
 )
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
@@ -40,8 +39,7 @@ from uipath._utils.constants import (
     ENV_TENANT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
-from uipath.eval.evaluators import BaseEvaluator
-from uipath.eval.evaluators import LegacyBaseEvaluator
+from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -96,7 +94,9 @@ class StudioWebProgressReporter:
         self.evaluator_scores: Dict[str, List[float]] = {}
         self.eval_run_ids: Dict[str, str] = {}
         self.is_coded_eval: Dict[str, bool] = {}  # Track coded vs legacy per execution
-        self.eval_spans: Dict[str, list[Any]] = {}  # Store spans per execution for usage metrics
+        self.eval_spans: Dict[
+            str, list[Any]
+        ] = {}  # Store spans per execution for usage metrics
 
     def _format_error_message(self, error: Exception, context: str) -> None:
         """Helper method to format and display error messages consistently."""
@@ -112,7 +112,7 @@ class StudioWebProgressReporter:
         if eval_backend_url:
             try:
                 parsed = urlparse(eval_backend_url)
-                hostname = parsed.hostname or parsed.netloc.split(':')[0]
+                hostname = parsed.hostname or parsed.netloc.split(":")[0]
                 return hostname.lower() in ("localhost", "127.0.0.1")
             except Exception:
                 pass
@@ -277,7 +277,9 @@ class StudioWebProgressReporter:
         else:
             # Use legacy evaluator format
             assertion_runs, evaluator_scores = self._collect_results(
-                sw_progress_item.eval_results, evaluators, spans or []  # type: ignore
+                sw_progress_item.eval_results,
+                evaluators,
+                spans or [],  # type: ignore
             )
             spec = self._update_eval_run_spec(
                 assertion_runs=assertion_runs,
@@ -333,7 +335,9 @@ class StudioWebProgressReporter:
             if current_span.is_recording():
                 current_span.set_attribute("eval_set_run_id", eval_set_run_id)
 
-            logger.debug(f"Created eval set run with ID: {eval_set_run_id} (coded={is_coded})")
+            logger.debug(
+                f"Created eval set run with ID: {eval_set_run_id} (coded={is_coded})"
+            )
 
         except Exception as e:
             self._format_error_message(e, "StudioWeb create eval set run error")
@@ -382,7 +386,7 @@ class StudioWebProgressReporter:
                 is_coded = self.is_coded_eval.get(payload.execution_id, False)
 
                 # Extract usage metrics from spans
-                usage_metrics = self._extract_usage_from_spans(payload.spans)
+                self._extract_usage_from_spans(payload.spans)
 
                 await self.update_eval_run(
                     StudioWebProgressItem(
@@ -397,7 +401,9 @@ class StudioWebProgressReporter:
                     spans=payload.spans,
                 )
 
-                logger.debug(f"Updated eval run with ID: {eval_run_id} (coded={is_coded})")
+                logger.debug(
+                    f"Updated eval run with ID: {eval_run_id} (coded={is_coded})"
+                )
 
         except Exception as e:
             self._format_error_message(e, "StudioWeb reporting error")

@@ -89,6 +89,7 @@ nav:
       - Sample Agents: https://github.com/UiPath/uipath-llamaindex-python/tree/main/samples
   - How To Contribute: CONTRIBUTING.md
   - FAQ: FAQ.md
+  - Automation Suite: AutomationSuite.md
   - Release Policy: release_policy.md
 
 plugins:

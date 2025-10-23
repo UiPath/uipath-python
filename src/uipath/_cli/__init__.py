@@ -3,13 +3,13 @@ import sys
 
 import click
 
-from ._utils._common import load_environment_variables
+from ._utils._common import add_cwd_to_path, load_environment_variables
 from .cli_add import add as add
 from .cli_auth import auth as auth
+from .cli_debug import debug as debug  # type: ignore
 from .cli_deploy import deploy as deploy  # type: ignore
 from .cli_dev import dev as dev
 from .cli_eval import eval as eval  # type: ignore
-from .cli_init import generate_agents_md as generate_agents_md  # type: ignore
 from .cli_init import init as init  # type: ignore
 from .cli_invoke import invoke as invoke  # type: ignore
 from .cli_new import new as new  # type: ignore
@@ -48,6 +48,7 @@ def _get_safe_version() -> str:
 )
 def cli(lv: bool, v: bool) -> None:
     load_environment_variables()
+    add_cwd_to_path()
     if lv:
         try:
             version = importlib.metadata.version("uipath-langchain")
@@ -78,4 +79,4 @@ cli.add_command(eval)
 cli.add_command(dev)
 cli.add_command(add)
 cli.add_command(register)
-cli.add_command(run, name="debug")
+cli.add_command(debug)

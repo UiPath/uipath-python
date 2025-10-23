@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
-from .._helpers.coded_evaluators_helpers import COMMUNITY_agents_SUFFIX
+from .._helpers.evaluators_helpers import COMMUNITY_agents_SUFFIX
 from ..models import (
     AgentExecution,
     EvaluationResult,

@@ -48,7 +48,7 @@ console = ConsoleLogger()
 )
 @track
 def auth(
-    domain,
+    environment: str,
     force: bool = False,
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
@@ -70,7 +70,7 @@ def auth(
     - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)
     """
     auth_service = AuthService(
-        domain,
+        environment=environment,
         force=force,
         client_id=client_id,
         client_secret=client_secret,

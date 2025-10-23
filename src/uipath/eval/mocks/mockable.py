@@ -82,6 +82,8 @@ def get_input_schema(func):
 def mockable(
     name: Optional[str] = None,
     description: Optional[str] = None,
+    input_schema: Optional[dict[str, Any]] = None,
+    output_schema: Optional[dict[str, Any]] = None,
     example_calls: Optional[List[ExampleCall]] = None,
     **kwargs,
 ):
@@ -91,8 +93,8 @@ def mockable(
         params = {
             "name": name or func.__name__,
             "description": description or func.__doc__,
-            "input_schema": get_input_schema(func),
-            "output_schema": get_output_schema(func),
+            "input_schema": input_schema or get_input_schema(func),
+            "output_schema": output_schema or get_output_schema(func),
             "example_calls": example_calls,
             **kwargs,
         }

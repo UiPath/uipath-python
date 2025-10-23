@@ -3,12 +3,12 @@
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
 
 from uipath._cli._evals._models._evaluation_set import LegacyEvaluationSet
 from uipath._cli._evals._models._evaluator import Evaluator
-from uipath._cli._evals._models._mocks import ExampleCall
 from uipath.models import Connection
+from uipath.models.guardrails import AgentEscalationRecipient, Guardrail
 
 
 class AgentResourceType(str, Enum):
@@ -17,6 +17,7 @@ class AgentResourceType(str, Enum):
     TOOL = "tool"
     CONTEXT = "context"
     ESCALATION = "escalation"
+    MCP = "mcp"
 
 
 class BaseAgentResourceConfig(BaseModel):
@@ -54,13 +55,15 @@ class BaseAgentToolResourceConfig(BaseAgentResourceConfig):
 class AgentToolType(str, Enum):
     """Agent tool type."""
 
-    AGENT = "agent"
-    INTEGRATION = "integration"
-    PROCESS = "process"
+    AGENT = "Agent"
+    PROCESS = "Process"
+    API = "Api"
+    PROCESS_ORCHESTRATION = "ProcessOrchestration"
+    INTEGRATION = "Integration"
 
 
 class AgentToolSettings(BaseModel):
-    """Settings for tool configuration."""
+    """Settings for tool."""
 
     max_attempts: Optional[int] = Field(None, alias="maxAttempts")
     retry_delay: Optional[int] = Field(None, alias="retryDelay")
@@ -74,7 +77,9 @@ class AgentToolSettings(BaseModel):
 class BaseResourceProperties(BaseModel):
     """Base resource properties."""
 
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
 
 
 class AgentProcessToolProperties(BaseResourceProperties):
@@ -91,7 +96,12 @@ class AgentProcessToolProperties(BaseResourceProperties):
 class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     """Tool resource with tool-specific properties."""
 
-    type: Literal[AgentToolType.AGENT] = AgentToolType.AGENT
+    type: Literal[
+        AgentToolType.AGENT,
+        AgentToolType.PROCESS,
+        AgentToolType.API,
+        AgentToolType.PROCESS_ORCHESTRATION,
+    ]
     output_schema: Dict[str, Any] = Field(
         ..., alias="outputSchema", description="Output schema for the tool"
     )
@@ -101,6 +111,23 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     settings: AgentToolSettings = Field(
         default_factory=AgentToolSettings, description="Tool settings"
     )
+    arguments: Dict[str, Any] = Field(
+        default_factory=dict, description="Tool arguments"
+    )
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, v: Any) -> str:
+        """Normalize tool type from lowercase to properly cased enum values."""
+        if isinstance(v, str):
+            lowercase_mapping = {
+                "agent": AgentToolType.AGENT,
+                "process": AgentToolType.PROCESS,
+                "api": AgentToolType.API,
+                "processorchestration": AgentToolType.PROCESS_ORCHESTRATION,
+            }
+            return lowercase_mapping.get(v.lower(), v)
+        return v
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
@@ -133,7 +160,7 @@ class AgentIntegrationToolParameter(BaseModel):
 
 
 class AgentIntegrationToolProperties(BaseResourceProperties):
-    """Properties specific to tool configuration."""
+    """Properties specific to tool."""
 
     tool_path: str = Field(..., alias="toolPath")
     object_name: str = Field(..., alias="objectName")
@@ -141,7 +168,7 @@ class AgentIntegrationToolProperties(BaseResourceProperties):
     tool_description: str = Field(..., alias="toolDescription")
     method: str = Field(..., alias="method")
     connection: Connection = Field(..., alias="connection")
-    body_structure: dict[str, Any] = Field(..., alias="bodyStructure")
+    body_structure: Optional[dict[str, Any]] = Field(None, alias="bodyStructure")
     parameters: List[AgentIntegrationToolParameter] = Field([], alias="parameters")
 
     model_config = ConfigDict(
@@ -154,26 +181,93 @@ class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
 
     type: Literal[AgentToolType.INTEGRATION] = AgentToolType.INTEGRATION
     properties: AgentIntegrationToolProperties
+    arguments: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Tool arguments"
+    )
+    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, v: Any) -> str:
+        """Normalize tool type from lowercase to properly cased enum values."""
+        if isinstance(v, str) and v.lower() == "integration":
+            return AgentToolType.INTEGRATION
+        return v
+
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
 
 
-class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
+class AgentUnknownToolResourceConfig(BaseAgentResourceConfig):
     """Fallback for unknown or future tool types."""
 
     resource_type: Literal[AgentResourceType.TOOL] = AgentResourceType.TOOL
     type: str = Field(alias="$resourceType")
+    arguments: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Tool arguments"
+    )
+    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
     model_config = ConfigDict(extra="allow")
 
 
+class AgentContextQuerySetting(BaseModel):
+    """Query setting for context configuration."""
+
+    description: Optional[str] = Field(None)
+    variant: Optional[str] = Field(None)
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+class AgentContextValueSetting(BaseModel):
+    """Generic value setting for context configuration."""
+
+    value: Any = Field(...)
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+class AgentContextOutputColumn(BaseModel):
+    """Output column configuration for Batch Transform."""
+
+    name: str = Field(...)
+    description: Optional[str] = Field(None)
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
 class AgentContextSettings(BaseModel):
-    """Settings for context configuration."""
+    """Settings for context."""
 
     result_count: int = Field(alias="resultCount")
-    retrieval_mode: Literal["Semantic", "Structured"] = Field(alias="retrievalMode")
+    retrieval_mode: Literal["Semantic", "Structured", "DeepRAG", "BatchTransform"] = (
+        Field(alias="retrievalMode")
+    )
     threshold: float = Field(default=0)
+    query: Optional[AgentContextQuerySetting] = Field(None)
+    folder_path_prefix: Optional[Union[Dict[str, Any], AgentContextValueSetting]] = (
+        Field(None, alias="folderPathPrefix")
+    )
+    file_extension: Optional[Union[Dict[str, Any], AgentContextValueSetting]] = Field(
+        None, alias="fileExtension"
+    )
+    citation_mode: Optional[AgentContextValueSetting] = Field(
+        None, alias="citationMode"
+    )
+    web_search_grounding: Optional[AgentContextValueSetting] = Field(
+        None, alias="webSearchGrounding"
+    )
+    output_columns: Optional[List[AgentContextOutputColumn]] = Field(
+        None, alias="outputColumns"
+    )
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
@@ -187,18 +281,33 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     folder_path: str = Field(alias="folderPath")
     index_name: str = Field(alias="indexName")
     settings: AgentContextSettings = Field(..., description="Context settings")
+    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
 
 
-class AgentEscalationRecipient(BaseModel):
-    """Recipient for escalation."""
+class AgentMcpTool(BaseModel):
+    """MCP available tool."""
 
-    type: int = Field(..., alias="type")
-    value: str = Field(..., alias="value")
-    display_name: Optional[str] = Field(default=None, alias="displayName")
+    name: str = Field(..., alias="name")
+    description: str = Field(..., alias="description")
+    input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+class AgentMcpResourceConfig(BaseAgentResourceConfig):
+    """MCP resource configuration."""
+
+    resource_type: Literal[AgentResourceType.MCP] = Field(alias="$resourceType")
+    folder_path: str = Field(alias="folderPath")
+    slug: str = Field(..., alias="slug")
+    available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
+    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
@@ -227,7 +336,7 @@ class AgentEscalationChannelProperties(BaseResourceProperties):
 class AgentEscalationChannel(BaseModel):
     """Agent escalation channel."""
 
-    id: str = Field(..., alias="id")
+    id: Optional[str] = Field(None, alias="id")
     name: str = Field(..., alias="name")
     type: str = Field(alias="type")
     description: str = Field(..., alias="description")
@@ -239,8 +348,12 @@ class AgentEscalationChannel(BaseModel):
         alias="outputSchema",
         description="Output schema for the escalation channel",
     )
+    outcome_mapping: Optional[Dict[str, str]] = Field(None, alias="outcomeMapping")
     properties: AgentEscalationChannelProperties = Field(..., alias="properties")
     recipients: List[AgentEscalationRecipient] = Field(..., alias="recipients")
+    task_title: Optional[str] = Field(default=None, alias="taskTitle")
+    priority: Optional[str] = None
+    labels: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
@@ -250,11 +363,11 @@ class AgentEscalationChannel(BaseModel):
 class AgentEscalationResourceConfig(BaseAgentResourceConfig):
     """Escalation resource with escalation-specific properties."""
 
+    id: Optional[str] = Field(None, alias="id")
     resource_type: Literal[AgentResourceType.ESCALATION] = Field(alias="$resourceType")
     channels: List[AgentEscalationChannel] = Field(alias="channels")
-
-    # escalation_type: int = Field(..., alias="escalationType")
-    is_agent_memory_enabled: bool = Field(alias="isAgentMemoryEnabled")
+    is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
+    escalation_type: int = Field(default=0, alias="escalationType")
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
@@ -269,12 +382,24 @@ def custom_discriminator(data: Any) -> str:
             return "AgentContextResourceConfig"
         elif resource_type == AgentResourceType.ESCALATION:
             return "AgentEscalationResourceConfig"
+        elif resource_type == AgentResourceType.MCP:
+            return "AgentMcpResourceConfig"
         elif resource_type == AgentResourceType.TOOL:
             tool_type = data.get("type")
-            if tool_type == AgentToolType.AGENT:
-                return "AgentProcessToolResourceConfig"
-            elif tool_type == AgentToolType.INTEGRATION:
-                return "AgentIntegrationToolResourceConfig"
+            if isinstance(tool_type, str):
+                tool_type_lower = tool_type.lower()
+                process_tool_types = {
+                    AgentToolType.AGENT.value.lower(),
+                    AgentToolType.PROCESS.value.lower(),
+                    AgentToolType.API.value.lower(),
+                    AgentToolType.PROCESS_ORCHESTRATION.value.lower(),
+                }
+                if tool_type_lower in process_tool_types:
+                    return "AgentProcessToolResourceConfig"
+                elif tool_type_lower == AgentToolType.INTEGRATION.value.lower():
+                    return "AgentIntegrationToolResourceConfig"
+                else:
+                    return "AgentUnknownToolResourceConfig"
             else:
                 return "AgentUnknownToolResourceConfig"
         else:
@@ -296,14 +421,15 @@ AgentResourceConfig = Annotated[
         ],
         Annotated[AgentContextResourceConfig, Tag("AgentContextResourceConfig")],
         Annotated[AgentEscalationResourceConfig, Tag("AgentEscalationResourceConfig")],
+        Annotated[AgentMcpResourceConfig, Tag("AgentMcpResourceConfig")],
         Annotated[AgentUnknownResourceConfig, Tag("AgentUnknownResourceConfig")],
     ],
     Field(discriminator=Discriminator(custom_discriminator)),
 ]
 
 
-class BaseAgentDefinition(BaseModel):
-    """Main agent model."""
+class AgentMetadata(BaseModel):
+    """Metadata for agent."""
 
     id: str = Field(..., description="Agent id or project name")
     name: str = Field(..., description="Agent name or project name")
@@ -331,12 +457,6 @@ class BaseAgentDefinition(BaseModel):
     )
 
 
-class AgentType(str, Enum):
-    """Agent type."""
-
-    LOW_CODE = "lowCode"
-
-
 class AgentMessageRole(str, Enum):
     """Enum for message roles."""
 
@@ -345,10 +465,18 @@ class AgentMessageRole(str, Enum):
 
 
 class AgentMessage(BaseModel):
-    """Message model for agent conversations."""
+    """Message model for agent definition."""
 
-    role: AgentMessageRole
+    role: Literal[AgentMessageRole.SYSTEM, AgentMessageRole.USER]
     content: str
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def normalize_role(cls, v: Any) -> str:
+        """Normalize role to lowercase format."""
+        if isinstance(v, str):
+            return v.lower()
+        return v
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
@@ -356,12 +484,12 @@ class AgentMessage(BaseModel):
 
 
 class AgentSettings(BaseModel):
-    """Settings for agent configuration."""
+    """Settings for agent."""
 
     engine: str = Field(..., description="Engine type, e.g., 'basic-v1'")
-    model: str = Field(..., description="LLM model identifier")
+    model: str = Field(..., description="LLM model")
     max_tokens: int = Field(
-        ..., alias="maxTokens", description="Maximum number of tokens"
+        ..., alias="maxTokens", description="Maximum number of tokens per completion"
     )
     temperature: float = Field(..., description="Temperature for response generation")
 
@@ -370,17 +498,63 @@ class AgentSettings(BaseModel):
     )
 
 
+class BaseAgentDefinition(BaseModel):
+    """Agent definition model."""
+
+    input_schema: Dict[str, Any] = Field(
+        ..., alias="inputSchema", description="JSON schema for input arguments"
+    )
+    output_schema: Dict[str, Any] = Field(
+        ..., alias="outputSchema", description="JSON schema for output arguments"
+    )
+    guardrails: Optional[List[Guardrail]] = Field(
+        None, description="List of agent guardrails"
+    )
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+class AgentType(str, Enum):
+    """Agent type."""
+
+    LOW_CODE = "lowCode"
+    CODED = "coded"
+
+
 class LowCodeAgentDefinition(BaseAgentDefinition):
     """Low code agent definition."""
 
     type: Literal[AgentType.LOW_CODE] = AgentType.LOW_CODE
+
+    id: str = Field(..., description="Agent id or project name")
+    name: str = Field(..., description="Agent name or project name")
+    metadata: Optional[AgentMetadata] = Field(None, description="Agent metadata")
     messages: List[AgentMessage] = Field(
         ..., description="List of system and user messages"
     )
-    features: List[Any] = Field(
-        default_factory=list, description="Currently empty feature list"
+
+    version: str = Field("1.0.0", description="Agent version")
+    resources: List[AgentResourceConfig] = Field(
+        ..., description="List of tools, context, mcp and escalation resources"
     )
-    settings: AgentSettings = Field(..., description="Agent settings configuration")
+    features: List[Any] = Field(default_factory=list, description="Agent feature list")
+    settings: AgentSettings = Field(..., description="Agent settings")
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+class CodedAgentDefinition(BaseAgentDefinition):
+    """Coded agent definition."""
+
+    type: Literal[AgentType.CODED] = AgentType.CODED
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
 
 
 KnownAgentDefinition = Annotated[

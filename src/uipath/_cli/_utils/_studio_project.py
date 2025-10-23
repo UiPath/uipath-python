@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from uipath._utils.constants import HEADER_SW_LOCK_KEY
 from uipath.models.exceptions import EnrichedException
+from uipath.tracing import traced
 
 
 class ProjectFile(BaseModel):
@@ -242,6 +243,46 @@ def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
+class StudioSolutionsClient:
+    def __init__(self, solution_id: str):
+        from uipath import UiPath
+
+        self.uipath: UiPath = UiPath()
+        self._solutions_base_url: str = f"/studio_/backend/api/Solution/{solution_id}"
+
+    @traced(name="create_project", run_type="uipath")
+    async def create_project_async(
+        self,
+        project_name: str,
+        project_type: str = "Agent",
+        trigger_type: str = "Manual",
+    ):
+        """Create a new project in the specified solution.
+
+        Args:
+            project_name: The name for the new project
+            project_type: The type of project to create (default: "Agent")
+            trigger_type: The trigger type for the project (default: "Manual")
+
+        Returns:
+            dict: The created project details including project ID
+        """
+        data = {
+            "createDefaultProjectCommand[projectType]": project_type,
+            "createDefaultProjectCommand[triggerType]": trigger_type,
+            "createDefaultProjectCommand[name]": project_name,
+        }
+
+        response = await self.uipath.api_client.request_async(
+            "POST",
+            url=f"{self._solutions_base_url}/projects",
+            data=data,
+            scoped="org",
+        )
+
+        return response.json()
+
+
 class StudioClient:
     def __init__(self, project_id: str):
         from uipath import UiPath
@@ -254,6 +295,7 @@ class StudioClient:
             f"/studio_/backend/api/Project/{project_id}/Lock"
         )
 
+    @traced(name="get_project_structure", run_type="uipath")
     async def get_project_structure_async(self) -> ProjectStructure:
         """Retrieve the project's file structure from UiPath Cloud.
 
@@ -272,6 +314,7 @@ class StudioClient:
 
         return ProjectStructure.model_validate(response.json())
 
+    @traced(name="create_folder", run_type="uipath")
     @with_lock_retry
     async def create_folder_async(
         self,
@@ -301,6 +344,7 @@ class StudioClient:
         )
         return response.json()
 
+    @traced(name="download_file", run_type="uipath")
     async def download_file_async(self, file_id: str) -> Any:
         response = await self.uipath.api_client.request_async(
             "GET",
@@ -309,6 +353,16 @@ class StudioClient:
         )
         return response
 
+    @traced(name="download_file", run_type="uipath")
+    async def download_project_file_async(self, file: ProjectFile) -> Any:
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url=f"{self.file_operations_base_url}/File/{file.id}",
+            scoped="org",
+        )
+        return response
+
+    @traced(name="upload_file", run_type="uipath")
     @with_lock_retry
     async def upload_file_async(
         self,
@@ -349,6 +403,7 @@ class StudioClient:
         # response contains only the uploaded file identifier
         return response.json(), action
 
+    @traced(name="delete_file", run_type="uipath")
     @with_lock_retry
     async def delete_item_async(
         self,
@@ -409,6 +464,7 @@ class StudioClient:
 
         return content_bytes, resolved_name
 
+    @traced(name="synchronize_files", run_type="uipath")
     @with_lock_retry
     async def perform_structural_migration_async(
         self,
@@ -482,3 +538,10 @@ class StudioClient:
             scoped="org",
         )
         return LockInfo.model_validate(response.json())
+
+    async def _put_lock(self):
+        await self.uipath.api_client.request_async(
+            "PUT",
+            url=f"{self._lock_operations_base_url}/dummy-uuid-Shared?api-version=2",
+            scoped="org",
+        )

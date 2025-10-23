@@ -2,7 +2,7 @@
 
 from collections import Counter
 
-from .._helpers.coded_evaluators_helpers import (
+from .._helpers.evaluators_helpers import (
     extract_tool_calls_names,
     tool_calls_count_score,
 )

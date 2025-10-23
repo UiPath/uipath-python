@@ -8,7 +8,19 @@ import traceback
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
-from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Literal,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+)
 from uuid import uuid4
 
 from opentelemetry import context as context_api
@@ -23,9 +35,11 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
 
+from uipath._events._events import UiPathRuntimeEvent
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 from uipath.tracing import TracingManager
 
+from ..models.runtime_schema import BindingResource, Entrypoint
 from ._logging import LogsInterceptor
 
 logger = logging.getLogger(__name__)
@@ -141,6 +155,19 @@ class UiPathRuntimeResult(BaseModel):
             result["error"] = self.error.model_dump()
 
         return result
+
+
+class UiPathBreakpointResult(UiPathRuntimeResult):
+    """Result for execution suspended at a breakpoint."""
+
+    # Force status to always be SUSPENDED
+    status: UiPathRuntimeStatus = Field(
+        default=UiPathRuntimeStatus.SUSPENDED, frozen=True
+    )
+    breakpoint_node: str  # Which node the breakpoint is at
+    breakpoint_type: Literal["before", "after"]  # Before or after the node
+    current_state: dict[str, Any] | Any  # Current workflow state at breakpoint
+    next_nodes: List[str]  # Which node(s) will execute next
 
 
 class UiPathConversationHandler(ABC):
@@ -462,6 +489,12 @@ class UiPathRuntimeError(Exception):
         return self.error_info.model_dump()
 
 
+class UiPathRuntimeStreamNotSupportedError(NotImplementedError):
+    """Raised when a runtime does not support streaming."""
+
+    pass
+
+
 class UiPathBaseRuntime(ABC):
     """Base runtime class implementing the async context manager protocol.
 
@@ -483,6 +516,22 @@ class UiPathBaseRuntime(ABC):
         """
         runtime = cls(context)
         return runtime
+
+    @property
+    def get_binding_resources(self) -> List[BindingResource]:
+        """Get binding resources for this runtime.
+
+        Returns: A list of binding resources.
+        """
+        raise NotImplementedError()
+
+    @property
+    def get_entrypoint(self) -> Entrypoint:
+        """Get entrypoint for this runtime.
+
+        Returns: A entrypoint for this runtime.
+        """
+        raise NotImplementedError()
 
     async def __aenter__(self):
         """Async enter method called when entering the 'async with' block.
@@ -547,6 +596,47 @@ class UiPathBaseRuntime(ABC):
             RuntimeError: If execution fails
         """
         pass
+
+    async def stream(
+        self,
+    ) -> AsyncGenerator[Union[UiPathRuntimeEvent, UiPathRuntimeResult], None]:
+        """Stream execution events in real-time.
+
+        This is an optional method that runtimes can implement to support streaming.
+        If not implemented, only the execute() method will be available.
+
+        Yields framework-agnostic BaseEvent instances during execution,
+        with the final event being UiPathRuntimeResult.
+
+        Yields:
+            UiPathRuntimeEvent subclasses: Framework-agnostic events (UiPathAgentMessageEvent,
+                                  UiPathAgentStateEvent, etc.)
+            Final yield: UiPathRuntimeResult (or its subclass UiPathBreakpointResult)
+
+        Raises:
+            UiPathRuntimeStreamNotSupportedError: If the runtime doesn't support streaming
+            RuntimeError: If execution fails
+
+        Example:
+            async for event in runtime.stream():
+                if isinstance(event, UiPathRuntimeResult):
+                    # Last event - execution complete
+                    print(f"Status: {event.status}")
+                    break
+                elif isinstance(event, UiPathAgentMessageEvent):
+                    # Handle message event
+                    print(f"Message: {event.payload}")
+                elif isinstance(event, UiPathAgentStateEvent):
+                    # Handle state update
+                    print(f"State updated by: {event.node_name}")
+        """
+        raise UiPathRuntimeStreamNotSupportedError(
+            f"{self.__class__.__name__} does not implement streaming. "
+            "Use execute() instead."
+        )
+        # This yield is unreachable but makes this a proper generator function
+        # Without it, the function wouldn't match the AsyncGenerator return type
+        yield
 
     @abstractmethod
     async def validate(self):
@@ -733,9 +823,9 @@ class UiPathRuntimeFactory(Generic[T, C]):
             return self.context_generator(**kwargs)
         return self.context_class(**kwargs)
 
-    def new_runtime(self) -> T:
+    def new_runtime(self, **kwargs) -> T:
         """Create a new runtime instance."""
-        context = self.new_context()
+        context = self.new_context(**kwargs)
         if self.runtime_generator:
             return self.runtime_generator(context)
         return self.runtime_class.from_context(context)
@@ -751,6 +841,28 @@ class UiPathRuntimeFactory(Generic[T, C]):
         async with self.from_context(context) as runtime:
             try:
                 return await runtime.execute()
+            finally:
+                for span_processor in self.tracer_span_processors:
+                    span_processor.force_flush()
+
+    async def stream(
+        self, context: C
+    ) -> AsyncGenerator[Union[UiPathRuntimeEvent, UiPathRuntimeResult], None]:
+        """Stream runtime execution with context.
+
+        Args:
+            context: The runtime context
+
+        Yields:
+            UiPathRuntimeEvent instances during execution and final UiPathRuntimeResult
+
+        Raises:
+            UiPathRuntimeStreamNotSupportedError: If the runtime doesn't support streaming
+        """
+        async with self.from_context(context) as runtime:
+            try:
+                async for event in runtime.stream():
+                    yield event
             finally:
                 for span_processor in self.tracer_span_processors:
                     span_processor.force_flush()
@@ -776,6 +888,44 @@ class UiPathRuntimeFactory(Generic[T, C]):
                     attributes=span_attributes,
                 ):
                     return await runtime.execute()
+            finally:
+                for span_processor in self.tracer_span_processors:
+                    span_processor.force_flush()
+
+    async def stream_in_root_span(
+        self,
+        context: C,
+        root_span: str = "root",
+        attributes: Optional[dict[str, str]] = None,
+    ) -> AsyncGenerator[Union[UiPathRuntimeEvent, UiPathRuntimeResult], None]:
+        """Stream runtime execution with context in a root span.
+
+        Args:
+            context: The runtime context
+            root_span: Name of the root span
+            attributes: Optional attributes to add to the span
+
+        Yields:
+            UiPathRuntimeEvent instances during execution and final UiPathRuntimeResult
+
+        Raises:
+            UiPathRuntimeStreamNotSupportedError: If the runtime doesn't support streaming
+        """
+        async with self.from_context(context) as runtime:
+            try:
+                tracer: Tracer = trace.get_tracer("uipath-runtime")
+                span_attributes = {}
+                if context.execution_id:
+                    span_attributes["execution.id"] = context.execution_id
+                if attributes:
+                    span_attributes.update(attributes)
+
+                with tracer.start_as_current_span(
+                    root_span,
+                    attributes=span_attributes,
+                ):
+                    async for event in runtime.stream():
+                        yield event
             finally:
                 for span_processor in self.tracer_span_processors:
                     span_processor.force_flush()

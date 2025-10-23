@@ -6,6 +6,9 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 
+from uipath.tracing._traced import traced
+from uipath.tracing._utils import _SpanUtils
+
 from .._models._evaluation_set import (
     AnyEvaluationItem,
     LLMMockingStrategy,
@@ -51,7 +54,7 @@ Based on the above information, provide a realistic response for this tool call.
 3. Always include the entire output regardless of token length.
 3. Consider the context of the current test run and the agent being tested.  If the agent is acting on a property, make sure the output includes that property.
 
-Respond ONLY with valid JSON that would be a realistic and completetool response. Do not include any explanations or markdown.
+Respond ONLY with valid JSON that would be a realistic and complete tool response. Do not include any explanations or markdown.
 """
 
 logger = logging.getLogger(__name__)
@@ -79,6 +82,7 @@ class LLMMocker(Mocker):
         self.evaluation_item = evaluation_item
         assert isinstance(self.evaluation_item.mocking_strategy, LLMMockingStrategy)
 
+    @traced(name="__mocker__")
     async def response(
         self, func: Callable[[T], R], params: dict[str, Any], *args: T, **kwargs
     ) -> R:
@@ -91,6 +95,12 @@ class LLMMocker(Mocker):
         ]:
             from uipath import UiPath
             from uipath._services.llm_gateway_service import _cleanup_schema
+
+            from .mocks import (
+                evaluation_context,
+                execution_id_context,
+                span_collector_context,
+            )
 
             llm = UiPath().llm
             return_type: Any = func.__annotations__.get("return", None)
@@ -116,9 +126,18 @@ class LLMMocker(Mocker):
                 example_calls = [
                     call for call in example_calls if isinstance(call, ExampleCall)
                 ]
+
+                test_run_history = "(empty)"
+                eval_item = evaluation_context.get()
+                span_collector = span_collector_context.get()
+                execution_id = execution_id_context.get()
+                if eval_item and span_collector and execution_id:
+                    spans = span_collector.get_spans(execution_id)
+                    test_run_history = _SpanUtils.spans_to_llm_context(spans)
+
                 prompt_input: dict[str, Any] = {
                     "toolRunExamples": example_calls,
-                    "testRunHistory": [],  # This should contain ordered spans.
+                    "testRunHistory": test_run_history,
                     "toolInfo": {
                         "name": function_name,
                         "description": params.get("description"),
