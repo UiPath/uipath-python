@@ -3,6 +3,7 @@ from pydantic import TypeAdapter
 from uipath.agent.models.agent import (
     AgentDefinition,
     AgentEscalationResourceConfig,
+    AgentIntegrationToolResourceConfig,
     AgentMcpResourceConfig,
     AgentProcessToolResourceConfig,
     AgentResourceType,
@@ -364,6 +365,64 @@ class TestAgentBuilderConfig:
                     "name": "Current Date Agent",
                     "description": "subagent to be invoked by agent",
                 },
+                {
+                    "$resourceType": "tool",
+                    "type": "Integration",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "To": {"type": "string", "title": "To"},
+                            "Subject": {"type": "string", "title": "Subject"},
+                        },
+                        "required": ["To"],
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolPath": "/SendEmail",
+                        "objectName": "SendEmail",
+                        "toolDisplayName": "Send Email",
+                        "toolDescription": "Sends an email message",
+                        "method": "POST",
+                        "bodyStructure": {
+                            "contentType": "multipart",
+                            "jsonBodySection": "body",
+                        },
+                        "connection": {
+                            "id": "cccccccc-0000-0000-0000-000000000004",
+                            "name": "Gmail Connection",
+                            "elementInstanceId": 0,
+                            "apiBaseUri": "",
+                            "state": "enabled",
+                            "isDefault": False,
+                            "connector": {
+                                "key": "uipath-google-gmail",
+                                "name": "Gmail",
+                                "enabled": True,
+                            },
+                            "folder": {"key": "bbbbbbbb-0000-0000-0000-000000000004"},
+                            "solutionProperties": {
+                                "resourceKey": "cccccccc-0000-0000-0000-000000000004"
+                            },
+                        },
+                        "parameters": [
+                            {
+                                "name": "To",
+                                "displayName": "To",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "fieldVariant": "dynamic",
+                                "sortOrder": 1,
+                                "required": True,
+                            },
+                        ],
+                    },
+                    "name": "Send Email",
+                    "description": "Send an email via Gmail",
+                    "isEnabled": True,
+                },
             ],
             "features": [],
         }
@@ -381,28 +440,29 @@ class TestAgentBuilderConfig:
         assert config.name == "Agent with All Tools"
         assert config.version == "1.0.0"
         assert len(config.messages) == 2
-        assert len(config.resources) == 7  # All tool types + escalation + context + mcp
+        assert len(config.resources) == 8  # All tool types + escalation + context + mcp
         assert config.settings.engine == "basic-v1"
         assert config.settings.max_tokens == 16384
 
         # Validate resource types
         resource_types = [resource.resource_type for resource in config.resources]
         assert resource_types.count(AgentResourceType.ESCALATION) == 1
-        assert resource_types.count(AgentResourceType.TOOL) == 4
+        assert resource_types.count(AgentResourceType.TOOL) == 5
         assert resource_types.count(AgentResourceType.CONTEXT) == 1
         assert resource_types.count(AgentResourceType.MCP) == 1
 
-        # Validate tool types (ProcessOrchestration, Process, Api, Agent)
+        # Validate tool types (ProcessOrchestration, Process, Api, Agent, Integration)
         tool_resources = [
             r for r in config.resources if r.resource_type == AgentResourceType.TOOL
         ]
-        assert len(tool_resources) == 4
+        assert len(tool_resources) == 5
 
         tool_names = [t.name for t in tool_resources]
         assert "Maestro Workflow" in tool_names  # ProcessOrchestration
         assert "Basic RPA Process" in tool_names  # Process
         assert "Basic Http and Log API Wf" in tool_names  # Api
         assert "Current Date Agent" in tool_names  # Agent
+        assert "Send Email" in tool_names  # Integration
 
         # Validate MCP resource
         mcp_resources = [
@@ -439,6 +499,28 @@ class TestAgentBuilderConfig:
         ]
         assert len(context_resources) == 1
         assert context_resources[0].name == "MCP Documentation Index"
+
+        # Validate Integration tool resource
+        integration_tools = [
+            r
+            for r in config.resources
+            if isinstance(r, AgentIntegrationToolResourceConfig)
+        ]
+        assert len(integration_tools) == 1
+        integration_tool = integration_tools[0]
+        assert integration_tool.type == AgentToolType.INTEGRATION
+        assert integration_tool.name == "Send Email"
+        assert integration_tool.properties.tool_path == "/SendEmail"
+        assert integration_tool.properties.method == "POST"
+        assert integration_tool.properties.connection.connector is not None
+        assert (
+            integration_tool.properties.connection.connector["key"]
+            == "uipath-google-gmail"
+        )
+        assert integration_tool.properties.body_structure is not None
+        assert integration_tool.properties.body_structure["contentType"] == "multipart"
+        assert len(integration_tool.properties.parameters) == 1
+        assert integration_tool.properties.parameters[0].name == "To"
 
     def test_agent_config_loads_guardrails(self):
         """Test that AgentConfig can load and parse both Custom and Built-in guardrails from real JSON"""
@@ -622,3 +704,706 @@ class TestAgentBuilderConfig:
             "Should be BlockAction based on $actionType='block'"
         )
         assert block_action.action_type == "block"
+
+    def test_agent_with_gmail_send_email_integration(self):
+        """Test agent with Gmail Send Email integration tool"""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000001",
+            "name": "Agent with Send Email Tool",
+            "type": "lowCode",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "type": "Integration",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "SaveAsDraft": {
+                                "type": "boolean",
+                                "title": "Save as draft",
+                                "description": "Send an email message. By default, the email will be saved as draft.",
+                            },
+                            "CC": {
+                                "type": "string",
+                                "title": "CC",
+                                "description": "The secondary recipients of the email, separated by comma (,)",
+                            },
+                            "Importance": {
+                                "type": "string",
+                                "title": "Importance",
+                                "description": "The importance of the mail",
+                                "enum": ["normal"],
+                                "oneOf": [
+                                    {"const": "normal", "title": "Normal"},
+                                    {"const": "high", "title": "High"},
+                                    {"const": "low", "title": "Low"},
+                                ],
+                            },
+                            "ReplyTo": {
+                                "type": "string",
+                                "title": "Reply to",
+                                "description": "The email addresses to use when replying, separated by comma (,)",
+                            },
+                            "BCC": {
+                                "type": "string",
+                                "title": "BCC",
+                                "description": "The hidden recipients of the email, separated by comma (,)",
+                            },
+                            "To": {
+                                "type": "string",
+                                "title": "To",
+                                "description": "The primary recipients of the email, separated by comma (,)",
+                            },
+                            "Body": {
+                                "type": "string",
+                                "title": "Body",
+                                "description": "The body of the email",
+                            },
+                            "Subject": {
+                                "type": "string",
+                                "title": "Subject",
+                                "description": "The subject of the email",
+                            },
+                        },
+                        "additionalProperties": False,
+                        "required": ["To"],
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolPath": "/SendEmail",
+                        "objectName": "SendEmail",
+                        "toolDisplayName": "Send Email",
+                        "toolDescription": "Sends an email message",
+                        "method": "POST",
+                        "bodyStructure": {
+                            "contentType": "multipart",
+                            "jsonBodySection": "body",
+                        },
+                        "connection": {
+                            "id": "cccccccc-0000-0000-0000-000000000001",
+                            "name": "Gmail Connection",
+                            "elementInstanceId": 0,
+                            "apiBaseUri": "",
+                            "state": "enabled",
+                            "isDefault": False,
+                            "connector": {
+                                "key": "uipath-google-gmail",
+                                "name": "Gmail",
+                                "enabled": True,
+                            },
+                            "folder": {"key": "bbbbbbbb-0000-0000-0000-000000000001"},
+                            "solutionProperties": {
+                                "resourceKey": "cccccccc-0000-0000-0000-000000000001"
+                            },
+                        },
+                        "parameters": [
+                            {
+                                "name": "body",
+                                "displayName": "Body",
+                                "type": "string",
+                                "fieldLocation": "multipart",
+                                "value": "{{prompt}}",
+                                "description": "The message body\n",
+                                "position": "primary",
+                                "sortOrder": 1,
+                                "required": True,
+                                "fieldVariant": "dynamic",
+                                "dynamic": True,
+                                "isCascading": False,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "SaveAsDraft",
+                                "displayName": "Save as draft",
+                                "type": "boolean",
+                                "fieldLocation": "query",
+                                "value": False,
+                                "description": "",
+                                "position": "primary",
+                                "sortOrder": 2,
+                                "required": False,
+                                "fieldVariant": "static",
+                                "dynamic": True,
+                                "isCascading": False,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "To",
+                                "displayName": "To",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "description": "The primary recipients of the email, separated by comma (,)",
+                                "position": "primary",
+                                "sortOrder": 3,
+                                "required": True,
+                                "fieldVariant": "dynamic",
+                                "isCascading": False,
+                                "dynamic": True,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "Subject",
+                                "displayName": "Subject",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "description": "The subject of the email",
+                                "position": "primary",
+                                "sortOrder": 4,
+                                "required": False,
+                                "fieldVariant": "dynamic",
+                                "isCascading": False,
+                                "dynamic": True,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "Body",
+                                "displayName": "Body",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "description": "The body of the email",
+                                "componentType": "RichTextEditorHTML",
+                                "position": "primary",
+                                "sortOrder": 5,
+                                "required": False,
+                                "fieldVariant": "dynamic",
+                                "isCascading": False,
+                                "dynamic": True,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "file",
+                                "displayName": "Attachment",
+                                "type": "file",
+                                "fieldLocation": "multipart",
+                                "value": "{{prompt}}",
+                                "description": "The attachment to be sent with the email",
+                                "position": "primary",
+                                "sortOrder": 6,
+                                "required": False,
+                                "fieldVariant": "dynamic",
+                                "dynamic": True,
+                                "isCascading": False,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "Importance",
+                                "displayName": "Importance",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "normal",
+                                "description": "",
+                                "position": "secondary",
+                                "sortOrder": 7,
+                                "required": False,
+                                "fieldVariant": "static",
+                                "isCascading": False,
+                                "dynamic": True,
+                                "enumValues": [
+                                    {"name": "Normal", "value": "normal"},
+                                    {"name": "High", "value": "high"},
+                                    {"name": "Low", "value": "low"},
+                                ],
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "ReplyTo",
+                                "displayName": "Reply to",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "description": "The email addresses to use when replying, separated by comma (,)",
+                                "position": "secondary",
+                                "sortOrder": 8,
+                                "required": False,
+                                "fieldVariant": "dynamic",
+                                "isCascading": False,
+                                "dynamic": True,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "CC",
+                                "displayName": "CC",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "description": "The secondary recipients of the email, separated by comma (,)",
+                                "position": "secondary",
+                                "sortOrder": 9,
+                                "required": False,
+                                "fieldVariant": "dynamic",
+                                "isCascading": False,
+                                "dynamic": True,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                            {
+                                "name": "BCC",
+                                "displayName": "BCC",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "description": "The hidden recipients of the email, separated by comma (,)",
+                                "position": "secondary",
+                                "sortOrder": 10,
+                                "required": False,
+                                "fieldVariant": "dynamic",
+                                "isCascading": False,
+                                "dynamic": True,
+                                "enumValues": None,
+                                "loadReferenceOptionsByDefault": None,
+                                "dynamicBehavior": [],
+                                "reference": None,
+                            },
+                        ],
+                    },
+                    "name": "Send Email",
+                    "description": "Sends an email message",
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        # Test deserialization
+        config: LowCodeAgentDefinition = TypeAdapter(
+            LowCodeAgentDefinition
+        ).validate_python(json_data)
+
+        # Validate agent
+        assert config.id == "aaaaaaaa-0000-0000-0000-000000000001"
+        assert config.name == "Agent with Send Email Tool"
+        assert len(config.resources) == 1
+
+        # Validate integration tool
+        tool = config.resources[0]
+        assert isinstance(tool, AgentIntegrationToolResourceConfig)
+        assert tool.type == AgentToolType.INTEGRATION
+        assert tool.name == "Send Email"
+        assert tool.description == "Sends an email message"
+
+        # Validate tool properties
+        assert tool.properties.tool_path == "/SendEmail"
+        assert tool.properties.object_name == "SendEmail"
+        assert tool.properties.tool_display_name == "Send Email"
+        assert tool.properties.method == "POST"
+
+        # Validate connection
+        assert tool.properties.connection is not None
+        assert tool.properties.connection.connector is not None
+        assert tool.properties.connection.connector["key"] == "uipath-google-gmail"
+
+        # Validate body structure
+        assert tool.properties.body_structure is not None
+        assert tool.properties.body_structure["contentType"] == "multipart"
+
+        # Validate parameters
+        assert len(tool.properties.parameters) == 10
+        assert tool.properties.parameters[0].name == "body"
+        assert tool.properties.parameters[0].field_location == "multipart"
+        assert tool.properties.parameters[0].required is True
+
+        # Validate additional email parameters
+        param_names = [p.name for p in tool.properties.parameters]
+        assert "Subject" in param_names
+        assert "Body" in param_names
+        assert "CC" in param_names
+        assert "BCC" in param_names
+        assert "ReplyTo" in param_names
+        assert "Importance" in param_names
+
+        # Validate input_schema properties
+        assert tool.input_schema is not None
+        assert tool.input_schema["type"] == "object"
+        assert "properties" in tool.input_schema
+        assert "required" in tool.input_schema
+        assert tool.input_schema["required"] == ["To"]
+        assert tool.input_schema["additionalProperties"] is False
+
+        # Validate input_schema property fields
+        schema_props = tool.input_schema["properties"]
+        assert "SaveAsDraft" in schema_props
+        assert schema_props["SaveAsDraft"]["type"] == "boolean"
+        assert schema_props["SaveAsDraft"]["title"] == "Save as draft"
+
+        assert "To" in schema_props
+        assert schema_props["To"]["type"] == "string"
+        assert schema_props["To"]["title"] == "To"
+        assert "separated by comma" in schema_props["To"]["description"]
+
+        assert "Subject" in schema_props
+        assert schema_props["Subject"]["type"] == "string"
+
+        assert "Body" in schema_props
+        assert schema_props["Body"]["type"] == "string"
+        assert schema_props["Body"]["description"] == "The body of the email"
+
+        assert "CC" in schema_props
+        assert schema_props["CC"]["type"] == "string"
+
+        assert "BCC" in schema_props
+        assert schema_props["BCC"]["type"] == "string"
+
+        assert "ReplyTo" in schema_props
+        assert schema_props["ReplyTo"]["type"] == "string"
+        assert schema_props["ReplyTo"]["title"] == "Reply to"
+
+        assert "Importance" in schema_props
+        assert schema_props["Importance"]["type"] == "string"
+        assert "enum" in schema_props["Importance"]
+        assert schema_props["Importance"]["enum"] == ["normal"]
+        assert "oneOf" in schema_props["Importance"]
+        assert len(schema_props["Importance"]["oneOf"]) == 3
+
+    def test_agent_with_jira_create_issue_integration(self):
+        """Test agent with Jira Create Issue (Task) integration tool"""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000002",
+            "name": "Jira CreateIssue Agent",
+            "type": "lowCode",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "type": "Integration",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "projectKey": {"type": "string", "title": "Project Key"},
+                            "summary": {"type": "string", "title": "Summary"},
+                            "description": {"type": "string", "title": "Description"},
+                        },
+                        "required": ["projectKey", "summary"],
+                    },
+                    "outputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "key": {"type": "string"},
+                        },
+                    },
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolPath": "/CreateIssue",
+                        "objectName": "CreateIssue",
+                        "toolDisplayName": "Create Issue",
+                        "toolDescription": "Creates a new Jira issue",
+                        "method": "POST",
+                        "bodyStructure": {
+                            "contentType": "json",
+                            "jsonBodySection": "body",
+                        },
+                        "connection": {
+                            "id": "cccccccc-0000-0000-0000-000000000002",
+                            "name": "Jira Connection",
+                            "elementInstanceId": 0,
+                            "apiBaseUri": "",
+                            "state": "enabled",
+                            "isDefault": False,
+                            "connector": {
+                                "key": "uipath-atlassian-jira",
+                                "name": "Jira",
+                                "enabled": True,
+                            },
+                            "folder": {"key": "bbbbbbbb-0000-0000-0000-000000000002"},
+                            "solutionProperties": {
+                                "resourceKey": "cccccccc-0000-0000-0000-000000000002"
+                            },
+                        },
+                        "parameters": [
+                            {
+                                "name": "projectKey",
+                                "displayName": "Project Key",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "fieldVariant": "dynamic",
+                                "sortOrder": 1,
+                                "required": True,
+                            },
+                            {
+                                "name": "summary",
+                                "displayName": "Summary",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "fieldVariant": "dynamic",
+                                "sortOrder": 2,
+                                "required": True,
+                            },
+                            {
+                                "name": "issueType",
+                                "displayName": "Issue Type",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "Task",
+                                "fieldVariant": "static",
+                                "sortOrder": 3,
+                                "required": True,
+                            },
+                        ],
+                    },
+                    "name": "Create Issue",
+                    "description": "Creates a new Jira issue",
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        # Test deserialization
+        config: LowCodeAgentDefinition = TypeAdapter(
+            LowCodeAgentDefinition
+        ).validate_python(json_data)
+
+        # Validate agent
+        assert config.name == "Jira CreateIssue Agent"
+        assert len(config.resources) == 1
+
+        # Validate integration tool
+        tool = config.resources[0]
+        assert isinstance(tool, AgentIntegrationToolResourceConfig)
+        assert tool.type == AgentToolType.INTEGRATION
+        assert tool.name == "Create Issue"
+
+        # Validate tool properties
+        assert tool.properties.tool_path == "/CreateIssue"
+        assert tool.properties.method == "POST"
+        assert tool.properties.connection is not None
+        assert tool.properties.connection.connector is not None
+        assert tool.properties.connection.connector["key"] == "uipath-atlassian-jira"
+
+        # Validate body structure
+        assert tool.properties.body_structure is not None
+        assert tool.properties.body_structure["contentType"] == "json"
+
+        # Validate parameters
+        assert len(tool.properties.parameters) == 3
+        # Check for static parameter
+        static_param = next(
+            p for p in tool.properties.parameters if p.field_variant == "static"
+        )
+        assert static_param.name == "issueType"
+        assert static_param.value == "Task"
+
+        # Validate input_schema properties
+        assert tool.input_schema is not None
+        assert tool.input_schema["type"] == "object"
+        assert "properties" in tool.input_schema
+        assert "required" in tool.input_schema
+        assert tool.input_schema["required"] == ["projectKey", "summary"]
+
+        # Validate input_schema property fields
+        schema_props = tool.input_schema["properties"]
+        assert "projectKey" in schema_props
+        assert schema_props["projectKey"]["type"] == "string"
+        assert schema_props["projectKey"]["title"] == "Project Key"
+
+        assert "summary" in schema_props
+        assert schema_props["summary"]["type"] == "string"
+        assert schema_props["summary"]["title"] == "Summary"
+
+        assert "description" in schema_props
+        assert schema_props["description"]["type"] == "string"
+        assert schema_props["description"]["title"] == "Description"
+
+    def test_agent_with_jira_search_issues_integration(self):
+        """Test agent with Jira Search Issues integration tool"""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000003",
+            "name": "Jira SearchIssues Agent",
+            "type": "lowCode",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "type": "Integration",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "jql": {
+                                "type": "string",
+                                "title": "JQL Query",
+                                "description": "Jira Query Language query string",
+                            }
+                        },
+                        "required": ["jql"],
+                    },
+                    "outputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "issues": {"type": "array"},
+                            "total": {"type": "integer"},
+                        },
+                    },
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolPath": "/SearchIssues",
+                        "objectName": "SearchIssues",
+                        "toolDisplayName": "Search Issues",
+                        "toolDescription": "Search issues in Jira",
+                        "method": "GET",
+                        "bodyStructure": {
+                            "contentType": "json",
+                            "jsonBodySection": "body",
+                        },
+                        "connection": {
+                            "id": "cccccccc-0000-0000-0000-000000000003",
+                            "name": "Jira Connection",
+                            "elementInstanceId": 0,
+                            "apiBaseUri": "",
+                            "state": "enabled",
+                            "isDefault": False,
+                            "connector": {
+                                "key": "uipath-atlassian-jira",
+                                "name": "Jira",
+                                "enabled": True,
+                            },
+                            "folder": {"key": "bbbbbbbb-0000-0000-0000-000000000003"},
+                            "solutionProperties": {
+                                "resourceKey": "cccccccc-0000-0000-0000-000000000003"
+                            },
+                        },
+                        "parameters": [
+                            {
+                                "name": "jql",
+                                "displayName": "JQL Query",
+                                "type": "string",
+                                "fieldLocation": "query",
+                                "value": "{{prompt}}",
+                                "fieldVariant": "dynamic",
+                                "sortOrder": 1,
+                                "required": True,
+                            }
+                        ],
+                    },
+                    "name": "Search Issues",
+                    "description": "Search issues in Jira",
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        # Test deserialization
+        config: LowCodeAgentDefinition = TypeAdapter(
+            LowCodeAgentDefinition
+        ).validate_python(json_data)
+
+        # Validate agent
+        assert config.name == "Jira SearchIssues Agent"
+        assert len(config.resources) == 1
+
+        # Validate integration tool
+        tool = config.resources[0]
+        assert isinstance(tool, AgentIntegrationToolResourceConfig)
+        assert tool.type == AgentToolType.INTEGRATION
+        assert tool.name == "Search Issues"
+
+        # Validate tool properties
+        assert tool.properties.tool_path == "/SearchIssues"
+        assert tool.properties.method == "GET"
+        assert tool.properties.connection is not None
+        assert tool.properties.connection.connector is not None
+        assert tool.properties.connection.connector["key"] == "uipath-atlassian-jira"
+
+        # Validate parameters - query parameter
+        assert len(tool.properties.parameters) == 1
+        param = tool.properties.parameters[0]
+        assert param.name == "jql"
+        assert param.field_location == "query"  # GET method uses query parameters
+        assert param.required is True
+
+        # Validate input_schema properties
+        assert tool.input_schema is not None
+        assert tool.input_schema["type"] == "object"
+        assert "properties" in tool.input_schema
+        assert "required" in tool.input_schema
+        assert tool.input_schema["required"] == ["jql"]
+
+        # Validate input_schema property fields
+        schema_props = tool.input_schema["properties"]
+        assert "jql" in schema_props
+        assert schema_props["jql"]["type"] == "string"
+        assert schema_props["jql"]["title"] == "JQL Query"
+        assert schema_props["jql"]["description"] == "Jira Query Language query string"
