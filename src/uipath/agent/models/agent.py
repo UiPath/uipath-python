@@ -179,6 +179,7 @@ class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
 
     type: Literal[AgentToolType.INTEGRATION] = AgentToolType.INTEGRATION
     properties: AgentIntegrationToolProperties
+    settings: Optional[AgentToolSettings] = Field(None, description="Tool settings")
     arguments: Optional[Dict[str, Any]] = Field(
         default_factory=dict, description="Tool arguments"
     )
