@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._api_responses import GetResponse
 from .message import UiPathConversationMessage, UiPathConversationMessageEvent
 
 
@@ -59,3 +60,7 @@ class UiPathConversationExchange(BaseModel):
     messages: List[UiPathConversationMessage]
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+"""Paginated response for GET conversations."""
+GetExchangesResponse = GetResponse[UiPathConversationExchange]

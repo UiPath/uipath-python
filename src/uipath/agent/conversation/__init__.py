@@ -59,6 +59,7 @@ from .content import (
     UiPathInlineValue,
 )
 from .conversation import (
+    GetConversationsResponse,
     UiPathConversationCapabilities,
     UiPathConversationEndEvent,
     UiPathConversationStartedEvent,
@@ -66,6 +67,7 @@ from .conversation import (
 )
 from .event import UiPathConversationEvent
 from .exchange import (
+    GetExchangesResponse,
     UiPathConversationExchange,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
@@ -94,11 +96,13 @@ __all__ = [
     "UiPathConversationStartEvent",
     "UiPathConversationStartedEvent",
     "UiPathConversationEndEvent",
+    "GetConversationsResponse",
     # Exchange
     "UiPathConversationExchangeStartEvent",
     "UiPathConversationExchangeEndEvent",
     "UiPathConversationExchangeEvent",
     "UiPathConversationExchange",
+    "GetExchangesResponse",
     # Message
     "UiPathConversationMessageStartEvent",
     "UiPathConversationMessageEndEvent",

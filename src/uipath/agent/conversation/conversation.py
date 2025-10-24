@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._api_responses import GetResponse
+
 
 class UiPathConversationCapabilities(BaseModel):
     """Describes the capabilities of a conversation participant."""
@@ -47,3 +49,16 @@ class UiPathConversationEndEvent(BaseModel):
     meta_data: Optional[Dict[str, Any]] = Field(None, alias="metaData")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationModel(BaseModel):
+    """Model for conversation, used get mapping jobKey to conversationId."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    conversation_id: str = Field(alias="conversationId")
+    job_key: str = Field(alias="jobKey")
+
+
+"""Paginated response for GET conversations."""
+GetConversationsResponse = GetResponse[UiPathConversationModel]
