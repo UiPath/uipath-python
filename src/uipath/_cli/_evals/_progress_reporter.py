@@ -215,9 +215,10 @@ class StudioWebProgressReporter:
         agent_snapshot: StudioWebAgentSnapshot,
         no_of_evals: int,
         evaluators: List[LegacyBaseEvaluator[Any]],
+        is_coded: bool = False,
     ) -> str:
         """Create a new evaluation set run in StudioWeb."""
-        spec = self._create_eval_set_run_spec(eval_set_id, agent_snapshot, no_of_evals)
+        spec = self._create_eval_set_run_spec(eval_set_id, agent_snapshot, no_of_evals, is_coded)
         response = await self._client.request_async(
             method=spec.method,
             url=spec.endpoint,
@@ -231,18 +232,19 @@ class StudioWebProgressReporter:
 
     @gracefully_handle_errors
     async def create_eval_run(
-        self, eval_item: AnyEvaluationItem, eval_set_run_id: str
+        self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> str:
         """Create a new evaluation run in StudioWeb.
 
         Args:
             eval_item: Dictionary containing evaluation data
             eval_set_run_id: The ID of the evaluation set run
+            is_coded: Whether this is a coded evaluation (vs legacy)
 
         Returns:
             The ID of the created evaluation run
         """
-        spec = self._create_eval_run_spec(eval_item, eval_set_run_id)
+        spec = self._create_eval_run_spec(eval_item, eval_set_run_id, is_coded)
         response = await self._client.request_async(
             method=spec.method,
             url=spec.endpoint,
@@ -295,6 +297,7 @@ class StudioWebProgressReporter:
             eval_run_id=sw_progress_item.eval_run_id,
             execution_time=sw_progress_item.agent_execution_time,
             actual_output=sw_progress_item.agent_output,
+            is_coded=is_coded,
         )
 
         await self._client.request_async(
@@ -311,9 +314,10 @@ class StudioWebProgressReporter:
         self,
         eval_set_run_id: str,
         evaluator_scores: dict[str, float],
+        is_coded: bool = False,
     ):
         """Update the evaluation set run status to complete."""
-        spec = self._update_eval_set_run_spec(eval_set_run_id, evaluator_scores)
+        spec = self._update_eval_set_run_spec(eval_set_run_id, evaluator_scores, is_coded)
         await self._client.request_async(
             method=spec.method,
             url=spec.endpoint,
@@ -337,6 +341,7 @@ class StudioWebProgressReporter:
                 agent_snapshot=self._extract_agent_snapshot(payload.entrypoint),
                 no_of_evals=payload.no_of_evals,
                 evaluators=payload.evaluators,
+                is_coded=is_coded,
             )
             self.eval_set_run_ids[payload.execution_id] = eval_set_run_id
             current_span = trace.get_current_span()
@@ -353,12 +358,14 @@ class StudioWebProgressReporter:
     async def handle_create_eval_run(self, payload: EvalRunCreatedEvent) -> None:
         try:
             if eval_set_run_id := self.eval_set_run_ids.get(payload.execution_id):
+                # Get the is_coded flag for this execution
+                is_coded = self.is_coded_eval.get(payload.execution_id, False)
                 eval_run_id = await self.create_eval_run(
-                    payload.eval_item, eval_set_run_id
+                    payload.eval_item, eval_set_run_id, is_coded
                 )
                 if eval_run_id:
                     self.eval_run_ids[payload.execution_id] = eval_run_id
-                    logger.debug(f"Created eval run with ID: {eval_run_id}")
+                    logger.debug(f"Created eval run with ID: {eval_run_id} (coded={is_coded})")
             else:
                 logger.warning("Cannot create eval run: eval_set_run_id not available")
 
@@ -419,11 +426,14 @@ class StudioWebProgressReporter:
     async def handle_update_eval_set_run(self, payload: EvalSetRunUpdatedEvent) -> None:
         try:
             if eval_set_run_id := self.eval_set_run_ids.get(payload.execution_id):
+                # Get the is_coded flag for this execution
+                is_coded = self.is_coded_eval.get(payload.execution_id, False)
                 await self.update_eval_set_run(
                     eval_set_run_id,
                     payload.evaluator_scores,
+                    is_coded=is_coded,
                 )
-                logger.debug(f"Updated eval set run with ID: {eval_set_run_id}")
+                logger.debug(f"Updated eval set run with ID: {eval_set_run_id} (coded={is_coded})")
             else:
                 logger.warning(
                     "Cannot update eval set run: eval_set_run_id not available"
@@ -575,11 +585,14 @@ class StudioWebProgressReporter:
         eval_run_id: str,
         actual_output: dict[str, Any],
         execution_time: float,
+        is_coded: bool = False,
     ) -> RequestSpec:
+        # For legacy evaluations, endpoint is without /coded
+        endpoint_suffix = "coded/" if is_coded else ""
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
             json={
                 "evalRunId": eval_run_id,
@@ -601,12 +614,15 @@ class StudioWebProgressReporter:
         eval_run_id: str,
         actual_output: dict[str, Any],
         execution_time: float,
+        is_coded: bool = False,
     ) -> RequestSpec:
         """Create update spec for coded evaluators."""
+        # For legacy evaluations, endpoint is without /coded
+        endpoint_suffix = "coded/" if is_coded else ""
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
             json={
                 "evalRunId": eval_run_id,
@@ -622,7 +638,7 @@ class StudioWebProgressReporter:
         )
 
     def _create_eval_run_spec(
-        self, eval_item: AnyEvaluationItem, eval_set_run_id: str
+        self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> RequestSpec:
         # Build eval snapshot based on evaluation item type
         eval_snapshot = {
@@ -638,10 +654,12 @@ class StudioWebProgressReporter:
         else:
             eval_snapshot["expectedOutput"] = eval_item.expected_output
 
+        # For legacy evaluations, endpoint is without /coded
+        endpoint_suffix = "coded/" if is_coded else ""
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
             json={
                 "evalSetRunId": eval_set_run_id,
@@ -656,11 +674,14 @@ class StudioWebProgressReporter:
         eval_set_id: str,
         agent_snapshot: StudioWebAgentSnapshot,
         no_of_evals: int,
+        is_coded: bool = False,
     ) -> RequestSpec:
+        # For legacy evaluations, endpoint is without /coded
+        endpoint_suffix = "coded/" if is_coded else ""
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalSetRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalSetRun"
             ),
             json={
                 "agentId": self._project_id,
@@ -676,16 +697,19 @@ class StudioWebProgressReporter:
         self,
         eval_set_run_id: str,
         evaluator_scores: dict[str, float],
+        is_coded: bool = False,
     ) -> RequestSpec:
         evaluator_scores_list = [
             {"value": avg_score, "evaluatorId": evaluator_id}
             for evaluator_id, avg_score in evaluator_scores.items()
         ]
 
+        # For legacy evaluations, endpoint is without /coded
+        endpoint_suffix = "coded/" if is_coded else ""
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalSetRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalSetRun"
             ),
             json={
                 "evalSetRunId": eval_set_run_id,
