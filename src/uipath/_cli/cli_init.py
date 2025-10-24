@@ -1,4 +1,5 @@
 # type: ignore
+import asyncio
 import importlib.resources
 import json
 import logging
@@ -218,15 +219,15 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             "entrypoint": script_path,
         }
 
-        def initialize() -> None:
+        async def initialize() -> None:
             try:
                 runtime = generate_runtime_factory().new_runtime(**context_args)
                 bindings = Bindings(
                     version="2.0",
-                    resources=runtime.get_binding_resources,
+                    resources=await runtime.get_binding_resources(),
                 )
                 config_data = RuntimeSchema(
-                    entryPoints=[runtime.get_entrypoint],
+                    entryPoints=[await runtime.get_entrypoint()],
                     bindings=bindings,
                 )
                 config_path = write_config_file(config_data)
@@ -234,4 +235,4 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             except Exception as e:
                 console.error(f"Error creating configuration file:\n {str(e)}")
 
-        initialize()
+        asyncio.run(initialize())

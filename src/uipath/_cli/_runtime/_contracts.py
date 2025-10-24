@@ -577,16 +577,14 @@ class UiPathBaseRuntime(ABC):
         runtime = cls(context)
         return runtime
 
-    @property
-    def get_binding_resources(self) -> List[BindingResource]:
+    async def get_binding_resources(self) -> List[BindingResource]:
         """Get binding resources for this runtime.
 
         Returns: A list of binding resources.
         """
         raise NotImplementedError()
 
-    @property
-    def get_entrypoint(self) -> Entrypoint:
+    async def get_entrypoint(self) -> Entrypoint:
         """Get entrypoint for this runtime.
 
         Returns: A entrypoint for this runtime.
