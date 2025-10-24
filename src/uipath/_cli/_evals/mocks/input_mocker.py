@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 from uipath import UiPath
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
+from uipath._cli._evals._models._evaluation_set import AnyEvaluationItem
 from uipath.tracing._traced import traced
 
 from .mocker import UiPathInputMockingError
@@ -54,12 +54,22 @@ OUTPUT: ONLY the simulated agent input in the exact format of the INPUT_SCHEMA i
 
 @traced(name="__mocker__")
 async def generate_llm_input(
-    evaluation_item: EvaluationItem,
+    evaluation_item: AnyEvaluationItem,
     input_schema: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
     try:
         llm = UiPath().llm
+
+        # Ensure additionalProperties is set for strict mode compatibility
+        if "additionalProperties" not in input_schema:
+            input_schema["additionalProperties"] = False
+
+        expected_output = (
+            getattr(evaluation_item, "evaluation_criterias", None)
+            or getattr(evaluation_item, "expected_output", None)
+            or {}
+        )
 
         prompt = get_input_mocking_prompt(
             input_schema=json.dumps(input_schema, indent=2),
@@ -67,7 +77,7 @@ async def generate_llm_input(
             if evaluation_item.input_mocking_strategy
             else "",
             expected_behavior=evaluation_item.expected_agent_behavior or "",
-            expected_output=json.dumps(evaluation_item.evaluation_criterias, indent=2),
+            expected_output=json.dumps(expected_output, indent=2),
         )
 
         response_format = {

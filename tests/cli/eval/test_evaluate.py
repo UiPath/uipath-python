@@ -5,6 +5,7 @@ from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._runtime import UiPathEvalContext
 from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
 from uipath._cli._runtime._runtime import UiPathRuntime
+from uipath._cli.models.runtime_schema import Entrypoint
 from uipath._events._event_bus import EventBus
 
 
@@ -18,12 +19,22 @@ async def test_evaluate():
     async def identity(input: Any) -> Any:
         return input
 
-    class MyFactory(UiPathRuntimeFactory[UiPathRuntime, UiPathRuntimeContext]):
+    class TestRuntime(UiPathRuntime):
+        async def get_entrypoint(self) -> Entrypoint:
+            return Entrypoint(
+                file_path="test.py",  # type: ignore[call-arg]
+                unique_id="test",
+                type="workflow",
+                input={"type": "object", "properties": {}},
+                output={"type": "object", "properties": {}},
+            )
+
+    class MyFactory(UiPathRuntimeFactory[TestRuntime, UiPathRuntimeContext]):
         def __init__(self):
             super().__init__(
-                UiPathRuntime,
+                TestRuntime,
                 UiPathRuntimeContext,
-                runtime_generator=lambda context: UiPathRuntime(
+                runtime_generator=lambda context: TestRuntime(
                     context, executor=identity
                 ),
             )

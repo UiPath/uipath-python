@@ -142,6 +142,10 @@ class LegacyEvaluationItem(BaseModel):
         default=None,
         alias="mockingStrategy",
     )
+    input_mocking_strategy: Optional[InputMockingStrategy] = Field(
+        default=None,
+        alias="inputMockingStrategy",
+    )
 
 
 class EvaluationSet(BaseModel):

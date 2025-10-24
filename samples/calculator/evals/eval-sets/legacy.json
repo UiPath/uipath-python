@@ -90,6 +90,25 @@
       "evalSetId": "default-eval-set-id",
       "createdAt": "2025-09-04T18:54:58.378Z",
       "updatedAt": "2025-09-04T18:55:55.416Z"
+    },
+    {
+      "id": "test-with-llm-input-mocking",
+      "name": "Test with LLM input mocking",
+      "inputs": {},
+      "expectedOutput": {
+        "result": 35
+      },
+      "expectedAgentBehavior": "",
+      "inputMockingStrategy": {
+        "prompt": "Generate a multiplication calculation where the first number is 5 and the second number is 7",
+        "model": {
+          "model": "gpt-4o-mini-2024-07-18",
+          "temperature": 0.3
+        }
+      },
+      "evalSetId": "default-eval-set-id",
+      "createdAt": "2025-09-04T18:54:58.378Z",
+      "updatedAt": "2025-09-04T18:55:55.416Z"
     }
   ],
   "modelSettings": [],
