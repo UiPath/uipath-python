@@ -1,0 +1,265 @@
+"""Base utilities for service commands.
+
+This module provides decorators and utilities for implementing service-specific
+CLI commands with consistent error handling, async support, and output formatting.
+
+Key features:
+- Sequential decorator composition
+- Type-safe context access
+- Enhanced Click exception handling
+- Async/await support
+- Consistent error messages
+"""
+
+import asyncio
+import inspect
+from functools import wraps
+from typing import Any, Callable
+
+import click
+from httpx import HTTPError
+
+from ...models.errors import BaseUrlMissingError, SecretMissingError
+from ._context import get_cli_context
+
+
+def handle_not_found_error(identifier: str, error: Exception | None = None) -> None:
+    """Handle 404/LookupError and raise consistent ClickException.
+
+    Args:
+        identifier: The resource identifier (name, key, etc.)
+        error: Optional original error for chaining
+
+    Raises:
+        click.ClickException: Always raises with consistent message
+    """
+    message = f"Bucket '{identifier}' not found."
+    if error:
+        raise click.ClickException(message) from error
+    else:
+        raise click.ClickException(message) from None
+
+
+def service_command(f: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorator for service commands with async support, error handling, and output.
+
+    This decorator handles:
+    - Sync and async function execution
+    - Output formatting (JSON, table, CSV)
+    - Error handling with proper Click exceptions
+    - Separation of logs (stderr) from data (stdout)
+    - Type-safe context access via get_cli_context()
+    - Enhanced Click exception handling (don't catch Click's own exceptions)
+    - Domain errors converted to click.ClickException
+
+    Example:
+        >>> @buckets.command()
+        >>> @service_command
+        >>> @click.pass_context
+        >>> async def list_async(ctx):
+        ...     return await client.buckets.list_async()
+    """
+
+    @wraps(f)
+    @click.pass_context
+    def wrapper(ctx, *args, **kwargs):
+        cli_ctx = get_cli_context(ctx)
+
+        try:
+            # Execute command (may be sync or async)
+            result = f(ctx, *args, **kwargs)
+
+            # Handle async results
+            if inspect.isawaitable(result):
+                try:
+                    result = asyncio.run(result)  # type: ignore[arg-type]
+                except RuntimeError as e:
+                    # Running loop exists (pytest-asyncio, notebooks)
+                    if "cannot be called from a running event loop" in str(e).lower():
+                        prev_loop = asyncio.get_event_loop()
+                        if prev_loop.is_running():
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                result = loop.run_until_complete(result)
+                            finally:
+                                loop.close()
+                                asyncio.set_event_loop(prev_loop)  # Restore!
+                        else:
+                            result = prev_loop.run_until_complete(result)
+                    else:
+                        raise
+
+            # Format and output result
+            if result is not None:
+                from ._formatters import format_output
+
+                fmt = kwargs.get("format") or cli_ctx.output_format
+                output = kwargs.get("output")
+
+                format_output(
+                    result,
+                    fmt=fmt,
+                    output=output,
+                    no_color=False,  # Auto-detected for file output
+                )
+
+            return result
+
+        except click.ClickException:
+            raise
+
+        except BaseUrlMissingError:
+            raise click.ClickException(
+                "UIPATH_URL not configured. Set the UIPATH_URL environment variable or run 'uipath auth'."
+            ) from None
+
+        except SecretMissingError:
+            raise click.ClickException(
+                "Authentication required. Set the UIPATH_ACCESS_TOKEN environment variable or run 'uipath auth'."
+            ) from None
+
+        except HTTPError as e:
+            if cli_ctx.debug:
+                raise
+            response = getattr(e, "response", None)
+            if response:
+                error_msg = f"HTTP Error {response.status_code}: {response.url}"
+                if hasattr(response, "text"):
+                    try:
+                        import json
+
+                        error_details = json.dumps(response.json(), indent=2)
+                        error_msg += f"\nResponse:\n{error_details}"
+                    except Exception:
+                        # Fallback to raw text if not JSON or parsing fails
+                        error_msg += f"\nResponse: {response.text[:500]}"
+            else:
+                error_msg = f"HTTP Error: {str(e)}"
+            raise click.ClickException(error_msg) from e
+
+        except Exception as e:
+            if cli_ctx.debug:
+                raise
+            raise click.ClickException(str(e)) from e
+
+    return wrapper
+
+
+def common_service_options(f: Callable[..., Any]) -> Callable[..., Any]:
+    """Add common options for service commands.
+
+    Adds:
+    - --folder-path: Folder path (e.g., "Shared")
+    - --folder-key: Folder key (UUID)
+    - --format: Output format override
+    - --output: Output file override
+    """
+    decorators = [
+        click.option("--folder-path", help='Folder path (e.g., "Shared")'),
+        click.option("--folder-key", help="Folder key (UUID)"),
+        click.option(
+            "--format",
+            type=click.Choice(["json", "table", "csv"]),
+            help="Output format (overrides global)",
+        ),
+        click.option(
+            "--output", "-o", type=click.Path(), help="Output file (overrides global)"
+        ),
+    ]
+
+    for decorator in reversed(decorators):
+        f = decorator(f)
+
+    return f
+
+
+def standard_service_command(f: Callable[..., Any]) -> Callable[..., Any]:
+    """Convenience decorator for standard service commands.
+
+    This composes decorators in explicit, sequential order:
+    1. service_command (execution & error handling)
+    2. common_service_options (folder, format, output)
+
+    The sequential pattern makes the decorator stack more readable
+    and easier for AI agents to understand.
+
+    Usage:
+        >>> # Simple command
+        >>> @buckets.command()
+        >>> @standard_service_command
+        >>> def retrieve(ctx, name, folder_path, ...):
+        ...     pass
+
+        >>> # Custom composition (when you need flexibility)
+        >>> @buckets.command()
+        >>> @service_command
+        >>> @click.option('--custom-flag', ...)
+        >>> @common_service_options
+        >>> @click.pass_context
+        >>> def special(ctx, custom_flag, ...):
+        ...     pass
+    """
+    # This makes the order explicit and matches execution order
+    decorated_func = f
+
+    # Step 1: Wrap with execution and error handler (innermost)
+    decorated_func = service_command(decorated_func)
+
+    # Step 2: Add common service options
+    decorated_func = common_service_options(decorated_func)
+
+    # The service_command decorator already includes @click.pass_context
+    return decorated_func
+
+
+class ServiceCommandBase:
+    """Base class for service command utilities."""
+
+    @staticmethod
+    def get_client(ctx):
+        """Get or create UiPath client from context.
+
+        This caches the client in the CLI context to avoid recreating
+        it for every command invocation.
+
+        Args:
+            ctx: Click context
+
+        Returns:
+            UiPath client instance
+
+        Raises:
+            click.ClickException: If required environment variables are not set
+        """
+        import os
+
+        import click
+
+        cli_ctx = get_cli_context(ctx)
+
+        if cli_ctx._client is None:
+            from ..._uipath import UiPath
+
+            # Validate required environment variables before creating client
+            base_url = os.environ.get("UIPATH_URL")
+            secret = os.environ.get("UIPATH_ACCESS_TOKEN")
+
+            if not base_url:
+                raise click.ClickException(
+                    "UIPATH_URL not configured. Set the UIPATH_URL environment variable or run 'uipath auth'."
+                )
+
+            if not secret:
+                raise click.ClickException(
+                    "Authentication required. Set the UIPATH_ACCESS_TOKEN environment variable or run 'uipath auth'."
+                )
+
+            # Always read authentication from environment variables
+            cli_ctx._client = UiPath(
+                base_url=base_url,
+                secret=secret,
+                debug=cli_ctx.debug,
+            )
+
+        return cli_ctx._client
