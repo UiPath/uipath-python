@@ -16,11 +16,11 @@ from ..models.models import (
     NumericEvaluationResult,
     TrajectoryEvaluationTrace,
 )
-from .base_evaluator import BaseEvaluator
+from .legacy_base_evaluator import LegacyBaseEvaluator
 
 
-class TrajectoryEvaluator(BaseEvaluator[dict[str, Any]]):
-    """Evaluator that analyzes the trajectory/path taken to reach outputs."""
+class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
+    """Legacy evaluator that analyzes the trajectory/path taken to reach outputs."""
 
     prompt: str
     model: str
@@ -38,7 +38,7 @@ class TrajectoryEvaluator(BaseEvaluator[dict[str, Any]]):
             )
         return v
 
-    def model_post_init(self, __context):
+    def model_post_init(self, __context: Any):
         """Initialize the LLM service after model creation."""
         super().model_post_init(__context)
         self._initialize_llm()
@@ -76,7 +76,6 @@ class TrajectoryEvaluator(BaseEvaluator[dict[str, Any]]):
             expected_agent_behavior=agent_execution.expected_agent_behavior,
             agent_run_history=agent_execution.agent_trace,
         )
-
         llm_response = await self._get_llm_response(evaluation_prompt)
 
         return NumericEvaluationResult(
@@ -160,4 +159,4 @@ class TrajectoryEvaluator(BaseEvaluator[dict[str, Any]]):
         }
 
         response = await self.llm.chat_completions(**request_data)
-        return LLMResponse(**json.loads(response.choices[-1].message.content))
+        return LLMResponse(**json.loads(response.choices[-1].message.content or "{}"))

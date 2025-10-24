@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "id": "ContainsEvaluator",
+  "description": "Checks if the response text includes the expected denial code.",
+  "evaluatorTypeId": "uipath-contains",
+  "evaluatorConfig": {
+    "name": "ContainsEvaluator",
+    "targetOutputKey": "result",
+    "negated": false,
+    "ignoreCase": false,
+    "defaultEvaluationCriteria": {
+      "searchText": "5"
+    }
+  }
+}

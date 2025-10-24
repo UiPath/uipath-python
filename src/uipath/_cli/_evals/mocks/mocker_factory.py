@@ -1,7 +1,7 @@
 """Mocker Factory."""
 
 from uipath._cli._evals._models._evaluation_set import (
-    EvaluationItem,
+    AnyEvaluationItem,
     LLMMockingStrategy,
     MockitoMockingStrategy,
 )
@@ -14,7 +14,7 @@ class MockerFactory:
     """Mocker factory."""
 
     @staticmethod
-    def create(evaluation_item: EvaluationItem) -> Mocker:
+    def create(evaluation_item: AnyEvaluationItem) -> Mocker:
         """Create a mocker instance."""
         match evaluation_item.mocking_strategy:
             case LLMMockingStrategy():

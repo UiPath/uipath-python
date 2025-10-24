@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "id": "JsonSimilarityEvaluator",
+  "description": "Checks if the response JSON is similar to the expected JSON structure.",
+  "evaluatorTypeId": "uipath-json-similarity",
+  "evaluatorConfig": {
+    "name": "JsonSimilarityEvaluator",
+    "targetOutputKey": "*",
+    "defaultEvaluationCriteria": {
+      "expectedOutput": {
+        "result": 5.0
+      }
+    }
+  }
+}

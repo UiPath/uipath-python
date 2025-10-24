@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "id": "LLMJudgeOutputEvaluator",
+  "description": "Uses an LLM to judge semantic similarity between expected and actual output.",
+  "evaluatorTypeId": "uipath-llm-judge-output-semantic-similarity",
+  "evaluatorConfig": {
+    "name": "LLMJudgeOutputEvaluator",
+    "targetOutputKey": "*",
+    "model": "gpt-4.1-2025-04-14",
+    "prompt": "Compare the following outputs and evaluate their semantic similarity.\n\nActual Output: {{ActualOutput}}\nExpected Output: {{ExpectedOutput}}\n\nProvide a score from 0-100 where 100 means semantically identical and 0 means completely different.",
+    "temperature": 0.0,
+    "defaultEvaluationCriteria": {
+      "expectedOutput": {
+        "result": 5.0
+      }
+    }
+  }
+}

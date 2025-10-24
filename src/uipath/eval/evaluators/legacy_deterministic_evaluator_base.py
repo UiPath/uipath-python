@@ -4,12 +4,12 @@ import json
 from abc import ABC
 from typing import Any, TypeVar
 
-from .base_evaluator import BaseEvaluator
+from .legacy_base_evaluator import LegacyBaseEvaluator
 
 T = TypeVar("T")
 
 
-class DeterministicEvaluatorBase(BaseEvaluator[T], ABC):
+class DeterministicEvaluatorBase(LegacyBaseEvaluator[T], ABC):
     """Base class for evaluators that produce deterministic, reproducible results.
 
     This class provides utility methods for canonical JSON comparison and number normalization

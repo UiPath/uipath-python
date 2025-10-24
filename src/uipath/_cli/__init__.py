@@ -4,6 +4,7 @@ import sys
 import click
 
 from ._utils._common import add_cwd_to_path, load_environment_variables
+from .cli_add import add as add
 from .cli_auth import auth as auth
 from .cli_debug import debug as debug  # type: ignore
 from .cli_deploy import deploy as deploy  # type: ignore
@@ -16,6 +17,7 @@ from .cli_pack import pack as pack  # type: ignore
 from .cli_publish import publish as publish  # type: ignore
 from .cli_pull import pull as pull  # type: ignore
 from .cli_push import push as push  # type: ignore
+from .cli_register import register as register  # type: ignore
 from .cli_run import run as run  # type: ignore
 
 
@@ -75,4 +77,6 @@ cli.add_command(push)
 cli.add_command(pull)
 cli.add_command(eval)
 cli.add_command(dev)
+cli.add_command(add)
+cli.add_command(register)
 cli.add_command(debug)

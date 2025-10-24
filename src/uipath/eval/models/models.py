@@ -1,7 +1,8 @@
 """Models for evaluation framework including execution data and evaluation results."""
 
+import traceback
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum, IntEnum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -17,6 +18,7 @@ class AgentExecution(BaseModel):
     agent_output: Dict[str, Any]
     agent_trace: list[ReadableSpan]
     expected_agent_behavior: Optional[str] = None
+    simulation_instructions: str = ""
 
 
 class LLMResponse(BaseModel):
@@ -37,7 +39,7 @@ class ScoreType(IntEnum):
 class BaseEvaluationResult(BaseModel):
     """Base class for evaluation results."""
 
-    details: Optional[str] = None
+    details: Optional[str | BaseModel] = None
     # this is marked as optional, as it is populated inside the 'measure_execution_time' decorator
     evaluation_time: Optional[float] = None
 
@@ -76,7 +78,7 @@ class EvalItemResult(BaseModel):
     result: EvaluationResult
 
 
-class EvaluatorCategory(IntEnum):
+class LegacyEvaluatorCategory(IntEnum):
     """Types of evaluators."""
 
     Deterministic = 0
@@ -85,7 +87,7 @@ class EvaluatorCategory(IntEnum):
     Trajectory = 3
 
     @classmethod
-    def from_int(cls, value):
+    def from_int(cls, value: int) -> "LegacyEvaluatorCategory":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
@@ -93,7 +95,7 @@ class EvaluatorCategory(IntEnum):
             raise ValueError(f"{value} is not a valid EvaluatorCategory value")
 
 
-class EvaluatorType(IntEnum):
+class LegacyEvaluatorType(IntEnum):
     """Subtypes of evaluators."""
 
     Unknown = 0
@@ -108,7 +110,7 @@ class EvaluatorType(IntEnum):
     Faithfulness = 9
 
     @classmethod
-    def from_int(cls, value):
+    def from_int(cls, value: int) -> "LegacyEvaluatorType":
         """Construct EvaluatorCategory from an int value."""
         if value in cls._value2member_map_:
             return cls(value)
@@ -209,7 +211,11 @@ class TrajectoryEvaluationTrace(BaseModel):
             TrajectoryEvaluationTrace with converted spans
         """
         # Create a mapping of span IDs to names for parent lookup
-        span_id_to_name = {span.get_span_context().span_id: span.name for span in spans}
+        span_id_to_name = {
+            span.get_span_context().span_id: span.name  # pyright: ignore[reportOptionalMemberAccess]
+            for span in spans
+            if span.get_span_context() is not None
+        }
 
         evaluation_spans = [
             TrajectoryEvaluationSpan.from_readable_span(span, span_id_to_name)
@@ -222,3 +228,99 @@ class TrajectoryEvaluationTrace(BaseModel):
         """Pydantic configuration."""
 
         arbitrary_types_allowed = True
+
+
+class EvaluatorType(str, Enum):
+    """Evaluator type."""
+
+    CONTAINS = "uipath-contains"
+    EXACT_MATCH = "uipath-exact-match"
+    JSON_SIMILARITY = "uipath-json-similarity"
+    LLM_JUDGE_OUTPUT_SEMANTIC_SIMILARITY = "uipath-llm-judge-output-semantic-similarity"
+    LLM_JUDGE_OUTPUT_STRICT_JSON_SIMILARITY = (
+        "uipath-llm-judge-output-strict-json-similarity"
+    )
+    LLM_JUDGE_TRAJECTORY_SIMILARITY = "uipath-llm-judge-trajectory-similarity"
+    LLM_JUDGE_TRAJECTORY_SIMULATION = "uipath-llm-judge-trajectory-simulation"
+    LLM_JUDGE_TRAJECTORY = "uipath-llm-judge-trajectory"
+    LLM_JUDGE_OUTPUT = "uipath-llm-judge-output"
+    TOOL_CALL_ARGS = "uipath-tool-call-args"
+    TOOL_CALL_COUNT = "uipath-tool-call-count"
+    TOOL_CALL_ORDER = "uipath-tool-call-order"
+    TOOL_CALL_OUTPUT = "uipath-tool-call-output"
+
+
+class ToolCall(BaseModel):
+    """Represents a tool call with its arguments."""
+
+    name: str
+    args: dict[str, Any]
+
+
+class ToolOutput(BaseModel):
+    """Represents a tool output with its output."""
+
+    name: str
+    output: str
+
+
+class UiPathEvaluationErrorCategory(str, Enum):
+    """Categories of evaluation errors."""
+
+    SYSTEM = "System"
+    USER = "User"
+    UNKNOWN = "Unknown"
+
+
+class UiPathEvaluationErrorContract(BaseModel):
+    """Standard error contract used across the runtime."""
+
+    code: str  # Human-readable code uniquely identifying this error type across the platform.
+    # Format: <Component>.<PascalCaseErrorCode> (e.g. LangGraph.InvaliGraphReference)
+    # Only use alphanumeric characters [A-Za-z0-9] and periods. No whitespace allowed.
+
+    title: str  # Short, human-readable summary of the problem that should remain consistent
+    # across occurrences.
+
+    detail: (
+        str  # Human-readable explanation specific to this occurrence of the problem.
+    )
+    # May include context, recommended actions, or technical details like call stacks
+    # for technical users.
+
+    category: UiPathEvaluationErrorCategory = UiPathEvaluationErrorCategory.UNKNOWN
+
+
+class UiPathEvaluationError(Exception):
+    """Base exception class for UiPath evaluation errors with structured error information."""
+
+    def __init__(
+        self,
+        code: str,
+        title: str,
+        detail: str,
+        category: UiPathEvaluationErrorCategory = UiPathEvaluationErrorCategory.UNKNOWN,
+        prefix: str = "Python",
+        include_traceback: bool = True,
+    ):
+        """Initialize the UiPathEvaluationError."""
+        # Get the current traceback as a string
+        if include_traceback:
+            tb = traceback.format_exc()
+            if (
+                tb and tb.strip() != "NoneType: None"
+            ):  # Ensure there's an actual traceback
+                detail = f"{detail}\n\n{tb}"
+
+        self.error_info = UiPathEvaluationErrorContract(
+            code=f"{prefix}.{code}",
+            title=title,
+            detail=detail,
+            category=category,
+        )
+        super().__init__(detail)
+
+    @property
+    def as_dict(self) -> Dict[str, Any]:
+        """Get the error information as a dictionary."""
+        return self.error_info.model_dump()

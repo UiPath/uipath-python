@@ -61,6 +61,8 @@ async def upload_source_files_to_project(
     async for update in sw_file_handler.upload_source_files(settings):
         yield update
 
+    await sw_file_handler.upload_coded_evals_files()
+
 
 @click.command()
 @click.argument(
