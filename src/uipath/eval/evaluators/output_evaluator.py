@@ -18,7 +18,7 @@ from .base_evaluator import (
 class OutputEvaluationCriteria(BaseEvaluationCriteria):
     """Base class for all output evaluation criteria."""
 
-    expected_output: dict[str, Any] | str
+    expected_output: dict[str, Any] | str = Field(..., alias="expectedOutput")
 
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)

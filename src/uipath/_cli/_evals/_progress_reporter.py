@@ -12,11 +12,10 @@ from rich.console import Console
 
 from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import (
-    AnyEvaluationItem,
-    AnyEvaluator,
     EvaluationItem,
     EvaluationStatus,
 )
+from uipath._cli._evals._models._evaluator import Evaluator
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
     StudioWebProgressItem,
@@ -132,7 +131,9 @@ class StudioWebProgressReporter:
             return "api/"
         return "agentsruntime_/api/"
 
-    def _is_coded_evaluator(self, evaluators: List[AnyEvaluator]) -> bool:
+    def _is_coded_evaluator(
+        self, evaluators: List[BaseEvaluator[Any, Any, Any]]
+    ) -> bool:
         """Check if evaluators are coded (BaseEvaluator) vs legacy (LegacyBaseEvaluator).
 
         Args:
@@ -231,7 +232,7 @@ class StudioWebProgressReporter:
 
     @gracefully_handle_errors
     async def create_eval_run(
-        self, eval_item: AnyEvaluationItem, eval_set_run_id: str
+        self, eval_item: EvaluationItem, eval_set_run_id: str
     ) -> str:
         """Create a new evaluation run in StudioWeb.
 
@@ -257,7 +258,7 @@ class StudioWebProgressReporter:
     async def update_eval_run(
         self,
         sw_progress_item: StudioWebProgressItem,
-        evaluators: dict[str, AnyEvaluator],
+        evaluators: dict[str, Evaluator],
         is_coded: bool = False,
         spans: list[Any] | None = None,
     ):
@@ -622,7 +623,7 @@ class StudioWebProgressReporter:
         )
 
     def _create_eval_run_spec(
-        self, eval_item: AnyEvaluationItem, eval_set_run_id: str
+        self, eval_item: EvaluationItem, eval_set_run_id: str
     ) -> RequestSpec:
         # Build eval snapshot based on evaluation item type
         eval_snapshot = {
