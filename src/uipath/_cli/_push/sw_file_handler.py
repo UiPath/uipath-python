@@ -13,6 +13,7 @@ from .._evals._helpers import (  # type: ignore
     register_evaluator,
     try_extract_file_and_class_name,
 )
+from .._utils._console import ConsoleLogger
 from .._utils._constants import (
     AGENT_INITIAL_CODE_VERSION,
     AGENT_STORAGE_VERSION,
@@ -65,6 +66,7 @@ class SwFileHandler:
         """
         self.directory = directory
         self.include_uv_lock = include_uv_lock
+        self.console = ConsoleLogger()
         self._studio_client = StudioClient(project_id)
         self._project_structure: Optional[ProjectStructure] = None
 
@@ -191,7 +193,13 @@ class SwFileHandler:
                         id=remote_file.id, content_file_path=local_file.file_path
                     )
                 )
-                logger.info(f"Updating '{local_file.file_name}'")
+                updates.append(
+                    FileOperationUpdate(
+                        file_path=local_file.file_path,
+                        status="updating",
+                        message=f"Updating '{local_file.file_name}'",
+                    )
+                )
             else:
                 # File doesn't exist remotely - mark for upload
                 parent_path = os.path.dirname(local_file.relative_path)
@@ -203,7 +211,13 @@ class SwFileHandler:
                         else "source_code",
                     )
                 )
-                logger.info(f"Uploading '{local_file.relative_path}'")
+                updates.append(
+                    FileOperationUpdate(
+                        file_path=local_file.file_path,
+                        status="uploading",
+                        message=f"Uploading '{local_file.file_name}'",
+                    )
+                )
 
         # Identify and add deleted files (files that exist remotely but not locally)
         deleted_files = self._collect_deleted_files(
@@ -714,6 +728,7 @@ class SwFileHandler:
             # Refresh structure to get the new folders
             structure = await self._studio_client.get_project_structure_async()
             coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
+            assert coded_evals_folder, "Coded-evals folder uploaded but not found."
 
         return coded_evals_folder
 
@@ -817,111 +832,114 @@ class SwFileHandler:
         evaluators_folder = self._get_subfolder_by_name(
             coded_evals_folder, "evaluators"
         )
-        eval_sets_folder = self._get_subfolder_by_name(coded_evals_folder, "eval-sets")
-        custom_evaluators_folder = self._get_subfolder_by_name(
-            evaluators_folder, "custom"
-        )
-        evaluator_types_folder = None
-        if custom_evaluators_folder:
-            evaluator_types_folder = self._get_subfolder_by_name(
-                custom_evaluators_folder, "types"
+        if evaluators_folder:
+            eval_sets_folder = self._get_subfolder_by_name(
+                coded_evals_folder, "eval-sets"
+            )
+            custom_evaluators_folder = self._get_subfolder_by_name(
+                evaluators_folder, "custom"
+            )
+            evaluator_types_folder = None
+            if custom_evaluators_folder:
+                evaluator_types_folder = self._get_subfolder_by_name(
+                    custom_evaluators_folder, "types"
+                )
+
+            remote_evaluator_files = self._collect_files_from_folder(evaluators_folder)
+            remote_eval_set_files = self._collect_files_from_folder(eval_sets_folder)
+            remote_custom_evaluator_files = self._collect_files_from_folder(
+                custom_evaluators_folder
+            )
+            remote_custom_evaluator_type_files = self._collect_files_from_folder(
+                evaluator_types_folder
             )
 
-        remote_evaluator_files = self._collect_files_from_folder(evaluators_folder)
-        remote_eval_set_files = self._collect_files_from_folder(eval_sets_folder)
-        remote_custom_evaluator_files = self._collect_files_from_folder(
-            custom_evaluators_folder
-        )
-        remote_custom_evaluator_type_files = self._collect_files_from_folder(
-            evaluator_types_folder
-        )
+            # Create structural migration for coded-evals files
+            structural_migration = StructuralMigration(
+                deleted_resources=[], added_resources=[], modified_resources=[]
+            )
 
-        # Create structural migration for coded-evals files
-        structural_migration = StructuralMigration(
-            deleted_resources=[], added_resources=[], modified_resources=[]
-        )
+            processed_evaluator_ids: Set[str] = set()
+            processed_eval_set_ids: Set[str] = set()
+            processed_custom_evaluator_ids: Set[str] = set()
+            processed_evaluator_type_ids: Set[str] = set()
 
-        processed_evaluator_ids: Set[str] = set()
-        processed_eval_set_ids: Set[str] = set()
-        processed_custom_evaluator_ids: Set[str] = set()
-        processed_evaluator_type_ids: Set[str] = set()
+            for evaluator in evaluator_details:
+                if evaluator.is_custom:
+                    evaluator_schema_file_path, evaluator_types_file_path = (
+                        register_evaluator(evaluator.custom_evaluator_file_name)
+                    )
 
-        for evaluator in evaluator_details:
-            if evaluator.is_custom:
-                evaluator_schema_file_path, evaluator_types_file_path = (
-                    register_evaluator(evaluator.custom_evaluator_file_name)
-                )
+                    self._process_file_sync(
+                        evaluator_schema_file_path,
+                        remote_custom_evaluator_files,
+                        "coded-evals/evaluators/custom",
+                        "coded-evals/evaluators/custom",
+                        structural_migration,
+                        processed_custom_evaluator_ids,
+                    )
+
+                    self._process_file_sync(
+                        evaluator_types_file_path,
+                        remote_custom_evaluator_type_files,
+                        "coded-evals/evaluators/custom/types",
+                        "coded-evals/evaluators/custom/types",
+                        structural_migration,
+                        processed_evaluator_type_ids,
+                    )
 
                 self._process_file_sync(
-                    evaluator_schema_file_path,
-                    remote_custom_evaluator_files,
-                    "coded-evals/evaluators/custom",
-                    "coded-evals/evaluators/custom",
+                    evaluator.path,
+                    remote_evaluator_files,
+                    "coded-evals/evaluators",
+                    "coded-evals/evaluators",
                     structural_migration,
-                    processed_custom_evaluator_ids,
+                    processed_evaluator_ids,
                 )
 
+            for eval_set_file in eval_set_files:
                 self._process_file_sync(
-                    evaluator_types_file_path,
-                    remote_custom_evaluator_type_files,
-                    "coded-evals/evaluators/custom/types",
-                    "coded-evals/evaluators/custom/types",
+                    eval_set_file,
+                    remote_eval_set_files,
+                    "coded-evals/eval-sets",
+                    "coded-evals/eval-sets",
                     structural_migration,
-                    processed_evaluator_type_ids,
+                    processed_eval_set_ids,
                 )
 
-            self._process_file_sync(
-                evaluator.path,
+            self._collect_deleted_remote_files(
                 remote_evaluator_files,
-                "coded-evals/evaluators",
-                "coded-evals/evaluators",
-                structural_migration,
                 processed_evaluator_ids,
+                "coded-evals/evaluators",
+                structural_migration,
             )
 
-        for eval_set_file in eval_set_files:
-            self._process_file_sync(
-                eval_set_file,
+            self._collect_deleted_remote_files(
                 remote_eval_set_files,
-                "coded-evals/eval-sets",
+                processed_eval_set_ids,
                 "coded-evals/eval-sets",
                 structural_migration,
-                processed_eval_set_ids,
             )
 
-        self._collect_deleted_remote_files(
-            remote_evaluator_files,
-            processed_evaluator_ids,
-            "coded-evals/evaluators",
-            structural_migration,
-        )
-
-        self._collect_deleted_remote_files(
-            remote_eval_set_files,
-            processed_eval_set_ids,
-            "coded-evals/eval-sets",
-            structural_migration,
-        )
-
-        self._collect_deleted_remote_files(
-            remote_custom_evaluator_files,
-            processed_custom_evaluator_ids,
-            "coded-evals/evaluators/custom",
-            structural_migration,
-        )
-
-        self._collect_deleted_remote_files(
-            remote_custom_evaluator_type_files,
-            processed_evaluator_type_ids,
-            "coded-evals/evaluators/custom/types",
-            structural_migration,
-        )
-
-        if (
-            structural_migration.added_resources
-            or structural_migration.modified_resources
-            or structural_migration.deleted_resources
-        ):
-            await self._studio_client.perform_structural_migration_async(
-                structural_migration
+            self._collect_deleted_remote_files(
+                remote_custom_evaluator_files,
+                processed_custom_evaluator_ids,
+                "coded-evals/evaluators/custom",
+                structural_migration,
             )
+
+            self._collect_deleted_remote_files(
+                remote_custom_evaluator_type_files,
+                processed_evaluator_type_ids,
+                "coded-evals/evaluators/custom/types",
+                structural_migration,
+            )
+
+            if (
+                structural_migration.added_resources
+                or structural_migration.modified_resources
+                or structural_migration.deleted_resources
+            ):
+                await self._studio_client.perform_structural_migration_async(
+                    structural_migration
+                )

@@ -207,91 +207,111 @@ class EvaluatorFactory:
     def _create_exact_match_evaluator(
         data: Dict[str, Any],
     ) -> ExactMatchEvaluator:
-        return ExactMatchEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(ExactMatchEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_json_similarity_evaluator(
         data: Dict[str, Any],
     ) -> JsonSimilarityEvaluator:
-        return JsonSimilarityEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(JsonSimilarityEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_llm_judge_output_evaluator(
         data: Dict[str, Any],
     ) -> LLMJudgeOutputEvaluator:
-        return LLMJudgeOutputEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_llm_judge_strict_json_similarity_output_evaluator(
         data: Dict[str, Any],
     ) -> LLMJudgeStrictJSONSimilarityOutputEvaluator:
-        return LLMJudgeStrictJSONSimilarityOutputEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(LLMJudgeStrictJSONSimilarityOutputEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_trajectory_evaluator(
         data: Dict[str, Any],
     ) -> LLMJudgeTrajectoryEvaluator:
-        return LLMJudgeTrajectoryEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(LLMJudgeTrajectoryEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_tool_call_args_evaluator(
         data: Dict[str, Any],
     ) -> ToolCallArgsEvaluator:
-        return ToolCallArgsEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(ToolCallArgsEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_tool_call_count_evaluator(
         data: Dict[str, Any],
     ) -> ToolCallCountEvaluator:
-        return ToolCallCountEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(ToolCallCountEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_tool_call_order_evaluator(
         data: Dict[str, Any],
     ) -> ToolCallOrderEvaluator:
-        return ToolCallOrderEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(ToolCallOrderEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_tool_call_output_evaluator(
         data: Dict[str, Any],
     ) -> ToolCallOutputEvaluator:
-        return ToolCallOutputEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(ToolCallOutputEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_llm_judge_simulation_trajectory_evaluator(
         data: Dict[str, Any],
     ) -> LLMJudgeTrajectorySimulationEvaluator:
-        return LLMJudgeTrajectorySimulationEvaluator(
-            id=data.get("id"),
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(LLMJudgeTrajectorySimulationEvaluator).validate_python(
+            {
+                "id": data.get("id"),
+                "config": data.get("evaluatorConfig"),
+            }
+        )
 
     @staticmethod
     def _create_legacy_evaluator_internal(

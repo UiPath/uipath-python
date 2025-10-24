@@ -486,7 +486,7 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             The JSON schema for the evaluation criteria type
         """
         criteria_type = cls._extract_evaluation_criteria_type()
-        return criteria_type.model_json_schema()
+        return criteria_type.model_json_schema(by_alias=False)
 
     @classmethod
     def get_config_schema(cls) -> dict[str, Any]:
@@ -496,7 +496,7 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             The JSON schema for the config type
         """
         config_type = cls._extract_config_type()
-        return config_type.model_json_schema()
+        return config_type.model_json_schema(by_alias=False)
 
     @classmethod
     def get_justification_schema(cls) -> dict[str, Any]:
@@ -513,7 +513,7 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         elif isinstance(justification_type, type) and issubclass(
             justification_type, BaseEvaluatorJustification
         ):
-            return justification_type.model_json_schema()
+            return justification_type.model_json_schema(by_alias=False)
         else:
             raise UiPathEvaluationError(
                 code="INVALID_JUSTIFICATION_TYPE",

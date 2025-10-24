@@ -63,7 +63,8 @@ def pull(root: Path) -> None:
 
         async def run_pull():
             async for update in pull_project(project_id, download_configuration):
-                console.info(f"Processing: {update.path}")
+                console.info(f"Processing: {update.file_path}")
+                console.info(update.message)
 
         asyncio.run(run_pull())
         console.success("Project pulled successfully")

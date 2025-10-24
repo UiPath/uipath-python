@@ -4,6 +4,8 @@ This module tests the deduplication and aggregation functionality
 in UiPathEvalOutput.calculate_final_score().
 """
 
+import uuid
+
 import pytest
 
 from uipath._cli._evals._models._output import (
@@ -21,7 +23,6 @@ class TestEvaluationResultAggregation:
         """Test evaluation result aggregation with empty results."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[],
         )
 
@@ -34,13 +35,13 @@ class TestEvaluationResultAggregation:
         """Test evaluation result aggregation with single evaluator across multiple datapoints."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         )
                     ],
@@ -50,6 +51,7 @@ class TestEvaluationResultAggregation:
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         )
                     ],
@@ -59,6 +61,7 @@ class TestEvaluationResultAggregation:
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
                         )
                     ],
@@ -76,17 +79,18 @@ class TestEvaluationResultAggregation:
         """Test evaluation result aggregation with multiple evaluators."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ContainsEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.9),
                         ),
                     ],
@@ -96,10 +100,12 @@ class TestEvaluationResultAggregation:
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ContainsEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.7),
                         ),
                     ],
@@ -122,7 +128,6 @@ class TestEvaluationResultAggregation:
         """Test evaluation result aggregation with duplicate evaluator results on same datapoint."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
@@ -130,14 +135,17 @@ class TestEvaluationResultAggregation:
                         # Multiple ExactMatch results for same datapoint (should be averaged)
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",  # Duplicate!
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",  # Another duplicate!
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
                         ),
                     ],
@@ -147,6 +155,7 @@ class TestEvaluationResultAggregation:
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.5),
                         ),
                     ],
@@ -166,17 +175,18 @@ class TestEvaluationResultAggregation:
         """Test evaluation result aggregation with evaluator weights."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ContainsEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
                         ),
                     ],
@@ -204,17 +214,18 @@ class TestEvaluationResultAggregation:
         """Test evaluation result aggregation when some evaluators are missing from weights dict."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="UnknownEvaluator",  # Not in weights
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
                         ),
                     ],
@@ -235,17 +246,18 @@ class TestEvaluationResultAggregation:
         """Test evaluation result aggregation with custom default weight."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="UnknownEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
                         ),
                     ],
@@ -278,25 +290,28 @@ class TestEvaluationResultAggregation:
 
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatch",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.5),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatch",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="Contains",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ToolCallCount",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                     ],
@@ -306,10 +321,12 @@ class TestEvaluationResultAggregation:
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatch",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.0),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="Contains",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                     ],
@@ -319,10 +336,12 @@ class TestEvaluationResultAggregation:
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatch",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ToolCallCount",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                     ],
@@ -350,13 +369,13 @@ class TestEvaluationResultAggregation:
         """Test simplest case: single datapoint, single evaluator."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.85),
                         ),
                     ],
@@ -373,13 +392,13 @@ class TestEvaluationResultAggregation:
         """Test when different datapoints have different evaluators."""
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
-            score=0.0,
             evaluation_set_results=[
                 EvaluationRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
                     ],
@@ -389,6 +408,7 @@ class TestEvaluationResultAggregation:
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ContainsEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.9),
                         ),
                     ],
@@ -398,10 +418,12 @@ class TestEvaluationResultAggregation:
                     evaluation_run_results=[
                         EvaluationRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                         EvaluationRunResultDto(
                             evaluator_name="ContainsEvaluator",
+                            evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.7),
                         ),
                     ],

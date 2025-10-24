@@ -39,9 +39,7 @@ class LLMJudgeOutputEvaluatorConfig(BaseLLMJudgeOutputCriteriaEvaluatorConfig):
     prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_DEFAULT_USER_PROMPT
 
 
-class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(
-    BaseLLMJudgeOutputCriteriaEvaluatorConfig
-):
+class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(LLMJudgeOutputEvaluatorConfig):
     """Configuration for the LLM judge strict JSON similarity output evaluator."""
 
     name: str = "LLMJudgeStrictJSONSimilarityOutputEvaluator"

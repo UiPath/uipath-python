@@ -262,32 +262,40 @@ class StudioWebProgressReporter:
         spans: list[Any] | None = None,
     ):
         """Update an evaluation run with results."""
-        if is_coded:
-            # Use coded evaluator format
-            evaluator_runs, evaluator_scores = self._collect_coded_results(
-                sw_progress_item.eval_results, evaluators, spans or []
-            )
-            spec = self._update_coded_eval_run_spec(
-                evaluator_runs=evaluator_runs,
-                evaluator_scores=evaluator_scores,
-                eval_run_id=sw_progress_item.eval_run_id,
-                execution_time=sw_progress_item.agent_execution_time,
-                actual_output=sw_progress_item.agent_output,
-            )
-        else:
-            # Use legacy evaluator format
-            assertion_runs, evaluator_scores = self._collect_results(
-                sw_progress_item.eval_results,
-                evaluators,
-                spans or [],  # type: ignore
-            )
-            spec = self._update_eval_run_spec(
-                assertion_runs=assertion_runs,
-                evaluator_scores=evaluator_scores,
-                eval_run_id=sw_progress_item.eval_run_id,
-                execution_time=sw_progress_item.agent_execution_time,
-                actual_output=sw_progress_item.agent_output,
-            )
+        coded_evaluators: dict[str, BaseEvaluator[Any, Any, Any]] = {}
+        legacy_evaluators: dict[str, LegacyBaseEvaluator[Any]] = {}
+        evaluator_runs: list[dict[str, Any]] = []
+        evaluator_scores: list[dict[str, Any]] = []
+
+        for k, v in evaluators.items():
+            if isinstance(v, BaseEvaluator):
+                coded_evaluators[k] = v
+            elif isinstance(v, LegacyBaseEvaluator):
+                legacy_evaluators[k] = v
+
+        # Use coded evaluator format
+        runs, scores = self._collect_coded_results(
+            sw_progress_item.eval_results, coded_evaluators, spans or []
+        )
+        evaluator_runs.extend(runs)
+        evaluator_scores.extend(scores)
+
+        # Use legacy evaluator format
+        runs, scores = self._collect_results(
+            sw_progress_item.eval_results,
+            legacy_evaluators,
+            spans or [],
+        )
+        evaluator_runs.extend(runs)
+        evaluator_scores.extend(scores)
+
+        spec = self._update_eval_run_spec(
+            assertion_runs=evaluator_runs,
+            evaluator_scores=evaluator_scores,
+            eval_run_id=sw_progress_item.eval_run_id,
+            execution_time=sw_progress_item.agent_execution_time,
+            actual_output=sw_progress_item.agent_output,
+        )
 
         await self._client.request_async(
             method=spec.method,
@@ -514,7 +522,7 @@ class StudioWebProgressReporter:
     def _collect_coded_results(
         self,
         eval_results: list[EvalItemResult],
-        evaluators: dict[str, AnyEvaluator],
+        evaluators: dict[str, BaseEvaluator[Any, Any, Any]],
         spans: list[Any],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Collect results for coded evaluators.

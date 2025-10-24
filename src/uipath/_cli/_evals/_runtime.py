@@ -43,7 +43,6 @@ from ._models._evaluation_set import (
     AnyEvaluationSet,
     AnyEvaluator,
     EvaluationItem,
-    EvaluationSet,
     LegacyEvaluationItem,
 )
 from ._models._exceptions import EvaluationRuntimeException
@@ -254,7 +253,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_sequential(
         self,
-        evaluation_set: EvaluationSet,
+        evaluation_set: AnyEvaluationSet,
         evaluators: List[AnyEvaluator],
         event_bus: EventBus,
     ) -> List[EvaluationRunResult]:
@@ -269,7 +268,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_parallel(
         self,
-        evaluation_set: EvaluationSet,
+        evaluation_set: AnyEvaluationSet,
         evaluators: List[AnyEvaluator],
         event_bus: EventBus,
         workers: int,
@@ -285,7 +284,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         # Producer task to fill the queue
         async def producer() -> None:
             for index, eval_item in enumerate(evaluation_set.evaluations):
-                await queue.put((index, eval_item))
+                await queue.put((index, eval_item))  # type: ignore[arg-type]
             # Signal completion by putting None markers
             for _ in range(workers):
                 await queue.put(None)  # type: ignore
