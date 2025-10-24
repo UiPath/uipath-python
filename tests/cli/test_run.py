@@ -120,6 +120,7 @@ class TestRun:
                         debug=False,
                         debug_port=5678,
                         execution_output_file=None,
+                        trace_file=None,
                     )
 
     class TestMiddleware:

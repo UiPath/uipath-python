@@ -16,6 +16,7 @@ from ..models.runtime_schema import BindingResource, Entrypoint
 from ._contracts import (
     UiPathBaseRuntime,
     UiPathErrorCategory,
+    UiPathErrorCode,
     UiPathRuntimeContext,
     UiPathRuntimeError,
     UiPathRuntimeResult,
@@ -66,7 +67,7 @@ class UiPathRuntime(UiPathBaseRuntime):
                 raise
 
             raise UiPathRuntimeError(
-                "EXECUTION_ERROR",
+                UiPathErrorCode.EXECUTION_ERROR,
                 "Python script execution failed",
                 f"Error: {str(e)}",
                 UiPathErrorCategory.SYSTEM,

@@ -8,7 +8,7 @@ from .cli_auth import auth as auth
 from .cli_debug import debug as debug  # type: ignore
 from .cli_deploy import deploy as deploy  # type: ignore
 from .cli_dev import dev as dev
-from .cli_eval import eval as eval  # type: ignore
+from .cli_eval import eval as eval
 from .cli_init import init as init  # type: ignore
 from .cli_invoke import invoke as invoke  # type: ignore
 from .cli_new import new as new  # type: ignore
