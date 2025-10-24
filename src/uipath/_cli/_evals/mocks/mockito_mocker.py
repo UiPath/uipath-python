@@ -9,7 +9,7 @@ from hydra.utils import instantiate
 from mockito import invocation, mocking  # type: ignore[import-untyped]
 
 from uipath._cli._evals._models._evaluation_set import (
-    AnyEvaluationItem,
+    EvaluationItem,
     MockingAnswerType,
     MockitoMockingStrategy,
 )
@@ -38,7 +38,7 @@ class Stub:
 class MockitoMocker(Mocker):
     """Mockito Mocker."""
 
-    def __init__(self, evaluation_item: AnyEvaluationItem):
+    def __init__(self, evaluation_item: EvaluationItem):
         """Instantiate a mockito mocker."""
         self.evaluation_item = evaluation_item
         assert isinstance(self.evaluation_item.mocking_strategy, MockitoMockingStrategy)

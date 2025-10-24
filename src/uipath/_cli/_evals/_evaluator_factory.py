@@ -6,7 +6,6 @@ from typing import Any, Dict
 from pydantic import TypeAdapter
 
 from uipath._cli._evals._helpers import try_extract_file_and_class_name  # type: ignore
-from uipath._cli._evals._models._evaluation_set import AnyEvaluator
 from uipath._cli._evals._models._evaluator import (
     EqualsEvaluatorParams,
     EvaluatorConfig,
@@ -72,10 +71,11 @@ class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
 
     @classmethod
-    def create_evaluator(cls, data: Dict[str, Any]) -> AnyEvaluator:
+    def create_evaluator(cls, data: Dict[str, Any]) -> BaseEvaluator[Any, Any, Any]:
         if data.get("version", None) == "1.0":
             return cls._create_evaluator_internal(data)
-        return cls._create_legacy_evaluator_internal(data)
+        else:
+            return cls._create_legacy_evaluator_internal(data)
 
     @staticmethod
     def _create_evaluator_internal(
@@ -352,14 +352,14 @@ class EvaluatorFactory:
         params: EqualsEvaluatorParams,
     ) -> LegacyExactMatchEvaluator:
         """Create a deterministic evaluator."""
-        return LegacyExactMatchEvaluator(**params.model_dump())
+        return LegacyExactMatchEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_json_similarity_evaluator(
         params: JsonSimilarityEvaluatorParams,
     ) -> LegacyJsonSimilarityEvaluator:
         """Create a deterministic evaluator."""
-        return LegacyJsonSimilarityEvaluator(**params.model_dump())
+        return LegacyJsonSimilarityEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_llm_as_judge_evaluator(
@@ -376,7 +376,7 @@ class EvaluatorFactory:
                 "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
             )
 
-        return LegacyLlmAsAJudgeEvaluator(**params.model_dump())
+        return LegacyLlmAsAJudgeEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_trajectory_evaluator(
@@ -393,4 +393,4 @@ class EvaluatorFactory:
                 "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
             )
 
-        return LegacyTrajectoryEvaluator(**params.model_dump())
+        return LegacyTrajectoryEvaluator(**params.model_dump(), config={})

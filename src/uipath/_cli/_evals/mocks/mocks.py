@@ -4,13 +4,13 @@ import logging
 from contextvars import ContextVar
 from typing import Any, Callable, Optional
 
-from uipath._cli._evals._models._evaluation_set import AnyEvaluationItem
+from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath._cli._evals._span_collection import ExecutionSpanCollector
 from uipath._cli._evals.mocks.mocker import Mocker, UiPathNoMockFoundError
 from uipath._cli._evals.mocks.mocker_factory import MockerFactory
 
 # Context variables for evaluation items and mockers
-evaluation_context: ContextVar[Optional[AnyEvaluationItem]] = ContextVar(
+evaluation_context: ContextVar[Optional[EvaluationItem]] = ContextVar(
     "evaluation", default=None
 )
 
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def set_execution_context(
-    eval_item: AnyEvaluationItem,
+    eval_item: EvaluationItem,
     span_collector: ExecutionSpanCollector,
     execution_id: str,
 ) -> None:

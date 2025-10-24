@@ -14,11 +14,10 @@ from rich.console import Console
 
 from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import (
-    AnyEvaluationItem,
-    AnyEvaluator,
     EvaluationItem,
     EvaluationStatus,
 )
+from uipath._cli._evals._models._evaluator import Evaluator
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
     StudioWebProgressItem,
@@ -41,7 +40,10 @@ from uipath._utils.constants import (
     ENV_TENANT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
-from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
+from uipath.eval.evaluators import (
+    BaseEvaluator,
+    LegacyBaseEvaluator,
+)
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -134,7 +136,9 @@ class StudioWebProgressReporter:
             return "api/"
         return "agentsruntime_/api/"
 
-    def _is_coded_evaluator(self, evaluators: List[AnyEvaluator]) -> bool:
+    def _is_coded_evaluator(
+        self, evaluators: List[BaseEvaluator[Any, Any, Any]]
+    ) -> bool:
         """Check if evaluators are coded (BaseEvaluator) vs legacy (LegacyBaseEvaluator).
 
         Args:
@@ -146,7 +150,7 @@ class StudioWebProgressReporter:
         if not evaluators:
             return False
         # Check the first evaluator type
-        return isinstance(evaluators[0], BaseEvaluator)
+        return not isinstance(evaluators[0], LegacyBaseEvaluator)
 
     def _extract_usage_from_spans(
         self, spans: list[Any]
@@ -236,7 +240,7 @@ class StudioWebProgressReporter:
 
     @gracefully_handle_errors
     async def create_eval_run(
-        self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
+        self, eval_item: EvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> str:
         """Create a new evaluation run in StudioWeb.
 
@@ -263,7 +267,7 @@ class StudioWebProgressReporter:
     async def update_eval_run(
         self,
         sw_progress_item: StudioWebProgressItem,
-        evaluators: dict[str, AnyEvaluator],
+        evaluators: dict[str, Evaluator],
         is_coded: bool = False,
         spans: list[Any] | None = None,
     ):
@@ -704,7 +708,7 @@ class StudioWebProgressReporter:
         )
 
     def _create_eval_run_spec(
-        self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
+        self, eval_item: EvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> RequestSpec:
         # Legacy API expects eval IDs as GUIDs, coded accepts strings
         # Convert string IDs to deterministic GUIDs for legacy

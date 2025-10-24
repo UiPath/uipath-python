@@ -16,10 +16,20 @@ from ..models.models import (
     NumericEvaluationResult,
     TrajectoryEvaluationTrace,
 )
-from .legacy_base_evaluator import LegacyBaseEvaluator
+from .legacy_base_evaluator import (
+    LegacyBaseEvaluator,
+    LegacyEvaluationCriteria,
+    LegacyEvaluatorConfig,
+)
 
 
-class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
+class LegacyTrajectoryEvaluatorConfig(LegacyEvaluatorConfig):
+    """Configuration for legacy trajectory evaluators."""
+
+    name: str = "LegacyTrajectoryEvaluator"
+
+
+class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorConfig]):
     """Legacy evaluator that analyzes the trajectory/path taken to reach outputs."""
 
     prompt: str
@@ -53,7 +63,7 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
     async def evaluate(
         self,
         agent_execution: AgentExecution,
-        evaluation_criteria: dict[str, Any],
+        evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate using trajectory analysis.
 

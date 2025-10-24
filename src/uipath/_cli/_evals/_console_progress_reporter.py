@@ -7,7 +7,6 @@ from rich.console import Console
 from rich.rule import Rule
 from rich.table import Table
 
-from uipath._cli._evals._models._evaluation_set import AnyEvaluator
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -16,6 +15,7 @@ from uipath._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
+from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import ScoreType
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class ConsoleProgressReporter:
 
     def __init__(self):
         self.console = Console()
-        self.evaluators: Dict[str, AnyEvaluator] = {}
+        self.evaluators: Dict[str, BaseEvaluator[Any, Any, Any]] = {}
         self.display_started = False
         self.eval_results_by_name: Dict[str, list[Any]] = {}
 

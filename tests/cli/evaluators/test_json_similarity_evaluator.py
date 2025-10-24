@@ -9,6 +9,7 @@ import pytest
 
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import LegacyJsonSimilarityEvaluator
+from uipath.eval.evaluators.legacy_base_evaluator import LegacyEvaluationCriteria
 from uipath.eval.models.models import (
     AgentExecution,
     LegacyEvaluatorCategory,
@@ -34,6 +35,7 @@ class TestJsonSimilarityEvaluator:
     async def test_json_similarity_exact_score_1(self) -> None:
         evaluator = LegacyJsonSimilarityEvaluator(
             **_make_base_params().model_dump(),
+            config={},
         )
         expected_json = """
             {
@@ -70,7 +72,10 @@ class TestJsonSimilarityEvaluator:
                 agent_trace=[],
                 agent_output=json.loads(actual_json),
             ),
-            evaluation_criteria=json.loads(expected_json),
+            evaluation_criteria=LegacyEvaluationCriteria(
+                expected_output=json.loads(expected_json),
+                expected_agent_behavior="",
+            ),
         )
 
         assert result.score == 68.0
@@ -79,6 +84,7 @@ class TestJsonSimilarityEvaluator:
     async def test_json_similarity_exact_score_2(self) -> None:
         evaluator = LegacyJsonSimilarityEvaluator(
             **_make_base_params().model_dump(),
+            config={},
         )
         expected_json = """
         {
@@ -105,7 +111,10 @@ class TestJsonSimilarityEvaluator:
                 agent_trace=[],
                 agent_output=json.loads(actual_json),
             ),
-            evaluation_criteria=json.loads(expected_json),
+            evaluation_criteria=LegacyEvaluationCriteria(
+                expected_output=json.loads(expected_json),
+                expected_agent_behavior="",
+            ),
         )
 
         assert result.score >= 82.333
@@ -115,6 +124,7 @@ class TestJsonSimilarityEvaluator:
     async def test_json_similarity_exact_score_3(self) -> None:
         evaluator = LegacyJsonSimilarityEvaluator(
             **_make_base_params().model_dump(),
+            config={},
         )
         expected_json = """
         {
@@ -138,7 +148,10 @@ class TestJsonSimilarityEvaluator:
                 agent_trace=[],
                 agent_output=json.loads(actual_json),
             ),
-            evaluation_criteria=json.loads(expected_json),
+            evaluation_criteria=LegacyEvaluationCriteria(
+                expected_output=json.loads(expected_json),
+                expected_agent_behavior="",
+            ),
         )
 
         assert result.score >= 33.333
@@ -148,6 +161,7 @@ class TestJsonSimilarityEvaluator:
     async def test_json_similarity_exact_score_4(self) -> None:
         evaluator = LegacyJsonSimilarityEvaluator(
             **_make_base_params().model_dump(),
+            config={},
         )
         expected_json = """
         {
@@ -231,7 +245,10 @@ class TestJsonSimilarityEvaluator:
                 agent_trace=[],
                 agent_output=json.loads(actual_json),
             ),
-            evaluation_criteria=json.loads(expected_json),
+            evaluation_criteria=LegacyEvaluationCriteria(
+                expected_output=json.loads(expected_json),
+                expected_agent_behavior="",
+            ),
         )
 
         assert result.score == 43.24977043158861

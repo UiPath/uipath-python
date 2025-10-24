@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict, Field
 
 from uipath.eval.models import EvaluationResult
 from uipath.eval.models.models import (
@@ -15,6 +15,8 @@ from uipath.eval.models.models import (
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
 )
+
+from .base_evaluator import BaseEvaluationCriteria, BaseEvaluator, BaseEvaluatorConfig
 
 
 def track_evaluation_metrics(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -39,16 +41,36 @@ def track_evaluation_metrics(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-T = TypeVar("T")
+# Legacy evaluator config (non-generic version for simplicity)
+class LegacyEvaluatorConfig(BaseEvaluatorConfig[BaseEvaluationCriteria]):
+    """Configuration for legacy evaluators."""
+
+    name: str = "LegacyEvaluator"
+    default_evaluation_criteria: None = None  # Legacy evaluators don't use this
 
 
-class LegacyBaseEvaluator(BaseModel, Generic[T], ABC):
-    """Abstract base class for all evaluators."""
+class LegacyEvaluationCriteria(BaseEvaluationCriteria):
+    """Legacy evaluation criteria."""
+
+    expected_output: Any = Field(alias="expectedOutput")
+    expected_agent_behavior: str = Field(alias="expectedAgentBehavior")
+
+
+T = TypeVar("T", bound=LegacyEvaluatorConfig)
+
+
+class LegacyBaseEvaluator(
+    BaseEvaluator[LegacyEvaluationCriteria, T, str], Generic[T], ABC
+):
+    """Abstract base class for all legacy evaluators.
+
+    Inherits from BaseEvaluator to share common evaluator infrastructure while maintaining
+    legacy-specific fields and behavior.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    id: str
-    name: str
+    # Legacy-specific fields (in addition to inherited fields from BaseEvaluator)
     description: str
     target_output_key: str = "*"
     created_at: str
@@ -56,23 +78,27 @@ class LegacyBaseEvaluator(BaseModel, Generic[T], ABC):
     category: LegacyEvaluatorCategory
     evaluator_type: LegacyEvaluatorType
 
-    def __init_subclass__(cls, **kwargs: Any):
-        """Hook for subclass creation - automatically applies evaluation metrics tracking."""
-        super().__init_subclass__(**kwargs)
-
-        if hasattr(cls, "evaluate") and not getattr(
-            cls.evaluate, "_has_metrics_decorator", False
-        ):
-            cls.evaluate = track_evaluation_metrics(cls.evaluate)  # type: ignore[method-assign]
-            cls.evaluate._has_metrics_decorator = True  # type: ignore[attr-defined]
+    # Note: __init_subclass__ is inherited from BaseEvaluator and handles metrics tracking
 
     def model_post_init(self, __context: Any):
         """Post-initialization hook for Pydantic models."""
-        pass
+        # Ensure config is set up for legacy evaluators
+        super().model_post_init(__context)
+
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id.
+
+        For legacy evaluators, this returns a placeholder. Actual evaluator instances
+        have an 'id' field that identifies them.
+        """
+        return "legacy-evaluator"
 
     @abstractmethod
     async def evaluate(
-        self, agent_execution: AgentExecution, evaluation_criteria: T
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate the given data and return a result.
 
@@ -81,9 +107,14 @@ class LegacyBaseEvaluator(BaseModel, Generic[T], ABC):
                 - agent_input: The input received by the agent
                 - actual_output: The actual output from the agent
                 - spans: The execution spans to use for the evaluation
-            evaluation_criteria: The criteria to evaluate
+            evaluation_criteria: The criteria to evaluate (legacy evaluators accept any type)
 
         Returns:
             EvaluationResult containing the score and details
+
+        Note:
+            The type: ignore[override] is necessary because legacy evaluators accept
+            evaluation_criteria of any type T, while the base class expects BaseEvaluationCriteria.
+            This is intentional to maintain backward compatibility with legacy evaluators.
         """
         pass
