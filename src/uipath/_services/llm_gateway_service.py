@@ -344,7 +344,7 @@ class UiPathLlmChatService(BaseService):
     @traced(name="llm_chat_completions", run_type="uipath")
     async def chat_completions(
         self,
-        messages: List[Dict[str, str]],
+        messages: Union[List[Dict[str, str]], List[tuple[str, str]]],
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 4096,
         temperature: float = 0,
@@ -475,13 +475,26 @@ class UiPathLlmChatService(BaseService):
             This service uses UiPath's normalized API format which provides consistent
             behavior across different underlying model providers and enhanced enterprise features.
         """
+        converted_messages = []
+
+        for message in messages:
+            if isinstance(message, tuple) and len(message) == 2:
+                role, content = message
+                converted_messages.append({"role": role, "content": content})
+            elif isinstance(message, dict):
+                converted_messages.append(message)
+            else:
+                raise ValueError(
+                    f"Invalid message format: {message}. Expected tuple (role, content) or dict with 'role' and 'content' keys."
+                )
+
         endpoint = EndpointManager.get_normalized_endpoint().format(
             model=model, api_version=api_version
         )
         endpoint = Endpoint("/" + endpoint)
 
         request_body = {
-            "messages": messages,
+            "messages": converted_messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "n": n,

@@ -3,7 +3,8 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel
 from pysignalr.client import SignalRClient
@@ -20,6 +21,50 @@ from uipath._cli._runtime._contracts import (
 from uipath._events._events import UiPathAgentStateEvent
 
 logger = logging.getLogger(__name__)
+
+
+class DebuggerQuitException(Exception):
+    """Raised when user quits the debugger."""
+
+    pass
+
+
+class DebugCommand(str, Enum):
+    """Available debug commands."""
+
+    CONTINUE = "continue"
+    STEP = "step"
+    BREAKPOINT = "breakpoint"
+    LIST_BREAKPOINTS = "list"
+    CLEAR_BREAKPOINT = "clear"
+    HELP = "help"
+    QUIT = "quit"
+
+
+class DebuggerState:
+    """Maintains debugger state across execution."""
+
+    def __init__(self):
+        self.breakpoints: Set[str] = set()
+        self.step_mode: bool = False
+
+    def add_breakpoint(self, node_name: str) -> None:
+        """Add a breakpoint at a node."""
+        self.breakpoints.add(node_name)
+
+    def remove_breakpoint(self, node_name: str) -> None:
+        """Remove a breakpoint from a node."""
+        self.breakpoints.discard(node_name)
+
+    def clear_all_breakpoints(self) -> None:
+        """Clear all breakpoints."""
+        self.breakpoints.clear()
+
+    def should_break(self, node_name: str) -> bool:
+        """Check if execution should break at this node."""
+        if self.step_mode:
+            return True
+        return node_name in self.breakpoints
 
 
 class UiPathDebugBridge(ABC):
@@ -77,6 +122,15 @@ class UiPathDebugBridge(ABC):
         """Wait for resume command from debugger."""
         pass
 
+    @abstractmethod
+    def get_breakpoints(self) -> List[str]:
+        """Get nodes to suspend execution at.
+
+        Returns:
+            List of node names to suspend at, or ["*"] for all nodes (step mode)
+        """
+        pass
+
 
 class ConsoleDebugBridge(UiPathDebugBridge):
     """Console-based debug bridge for local development."""
@@ -89,15 +143,12 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         """
         self.console = Console()
         self.verbose = verbose
+        self.state = DebuggerState()
 
     async def connect(self) -> None:
         """Connect to console debugger."""
         self.console.print()
-        self.console.print("[bold cyan]─" * 40)
-        self.console.print("[bold cyan]Debug Mode")
-        self.console.print("[dim]Press ENTER to continue | Type 'quit' to exit")
-        self.console.print("[bold cyan]─" * 40)
-        self.console.print()
+        self._print_help()
 
     async def disconnect(self) -> None:
         """Cleanup."""
@@ -182,18 +233,128 @@ class ConsoleDebugBridge(UiPathDebugBridge):
 
     async def wait_for_resume(self) -> Any:
         """Wait for user to press Enter or type commands."""
-        self.console.print()
-        self.console.print("[cyan]> [/cyan]", end="")
+        while True:  # Keep looping until we get a resume command
+            self.console.print()
 
-        # Run input() in executor to not block async loop
-        loop = asyncio.get_running_loop()
-        user_input = await loop.run_in_executor(None, input)
+            # Run input() in executor to not block async loop
+            loop = asyncio.get_running_loop()
+            user_input = await loop.run_in_executor(None, lambda: input("> "))
 
-        if user_input.strip().lower() == "quit":
+            command_result = self._parse_command(user_input.strip())
+
+            # Handle commands that need another prompt
+            if command_result["command"] in [
+                DebugCommand.BREAKPOINT,
+                DebugCommand.LIST_BREAKPOINTS,
+                DebugCommand.CLEAR_BREAKPOINT,
+                DebugCommand.HELP,
+            ]:
+                # These commands don't resume execution, loop again
+                continue
+
+            # Reset step modes if continuing
+            if command_result["command"] == DebugCommand.CONTINUE:
+                self.state.step_mode = False
+
+            if command_result["command"] == DebugCommand.QUIT:
+                raise DebuggerQuitException("User requested exit")
+
+            # Commands that resume execution: CONTINUE, STEP
+            self.console.print()
+            return command_result
+
+    def get_breakpoints(self) -> List[str]:
+        """Get nodes to suspend execution at."""
+        if self.state.step_mode:
+            return ["*"]  # Suspend at all nodes
+        return list(self.state.breakpoints)  # Only suspend at breakpoints
+
+    def _parse_command(self, user_input: str) -> Dict[str, Any]:
+        """Parse user command input.
+
+        Returns:
+            Dict with 'command' and optional 'args'
+        """
+        if not user_input:
+            return {"command": DebugCommand.CONTINUE, "args": None}
+
+        parts = user_input.lower().split()
+        cmd = parts[0]
+        args = parts[1:] if len(parts) > 1 else []
+
+        if cmd in ["c", "continue"]:
+            return {"command": DebugCommand.CONTINUE, "args": None}
+
+        elif cmd in ["s", "step"]:
+            self.state.step_mode = True
+            return {"command": DebugCommand.STEP, "args": None}
+
+        elif cmd in ["b", "break", "breakpoint"]:
+            if not args:
+                self.console.print(
+                    "[red]Error: breakpoint command requires a node name[/red]"
+                )
+                return {"command": DebugCommand.HELP, "args": None}
+            node_name = " ".join(args)
+            self.state.add_breakpoint(node_name)
+            self.console.print(f"[green]✓ Breakpoint set at: {node_name}[/green]")
+            return {"command": DebugCommand.BREAKPOINT, "args": {"node": node_name}}
+
+        elif cmd in ["l", "list"]:
+            self._list_breakpoints()
+            return {"command": DebugCommand.LIST_BREAKPOINTS, "args": None}
+
+        elif cmd in ["r", "remove", "delete"]:
+            if not args:
+                self.console.print("[yellow]Removing all breakpoints[/yellow]")
+                self.state.clear_all_breakpoints()
+            else:
+                node_name = " ".join(args)
+                self.state.remove_breakpoint(node_name)
+                self.console.print(f"[green]✓ Breakpoint removed: {node_name}[/green]")
+            return {
+                "command": DebugCommand.CLEAR_BREAKPOINT,
+                "args": {"node": " ".join(args) if args else None},
+            }
+
+        elif cmd in ["q", "quit", "exit"]:
             raise KeyboardInterrupt("User requested exit")
 
+        elif cmd in ["h", "help", "?"]:
+            self._print_help()
+            return {"command": DebugCommand.HELP, "args": None}
+
+        else:
+            self.console.print(f"[red]Unknown command: {cmd}[/red]")
+            self.console.print("[dim]Type 'help' for available commands[/dim]")
+            return {"command": DebugCommand.HELP, "args": None}
+
+    def _list_breakpoints(self) -> None:
+        """List all active breakpoints."""
+        if not self.state.breakpoints:
+            self.console.print("[dim]No breakpoints set[/dim]")
+        else:
+            self.console.print("[yellow]Active breakpoints:[/yellow]")
+            for i, bp in enumerate(sorted(self.state.breakpoints), 1):
+                self.console.print(f"  {i}. [cyan]{bp}[/cyan]")
+
+    def _print_help(self) -> None:
+        """Print available commands."""
+        self.console.print("[bold cyan]Debug Mode Commands[/bold cyan]")
+        self.console.print(
+            "  [yellow]c, continue[/yellow]     Continue until next breakpoint"
+        )
+        self.console.print("  [yellow]s, step[/yellow]         Step to next node")
+        self.console.print(
+            "  [yellow]b  <node>[/yellow]       Set breakpoint at <node>"
+        )
+        self.console.print("  [yellow]l, list[/yellow]         List all breakpoints")
+        self.console.print(
+            "  [yellow]r  <node>[/yellow]       Remove breakpoint at <node>"
+        )
+        self.console.print("  [yellow]h, help[/yellow]         Show help")
+        self.console.print("  [yellow]q, quit[/yellow]         Exit debugger")
         self.console.print()
-        return user_input
 
     def _print_json(self, data: Dict[str, Any], label: str = "data") -> None:
         """Print JSON data with enhanced hierarchy."""
@@ -289,6 +450,7 @@ class SignalRDebugBridge(UiPathDebugBridge):
         self.hub_url = hub_url
         self.access_token = access_token
         self.headers = headers or {}
+        self.state = DebuggerState()
         self._client: Optional[SignalRClient] = None
         self._connected_event = asyncio.Event()
         self._resume_event: Optional[asyncio.Event] = None
@@ -395,6 +557,12 @@ class SignalRDebugBridge(UiPathDebugBridge):
         await self._resume_event.wait()
         logger.info("Resume command received")
         return self._resume_data
+
+    def get_breakpoints(self) -> List[str]:
+        """Get nodes to suspend execution at."""
+        if self.state.step_mode:
+            return ["*"]  # Suspend at all nodes
+        return list(self.state.breakpoints)  # Only suspend at breakpoints
 
     async def _send(self, method: str, data: Dict[str, Any]) -> None:
         """Send message to SignalR hub."""
