@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import uuid
 from collections import defaultdict
 from pathlib import Path
@@ -186,6 +187,13 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         if self.context.eval_set is None:
             raise ValueError("eval_set must be provided for evaluation runs")
 
+        # Get entrypoint from a temporary runtime
+        temp_context = self.factory.new_context(
+            entrypoint=self.context.entrypoint, runtime_dir=os.getcwd()
+        )
+        temp_runtime = self.factory.from_context(temp_context)
+        self.entrypoint = await temp_runtime.get_entrypoint()
+
         event_bus = self.event_bus
 
         # Load eval set (path is already resolved in cli_eval.py)
@@ -330,6 +338,10 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         evaluators: List[AnyEvaluator],
         event_bus: EventBus,
     ) -> EvaluationRunResult:
+        # Generate LLM-based input if input_mocking_strategy is defined
+        if eval_item.input_mocking_strategy:
+            eval_item = await self._generate_input_for_eval(eval_item)
+
         execution_id = str(uuid.uuid4())
 
         set_execution_context(eval_item, self.span_collector, execution_id)
@@ -462,12 +474,10 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         return evaluation_run_results
 
     async def _generate_input_for_eval(
-        self, eval_item: EvaluationItem
-    ) -> EvaluationItem:
+        self, eval_item: AnyEvaluationItem
+    ) -> AnyEvaluationItem:
         """Use LLM to generate a mock input for an evaluation item."""
-        # TODO(bai): get the input schema from agent definition, once it is available there.
-        input_schema: dict[str, Any] = {}
-        generated_input = await generate_llm_input(eval_item, input_schema)
+        generated_input = await generate_llm_input(eval_item, self.entrypoint.input)
         updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
         return updated_eval_item
 
