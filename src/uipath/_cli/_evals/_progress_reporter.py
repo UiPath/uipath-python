@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import os
+import uuid
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
@@ -512,18 +513,26 @@ class StudioWebProgressReporter:
             if eval_result.evaluator_id not in evaluators:
                 continue
 
+            # Legacy API expects evaluatorId as GUID, convert string to GUID
+            try:
+                uuid.UUID(eval_result.evaluator_id)
+                evaluator_id_value = eval_result.evaluator_id
+            except ValueError:
+                # Generate deterministic UUID5 from string
+                evaluator_id_value = str(uuid.uuid5(uuid.NAMESPACE_DNS, eval_result.evaluator_id))
+
             evaluator_scores_list.append(
                 {
                     "type": eval_result.result.score_type.value,
                     "value": eval_result.result.score,
                     "justification": eval_result.result.details,
-                    "evaluatorId": eval_result.evaluator_id,
+                    "evaluatorId": evaluator_id_value,
                 }
             )
             assertion_runs.append(
                 {
                     "status": EvaluationStatus.COMPLETED.value,
-                    "evaluatorId": eval_result.evaluator_id,
+                    "evaluatorId": evaluator_id_value,
                     "completionMetrics": {
                         "duration": int(eval_result.result.evaluation_time)
                         if eval_result.result.evaluation_time
@@ -661,9 +670,22 @@ class StudioWebProgressReporter:
     def _create_eval_run_spec(
         self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> RequestSpec:
+        # Legacy API expects eval IDs as GUIDs, coded accepts strings
+        # Convert string IDs to deterministic GUIDs for legacy
+        if is_coded:
+            eval_item_id = eval_item.id
+        else:
+            # Try to parse as GUID, if it fails, generate deterministic GUID from string
+            try:
+                uuid.UUID(eval_item.id)
+                eval_item_id = eval_item.id
+            except ValueError:
+                # Generate deterministic UUID5 from string
+                eval_item_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, eval_item.id))
+
         # Build eval snapshot based on evaluation item type
         eval_snapshot = {
-            "id": eval_item.id,
+            "id": eval_item_id,
             "name": eval_item.name,
             "inputs": eval_item.inputs,
         }
@@ -699,9 +721,23 @@ class StudioWebProgressReporter:
     ) -> RequestSpec:
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        # Legacy API expects evalSetId as GUID, coded accepts string
+        # Convert string IDs to deterministic GUIDs for legacy
+        if is_coded:
+            eval_set_id_value = eval_set_id
+        else:
+            # Try to parse as GUID, if it fails, generate deterministic GUID from string
+            try:
+                uuid.UUID(eval_set_id)
+                eval_set_id_value = eval_set_id
+            except ValueError:
+                # Generate deterministic UUID5 from string
+                eval_set_id_value = str(uuid.uuid5(uuid.NAMESPACE_DNS, eval_set_id))
+
         payload = {
             "agentId": self._project_id,
-            "evalSetId": eval_set_id,
+            "evalSetId": eval_set_id_value,
             "agentSnapshot": agent_snapshot.model_dump(by_alias=True),
             "status": EvaluationStatus.IN_PROGRESS.value,
             "numberOfEvalsExecuted": no_of_evals,
@@ -726,10 +762,24 @@ class StudioWebProgressReporter:
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
     ) -> RequestSpec:
-        evaluator_scores_list = [
-            {"value": avg_score, "evaluatorId": evaluator_id}
-            for evaluator_id, avg_score in evaluator_scores.items()
-        ]
+        # Legacy API expects evaluatorId as GUID, coded accepts string
+        evaluator_scores_list = []
+        for evaluator_id, avg_score in evaluator_scores.items():
+            if is_coded:
+                evaluator_id_value = evaluator_id
+            else:
+                # Convert string to GUID for legacy
+                try:
+                    uuid.UUID(evaluator_id)
+                    evaluator_id_value = evaluator_id
+                except ValueError:
+                    # Generate deterministic UUID5 from string
+                    evaluator_id_value = str(uuid.uuid5(uuid.NAMESPACE_DNS, evaluator_id))
+
+            evaluator_scores_list.append({
+                "value": avg_score,
+                "evaluatorId": evaluator_id_value
+            })
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
