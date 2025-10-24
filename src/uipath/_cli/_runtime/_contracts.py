@@ -460,12 +460,12 @@ class UiPathRuntimeContext(BaseModel):
         return instance
 
 
-class UiPathRuntimeError(Exception):
+class UiPathBaseRuntimeError(Exception):
     """Base exception class for UiPath runtime errors with structured error information."""
 
     def __init__(
         self,
-        code: UiPathErrorCode,
+        code: str,
         title: str,
         detail: str,
         category: UiPathErrorCategory = UiPathErrorCategory.UNKNOWN,
@@ -484,10 +484,8 @@ class UiPathRuntimeError(Exception):
         if status is None:
             status = self._extract_http_status()
 
-        code_value = code.value
-
         self.error_info = UiPathErrorContract(
-            code=f"{prefix}.{code_value}",
+            code=f"{prefix}.{code}",
             title=title,
             detail=detail,
             category=category,
@@ -527,6 +525,28 @@ class UiPathRuntimeError(Exception):
     def as_dict(self) -> Dict[str, Any]:
         """Get the error information as a dictionary."""
         return self.error_info.model_dump()
+
+
+class UiPathRuntimeError(UiPathBaseRuntimeError):
+    """Exception class for UiPath runtime errors."""
+
+    def __init__(
+        self,
+        code: UiPathErrorCode,
+        title: str,
+        detail: str,
+        category: UiPathErrorCategory = UiPathErrorCategory.UNKNOWN,
+        prefix: str = "Python",
+        include_traceback: bool = True,
+    ):
+        super().__init__(
+            code=code.value,
+            title=title,
+            detail=detail,
+            category=category,
+            prefix=prefix,
+            include_traceback=include_traceback,
+        )
 
 
 class UiPathRuntimeStreamNotSupportedError(NotImplementedError):
