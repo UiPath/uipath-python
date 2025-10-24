@@ -3,6 +3,17 @@ from typing import Optional
 from httpx import HTTPStatusError
 
 
+class UnsupportedDataSourceException(Exception):
+    """Exception raised when attempting to use an operation with an unsupported data source type."""
+
+    def __init__(self, operation: str, data_source_type: Optional[str] = None):
+        if data_source_type:
+            message = f"Operation '{operation}' is not supported for data source type: {data_source_type}. Only Orchestrator Storage Bucket data sources are supported."
+        else:
+            message = f"Operation '{operation}' requires an Orchestrator Storage Bucket data source."
+        super().__init__(message)
+
+
 class IngestionInProgressException(Exception):
     """An exception that is triggered when a search is attempted on an index that is currently undergoing ingestion."""
 
