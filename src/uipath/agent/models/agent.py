@@ -6,7 +6,11 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
 
 from uipath.models import Connection
-from uipath.models.guardrails import AgentEscalationRecipient, Guardrail
+from uipath.models.guardrails import (
+    BuiltInValidatorGuardrail,
+    CustomGuardrail,
+    FieldReference,
+)
 
 
 class AgentResourceType(str, Enum):
@@ -130,6 +134,37 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
+
+
+class AgentEscalationRecipientType(str, Enum):
+    """Enum for escalation recipient types."""
+
+    USER_ID = "UserId"
+    GROUP_ID = "GroupId"
+    USER_EMAIL = "UserEmail"
+
+
+class AgentEscalationRecipient(BaseModel):
+    """Recipient for escalation."""
+
+    type: Union[AgentEscalationRecipientType, str] = Field(..., alias="type")
+    value: str = Field(..., alias="value")
+    display_name: Optional[str] = Field(default=None, alias="displayName")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, v: Any) -> str:
+        """Normalize recipient type from int (1=UserId, 2=GroupId, 3=UserEmail) or string. Unknown integers are converted to string."""
+        if isinstance(v, int):
+            mapping = {
+                1: AgentEscalationRecipientType.USER_ID,
+                2: AgentEscalationRecipientType.GROUP_ID,
+                3: AgentEscalationRecipientType.USER_EMAIL,
+            }
+            return mapping.get(v, str(v))
+        return v
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
 class AgentIntegrationToolParameter(BaseModel):
@@ -479,6 +514,116 @@ class AgentSettings(BaseModel):
     )
 
 
+class AgentGuardrailActionType(str, Enum):
+    """Action type enumeration."""
+
+    BLOCK = "block"
+    ESCALATE = "escalate"
+    FILTER = "filter"
+    LOG = "log"
+
+
+class AgentGuardrailBlockAction(BaseModel):
+    """Block action model."""
+
+    action_type: Literal["block"] = Field(alias="$actionType")
+    reason: str
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class AgentGuardrailFilterAction(BaseModel):
+    """Filter action model."""
+
+    action_type: Literal["filter"] = Field(alias="$actionType")
+    fields: List[FieldReference]
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class AgentGuardrailSeverityLevel(str, Enum):
+    """Severity level enumeration."""
+
+    ERROR = "Error"
+    INFO = "Info"
+    WARNING = "Warning"
+
+
+class AgentGuardrailLogAction(BaseModel):
+    """Log action model."""
+
+    action_type: Literal["log"] = Field(alias="$actionType")
+    message: str = Field(..., alias="message")
+    severity_level: AgentGuardrailSeverityLevel = Field(alias="severityLevel")
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class AgentGuardrailEscalateActionApp(BaseModel):
+    """Escalate action app model."""
+
+    id: Optional[str] = None
+    version: int
+    name: str
+    folder_id: Optional[str] = Field(None, alias="folderId")
+    folder_name: str = Field(alias="folderName")
+    app_process_key: Optional[str] = Field(None, alias="appProcessKey")
+    runtime: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class AgentGuardrailEscalateAction(BaseModel):
+    """Escalate action model."""
+
+    action_type: Literal["escalate"] = Field(alias="$actionType")
+    app: AgentGuardrailEscalateActionApp
+    recipient: AgentEscalationRecipient
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+GuardrailAction = Annotated[
+    Union[
+        AgentGuardrailBlockAction,
+        AgentGuardrailFilterAction,
+        AgentGuardrailLogAction,
+        AgentGuardrailEscalateAction,
+    ],
+    Field(discriminator="action_type"),
+]
+
+
+class AgentCustomGuardrail(CustomGuardrail):
+    """Agent custom guardrail with action capabilities."""
+
+    action: GuardrailAction = Field(
+        ..., description="Action to take when guardrail is triggered"
+    )
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+class AgentBuiltInValidatorGuardrail(BuiltInValidatorGuardrail):
+    """Agent built-in validator guardrail with action capabilities."""
+
+    action: GuardrailAction = Field(
+        ..., description="Action to take when guardrail is triggered"
+    )
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+AgentGuardrail = Annotated[
+    Union[AgentCustomGuardrail, AgentBuiltInValidatorGuardrail],
+    Field(discriminator="guardrail_type"),
+]
+
+
 class BaseAgentDefinition(BaseModel):
     """Agent definition model."""
 
@@ -488,7 +633,7 @@ class BaseAgentDefinition(BaseModel):
     output_schema: Dict[str, Any] = Field(
         ..., alias="outputSchema", description="JSON schema for output arguments"
     )
-    guardrails: Optional[List[Guardrail]] = Field(
+    guardrails: Optional[List[AgentGuardrail]] = Field(
         None, description="List of agent guardrails"
     )
 
