@@ -382,7 +382,7 @@ class UiPathRuntimeContext(BaseModel):
     log_handler: Optional[logging.Handler] = None
     chat_handler: Optional[UiPathConversationHandler] = None
     is_conversational: Optional[bool] = None
-    breakpoints: Optional[List[str]] = None
+    breakpoints: Optional[List[str] | Literal["*"]] = None
 
     model_config = {"arbitrary_types_allowed": True, "extra": "allow"}
 

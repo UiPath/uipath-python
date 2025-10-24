@@ -35,6 +35,7 @@ class UiPathDebugRuntime(UiPathBaseRuntime, Generic[T, C]):
         self.context: UiPathRuntimeContext = context
         self.factory: UiPathRuntimeFactory[T, C] = factory
         self.debug_bridge: UiPathDebugBridge = debug_bridge
+        self.execution_id: str = context.job_id or "default"
         self._inner_runtime: Optional[T] = None
 
     @classmethod
@@ -57,7 +58,7 @@ class UiPathDebugRuntime(UiPathBaseRuntime, Generic[T, C]):
                 raise RuntimeError("Failed to create inner runtime")
 
             await self.debug_bridge.emit_execution_started(
-                execution_id=self.context.job_id or "default"
+                execution_id=self.execution_id
             )
 
             # Try to stream events from inner runtime
@@ -78,8 +79,11 @@ class UiPathDebugRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         except Exception as e:
             # Emit execution error
+            self.context.result = UiPathRuntimeResult(
+                status=UiPathRuntimeStatus.FAULTED,
+            )
             await self.debug_bridge.emit_execution_error(
-                execution_id=self.context.job_id or "default",
+                execution_id=self.execution_id,
                 error=str(e),
             )
             raise

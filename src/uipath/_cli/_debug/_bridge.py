@@ -4,7 +4,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel
 from pysignalr.client import SignalRClient
@@ -123,7 +123,7 @@ class UiPathDebugBridge(ABC):
         pass
 
     @abstractmethod
-    def get_breakpoints(self) -> List[str]:
+    def get_breakpoints(self) -> List[str] | Literal["*"]:
         """Get nodes to suspend execution at.
 
         Returns:
@@ -220,7 +220,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         """Print error."""
         self.console.print()
         self.console.print("[red]─" * 40)
-        self.console.print(f"[red]✗ Error[/red] [dim]{execution_id}")
+        self.console.print("[red]✗ Error[/red]")
         self.console.print("[red]─" * 40)
 
         # Truncate very long errors
@@ -228,7 +228,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         if len(error) > 500:
             error_display = error[:500] + "\n[dim]... (truncated)"
 
-        self.console.print(f"[white]{error_display}[/white]")
+        self.console.print(f"[red]{error_display}[/red]")
         self.console.print("[red]─" * 40)
 
     async def wait_for_resume(self) -> Any:
@@ -252,21 +252,14 @@ class ConsoleDebugBridge(UiPathDebugBridge):
                 # These commands don't resume execution, loop again
                 continue
 
-            # Reset step modes if continuing
-            if command_result["command"] == DebugCommand.CONTINUE:
-                self.state.step_mode = False
-
-            if command_result["command"] == DebugCommand.QUIT:
-                raise DebuggerQuitException("User requested exit")
-
             # Commands that resume execution: CONTINUE, STEP
             self.console.print()
             return command_result
 
-    def get_breakpoints(self) -> List[str]:
+    def get_breakpoints(self) -> List[str] | Literal["*"]:
         """Get nodes to suspend execution at."""
         if self.state.step_mode:
-            return ["*"]  # Suspend at all nodes
+            return "*"  # Suspend at all nodes
         return list(self.state.breakpoints)  # Only suspend at breakpoints
 
     def _parse_command(self, user_input: str) -> Dict[str, Any]:
@@ -283,6 +276,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         args = parts[1:] if len(parts) > 1 else []
 
         if cmd in ["c", "continue"]:
+            self.state.step_mode = False
             return {"command": DebugCommand.CONTINUE, "args": None}
 
         elif cmd in ["s", "step"]:
@@ -318,7 +312,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
             }
 
         elif cmd in ["q", "quit", "exit"]:
-            raise KeyboardInterrupt("User requested exit")
+            raise DebuggerQuitException("User requested exit")
 
         elif cmd in ["h", "help", "?"]:
             self._print_help()
@@ -558,10 +552,10 @@ class SignalRDebugBridge(UiPathDebugBridge):
         logger.info("Resume command received")
         return self._resume_data
 
-    def get_breakpoints(self) -> List[str]:
+    def get_breakpoints(self) -> List[str] | Literal["*"]:
         """Get nodes to suspend execution at."""
         if self.state.step_mode:
-            return ["*"]  # Suspend at all nodes
+            return "*"  # Suspend at all nodes
         return list(self.state.breakpoints)  # Only suspend at breakpoints
 
     async def _send(self, method: str, data: Dict[str, Any]) -> None:
