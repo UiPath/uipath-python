@@ -792,12 +792,21 @@ class UiPathRuntimeFactory(Generic[T, C]):
         self.logs_exporter: Optional[Any] = None
         trace.set_tracer_provider(self.tracer_provider)
 
+    def add_span_processor(
+        self,
+        span_processor: SpanProcessor,
+    ) -> "UiPathRuntimeFactory[T, C]":
+        """Add a span processor to the tracer provider."""
+        self.tracer_span_processors.append(span_processor)
+        self.tracer_provider.add_span_processor(span_processor)
+        return self
+
     def add_span_exporter(
         self,
         span_exporter: SpanExporter,
         batch: bool = True,
     ) -> "UiPathRuntimeFactory[T, C]":
-        """Add a span processor to the tracer provider."""
+        """Add a span exporter wrapped in a span processor to the tracer provider."""
         span_processor: SpanProcessor
         if batch:
             span_processor = UiPathExecutionBatchTraceProcessor(span_exporter)
