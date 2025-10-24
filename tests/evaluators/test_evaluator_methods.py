@@ -1054,7 +1054,7 @@ class TestEvaluatorErrorHandling:
 
         config = {
             "name": "LLMJudgeEvaluator",
-            "default_evaluation_criteria": {"expected_output": "test"},
+            "default_evaluation_criteria": {},
         }
 
         with pytest.raises(UiPathEvaluationError, match="Field required"):
