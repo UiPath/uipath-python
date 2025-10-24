@@ -2,7 +2,7 @@ from .action_schema import ActionSchema
 from .actions import Action
 from .assets import Asset, UserAsset
 from .attachment import Attachment
-from .buckets import Bucket
+from .buckets import Bucket, BucketFile
 from .connections import Connection, ConnectionMetadata, ConnectionToken, EventArguments
 from .context_grounding import ContextGroundingQueryResponse
 from .context_grounding_index import ContextGroundingIndex
@@ -51,4 +51,5 @@ __all__ = [
     "BaseUrlMissingError",
     "SecretMissingError",
     "Bucket",
+    "BucketFile",
 ]
