@@ -632,18 +632,57 @@ class SignalRDebugBridge(UiPathDebugBridge):
         except Exception as e:
             logger.error(f"Error sending command {event_name} to SignalR hub: {e}")
 
+    def _parse_command_arg(self, arg: Any) -> Dict[str, Any]:
+        """Parse SignalR command argument (JSON string) to dictionary.
+
+        Args:
+            arg: Command argument (typically a JSON string)
+
+        Returns:
+            Parsed dictionary, or empty dict if parsing fails
+        """
+        # Handle None or empty args
+        if not arg:
+            return {}
+
+        # Handle empty strings
+        if isinstance(arg, str) and not arg.strip():
+            return {}
+
+        # Already a dict
+        if isinstance(arg, dict):
+            return arg
+
+        # Parse JSON string
+        if isinstance(arg, str):
+            try:
+                parsed = json.loads(arg)
+                if isinstance(parsed, dict):
+                    return parsed
+                logger.warning(f"Parsed JSON is not a dict: {type(parsed)}")
+                return {}
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON argument: {e}")
+                return {}
+
+        # Unknown type
+        logger.warning(f"Unknown argument type: {type(arg)}")
+        return {}
+
     async def _handle_start(self, args: list[Any]) -> None:
         """Handle Start command from SignalR server.
 
         Args:
-            args: List containing command arguments, typically [dict_with_args]
+            args: List containing command arguments as JSON string
         """
         logger.info(f"Start command received with args: {args}")
         if not args or len(args) == 0:
             logger.warning("Start command received with empty args.")
             return
 
-        command_args = args[0] if isinstance(args[0], dict) else {}
+        # Parse JSON string to dict
+        command_args = self._parse_command_arg(args[0])
+
         self.state.breakpoints = set(command_args.get("breakpoints", []))
         logger.info(f"Initial breakpoints set: {self.state.breakpoints}")
         step_mode = command_args.get("enableStepMode", False)
@@ -654,10 +693,14 @@ class SignalRDebugBridge(UiPathDebugBridge):
         """Handle Resume command from SignalR server.
 
         Args:
-            args: List containing command arguments
+            args: List containing command arguments as JSON string
         """
         logger.info(f"Resume command received with args: {args}")
-        command_args = args[0] if args and len(args) > 0 else {}
+
+        # Parse JSON string to dict
+        command_args = (
+            self._parse_command_arg(args[0]) if args and len(args) > 0 else {}
+        )
 
         if self._resume_event:
             self._resume_data = command_args
@@ -680,14 +723,16 @@ class SignalRDebugBridge(UiPathDebugBridge):
         """Handle AddBreakpoints command from SignalR server.
 
         Args:
-            args: List containing command arguments with breakpoints list
+            args: List containing command arguments as JSON string with breakpoints list
         """
         logger.info(f"AddBreakpoints command received with args: {args}")
         if not args or len(args) == 0:
             logger.warning("AddBreakpoints command received with empty args.")
             return
 
-        command_args = args[0] if isinstance(args[0], dict) else {}
+        # Parse JSON string to dict
+        command_args = self._parse_command_arg(args[0])
+
         break_points = command_args.get("breakpoints", [])
 
         for bp in break_points:
@@ -706,7 +751,7 @@ class SignalRDebugBridge(UiPathDebugBridge):
         """Handle RemoveBreakpoints command from SignalR server.
 
         Args:
-            args: List containing command arguments with breakpoints list
+            args: List containing command arguments as JSON string with breakpoints list
         """
         logger.info(f"RemoveBreakpoints command received with args: {args}")
         if not args or len(args) == 0:
@@ -714,7 +759,9 @@ class SignalRDebugBridge(UiPathDebugBridge):
             logger.info("All breakpoints cleared")
             return
 
-        command_args = args[0] if isinstance(args[0], dict) else {}
+        # Parse JSON string to dict
+        command_args = self._parse_command_arg(args[0])
+
         break_points = command_args.get("breakpoints", [])
 
         if not break_points:
