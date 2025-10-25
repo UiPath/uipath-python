@@ -38,6 +38,7 @@ from .._runtime._contracts import (
 )
 from .._runtime._logging import ExecutionLogHandler
 from .._utils._eval_set import EvalHelpers
+from ..models.runtime_schema import Entrypoint
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     AnyEvaluationItem,
@@ -53,6 +54,7 @@ from ._models._output import (
     EvaluationRunResultDto,
     UiPathEvalOutput,
     UiPathEvalRunExecutionOutput,
+    convert_eval_execution_output_to_serializable,
 )
 from ._span_collection import ExecutionSpanCollector
 from .mocks.mocks import (
@@ -147,6 +149,7 @@ class UiPathEvalContext(UiPathRuntimeContext):
     workers: Optional[int] = 1
     eval_set: Optional[str] = None
     eval_ids: Optional[List[str]] = None
+    verbose: bool = False
 
 
 class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
@@ -173,6 +176,15 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
+        self.entrypoint: Optional[Entrypoint] = None
+
+    async def get_entrypoint(self):
+        if not self.entrypoint:
+            temp_runtime = self.factory.new_runtime(
+                entrypoint=self.context.entrypoint, runtime_dir=os.getcwd()
+            )
+            self.entrypoint = await temp_runtime.get_entrypoint()
+        return self.entrypoint
 
     @classmethod
     def from_eval_context(
@@ -186,13 +198,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     async def execute(self) -> UiPathRuntimeResult:
         if self.context.eval_set is None:
             raise ValueError("eval_set must be provided for evaluation runs")
-
-        # Get entrypoint from a temporary runtime
-        temp_context = self.factory.new_context(
-            entrypoint=self.context.entrypoint, runtime_dir=os.getcwd()
-        )
-        temp_runtime = self.factory.from_context(temp_context)
-        self.entrypoint = await temp_runtime.get_entrypoint()
 
         event_bus = self.event_bus
 
@@ -360,6 +365,12 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         try:
             agent_execution_output = await self.execute_runtime(eval_item, execution_id)
+            if self.context.verbose:
+                evaluation_run_results.agent_execution_output = (
+                    convert_eval_execution_output_to_serializable(
+                        agent_execution_output
+                    )
+                )
             evaluation_item_results: list[EvalItemResult] = []
 
             for evaluator in evaluators:
@@ -477,7 +488,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self, eval_item: AnyEvaluationItem
     ) -> AnyEvaluationItem:
         """Use LLM to generate a mock input for an evaluation item."""
-        generated_input = await generate_llm_input(eval_item, self.entrypoint.input)
+        generated_input = await generate_llm_input(
+            eval_item, (await self.get_entrypoint()).input
+        )
         updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
         return updated_eval_item
 
