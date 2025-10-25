@@ -645,8 +645,10 @@ class SignalRDebugBridge(UiPathDebugBridge):
 
         command_args = args[0] if isinstance(args[0], dict) else {}
         self.state.breakpoints = set(command_args.get("breakpoints", []))
+        logger.info(f"Initial breakpoints set: {self.state.breakpoints}")
         step_mode = command_args.get("enableStepMode", False)
         self.state.step_mode = step_mode
+        logger.info(f"Initial step mode set to: {self.state.step_mode}")
 
     async def _handle_resume(self, args: list[Any]) -> None:
         """Handle Resume command from SignalR server.
