@@ -102,17 +102,24 @@ class UiPathDebugRuntime(UiPathBaseRuntime, Generic[T, C]):
         # Keep streaming until execution completes (not just paused at breakpoint)
         while not execution_completed:
             # Update breakpoints from debug bridge
-            self._inner_runtime.context.breakpoints = (
-                self.debug_bridge.get_breakpoints()
-            )
+            breakpoints = self.debug_bridge.get_breakpoints()
+            self._inner_runtime.context.breakpoints = breakpoints
+            logger.info(f"Breakpoints: {breakpoints}")
             # Stream events from inner runtime
             async for event in self._inner_runtime.stream():
+                logger.info(f"Received event: {type(event).__name__}")
+
                 # Handle final result
                 if isinstance(event, UiPathRuntimeResult):
                     final_result = event
+                    logger.info(f"Final result received: {type(event).__name__}")
 
                     # Check if it's a breakpoint result
                     if isinstance(event, UiPathBreakpointResult):
+                        logger.info(
+                            f"Breakpoint hit at node: {event.breakpoint_node} "
+                            f"(type: {event.breakpoint_type})"
+                        )
                         try:
                             # Hit a breakpoint - wait for resume and continue
                             await self.debug_bridge.emit_breakpoint_hit(event)
@@ -121,19 +128,29 @@ class UiPathDebugRuntime(UiPathBaseRuntime, Generic[T, C]):
                             self._inner_runtime.context.resume = True
 
                         except DebuggerQuitException:
+                            logger.info("Debugger quit requested")
                             final_result = UiPathRuntimeResult(
                                 status=UiPathRuntimeStatus.SUCCESSFUL,
                             )
                             execution_completed = True
                     else:
                         # Normal completion or suspension with dynamic interrupt
+                        logger.info("Execution completed (no breakpoint)")
                         execution_completed = True
                         # Handle dynamic interrupts if present
                         # Maybe poll for resume trigger completion here in future
 
                 # Handle state update events - send to debug bridge
                 elif isinstance(event, UiPathAgentStateEvent):
+                    logger.info(
+                        f"State update event: node={event.node_name}, "
+                        f"execution_id={event.execution_id}"
+                    )
                     await self.debug_bridge.emit_state_update(event)
+                else:
+                    logger.warning(
+                        f"Unknown event type received: {type(event).__name__}"
+                    )
 
         return final_result
 
