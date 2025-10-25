@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, model_serializer
@@ -20,6 +20,38 @@ class UiPathEvalRunExecutionOutput(BaseModel):
     spans: list[ReadableSpan]
     logs: list[logging.LogRecord]
     result: UiPathRuntimeResult
+
+
+class UiPathSerializableSpan(BaseModel):
+    span_id: Optional[int] = None
+    attributes: Optional[Mapping[str, Any]] = None
+    start_time: Optional[int]
+    end_time: Optional[int]
+
+
+class UiPathSerializableEvalRunExecutionOutput(BaseModel):
+    execution_time: float
+    spans: list[UiPathSerializableSpan]
+    result: UiPathRuntimeResult
+
+
+def convert_span_to_serializable(span: ReadableSpan) -> UiPathSerializableSpan:
+    return UiPathSerializableSpan(
+        span_id=span.context.span_id if span.context else None,
+        attributes=span.attributes,
+        start_time=span.start_time,
+        end_time=span.end_time,
+    )
+
+
+def convert_eval_execution_output_to_serializable(
+    output: UiPathEvalRunExecutionOutput,
+) -> UiPathSerializableEvalRunExecutionOutput:
+    return UiPathSerializableEvalRunExecutionOutput(
+        execution_time=output.execution_time,
+        result=output.result,
+        spans=[convert_span_to_serializable(span) for span in output.spans],
+    )
 
 
 class EvaluationResultDto(BaseModel):
@@ -67,19 +99,13 @@ class EvaluationRunResultDto(BaseModel):
     evaluator_id: str
     result: EvaluationResultDto
 
-    @model_serializer(mode="wrap")
-    def serialize_model(self, serializer, info):
-        data = serializer(self)
-        if isinstance(data, dict):
-            data.pop("evaluatorId", None)
-        return data
-
 
 class EvaluationRunResult(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluation_name: str
     evaluation_run_results: List[EvaluationRunResultDto]
+    agent_execution_output: Optional[UiPathSerializableEvalRunExecutionOutput] = None
 
     @property
     def score(self) -> float:

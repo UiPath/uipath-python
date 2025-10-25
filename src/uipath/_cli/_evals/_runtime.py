@@ -1,9 +1,9 @@
 import asyncio
 import json
 import logging
-import os
 import uuid
 from collections import defaultdict
+from functools import cached_property
 from pathlib import Path
 from time import time
 from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar
@@ -53,6 +53,7 @@ from ._models._output import (
     EvaluationRunResultDto,
     UiPathEvalOutput,
     UiPathEvalRunExecutionOutput,
+    convert_eval_execution_output_to_serializable,
 )
 from ._span_collection import ExecutionSpanCollector
 from .mocks.mocks import (
@@ -174,6 +175,11 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
 
+    @cached_property
+    async def get_entrypoint(self):
+        temp_runtime = self.factory.new_runtime(**self.context.model_dump())
+        return await temp_runtime.get_entrypoint()
+
     @classmethod
     def from_eval_context(
         cls,
@@ -186,13 +192,6 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     async def execute(self) -> UiPathRuntimeResult:
         if self.context.eval_set is None:
             raise ValueError("eval_set must be provided for evaluation runs")
-
-        # Get entrypoint from a temporary runtime
-        temp_context = self.factory.new_context(
-            entrypoint=self.context.entrypoint, runtime_dir=os.getcwd()
-        )
-        temp_runtime = self.factory.from_context(temp_context)
-        self.entrypoint = await temp_runtime.get_entrypoint()
 
         event_bus = self.event_bus
 
@@ -360,6 +359,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         try:
             agent_execution_output = await self.execute_runtime(eval_item, execution_id)
+            evaluation_run_results.agent_execution_output = (
+                convert_eval_execution_output_to_serializable(agent_execution_output)
+            )
             evaluation_item_results: list[EvalItemResult] = []
 
             for evaluator in evaluators:
@@ -477,7 +479,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self, eval_item: AnyEvaluationItem
     ) -> AnyEvaluationItem:
         """Use LLM to generate a mock input for an evaluation item."""
-        generated_input = await generate_llm_input(eval_item, self.entrypoint.input)
+        generated_input = await generate_llm_input(
+            eval_item, (await self.get_entrypoint).input
+        )
         updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
         return updated_eval_item
 
