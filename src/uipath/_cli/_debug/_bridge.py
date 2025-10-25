@@ -469,21 +469,65 @@ class SignalRDebugBridge(UiPathDebugBridge):
         self._client.on_close(self._handle_close)
         self._client.on_error(self._handle_error)
 
-        # Start connection in background
-        asyncio.create_task(self._client.run())
+        self._run_task = asyncio.create_task(self._client.run())
 
-        # Wait for connection to establish
-        await asyncio.wait_for(self._connected_event.wait(), timeout=30.0)
+        async def cleanup_run_task() -> str:
+            error_message = (
+                "Failed to establish WebSocket connection within 10s timeout"
+            )
+
+            if self._run_task:
+                if not self._run_task.done():
+                    self._run_task.cancel()
+                try:
+                    await self._run_task
+                except asyncio.CancelledError:
+                    pass  # Expected on cancel
+                except Exception as task_error:
+                    error_msg = str(task_error).strip()
+                    error_detail = f": {error_msg}" if error_msg else ""
+                    return f"{error_message}: {type(task_error).__name__}{error_detail}"
+
+            return error_message
+
+        try:
+            # Wait for connection with timeout
+            await asyncio.wait_for(self._connected_event.wait(), timeout=10.0)
+        except asyncio.TimeoutError as e:
+            # Clean up on timeout
+            raise RuntimeError(await cleanup_run_task()) from e
+        except Exception:
+            # Clean up on any other error
+            await cleanup_run_task()
+            raise
+
+        # Check if run_task failed
+        if self._run_task.done():
+            exception = self._run_task.exception()
+            if exception:
+                raise exception
 
     async def disconnect(self) -> None:
         """Close SignalR connection."""
-        if self._client and hasattr(self._client, "_transport"):
-            transport = self._client._transport
-            if transport and hasattr(transport, "_ws") and transport._ws:
-                try:
+        if not self._client:
+            return
+
+        # Cancel the run task first
+        if self._run_task and not self._run_task.done():
+            self._run_task.cancel()
+            try:
+                await self._run_task
+            except (Exception, asyncio.CancelledError):
+                pass
+
+        # Try to close the client cleanly
+        try:
+            if hasattr(self._client, "_transport"):
+                transport = self._client._transport
+                if transport and hasattr(transport, "_ws") and transport._ws:
                     await transport._ws.close()
-                except Exception as e:
-                    logger.warning(f"Error closing SignalR WebSocket: {e}")
+        except Exception as e:
+            logger.warning(f"Error closing SignalR WebSocket: {e}")
 
     async def emit_execution_started(self, execution_id: str, **kwargs) -> None:
         """Send execution started event."""
@@ -540,6 +584,9 @@ class SignalRDebugBridge(UiPathDebugBridge):
         error: str,
     ) -> None:
         """Send execution error event."""
+        if not self._connected_event.is_set():
+            return
+
         logger.error(f"Execution error: {execution_id} - {error}")
         await self._send(
             "OnExecutionError",
