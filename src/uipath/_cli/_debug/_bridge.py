@@ -18,6 +18,7 @@ from uipath._cli._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
+from uipath._cli._utils._common import serialize_object
 from uipath._events._events import UiPathAgentStateEvent
 
 logger = logging.getLogger(__name__)
@@ -622,10 +623,12 @@ class SignalRDebugBridge(UiPathDebugBridge):
         try:
             # Wrap the event in SendCommand protocol
             # Server expects: SendCommand(event_name, json_string_of_data)
-            data_json = json.dumps(data)
+            # Use serialize_object to recursively handle Pydantic models and nested objects
+            serialized_data = serialize_object(data)
+            data_json = json.dumps(serialized_data)
             arguments: list[Any] = [event_name, data_json]
             await self._client.send(method="SendCommand", arguments=arguments)
-            logger.debug(f"Sent command: {event_name} with data: {data}")
+            logger.debug(f"Sent command: {event_name}")
         except Exception as e:
             logger.error(f"Error sending command {event_name} to SignalR hub: {e}")
 
