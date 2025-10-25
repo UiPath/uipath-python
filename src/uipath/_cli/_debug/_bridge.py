@@ -459,7 +459,12 @@ class SignalRDebugBridge(UiPathDebugBridge):
         self._client = SignalRClient(self.hub_url, headers=all_headers)
 
         # Register event handlers
-        self._client.on("ResumeExecution", self._handle_resume)
+        self._client.on("Start", self._handle_start)
+        self._client.on("Resume", self._handle_resume)
+        self._client.on("Step", self._handle_step)
+        self._client.on("AddBreakpoints", self._handle_add_breakpoints)
+        self._client.on("RemoveBreakpoints", self._handle_remove_breakpoints)
+        self._client.on("Quit", self._handle_quit)
         self._client.on_open(self._handle_open)
         self._client.on_close(self._handle_close)
         self._client.on_error(self._handle_error)
@@ -558,18 +563,133 @@ class SignalRDebugBridge(UiPathDebugBridge):
             return "*"  # Suspend at all nodes
         return list(self.state.breakpoints)  # Only suspend at breakpoints
 
-    async def _send(self, method: str, data: Dict[str, Any]) -> None:
-        """Send message to SignalR hub."""
+    async def _send(self, event_name: str, data: Dict[str, Any]) -> None:
+        """Send message to SignalR hub via SendCommand.
+
+        Args:
+            event_name: The event/command name (e.g., "OnExecutionStarted")
+            data: The data payload to send
+        """
         if not self._client:
             raise RuntimeError("SignalR client not connected")
+        try:
+            # Wrap the event in SendCommand protocol
+            # Server expects: SendCommand(event_name, json_string_of_data)
+            data_json = json.dumps(data)
+            arguments: list[Any] = [event_name, data_json]
+            await self._client.send(method="SendCommand", arguments=arguments)
+            logger.debug(f"Sent command: {event_name} with data: {data}")
+        except Exception as e:
+            logger.error(f"Error sending command {event_name} to SignalR hub: {e}")
 
-        await self._client.send(method=method, arguments=[data])
+    async def _handle_start(self, args: list[Any]) -> None:
+        """Handle Start command from SignalR server.
+
+        Args:
+            args: List containing command arguments, typically [dict_with_args]
+        """
+        logger.info(f"Start command received with args: {args}")
+        if not args or len(args) == 0:
+            logger.warning("Start command received with empty args.")
+            return
+
+        command_args = args[0] if isinstance(args[0], dict) else {}
+        self.state.breakpoints = set(command_args.get("breakpoints", []))
+        step_mode = command_args.get("enableStepMode", False)
+        self.state.step_mode = step_mode
 
     async def _handle_resume(self, args: list[Any]) -> None:
-        """Handle resume command from SignalR server."""
-        if self._resume_event and len(args) > 0:
-            self._resume_data = args[0]
+        """Handle Resume command from SignalR server.
+
+        Args:
+            args: List containing command arguments
+        """
+        logger.info(f"Resume command received with args: {args}")
+        command_args = args[0] if args and len(args) > 0 else {}
+
+        if self._resume_event:
+            self._resume_data = command_args
             self._resume_event.set()
+            logger.info("Resume event set")
+        else:
+            logger.warning("Resume command received but no resume event is waiting")
+
+    async def _handle_step(self, args: list[Any]) -> None:
+        """Handle Step command from SignalR server.
+
+        Args:
+            args: List containing command arguments
+        """
+        logger.info(f"Step command received with args: {args}")
+        self.state.step_mode = True
+        logger.info("Step mode enabled")
+
+    async def _handle_add_breakpoints(self, args: list[Any]) -> None:
+        """Handle AddBreakpoints command from SignalR server.
+
+        Args:
+            args: List containing command arguments with breakpoints list
+        """
+        logger.info(f"AddBreakpoints command received with args: {args}")
+        if not args or len(args) == 0:
+            logger.warning("AddBreakpoints command received with empty args.")
+            return
+
+        command_args = args[0] if isinstance(args[0], dict) else {}
+        break_points = command_args.get("breakpoints", [])
+
+        for bp in break_points:
+            node_name = (
+                bp.get("node", {}).get("name")
+                if isinstance(bp.get("node"), dict)
+                else None
+            )
+            if node_name:
+                self.state.add_breakpoint(node_name)
+                logger.info(f"Breakpoint set at: {node_name}")
+            else:
+                logger.warning(f"Breakpoint command received without node name: {bp}")
+
+    async def _handle_remove_breakpoints(self, args: list[Any]) -> None:
+        """Handle RemoveBreakpoints command from SignalR server.
+
+        Args:
+            args: List containing command arguments with breakpoints list
+        """
+        logger.info(f"RemoveBreakpoints command received with args: {args}")
+        if not args or len(args) == 0:
+            self.state.clear_all_breakpoints()
+            logger.info("All breakpoints cleared")
+            return
+
+        command_args = args[0] if isinstance(args[0], dict) else {}
+        break_points = command_args.get("breakpoints", [])
+
+        if not break_points:
+            self.state.clear_all_breakpoints()
+            logger.info("All breakpoints cleared")
+        else:
+            for bp in break_points:
+                node_name = (
+                    bp.get("node", {}).get("name")
+                    if isinstance(bp.get("node"), dict)
+                    else None
+                )
+                if node_name:
+                    self.state.remove_breakpoint(node_name)
+                    logger.info(f"Breakpoint removed: {node_name}")
+
+    async def _handle_quit(self, args: list[Any]) -> None:
+        """Handle Quit command from SignalR server.
+
+        Args:
+            args: List containing command arguments
+        """
+        if args:
+            logger.info(f"Quit command received from server with args: {args}")
+        else:
+            logger.info("Quit command received from server")
+        raise DebuggerQuitException("Quit command received from server")
 
     async def _handle_open(self) -> None:
         """Handle SignalR connection open."""
