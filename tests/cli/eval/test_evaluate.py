@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 
 from uipath._cli._evals._evaluate import evaluate
+from uipath._cli._evals._models._output import UiPathEvalOutput
 from uipath._cli._evals._runtime import UiPathEvalContext
 from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
 from uipath._cli._runtime._runtime import UiPathRuntime
@@ -42,11 +43,18 @@ async def test_evaluate():
     # Act
     result = await evaluate(MyFactory(), context, event_bus)
 
-    # Assert
+    # Assert that the output is json-serializable
+    UiPathEvalOutput.model_validate(result.output).model_dump_json()
     assert result.output
     assert (
         result.output["evaluationSetResults"][0]["evaluationRunResults"][0]["result"][
             "score"
         ]
         == 100.0
+    )
+    assert (
+        result.output["evaluationSetResults"][0]["evaluationRunResults"][0][
+            "evaluatorId"
+        ]
+        == "equality"
     )
