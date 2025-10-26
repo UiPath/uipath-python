@@ -219,7 +219,9 @@ class StudioWebProgressReporter:
         is_coded: bool = False,
     ) -> str:
         """Create a new evaluation set run in StudioWeb."""
-        spec = self._create_eval_set_run_spec(eval_set_id, agent_snapshot, no_of_evals, is_coded)
+        spec = self._create_eval_set_run_spec(
+            eval_set_id, agent_snapshot, no_of_evals, is_coded
+        )
         response = await self._client.request_async(
             method=spec.method,
             url=spec.endpoint,
@@ -329,7 +331,9 @@ class StudioWebProgressReporter:
         is_coded: bool = False,
     ):
         """Update the evaluation set run status to complete."""
-        spec = self._update_eval_set_run_spec(eval_set_run_id, evaluator_scores, is_coded)
+        spec = self._update_eval_set_run_spec(
+            eval_set_run_id, evaluator_scores, is_coded
+        )
         await self._client.request_async(
             method=spec.method,
             url=spec.endpoint,
@@ -377,7 +381,9 @@ class StudioWebProgressReporter:
                 )
                 if eval_run_id:
                     self.eval_run_ids[payload.execution_id] = eval_run_id
-                    logger.debug(f"Created eval run with ID: {eval_run_id} (coded={is_coded})")
+                    logger.debug(
+                        f"Created eval run with ID: {eval_run_id} (coded={is_coded})"
+                    )
             else:
                 logger.warning("Cannot create eval run: eval_set_run_id not available")
 
@@ -445,7 +451,9 @@ class StudioWebProgressReporter:
                     payload.evaluator_scores,
                     is_coded=is_coded,
                 )
-                logger.debug(f"Updated eval set run with ID: {eval_set_run_id} (coded={is_coded})")
+                logger.debug(
+                    f"Updated eval set run with ID: {eval_set_run_id} (coded={is_coded})"
+                )
             else:
                 logger.warning(
                     "Cannot update eval set run: eval_set_run_id not available"
@@ -519,7 +527,9 @@ class StudioWebProgressReporter:
                 evaluator_id_value = eval_result.evaluator_id
             except ValueError:
                 # Generate deterministic UUID5 from string
-                evaluator_id_value = str(uuid.uuid5(uuid.NAMESPACE_DNS, eval_result.evaluator_id))
+                evaluator_id_value = str(
+                    uuid.uuid5(uuid.NAMESPACE_DNS, eval_result.evaluator_id)
+                )
 
             evaluator_scores_list.append(
                 {
@@ -774,12 +784,13 @@ class StudioWebProgressReporter:
                     evaluator_id_value = evaluator_id
                 except ValueError:
                     # Generate deterministic UUID5 from string
-                    evaluator_id_value = str(uuid.uuid5(uuid.NAMESPACE_DNS, evaluator_id))
+                    evaluator_id_value = str(
+                        uuid.uuid5(uuid.NAMESPACE_DNS, evaluator_id)
+                    )
 
-            evaluator_scores_list.append({
-                "value": avg_score,
-                "evaluatorId": evaluator_id_value
-            })
+            evaluator_scores_list.append(
+                {"value": avg_score, "evaluatorId": evaluator_id_value}
+            )
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
