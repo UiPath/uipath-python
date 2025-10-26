@@ -8,17 +8,13 @@ This module tests the progress reporting functionality including:
 """
 
 import json
-import uuid
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
-from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
 from uipath.tracing import LlmOpsHttpExporter
-
 
 # Test fixtures - simple mocks without full evaluator instantiation
 
@@ -98,23 +94,6 @@ def sample_spans_with_json_attributes():
     return [span]
 
 
-@pytest.fixture
-def sample_eval_results():
-    """Create sample evaluation results."""
-    return [
-        EvalItemResult(
-            evaluator_id="test-evaluator-1",
-            result=NumericEvaluationResult(
-                score=0.85, details="Good match", evaluation_time=1.5
-            ),
-        ),
-        EvalItemResult(
-            evaluator_id="test-evaluator-2",
-            result=NumericEvaluationResult(
-                score=0.95, details="Excellent match", evaluation_time=2.0
-            ),
-        ),
-    ]
 
 
 # Tests for evaluator type detection
@@ -126,14 +105,15 @@ class TestEvaluatorDetection:
         assert progress_reporter._is_coded_evaluator([]) is False
 
     def test_is_coded_evaluator_uses_isinstance_check(self, progress_reporter):
-        """Test that detection uses isinstance to check evaluator type."""
-        # Create mock evaluators
-        mock_coded = Mock(spec=BaseEvaluator)
-        mock_legacy = Mock(spec=LegacyBaseEvaluator)
+        """Test that detection uses isinstance to check evaluator type.
 
-        # The _is_coded_evaluator method checks isinstance, which won't work with mocks
-        # So we test that it returns False for empty list (covered above)
-        # Full integration test would require real evaluator instances
+        Note: Full integration test would require real evaluator instances.
+        The _is_coded_evaluator method checks isinstance, which won't work with mocks.
+        The empty list case is covered in test_is_coded_evaluator_with_empty_list.
+        """
+        # This test documents the approach - isinstance checking
+        # Actual testing requires integration tests with real evaluators
+        pass
 
 
 # Tests for endpoint routing
