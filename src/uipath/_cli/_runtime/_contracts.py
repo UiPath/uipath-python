@@ -536,6 +536,7 @@ class UiPathRuntimeError(UiPathBaseRuntimeError):
         title: str,
         detail: str,
         category: UiPathErrorCategory = UiPathErrorCategory.UNKNOWN,
+        status: Optional[int] = None,
         prefix: str = "Python",
         include_traceback: bool = True,
     ):
@@ -544,6 +545,7 @@ class UiPathRuntimeError(UiPathBaseRuntimeError):
             title=title,
             detail=detail,
             category=category,
+            status=status,
             prefix=prefix,
             include_traceback=include_traceback,
         )
