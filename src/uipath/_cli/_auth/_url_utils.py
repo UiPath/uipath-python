@@ -8,22 +8,22 @@ console = ConsoleLogger()
 
 
 def resolve_domain(
-    base_url: Optional[str], environment: Optional[str], force: bool = False
+    base_url: Optional[str], cloud_url: Optional[str], force: bool = False
 ) -> str:
     """Resolve the UiPath domain, giving priority to base_url when valid.
 
     Args:
         base_url: The base URL explicitly provided.
-        environment: The environment name (e.g., 'alpha', 'staging', 'cloud').
+        cloud_url: The cloud URL from the --cloud option.
         force: Whether to ignore UIPATH_URL from environment variables.
 
     Returns:
         A valid base URL for UiPath services.
     """
     if not force:
-        # If UIPATH_URL is set, prefer its domain
+        # If UIPATH_URL is set, prefer its domain (only when using default cloud URL)
         uipath_url = os.getenv("UIPATH_URL")
-        if uipath_url and environment == "cloud":
+        if uipath_url and cloud_url == "https://cloud.uipath.com":
             parsed = urlparse(uipath_url)
             if parsed.scheme and parsed.netloc:
                 domain = f"{parsed.scheme}://{parsed.netloc}"
@@ -41,8 +41,19 @@ def resolve_domain(
         if domain:
             return domain
 
-    # Otherwise, fall back to environment
-    return f"https://{environment or 'cloud'}.uipath.com"
+    # Otherwise, use the cloud_url directly
+    if cloud_url:
+        parsed = urlparse(cloud_url)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            console.error(
+                f"Malformed cloud URL: '{cloud_url}'. "
+                "Please ensure it includes scheme and netloc (e.g., 'https://cloud.uipath.com')."
+            )
+
+    # Fallback to production
+    return "https://cloud.uipath.com"
 
 
 def build_service_url(domain: str, path: str) -> str:
