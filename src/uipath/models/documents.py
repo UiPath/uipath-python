@@ -18,10 +18,25 @@ class FieldType(str, Enum):
 
 
 class ActionPriority(str, Enum):
+    """Priority levels for validation actions. More details can be found in the [official documentation](https://docs.uipath.com/action-center/automation-cloud/latest/user-guide/create-document-validation-action#configuration)."""
+
     LOW = "Low"
+    """Low priority"""
     MEDIUM = "Medium"
+    """Medium priority"""
     HIGH = "High"
+    """High priority"""
     CRITICAL = "Critical"
+    """Critical priority"""
+
+
+class ProjectType(str, Enum):
+    """Project types available and supported by Documents Service."""
+
+    IXP = "IXP"
+    """Represents an [IXP](https://docs.uipath.com/ixp/automation-cloud/latest/overview/managing-projects#creating-a-new-project) project type."""
+    MODERN = "Modern"
+    """Represents a [DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project type."""
 
 
 class FieldValueProjection(BaseModel):
@@ -71,9 +86,9 @@ class ExtractionResponse(BaseModel):
 
     Attributes:
         extraction_result (ExtractionResult): The result of the extraction process.
-        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data.
         project_id (str): The ID of the project associated with the extraction.
         tag (str): The tag associated with the published model version.
+        document_type_id (str): The ID of the document type associated with the extraction.
     """
 
     model_config = ConfigDict(
@@ -82,9 +97,19 @@ class ExtractionResponse(BaseModel):
     )
 
     extraction_result: ExtractionResult = Field(alias="extractionResult")
-    data_projection: List[FieldGroupValueProjection] = Field(alias="dataProjection")
     project_id: str = Field(alias="projectId")
     tag: str
+    document_type_id: str = Field(alias="documentTypeId")
+
+
+class ExtractionResponseIXP(ExtractionResponse):
+    """A model representing the response from a document extraction process for IXP projects.
+
+    Attributes:
+        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data.
+    """
+
+    data_projection: List[FieldGroupValueProjection] = Field(alias="dataProjection")
 
 
 class ValidationAction(BaseModel):
@@ -107,6 +132,7 @@ class ValidationAction(BaseModel):
     action_status: str = Field(alias="actionStatus")
     project_id: str = Field(alias="projectId")
     tag: str
+    document_type_id: str = Field(alias="documentTypeId")
     operation_id: str = Field(alias="operationId")
 
 
