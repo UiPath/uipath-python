@@ -1,0 +1,375 @@
+{
+  "version": "1.0",
+  "id": "WeatherToolsEval",
+  "name": "Weather Tools Agent Evaluation",
+  "evaluatorRefs": [
+    "TrajectoryEvaluator",
+    "ToolCallCountEvaluator",
+    "ToolCallOrderEvaluator",
+    "ToolCallArgsEvaluator",
+    "ToolCallOutputEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "basic_weather",
+      "name": "Basic Weather Check",
+      "inputs": {
+        "city": "New York",
+        "action": "get_weather"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should call get_temperature, get_weather_condition, and get_humidity tools for New York, then return the combined weather data without forecast or alerts."
+        },
+        "ToolCallCountEvaluator": {
+          "toolCallsCount": {
+            "get_temperature": [
+              "=",
+              1
+            ],
+            "get_weather_condition": [
+              "=",
+              1
+            ],
+            "get_humidity": [
+              "=",
+              1
+            ]
+          }
+        },
+        "ToolCallOrderEvaluator": {
+          "toolCallsOrder": [
+            "get_temperature",
+            "get_weather_condition",
+            "get_humidity"
+          ]
+        },
+        "ToolCallArgsEvaluator": {
+          "toolCalls": [
+            {
+              "name": "get_temperature",
+              "args": {
+                "city": "New York"
+              }
+            },
+            {
+              "name": "get_weather_condition",
+              "args": {
+                "city": "New York"
+              }
+            },
+            {
+              "name": "get_humidity",
+              "args": {
+                "city": "New York"
+              }
+            }
+          ]
+        },
+        "ToolCallOutputEvaluator": null
+      }
+    },
+    {
+      "id": "weather_with_forecast",
+      "name": "Weather with Forecast",
+      "inputs": {
+        "city": "Paris",
+        "action": "get_forecast"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should call get_temperature, get_weather_condition, get_humidity, and get_forecast tools for Paris. It should return weather data including the forecast but not alerts."
+        },
+        "ToolCallCountEvaluator": {
+          "toolCallsCount": {
+            "get_temperature": [
+              "=",
+              1
+            ],
+            "get_weather_condition": [
+              "=",
+              1
+            ],
+            "get_humidity": [
+              "=",
+              1
+            ],
+            "get_forecast": [
+              "=",
+              1
+            ]
+          }
+        },
+        "ToolCallOrderEvaluator": {
+          "toolCallsOrder": [
+            "get_temperature",
+            "get_weather_condition",
+            "get_humidity",
+            "get_forecast"
+          ]
+        },
+        "ToolCallArgsEvaluator": {
+          "toolCalls": [
+            {
+              "name": "get_temperature",
+              "args": {
+                "city": "Paris"
+              }
+            },
+            {
+              "name": "get_weather_condition",
+              "args": {
+                "city": "Paris"
+              }
+            },
+            {
+              "name": "get_humidity",
+              "args": {
+                "city": "Paris"
+              }
+            },
+            {
+              "name": "get_forecast",
+              "args": {
+                "city": "Paris"
+              }
+            }
+          ]
+        },
+        "ToolCallOutputEvaluator": {
+          "toolOutputs": [
+            {
+              "name": "get_forecast",
+              "output": "{'forecast': 'Cloudy with a chance of rain in the afternoon'}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "weather_with_alerts",
+      "name": "Weather with Alerts",
+      "inputs": {
+        "city": "London",
+        "action": "get_alerts"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should call get_temperature, get_weather_condition, get_humidity, and get_weather_alerts tools for London. It should return weather data including alerts but not forecast. The alerts should indicate heavy rain warning."
+        },
+        "ToolCallCountEvaluator": {
+          "toolCallsCount": {
+            "get_temperature": [
+              "=",
+              1
+            ],
+            "get_weather_condition": [
+              "=",
+              1
+            ],
+            "get_humidity": [
+              "=",
+              1
+            ],
+            "get_weather_alerts": [
+              "=",
+              1
+            ]
+          }
+        },
+        "ToolCallOrderEvaluator": {
+          "toolCallsOrder": [
+            "get_temperature",
+            "get_weather_condition",
+            "get_humidity",
+            "get_weather_alerts"
+          ]
+        },
+        "ToolCallArgsEvaluator": {
+          "toolCalls": [
+            {
+              "name": "get_temperature",
+              "args": {
+                "city": "London"
+              }
+            },
+            {
+              "name": "get_weather_condition",
+              "args": {
+                "city": "London"
+              }
+            },
+            {
+              "name": "get_humidity",
+              "args": {
+                "city": "London"
+              }
+            },
+            {
+              "name": "get_weather_alerts",
+              "args": {
+                "city": "London"
+              }
+            }
+          ]
+        },
+        "ToolCallOutputEvaluator": {
+          "toolOutputs": [
+            {
+              "name": "get_weather_alerts",
+              "output": "{'alerts': ['Heavy rain warning until 6 PM']}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "sunny_weather",
+      "name": "Sunny Weather Check",
+      "inputs": {
+        "city": "Sydney",
+        "action": "get_weather"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should call get_temperature, get_weather_condition, and get_humidity for Sydney, then return sunny weather conditions without forecast or alerts."
+        },
+        "ToolCallCountEvaluator": {
+          "toolCallsCount": {
+            "get_temperature": [
+              "=",
+              1
+            ],
+            "get_weather_condition": [
+              "=",
+              1
+            ],
+            "get_humidity": [
+              "=",
+              1
+            ]
+          }
+        },
+        "ToolCallOrderEvaluator": {
+          "toolCallsOrder": [
+            "get_temperature",
+            "get_weather_condition",
+            "get_humidity"
+          ]
+        },
+        "ToolCallArgsEvaluator": {
+          "toolCalls": [
+            {
+              "name": "get_temperature",
+              "args": {
+                "city": "Sydney"
+              }
+            },
+            {
+              "name": "get_weather_condition",
+              "args": {
+                "city": "Sydney"
+              }
+            },
+            {
+              "name": "get_humidity",
+              "args": {
+                "city": "Sydney"
+              }
+            }
+          ]
+        },
+        "ToolCallOutputEvaluator": null
+      }
+    },
+    {
+      "id": "tokyo_forecast",
+      "name": "Tokyo Weather Forecast",
+      "inputs": {
+        "city": "Tokyo",
+        "action": "get_forecast"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should sequentially call get_temperature, get_weather_condition, get_humidity, and get_forecast for Tokyo. The trajectory should show all four tool calls in the correct order, gathering basic weather data first, then the forecast."
+        },
+        "ToolCallCountEvaluator": {
+          "toolCallsCount": {
+            "get_temperature": [
+              "=",
+              1
+            ],
+            "get_weather_condition": [
+              "=",
+              1
+            ],
+            "get_humidity": [
+              "=",
+              1
+            ],
+            "get_forecast": [
+              "=",
+              1
+            ]
+          }
+        },
+        "ToolCallOrderEvaluator": {
+          "toolCallsOrder": [
+            "get_temperature",
+            "get_weather_condition",
+            "get_humidity",
+            "get_forecast"
+          ]
+        },
+        "ToolCallArgsEvaluator": {
+          "toolCalls": [
+            {
+              "name": "get_temperature",
+              "args": {
+                "city": "Tokyo"
+              }
+            },
+            {
+              "name": "get_weather_condition",
+              "args": {
+                "city": "Tokyo"
+              }
+            },
+            {
+              "name": "get_humidity",
+              "args": {
+                "city": "Tokyo"
+              }
+            },
+            {
+              "name": "get_forecast",
+              "args": {
+                "city": "Tokyo"
+              }
+            }
+          ]
+        },
+        "ToolCallOutputEvaluator": {
+          "toolOutputs": [
+            {
+              "name": "get_temperature",
+              "output": "{'temperature': 25.0, 'unit': 'fahrenheit'}"
+            },
+            {
+              "name": "get_weather_condition",
+              "output": "{'condition': 'cloudy'}"
+            },
+            {
+              "name": "get_humidity",
+              "output": "{'humidity': 65}"
+            },
+            {
+              "name": "get_forecast",
+              "output": "{'forecast': 'Overcast with mild temperatures'}"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

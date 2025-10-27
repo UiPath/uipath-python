@@ -1,9 +1,28 @@
-"""LowCode Agent Tools."""
+"""UiPath ReAct Agent Control Flow Tools."""
+
+from dataclasses import dataclass
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-TOOL_FLOW_CONTROL_END_EXECUTION = "end_execution"
-TOOL_FLOW_CONTROL_RAISE_ERROR = "raise_error"
+
+class FlowControlToolName(str, Enum):
+    """Names of control flow tools."""
+
+    END_EXECUTION = "end_execution"
+    RAISE_ERROR = "raise_error"
+
+
+@dataclass(frozen=True)
+class FlowControlToolConfig:
+    """Flow control tool configuration.
+
+    Encapsulates the information needed to create a flow control tool
+    """
+
+    name: str
+    description: str
+    args_schema: type[BaseModel]
 
 
 class EndExecutionToolSchemaModel(BaseModel):
@@ -40,3 +59,16 @@ class RaiseErrorToolSchemaModel(BaseModel):
     )
 
     model_config = ConfigDict(extra="forbid")
+
+
+END_EXECUTION_TOOL = FlowControlToolConfig(
+    name=FlowControlToolName.END_EXECUTION,
+    description="Ends the execution of the agent",
+    args_schema=EndExecutionToolSchemaModel,
+)
+
+RAISE_ERROR_TOOL = FlowControlToolConfig(
+    name=FlowControlToolName.RAISE_ERROR,
+    description="Raises an error and ends the execution of the agent",
+    args_schema=RaiseErrorToolSchemaModel,
+)

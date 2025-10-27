@@ -5,12 +5,18 @@ import json
 import logging
 import os
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 from opentelemetry import trace
 from rich.console import Console
 
 from uipath import UiPath
-from uipath._cli._evals._models._evaluation_set import EvaluationItem, EvaluationStatus
+from uipath._cli._evals._models._evaluation_set import (
+    AnyEvaluationItem,
+    AnyEvaluator,
+    EvaluationItem,
+    EvaluationStatus,
+)
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
     StudioWebProgressItem,
@@ -28,8 +34,12 @@ from uipath._events._events import (
     EvaluationEvents,
 )
 from uipath._utils import Endpoint, RequestSpec
-from uipath._utils.constants import ENV_TENANT_ID, HEADER_INTERNAL_TENANT_ID
-from uipath.eval.evaluators import BaseEvaluator
+from uipath._utils.constants import (
+    ENV_EVAL_BACKEND_URL,
+    ENV_TENANT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
+from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -65,7 +75,10 @@ class StudioWebProgressReporter:
 
         logging.getLogger("uipath._cli.middlewares").setLevel(logging.CRITICAL)
         console_logger = ConsoleLogger.get_instance()
-        uipath = UiPath()
+
+        # Use UIPATH_EVAL_BACKEND_URL for eval-specific routing if set
+        eval_backend_url = os.getenv(ENV_EVAL_BACKEND_URL)
+        uipath = UiPath(base_url=eval_backend_url) if eval_backend_url else UiPath()
 
         self._client = uipath.api_client
         self._console = console_logger
@@ -80,10 +93,120 @@ class StudioWebProgressReporter:
         self.evaluators: Dict[str, Any] = {}
         self.evaluator_scores: Dict[str, List[float]] = {}
         self.eval_run_ids: Dict[str, str] = {}
+        self.is_coded_eval: Dict[str, bool] = {}  # Track coded vs legacy per execution
+        self.eval_spans: Dict[
+            str, list[Any]
+        ] = {}  # Store spans per execution for usage metrics
 
     def _format_error_message(self, error: Exception, context: str) -> None:
         """Helper method to format and display error messages consistently."""
         self._rich_console.print(f"    • \u26a0  [dim]{context}: {error}[/dim]")
+
+    def _is_localhost(self) -> bool:
+        """Check if the eval backend URL is localhost.
+
+        Returns:
+            True if using localhost, False otherwise.
+        """
+        eval_backend_url = os.getenv(ENV_EVAL_BACKEND_URL, "")
+        if eval_backend_url:
+            try:
+                parsed = urlparse(eval_backend_url)
+                hostname = parsed.hostname or parsed.netloc.split(":")[0]
+                return hostname.lower() in ("localhost", "127.0.0.1")
+            except Exception:
+                pass
+        return False
+
+    def _get_endpoint_prefix(self) -> str:
+        """Determine the endpoint prefix based on environment.
+
+        Checks UIPATH_EVAL_BACKEND_URL environment variable:
+        - If set to localhost/127.0.0.1: returns "api/" (direct API access)
+        - Otherwise: returns "agentsruntime_/api/" (service routing for alpha/prod)
+
+        Returns:
+            "api/" for localhost environments, "agentsruntime_/api/" for alpha/production.
+        """
+        if self._is_localhost():
+            return "api/"
+        return "agentsruntime_/api/"
+
+    def _is_coded_evaluator(self, evaluators: List[AnyEvaluator]) -> bool:
+        """Check if evaluators are coded (BaseEvaluator) vs legacy (LegacyBaseEvaluator).
+
+        Args:
+            evaluators: List of evaluators to check
+
+        Returns:
+            True if using coded evaluators, False for legacy evaluators
+        """
+        if not evaluators:
+            return False
+        # Check the first evaluator type
+        return isinstance(evaluators[0], BaseEvaluator)
+
+    def _extract_usage_from_spans(
+        self, spans: list[Any]
+    ) -> dict[str, int | float | None]:
+        """Extract token usage and cost from OpenTelemetry spans.
+
+        Args:
+            spans: List of ReadableSpan objects from agent execution
+
+        Returns:
+            Dictionary with tokens, completionTokens, promptTokens, and cost
+        """
+        total_tokens = 0
+        completion_tokens = 0
+        prompt_tokens = 0
+        total_cost = 0.0
+
+        for span in spans:
+            try:
+                # Handle both dictionary attributes and string Attributes field
+                attrs = None
+                if hasattr(span, "attributes") and span.attributes:
+                    if isinstance(span.attributes, dict):
+                        attrs = span.attributes
+                    elif isinstance(span.attributes, str):
+                        # Parse JSON string attributes
+                        attrs = json.loads(span.attributes)
+
+                # Also check for Attributes field (capitalized) from backend spans
+                if not attrs and hasattr(span, "Attributes") and span.Attributes:
+                    if isinstance(span.Attributes, str):
+                        attrs = json.loads(span.Attributes)
+                    elif isinstance(span.Attributes, dict):
+                        attrs = span.Attributes
+
+                if attrs:
+                    # Try to get usage from nested usage object (backend format)
+                    if "usage" in attrs and isinstance(attrs["usage"], dict):
+                        usage = attrs["usage"]
+                        prompt_tokens += usage.get("promptTokens", 0)
+                        completion_tokens += usage.get("completionTokens", 0)
+                        total_tokens += usage.get("totalTokens", 0)
+                        # Cost might be in usage or at root level
+                        total_cost += usage.get("cost", 0.0)
+
+                    # Also try OpenTelemetry semantic conventions (SDK format)
+                    prompt_tokens += attrs.get("gen_ai.usage.prompt_tokens", 0)
+                    completion_tokens += attrs.get("gen_ai.usage.completion_tokens", 0)
+                    total_tokens += attrs.get("gen_ai.usage.total_tokens", 0)
+                    total_cost += attrs.get("gen_ai.usage.cost", 0.0)
+                    total_cost += attrs.get("llm.usage.cost", 0.0)
+
+            except (json.JSONDecodeError, AttributeError, TypeError) as e:
+                logger.debug(f"Failed to parse span attributes: {e}")
+                continue
+
+        return {
+            "tokens": total_tokens if total_tokens > 0 else None,
+            "completionTokens": completion_tokens if completion_tokens > 0 else None,
+            "promptTokens": prompt_tokens if prompt_tokens > 0 else None,
+            "cost": total_cost if total_cost > 0 else None,
+        }
 
     @gracefully_handle_errors
     async def create_eval_set_run(
@@ -91,7 +214,7 @@ class StudioWebProgressReporter:
         eval_set_id: str,
         agent_snapshot: StudioWebAgentSnapshot,
         no_of_evals: int,
-        evaluators: List[BaseEvaluator[Any]],
+        evaluators: List[LegacyBaseEvaluator[Any]],
     ) -> str:
         """Create a new evaluation set run in StudioWeb."""
         spec = self._create_eval_set_run_spec(eval_set_id, agent_snapshot, no_of_evals)
@@ -101,13 +224,14 @@ class StudioWebProgressReporter:
             params=spec.params,
             json=spec.json,
             headers=spec.headers,
+            scoped="org" if self._is_localhost() else "tenant",
         )
         eval_set_run_id = json.loads(response.content)["id"]
         return eval_set_run_id
 
     @gracefully_handle_errors
     async def create_eval_run(
-        self, eval_item: EvaluationItem, eval_set_run_id: str
+        self, eval_item: AnyEvaluationItem, eval_set_run_id: str
     ) -> str:
         """Create a new evaluation run in StudioWeb.
 
@@ -125,6 +249,7 @@ class StudioWebProgressReporter:
             params=spec.params,
             json=spec.json,
             headers=spec.headers,
+            scoped="org" if self._is_localhost() else "tenant",
         )
         return json.loads(response.content)["id"]
 
@@ -132,25 +257,53 @@ class StudioWebProgressReporter:
     async def update_eval_run(
         self,
         sw_progress_item: StudioWebProgressItem,
-        evaluators: dict[str, BaseEvaluator[Any]],
+        evaluators: dict[str, AnyEvaluator],
+        is_coded: bool = False,
+        spans: list[Any] | None = None,
     ):
         """Update an evaluation run with results."""
-        assertion_runs, evaluator_scores = self._collect_results(
-            sw_progress_item.eval_results, evaluators
+        coded_evaluators: dict[str, BaseEvaluator[Any, Any, Any]] = {}
+        legacy_evaluators: dict[str, LegacyBaseEvaluator[Any]] = {}
+        evaluator_runs: list[dict[str, Any]] = []
+        evaluator_scores: list[dict[str, Any]] = []
+
+        for k, v in evaluators.items():
+            if isinstance(v, BaseEvaluator):
+                coded_evaluators[k] = v
+            elif isinstance(v, LegacyBaseEvaluator):
+                legacy_evaluators[k] = v
+
+        # Use coded evaluator format
+        runs, scores = self._collect_coded_results(
+            sw_progress_item.eval_results, coded_evaluators, spans or []
         )
+        evaluator_runs.extend(runs)
+        evaluator_scores.extend(scores)
+
+        # Use legacy evaluator format
+        runs, scores = self._collect_results(
+            sw_progress_item.eval_results,
+            legacy_evaluators,
+            spans or [],
+        )
+        evaluator_runs.extend(runs)
+        evaluator_scores.extend(scores)
+
         spec = self._update_eval_run_spec(
-            assertion_runs=assertion_runs,
+            assertion_runs=evaluator_runs,
             evaluator_scores=evaluator_scores,
             eval_run_id=sw_progress_item.eval_run_id,
             execution_time=sw_progress_item.agent_execution_time,
             actual_output=sw_progress_item.agent_output,
         )
+
         await self._client.request_async(
             method=spec.method,
             url=spec.endpoint,
             params=spec.params,
             json=spec.json,
             headers=spec.headers,
+            scoped="org" if self._is_localhost() else "tenant",
         )
 
     @gracefully_handle_errors
@@ -167,12 +320,17 @@ class StudioWebProgressReporter:
             params=spec.params,
             json=spec.json,
             headers=spec.headers,
+            scoped="org" if self._is_localhost() else "tenant",
         )
 
     async def handle_create_eval_set_run(self, payload: EvalSetRunCreatedEvent) -> None:
         try:
             self.evaluators = {eval.id: eval for eval in payload.evaluators}
             self.evaluator_scores = {eval.id: [] for eval in payload.evaluators}
+
+            # Detect if using coded evaluators and store for this execution
+            is_coded = self._is_coded_evaluator(payload.evaluators)
+            self.is_coded_eval[payload.execution_id] = is_coded
 
             eval_set_run_id = await self.create_eval_set_run(
                 eval_set_id=payload.eval_set_id,
@@ -185,7 +343,9 @@ class StudioWebProgressReporter:
             if current_span.is_recording():
                 current_span.set_attribute("eval_set_run_id", eval_set_run_id)
 
-            logger.debug(f"Created eval set run with ID: {eval_set_run_id}")
+            logger.debug(
+                f"Created eval set run with ID: {eval_set_run_id} (coded={is_coded})"
+            )
 
         except Exception as e:
             self._format_error_message(e, "StudioWeb create eval set run error")
@@ -230,6 +390,12 @@ class StudioWebProgressReporter:
 
             eval_run_id = self.eval_run_ids[payload.execution_id]
             if eval_run_id:
+                # Get the is_coded flag for this execution
+                is_coded = self.is_coded_eval.get(payload.execution_id, False)
+
+                # Extract usage metrics from spans
+                self._extract_usage_from_spans(payload.spans)
+
                 await self.update_eval_run(
                     StudioWebProgressItem(
                         eval_run_id=eval_run_id,
@@ -239,9 +405,13 @@ class StudioWebProgressReporter:
                         agent_execution_time=payload.agent_execution_time,
                     ),
                     self.evaluators,
+                    is_coded=is_coded,
+                    spans=payload.spans,
                 )
 
-                logger.debug(f"Updated eval run with ID: {eval_run_id}")
+                logger.debug(
+                    f"Updated eval run with ID: {eval_run_id} (coded={is_coded})"
+                )
 
         except Exception as e:
             self._format_error_message(e, "StudioWeb reporting error")
@@ -306,10 +476,15 @@ class StudioWebProgressReporter:
     def _collect_results(
         self,
         eval_results: list[EvalItemResult],
-        evaluators: dict[str, BaseEvaluator[Any]],
+        evaluators: dict[str, LegacyBaseEvaluator[Any]],
+        spans: list[Any],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         assertion_runs: list[dict[str, Any]] = []
         evaluator_scores_list: list[dict[str, Any]] = []
+
+        # Extract usage metrics from spans
+        usage_metrics = self._extract_usage_from_spans(spans)
+
         for eval_result in eval_results:
             evaluator_scores_list.append(
                 {
@@ -327,10 +502,10 @@ class StudioWebProgressReporter:
                         "duration": int(eval_result.result.evaluation_time)
                         if eval_result.result.evaluation_time
                         else 0,
-                        "cost": None,
-                        "tokens": 0,
-                        "completionTokens": 0,
-                        "promptTokens": 0,
+                        "cost": usage_metrics["cost"],
+                        "tokens": usage_metrics["tokens"] or 0,
+                        "completionTokens": usage_metrics["completionTokens"] or 0,
+                        "promptTokens": usage_metrics["promptTokens"] or 0,
                     },
                     "assertionSnapshot": {
                         "assertionType": evaluators[
@@ -344,6 +519,55 @@ class StudioWebProgressReporter:
             )
         return assertion_runs, evaluator_scores_list
 
+    def _collect_coded_results(
+        self,
+        eval_results: list[EvalItemResult],
+        evaluators: dict[str, BaseEvaluator[Any, Any, Any]],
+        spans: list[Any],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Collect results for coded evaluators.
+
+        Returns evaluatorRuns and scores in the format expected by coded eval endpoints.
+        """
+        evaluator_runs: list[dict[str, Any]] = []
+        evaluator_scores_list: list[dict[str, Any]] = []
+
+        # Extract usage metrics from spans
+        usage_metrics = self._extract_usage_from_spans(spans)
+
+        for eval_result in eval_results:
+            evaluator_scores_list.append(
+                {
+                    "type": eval_result.result.score_type.value,
+                    "value": eval_result.result.score,
+                    "justification": eval_result.result.details,
+                    "evaluatorId": eval_result.evaluator_id,
+                }
+            )
+            evaluator_runs.append(
+                {
+                    "status": EvaluationStatus.COMPLETED.value,
+                    "evaluatorId": eval_result.evaluator_id,
+                    "result": {
+                        "score": {
+                            "type": eval_result.result.score_type.value,
+                            "value": eval_result.result.score,
+                        },
+                        "justification": eval_result.result.details,
+                    },
+                    "completionMetrics": {
+                        "duration": int(eval_result.result.evaluation_time)
+                        if eval_result.result.evaluation_time
+                        else 0,
+                        "cost": usage_metrics["cost"],
+                        "tokens": usage_metrics["tokens"] or 0,
+                        "completionTokens": usage_metrics["completionTokens"] or 0,
+                        "promptTokens": usage_metrics["promptTokens"] or 0,
+                    },
+                }
+            )
+        return evaluator_runs, evaluator_scores_list
+
     def _update_eval_run_spec(
         self,
         assertion_runs: list[dict[str, Any]],
@@ -355,7 +579,7 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"agentsruntime_/api/execution/agents/{self._project_id}/evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalRun"
             ),
             json={
                 "evalRunId": eval_run_id,
@@ -370,22 +594,58 @@ class StudioWebProgressReporter:
             headers=self._tenant_header(),
         )
 
-    def _create_eval_run_spec(
-        self, eval_item: EvaluationItem, eval_set_run_id: str
+    def _update_coded_eval_run_spec(
+        self,
+        evaluator_runs: list[dict[str, Any]],
+        evaluator_scores: list[dict[str, Any]],
+        eval_run_id: str,
+        actual_output: dict[str, Any],
+        execution_time: float,
     ) -> RequestSpec:
+        """Create update spec for coded evaluators."""
+        return RequestSpec(
+            method="PUT",
+            endpoint=Endpoint(
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalRun"
+            ),
+            json={
+                "evalRunId": eval_run_id,
+                "status": EvaluationStatus.COMPLETED.value,
+                "result": {
+                    "output": {"content": {**actual_output}},
+                    "scores": evaluator_scores,
+                },
+                "completionMetrics": {"duration": int(execution_time)},
+                "evaluatorRuns": evaluator_runs,
+            },
+            headers=self._tenant_header(),
+        )
+
+    def _create_eval_run_spec(
+        self, eval_item: AnyEvaluationItem, eval_set_run_id: str
+    ) -> RequestSpec:
+        # Build eval snapshot based on evaluation item type
+        eval_snapshot = {
+            "id": eval_item.id,
+            "name": eval_item.name,
+            "inputs": eval_item.inputs,
+        }
+
+        # For new coded evaluators (EvaluationItem), use evaluationCriterias
+        # For legacy evaluators (LegacyEvaluationItem), use expectedOutput
+        if isinstance(eval_item, EvaluationItem):
+            eval_snapshot["evaluationCriterias"] = eval_item.evaluation_criterias
+        else:
+            eval_snapshot["expectedOutput"] = eval_item.expected_output
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"agentsruntime_/api/execution/agents/{self._project_id}/evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalRun"
             ),
             json={
                 "evalSetRunId": eval_set_run_id,
-                "evalSnapshot": {
-                    "id": eval_item.id,
-                    "name": eval_item.name,
-                    "inputs": eval_item.inputs,
-                    "expectedOutput": eval_item.expected_output,
-                },
+                "evalSnapshot": eval_snapshot,
                 "status": EvaluationStatus.IN_PROGRESS.value,
             },
             headers=self._tenant_header(),
@@ -400,7 +660,7 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"agentsruntime_/api/execution/agents/{self._project_id}/evalSetRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalSetRun"
             ),
             json={
                 "agentId": self._project_id,
@@ -425,7 +685,7 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"agentsruntime_/api/execution/agents/{self._project_id}/evalSetRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/coded/evalSetRun"
             ),
             json={
                 "evalSetRunId": eval_set_run_id,

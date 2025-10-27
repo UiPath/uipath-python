@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional, Protocol, Tuple
+from typing import Any, AsyncIterator, Dict, Literal, Optional, Protocol, Tuple
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -24,6 +24,33 @@ try:
 except ImportError:
     import tomli as tomllib
 logger = logging.getLogger(__name__)
+
+
+class FileOperationUpdate(BaseModel):
+    """Update about a file operation in progress."""
+
+    file_path: str
+    status: Literal[
+        "downloading",
+        "updated",
+        "skipped",
+        "up_to_date",
+        "downloaded",
+        "uploading",
+        "updating",
+        "deleting",
+        "created_folder",
+    ]
+    message: str
+
+
+class ProjectPullError(Exception):
+    """Exception raised when pulling a project fails."""
+
+    def __init__(self, project_id: str, message: str = "Failed to pull UiPath project"):
+        self.project_id = project_id
+        self.message = message
+        super().__init__(self.message)
 
 
 class FileConflictHandler(Protocol):
@@ -514,8 +541,12 @@ async def pull_project(
     project_id: str,
     download_configuration: dict[str, Path],
     conflict_handler: Optional[FileConflictHandler] = None,
-):
-    """Pull project with configurable conflict handling."""
+) -> AsyncIterator[FileOperationUpdate]:
+    """Pull project with configurable conflict handling.
+
+    Yields:
+        FileOperationUpdate: Progress updates for each file operation
+    """
     if conflict_handler is None:
         conflict_handler = AlwaysOverwriteHandler()
 
@@ -526,14 +557,14 @@ async def pull_project(
         for source_key, destination in download_configuration.items():
             source_folder = get_folder_by_name(structure, source_key)
             if source_folder:
-                await download_folder_files(
+                async for update in download_folder_files(
                     studio_client, source_folder, destination, conflict_handler
-                )
+                ):
+                    yield update
             else:
                 logger.warning(f"No '{source_key}' folder found in remote project")
-    except Exception:
-        logger.exception("Failed to pull UiPath project")
-        raise
+    except Exception as e:
+        raise ProjectPullError(project_id) from e
 
 
 async def download_folder_files(
@@ -541,17 +572,26 @@ async def download_folder_files(
     folder: ProjectFolder,
     base_path: Path,
     conflict_handler: FileConflictHandler,
-) -> None:
-    """Download files from a folder recursively.
+) -> AsyncIterator[FileOperationUpdate]:
+    """Download files from a folder recursively, yielding progress updates.
 
     Args:
         studio_client: Studio client
         folder: The folder to download files from
         base_path: Base path for local file storage
         conflict_handler: Handler for file conflicts
+
+    Yields:
+        FileOperationUpdate: Progress updates for each file operation
     """
     files_dict: Dict[str, ProjectFile] = {}
     collect_files_from_folder(folder, "", files_dict)
+
+    yield FileOperationUpdate(
+        file_path=folder.name,
+        status="downloading",
+        message=f"Downloading '{folder.name}'...",
+    )
 
     for file_path, remote_file in files_dict.items():
         local_path = base_path / file_path
@@ -572,12 +612,30 @@ async def download_folder_files(
                 ):
                     with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                         f.write(remote_content)
-                    logger.info(f"Updated '{file_path}'")
+
+                    yield FileOperationUpdate(
+                        file_path=file_path,
+                        status="updated",
+                        message=f"Updated '{file_path}'",
+                    )
                 else:
-                    logger.info(f"Skipped '{file_path}'")
+                    yield FileOperationUpdate(
+                        file_path=file_path,
+                        status="skipped",
+                        message=f"Skipped '{file_path}'",
+                    )
             else:
-                logger.info(f"File '{file_path}' is up to date")
+                yield FileOperationUpdate(
+                    file_path=file_path,
+                    status="up_to_date",
+                    message=f"File '{file_path}' is up to date",
+                )
         else:
             with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(remote_content)
-            logger.info(f"Downloaded '{file_path}'")
+
+            yield FileOperationUpdate(
+                file_path=file_path,
+                status="downloaded",
+                message=f"Downloaded '{file_path}'",
+            )

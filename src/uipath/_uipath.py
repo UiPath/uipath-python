@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Optional
 
 from pydantic import ValidationError
@@ -22,6 +23,7 @@ from ._services import (
     UiPathOpenAIService,
 )
 from ._utils._auth import resolve_config
+from ._utils._logs import setup_logging
 from .models.errors import BaseUrlMissingError, SecretMissingError
 
 
@@ -50,11 +52,7 @@ class UiPath:
                     raise BaseUrlMissingError() from e
                 elif error["loc"][0] == "secret":
                     raise SecretMissingError() from e
-        self._folders_service: Optional[FolderService] = None
-        self._buckets_service: Optional[BucketsService] = None
-        self._attachments_service: Optional[AttachmentsService] = None
-        self._connections_service: Optional[ConnectionsService] = None
-
+        setup_logging(should_debug=debug)
         self._execution_context = ExecutionContext()
 
     @property
@@ -65,13 +63,9 @@ class UiPath:
     def assets(self) -> AssetsService:
         return AssetsService(self._config, self._execution_context)
 
-    @property
+    @cached_property
     def attachments(self) -> AttachmentsService:
-        if not self._attachments_service:
-            self._attachments_service = AttachmentsService(
-                self._config, self._execution_context
-            )
-        return self._attachments_service
+        return AttachmentsService(self._config, self._execution_context)
 
     @property
     def processes(self) -> ProcessesService:
@@ -81,39 +75,21 @@ class UiPath:
     def actions(self) -> ActionsService:
         return ActionsService(self._config, self._execution_context)
 
-    @property
+    @cached_property
     def buckets(self) -> BucketsService:
-        if not self._buckets_service:
-            self._buckets_service = BucketsService(
-                self._config, self._execution_context
-            )
         return BucketsService(self._config, self._execution_context)
 
-    @property
+    @cached_property
     def connections(self) -> ConnectionsService:
-        if not self._connections_service:
-            if not self._folders_service:
-                self._folders_service = FolderService(
-                    self._config, self._execution_context
-                )
-            self._connections_service = ConnectionsService(
-                self._config, self._execution_context, self._folders_service
-            )
-        return self._connections_service
+        return ConnectionsService(self._config, self._execution_context, self.folders)
 
     @property
     def context_grounding(self) -> ContextGroundingService:
-        if not self._folders_service:
-            self._folders_service = FolderService(self._config, self._execution_context)
-        if not self._buckets_service:
-            self._buckets_service = BucketsService(
-                self._config, self._execution_context
-            )
         return ContextGroundingService(
             self._config,
             self._execution_context,
-            self._folders_service,
-            self._buckets_service,
+            self.folders,
+            self.buckets,
         )
 
     @property
@@ -128,11 +104,9 @@ class UiPath:
     def jobs(self) -> JobsService:
         return JobsService(self._config, self._execution_context)
 
-    @property
+    @cached_property
     def folders(self) -> FolderService:
-        if not self._folders_service:
-            self._folders_service = FolderService(self._config, self._execution_context)
-        return self._folders_service
+        return FolderService(self._config, self._execution_context)
 
     @property
     def llm_openai(self) -> UiPathOpenAIService:
