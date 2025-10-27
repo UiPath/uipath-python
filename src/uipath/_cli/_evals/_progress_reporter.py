@@ -478,6 +478,24 @@ class StudioWebProgressReporter:
 
         logger.debug("StudioWeb progress reporter subscribed to evaluation events")
 
+    def _serialize_justification(self, justification: Any) -> str | None:
+        """Serialize justification to JSON string for API compatibility.
+
+        Args:
+            justification: The justification object which could be None, a BaseModel,
+                          a string, or any other JSON-serializable object
+
+        Returns:
+            JSON string representation or None if justification is None
+        """
+        if justification is None:
+            return None
+        if hasattr(justification, "model_dump"):
+            return json.dumps(justification.model_dump())
+        if not isinstance(justification, str):
+            return json.dumps(justification)
+        return justification
+
     def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
         try:
             project_config = get_project_config(os.getcwd())
@@ -532,11 +550,7 @@ class StudioWebProgressReporter:
                 )
 
             # Convert BaseModel justification to JSON string for API compatibility
-            justification = eval_result.result.details
-            if justification is not None and hasattr(justification, "model_dump"):
-                justification = json.dumps(justification.model_dump())
-            elif justification is not None and not isinstance(justification, str):
-                justification = json.dumps(justification)
+            justification = self._serialize_justification(eval_result.result.details)
 
             evaluator_scores_list.append(
                 {
@@ -594,11 +608,7 @@ class StudioWebProgressReporter:
                 continue
 
             # Convert BaseModel justification to JSON string for API compatibility
-            justification = eval_result.result.details
-            if justification is not None and hasattr(justification, "model_dump"):
-                justification = json.dumps(justification.model_dump())
-            elif justification is not None and not isinstance(justification, str):
-                justification = json.dumps(justification)
+            justification = self._serialize_justification(eval_result.result.details)
 
             evaluator_scores_list.append(
                 {
