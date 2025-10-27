@@ -37,7 +37,7 @@ class TestBucketsService:
         ):
             bucket_key = "bucket-key"
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={bucket_key})",
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier='{bucket_key}')",
                 status_code=200,
                 json={
                     "value": [
@@ -86,7 +86,7 @@ class TestBucketsService:
         ):
             bucket_key = "bucket-key"
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={bucket_key})",
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier='{bucket_key}')",
                 status_code=200,
                 json={
                     "value": [
@@ -137,7 +137,7 @@ class TestBucketsService:
         ):
             bucket_key = "bucket-key"
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={bucket_key})",
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier='{bucket_key}')",
                 status_code=200,
                 json={
                     "value": [
@@ -185,7 +185,7 @@ class TestBucketsService:
         ):
             bucket_key = "bucket-key"
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={bucket_key})",
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier='{bucket_key}')",
                 status_code=200,
                 json={
                     "value": [
@@ -235,7 +235,7 @@ class TestBucketsService:
         ):
             bucket_key = "bucket-key"
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={bucket_key})",
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier='{bucket_key}')",
                 status_code=200,
                 json={
                     "value": [
@@ -314,8 +314,6 @@ class TestList:
         assert len(buckets) == 130
         assert buckets[0].id == 0
         assert buckets[129].id == 129
-        # Verify _service is injected
-        assert buckets[0]._service is service
 
     def test_list_with_name_filter(
         self,
@@ -429,7 +427,6 @@ class TestList:
             buckets.append(bucket)
 
         assert len(buckets) == 10
-        assert buckets[0]._service is service
 
 
 class TestExists:
@@ -531,7 +528,6 @@ class TestCreate:
         bucket = service.create("new-bucket")
         assert bucket.id == 1
         assert bucket.name == "new-bucket"
-        assert bucket._service is service
 
         # Verify UUID was in request
         requests = httpx_mock.get_requests()
@@ -657,388 +653,6 @@ class TestCreate:
 
         bucket = await service.create_async("async-bucket")
         assert bucket.id == 1
-        assert bucket._service is service
-
-
-class TestBucketListFiles:
-    """Tests for bucket.list() resource method."""
-
-    def test_bucket_list_files(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ):
-        """Test listing files in bucket via resource method."""
-        # First retrieve bucket
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        # Mock ListFiles
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/Buckets/123/ListFiles?prefix=&takeHint=500",
-            status_code=200,
-            json={
-                "items": [
-                    {
-                        "fullPath": "file1.txt",
-                        "size": 100,
-                        "contentType": "text/plain",
-                        "lastModified": "2024-01-01T00:00:00Z",
-                    },
-                    {
-                        "fullPath": "file2.txt",
-                        "size": 200,
-                        "contentType": "text/plain",
-                        "lastModified": "2024-01-01T00:00:00Z",
-                    },
-                ]
-            },
-        )
-
-        bucket = service.retrieve(name="test-bucket")
-        files = bucket.list()
-
-        assert len(files) == 2
-        assert files[0].path == "file1.txt"
-        assert files[0].size == 100
-        assert files[1].path == "file2.txt"
-
-    def test_bucket_list_with_prefix(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ):
-        """Test filtering files by prefix."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/Buckets/123/ListFiles?prefix=data%2F&takeHint=500",
-            status_code=200,
-            json={
-                "items": [
-                    {
-                        "fullPath": "data/file1.txt",
-                        "size": 100,
-                        "contentType": "text/plain",
-                        "lastModified": "2024-01-01T00:00:00Z",
-                    }
-                ]
-            },
-        )
-
-        bucket = service.retrieve(name="test-bucket")
-        files = bucket.list(prefix="data/")
-
-        assert len(files) == 1
-        assert files[0].path.startswith("data/")
-
-    def test_bucket_list_max_results(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ):
-        """Test max_results parameter."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/Buckets/123/ListFiles?prefix=&takeHint=100",
-            status_code=200,
-            json={"items": []},
-        )
-
-        bucket = service.retrieve(name="test-bucket")
-        bucket.list(max_results=100)
-
-        # Verify takeHint=100 in request
-        requests = httpx_mock.get_requests()
-        list_request = requests[1]
-        assert "takeHint=100" in str(list_request.url)
-
-    def test_bucket_list_caps_at_1000(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ):
-        """Test max_results capped at 1000."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/Buckets/123/ListFiles?prefix=&takeHint=1000",
-            status_code=200,
-            json={"items": []},
-        )
-
-        bucket = service.retrieve(name="test-bucket")
-        bucket.list(max_results=5000)  # Should be capped at 1000
-
-        requests = httpx_mock.get_requests()
-        list_request = requests[1]
-        assert "takeHint=1000" in str(list_request.url)
-
-    def test_bucket_list_without_service_raises(self):
-        """Test bucket.list() without _service injection."""
-        from uipath.models import Bucket
-
-        bucket = Bucket(id=1, name="test", identifier="id-1")
-        # _service is None
-
-        with pytest.raises(RuntimeError, match="not properly initialized"):
-            bucket.list()
-
-
-class TestBucketUpload:
-    """Tests for bucket.upload() resource method."""
-
-    def test_bucket_upload_from_file(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-        temp_file: str,
-    ):
-        """Test uploading file via resource method."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        # Mock for the implicit self.retrieve() call inside service.upload()
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetWriteUri?path=remote.txt&contentType=text%2Fplain",
-            status_code=200,
-            json={
-                "Uri": "https://storage.com/remote.txt",
-                "Headers": {"Keys": [], "Values": []},
-                "RequiresAuth": False,
-            },
-        )
-
-        httpx_mock.add_response(
-            method="PUT", url="https://storage.com/remote.txt", status_code=200
-        )
-
-        bucket = service.retrieve(name="test-bucket")
-        bucket.upload(temp_file, "remote.txt")
-
-        # Verify upload was called
-        requests = httpx_mock.get_requests()
-        assert len(requests) == 4
-        assert requests[3].method == "PUT"
-
-    def test_bucket_upload_with_content_type(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-        tmp_path,
-    ):
-        """Test explicit content type (using content, not source_path)."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetWriteUri?path=remote.csv&contentType=text%2Fcsv",
-            status_code=200,
-            json={
-                "Uri": "https://storage.com/remote.csv",
-                "Headers": {"Keys": [], "Values": []},
-                "RequiresAuth": False,
-            },
-        )
-
-        httpx_mock.add_response(
-            method="PUT", url="https://storage.com/remote.csv", status_code=200
-        )
-
-        # Use service.upload with content parameter (not Bucket.upload with source_path)
-        # because source_path ignores content_type parameter and auto-detects from file extension
-        service.upload(
-            name="test-bucket",
-            blob_file_path="remote.csv",
-            content="test,data\n1,2",
-            content_type="text/csv",
-        )
-
-        # Verify content_type in request (GetWriteUri is the 2nd request: retrieve, GetWriteUri, PUT)
-        requests = httpx_mock.get_requests()
-        assert len(requests) == 3
-        assert "contentType=text%2Fcsv" in str(requests[1].url)
-
-    def test_bucket_upload_without_service_raises(self):
-        """Test upload without _service injection."""
-        from uipath.models import Bucket
-
-        bucket = Bucket(id=1, name="test", identifier="id-1")
-
-        with pytest.raises(RuntimeError, match="not properly initialized"):
-            bucket.upload("source.txt", "dest.txt")
-
-
-class TestBucketDownload:
-    """Tests for bucket.download() resource method."""
-
-    def test_bucket_download(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-        tmp_path: Path,
-    ):
-        """Test downloading file via resource method."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        # Mock for the implicit self.retrieve() call inside service.download()
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetReadUri?path=remote.txt",
-            status_code=200,
-            json={
-                "Uri": "https://storage.com/remote.txt",
-                "Headers": {"Keys": [], "Values": []},
-                "RequiresAuth": False,
-            },
-        )
-
-        httpx_mock.add_response(
-            url="https://storage.com/remote.txt",
-            status_code=200,
-            content=b"file content",
-        )
-
-        bucket = service.retrieve(name="test-bucket")
-        dest_path = str(tmp_path / "downloaded.txt")
-        bucket.download("remote.txt", dest_path)
-
-        # Verify file was downloaded
-        assert os.path.exists(dest_path)
-        with open(dest_path, "rb") as f:
-            assert f.read() == b"file content"
-
-    def test_bucket_download_without_service_raises(self):
-        """Test download without _service injection."""
-        from uipath.models import Bucket
-
-        bucket = Bucket(id=1, name="test", identifier="id-1")
-
-        with pytest.raises(RuntimeError, match="not properly initialized"):
-            bucket.download("source.txt", "dest.txt")
-
-
-class TestBucketDelete:
-    """Tests for bucket.delete() resource method."""
-
-    def test_bucket_delete(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ):
-        """Test deleting bucket via resource method."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)",
-            status_code=204,
-        )
-
-        bucket = service.retrieve(name="test-bucket")
-        bucket.delete()
-
-        # Verify DELETE request was made
-        requests = httpx_mock.get_requests()
-        assert len(requests) == 2
-        assert requests[1].method == "DELETE"
-        assert "/odata/Buckets(123)" in str(requests[1].url)
-
-    def test_bucket_delete_with_force_parameter(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ):
-        """Test force parameter (currently unused)."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
-            status_code=200,
-            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)",
-            status_code=204,
-        )
-
-        bucket = service.retrieve(name="test-bucket")
-        bucket.delete(force=True)  # Should not raise
-
-    def test_bucket_delete_without_service_raises(self):
-        """Test delete without _service injection."""
-        from uipath.models import Bucket
-
-        bucket = Bucket(id=1, name="test", identifier="id-1")
-
-        with pytest.raises(RuntimeError, match="not properly initialized"):
-            bucket.delete()
 
 
 class TestEdgeCases:
@@ -1075,7 +689,7 @@ class TestEdgeCases:
     ):
         """Test retrieve by key raises LookupError."""
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier=nonexistent)",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier='nonexistent')",
             status_code=200,
             json={"value": []},
         )
@@ -1122,30 +736,3 @@ class TestEdgeCases:
         buckets = list(service.list())
         assert len(buckets) == 1
         assert buckets[0].id == 1
-
-    def test_create_returns_bucket_with_service_injected(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BucketsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ):
-        """Test created bucket has _service reference."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets",
-            status_code=201,
-            json={"Id": 1, "Name": "new-bucket", "Identifier": "id-1"},
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/Buckets/1/ListFiles?prefix=&takeHint=500",
-            status_code=200,
-            json={"items": []},
-        )
-
-        bucket = service.create("new-bucket")
-        assert bucket._service is service
-        # Verify can call resource methods immediately
-        files = bucket.list()  # Should not raise
-        assert isinstance(files, list)

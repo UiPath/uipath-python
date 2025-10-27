@@ -2,7 +2,7 @@ import asyncio
 import mimetypes
 import uuid
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Iterator, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 import httpx
 
@@ -11,7 +11,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
 from .._utils._ssl_context import get_httpx_client_kwargs
-from ..models import Bucket
+from ..models import Bucket, BucketFile
 from ..tracing._traced import traced
 from ._base_service import BaseService
 
@@ -83,7 +83,6 @@ class BucketsService(FolderContext, BaseService):
 
             for item in items:
                 bucket = Bucket.model_validate(item)
-                bucket._service = self  # Inject service reference for resource pattern
                 yield bucket
 
             # Check if more pages available
@@ -127,7 +126,6 @@ class BucketsService(FolderContext, BaseService):
 
             for item in items:
                 bucket = Bucket.model_validate(item)
-                bucket._service = self
                 yield bucket
 
             if len(items) < top:
@@ -227,7 +225,6 @@ class BucketsService(FolderContext, BaseService):
         ).json()
 
         bucket = Bucket.model_validate(response)
-        bucket._service = self
         return bucket
 
     @traced(name="buckets_create", run_type="uipath")
@@ -258,7 +255,6 @@ class BucketsService(FolderContext, BaseService):
         ).json()
 
         bucket = Bucket.model_validate(response)
-        bucket._service = self
         return bucket
 
     @traced(name="buckets_download", run_type="uipath")
@@ -648,7 +644,6 @@ class BucketsService(FolderContext, BaseService):
                 raise LookupError(f"Bucket with name '{name}' not found") from e
 
         bucket = Bucket.model_validate(bucket_data)
-        bucket._service = self  # Inject service reference for resource pattern
         return bucket
 
     @traced(name="buckets_retrieve", run_type="uipath")
@@ -731,8 +726,167 @@ class BucketsService(FolderContext, BaseService):
                 raise LookupError(f"Bucket with name '{name}' not found") from e
 
         bucket = Bucket.model_validate(bucket_data)
-        bucket._service = self  # Inject service reference for resource pattern
         return bucket
+
+    @traced(name="buckets_list_files", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    def list_files(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        prefix: str = "",
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[BucketFile]:
+        """List files in a bucket.
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier
+            prefix: Filter files by prefix
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            List[BucketFile]: List of files in the bucket
+
+        Examples:
+            >>> files = sdk.buckets.list_files(name="my-storage")
+            >>> files = sdk.buckets.list_files(name="my-storage", prefix="data/")
+        """
+        bucket = self.retrieve(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._list_files_spec(
+            bucket.id, prefix, folder_key=folder_key, folder_path=folder_path
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+
+        items = response.get("value", [])
+        return [BucketFile.model_validate(item) for item in items]
+
+    @traced(name="buckets_list_files", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    async def list_files_async(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        prefix: str = "",
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[BucketFile]:
+        """List files in a bucket asynchronously.
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier
+            prefix: Filter files by prefix
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            List[BucketFile]: List of files in the bucket
+
+        Examples:
+            >>> files = await sdk.buckets.list_files_async(name="my-storage")
+            >>> files = await sdk.buckets.list_files_async(name="my-storage", prefix="data/")
+        """
+        bucket = await self.retrieve_async(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._list_files_spec(
+            bucket.id, prefix, folder_key=folder_key, folder_path=folder_path
+        )
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+
+        items = response.get("value", [])
+        return [BucketFile.model_validate(item) for item in items]
+
+    @traced(name="buckets_delete", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    def delete(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        blob_file_path: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Delete a file from a bucket.
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier
+            blob_file_path: Path to the file in the bucket
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Examples:
+            >>> sdk.buckets.delete(name="my-storage", blob_file_path="data/file.txt")
+        """
+        bucket = self.retrieve(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._delete_file_spec(
+            bucket.id, blob_file_path, folder_key=folder_key, folder_path=folder_path
+        )
+        self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
+
+    @traced(name="buckets_delete", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    async def delete_async(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        blob_file_path: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Delete a file from a bucket asynchronously.
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier
+            blob_file_path: Path to the file in the bucket
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Examples:
+            >>> await sdk.buckets.delete_async(name="my-storage", blob_file_path="data/file.txt")
+        """
+        bucket = await self.retrieve_async(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._delete_file_spec(
+            bucket.id, blob_file_path, folder_key=folder_key, folder_path=folder_path
+        )
+        await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
 
     @property
     def custom_headers(self) -> Dict[str, str]:
@@ -853,11 +1007,57 @@ class BucketsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
+        # Escape single quotes in the key to prevent OData injection
+        escaped_key = key.replace("'", "''")
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
-                f"/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={key})"
+                f"/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier='{escaped_key}')"
             ),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _list_files_spec(
+        self,
+        bucket_id: int,
+        prefix: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        """Build OData request for listing files in a bucket."""
+        params: Dict[str, Any] = {}
+        if prefix:
+            # Escape single quotes to prevent OData filter injection
+            escaped_prefix = prefix.replace("'", "''")
+            params["$filter"] = f"startswith(Name, '{escaped_prefix}')"
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.Files"
+            ),
+            params=params,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _delete_file_spec(
+        self,
+        bucket_id: int,
+        blob_file_path: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        """Build request for deleting a file from a bucket."""
+        return RequestSpec(
+            method="DELETE",
+            endpoint=Endpoint(
+                f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.DeleteFile"
+            ),
+            params={"path": blob_file_path},
             headers={
                 **header_folder(folder_key, folder_path),
             },
