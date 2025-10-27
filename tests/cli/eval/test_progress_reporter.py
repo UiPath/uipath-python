@@ -94,8 +94,6 @@ def sample_spans_with_json_attributes():
     return [span]
 
 
-
-
 # Tests for evaluator type detection
 class TestEvaluatorDetection:
     """Tests for coded vs legacy evaluator detection."""
