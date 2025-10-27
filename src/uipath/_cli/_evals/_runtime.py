@@ -30,6 +30,8 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (
     UiPathBaseRuntime,
+    UiPathErrorCategory,
+    UiPathErrorContract,
     UiPathExecutionBatchTraceProcessor,
     UiPathRuntimeContext,
     UiPathRuntimeFactory,
@@ -364,7 +366,43 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         )
 
         try:
-            agent_execution_output = await self.execute_runtime(eval_item, execution_id)
+            try:
+                agent_execution_output = await self.execute_runtime(
+                    eval_item, execution_id
+                )
+            except Exception as e:
+                if self.context.verbose:
+                    error_info = UiPathErrorContract(
+                        code="RUNTIME_SHUTDOWN_ERROR",
+                        title="Runtime shutdown failed",
+                        detail=f"Error: {str(e)}",
+                        category=UiPathErrorCategory.UNKNOWN,
+                    )
+                    error_result = UiPathRuntimeResult(
+                        status=UiPathRuntimeStatus.FAULTED,
+                        error=error_info,
+                    )
+                    if isinstance(e, EvaluationRuntimeException):
+                        spans = e.spans
+                        logs = e.logs
+                        execution_time = e.execution_time
+                    else:
+                        spans = []
+                        logs = []
+                        execution_time = 0
+
+                    evaluation_run_results.agent_execution_output = (
+                        convert_eval_execution_output_to_serializable(
+                            UiPathEvalRunExecutionOutput(
+                                execution_time=execution_time,
+                                result=error_result,
+                                spans=spans,
+                                logs=logs,
+                            )
+                        )
+                    )
+                raise
+
             if self.context.verbose:
                 evaluation_run_results.agent_execution_output = (
                     convert_eval_execution_output_to_serializable(
@@ -530,6 +568,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 runtime_context, root_span=eval_item.name, attributes=attributes
             )
         except Exception as e:
+            end_time = time()
             spans, logs = self._get_and_clear_execution_data(
                 runtime_context.execution_id
             )
@@ -537,6 +576,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 spans=spans,
                 logs=logs,
                 root_exception=e,
+                execution_time=end_time - start_time,
             ) from e
 
         end_time = time()
