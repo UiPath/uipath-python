@@ -531,11 +531,18 @@ class StudioWebProgressReporter:
                     uuid.uuid5(uuid.NAMESPACE_DNS, eval_result.evaluator_id)
                 )
 
+            # Convert BaseModel justification to JSON string for API compatibility
+            justification = eval_result.result.details
+            if hasattr(justification, "model_dump"):
+                justification = json.dumps(justification.model_dump())
+            elif justification is not None and not isinstance(justification, str):
+                justification = json.dumps(justification)
+
             evaluator_scores_list.append(
                 {
                     "type": eval_result.result.score_type.value,
                     "value": eval_result.result.score,
-                    "justification": eval_result.result.details,
+                    "justification": justification,
                     "evaluatorId": evaluator_id_value,
                 }
             )
@@ -586,11 +593,18 @@ class StudioWebProgressReporter:
             if eval_result.evaluator_id not in evaluators:
                 continue
 
+            # Convert BaseModel justification to JSON string for API compatibility
+            justification = eval_result.result.details
+            if hasattr(justification, "model_dump"):
+                justification = json.dumps(justification.model_dump())
+            elif justification is not None and not isinstance(justification, str):
+                justification = json.dumps(justification)
+
             evaluator_scores_list.append(
                 {
                     "type": eval_result.result.score_type.value,
                     "value": eval_result.result.score,
-                    "justification": eval_result.result.details,
+                    "justification": justification,
                     "evaluatorId": eval_result.evaluator_id,
                 }
             )
@@ -603,7 +617,7 @@ class StudioWebProgressReporter:
                             "type": eval_result.result.score_type.value,
                             "value": eval_result.result.score,
                         },
-                        "justification": eval_result.result.details,
+                        "justification": justification,
                     },
                     "completionMetrics": {
                         "duration": int(eval_result.result.evaluation_time)
