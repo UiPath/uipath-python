@@ -6,7 +6,6 @@ from typing import Any, Dict
 from pydantic import TypeAdapter
 
 from uipath._cli._evals._helpers import try_extract_file_and_class_name  # type: ignore
-from uipath._cli._evals._models._evaluation_set import AnyEvaluator
 from uipath._cli._evals._models._evaluator import (
     EqualsEvaluatorParams,
     EvaluatorConfig,
@@ -71,10 +70,60 @@ class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
 
     @classmethod
-    def create_evaluator(cls, data: Dict[str, Any]) -> AnyEvaluator:
+    def create_evaluator(cls, data: Dict[str, Any]) -> BaseEvaluator[Any, Any, Any]:
         if data.get("version", None) == "1.0":
             return cls._create_evaluator_internal(data)
-        return cls._create_legacy_evaluator_internal(data)
+        else:
+            legacy_evaluator = cls._create_legacy_evaluator_internal(data)
+            match legacy_evaluator:
+                case LegacyExactMatchEvaluator():
+                    return ExactMatchEvaluator.model_validate(
+                        {
+                            "id": legacy_evaluator.id,
+                            "config": {
+                                "case_sensitive": True,
+                                "negated": False,
+                                "target_output_key": legacy_evaluator.target_output_key,
+                            },
+                        },
+                    )
+                case LegacyJsonSimilarityEvaluator():
+                    return JsonSimilarityEvaluator.model_validate(
+                        {
+                            "id": legacy_evaluator.id,
+                            "config": {
+                                "target_output_key": legacy_evaluator.target_output_key,
+                            },
+                        },
+                    )
+                case LegacyLlmAsAJudgeEvaluator():
+                    return LLMJudgeOutputEvaluator.model_validate(
+                        {
+                            "id": legacy_evaluator.id,
+                            "config": {
+                                "prompt": legacy_evaluator.prompt,
+                                "model": legacy_evaluator.model,
+                                "expected_output_placeholder": legacy_evaluator.expected_output_placeholder,
+                                "actual_output_placeholder": legacy_evaluator.actual_output_placeholder,
+                                "target_output_key": legacy_evaluator.target_output_key,
+                            },
+                        },
+                    )
+                case LegacyTrajectoryEvaluator():
+                    return LLMJudgeTrajectoryEvaluator.model_validate(
+                        {
+                            "id": legacy_evaluator.id,
+                            "config": {
+                                "prompt": legacy_evaluator.prompt,
+                                "model": legacy_evaluator.model,
+                                "expected_output_placeholder": legacy_evaluator.expected_agent_behavior_placeholder,
+                                "actual_output_placeholder": legacy_evaluator.agent_run_history_placeholder,
+                                "target_output_key": legacy_evaluator.target_output_key,
+                            },
+                        },
+                    )
+                case _:
+                    raise NotImplementedError()
 
     @staticmethod
     def _create_evaluator_internal(

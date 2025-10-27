@@ -19,7 +19,7 @@
         "operator": "+"
       },
       "expectedOutput": {
-        "result": 2
+        "result": 2.0
       },
       "expectedAgentBehavior": "The operation should produce the right output.",
       "evalSetId": "default-eval-set-id",
@@ -35,7 +35,7 @@
         "operator": "random"
       },
       "expectedOutput": {
-        "result": 2
+        "result": 2.0
       },
       "expectedAgentBehavior": "The operation should produce the right output.",
       "mockingStrategy": {
@@ -71,7 +71,7 @@
         "operator": "random"
       },
       "expectedOutput": {
-        "result": 2
+        "result": 2.0
       },
       "expectedAgentBehavior": "The operation should produce the right output.",
       "mockingStrategy": {
