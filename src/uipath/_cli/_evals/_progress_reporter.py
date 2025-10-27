@@ -478,6 +478,24 @@ class StudioWebProgressReporter:
 
         logger.debug("StudioWeb progress reporter subscribed to evaluation events")
 
+    def _serialize_justification(self, justification: Any) -> str | None:
+        """Serialize justification to JSON string for API compatibility.
+
+        Args:
+            justification: The justification object which could be None, a BaseModel,
+                          a string, or any other JSON-serializable object
+
+        Returns:
+            JSON string representation or None if justification is None
+        """
+        if justification is None:
+            return None
+        if hasattr(justification, "model_dump"):
+            return json.dumps(justification.model_dump())
+        if not isinstance(justification, str):
+            return json.dumps(justification)
+        return justification
+
     def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
         try:
             project_config = get_project_config(os.getcwd())
@@ -531,11 +549,14 @@ class StudioWebProgressReporter:
                     uuid.uuid5(uuid.NAMESPACE_DNS, eval_result.evaluator_id)
                 )
 
+            # Convert BaseModel justification to JSON string for API compatibility
+            justification = self._serialize_justification(eval_result.result.details)
+
             evaluator_scores_list.append(
                 {
                     "type": eval_result.result.score_type.value,
                     "value": eval_result.result.score,
-                    "justification": eval_result.result.details,
+                    "justification": justification,
                     "evaluatorId": evaluator_id_value,
                 }
             )
@@ -586,11 +607,14 @@ class StudioWebProgressReporter:
             if eval_result.evaluator_id not in evaluators:
                 continue
 
+            # Convert BaseModel justification to JSON string for API compatibility
+            justification = self._serialize_justification(eval_result.result.details)
+
             evaluator_scores_list.append(
                 {
                     "type": eval_result.result.score_type.value,
                     "value": eval_result.result.score,
-                    "justification": eval_result.result.details,
+                    "justification": justification,
                     "evaluatorId": eval_result.evaluator_id,
                 }
             )
@@ -603,7 +627,7 @@ class StudioWebProgressReporter:
                             "type": eval_result.result.score_type.value,
                             "value": eval_result.result.score,
                         },
-                        "justification": eval_result.result.details,
+                        "justification": justification,
                     },
                     "completionMetrics": {
                         "duration": int(eval_result.result.evaluation_time)
