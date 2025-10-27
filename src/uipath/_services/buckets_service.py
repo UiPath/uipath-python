@@ -436,6 +436,232 @@ class BucketsService(FolderContext, BaseService):
             raise Exception(f"Bucket with name '{name}' not found") from e
         return Bucket.model_validate(response)
 
+    @traced(name="buckets_get_files", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    def get_files(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        prefix: str = "",
+        recursive: bool = False,
+        file_name_glob: Optional[str] = None,
+        top: Optional[int] = None,
+        skip: Optional[int] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> list:
+        """
+        Get all files in the specified bucket under the given prefix (directory).
+
+        Args:
+            name (Optional[str]): The name of the bucket.
+            key (Optional[str]): The key of the bucket.
+            prefix (str): The directory path (prefix) to list files under. Defaults to root.
+            recursive (bool): Recurse subdirectories for flat view. Defaults to False.
+            file_name_glob (Optional[str]): Files listing filter (e.g., "*.pdf").
+            top (Optional[int]): Number of files to return (for pagination).
+            skip (Optional[int]): Number of files to skip (for pagination).
+            folder_key (Optional[str]): The key of the folder where the bucket resides.
+            folder_path (Optional[str]): The path of the folder where the bucket resides.
+
+        Returns:
+            list: List of file paths under the given prefix.
+        """
+        bucket = self.retrieve(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._retrieve_get_files_spec(
+            bucket.id,
+            prefix,
+            recursive=recursive,
+            file_name_glob=file_name_glob,
+            top=top,
+            skip=skip,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+        return [
+            obj["FullPath"]
+            for obj in response.get("value", [])
+            if not obj.get("IsDirectory", False)
+        ]
+
+    @traced(name="buckets_get_files", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    async def get_files_async(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        prefix: str = "",
+        recursive: bool = False,
+        file_name_glob: Optional[str] = None,
+        top: Optional[int] = None,
+        skip: Optional[int] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> list:
+        """
+        Asynchronously get all files in the specified bucket under the given prefix (directory).
+
+        Args:
+            name (Optional[str]): The name of the bucket.
+            key (Optional[str]): The key of the bucket.
+            prefix (str): The directory path (prefix) to list files under. Defaults to root.
+            recursive (bool): Recurse subdirectories for flat view. Defaults to False.
+            file_name_glob (Optional[str]): Files listing filter (e.g., "*.pdf").
+            top (Optional[int]): Number of files to return (for pagination).
+            skip (Optional[int]): Number of files to skip (for pagination).
+            folder_key (Optional[str]): The key of the folder where the bucket resides.
+            folder_path (Optional[str]): The path of the folder where the bucket resides.
+
+        Returns:
+            list: List of file paths under the given prefix.
+        """
+        bucket = await self.retrieve_async(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._retrieve_get_files_spec(
+            bucket.id,
+            prefix,
+            recursive=recursive,
+            file_name_glob=file_name_glob,
+            top=top,
+            skip=skip,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+        return [
+            obj["FullPath"]
+            for obj in response.get("value", [])
+            if not obj.get("IsDirectory", False)
+        ]
+
+    @traced(name="buckets_list_files", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    def list_files(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        prefix: str = "",
+        take_hint: Optional[int] = None,
+        continuation_token: Optional[str] = None,
+        expiry_in_minutes: Optional[int] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Dict[str, Union[list, Optional[str]]]:
+        """
+        List all files in the specified bucket under the given prefix (directory).
+        Supports pagination with continuation tokens.
+
+        Args:
+            name (Optional[str]): The name of the bucket.
+            key (Optional[str]): The key of the bucket.
+            prefix (str): The directory path (prefix) to list files under. Defaults to root.
+            take_hint (Optional[int]): Minimum number of files to return (default: 500, max: 1000).
+            continuation_token (Optional[str]): Token for pagination from previous response.
+            expiry_in_minutes (Optional[int]): Generate access URLs that expire in N minutes.
+            folder_key (Optional[str]): The key of the folder where the bucket resides.
+            folder_path (Optional[str]): The path of the folder where the bucket resides.
+
+        Returns:
+            Dict with 'files' (list of file paths) and 'continuation_token' (str or None).
+        """
+        bucket = self.retrieve(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._retrieve_list_files_spec(
+            bucket.id,
+            prefix,
+            take_hint=take_hint,
+            continuation_token=continuation_token,
+            expiry_in_minutes=expiry_in_minutes,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+        return {
+            "files": [obj["fullPath"] for obj in response.get("items", [])],
+            "continuation_token": response.get("continuationToken"),
+        }
+
+    @traced(name="buckets_list_files", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    async def list_files_async(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        prefix: str = "",
+        take_hint: Optional[int] = None,
+        continuation_token: Optional[str] = None,
+        expiry_in_minutes: Optional[int] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Dict[str, Union[list, Optional[str]]]:
+        """
+        Asynchronously list all files in the specified bucket under the given prefix (directory).
+        Supports pagination with continuation tokens.
+
+        Args:
+            name (Optional[str]): The name of the bucket.
+            key (Optional[str]): The key of the bucket.
+            prefix (str): The directory path (prefix) to list files under. Defaults to root.
+            take_hint (Optional[int]): Minimum number of files to return (default: 500, max: 1000).
+            continuation_token (Optional[str]): Token for pagination from previous response.
+            expiry_in_minutes (Optional[int]): Generate access URLs that expire in N minutes.
+            folder_key (Optional[str]): The key of the folder where the bucket resides.
+            folder_path (Optional[str]): The path of the folder where the bucket resides.
+
+        Returns:
+            Dict with 'files' (list of file paths) and 'continuation_token' (str or None).
+        """
+        bucket = await self.retrieve_async(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+        spec = self._retrieve_list_files_spec(
+            bucket.id,
+            prefix,
+            take_hint=take_hint,
+            continuation_token=continuation_token,
+            expiry_in_minutes=expiry_in_minutes,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+        return {
+            "files": [obj["fullPath"] for obj in response.get("items", [])],
+            "continuation_token": response.get("continuationToken"),
+        }
+
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
@@ -503,6 +729,69 @@ class BucketsService(FolderContext, BaseService):
             endpoint=Endpoint(
                 f"/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier={key})"
             ),
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _retrieve_get_files_spec(
+        self,
+        bucket_id: int,
+        prefix: str = "",
+        recursive: bool = False,
+        file_name_glob: Optional[str] = None,
+        top: Optional[int] = None,
+        skip: Optional[int] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        params = {}
+        if prefix:
+            params["directory"] = prefix
+        if recursive:
+            params["recursive"] = recursive
+        if file_name_glob:
+            params["fileNameGlob"] = file_name_glob
+        if top is not None:
+            params["$top"] = top
+        if skip is not None:
+            params["$skip"] = skip
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetFiles"
+            ),
+            params=params,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _retrieve_list_files_spec(
+        self,
+        bucket_id: int,
+        prefix: str = "",
+        take_hint: Optional[int] = None,
+        continuation_token: Optional[str] = None,
+        expiry_in_minutes: Optional[int] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        params = {}
+        if prefix:
+            params["prefix"] = prefix
+        if take_hint is not None:
+            params["takeHint"] = take_hint
+        if continuation_token:
+            params["continuationToken"] = continuation_token
+        if expiry_in_minutes is not None:
+            params["expiryInMinutes"] = expiry_in_minutes
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"/orchestrator_/api/Buckets/{bucket_id}/ListFiles"
+            ),
+            params=params,
             headers={
                 **header_folder(folder_key, folder_path),
             },
