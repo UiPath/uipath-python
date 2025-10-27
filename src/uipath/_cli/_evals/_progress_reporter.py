@@ -533,7 +533,7 @@ class StudioWebProgressReporter:
 
             # Convert BaseModel justification to JSON string for API compatibility
             justification = eval_result.result.details
-            if hasattr(justification, "model_dump"):
+            if justification is not None and hasattr(justification, "model_dump"):
                 justification = json.dumps(justification.model_dump())
             elif justification is not None and not isinstance(justification, str):
                 justification = json.dumps(justification)
@@ -595,7 +595,7 @@ class StudioWebProgressReporter:
 
             # Convert BaseModel justification to JSON string for API compatibility
             justification = eval_result.result.details
-            if hasattr(justification, "model_dump"):
+            if justification is not None and hasattr(justification, "model_dump"):
                 justification = json.dumps(justification.model_dump())
             elif justification is not None and not isinstance(justification, str):
                 justification = json.dumps(justification)

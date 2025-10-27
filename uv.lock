@@ -2823,7 +2823,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.1.115"
+version = "2.1.116"
 source = { editable = "." }
 dependencies = [
     { name = "azure-monitor-opentelemetry" },
