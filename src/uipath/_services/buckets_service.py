@@ -2,7 +2,7 @@ import asyncio
 import mimetypes
 import uuid
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, Optional, Union
 
 import httpx
 
@@ -738,7 +738,7 @@ class BucketsService(FolderContext, BaseService):
         prefix: str = "",
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> List[BucketFile]:
+    ) -> Iterator[BucketFile]:
         """List files in a bucket.
 
         Args:
@@ -749,27 +749,50 @@ class BucketsService(FolderContext, BaseService):
             folder_path: Folder path
 
         Returns:
-            List[BucketFile]: List of files in the bucket
+            Iterator[BucketFile]: Iterator of files in the bucket
+
+        Note:
+            Returns an iterator for memory efficiency. Use list() to materialize all results:
+            files = list(sdk.buckets.list_files(name="my-storage"))
+
+            This method automatically handles pagination, fetching up to 500 files per request.
 
         Examples:
-            >>> files = sdk.buckets.list_files(name="my-storage")
-            >>> files = sdk.buckets.list_files(name="my-storage", prefix="data/")
+            >>> for file in sdk.buckets.list_files(name="my-storage"):
+            ...     print(file.path)
+            >>> files = list(sdk.buckets.list_files(name="my-storage", prefix="data/"))
         """
         bucket = self.retrieve(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
-        spec = self._list_files_spec(
-            bucket.id, prefix, folder_key=folder_key, folder_path=folder_path
-        )
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            params=spec.params,
-            headers=spec.headers,
-        ).json()
 
-        items = response.get("value", [])
-        return [BucketFile.model_validate(item) for item in items]
+        continuation_token: Optional[str] = None
+
+        # Loop through pages using continuationToken
+        while True:
+            spec = self._list_files_spec(
+                bucket.id,
+                prefix,
+                continuation_token=continuation_token,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            ).json()
+
+            # Yield items from current page
+            items = response.get("items", [])
+            for item in items:
+                yield BucketFile.model_validate(item)
+
+            # Check if there are more pages
+            continuation_token = response.get("continuationToken")
+            if not continuation_token:
+                break
 
     @traced(name="buckets_list_files", run_type="uipath")
     @infer_bindings(resource_type="bucket")
@@ -781,7 +804,7 @@ class BucketsService(FolderContext, BaseService):
         prefix: str = "",
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> List[BucketFile]:
+    ) -> AsyncIterator[BucketFile]:
         """List files in a bucket asynchronously.
 
         Args:
@@ -792,29 +815,52 @@ class BucketsService(FolderContext, BaseService):
             folder_path: Folder path
 
         Returns:
-            List[BucketFile]: List of files in the bucket
+            AsyncIterator[BucketFile]: Async iterator of files in the bucket
+
+        Note:
+            Returns an async iterator for memory efficiency. Use list comprehension to materialize:
+            files = [f async for f in sdk.buckets.list_files_async(name="my-storage")]
+
+            This method automatically handles pagination, fetching up to 500 files per request.
 
         Examples:
-            >>> files = await sdk.buckets.list_files_async(name="my-storage")
-            >>> files = await sdk.buckets.list_files_async(name="my-storage", prefix="data/")
+            >>> async for file in sdk.buckets.list_files_async(name="my-storage"):
+            ...     print(file.path)
+            >>> files = [f async for f in sdk.buckets.list_files_async(name="my-storage", prefix="data/")]
         """
         bucket = await self.retrieve_async(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
-        spec = self._list_files_spec(
-            bucket.id, prefix, folder_key=folder_key, folder_path=folder_path
-        )
-        response = (
-            await self.request_async(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-                headers=spec.headers,
-            )
-        ).json()
 
-        items = response.get("value", [])
-        return [BucketFile.model_validate(item) for item in items]
+        continuation_token: Optional[str] = None
+
+        # Loop through pages using continuationToken
+        while True:
+            spec = self._list_files_spec(
+                bucket.id,
+                prefix,
+                continuation_token=continuation_token,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+            response = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                )
+            ).json()
+
+            # Yield items from current page
+            items = response.get("items", [])
+            for item in items:
+                yield BucketFile.model_validate(item)
+
+            # Check if there are more pages
+            continuation_token = response.get("continuationToken")
+            if not continuation_token:
+                break
 
     @traced(name="buckets_delete", run_type="uipath")
     @infer_bindings(resource_type="bucket")
@@ -1023,21 +1069,34 @@ class BucketsService(FolderContext, BaseService):
         self,
         bucket_id: int,
         prefix: str,
+        continuation_token: Optional[str] = None,
+        take_hint: int = 500,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        """Build OData request for listing files in a bucket."""
+        """Build REST API request for listing files in a bucket.
+
+        Uses the /api/Buckets/{id}/ListFiles endpoint which supports pagination.
+
+        Args:
+            bucket_id: The bucket ID
+            prefix: Path prefix for filtering
+            continuation_token: Token for pagination
+            take_hint: Minimum number of files to return (default 500, max 1000)
+            folder_key: Folder key
+            folder_path: Folder path
+        """
         params: Dict[str, Any] = {}
         if prefix:
-            # Escape single quotes to prevent OData filter injection
-            escaped_prefix = prefix.replace("'", "''")
-            params["$filter"] = f"startswith(Name, '{escaped_prefix}')"
+            params["prefix"] = prefix
+        if continuation_token:
+            params["continuationToken"] = continuation_token
+        if take_hint:
+            params["takeHint"] = take_hint
 
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(
-                f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.Files"
-            ),
+            endpoint=Endpoint(f"/api/Buckets/{bucket_id}/ListFiles"),
             params=params,
             headers={
                 **header_folder(folder_key, folder_path),
