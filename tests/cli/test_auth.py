@@ -13,22 +13,14 @@ This test suite covers the following scenarios for the authentication logic:
 
 1.  **UIPATH_URL Environment Variable**:
     Ensures the `auth` command correctly uses the domain from the `UIPATH_URL`
-    environment variable when no specific environment flag is used.
+    environment variable when no specific --cloud URL is provided.
 
-2.  **--alpha Flag**:
-    Verifies that the `--alpha` flag correctly uses the 'alpha' environment and
-    overrides the `UIPATH_URL` environment variable if it is set.
+2.  **--cloud Flag with Custom URLs**:
+    Verifies that the `--cloud` flag correctly accepts custom URLs such as
+    staging.uipath.com, alpha.uipath.com, or custom domains.
 
-3.  **--staging Flag**:
-    Verifies that the `--staging` flag correctly uses the 'staging' environment and
-    overrides the `UIPATH_URL` environment variable if it is set.
-
-4.  **--cloud Flag**:
-    Checks that the `--cloud` flag works as expected, using the 'cloud' environment,
-    when no `UIPATH_URL` environment variable is set.
-
-5.  **Default Behavior**:
-    Confirms that the command defaults to the 'cloud' environment when no flags
+3.  **Default Behavior**:
+    Confirms that the command defaults to https://cloud.uipath.com when no flags
     or environment variables are provided.
 """
 
@@ -52,25 +44,25 @@ class TestAuth:
                 "https://custom.uipath.com/DefaultOrg/DefaultTenant",
             ),
             (
-                "auth_with_alpha_flag",
-                ["--alpha", "--force"],
+                "auth_with_cloud_alpha_url",
+                ["--cloud", "https://alpha.uipath.com", "--force"],
                 {"UIPATH_URL": "https://custom.uipath.com/org/tenant"},
                 "https://alpha.uipath.com/identity_/connect/authorize",
                 "https://alpha.uipath.com/DefaultOrg/DefaultTenant",
             ),
             (
-                "auth_with_staging_flag",
-                ["--staging", "--force"],
+                "auth_with_cloud_staging_url",
+                ["--cloud", "https://staging.uipath.com", "--force"],
                 {"UIPATH_URL": "https://custom.uipath.com/org/tenant"},
                 "https://staging.uipath.com/identity_/connect/authorize",
                 "https://staging.uipath.com/DefaultOrg/DefaultTenant",
             ),
             (
-                "auth_with_cloud_flag",
-                ["--cloud", "--force"],
+                "auth_with_cloud_custom_url",
+                ["--cloud", "https://my-custom-domain.com", "--force"],
                 {},
-                "https://cloud.uipath.com/identity_/connect/authorize",
-                "https://cloud.uipath.com/DefaultOrg/DefaultTenant",
+                "https://my-custom-domain.com/identity_/connect/authorize",
+                "https://my-custom-domain.com/DefaultOrg/DefaultTenant",
             ),
             (
                 "auth_default_to_cloud",
@@ -82,11 +74,11 @@ class TestAuth:
         ],
         ids=[
             "uipath_url_env",
-            "alpha_flag_overrides_env",
-            "staging_flag_overrides_env",
-            "cloud_flag",
-            "default_to_cloud",
             "uipath_url_env_with_trailing_slash",
+            "cloud_alpha_url_overrides_env",
+            "cloud_staging_url_overrides_env",
+            "cloud_custom_url",
+            "default_to_cloud",
         ],
     )
     def test_auth_scenarios(
@@ -107,6 +99,7 @@ class TestAuth:
             patch(
                 "uipath._cli._auth._auth_service.PortalService"
             ) as mock_portal_service,
+            patch("uipath._cli._auth._auth_service.update_env_file"),
         ):
             mock_server.return_value.start = AsyncMock(
                 return_value={"access_token": "test_token"}
@@ -119,6 +112,11 @@ class TestAuth:
                 "tenant_id": "tenant-id",
                 "organization_id": "org-id",
             }
+            mock_portal_service.return_value.__enter__.return_value.resolve_tenant_info.return_value = {
+                "tenant_id": "tenant-id",
+                "organization_id": "org-id",
+            }
+            mock_portal_service.return_value.__enter__.return_value.build_tenant_url.return_value = expected_select_tenant_return
 
             with runner.isolated_filesystem():
                 for key, value in env_vars.items():
@@ -150,6 +148,18 @@ class TestAuth:
             assert "Malformed UIPATH_URL" in result.output
             assert "custom.uipath.com" in result.output
 
+    def test_auth_with_malformed_cloud_url(self):
+        """
+        Test that 'uipath auth' handles a malformed --cloud URL gracefully.
+        """
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["auth", "--cloud", "custom.uipath.com"])
+
+            assert result.exit_code == 1
+            assert "Malformed cloud URL" in result.output
+            assert "custom.uipath.com" in result.output
+
     def test_auth_with_tenant_flag(self):
         """
         Test that providing --tenant bypasses interactive tenant selection
@@ -166,6 +176,7 @@ class TestAuth:
                 "uipath._cli._auth._url_utils.resolve_domain",
                 return_value="https://alpha.uipath.com",
             ),
+            patch("uipath._cli._auth._auth_service.update_env_file"),
         ):
             mock_server.return_value.start = AsyncMock(
                 return_value={"access_token": "test_token"}
@@ -183,10 +194,11 @@ class TestAuth:
                 "tenant_id": "tenant-id",
                 "organization_id": "org-id",
             }
+            portal.build_tenant_url.return_value = "https://alpha.uipath.com/MyOrg/MyTenantName"
             portal.selected_tenant = "MyTenantName"
 
             result = runner.invoke(
-                cli, ["auth", "--alpha", "--tenant", "MyTenantName", "--force"]
+                cli, ["auth", "--cloud", "https://alpha.uipath.com", "--tenant", "MyTenantName", "--force"]
             )
 
             assert result.exit_code == 0, result.output

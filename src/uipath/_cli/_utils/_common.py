@@ -19,23 +19,11 @@ def add_cwd_to_path():
 
 def environment_options(function):
     function = click.option(
-        "--alpha",
-        "environment",
-        flag_value="alpha",
-        help="Use alpha environment",
-    )(function)
-    function = click.option(
-        "--staging",
-        "environment",
-        flag_value="staging",
-        help="Use staging environment",
-    )(function)
-    function = click.option(
         "--cloud",
-        "environment",
-        flag_value="cloud",
-        default=True,
-        help="Use production environment",
+        "cloud_url",
+        type=str,
+        default="https://cloud.uipath.com",
+        help="UiPath Cloud URL (defaults to https://cloud.uipath.com)",
     )(function)
     return function
 

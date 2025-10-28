@@ -48,7 +48,7 @@ console = ConsoleLogger()
 )
 @track
 def auth(
-    environment: str,
+    cloud_url: str,
     force: bool = False,
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
@@ -59,7 +59,9 @@ def auth(
     """Authenticate with UiPath Cloud Platform.
 
     The domain for authentication is determined by the UIPATH_URL environment variable if set.
-    Otherwise, it can be specified with --cloud (default), --staging, or --alpha flags.
+    Otherwise, it can be specified with --cloud (defaults to https://cloud.uipath.com).
+
+    You can provide custom URLs such as: --cloud https://custom.domain.com
 
     Interactive mode (default): Opens browser for OAuth authentication.
     Unattended mode: Use --client-id, --client-secret, --base-url and --scope for client credentials flow.
@@ -70,7 +72,7 @@ def auth(
     - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)
     """
     auth_service = AuthService(
-        environment=environment,
+        cloud_url=cloud_url,
         force=force,
         client_id=client_id,
         client_secret=client_secret,

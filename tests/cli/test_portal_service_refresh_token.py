@@ -59,16 +59,16 @@ class TestPortalServiceRefreshToken:
     """Test class for PortalService refresh token functionality."""
 
     @pytest.mark.parametrize(
-        "environment, expected_token_url",
+        "cloud_url, expected_token_url",
         [
             # Standard UiPath domains
-            ("cloud", "https://cloud.uipath.com/identity_/connect/token"),
-            ("alpha", "https://alpha.uipath.com/identity_/connect/token"),
-            ("staging", "https://staging.uipath.com/identity_/connect/token"),
+            ("https://cloud.uipath.com", "https://cloud.uipath.com/identity_/connect/token"),
+            ("https://alpha.uipath.com", "https://alpha.uipath.com/identity_/connect/token"),
+            ("https://staging.uipath.com", "https://staging.uipath.com/identity_/connect/token"),
         ],
     )
     def test_post_refresh_token_request_different_domains(
-        self, environment, expected_token_url, mock_auth_config, sample_token_data
+        self, cloud_url, expected_token_url, mock_auth_config, sample_token_data
     ):
         """Test refresh token request with different domain configurations."""
 
@@ -84,7 +84,7 @@ class TestPortalServiceRefreshToken:
             mock_client.post.return_value = mock_response
 
             # Create AuthService instance
-            auth_service = AuthService(environment=environment, force=False)
+            auth_service = AuthService(cloud_url=cloud_url, force=False)
 
             # Create PortalService instance
             portal_service = PortalService(auth_service._domain)
@@ -110,28 +110,28 @@ class TestPortalServiceRefreshToken:
             assert result.refresh_token == sample_token_data["refresh_token"]
 
     @pytest.mark.parametrize(
-        "env_var_url, environment, expected_token_url",
+        "env_var_url, cloud_url, expected_token_url",
         [
-            # UIPATH_URL should be used when environment is "cloud" (default)
+            # UIPATH_URL should be used when cloud_url is default
             (
                 "https://custom.automationsuite.org/org/tenant",
-                "cloud",
+                "https://cloud.uipath.com",
                 "https://custom.automationsuite.org/identity_/connect/token",
             ),
             (
                 "https://mycompany.uipath.com/org/tenant/",
-                "cloud",
+                "https://cloud.uipath.com",
                 "https://mycompany.uipath.com/identity_/connect/token",
             ),
-            # Explicit environment flags should override UIPATH_URL
+            # Explicit cloud URL should override UIPATH_URL
             (
                 "https://custom.automationsuite.org/org/tenant",
-                "alpha",
+                "https://alpha.uipath.com",
                 "https://alpha.uipath.com/identity_/connect/token",
             ),
             (
                 "https://custom.automationsuite.org/org/tenant",
-                "staging",
+                "https://staging.uipath.com",
                 "https://staging.uipath.com/identity_/connect/token",
             ),
         ],
@@ -139,7 +139,7 @@ class TestPortalServiceRefreshToken:
     def test_post_refresh_token_request_with_uipath_url_env(
         self,
         env_var_url,
-        environment,
+        cloud_url,
         expected_token_url,
         mock_auth_config,
         sample_token_data,
@@ -163,7 +163,7 @@ class TestPortalServiceRefreshToken:
                 mock_client.post.return_value = mock_response
 
                 # Create AuthService instance
-                auth_service = AuthService(environment=environment, force=False)
+                auth_service = AuthService(cloud_url=cloud_url, force=False)
 
                 # Create PortalService instance
                 portal_service = PortalService(auth_service._domain)
@@ -216,7 +216,7 @@ class TestPortalServiceRefreshToken:
                 mock_client.post.return_value = mock_response
 
                 # Create AuthService instance
-                auth_service = AuthService(environment="cloud", force=False)
+                auth_service = AuthService(cloud_url="https://cloud.uipath.com", force=False)
 
                 # Create PortalService instance
                 portal_service = PortalService(auth_service._domain)
@@ -250,7 +250,7 @@ class TestPortalServiceRefreshToken:
                 mock_client.post.return_value = mock_response
 
                 # Create AuthService instance
-                auth_service = AuthService(environment="cloud", force=False)
+                auth_service = AuthService(cloud_url="https://cloud.uipath.com", force=False)
 
                 # Create PortalService instance
                 portal_service = PortalService(auth_service._domain)
@@ -299,7 +299,7 @@ class TestPortalServiceRefreshToken:
             mock_client.post.return_value = mock_response
 
             # Create AuthService instance
-            auth_service = AuthService(environment="cloud", force=False)
+            auth_service = AuthService(cloud_url="https://cloud.uipath.com", force=False)
 
             # Create PortalService instance
             portal_service = PortalService(auth_service._domain)
@@ -326,27 +326,21 @@ class TestPortalServiceRefreshToken:
         """Test refresh token request with various domain formats."""
 
         test_cases = [
-            # Domain with trailing slash should not create double slash
+            # Domain with trailing slash should use base only
             (
                 "https://example.uipath.com/",
-                "cloud",
-                "https://example.uipath.com/identity_/connect/token",
-            ),
-            # Domain without scheme gets .uipath.com appended (current behavior)
-            (
-                "https://example.com/",
-                "example",
+                "https://cloud.uipath.com",
                 "https://example.uipath.com/identity_/connect/token",
             ),
             # Domain with path should use base only
             (
                 "https://example.com/some/path",
-                "example",
-                "https://example.uipath.com/identity_/connect/token",
+                "https://cloud.uipath.com",
+                "https://example.com/identity_/connect/token",
             ),
         ]
 
-        for uipath_url, environment, expected_url in test_cases:
+        for uipath_url, cloud_url, expected_url in test_cases:
             with patch(
                 "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
                 return_value=mock_auth_config,
@@ -361,7 +355,7 @@ class TestPortalServiceRefreshToken:
                 mock_client.post.return_value = mock_response
 
                 # Create AuthService instance
-                auth_service = AuthService(environment=environment, force=False)
+                auth_service = AuthService(cloud_url=cloud_url, force=False)
 
                 # Create PortalService instance
                 portal_service = PortalService(auth_service._domain)
@@ -385,43 +379,43 @@ class TestPortalServiceRefreshToken:
                 mock_client.reset_mock()
 
     @pytest.mark.parametrize(
-        "scenario_name, env_vars, environment, expected_token_url",
+        "scenario_name, env_vars, cloud_url, expected_token_url",
         [
             # These scenarios mirror the test_auth.py test cases but focus on the refresh token endpoint
             (
                 "refresh_with_uipath_url_env_variable",
                 {"UIPATH_URL": "https://custom.automationsuite.org/org/tenant"},
-                "cloud",  # cloud is default when no flag specified
+                "https://cloud.uipath.com",  # cloud is default
                 "https://custom.automationsuite.org/identity_/connect/token",
             ),
             (
                 "refresh_with_uipath_url_env_variable_with_trailing_slash",
                 {"UIPATH_URL": "https://custom.uipath.com/org/tenant/"},
-                "cloud",
+                "https://cloud.uipath.com",
                 "https://custom.uipath.com/identity_/connect/token",
             ),
             (
-                "refresh_with_alpha_flag_overrides_env",
+                "refresh_with_alpha_url_overrides_env",
                 {"UIPATH_URL": "https://custom.uipath.com/org/tenant"},
-                "alpha",  # alpha flag overrides UIPATH_URL
+                "https://alpha.uipath.com",  # alpha URL overrides UIPATH_URL
                 "https://alpha.uipath.com/identity_/connect/token",
             ),
             (
-                "refresh_with_staging_flag_overrides_env",
+                "refresh_with_staging_url_overrides_env",
                 {"UIPATH_URL": "https://custom.uipath.com/org/tenant"},
-                "staging",  # staging flag overrides UIPATH_URL
+                "https://staging.uipath.com",  # staging URL overrides UIPATH_URL
                 "https://staging.uipath.com/identity_/connect/token",
             ),
             (
-                "refresh_with_cloud_flag",
+                "refresh_with_cloud_url",
                 {},
-                "cloud",
+                "https://cloud.uipath.com",
                 "https://cloud.uipath.com/identity_/connect/token",
             ),
             (
                 "refresh_default_to_cloud",
                 {},
-                "cloud",
+                "https://cloud.uipath.com",
                 "https://cloud.uipath.com/identity_/connect/token",
             ),
         ],
@@ -430,7 +424,7 @@ class TestPortalServiceRefreshToken:
         self,
         scenario_name,
         env_vars,
-        environment,
+        cloud_url,
         expected_token_url,
         mock_auth_config,
         sample_token_data,
@@ -459,7 +453,7 @@ class TestPortalServiceRefreshToken:
                 mock_client.post.return_value = mock_response
 
                 # Create AuthService instance
-                auth_service = AuthService(environment=environment, force=False)
+                auth_service = AuthService(cloud_url=cloud_url, force=False)
 
                 # Create PortalService instance with the domain that would be determined
                 # by the auth command logic
