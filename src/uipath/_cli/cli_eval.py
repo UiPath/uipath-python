@@ -57,6 +57,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
 @click.argument("eval_set", required=False)
 @click.option("--eval-ids", cls=LiteralOption, default="[]")
 @click.option(
+    "--eval-set-run-id",
+    required=False,
+    type=str,
+    help="Custom evaluation set run ID (if not provided, a UUID will be generated)",
+)
+@click.option(
     "--no-report",
     is_flag=True,
     help="Do not report the evaluation results",
@@ -79,6 +85,7 @@ def eval(
     entrypoint: Optional[str],
     eval_set: Optional[str],
     eval_ids: List[str],
+    eval_set_run_id: Optional[str],
     no_report: bool,
     workers: int,
     output_file: Optional[str],
@@ -89,6 +96,7 @@ def eval(
         entrypoint: Path to the agent script to evaluate (optional, will auto-discover if not specified)
         eval_set: Path to the evaluation set JSON file (optional, will auto-discover if not specified)
         eval_ids: Optional list of evaluation IDs
+        eval_set_run_id: Custom evaluation set run ID (optional, will generate UUID if not specified)
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """
@@ -96,6 +104,7 @@ def eval(
         "entrypoint": entrypoint or auto_discover_entrypoint(),
         "eval_set": eval_set,
         "eval_ids": eval_ids,
+        "eval_set_run_id": eval_set_run_id,
         "workers": workers,
         "no_report": no_report,
         "output_file": output_file,
@@ -131,6 +140,7 @@ def eval(
 
         eval_context.no_report = no_report
         eval_context.workers = workers
+        eval_context.eval_set_run_id = eval_set_run_id
 
         # Load eval set to resolve the path
         eval_set_path = eval_set or EvalHelpers.auto_discover_eval_set()

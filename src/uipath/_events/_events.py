@@ -20,6 +20,7 @@ class EvalSetRunCreatedEvent(BaseModel):
     execution_id: str
     entrypoint: str
     eval_set_id: str
+    eval_set_run_id: Optional[str] = None
     no_of_evals: int
     # skip validation to avoid abstract class instantiation
     evaluators: SkipValidation[List[AnyEvaluator]]
