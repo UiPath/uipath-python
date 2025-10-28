@@ -109,8 +109,6 @@ plugins:
         "Contributing & Resources":
           - CONTRIBUTING.md
           - FAQ.md
-          - AutomationSuite.md
-          - release_policy.md
   - mkdocstrings:
       default_handler: python
       handlers:
