@@ -73,6 +73,39 @@ class ContainsEvaluator(
             score=float(is_contains),
         )
 
+    async def evaluate(
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: ContainsEvaluationCriteria,
+    ) -> EvaluationResult:
+        """Evaluate whether actual output contains the expected output.
+
+        Args:
+            agent_execution: The execution details containing:
+                - agent_input: The input received by the agent
+                - agent_output: The actual output from the agent
+                - agent_trace: The execution spans to use for the evaluation
+            evaluation_criteria: The criteria to evaluate
+
+        Returns:
+            EvaluationResult: Boolean result indicating if output contains expected value (True/False)
+        """
+        actual_output = str(self._get_actual_output(agent_execution))
+        expected_output = str(self._get_expected_output(evaluation_criteria))
+
+        if not self.evaluator_config.case_sensitive:
+            actual_output = actual_output.lower()
+            expected_output = expected_output.lower()
+
+        is_contains = expected_output in actual_output
+
+        if self.evaluator_config.negated:
+            is_contains = not is_contains
+        return NumericEvaluationResult(
+            score=float(is_contains),
+        )
+
+
     def _get_expected_output(
         self, evaluation_criteria: ContainsEvaluationCriteria
     ) -> str:
