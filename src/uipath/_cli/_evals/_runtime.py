@@ -372,25 +372,27 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 )
             except Exception as e:
                 if self.context.verbose:
+                    if isinstance(e, EvaluationRuntimeException):
+                        spans = e.spans
+                        logs = e.logs
+                        execution_time = e.execution_time
+                        loggable_error = e.root_exception
+                    else:
+                        spans = []
+                        logs = []
+                        execution_time = 0
+                        loggable_error = e
+
                     error_info = UiPathErrorContract(
                         code="RUNTIME_SHUTDOWN_ERROR",
                         title="Runtime shutdown failed",
-                        detail=f"Error: {str(e)}",
+                        detail=f"Error: {str(loggable_error)}",
                         category=UiPathErrorCategory.UNKNOWN,
                     )
                     error_result = UiPathRuntimeResult(
                         status=UiPathRuntimeStatus.FAULTED,
                         error=error_info,
                     )
-                    if isinstance(e, EvaluationRuntimeException):
-                        spans = e.spans
-                        logs = e.logs
-                        execution_time = e.execution_time
-                    else:
-                        spans = []
-                        logs = []
-                        execution_time = 0
-
                     evaluation_run_results.agent_execution_output = (
                         convert_eval_execution_output_to_serializable(
                             UiPathEvalRunExecutionOutput(
