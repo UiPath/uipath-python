@@ -278,13 +278,25 @@ class AgentContextOutputColumn(BaseModel):
     )
 
 
+class AgentContextRetrievalMode(str, Enum):
+    """Enum for retrieval modes."""
+
+    SEMANTIC = "Semantic"
+    STRUCTURED = "Structured"
+    DEEP_RAG = "DeepRAG"
+    BATCH_TRANSFORM = "BatchTransform"
+
+
 class AgentContextSettings(BaseModel):
     """Settings for context."""
 
     result_count: int = Field(alias="resultCount")
-    retrieval_mode: Literal["Semantic", "Structured", "DeepRAG", "BatchTransform"] = (
-        Field(alias="retrievalMode")
-    )
+    retrieval_mode: Literal[
+        AgentContextRetrievalMode.SEMANTIC,
+        AgentContextRetrievalMode.STRUCTURED,
+        AgentContextRetrievalMode.DEEP_RAG,
+        AgentContextRetrievalMode.BATCH_TRANSFORM,
+    ] = Field(alias="retrievalMode")
     threshold: float = Field(default=0)
     query: Optional[AgentContextQuerySetting] = Field(None)
     folder_path_prefix: Optional[Union[Dict[str, Any], AgentContextValueSetting]] = (
@@ -302,6 +314,20 @@ class AgentContextSettings(BaseModel):
     output_columns: Optional[List[AgentContextOutputColumn]] = Field(
         None, alias="outputColumns"
     )
+
+    @field_validator("retrieval_mode", mode="before")
+    @classmethod
+    def normalize_retrieval_mode(cls, v: Any) -> str:
+        """Normalize context retrieval mode."""
+        if isinstance(v, str):
+            lowercase_mapping = {
+                "semantic": AgentContextRetrievalMode.SEMANTIC,
+                "structured": AgentContextRetrievalMode.STRUCTURED,
+                "deeprag": AgentContextRetrievalMode.DEEP_RAG,
+                "batchtransform": AgentContextRetrievalMode.BATCH_TRANSFORM,
+            }
+            return lowercase_mapping.get(v.lower(), v)
+        return v
 
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
@@ -553,7 +579,7 @@ class AgentGuardrailLogAction(BaseModel):
     """Log action model."""
 
     action_type: Literal["log"] = Field(alias="$actionType")
-    message: str = Field(..., alias="message")
+    message: Optional[str] = Field(None, alias="message")
     severity_level: AgentGuardrailSeverityLevel = Field(alias="severityLevel")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")

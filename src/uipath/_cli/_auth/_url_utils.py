@@ -15,13 +15,20 @@ def resolve_domain(
     Args:
         base_url: The base URL explicitly provided.
         cloud_url: The cloud URL from the --cloud option.
-        force: Whether to ignore UIPATH_URL from environment variables.
+        force: Whether to ignore UIPATH_URL from environment variables when base_url is set.
 
     Returns:
         A valid base URL for UiPath services.
     """
-    if not force:
-        # If UIPATH_URL is set, prefer its domain (only when using default cloud URL)
+    # If base_url is a real URL, prefer it
+    if base_url and base_url.startswith("http"):
+        parsed = urlparse(base_url)
+        domain = f"{parsed.scheme}://{parsed.netloc}"
+        if domain:
+            return domain
+
+    # If base_url is not set (or force is False), check UIPATH_URL
+    if not base_url or not force:
         uipath_url = os.getenv("UIPATH_URL")
         if uipath_url and cloud_url == "https://cloud.uipath.com":
             parsed = urlparse(uipath_url)
@@ -33,13 +40,6 @@ def resolve_domain(
                     f"Malformed UIPATH_URL: '{uipath_url}'. "
                     "Please ensure it includes scheme and netloc (e.g., 'https://cloud.uipath.com')."
                 )
-
-    # If base_url is a real URL, prefer it
-    if base_url and base_url.startswith("http"):
-        parsed = urlparse(base_url)
-        domain = f"{parsed.scheme}://{parsed.netloc}"
-        if domain:
-            return domain
 
     # Otherwise, use the cloud_url directly
     if cloud_url:

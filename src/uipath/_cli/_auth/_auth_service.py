@@ -121,7 +121,7 @@ class AuthService:
         return False
 
     def _perform_oauth_flow(self) -> TokenData:
-        auth_config = OidcUtils.get_auth_config()
+        auth_config = OidcUtils.get_auth_config(self._domain)
         auth_url, code_verifier, state = OidcUtils.get_auth_url(
             self._domain, auth_config
         )

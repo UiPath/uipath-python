@@ -21,7 +21,7 @@
       "expectedOutput": {
         "result": 2
       },
-      "expectedAgentBehavior": "",
+      "expectedAgentBehavior": "The operation should produce the right output.",
       "evalSetId": "default-eval-set-id",
       "createdAt": "2025-09-04T18:54:58.378Z",
       "updatedAt": "2025-09-04T18:55:55.416Z"
@@ -37,7 +37,7 @@
       "expectedOutput": {
         "result": 2
       },
-      "expectedAgentBehavior": "",
+      "expectedAgentBehavior": "The operation should produce the right output.",
       "mockingStrategy": {
         "type": "mockito",
         "behaviors": [
@@ -73,7 +73,7 @@
       "expectedOutput": {
         "result": 2
       },
-      "expectedAgentBehavior": "",
+      "expectedAgentBehavior": "The operation should produce the right output.",
       "mockingStrategy": {
         "type": "llm",
         "prompt": "The random operator is '+'.",
@@ -98,7 +98,7 @@
       "expectedOutput": {
         "result": 35
       },
-      "expectedAgentBehavior": "",
+      "expectedAgentBehavior": "The operation should produce the right output.",
       "inputMockingStrategy": {
         "prompt": "Generate a multiplication calculation where the first number is 5 and the second number is 7",
         "model": {

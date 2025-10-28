@@ -94,7 +94,7 @@ class PortalService:
 
     def refresh_access_token(self, refresh_token: str) -> TokenData:  # type: ignore
         url = build_service_url(self.domain, "/identity_/connect/token")
-        client_id = OidcUtils.get_auth_config().get("client_id")
+        client_id = OidcUtils.get_auth_config(self.domain).get("client_id")
 
         data = {
             "grant_type": "refresh_token",

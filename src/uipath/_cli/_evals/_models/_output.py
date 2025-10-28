@@ -8,7 +8,11 @@ from pydantic.alias_generators import to_camel
 from pydantic_core import core_schema
 
 from uipath._cli._runtime._contracts import UiPathRuntimeResult
-from uipath.eval.models.models import EvaluationResult, ScoreType
+from uipath.eval.models.models import (
+    EvaluationResult,
+    ScoreType,
+    TrajectoryEvaluationTrace,
+)
 
 
 class UiPathEvalRunExecutionOutput(BaseModel):
@@ -20,6 +24,22 @@ class UiPathEvalRunExecutionOutput(BaseModel):
     spans: list[ReadableSpan]
     logs: list[logging.LogRecord]
     result: UiPathRuntimeResult
+
+
+class UiPathSerializableEvalRunExecutionOutput(BaseModel):
+    execution_time: float
+    trace: TrajectoryEvaluationTrace
+    result: UiPathRuntimeResult
+
+
+def convert_eval_execution_output_to_serializable(
+    output: UiPathEvalRunExecutionOutput,
+) -> UiPathSerializableEvalRunExecutionOutput:
+    return UiPathSerializableEvalRunExecutionOutput(
+        execution_time=output.execution_time,
+        result=output.result,
+        trace=TrajectoryEvaluationTrace.from_readable_spans(output.spans),
+    )
 
 
 class EvaluationResultDto(BaseModel):
@@ -67,19 +87,13 @@ class EvaluationRunResultDto(BaseModel):
     evaluator_id: str
     result: EvaluationResultDto
 
-    @model_serializer(mode="wrap")
-    def serialize_model(self, serializer, info):
-        data = serializer(self)
-        if isinstance(data, dict):
-            data.pop("evaluatorId", None)
-        return data
-
 
 class EvaluationRunResult(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluation_name: str
     evaluation_run_results: List[EvaluationRunResultDto]
+    agent_execution_output: Optional[UiPathSerializableEvalRunExecutionOutput] = None
 
     @property
     def score(self) -> float:
