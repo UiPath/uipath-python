@@ -94,6 +94,23 @@ nav:
 
 plugins:
   - search
+  - llmstxt:
+      sections:
+        # Mirrors nav structure - when you add to nav, add one line here
+        "UiPath SDK":
+          - core/*.md
+          - cli/*.md
+        "UiPath MCP SDK":
+          - mcp/*.md
+        "UiPath LangChain SDK":
+          - langchain/*.md
+        "UiPath LlamaIndex SDK":
+          - llamaindex/*.md
+        "Contributing & Resources":
+          - CONTRIBUTING.md
+          - FAQ.md
+          - AutomationSuite.md
+          - release_policy.md
   - mkdocstrings:
       default_handler: python
       handlers:
