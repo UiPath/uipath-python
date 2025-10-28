@@ -728,3 +728,91 @@ async def test_traced_with_pydantic_basemodel_class(setup_tracer):
 
     assert "choices" in output
     assert len(output["choices"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_non_recording_traced_async_function(setup_tracer):
+    exporter, provider = setup_tracer
+
+    @traced(recording=True)
+    async def child_sample_async_function(x, y):
+        return x * y
+
+    @traced(recording=False)
+    async def sample_async_function(x, y):
+        return await child_sample_async_function(x, y)
+
+    result = await sample_async_function(2, 3)
+    assert result == 6
+
+    provider.shutdown()  # Ensure spans are flushed
+
+    await sleep(1)
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 0
+
+
+def test_non_recording_traced_sync_function(setup_tracer):
+    exporter, provider = setup_tracer
+
+    @traced(recording=True)
+    def child_sample_sync_function(x, y):
+        return x * y
+
+    @traced(recording=False)
+    def sample_sync_function(x, y):
+        return child_sample_sync_function(x, y)
+
+    result = sample_sync_function(2, 3)
+    assert result == 6
+
+    provider.shutdown()  # Ensure spans are flushed
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 0
+
+
+def test_non_recording_traced_generator_function(setup_tracer):
+    exporter, provider = setup_tracer
+
+    @traced()
+    def sample_child_generator_function(n):
+        for i in range(n):
+            yield i
+
+    @traced(recording=False)
+    def sample_generator_function(n):
+        for i in sample_child_generator_function(n):
+            yield i
+
+    results = list(sample_generator_function(3))
+    assert results == [0, 1, 2]
+
+    provider.shutdown()  # Ensure spans are flushed
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 0
+
+
+@pytest.mark.asyncio
+async def test_non_recording_traced_async_generator_function(setup_tracer):
+    exporter, provider = setup_tracer
+
+    @traced()
+    async def sample_child_async_generator_function(n):
+        for i in range(n):
+            yield i
+
+    @traced(recording=False)
+    async def sample_async_generator_function(n):
+        async for i in sample_child_async_generator_function(n):
+            yield i
+
+    results = [item async for item in sample_async_generator_function(3)]
+    assert results == [0, 1, 2]
+
+    provider.shutdown()  # Ensure spans are flushed
+    spans = exporter.get_exported_spans()
+
+    assert len(spans) == 0
