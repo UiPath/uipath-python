@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from opentelemetry import trace
+from pydantic import BaseModel
 from rich.console import Console
 
 from uipath import UiPath
@@ -478,7 +479,9 @@ class StudioWebProgressReporter:
 
         logger.debug("StudioWeb progress reporter subscribed to evaluation events")
 
-    def _serialize_justification(self, justification: Any) -> str | None:
+    def _serialize_justification(
+        self, justification: BaseModel | str | None
+    ) -> str | None:
         """Serialize justification to JSON string for API compatibility.
 
         Args:
@@ -488,12 +491,9 @@ class StudioWebProgressReporter:
         Returns:
             JSON string representation or None if justification is None
         """
-        if justification is None:
-            return None
-        if hasattr(justification, "model_dump"):
-            return json.dumps(justification.model_dump())
-        if not isinstance(justification, str):
-            return json.dumps(justification)
+        if isinstance(justification, BaseModel):
+            justification = json.dumps(justification.model_dump())
+
         return justification
 
     def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
