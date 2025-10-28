@@ -1,0 +1,6 @@
+{
+  "client_id": "36dea5b8-e8bb-423d-8e7b-c808df8f1c00",
+  "redirect_uri": "http://localhost:__PY_REPLACE_PORT__/oidc/login",
+  "scope": "offline_access ProcessMining OrchestratorApiUserAccess StudioWebBackend IdentityServerApi ConnectionService DataService DocumentUnderstanding Du.Digitization.Api Du.Classification.Api Du.Extraction.Api Du.Validation.Api EnterpriseContextService Directory JamJamApi LLMGateway LLMOps OMS RCS.FolderAuthorization TM.Projects TM.TestCases TM.Requirements TM.TestSets",
+  "port": 8104
+}
