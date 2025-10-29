@@ -355,16 +355,10 @@ class JsonLinesFileExporter(SpanExporter):
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         try:
-            uipath_spans = [
-                _SpanUtils.otel_span_to_uipath_span(
-                    span, serialize_attributes=True
-                ).to_dict(serialize_attributes=True)
-                for span in spans
-            ]
-
             with open(self.file_path, "a") as f:
-                for span in uipath_spans:
-                    f.write(json.dumps(span) + "\n")
+                for span in spans:
+                    span_dict = _SpanUtils.readable_span_to_dict(span)
+                    f.write(json.dumps(span_dict) + "\n")
             return SpanExportResult.SUCCESS
         except Exception as e:
             logger.error(f"Failed to export spans to {self.file_path}: {e}")
