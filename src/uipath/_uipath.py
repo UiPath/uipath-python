@@ -55,7 +55,7 @@ class UiPath:
         setup_logging(should_debug=debug)
         self._execution_context = ExecutionContext()
 
-    @property
+    @cached_property
     def api_client(self) -> ApiClient:
         return ApiClient(self._config, self._execution_context)
 

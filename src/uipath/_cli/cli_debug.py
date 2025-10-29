@@ -1,12 +1,16 @@
 # type: ignore
 import asyncio
+import json
 import os
 from os import environ as env
 from typing import Optional
 
 import click
 
+from uipath._cli._utils._common import apply_bindings_overwrites
 from uipath._cli._utils._debug import setup_debugging
+from uipath._cli._utils._studio_project import StudioClient
+from uipath._config import ConfigurationManager
 from uipath.tracing import LlmOpsHttpExporter
 
 from .._utils.constants import (
@@ -24,7 +28,6 @@ from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
-
 
 @click.command()
 @click.argument("entrypoint", required=False)
@@ -76,6 +79,11 @@ def debug(
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
+
+    if ConfigurationManager().is_studio_project:
+        project_id = ConfigurationManager().project_id
+        assert project_id is not None
+        apply_bindings_overwrites(project_id)
 
     result = Middlewares.next(
         "debug",

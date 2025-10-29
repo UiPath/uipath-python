@@ -1,3 +1,5 @@
+import asyncio
+import json
 import os
 from typing import Optional
 from urllib.parse import urlparse
@@ -5,6 +7,9 @@ from urllib.parse import urlparse
 import click
 from dotenv import load_dotenv
 
+from ._console import ConsoleLogger
+from ._studio_project import StudioClient
+from ..._config import ConfigurationManager
 from ..._utils.constants import DOTENV_FILE
 from ..spinner import Spinner
 
@@ -56,6 +61,43 @@ def get_env_vars(spinner: Optional[Spinner] = None) -> list[str]:
     # at this step we know for sure that both base_url and token exist. type checking can be disabled
     return [base_url, token]  # type: ignore
 
+def apply_bindings_overwrites(studio_project_id: str):
+    """Apply bindings overwrites from Studio to local configuration file.
+
+    Args:
+        studio_project_id: The Studio project ID to fetch overwrites from
+    """
+    console = ConsoleLogger().get_instance()
+    console.info("Applying bindings overwrites...")
+    configuration_manager = ConfigurationManager()
+
+    studio_client = StudioClient(studio_project_id)
+    overwrites = asyncio.run(studio_client.get_overwrites(configuration_manager.bindings_file_path))
+    configuration_file_path = configuration_manager.config_file_path
+
+    # Build the resourceOverwrites structure
+    resource_overwrites = {}
+    for overwrite in overwrites:
+        key = f"{overwrite.kind}.{overwrite.name}"
+        resource_overwrites[key] = {
+            "name": overwrite.overwrite_name,
+            "folderPath": overwrite.overwrite_folder_path
+        }
+
+    with open(configuration_file_path, "r") as f:
+        config_data = json.load(f)
+
+    if "runtime" not in config_data:
+        config_data["runtime"] = {}
+    if "internalArguments" not in config_data["runtime"]:
+        config_data["runtime"]["internalArguments"] = {}
+
+    config_data["runtime"]["internalArguments"]["resourceOverwrites"] = resource_overwrites
+
+    with open(configuration_file_path, "w") as f:
+        json.dump(config_data, f, indent=2)
+
+    console.success(f"Applied {len(resource_overwrites)} resource overwrite(s).")
 
 def serialize_object(obj):
     """Recursively serializes an object and all its nested components."""

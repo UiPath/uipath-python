@@ -3,6 +3,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Generator, Optional, Tuple
 
+from uipath._config import ConfigurationManager
+
 
 class OverwritesManager:
     """Manages overwrites for different resource types and methods.
@@ -16,7 +18,7 @@ class OverwritesManager:
     """
 
     _instance = None
-    _overwrites_file_path: Path = Path("__uipath/uipath.json")
+    _overwrites_file_path: Path
     _runtime_overwrites: Dict[str, Any] = {}
 
     def __new__(
@@ -33,9 +35,7 @@ class OverwritesManager:
         """
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._overwrites_file_path = (
-                overwrites_file_path or cls._overwrites_file_path
-            )
+            cls._instance._overwrites_file_path = ConfigurationManager().config_file_path
             cls._instance._read_overwrites_file()
         elif (
             overwrites_file_path
@@ -77,10 +77,10 @@ class OverwritesManager:
         Returns:
             A tuple of (name, folder_path) if found, None otherwise.
         """
+        key = f"{resource_type}.{resource_name}"
+        # try to apply folder path, fallback to resource_type.resource_name
         if folder_path:
-            key = f"{resource_type}.{resource_name}.{folder_path}"
-        else:
-            key = f"{resource_type}.{resource_name}"
+            key = f"{key}.{folder_path}" if f"{key}.{folder_path}" in self._runtime_overwrites else key
 
         if key not in self._runtime_overwrites:
             return None

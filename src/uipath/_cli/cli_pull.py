@@ -11,14 +11,13 @@ It handles:
 
 # type: ignore
 import asyncio
-import os
 from pathlib import Path
 
 import click
 
+from .._config import ConfigurationManager
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
-from ._utils._constants import UIPATH_PROJECT_ID
 from ._utils._project_files import ProjectPullError, pull_project
 
 console = ConsoleLogger()
@@ -49,7 +48,7 @@ def pull(root: Path) -> None:
         $ uipath pull
         $ uipath pull /path/to/project
     """
-    project_id = os.getenv(UIPATH_PROJECT_ID)
+    project_id = ConfigurationManager().project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
         return
