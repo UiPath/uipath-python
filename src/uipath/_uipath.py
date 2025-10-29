@@ -13,6 +13,7 @@ from ._services import (
     BucketsService,
     ConnectionsService,
     ContextGroundingService,
+    ConversationsService,
     DocumentsService,
     EntitiesService,
     FolderService,
@@ -119,3 +120,7 @@ class UiPath:
     @property
     def entities(self) -> EntitiesService:
         return EntitiesService(self._config, self._execution_context)
+
+    @property
+    def conversational(self) -> ConversationsService:
+        return ConversationsService(self._config, self._execution_context)
