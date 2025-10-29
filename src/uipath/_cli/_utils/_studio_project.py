@@ -1,12 +1,18 @@
 import json
 import os
+from enum import Enum
 from functools import wraps
 from pathlib import PurePath
 from typing import Any, Callable, List, Optional, Union
 
+import click
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from uipath._utils.constants import HEADER_SW_LOCK_KEY
+from uipath import UiPath
+from uipath._cli._utils._console import ConsoleLogger
+from uipath._config import UiPathConfig
+from uipath._utils._bindings import ResourceOverwrite
+from uipath._utils.constants import ENV_TENANT_ID, HEADER_SW_LOCK_KEY, HEADER_TENANT_ID
 from uipath.models.exceptions import EnrichedException
 from uipath.tracing import traced
 
@@ -131,6 +137,54 @@ class LockInfo(BaseModel):
     solution_lock_key: Optional[str] = Field(alias="solutionLockKey")
 
 
+class Severity(str, Enum):
+    """Severity level for virtual resource operation results."""
+
+    SUCCESS = "success"
+    ATTENTION = "attention"
+    WARN = "warn"
+
+
+class VirtualResourceRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+    kind: str = Field(alias="kind")
+    name: str = Field(alias="name")
+    type: Optional[str] = Field(default=None, alias="type")
+    activity_name: Optional[str] = Field(default=None, alias="activityName")
+    api_version: Optional[str] = Field(default=None, alias="apiVersion")
+
+
+class VirtualResourceResult(BaseModel):
+    """Result of a virtual resource creation operation.
+
+    Attributes:
+        severity: The severity level (log, warn or attention)
+        message: The result message with styling
+    """
+
+    severity: Severity
+    message: str
+
+
+class ResourceOverwriteData(BaseModel):
+    """Represents the overwrite details from the API response.
+
+    Attributes:
+        name: The name of the resource being overwritten
+        folder_path: The folder path of the overwrite resource
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+    name: str = Field(alias="name")
+    folder_path: str = Field(alias="folderPath")
+
+
 def get_folder_by_name(
     structure: ProjectStructure, folder_name: str
 ) -> Optional[ProjectFolder]:
@@ -232,9 +286,7 @@ def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
             return await func(self, *args, **kwargs)
         except EnrichedException as e:
             if e.status_code == 423:
-                from uipath._cli._utils._console import ConsoleLogger
-
-                console = ConsoleLogger()
+                console = ConsoleLogger().get_instance()
                 console.error(
                     "The project is temporarily locked. This could be due to modifications or active processes. Please wait a moment and try again."
                 )
@@ -284,15 +336,188 @@ class StudioSolutionsClient:
 
 
 class StudioClient:
-    def __init__(self, project_id: str):
-        from uipath import UiPath
-
-        self.uipath: UiPath = UiPath()
+    def __init__(self, project_id: str, uipath: Optional[UiPath] = None):
+        self.uipath: UiPath = uipath or UiPath()
         self.file_operations_base_url: str = (
             f"/studio_/backend/api/Project/{project_id}/FileOperations"
         )
         self._lock_operations_base_url: str = (
             f"/studio_/backend/api/Project/{project_id}/Lock"
+        )
+        self._project_id = project_id
+        self._solution_id_cache: Optional[str] = None
+        self._resources_cache: Optional[List[dict[str, Any]]] = None
+
+    async def _get_solution_id(self) -> str:
+        # implement property cache logic as coroutines are not supported
+        if self._solution_id_cache is not None:
+            return self._solution_id_cache
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url=f"/studio_/backend/api/Project/{self._project_id}",
+            scoped="org",
+        )
+        self._solution_id_cache = response.json()["solutionId"]
+        return self._solution_id_cache
+
+    async def _get_existing_resources(self) -> List[dict[str, Any]]:
+        if self._resources_cache is not None:
+            return self._resources_cache
+
+        solution_id = await self._get_solution_id()
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url=f"/studio_/backend/api/resourcebuilder/solutions/{solution_id}/entities",
+            scoped="org",
+        )
+        resources_data = response.json().get("resources", [])
+        self._resources_cache = [
+            {"name": r.get("name"), "kind": r.get("kind")} for r in resources_data
+        ]
+        return self._resources_cache
+
+    async def get_resource_overwrites(self) -> dict[str, ResourceOverwrite]:
+        """Get resource overwrites from the solution.
+
+        Returns:
+            dict[str, ResourceOverwrite]: Dict of resource overwrites
+        """
+        if not os.path.exists(UiPathConfig.bindings_file_path):
+            return {}
+
+        with open(UiPathConfig.bindings_file_path, "rb") as f:
+            file_content = f.read()
+
+        solution_id = await self._get_solution_id()
+        tenant_id = os.getenv(ENV_TENANT_ID, None)
+
+        files = [
+            (
+                "file",
+                (
+                    os.path.basename(UiPathConfig.bindings_file_path),
+                    file_content,
+                    "application/json",
+                ),
+            )
+        ]
+
+        response = await self.uipath.api_client.request_async(
+            "POST",
+            url=f"/studio_/backend/api/resourcebuilder/{solution_id}/binding-overwrites",
+            scoped="org",
+            headers={HEADER_TENANT_ID: tenant_id},
+            files=files,
+        )
+        data = response.json()
+        overwrites = {}
+
+        for key, value in data.items():
+            overwrites[key] = ResourceOverwrite.model_validate(value)
+
+        return overwrites
+
+    async def create_virtual_resource(
+        self, virtual_resource_request: VirtualResourceRequest
+    ) -> VirtualResourceResult:
+        """Create a virtual resource or return appropriate status if it already exists.
+
+        Args:
+            virtual_resource_request: The virtual resource request details
+
+        Returns:
+            VirtualResourceResult: Result indicating the operation status and a formatted message
+        """
+        # Build base message with resource details
+        base_message_parts = [
+            f"Resource {click.style(virtual_resource_request.name, fg='cyan')}",
+            f" (kind: {click.style(virtual_resource_request.kind, fg='yellow')}",
+        ]
+
+        if virtual_resource_request.type:
+            base_message_parts.append(
+                f", type: {click.style(virtual_resource_request.type, fg='yellow')}"
+            )
+
+        if virtual_resource_request.activity_name:
+            base_message_parts.append(
+                f", activity: {click.style(virtual_resource_request.activity_name, fg='yellow')}"
+            )
+
+        base_message_parts.append(")")
+        base_message = "".join(base_message_parts)
+
+        existing_resources = await self._get_existing_resources()
+
+        # Check if resource with same kind and name exists
+        existing_same_kind = next(
+            (
+                r
+                for r in existing_resources
+                if r["name"] == virtual_resource_request.name
+                and r["kind"] == virtual_resource_request.kind
+            ),
+            None,
+        )
+        if existing_same_kind:
+            message = f"{base_message} already exists. Skipping..."
+            return VirtualResourceResult(severity=Severity.ATTENTION, message=message)
+
+        # Check if resource with same name but different kind exists
+        existing_diff_kind = next(
+            (
+                r
+                for r in existing_resources
+                if r["name"] == virtual_resource_request.name
+                and r["kind"] != virtual_resource_request.kind
+            ),
+            None,
+        )
+        if existing_diff_kind:
+            message = (
+                f"Cannot create {base_message}. "
+                f"A resource with this name already exists with kind {click.style(existing_diff_kind['kind'], fg='yellow')}. "
+                f"Consider renaming the resource in code."
+            )
+            return VirtualResourceResult(severity=Severity.WARN, message=message)
+
+        # Create the virtual resource
+        solution_id = await self._get_solution_id()
+        response = await self.uipath.api_client.request_async(
+            "POST",
+            url=f"/studio_/backend/api/resourcebuilder/solutions/{solution_id}/resources/virtual",
+            scoped="org",
+            json=virtual_resource_request.model_dump(exclude_none=True),
+        )
+        resource_key = response.json()["key"]
+        await self._update_resource_specs(
+            resource_key, new_specs={"name": virtual_resource_request.name}
+        )
+
+        # Update cache with newly created resource
+        if self._resources_cache is not None:
+            self._resources_cache.append(
+                {
+                    "name": virtual_resource_request.name,
+                    "kind": virtual_resource_request.kind,
+                }
+            )
+
+        message = f"{base_message} created successfully."
+        return VirtualResourceResult(severity=Severity.SUCCESS, message=message)
+
+    async def _update_resource_specs(
+        self, resource_key: str, new_specs: dict[str, Any]
+    ):
+        solution_id = await self._get_solution_id()
+        tenant_id = os.getenv(ENV_TENANT_ID, None)
+
+        await self.uipath.api_client.request_async(
+            "PATCH",
+            url=f"/studio_/backend/api/resourcebuilder/solutions/{solution_id}/resources/{resource_key}/configuration",
+            scoped="org",
+            json=new_specs,
+            headers={HEADER_TENANT_ID: tenant_id},
         )
 
     @traced(name="get_project_structure", run_type="uipath")

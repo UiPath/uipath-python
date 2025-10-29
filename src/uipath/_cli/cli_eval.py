@@ -13,9 +13,11 @@ from uipath._cli._evals._runtime import (
 )
 from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._folders import get_personal_workspace_key_async
+from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
 from uipath._config import UiPathConfig
 from uipath._events._event_bus import EventBus
+from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -155,7 +157,25 @@ def eval(
             runtime_factory = generate_runtime_factory()
             if eval_context.job_id:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
-            asyncio.run(evaluate(runtime_factory, eval_context, event_bus))
+
+            async def execute_eval():
+                project_id = UiPathConfig.project_id
+
+                if project_id:
+                    studio_client = StudioClient(project_id)
+
+                    async with ResourceOverwritesContext(
+                        lambda: studio_client.get_resource_overwrites()
+                    ) as ctx:
+                        console.info(
+                            f"Applied {ctx.overwrites_count} resource overwrite(s)"
+                        )
+                        await evaluate(runtime_factory, eval_context, event_bus)
+                else:
+                    # Fall back to execution without overwrites
+                    await evaluate(runtime_factory, eval_context, event_bus)
+
+            asyncio.run(execute_eval())
 
         except Exception as e:
             console.error(

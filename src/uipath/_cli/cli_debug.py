@@ -7,6 +7,9 @@ from typing import Optional
 import click
 
 from uipath._cli._utils._debug import setup_debugging
+from uipath._cli._utils._studio_project import StudioClient
+from uipath._config import UiPathConfig
+from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.tracing import LlmOpsHttpExporter
 
 from .._utils.constants import (
@@ -121,13 +124,27 @@ def debug(
             if debug_context.job_id:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 
-            async def execute():
+            async def execute_debug_runtime():
                 async with UiPathDebugRuntime.from_debug_context(
                     factory=runtime_factory,
                     context=debug_context,
                     debug_bridge=debug_bridge,
                 ) as debug_runtime:
                     await debug_runtime.execute()
+
+            async def execute():
+                project_id = UiPathConfig.project_id
+
+                if project_id:
+                    studio_client = StudioClient(project_id)
+
+                    async with ResourceOverwritesContext(
+                        lambda: studio_client.get_resource_overwrites()
+                    ) as ctx:
+                        console.info(f"Applied {ctx.overwrites_count} overwrite(s)")
+                        await execute_debug_runtime()
+                else:
+                    await execute_debug_runtime()
 
             asyncio.run(execute())
         except Exception as e:
