@@ -6,7 +6,7 @@ import httpx
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
+from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..models import Bucket
 from ..tracing._traced import traced
@@ -26,7 +26,6 @@ class BucketsService(FolderContext, BaseService):
         self.custom_client_async = httpx.AsyncClient(**get_httpx_client_kwargs())
 
     @traced(name="buckets_download", run_type="uipath")
-    @infer_bindings(resource_type="bucket")
     def download(
         self,
         *,
@@ -82,7 +81,6 @@ class BucketsService(FolderContext, BaseService):
             file.write(file_content)
 
     @traced(name="buckets_download", run_type="uipath")
-    @infer_bindings(resource_type="bucket")
     async def download_async(
         self,
         *,
@@ -144,7 +142,6 @@ class BucketsService(FolderContext, BaseService):
             file.write(file_content)
 
     @traced(name="buckets_upload", run_type="uipath")
-    @infer_bindings(resource_type="bucket")
     def upload(
         self,
         *,
@@ -238,7 +235,6 @@ class BucketsService(FolderContext, BaseService):
                     )
 
     @traced(name="buckets_upload", run_type="uipath")
-    @infer_bindings(resource_type="bucket")
     async def upload_async(
         self,
         *,
@@ -338,7 +334,6 @@ class BucketsService(FolderContext, BaseService):
                     )
 
     @traced(name="buckets_retrieve", run_type="uipath")
-    @infer_bindings(resource_type="bucket")
     def retrieve(
         self,
         *,
@@ -386,7 +381,6 @@ class BucketsService(FolderContext, BaseService):
         return Bucket.model_validate(response)
 
     @traced(name="buckets_retrieve", run_type="uipath")
-    @infer_bindings(resource_type="bucket")
     async def retrieve_async(
         self,
         *,

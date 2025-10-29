@@ -167,13 +167,6 @@ def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
 @click.command()
 @click.argument("entrypoint", required=False, default=None)
 @click.option(
-    "--infer-bindings/--no-infer-bindings",
-    is_flag=True,
-    required=False,
-    default=True,
-    help="Infer bindings from the script.",
-)
-@click.option(
     "--no-agents-md-override",
     is_flag=True,
     required=False,
@@ -181,8 +174,11 @@ def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
     help="Won't override existing .agent files and AGENTS.md file.",
 )
 @track
-def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> None:
-    """Create uipath.json with input/output schemas and bindings."""
+def init(entrypoint: str, no_agents_md_override: bool) -> None:
+    """Create uipath.json with input/output schemas.
+
+    Use 'uipath bindings create' to add resource bindings after initialization.
+    """
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
         generate_env_file(current_directory)
@@ -192,7 +188,6 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             "init",
             entrypoint,
             options={
-                "infer_bindings": infer_bindings,
                 "no_agents_md_override": no_agents_md_override,
             },
             write_config=write_config_file,

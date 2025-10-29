@@ -5,7 +5,7 @@ from httpx import Response
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
+from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils._read_overwrites import OverwritesManager
 from ..models import Asset, UserAsset
 from ..tracing._traced import traced
@@ -27,7 +27,6 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="asset")
     def retrieve(
         self,
         name: str,
@@ -82,7 +81,6 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="asset")
     async def retrieve_async(
         self,
         name: str,
@@ -128,7 +126,6 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="asset")
     def retrieve_credential(
         self,
         name: str,
@@ -183,7 +180,6 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="asset")
     async def retrieve_credential_async(
         self,
         name: str,

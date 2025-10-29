@@ -1,0 +1,48 @@
+{
+    "entryPoints": [
+        {
+            "filePath": "main.py",
+            "uniqueId": "bindings-example",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "A message to process"
+                    }
+                },
+                "required": ["message"]
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string"
+                    },
+                    "asset_value": {
+                        "type": "string"
+                    }
+                },
+                "required": ["status", "asset_value"]
+            }
+        }
+    ],
+    "bindings": {
+        "version": "2.0",
+        "resources": []
+    },
+    "runtime": {
+        "internalArguments": {
+            "resourceOverwrites": {
+                "asset.my-config-asset": {
+                    "name": "MyConfigurationAsset"
+                },
+                "process.my-process": {
+                    "name": "MyProcessName",
+                    "folderPath": "/Shared/Production"
+                }
+            }
+        }
+    }
+}

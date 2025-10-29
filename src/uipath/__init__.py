@@ -20,5 +20,6 @@ Example:
 """
 
 from ._uipath import UiPath
+from .bindings import Bindings
 
-__all__ = ["UiPath"]
+__all__ = ["UiPath", "Bindings"]

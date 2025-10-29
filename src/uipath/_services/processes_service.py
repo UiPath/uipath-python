@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
+from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
 from ..models.job import Job
 from ..tracing._traced import traced
@@ -32,7 +32,6 @@ class ProcessesService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="processes_invoke", run_type="uipath")
-    @infer_bindings(resource_type="process")
     def invoke(
         self,
         name: str,
@@ -96,7 +95,6 @@ class ProcessesService(FolderContext, BaseService):
         return Job.model_validate(response.json()["value"][0])
 
     @traced(name="processes_invoke", run_type="uipath")
-    @infer_bindings(resource_type="process")
     async def invoke_async(
         self,
         name: str,

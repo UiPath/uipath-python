@@ -6,6 +6,7 @@ import click
 from ._utils._common import add_cwd_to_path, load_environment_variables
 from .cli_add import add as add
 from .cli_auth import auth as auth
+from .cli_bindings import bindings as bindings
 from .cli_debug import debug as debug  # type: ignore
 from .cli_deploy import deploy as deploy  # type: ignore
 from .cli_dev import dev as dev
@@ -80,3 +81,4 @@ cli.add_command(dev)
 cli.add_command(add)
 cli.add_command(register)
 cli.add_command(debug)
+cli.add_command(bindings)
