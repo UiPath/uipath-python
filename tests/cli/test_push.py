@@ -213,6 +213,31 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
+        # Mock file downloads for conflict detection
+        # Mock main.py download - return different content to trigger update
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
+            status_code=200,
+            text="print('Old version')",
+        )
+
+        # Mock pyproject.toml download - return different content to trigger update
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
+            status_code=200,
+            text="[project]\nname = 'old-version'\n",
+        )
+
+        # Mock uipath.json download - return different content to trigger update
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
+            status_code=200,
+            text='{"version": "old"}',
+        )
+
         # Mock agent.json download
         httpx_mock.add_response(
             method="GET",
@@ -491,6 +516,23 @@ class TestPush:
         )
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        # Mock file downloads for conflict detection
+        # Mock main.py download - return different content to trigger update
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
+            status_code=200,
+            text="print('Old version')",
+        )
+
+        # Mock uipath.json download - return different content to trigger update
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
+            status_code=200,
+            text='{"version": "old"}',
+        )
 
         httpx_mock.add_response(
             method="POST",
@@ -1034,3 +1076,402 @@ class TestPush:
                 "config.json" in result.output
             )  # Some config.json should be present from allowed directories
             assert "Uploading 'main.py'" in result.output
+
+    def test_push_detects_source_file_conflicts(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+        monkeypatch: Any,
+    ) -> None:
+        """Test that push detects conflicts when remote files differ from local files."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock the project structure with existing files
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [
+                {
+                    "id": "123",
+                    "name": "source_code",
+                    "files": [
+                        {
+                            "id": "456",
+                            "name": "main.py",
+                            "isMain": True,
+                            "fileType": "1",
+                            "isEntryPoint": True,
+                            "ignoredFromPublish": False,
+                        },
+                    ],
+                }
+            ],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        # Mock file download - return different content to detect conflict
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
+            status_code=200,
+            text="print('Remote version')",
+        )
+
+        # Mock user confirmation - user confirms the overwrite
+        monkeypatch.setattr("click.confirm", lambda *args, **kwargs: True)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        # Mock empty folder cleanup
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("print('Local version')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+            # Should detect conflict and update after user confirmation
+            assert "Updating 'main.py'" in result.output
+
+    def test_push_skips_file_when_user_rejects(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+        monkeypatch: Any,
+    ) -> None:
+        """Test that push skips files when user rejects overwrite."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock the project structure with existing files
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [
+                {
+                    "id": "123",
+                    "name": "source_code",
+                    "files": [
+                        {
+                            "id": "456",
+                            "name": "main.py",
+                            "isMain": True,
+                            "fileType": "1",
+                            "isEntryPoint": True,
+                            "ignoredFromPublish": False,
+                        },
+                    ],
+                }
+            ],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        # Mock file download - return different content to detect conflict
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
+            status_code=200,
+            text="print('Remote version')",
+        )
+
+        # Mock user confirmation - user rejects the overwrite
+        monkeypatch.setattr("click.confirm", lambda *args, **kwargs: False)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        # Mock empty folder cleanup
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("print('Local version')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+            # Should skip the file after user rejection
+            assert "Skipped 'main.py'" in result.output
+            assert "Updating 'main.py'" not in result.output
+
+    def test_push_updates_file_when_user_confirms(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+        monkeypatch: Any,
+    ) -> None:
+        """Test that push updates file when user confirms overwrite."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock the project structure with existing files
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [
+                {
+                    "id": "123",
+                    "name": "source_code",
+                    "files": [
+                        {
+                            "id": "456",
+                            "name": "main.py",
+                            "isMain": True,
+                            "fileType": "1",
+                            "isEntryPoint": True,
+                            "ignoredFromPublish": False,
+                        },
+                        {
+                            "id": "789",
+                            "name": "helper.py",
+                            "isMain": False,
+                            "fileType": "1",
+                            "isEntryPoint": False,
+                            "ignoredFromPublish": False,
+                        },
+                    ],
+                }
+            ],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        # Mock file downloads - return different content to detect conflicts
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
+            status_code=200,
+            text="print('Old main')",
+        )
+
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
+            status_code=200,
+            text="def old_helper(): pass",
+        )
+
+        # Mock user confirmation - user confirms all overwrites
+        monkeypatch.setattr("click.confirm", lambda *args, **kwargs: True)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        # Mock empty folder cleanup
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("print('New main')")
+            with open("helper.py", "w") as f:
+                f.write("def new_helper(): pass")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+            # Both files should be updated after user confirmation
+            assert "Updating 'main.py'" in result.output
+            assert "Updating 'helper.py'" in result.output
+
+    def test_push_shows_up_to_date_for_unchanged_files(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that push shows 'up to date' message for files that haven't changed."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        local_main_content = "print('Same version')"
+        local_helper_content = "def helper(): pass"
+
+        # Mock the project structure with existing files
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [
+                {
+                    "id": "123",
+                    "name": "source_code",
+                    "files": [
+                        {
+                            "id": "456",
+                            "name": "main.py",
+                            "isMain": True,
+                            "fileType": "1",
+                            "isEntryPoint": True,
+                            "ignoredFromPublish": False,
+                        },
+                        {
+                            "id": "789",
+                            "name": "helper.py",
+                            "isMain": False,
+                            "fileType": "1",
+                            "isEntryPoint": False,
+                            "ignoredFromPublish": False,
+                        },
+                    ],
+                }
+            ],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        # Mock file downloads - return same content as local files
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
+            status_code=200,
+            text=local_main_content,
+        )
+
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
+            status_code=200,
+            text=local_helper_content,
+        )
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        # Mock empty folder cleanup
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write(local_main_content)
+            with open("helper.py", "w") as f:
+                f.write(local_helper_content)
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+            # Files should show as up to date since content matches
+            assert "File 'main.py' is up to date" in result.output
+            assert "File 'helper.py' is up to date" in result.output
+            # Should not show updating messages
+            assert "Updating 'main.py'" not in result.output
+            assert "Updating 'helper.py'" not in result.output
