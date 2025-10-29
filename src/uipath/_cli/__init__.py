@@ -4,6 +4,7 @@ import sys
 import click
 
 from ._utils._common import add_cwd_to_path, load_environment_variables
+from ._utils._context import CliContext
 from .cli_add import add as add
 from .cli_auth import auth as auth
 from .cli_debug import debug as debug  # type: ignore
@@ -19,6 +20,9 @@ from .cli_pull import pull as pull  # type: ignore
 from .cli_push import push as push  # type: ignore
 from .cli_register import register as register  # type: ignore
 from .cli_run import run as run  # type: ignore
+
+load_environment_variables()
+add_cwd_to_path()
 
 
 def _get_safe_version() -> str:
@@ -46,9 +50,47 @@ def _get_safe_version() -> str:
     is_flag=True,
     help="Display the current version of uipath.",
 )
-def cli(lv: bool, v: bool) -> None:
-    load_environment_variables()
-    add_cwd_to_path()
+@click.option(
+    "--folder",
+    envvar="UIPATH_FOLDER_PATH",
+    help='Default folder path (e.g., "Shared")',
+)
+@click.option(
+    "--format",
+    type=click.Choice(["json", "table", "csv"]),
+    default="table",
+    help="Output format for commands",
+)
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debug logging and show stack traces",
+)
+@click.pass_context
+def cli(
+    ctx: click.Context,
+    lv: bool,
+    v: bool,
+    folder: str,
+    format: str,
+    debug: bool,
+) -> None:
+    r"""UiPath CLI - Automate everything.
+
+    Use service-specific commands to interact with UiPath platform services:
+
+    \b
+    Examples:
+        uipath buckets list --folder-path "Shared"
+        uipath assets retrieve config --format json
+        uipath jobs list --limit 10
+    """
+    ctx.obj = CliContext(
+        default_folder=folder,
+        output_format=format,
+        debug=debug,
+    )
+
     if lv:
         try:
             version = importlib.metadata.version("uipath-langchain")
@@ -80,3 +122,7 @@ cli.add_command(dev)
 cli.add_command(add)
 cli.add_command(register)
 cli.add_command(debug)
+
+from .services import register_service_commands  # noqa: E402
+
+register_service_commands(cli)
