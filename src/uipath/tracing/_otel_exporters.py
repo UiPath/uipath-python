@@ -32,20 +32,25 @@ def _get_llm_messages(attributes: Dict[str, Any], prefix: str) -> List[Dict[str,
     """Extracts and reconstructs LLM messages from flattened attributes."""
     messages: dict[int, dict[str, Any]] = {}
     message_prefix = f"{prefix}."
+    prefix_len = len(message_prefix)
 
     for key, value in attributes.items():
         if key.startswith(message_prefix):
-            parts = key[len(message_prefix) :].split(".")
+            # Avoid repeated string slicing and splits
+            parts = key[prefix_len:].split(".")
             if len(parts) >= 2 and parts[0].isdigit():
                 index = int(parts[0])
                 if index not in messages:
                     messages[index] = {}
                 current: Any = messages[index]
 
-                for i, part in enumerate(parts[1:-1]):
+                # Traverse parts except the last one
+                parts_len = len(parts)
+                for i in range(1, parts_len - 1):
+                    part = parts[i]
                     key_part: str | int = part
                     if part.isdigit() and (
-                        i + 2 < len(parts) and parts[i + 2].isdigit()
+                        i + 2 < parts_len and parts[i + 2].isdigit()
                     ):
                         key_part = int(part)
 
@@ -59,6 +64,10 @@ def _get_llm_messages(attributes: Dict[str, Any], prefix: str) -> List[Dict[str,
                         current = current[key_part]
 
                 current[parts[-1]] = value
+
+    # Convert dict to list, ordered by index, avoid sorted() if we can use range
+    if not messages:
+        return []
 
     # Convert dict to list, ordered by index
     return [messages[i] for i in sorted(messages.keys())]
@@ -112,18 +121,30 @@ class LlmOpsHttpExporter(SpanExporter):
             f"Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
         )
 
+        # Use optimized path: keep attributes as dict for processing
+        # Only serialize at the very end
         span_list = [
             _SpanUtils.otel_span_to_uipath_span(
-                span, custom_trace_id=self.trace_id
-            ).to_dict()
+                span, custom_trace_id=self.trace_id, serialize_attributes=False
+            ).to_dict(serialize_attributes=False)
             for span in spans
         ]
+
         url = self._build_url(span_list)
 
+        # Process spans in-place if needed - work directly with dict
         if self._extra_process_spans:
-            span_list = [self._process_span_attributes(span) for span in span_list]
+            for span_data in span_list:
+                self._process_span_attributes(span_data)
 
-        logger.debug("Payload: %s", json.dumps(span_list))
+        # Serialize attributes once at the very end
+        for span_data in span_list:
+            if isinstance(span_data.get("Attributes"), dict):
+                span_data["Attributes"] = json.dumps(span_data["Attributes"])
+
+        # Only serialize for logging if debug is enabled to avoid allocation
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Payload: %s", json.dumps(span_list))
 
         return self._send_with_retries(url, span_list)
 
@@ -133,7 +154,8 @@ class LlmOpsHttpExporter(SpanExporter):
 
     def _map_llm_call_attributes(self, attributes: Dict[str, Any]) -> Dict[str, Any]:
         """Maps attributes for LLM calls, handling flattened keys."""
-        result = attributes.copy()  # Keep original attributes including basic mappings
+        # Modify attributes in place to avoid copy
+        result = attributes
 
         # Token Usage
         token_keys = {
@@ -202,7 +224,8 @@ class LlmOpsHttpExporter(SpanExporter):
 
     def _map_tool_call_attributes(self, attributes: Dict[str, Any]) -> Dict[str, Any]:
         """Maps attributes for tool calls."""
-        result = attributes.copy()  # Keep original attributes
+        # Modify attributes in place to avoid copy
+        result = attributes
 
         result["type"] = "toolCall"
         result["callId"] = attributes.get("call_id") or attributes.get("id")
@@ -225,22 +248,32 @@ class LlmOpsHttpExporter(SpanExporter):
             return self.Status.ERROR
         return self.Status.SUCCESS
 
-    def _process_span_attributes(self, span_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extracts, transforms, and maps attributes for a span."""
+    def _process_span_attributes(self, span_data: Dict[str, Any]) -> None:
+        """Extracts, transforms, and maps attributes for a span in-place.
+
+        Args:
+            span_data: Span dict with Attributes as dict or JSON string
+
+        Note:
+            Modifies span_data in-place. When optimized path is used (dict),
+            modifies dict directly. When legacy path is used (str), parse → modify → serialize.
+        """
         if "Attributes" not in span_data:
-            return span_data
+            return
 
         attributes_val = span_data["Attributes"]
         if isinstance(attributes_val, str):
+            # Legacy path: parse JSON string
             try:
                 attributes: Dict[str, Any] = json.loads(attributes_val)
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse attributes JSON: {e}")
-                return span_data
+                return
         elif isinstance(attributes_val, dict):
+            # Optimized path: work directly with dict
             attributes = attributes_val
         else:
-            return span_data
+            return
 
         # Determine SpanType
         if "openinference.span.kind" in attributes:
@@ -258,22 +291,22 @@ class LlmOpsHttpExporter(SpanExporter):
                     attributes[new_key] = attributes[old_key]
 
         # Apply detailed mapping based on SpanType
+        # Modify attributes dict in place to avoid allocations
         span_type = span_data.get("SpanType")
         if span_type == "completion":
-            processed_attributes = self._map_llm_call_attributes(attributes)
+            self._map_llm_call_attributes(attributes)
         elif span_type == "toolCall":
-            processed_attributes = self._map_tool_call_attributes(attributes)
-        else:
-            processed_attributes = attributes.copy()
+            self._map_tool_call_attributes(attributes)
 
-        span_data["Attributes"] = json.dumps(processed_attributes)
+        # If attributes were a string (legacy path), serialize back
+        # If dict (optimized path), leave as dict - caller will serialize once at the end
+        if isinstance(attributes_val, str):
+            span_data["Attributes"] = json.dumps(attributes)
 
         # Determine status based on error information
         error = attributes.get("error") or attributes.get("exception.message")
         status = self._determine_status(error)
         span_data["Status"] = status
-
-        return span_data
 
     def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
         """Construct the URL for the API request."""
@@ -323,7 +356,10 @@ class JsonLinesFileExporter(SpanExporter):
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         try:
             uipath_spans = [
-                _SpanUtils.otel_span_to_uipath_span(span).to_dict() for span in spans
+                _SpanUtils.otel_span_to_uipath_span(
+                    span, serialize_attributes=True
+                ).to_dict(serialize_attributes=True)
+                for span in spans
             ]
 
             with open(self.file_path, "a") as f:
