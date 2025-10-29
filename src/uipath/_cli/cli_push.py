@@ -7,13 +7,11 @@ from urllib.parse import urlparse
 import click
 
 from uipath.models.exceptions import EnrichedException
+from .._config import ConfigurationManager
 
 from ..telemetry import track
 from ._push.sw_file_handler import FileOperationUpdate, SwFileHandler
 from ._utils._console import ConsoleLogger
-from ._utils._constants import (
-    UIPATH_PROJECT_ID,
-)
 from ._utils._project_files import (
     ensure_config_file,
     get_project_config,
@@ -98,8 +96,7 @@ def push(root: str, nolock: bool) -> None:
     ensure_config_file(root)
     config = get_project_config(root)
     validate_config(config)
-
-    project_id = os.getenv(UIPATH_PROJECT_ID)
+    project_id = ConfigurationManager().project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 

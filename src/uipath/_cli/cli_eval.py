@@ -12,9 +12,10 @@ from uipath._cli._evals._runtime import (
     UiPathEvalContext,
 )
 from uipath._cli._runtime._runtime_factory import generate_runtime_factory
-from uipath._cli._utils._constants import UIPATH_PROJECT_ID
+from uipath._cli._utils._common import apply_bindings_overwrites
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli.middlewares import Middlewares
+from uipath._config import ConfigurationManager
 from uipath._events._event_bus import EventBus
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.tracing import LlmOpsHttpExporter
@@ -39,7 +40,7 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     if no_report:
         return False
 
-    if not os.getenv(UIPATH_PROJECT_ID, False):
+    if not ConfigurationManager().is_studio_project:
         console.warning(
             "UIPATH_PROJECT_ID environment variable not set. Results will no be reported to Studio Web."
         )
@@ -101,6 +102,11 @@ def eval(
     }
 
     should_register_progress_reporter = setup_reporting_prereq(no_report)
+
+    if ConfigurationManager().is_studio_project:
+        project_id = ConfigurationManager().project_id
+        assert project_id is not None
+        apply_bindings_overwrites(project_id)
 
     result = Middlewares.next(
         "eval",
