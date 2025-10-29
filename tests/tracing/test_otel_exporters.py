@@ -199,6 +199,7 @@ class TestLangchainExporter(unittest.TestCase):
     def test_process_span_with_dict_attributes(self):
         """
         Tests that the span is processed correctly when Attributes is a dictionary.
+        When attributes start as dict, they remain as dict (optimized path).
         """
         span_data = {
             "Id": "501e2c8c-066a-43a8-8e14-7a8d51773a13",
@@ -216,12 +217,15 @@ class TestLangchainExporter(unittest.TestCase):
             "Status": 1,
         }
 
-        processed_span = self.exporter._process_span_attributes(span_data)
+        self.exporter._process_span_attributes(span_data)
 
-        self.assertEqual(processed_span["SpanType"], "completion")
-        self.assertIn("Attributes", processed_span)
+        self.assertEqual(span_data["SpanType"], "completion")
+        self.assertIn("Attributes", span_data)
 
-        attributes = json.loads(processed_span["Attributes"])
+        # When input is dict, output stays as dict (optimized path)
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+        self.assertIsInstance(attributes, dict)
         self.assertEqual(attributes["model"], "gpt-4o-mini-2024-07-18")
         self.assertIn("input", attributes)
         self.assertIn("output", attributes)
@@ -247,12 +251,14 @@ class TestLangchainExporter(unittest.TestCase):
             "Status": 1,
         }
 
-        processed_span = self.exporter._process_span_attributes(span_data)
+        self.exporter._process_span_attributes(span_data)
 
-        self.assertEqual(processed_span["SpanType"], "completion")
-        self.assertIn("Attributes", processed_span)
+        self.assertEqual(span_data["SpanType"], "completion")
+        self.assertIn("Attributes", span_data)
 
-        attributes = json.loads(processed_span["Attributes"])
+        attributes_value = span_data["Attributes"]
+        assert isinstance(attributes_value, str)
+        attributes = json.loads(attributes_value)
         self.assertEqual(attributes["model"], "gpt-4o-mini-2024-07-18")
         self.assertIn("input", attributes)
         self.assertIn("output", attributes)
@@ -260,6 +266,7 @@ class TestLangchainExporter(unittest.TestCase):
     def test_process_tool_span(self):
         """
         Tests that a tool span is processed correctly.
+        When attributes start as dict, they remain as dict (optimized path).
         """
         span_data = {
             "Id": "b667e7d7-913f-4e99-8d95-1a7660e40edd",
@@ -277,12 +284,15 @@ class TestLangchainExporter(unittest.TestCase):
             "Status": 1,
         }
 
-        processed_span = self.exporter._process_span_attributes(span_data)
+        self.exporter._process_span_attributes(span_data)
 
-        self.assertEqual(processed_span["SpanType"], "toolCall")
-        self.assertIn("Attributes", processed_span)
+        self.assertEqual(span_data["SpanType"], "toolCall")
+        self.assertIn("Attributes", span_data)
 
-        attributes = json.loads(processed_span["Attributes"])
+        # When input is dict, output stays as dict (optimized path)
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+        self.assertIsInstance(attributes, dict)
         self.assertEqual(attributes["toolName"], "get_current_time")
         self.assertEqual(attributes["arguments"], {})
         self.assertEqual(attributes["result"], "2025-09-18 14:35:48")
@@ -322,10 +332,13 @@ class TestLangchainExporter(unittest.TestCase):
             "UpdatedAt": "2025-09-18T14:58:36.891Z",
         }
 
-        processed_span = self.exporter._process_span_attributes(span_data)
-        self.assertEqual(processed_span["SpanType"], "toolCall")
+        self.exporter._process_span_attributes(span_data)
+        self.assertEqual(span_data["SpanType"], "toolCall")
 
-        attributes = json.loads(processed_span["Attributes"])
+        # When input is dict, output stays as dict (optimized path)
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+        self.assertIsInstance(attributes, dict)
         self.assertEqual(attributes["toolName"], "get_current_time")
         self.assertEqual(attributes["input"], {})
         self.assertEqual(attributes["output"], "2025-09-18 14:58:31")
@@ -367,15 +380,18 @@ class TestLangchainExporter(unittest.TestCase):
             "UpdatedAt": "2025-09-18T15:14:20.482Z",
         }
 
-        processed_span = self.exporter._process_span_attributes(span_data)
+        self.exporter._process_span_attributes(span_data)
 
         # SpanType should be mapped to toolCall
-        self.assertEqual(processed_span["SpanType"], "toolCall")
+        self.assertEqual(span_data["SpanType"], "toolCall")
 
         # Attributes should be processed
-        self.assertIn("Attributes", processed_span)
+        self.assertIn("Attributes", span_data)
 
-        attributes = json.loads(processed_span["Attributes"])
+        # When input is dict, output stays as dict (optimized path)
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+        self.assertIsInstance(attributes, dict)
 
         # These are the expected attributes for a tool call
         self.assertEqual(attributes["toolName"], "get_current_time")
@@ -426,22 +442,117 @@ class TestLangchainExporter(unittest.TestCase):
             "UpdatedAt": "2025-09-18T15:25:38.591Z",
         }
 
-        processed_span = self.exporter._process_span_attributes(span_data)
+        self.exporter._process_span_attributes(span_data)
 
         # Verify LLM span gets mapped to completion
-        self.assertEqual(processed_span["SpanType"], "completion")
+        self.assertEqual(span_data["SpanType"], "completion")
 
         # Verify attributes are processed
-        self.assertIn("Attributes", processed_span)
+        self.assertIn("Attributes", span_data)
 
-        attributes = json.loads(processed_span["Attributes"])
+        # When input is dict, output stays as dict (optimized path)
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+        self.assertIsInstance(attributes, dict)
 
         # Verify LLM-specific attributes are present
         self.assertEqual(attributes["model"], "gpt-4o-mini-2024-07-18")
         self.assertIn("usage", attributes)
-        self.assertEqual(attributes["usage"]["promptTokens"], 219)
-        self.assertEqual(attributes["usage"]["completionTokens"], 66)
-        self.assertEqual(attributes["usage"]["totalTokens"], 285)
+        usage = attributes["usage"]
+        assert isinstance(usage, dict)
+        self.assertEqual(usage["promptTokens"], 219)
+        self.assertEqual(usage["completionTokens"], 66)
+        self.assertEqual(usage["totalTokens"], 285)
+
+    def test_unknown_span_type_preserved(self):
+        """
+        Test that spans with UNKNOWN or unrecognized openinference.span.kind
+        are still exported and don't get dropped.
+
+        This tests the real-world case from the logs where PydanticOutputParser
+        spans have openinference.span.kind=UNKNOWN and should be preserved.
+        """
+        # Original span data from actual logs
+        span_data = {
+            "Id": "7325f1a7-71ea-4ec1-82c0-266b0a7242a7",
+            "TraceId": "3d53656e-8523-4917-8c58-686ab29b98da",
+            "ParentId": "0d173f1f-015e-47b5-80c4-b63111b63536",
+            "Name": "PydanticOutputParser",
+            "StartTime": "2025-10-29T12:34:48.379494",
+            "EndTime": "2025-10-29T12:34:48.380852",
+            "Attributes": {
+                "input.value": '{"content": "```json\\n{\\"label\\": \\"security\\", \\"confidence\\": 0.95}\\n```", "additional_kwargs": {}, "response_metadata": {"token_usage": {"completion_tokens": 19, "prompt_tokens": 333, "total_tokens": 352}}}',
+                "input.mime_type": "application/json",
+                "output.value": '{"label": "security", "confidence": 0.95}',
+                "output.mime_type": "application/json",
+                "session.id": "default",
+                "metadata": '{"thread_id": "default", "langgraph_step": 2, "langgraph_node": "classify"}',
+                "openinference.span.kind": "UNKNOWN",
+            },
+            "Status": 1,
+            "SpanType": "OpenTelemetry",
+        }
+
+        print("\n=== Testing UNKNOWN span type preservation ===")
+        print(f"Initial SpanType: {span_data['SpanType']}")
+        attributes_before = span_data["Attributes"]
+        assert isinstance(attributes_before, dict)
+        print(
+            f"openinference.span.kind: {attributes_before['openinference.span.kind']}"
+        )
+        print(f"Attributes type before: {type(attributes_before)}")
+
+        # Process the span
+        self.exporter._process_span_attributes(span_data)
+
+        print(f"SpanType after processing: {span_data['SpanType']}")
+        print(f"Attributes type after: {type(span_data['Attributes'])}")
+
+        # Verify span is processed correctly
+        self.assertEqual(
+            span_data["SpanType"],
+            "UNKNOWN",
+            "SpanType should be mapped to UNKNOWN from openinference.span.kind",
+        )
+        self.assertIn("Attributes", span_data, "Attributes should still be present")
+
+        # When input is dict, output stays as dict (optimized path)
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+        self.assertIsInstance(
+            attributes, dict, "Attributes should remain as dict in optimized path"
+        )
+
+        # Basic attribute mapping should still work
+        self.assertIn(
+            "input",
+            attributes,
+            "input.value should be mapped to input by ATTRIBUTE_MAPPING",
+        )
+        self.assertIn(
+            "output",
+            attributes,
+            "output.value should be mapped to output by ATTRIBUTE_MAPPING",
+        )
+
+        # Verify mime types are preserved
+        self.assertEqual(attributes["input.mime_type"], "application/json")
+        self.assertEqual(attributes["output.mime_type"], "application/json")
+
+        # Verify parsed values
+        input_val = attributes["input"]
+        assert isinstance(input_val, dict)
+        self.assertIsInstance(input_val, dict, "input should be parsed from JSON")
+        self.assertIn("content", input_val)
+
+        output_val = attributes["output"]
+        assert isinstance(output_val, dict)
+        self.assertIsInstance(output_val, dict, "output should be parsed from JSON")
+        self.assertEqual(output_val["label"], "security")
+        self.assertEqual(output_val["confidence"], 0.95)
+
+        print("✓ UNKNOWN span preserved and processed correctly")
+        print(f"✓ Final attributes keys: {list(attributes.keys())}")
 
 
 if __name__ == "__main__":
