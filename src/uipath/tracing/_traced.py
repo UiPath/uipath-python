@@ -7,7 +7,7 @@ from functools import wraps
 from typing import Any, Callable, List, Optional, Tuple
 
 from opentelemetry import context, trace
-from opentelemetry.trace import set_span_in_context
+from opentelemetry.trace import NonRecordingSpan, set_span_in_context
 
 from ._utils import _SpanUtils
 
@@ -175,6 +175,7 @@ def _opentelemetry_traced(
     span_type: Optional[str] = None,
     input_processor: Optional[Callable[..., Any]] = None,
     output_processor: Optional[Callable[..., Any]] = None,
+    recording: bool = True,
 ):
     """Default tracer implementation using OpenTelemetry."""
 
@@ -184,7 +185,10 @@ def _opentelemetry_traced(
         def get_parent_context():
             """Return a context object for starting the new span."""
             current_span = _active_traced_span.get()
-            if current_span is not None and current_span.get_span_context().is_valid:
+            if current_span is not None and (
+                current_span.get_span_context().is_valid
+                or isinstance(current_span, NonRecordingSpan)
+            ):
                 return set_span_in_context(current_span)
 
             if TracingManager._current_span_provider is not None:
@@ -197,12 +201,22 @@ def _opentelemetry_traced(
 
             return context.get_current()
 
+        def get_span():
+            if recording and not isinstance(
+                _active_traced_span.get(), NonRecordingSpan
+            ):
+                ctx = get_parent_context()
+                span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
+                span = span_cm.__enter__()
+            else:
+                span_cm = None
+                span = NonRecordingSpan(trace.INVALID_SPAN_CONTEXT)
+            return span_cm, span
+
         # --------- Sync wrapper ---------
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            ctx = get_parent_context()
-            span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
-            span = span_cm.__enter__()
+            span_cm, span = get_span()
             token = _active_traced_span.set(span)
             try:
                 span.set_attribute("span_type", span_type or "function_call_sync")
@@ -241,14 +255,13 @@ def _opentelemetry_traced(
                 raise
             finally:
                 _active_traced_span.reset(token)
-                span_cm.__exit__(None, None, None)
+                if span_cm:
+                    span_cm.__exit__(None, None, None)
 
         # --------- Async wrapper ---------
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            ctx = get_parent_context()
-            span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
-            span = span_cm.__enter__()
+            span_cm, span = get_span()
             token = _active_traced_span.set(span)
             try:
                 span.set_attribute("span_type", span_type or "function_call_async")
@@ -287,14 +300,13 @@ def _opentelemetry_traced(
                 raise
             finally:
                 _active_traced_span.reset(token)
-                span_cm.__exit__(None, None, None)
+                if span_cm:
+                    span_cm.__exit__(None, None, None)
 
         # --------- Generator wrapper ---------
         @wraps(func)
         def generator_wrapper(*args, **kwargs):
-            ctx = get_parent_context()
-            span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
-            span = span_cm.__enter__()
+            span_cm, span = get_span()
             token = _active_traced_span.set(span)
             try:
                 span.set_attribute(
@@ -330,14 +342,13 @@ def _opentelemetry_traced(
                 raise
             finally:
                 _active_traced_span.reset(token)
-                span_cm.__exit__(None, None, None)
+                if span_cm:
+                    span_cm.__exit__(None, None, None)
 
         # --------- Async generator wrapper ---------
         @wraps(func)
         async def async_generator_wrapper(*args, **kwargs):
-            ctx = get_parent_context()
-            span_cm = get_tracer().start_as_current_span(trace_name, context=ctx)
-            span = span_cm.__enter__()
+            span_cm, span = get_span()
             token = _active_traced_span.set(span)
             try:
                 span.set_attribute(
@@ -373,7 +384,8 @@ def _opentelemetry_traced(
                 raise
             finally:
                 _active_traced_span.reset(token)
-                span_cm.__exit__(None, None, None)
+                if span_cm:
+                    span_cm.__exit__(None, None, None)
 
         if inspect.iscoroutinefunction(func):
             return async_wrapper
@@ -425,6 +437,7 @@ def traced(
     output_processor: Optional[Callable[..., Any]] = None,
     hide_input: bool = False,
     hide_output: bool = False,
+    recording: bool = True,
 ):
     """Decorator that will trace function invocations.
 
@@ -437,6 +450,7 @@ def traced(
             Should accept the function output and return a processed value
         hide_input: If True, don't log any input data
         hide_output: If True, don't log any output data
+        recording: If False, current span and all child spans are not captured regardless of their recording status.
     """
     # Apply default processors selectively based on hide flags
     if hide_input:
@@ -451,6 +465,7 @@ def traced(
         "span_type": span_type,
         "input_processor": input_processor,
         "output_processor": output_processor,
+        "recording": recording,
     }
 
     # Check for custom implementation first
