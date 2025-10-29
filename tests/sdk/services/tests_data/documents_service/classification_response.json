@@ -1,0 +1,23 @@
+{
+  "classificationResults": [
+    {
+      "DocumentTypeId": "0d209d75-9afd-ef11-aaa7-000d3a234147",
+      "DocumentId": "0a9f9927-e6af-f011-8e60-6045bd9ba6d0",
+      "Confidence": 0.53288215,
+      "OcrConfidence": -1.0,
+      "Reference": {
+        "TextStartIndex": 0,
+        "TextLength": 0,
+        "Tokens": []
+      },
+      "DocumentBounds": {
+        "StartPage": 0,
+        "PageCount": 1,
+        "TextStartIndex": 0,
+        "TextLength": 629,
+        "PageRange": "1"
+      },
+      "ClassifierName": "Production_classifier"
+    }
+  ]
+}

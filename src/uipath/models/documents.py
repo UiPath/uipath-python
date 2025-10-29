@@ -151,3 +151,67 @@ class ValidatedResult(BaseModel):
 
     document_id: str = Field(alias="DocumentId")
     results_document: dict = Field(alias="ResultsDocument")  # type: ignore
+
+
+class Reference(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    text_start_index: int = Field(alias="TextStartIndex")
+    text_length: int = Field(alias="TextLength")
+    tokens: List[str] = Field(alias="Tokens")
+
+
+class DocumentBounds(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    start_page: int = Field(alias="StartPage")
+    page_count: int = Field(alias="PageCount")
+    text_start_index: int = Field(alias="TextStartIndex")
+    text_length: int = Field(alias="TextLength")
+    page_range: str = Field(alias="PageRange")
+
+
+class ClassificationResult(BaseModel):
+    """A model representing the result of a document classification.
+
+    Attributes:
+        document_id (str): The ID of the classified document.
+        document_type_id (str): The ID of the predicted document type.
+        confidence (float): The confidence score of the classification.
+        ocr_confidence (float): The OCR confidence score of the document.
+        reference (Reference): The reference information for the classified document.
+        document_bounds (DocumentBounds): The bounds of the document in terms of pages and text.
+        classifier_name (str): The name of the classifier used.
+        project_id (str): The ID of the project associated with the classification.
+    """
+
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    document_id: str = Field(alias="DocumentId")
+    document_type_id: str = Field(alias="DocumentTypeId")
+    confidence: float = Field(alias="Confidence")
+    ocr_confidence: float = Field(alias="OcrConfidence")
+    reference: Reference = Field(alias="Reference")
+    document_bounds: DocumentBounds = Field(alias="DocumentBounds")
+    classifier_name: str = Field(alias="ClassifierName")
+    project_id: str = Field(alias="ProjectId")
+
+
+class ClassificationResponse(BaseModel):
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+    )
+
+    classification_results: List[ClassificationResult] = Field(
+        alias="classificationResults"
+    )
