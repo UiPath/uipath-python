@@ -124,6 +124,12 @@ sdk.buckets.exists(name: str, folder_key: Optional[str]=None, folder_path: Optio
 # Async version of exists().
 sdk.buckets.exists_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
 
+# Get files using OData GetFiles API (Studio-compatible).
+sdk.buckets.get_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.BucketFile]
+
+# Async version of get_files().
+sdk.buckets.get_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.BucketFile]
+
 # List buckets with auto-pagination.
 sdk.buckets.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.Bucket]
 
@@ -131,10 +137,10 @@ sdk.buckets.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None
 sdk.buckets.list_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.Bucket]
 
 # List files in a bucket.
-sdk.buckets.list_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.models.buckets.BucketFile]
+sdk.buckets.list_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.BucketFile]
 
 # List files in a bucket asynchronously.
-sdk.buckets.list_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.models.buckets.BucketFile]
+sdk.buckets.list_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.BucketFile]
 
 # Retrieve bucket information by its name.
 sdk.buckets.retrieve(name: Optional[str]=None, key: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.buckets.Bucket

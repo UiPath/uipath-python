@@ -1,23 +1,42 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class BucketFile(BaseModel):
-    """Represents a file within a bucket."""
+    """Represents a file within a bucket.
+
+    Supports both ListFiles API (lowercase fields) and GetFiles API (PascalCase fields).
+    """
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_by_alias=True,
+        extra="allow",
     )
 
-    full_path: str = Field(alias="fullPath", description="Full path within bucket")
-    content_type: Optional[str] = Field(
-        default=None, alias="contentType", description="MIME type"
+    full_path: str = Field(
+        validation_alias=AliasChoices("fullPath", "FullPath"),
+        description="Full path within bucket",
     )
-    size: int = Field(alias="size", description="File size in bytes")
-    last_modified: str = Field(
-        alias="lastModified", description="Last modification timestamp (ISO format)"
+    content_type: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("contentType", "ContentType"),
+        description="MIME type",
+    )
+    size: int = Field(
+        validation_alias=AliasChoices("size", "Size"),
+        description="File size in bytes",
+    )
+    last_modified: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("lastModified", "LastModified"),
+        description="Last modification timestamp (ISO format)",
+    )
+    is_directory: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("IsDirectory", "isDirectory"),
+        description="Whether this entry is a directory",
     )
 
     @property

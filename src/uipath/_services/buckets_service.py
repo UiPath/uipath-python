@@ -23,6 +23,8 @@ class BucketsService(FolderContext, BaseService):
     used by automation processes.
     """
 
+    _GET_FILES_PAGE_SIZE = 500  # OData GetFiles pagination page size
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self.custom_client = httpx.Client(**get_httpx_client_kwargs())
@@ -85,7 +87,6 @@ class BucketsService(FolderContext, BaseService):
                 bucket = Bucket.model_validate(item)
                 yield bucket
 
-            # Check if more pages available
             if len(items) < top:
                 break
 
@@ -306,7 +307,6 @@ class BucketsService(FolderContext, BaseService):
         }
 
         with open(destination_path, "wb") as file:
-            # the self.request adds auth bearer token
             if result["RequiresAuth"]:
                 file_content = self.request("GET", read_uri, headers=headers).content
             else:
@@ -363,7 +363,6 @@ class BucketsService(FolderContext, BaseService):
             )
         }
 
-        # the self.request adds auth bearer token
         if result["RequiresAuth"]:
             file_content = (
                 await self.request_async("GET", read_uri, headers=headers)
@@ -414,8 +413,6 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
-        # if source_path, dynamically detect the mime type
-        # default to application/octet-stream
         if source_path:
             _content_type, _ = mimetypes.guess_type(source_path)
         else:
@@ -508,8 +505,6 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
-        # if source_path, dynamically detect the mime type
-        # default to application/octet-stream
         if source_path:
             _content_type, _ = mimetypes.guess_type(source_path)
         else:
@@ -604,7 +599,6 @@ class BucketsService(FolderContext, BaseService):
             spec = self._retrieve_by_key_spec(
                 key, folder_key=folder_key, folder_path=folder_path
             )
-            # GetByKey may return single object or OData collection format
             try:
                 response = self.request(
                     spec.method,
@@ -612,7 +606,6 @@ class BucketsService(FolderContext, BaseService):
                     params=spec.params,
                     headers=spec.headers,
                 ).json()
-                # Handle both direct object and OData collection wrapper
                 if "value" in response:
                     items = response.get("value", [])
                     if not items:
@@ -628,7 +621,6 @@ class BucketsService(FolderContext, BaseService):
                 folder_key=folder_key,
                 folder_path=folder_path,
             )
-            # OData query returns collection in "value" array
             try:
                 response = self.request(
                     spec.method,
@@ -682,7 +674,6 @@ class BucketsService(FolderContext, BaseService):
             spec = self._retrieve_by_key_spec(
                 key, folder_key=folder_key, folder_path=folder_path
             )
-            # GetByKey may return single object or OData collection format
             try:
                 response = (
                     await self.request_async(
@@ -692,7 +683,6 @@ class BucketsService(FolderContext, BaseService):
                         headers=spec.headers,
                     )
                 ).json()
-                # Handle both direct object and OData collection wrapper
                 if "value" in response:
                     items = response.get("value", [])
                     if not items:
@@ -708,7 +698,6 @@ class BucketsService(FolderContext, BaseService):
                 folder_key=folder_key,
                 folder_path=folder_path,
             )
-            # OData query returns collection in "value" array
             try:
                 response = (
                     await self.request_async(
@@ -768,7 +757,6 @@ class BucketsService(FolderContext, BaseService):
 
         continuation_token: Optional[str] = None
 
-        # Loop through pages using continuationToken
         while True:
             spec = self._list_files_spec(
                 bucket.id,
@@ -784,12 +772,10 @@ class BucketsService(FolderContext, BaseService):
                 headers=spec.headers,
             ).json()
 
-            # Yield items from current page
             items = response.get("items", [])
             for item in items:
                 yield BucketFile.model_validate(item)
 
-            # Check if there are more pages
             continuation_token = response.get("continuationToken")
             if not continuation_token:
                 break
@@ -834,7 +820,6 @@ class BucketsService(FolderContext, BaseService):
 
         continuation_token: Optional[str] = None
 
-        # Loop through pages using continuationToken
         while True:
             spec = self._list_files_spec(
                 bucket.id,
@@ -852,12 +837,10 @@ class BucketsService(FolderContext, BaseService):
                 )
             ).json()
 
-            # Yield items from current page
             items = response.get("items", [])
             for item in items:
                 yield BucketFile.model_validate(item)
 
-            # Check if there are more pages
             continuation_token = response.get("continuationToken")
             if not continuation_token:
                 break
@@ -934,6 +917,192 @@ class BucketsService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
+    @traced(name="buckets_get_files", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    def get_files(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        prefix: str = "",
+        recursive: bool = False,
+        file_name_glob: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Iterator[BucketFile]:
+        """Get files using OData GetFiles API (Studio-compatible).
+
+        This method uses the GetFiles API which is used by UiPath Studio activities.
+        Use this when you need:
+        - Recursive directory traversal
+        - Glob pattern filtering (e.g., "*.pdf")
+        - Compatibility with Studio activity behavior
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier
+            prefix: Directory path to filter files (default: root)
+            recursive: Recurse subdirectories for flat view (default: False)
+            file_name_glob: File filter pattern (e.g., "*.pdf", "data_*.csv")
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            Iterator[BucketFile]: Iterator of files matching criteria
+
+        Raises:
+            ValueError: If neither name nor key is provided
+            LookupError: If bucket not found
+            Exception: For API errors or invalid responses
+
+        Note:
+            For large buckets with 10,000+ files, consider using list_files()
+            which uses more efficient cursor-based pagination.
+
+        Examples:
+            >>> # Get all PDF files recursively
+            >>> for file in sdk.buckets.get_files(
+            ...     name="my-storage",
+            ...     recursive=True,
+            ...     file_name_glob="*.pdf"
+            ... ):
+            ...     print(f"{file.path} - {file.size} bytes")
+            >>>
+            >>> # Get files in specific directory
+            >>> files = list(sdk.buckets.get_files(
+            ...     name="my-storage",
+            ...     prefix="reports/"
+            ... ))
+        """
+        if not (name or key):
+            raise ValueError("Must specify either bucket name or key")
+
+        if file_name_glob is not None and not file_name_glob.strip():
+            raise ValueError("file_name_glob cannot be empty")
+
+        bucket = self.retrieve(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+
+        skip = 0
+        top = self._GET_FILES_PAGE_SIZE
+
+        while True:
+            spec = self._get_files_spec(
+                bucket.id,
+                prefix=prefix,
+                recursive=recursive,
+                file_name_glob=file_name_glob,
+                skip=skip,
+                top=top,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            ).json()
+
+            items = response.get("value", [])
+
+            if not items:
+                break
+
+            for item in items:
+                if not item.get("IsDirectory", False):
+                    try:
+                        yield BucketFile.model_validate(item)
+                    except Exception as e:
+                        raise ValueError(
+                            f"Failed to parse file entry: {e}. Item: {item}"
+                        ) from e
+
+            if len(items) < top:
+                break
+
+            skip += top
+
+    @traced(name="buckets_get_files", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    async def get_files_async(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        prefix: str = "",
+        recursive: bool = False,
+        file_name_glob: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> AsyncIterator[BucketFile]:
+        """Async version of get_files().
+
+        See get_files() for detailed documentation.
+
+        Examples:
+            >>> async for file in sdk.buckets.get_files_async(
+            ...     name="my-storage",
+            ...     recursive=True,
+            ...     file_name_glob="*.pdf"
+            ... ):
+            ...     print(file.path)
+        """
+        if not (name or key):
+            raise ValueError("Must specify either bucket name or key")
+
+        if file_name_glob is not None and not file_name_glob.strip():
+            raise ValueError("file_name_glob cannot be empty")
+
+        bucket = await self.retrieve_async(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+
+        skip = 0
+        top = self._GET_FILES_PAGE_SIZE
+
+        while True:
+            spec = self._get_files_spec(
+                bucket.id,
+                prefix=prefix,
+                recursive=recursive,
+                file_name_glob=file_name_glob,
+                skip=skip,
+                top=top,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+
+            response = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                )
+            ).json()
+
+            items = response.get("value", [])
+
+            if not items:
+                break
+
+            for item in items:
+                if not item.get("IsDirectory", False):
+                    try:
+                        yield BucketFile.model_validate(item)
+                    except Exception as e:
+                        raise ValueError(
+                            f"Failed to parse file entry: {e}. Item: {item}"
+                        ) from e
+
+            if len(items) < top:
+                break
+
+            skip += top
+
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
@@ -949,8 +1118,7 @@ class BucketsService(FolderContext, BaseService):
         """Build OData request for listing buckets."""
         filters = []
         if name:
-            # Case-insensitive contains using tolower
-            escaped_name = name.replace("'", "''")  # Escape single quotes
+            escaped_name = name.replace("'", "''")
             filters.append(f"contains(tolower(Name), tolower('{escaped_name}'))")
 
         filter_str = " and ".join(filters) if filters else None
@@ -979,7 +1147,7 @@ class BucketsService(FolderContext, BaseService):
         """Build request for creating bucket."""
         body = {
             "Name": name,
-            "Identifier": identifier,  # Required field (UUID)
+            "Identifier": identifier,
         }
         if description:
             body["Description"] = description
@@ -999,7 +1167,6 @@ class BucketsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        # Escape single quotes to prevent OData filter injection
         escaped_name = name.replace("'", "''")
         return RequestSpec(
             method="GET",
@@ -1053,7 +1220,6 @@ class BucketsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        # Escape single quotes in the key to prevent OData injection
         escaped_key = key.replace("'", "''")
         return RequestSpec(
             method="GET",
@@ -1117,6 +1283,57 @@ class BucketsService(FolderContext, BaseService):
                 f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.DeleteFile"
             ),
             params={"path": blob_file_path},
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _get_files_spec(
+        self,
+        bucket_id: int,
+        prefix: str = "",
+        recursive: bool = False,
+        file_name_glob: Optional[str] = None,
+        skip: int = 0,
+        top: int = 500,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        """Build OData request for GetFiles endpoint.
+
+        Args:
+            bucket_id: Bucket ID
+            prefix: Directory path prefix
+            recursive: Recurse subdirectories
+            file_name_glob: File name filter pattern
+            skip: Number of items to skip (pagination)
+            top: Number of items to return (pagination)
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            RequestSpec: OData request specification
+        """
+        params: Dict[str, Any] = {}
+
+        params["directory"] = "/" if not prefix else prefix
+
+        if recursive:
+            params["recursive"] = "true"
+
+        if file_name_glob:
+            params["fileNameGlob"] = file_name_glob
+
+        if skip > 0:
+            params["$skip"] = skip
+        params["$top"] = top
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"/orchestrator_/odata/Buckets({bucket_id})/UiPath.Server.Configuration.OData.GetFiles"
+            ),
+            params=params,
             headers={
                 **header_folder(folder_key, folder_path),
             },

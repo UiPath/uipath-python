@@ -736,3 +736,518 @@ class TestEdgeCases:
         buckets = list(service.list())
         assert len(buckets) == 1
         assert buckets[0].id == 1
+
+
+class TestListFiles:
+    """Tests for list_files() method (REST ListFiles API)."""
+
+    def test_list_files_basic(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test basic file listing with list_files()."""
+        # Mock bucket retrieve
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        # Mock ListFiles response
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/data/file1.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    },
+                    {
+                        "fullPath": "/data/file2.txt",
+                        "contentType": "text/plain",
+                        "size": 200,
+                        "lastModified": "2024-01-02T00:00:00Z",
+                    },
+                ],
+                "continuationToken": None,
+            },
+        )
+
+        files = list(service.list_files(name="test-bucket"))
+        assert len(files) == 2
+        assert files[0].path == "/data/file1.txt"
+        assert files[0].size == 100
+        assert files[1].path == "/data/file2.txt"
+        assert files[1].size == 200
+
+    def test_list_files_with_prefix(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test list_files() with prefix filter."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=data&takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/data/file1.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "continuationToken": None,
+            },
+        )
+
+        files = list(service.list_files(name="test-bucket", prefix="data"))
+        assert len(files) == 1
+        assert files[0].path == "/data/file1.txt"
+
+    def test_list_files_pagination(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test list_files() handles pagination with continuationToken."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        # First page
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": f"/file{i}.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                    for i in range(500)
+                ],
+                "continuationToken": "page2token",
+            },
+        )
+
+        # Second page
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?continuationToken=page2token&takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": f"/file{i}.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                    for i in range(500, 550)
+                ],
+                "continuationToken": None,
+            },
+        )
+
+        files = list(service.list_files(name="test-bucket"))
+        assert len(files) == 550
+
+    def test_list_files_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test list_files() with empty bucket."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'empty-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 456, "Name": "empty-bucket", "Identifier": "id-2"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/456/ListFiles?takeHint=500",
+            status_code=200,
+            json={"items": [], "continuationToken": None},
+        )
+
+        files = list(service.list_files(name="empty-bucket"))
+        assert len(files) == 0
+
+    @pytest.mark.asyncio
+    async def test_list_files_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test async version of list_files()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/async-file.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "continuationToken": None,
+            },
+        )
+
+        files = [f async for f in service.list_files_async(name="test-bucket")]
+        assert len(files) == 1
+        assert files[0].path == "/async-file.txt"
+
+
+class TestGetFiles:
+    """Tests for get_files() method (OData GetFiles API)."""
+
+    def test_get_files_basic(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test basic file listing with get_files()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=500",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "FullPath": "file1.txt",
+                        "ContentType": "text/plain",
+                        "Size": 100,
+                        "IsDirectory": False,
+                    },
+                    {
+                        "FullPath": "file2.txt",
+                        "ContentType": "text/plain",
+                        "Size": 200,
+                        "IsDirectory": False,
+                    },
+                ]
+            },
+        )
+
+        files = list(service.get_files(name="test-bucket"))
+        assert len(files) == 2
+        assert files[0].path == "file1.txt"
+        assert files[0].size == 100
+        assert files[1].path == "file2.txt"
+        assert files[1].size == 200
+
+    def test_get_files_with_glob(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test get_files() with glob pattern."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&fileNameGlob=%2A.txt&%24top=500",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "FullPath": "file1.txt",
+                        "ContentType": "text/plain",
+                        "Size": 100,
+                        "IsDirectory": False,
+                    }
+                ]
+            },
+        )
+
+        files = list(service.get_files(name="test-bucket", file_name_glob="*.txt"))
+        assert len(files) == 1
+        assert files[0].path == "file1.txt"
+
+    def test_get_files_with_recursive(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test get_files() with recursive flag."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=docs&recursive=true&%24top=500",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "FullPath": "docs/file1.txt",
+                        "ContentType": "text/plain",
+                        "Size": 100,
+                        "IsDirectory": False,
+                    },
+                    {
+                        "FullPath": "docs/subdir/file2.txt",
+                        "ContentType": "text/plain",
+                        "Size": 200,
+                        "IsDirectory": False,
+                    },
+                ]
+            },
+        )
+
+        files = list(
+            service.get_files(name="test-bucket", prefix="docs", recursive=True)
+        )
+        assert len(files) == 2
+        assert files[1].path == "docs/subdir/file2.txt"
+
+    def test_get_files_filters_directories(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test get_files() filters out directories."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=500",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "FullPath": "file1.txt",
+                        "ContentType": "text/plain",
+                        "Size": 100,
+                        "IsDirectory": False,
+                    },
+                    {
+                        "FullPath": "folder1",
+                        "ContentType": None,
+                        "Size": 0,
+                        "IsDirectory": True,
+                    },
+                    {
+                        "FullPath": "file2.txt",
+                        "ContentType": "text/plain",
+                        "Size": 200,
+                        "IsDirectory": False,
+                    },
+                ]
+            },
+        )
+
+        files = list(service.get_files(name="test-bucket"))
+        # Should only get 2 files, directory should be filtered out
+        assert len(files) == 2
+        assert all(not f.is_directory for f in files)
+
+    def test_get_files_pagination(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test get_files() handles pagination with $skip and $top."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        # First page (full page of 500)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=500",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "FullPath": f"file{i}.txt",
+                        "ContentType": "text/plain",
+                        "Size": 100,
+                        "IsDirectory": False,
+                    }
+                    for i in range(500)
+                ]
+            },
+        )
+
+        # Second page (partial page of 50)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24skip=500&%24top=500",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "FullPath": f"file{i}.txt",
+                        "ContentType": "text/plain",
+                        "Size": 100,
+                        "IsDirectory": False,
+                    }
+                    for i in range(500, 550)
+                ]
+            },
+        )
+
+        files = list(service.get_files(name="test-bucket"))
+        assert len(files) == 550
+
+    def test_get_files_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test get_files() with empty bucket."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'empty-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 456, "Name": "empty-bucket", "Identifier": "id-2"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(456)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=500",
+            status_code=200,
+            json={"value": []},
+        )
+
+        files = list(service.get_files(name="empty-bucket"))
+        assert len(files) == 0
+
+    def test_get_files_without_last_modified(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test get_files() handles missing lastModified field."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=500",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "FullPath": "file1.txt",
+                        "ContentType": "text/plain",
+                        "Size": 100,
+                        "IsDirectory": False,
+                        # Note: No LastModified field (GetFiles doesn't provide it)
+                    }
+                ]
+            },
+        )
+
+        files = list(service.get_files(name="test-bucket"))
+        assert len(files) == 1
+        assert files[0].last_modified is None  # Should be None, not error
+
+    @pytest.mark.asyncio
+    async def test_get_files_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test async version of get_files()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=500",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "FullPath": "async-file.txt",
+                        "ContentType": "text/plain",
+                        "Size": 100,
+                        "IsDirectory": False,
+                    }
+                ]
+            },
+        )
+
+        files = [f async for f in service.get_files_async(name="test-bucket")]
+        assert len(files) == 1
+        assert files[0].path == "async-file.txt"
