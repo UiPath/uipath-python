@@ -1,72 +1,84 @@
 {
-  "fileName": "default.json",
-  "id": "default-eval-set-id",
-  "name": "Basic Calculator Evaluation Set",
-  "batchSize": 10,
+  "version": "1.0",
+  "id": "NewSchemaSampleEval",
+  "name": "New Schema Sample Evaluation",
   "evaluatorRefs": [
-    "equality",
-    "llm-as-a-judge"
+    "ContainsEvaluator",
+    "ExactMatchEvaluator",
+    "JsonSimilarityEvaluator",
+    "LLMJudgeOutputEvaluator",
+    "LLMJudgeStrictJSONSimilarityOutputEvaluator",
+    "TrajectoryEvaluator",
+    "CorrectOperatorEvaluator"
   ],
   "evaluations": [
     {
-      "id": "test-addition",
-      "name": "Test Addition",
-      "inputs": {"a": 1, "b": 1, "operator":  "+"},
-      "expectedOutput": {"result": 2},
-      "expectedAgentBehavior": "",
-      "evalSetId": "default-eval-set-id",
-      "createdAt": "2025-09-04T18:54:58.378Z",
-      "updatedAt": "2025-09-04T18:55:55.416Z"
+      "id": "default",
+      "name": "Add",
+      "inputs": {
+        "a": 1,
+        "b": 4,
+        "operator": "+"
+      },
+      "evaluationCriterias": {
+        "ContainsEvaluator": null,
+        "ExactMatchEvaluator": null,
+        "JsonSimilarityEvaluator": null,
+        "LLMJudgeOutputEvaluator": null,
+        "LLMJudgeStrictJSONSimilarityOutputEvaluator": null,
+        "TrajectoryEvaluator": null,
+        "CorrectOperatorEvaluator": null
+      }
     },
     {
-      "id": "test-random-addition-using-mockito",
-      "name": "Test Random Addition Using Mockito",
-      "inputs": {"a": 1, "b": 1, "operator":  "random"},
-      "expectedOutput": {"result": 2},
-      "expectedAgentBehavior": "",
-      "mockingStrategy": {
-        "type": "mockito",
-        "behaviors": [
-          {
-            "function": "get_random_operator",
-            "arguments": {
-              "args": [],
-              "kwargs": {}
-            },
-            "then": [
-              {
-                "type": "return",
-                "value": {"result": "+"}
-              }
-            ]
+      "id": "override",
+      "name": "Multiply",
+      "inputs": {
+        "a": 2,
+        "b": 4,
+        "operator": "*"
+      },
+      "evaluationCriterias": {
+        "ContainsEvaluator": {
+          "searchText": "8"
+        },
+        "CorrectOperatorEvaluator": {
+          "operator": "*"
+        },
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "result": "8.0"
           }
-        ]
-      },
-      "evalSetId": "default-eval-set-id",
-      "createdAt": "2025-09-04T18:54:58.378Z",
-      "updatedAt": "2025-09-04T18:55:55.416Z"
+        },
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "LLMJudgeStrictJSONSimilarityOutputEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should correctly parse the multiply operation, perform the calculation 2 * 4, and return the result 8.0"
+        }
+      }
     },
     {
-      "id": "test-random-addition-using-llm",
-      "name": "Test Random Addition Using LLM",
-      "inputs": {"a": 1, "b": 1, "operator":  "random"},
-      "expectedOutput": {"result": 2},
-      "expectedAgentBehavior": "",
-      "mockingStrategy": {
-        "type": "llm",
-        "prompt": "The random operator is '+'.",
-        "toolsToSimulate": [{"name":  "get_random_operator"}],
-        "model": {
-          "model": "gpt-4o-mini-2024-07-18",
-          "temperature": 0
-        }
+      "id": "skip",
+      "name": "Skip denial code check",
+      "inputs": {
+        "a": 1,
+        "b": 1,
+        "operator": "+"
       },
-      "evalSetId": "default-eval-set-id",
-      "createdAt": "2025-09-04T18:54:58.378Z",
-      "updatedAt": "2025-09-04T18:55:55.416Z"
+      "evaluationCriterias": {}
     }
-  ],
-  "modelSettings": [],
-  "createdAt": "2025-09-04T18:54:58.379Z",
-  "updatedAt": "2025-09-04T18:55:55.416Z"
+  ]
 }

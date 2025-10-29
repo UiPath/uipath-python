@@ -24,7 +24,7 @@ async def test_generate_llm_input_with_model_settings(
         "id": "test-eval-id",
         "name": "Test Input Generation",
         "inputs": {},
-        "expectedOutput": {"result": 35},
+        "evaluationCriterias": {"Default Evaluator": {"result": 35}},
         "expectedAgentBehavior": "Agent should multiply the numbers",
         "inputMockingStrategy": {
             "prompt": "Generate a multiplication query with 5 and 7",

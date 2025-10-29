@@ -1,11 +1,11 @@
+import logging
 import random
-
-from pydantic.dataclasses import dataclass
 from enum import Enum
 
-from uipath.eval.mocks import mockable, ExampleCall
+from pydantic.dataclasses import dataclass
+
+from uipath.eval.mocks import ExampleCall, mockable
 from uipath.tracing import traced
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,9 @@ async def get_random_operator() -> Wrapper:
     """Get a random operator."""
     return Wrapper(result=random.choice([Operator.ADD, Operator.SUBTRACT, Operator.MULTIPLY, Operator.DIVIDE]))
 
+@traced(name="track_operator")
+def track_operator(operator: Operator):
+    pass
 
 @traced()
 async def main(input: CalculatorInput) -> CalculatorOutput:
@@ -46,6 +49,7 @@ async def main(input: CalculatorInput) -> CalculatorOutput:
         operator = (await get_random_operator()).result
     else:
         operator = input.operator
+    track_operator(operator)
     match operator:
         case Operator.ADD: result = input.a + input.b
         case Operator.SUBTRACT: result = input.a - input.b

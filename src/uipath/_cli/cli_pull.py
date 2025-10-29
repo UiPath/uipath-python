@@ -11,31 +11,16 @@ It handles:
 
 # type: ignore
 import asyncio
-import os
 from pathlib import Path
 
 import click
 
+from .._config import UiPathConfig
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
-from ._utils._constants import UIPATH_PROJECT_ID
 from ._utils._project_files import ProjectPullError, pull_project
 
 console = ConsoleLogger()
-
-
-class InteractiveConflictHandler:
-    """Handler that prompts user for each conflict."""
-
-    def __init__(self, console: ConsoleLogger):
-        self.console = console
-
-    def should_overwrite(
-        self, file_path: str, local_hash: str, remote_hash: str
-    ) -> bool:
-        self.console.warning(f" File {file_path} differs from remote version.")
-        response = click.confirm("Do you want to overwrite it?", default=False)
-        return response
 
 
 @click.command()
@@ -63,25 +48,23 @@ def pull(root: Path) -> None:
         $ uipath pull
         $ uipath pull /path/to/project
     """
-    project_id = os.getenv(UIPATH_PROJECT_ID)
+    project_id = UiPathConfig.project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
-    default_download_configuration = {
+    download_configuration = {
         "source_code": root,
         "evals": root / "evals",
     }
 
-    async def pull_with_updates():
-        try:
-            async for update in pull_project(
-                project_id,
-                default_download_configuration,
-                InteractiveConflictHandler(console),
-            ):
-                console.info(update.message)
-        except ProjectPullError as e:
-            console.error(e.message, include_traceback=True)
+    try:
 
-    with console.spinner("Pulling UiPath project files..."):
-        asyncio.run(pull_with_updates())
+        async def run_pull():
+            async for update in pull_project(project_id, download_configuration):
+                console.info(f"Processing: {update.file_path}")
+                console.info(update.message)
+
+        asyncio.run(run_pull())
+        console.success("Project pulled successfully")
+    except ProjectPullError as e:
+        console.error(f"Failed to pull UiPath project: {str(e)}")

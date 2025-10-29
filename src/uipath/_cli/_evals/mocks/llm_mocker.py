@@ -10,7 +10,7 @@ from uipath.tracing._traced import traced
 from uipath.tracing._utils import _SpanUtils
 
 from .._models._evaluation_set import (
-    EvaluationItem,
+    AnyEvaluationItem,
     LLMMockingStrategy,
 )
 from .._models._mocks import ExampleCall
@@ -77,12 +77,12 @@ def pydantic_to_dict_safe(obj: Any) -> Any:
 class LLMMocker(Mocker):
     """LLM Based Mocker."""
 
-    def __init__(self, evaluation_item: EvaluationItem):
+    def __init__(self, evaluation_item: AnyEvaluationItem):
         """LLM Mocker constructor."""
         self.evaluation_item = evaluation_item
         assert isinstance(self.evaluation_item.mocking_strategy, LLMMockingStrategy)
 
-    @traced(name="__mocker__")
+    @traced(name="__mocker__", recording=False)
     async def response(
         self, func: Callable[[T], R], params: dict[str, Any], *args: T, **kwargs
     ) -> R:

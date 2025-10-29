@@ -93,6 +93,42 @@ class UiPathErrorCategory(str, Enum):
     USER = "User"  # Business logic or domain-level errors
 
 
+class UiPathErrorCode(str, Enum):
+    """Standard error codes for UiPath runtime errors."""
+
+    # Entrypoint related errors
+    ENTRYPOINT_MISSING = "ENTRYPOINT_MISSING"
+    ENTRYPOINT_NOT_FOUND = "ENTRYPOINT_NOT_FOUND"
+    ENTRYPOINT_FUNCTION_MISSING = "ENTRYPOINT_FUNCTION_MISSING"
+
+    # Module and execution errors
+    IMPORT_ERROR = "IMPORT_ERROR"
+    MODULE_EXECUTION_ERROR = "MODULE_EXECUTION_ERROR"
+    FUNCTION_EXECUTION_ERROR = "FUNCTION_EXECUTION_ERROR"
+    EXECUTION_ERROR = "EXECUTION_ERROR"
+
+    # Input validation errors
+    INVALID_INPUT_FILE_EXTENSION = "INVALID_INPUT_FILE_EXTENSION"
+    INPUT_INVALID_JSON = "INPUT_INVALID_JSON"
+
+    # Process and job related errors
+    INVOKED_PROCESS_FAILURE = "INVOKED_PROCESS_FAILURE"
+    API_CONNECTION_ERROR = "API_CONNECTION_ERROR"
+
+    # HITL (Human-In-The-Loop) related errors
+    HITL_FEEDBACK_FAILURE = "HITL_FEEDBACK_FAILURE"
+    UNKNOWN_HITL_MODEL = "UNKNOWN_HITL_MODEL"
+    HITL_ACTION_CREATION_FAILED = "HITL_ACTION_CREATION_FAILED"
+
+    # Trigger type errors
+    UNKNOWN_TRIGGER_TYPE = "UNKNOWN_TRIGGER_TYPE"
+
+    # Runtime shutdown errors
+    RUNTIME_SHUTDOWN_ERROR = "RUNTIME_SHUTDOWN_ERROR"
+
+    REFRESH_TOKEN_MISSING = "REFRESH_TOKEN_MISSING"
+
+
 class UiPathErrorContract(BaseModel):
     """Standard error contract used across the runtime."""
 
@@ -341,10 +377,12 @@ class UiPathRuntimeContext(BaseModel):
     result: Optional[UiPathRuntimeResult] = None
     execution_output_file: Optional[str] = None
     input_file: Optional[str] = None
+    trace_file: Optional[str] = None
     is_eval_run: bool = False
     log_handler: Optional[logging.Handler] = None
     chat_handler: Optional[UiPathConversationHandler] = None
     is_conversational: Optional[bool] = None
+    breakpoints: Optional[List[str] | Literal["*"]] = None
 
     model_config = {"arbitrary_types_allowed": True, "extra": "allow"}
 
@@ -422,7 +460,7 @@ class UiPathRuntimeContext(BaseModel):
         return instance
 
 
-class UiPathRuntimeError(Exception):
+class UiPathBaseRuntimeError(Exception):
     """Base exception class for UiPath runtime errors with structured error information."""
 
     def __init__(
@@ -489,6 +527,30 @@ class UiPathRuntimeError(Exception):
         return self.error_info.model_dump()
 
 
+class UiPathRuntimeError(UiPathBaseRuntimeError):
+    """Exception class for UiPath runtime errors."""
+
+    def __init__(
+        self,
+        code: UiPathErrorCode,
+        title: str,
+        detail: str,
+        category: UiPathErrorCategory = UiPathErrorCategory.UNKNOWN,
+        status: Optional[int] = None,
+        prefix: str = "Python",
+        include_traceback: bool = True,
+    ):
+        super().__init__(
+            code=code.value,
+            title=title,
+            detail=detail,
+            category=category,
+            status=status,
+            prefix=prefix,
+            include_traceback=include_traceback,
+        )
+
+
 class UiPathRuntimeStreamNotSupportedError(NotImplementedError):
     """Raised when a runtime does not support streaming."""
 
@@ -517,16 +579,14 @@ class UiPathBaseRuntime(ABC):
         runtime = cls(context)
         return runtime
 
-    @property
-    def get_binding_resources(self) -> List[BindingResource]:
+    async def get_binding_resources(self) -> List[BindingResource]:
         """Get binding resources for this runtime.
 
         Returns: A list of binding resources.
         """
         raise NotImplementedError()
 
-    @property
-    def get_entrypoint(self) -> Entrypoint:
+    async def get_entrypoint(self) -> Entrypoint:
         """Get entrypoint for this runtime.
 
         Returns: A entrypoint for this runtime.
@@ -546,7 +606,7 @@ class UiPathBaseRuntime(ABC):
             _, file_extension = os.path.splitext(self.context.input_file)
             if file_extension != ".json":
                 raise UiPathRuntimeError(
-                    code="INVALID_INPUT_FILE_EXTENSION",
+                    code=UiPathErrorCode.INVALID_INPUT_FILE_EXTENSION,
                     title="Invalid Input File Extension",
                     detail="The provided input file must be in JSON format.",
                 )
@@ -560,7 +620,7 @@ class UiPathBaseRuntime(ABC):
                 self.context.input_json = {}
         except json.JSONDecodeError as e:
             raise UiPathRuntimeError(
-                "INPUT_INVALID_JSON",
+                UiPathErrorCode.INPUT_INVALID_JSON,
                 "Invalid JSON input",
                 f"The input data is not valid JSON: {str(e)}",
                 UiPathErrorCategory.USER,

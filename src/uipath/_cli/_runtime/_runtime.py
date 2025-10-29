@@ -3,7 +3,6 @@
 import logging
 import os
 import uuid
-from functools import cached_property
 from pathlib import Path
 from typing import Any, Awaitable, Callable, List, Optional, TypeVar
 
@@ -16,6 +15,7 @@ from ..models.runtime_schema import BindingResource, Entrypoint
 from ._contracts import (
     UiPathBaseRuntime,
     UiPathErrorCategory,
+    UiPathErrorCode,
     UiPathRuntimeContext,
     UiPathRuntimeError,
     UiPathRuntimeResult,
@@ -66,7 +66,7 @@ class UiPathRuntime(UiPathBaseRuntime):
                 raise
 
             raise UiPathRuntimeError(
-                "EXECUTION_ERROR",
+                UiPathErrorCode.EXECUTION_ERROR,
                 "Python script execution failed",
                 f"Error: {str(e)}",
                 UiPathErrorCategory.SYSTEM,
@@ -115,9 +115,8 @@ class UiPathScriptRuntime(UiPathRuntime):
         """Create runtime instance from context."""
         return UiPathScriptRuntime(context, context.entrypoint or "")
 
-    @cached_property
     @override
-    def get_binding_resources(self) -> List[BindingResource]:
+    async def get_binding_resources(self) -> List[BindingResource]:
         """Get binding resources for script runtime.
 
         Returns: A list of binding resources.
@@ -127,9 +126,8 @@ class UiPathScriptRuntime(UiPathRuntime):
         bindings = generate_bindings(script_path)
         return bindings.resources
 
-    @cached_property
     @override
-    def get_entrypoint(self) -> Entrypoint:
+    async def get_entrypoint(self) -> Entrypoint:
         working_dir = self.context.runtime_dir or os.getcwd()
         script_path = get_user_script(working_dir, entrypoint=self.context.entrypoint)
         if not script_path:

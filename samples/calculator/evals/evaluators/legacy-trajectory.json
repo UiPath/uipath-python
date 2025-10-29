@@ -1,0 +1,13 @@
+{
+  "fileName": "trajectory.json",
+  "id": "trajectory",
+  "name": "Trajectory Evaluator",
+  "description": "An evaluator that analyzes the execution trajectory and decision sequence taken by the agent.",
+  "category": 3,
+  "type": 7,
+  "prompt": "Evaluate the agent's execution trajectory based on the expected behavior.\n\nExpected Agent Behavior: {{ExpectedAgentBehavior}}\nAgent Run History: {{AgentRunHistory}}\n\nProvide a score from 0-100 based on how well the agent followed the expected trajectory.",
+  "model": "gpt-4.1-2025-04-14",
+  "targetOutputKey": "*",
+  "createdAt": "2025-06-26T17:45:39.651Z",
+  "updatedAt": "2025-06-26T17:45:39.651Z"
+}

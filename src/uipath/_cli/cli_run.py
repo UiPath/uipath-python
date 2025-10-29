@@ -8,7 +8,7 @@ import click
 
 from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._debug import setup_debugging
-from uipath.tracing import LlmOpsHttpExporter
+from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 
 from .._utils.constants import (
     ENV_JOB_ID,
@@ -45,6 +45,12 @@ console = ConsoleLogger()
     help="File path where the output will be written",
 )
 @click.option(
+    "--trace-file",
+    required=False,
+    type=click.Path(exists=False),
+    help="File path where the trace spans will be written (JSON Lines format)",
+)
+@click.option(
     "--debug",
     is_flag=True,
     help="Enable debugging with debugpy. The process will wait for a debugger to attach.",
@@ -63,6 +69,7 @@ def run(
     file: Optional[str],
     input_file: Optional[str],
     output_file: Optional[str],
+    trace_file: Optional[str],
     debug: bool,
     debug_port: int,
 ) -> None:
@@ -73,6 +80,7 @@ def run(
         "resume": resume,
         "input_file": file or input_file,
         "execution_output_file": output_file,
+        "trace_file": trace_file,
         "debug": debug,
     }
     input_file = file or input_file
@@ -87,6 +95,7 @@ def run(
         resume,
         input_file=input_file,
         execution_output_file=output_file,
+        trace_file=trace_file,
         debug=debug,
         debug_port=debug_port,
     )
@@ -110,7 +119,12 @@ def run(
                 context = runtime_factory.new_context(**context_args)
                 if context.job_id:
                     runtime_factory.add_span_exporter(LlmOpsHttpExporter())
+
+                if trace_file:
+                    runtime_factory.add_span_exporter(JsonLinesFileExporter(trace_file))
+
                 result = await runtime_factory.execute(context)
+
                 if not context.job_id:
                     console.info(result.output)
 

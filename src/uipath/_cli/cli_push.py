@@ -1,6 +1,5 @@
 # type: ignore
 import asyncio
-import os
 from typing import Any, AsyncIterator, Optional
 from urllib.parse import urlparse
 
@@ -8,12 +7,10 @@ import click
 
 from uipath.models.exceptions import EnrichedException
 
+from .._config import UiPathConfig
 from ..telemetry import track
 from ._push.sw_file_handler import FileOperationUpdate, SwFileHandler
 from ._utils._console import ConsoleLogger
-from ._utils._constants import (
-    UIPATH_PROJECT_ID,
-)
 from ._utils._project_files import (
     ensure_config_file,
     get_project_config,
@@ -61,6 +58,8 @@ async def upload_source_files_to_project(
     async for update in sw_file_handler.upload_source_files(settings):
         yield update
 
+    await sw_file_handler.upload_coded_evals_files()
+
 
 @click.command()
 @click.argument(
@@ -97,7 +96,7 @@ def push(root: str, nolock: bool) -> None:
     config = get_project_config(root)
     validate_config(config)
 
-    project_id = os.getenv(UIPATH_PROJECT_ID)
+    project_id = UiPathConfig.project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 

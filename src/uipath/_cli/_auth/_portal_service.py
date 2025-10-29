@@ -7,20 +7,16 @@ import httpx
 from ..._utils._auth import update_env_file
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ...models.auth import TokenData
-from .._runtime._contracts import UiPathErrorCategory, UiPathRuntimeError
-from .._utils._console import ConsoleLogger
-from ._models import (
-    OrganizationInfo,
-    TenantInfo,
-    TenantsAndOrganizationInfoResponse,
+from .._runtime._contracts import (
+    UiPathErrorCategory,
+    UiPathErrorCode,
+    UiPathRuntimeError,
 )
+from .._utils._console import ConsoleLogger
+from ._models import OrganizationInfo, TenantInfo, TenantsAndOrganizationInfoResponse
 from ._oidc_utils import OidcUtils
 from ._url_utils import build_service_url
-from ._utils import (
-    get_auth_data,
-    get_parsed_token_data,
-    update_auth_file,
-)
+from ._utils import get_auth_data, get_parsed_token_data, update_auth_file
 
 
 class PortalService:
@@ -98,7 +94,7 @@ class PortalService:
 
     def refresh_access_token(self, refresh_token: str) -> TokenData:  # type: ignore
         url = build_service_url(self.domain, "/identity_/connect/token")
-        client_id = OidcUtils.get_auth_config().get("client_id")
+        client_id = OidcUtils.get_auth_config(self.domain).get("client_id")
 
         data = {
             "grant_type": "refresh_token",
@@ -142,7 +138,7 @@ class PortalService:
         refresh_token = auth_data.refresh_token
         if not refresh_token:
             raise UiPathRuntimeError(
-                "REFRESH_TOKEN_MISSING",
+                UiPathErrorCode.REFRESH_TOKEN_MISSING,
                 "No refresh token found",
                 "The refresh token could not be retrieved. Please retry authenticating.",
                 UiPathErrorCategory.SYSTEM,

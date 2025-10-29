@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "id": "LLMJudgeStrictJSONSimilarityOutputEvaluator",
+  "description": "Uses an LLM to judge strict JSON similarity between expected and actual output.",
+  "evaluatorTypeId": "uipath-llm-judge-output-strict-json-similarity",
+  "evaluatorConfig": {
+    "name": "LLMJudgeStrictJSONSimilarityOutputEvaluator",
+    "targetOutputKey": "*",
+    "model": "gpt-4.1-2025-04-14",
+    "prompt": "Compare the following JSON outputs for strict structural similarity.\n\nActual Output: {{ActualOutput}}\nExpected Output: {{ExpectedOutput}}\n\nEvaluate if the JSON structure and values match precisely. Provide a score from 0-100 where 100 means exact match and 0 means completely different.",
+    "temperature": 0.0,
+    "defaultEvaluationCriteria": {
+      "expectedOutput": {
+        "result": 5.0
+      }
+    }
+  }
+}

@@ -8,8 +8,8 @@ from string import Template
 import click
 from pydantic import TypeAdapter
 
-from uipath._cli._utils._constants import UIPATH_PROJECT_ID
 from uipath._cli.models.runtime_schema import Bindings, RuntimeSchema
+from uipath._config import UiPathConfig
 
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
@@ -35,8 +35,8 @@ def get_project_id() -> str:
         Project ID string (either from telemetry file or newly generated).
     """
     # first check if this is a studio project
-    if os.getenv(UIPATH_PROJECT_ID, None):
-        return os.getenv(UIPATH_PROJECT_ID)
+    if project_id := UiPathConfig.project_id:
+        return project_id
 
     telemetry_file = os.path.join(".uipath", _TELEMETRY_CONFIG_FILE)
 

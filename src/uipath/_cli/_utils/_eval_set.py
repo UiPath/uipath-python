@@ -3,8 +3,9 @@ from pathlib import Path
 from typing import List, Optional
 
 import click
+from pydantic import TypeAdapter, ValidationError
 
-from uipath._cli._evals._models._evaluation_set import EvaluationSet
+from uipath._cli._evals._models._evaluation_set import AnyEvaluationSet
 from uipath._cli._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
@@ -57,28 +58,48 @@ class EvalHelpers:
     @staticmethod
     def load_eval_set(
         eval_set_path: str, eval_ids: Optional[List[str]] = None
-    ) -> EvaluationSet:
+    ) -> tuple[AnyEvaluationSet, str]:
         """Load the evaluation set from file.
 
+        Args:
+            eval_set_path: Path to the evaluation set file
+            eval_ids: Optional list of evaluation IDs to filter
+
         Returns:
-            The loaded evaluation set as EvaluationSet model
+            Tuple of (AnyEvaluationSet, resolved_path)
         """
+        # If the file doesn't exist at the given path, try looking in evals/eval-sets/
+        resolved_path = eval_set_path
+        if not Path(eval_set_path).exists():
+            # Check if it's just a filename, then search in evals/eval-sets/
+            if Path(eval_set_path).name == eval_set_path:
+                eval_sets_path = Path("evals/eval-sets") / eval_set_path
+                if eval_sets_path.exists():
+                    resolved_path = str(eval_sets_path)
+
         try:
-            with open(eval_set_path, "r", encoding="utf-8") as f:
+            with open(resolved_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+        except FileNotFoundError as e:
+            raise ValueError(
+                f"Evaluation set file not found: '{eval_set_path}'. "
+                f"Searched in current directory and evals/eval-sets/ directory."
+            ) from e
         except json.JSONDecodeError as e:
             raise ValueError(
-                f"Invalid JSON in evaluation set file '{eval_set_path}': {str(e)}. "
+                f"Invalid JSON in evaluation set file '{resolved_path}': {str(e)}. "
                 f"Please check the file for syntax errors."
             ) from e
 
         try:
-            eval_set = EvaluationSet(**data)
-        except (TypeError, ValueError) as e:
+            eval_set: AnyEvaluationSet = TypeAdapter(AnyEvaluationSet).validate_python(
+                data
+            )
+        except ValidationError as e:
             raise ValueError(
-                f"Invalid evaluation set format in '{eval_set_path}': {str(e)}. "
+                f"Invalid evaluation set format in '{resolved_path}': {str(e)}. "
                 f"Please verify the evaluation set structure."
             ) from e
         if eval_ids:
             eval_set.extract_selected_evals(eval_ids)
-        return eval_set
+        return eval_set, resolved_path

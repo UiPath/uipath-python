@@ -3,7 +3,8 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel
 from pysignalr.client import SignalRClient
@@ -17,9 +18,54 @@ from uipath._cli._runtime._contracts import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
+from uipath._cli._utils._common import serialize_object
 from uipath._events._events import UiPathAgentStateEvent
 
 logger = logging.getLogger(__name__)
+
+
+class DebuggerQuitException(Exception):
+    """Raised when user quits the debugger."""
+
+    pass
+
+
+class DebugCommand(str, Enum):
+    """Available debug commands."""
+
+    CONTINUE = "continue"
+    STEP = "step"
+    BREAKPOINT = "breakpoint"
+    LIST_BREAKPOINTS = "list"
+    CLEAR_BREAKPOINT = "clear"
+    HELP = "help"
+    QUIT = "quit"
+
+
+class DebuggerState:
+    """Maintains debugger state across execution."""
+
+    def __init__(self):
+        self.breakpoints: Set[str] = set()
+        self.step_mode: bool = False
+
+    def add_breakpoint(self, node_name: str) -> None:
+        """Add a breakpoint at a node."""
+        self.breakpoints.add(node_name)
+
+    def remove_breakpoint(self, node_name: str) -> None:
+        """Remove a breakpoint from a node."""
+        self.breakpoints.discard(node_name)
+
+    def clear_all_breakpoints(self) -> None:
+        """Clear all breakpoints."""
+        self.breakpoints.clear()
+
+    def should_break(self, node_name: str) -> bool:
+        """Check if execution should break at this node."""
+        if self.step_mode:
+            return True
+        return node_name in self.breakpoints
 
 
 class UiPathDebugBridge(ABC):
@@ -77,6 +123,15 @@ class UiPathDebugBridge(ABC):
         """Wait for resume command from debugger."""
         pass
 
+    @abstractmethod
+    def get_breakpoints(self) -> List[str] | Literal["*"]:
+        """Get nodes to suspend execution at.
+
+        Returns:
+            List of node names to suspend at, or ["*"] for all nodes (step mode)
+        """
+        pass
+
 
 class ConsoleDebugBridge(UiPathDebugBridge):
     """Console-based debug bridge for local development."""
@@ -89,15 +144,12 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         """
         self.console = Console()
         self.verbose = verbose
+        self.state = DebuggerState()
 
     async def connect(self) -> None:
         """Connect to console debugger."""
         self.console.print()
-        self.console.print("[bold cyan]─" * 40)
-        self.console.print("[bold cyan]Debug Mode")
-        self.console.print("[dim]Press ENTER to continue | Type 'quit' to exit")
-        self.console.print("[bold cyan]─" * 40)
-        self.console.print()
+        self._print_help()
 
     async def disconnect(self) -> None:
         """Cleanup."""
@@ -169,7 +221,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         """Print error."""
         self.console.print()
         self.console.print("[red]─" * 40)
-        self.console.print(f"[red]✗ Error[/red] [dim]{execution_id}")
+        self.console.print("[red]✗ Error[/red]")
         self.console.print("[red]─" * 40)
 
         # Truncate very long errors
@@ -177,23 +229,127 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         if len(error) > 500:
             error_display = error[:500] + "\n[dim]... (truncated)"
 
-        self.console.print(f"[white]{error_display}[/white]")
+        self.console.print(f"[red]{error_display}[/red]")
         self.console.print("[red]─" * 40)
 
     async def wait_for_resume(self) -> Any:
         """Wait for user to press Enter or type commands."""
+        while True:  # Keep looping until we get a resume command
+            self.console.print()
+
+            # Run input() in executor to not block async loop
+            loop = asyncio.get_running_loop()
+            user_input = await loop.run_in_executor(None, lambda: input("> "))
+
+            command_result = self._parse_command(user_input.strip())
+
+            # Handle commands that need another prompt
+            if command_result["command"] in [
+                DebugCommand.BREAKPOINT,
+                DebugCommand.LIST_BREAKPOINTS,
+                DebugCommand.CLEAR_BREAKPOINT,
+                DebugCommand.HELP,
+            ]:
+                # These commands don't resume execution, loop again
+                continue
+
+            # Commands that resume execution: CONTINUE, STEP
+            self.console.print()
+            return command_result
+
+    def get_breakpoints(self) -> List[str] | Literal["*"]:
+        """Get nodes to suspend execution at."""
+        if self.state.step_mode:
+            return "*"  # Suspend at all nodes
+        return list(self.state.breakpoints)  # Only suspend at breakpoints
+
+    def _parse_command(self, user_input: str) -> Dict[str, Any]:
+        """Parse user command input.
+
+        Returns:
+            Dict with 'command' and optional 'args'
+        """
+        if not user_input:
+            return {"command": DebugCommand.CONTINUE, "args": None}
+
+        parts = user_input.lower().split()
+        cmd = parts[0]
+        args = parts[1:] if len(parts) > 1 else []
+
+        if cmd in ["c", "continue"]:
+            self.state.step_mode = False
+            return {"command": DebugCommand.CONTINUE, "args": None}
+
+        elif cmd in ["s", "step"]:
+            self.state.step_mode = True
+            return {"command": DebugCommand.STEP, "args": None}
+
+        elif cmd in ["b", "break", "breakpoint"]:
+            if not args:
+                self.console.print(
+                    "[red]Error: breakpoint command requires a node name[/red]"
+                )
+                return {"command": DebugCommand.HELP, "args": None}
+            node_name = " ".join(args)
+            self.state.add_breakpoint(node_name)
+            self.console.print(f"[green]✓ Breakpoint set at: {node_name}[/green]")
+            return {"command": DebugCommand.BREAKPOINT, "args": {"node": node_name}}
+
+        elif cmd in ["l", "list"]:
+            self._list_breakpoints()
+            return {"command": DebugCommand.LIST_BREAKPOINTS, "args": None}
+
+        elif cmd in ["r", "remove", "delete"]:
+            if not args:
+                self.console.print("[yellow]Removing all breakpoints[/yellow]")
+                self.state.clear_all_breakpoints()
+            else:
+                node_name = " ".join(args)
+                self.state.remove_breakpoint(node_name)
+                self.console.print(f"[green]✓ Breakpoint removed: {node_name}[/green]")
+            return {
+                "command": DebugCommand.CLEAR_BREAKPOINT,
+                "args": {"node": " ".join(args) if args else None},
+            }
+
+        elif cmd in ["q", "quit", "exit"]:
+            raise DebuggerQuitException("User requested exit")
+
+        elif cmd in ["h", "help", "?"]:
+            self._print_help()
+            return {"command": DebugCommand.HELP, "args": None}
+
+        else:
+            self.console.print(f"[red]Unknown command: {cmd}[/red]")
+            self.console.print("[dim]Type 'help' for available commands[/dim]")
+            return {"command": DebugCommand.HELP, "args": None}
+
+    def _list_breakpoints(self) -> None:
+        """List all active breakpoints."""
+        if not self.state.breakpoints:
+            self.console.print("[dim]No breakpoints set[/dim]")
+        else:
+            self.console.print("[yellow]Active breakpoints:[/yellow]")
+            for i, bp in enumerate(sorted(self.state.breakpoints), 1):
+                self.console.print(f"  {i}. [cyan]{bp}[/cyan]")
+
+    def _print_help(self) -> None:
+        """Print available commands."""
+        self.console.print("[bold cyan]Debug Mode Commands[/bold cyan]")
+        self.console.print(
+            "  [yellow]c, continue[/yellow]     Continue until next breakpoint"
+        )
+        self.console.print("  [yellow]s, step[/yellow]         Step to next node")
+        self.console.print(
+            "  [yellow]b  <node>[/yellow]       Set breakpoint at <node>"
+        )
+        self.console.print("  [yellow]l, list[/yellow]         List all breakpoints")
+        self.console.print(
+            "  [yellow]r  <node>[/yellow]       Remove breakpoint at <node>"
+        )
+        self.console.print("  [yellow]h, help[/yellow]         Show help")
+        self.console.print("  [yellow]q, quit[/yellow]         Exit debugger")
         self.console.print()
-        self.console.print("[cyan]> [/cyan]", end="")
-
-        # Run input() in executor to not block async loop
-        loop = asyncio.get_running_loop()
-        user_input = await loop.run_in_executor(None, input)
-
-        if user_input.strip().lower() == "quit":
-            raise KeyboardInterrupt("User requested exit")
-
-        self.console.print()
-        return user_input
 
     def _print_json(self, data: Dict[str, Any], label: str = "data") -> None:
         """Print JSON data with enhanced hierarchy."""
@@ -289,6 +445,7 @@ class SignalRDebugBridge(UiPathDebugBridge):
         self.hub_url = hub_url
         self.access_token = access_token
         self.headers = headers or {}
+        self.state = DebuggerState()
         self._client: Optional[SignalRClient] = None
         self._connected_event = asyncio.Event()
         self._resume_event: Optional[asyncio.Event] = None
@@ -303,26 +460,75 @@ class SignalRDebugBridge(UiPathDebugBridge):
         self._client = SignalRClient(self.hub_url, headers=all_headers)
 
         # Register event handlers
-        self._client.on("ResumeExecution", self._handle_resume)
+        self._client.on("Start", self._handle_start)
+        self._client.on("Resume", self._handle_resume)
+        self._client.on("Step", self._handle_step)
+        self._client.on("AddBreakpoints", self._handle_add_breakpoints)
+        self._client.on("RemoveBreakpoints", self._handle_remove_breakpoints)
+        self._client.on("Quit", self._handle_quit)
         self._client.on_open(self._handle_open)
         self._client.on_close(self._handle_close)
         self._client.on_error(self._handle_error)
 
-        # Start connection in background
-        asyncio.create_task(self._client.run())
+        self._run_task = asyncio.create_task(self._client.run())
 
-        # Wait for connection to establish
-        await asyncio.wait_for(self._connected_event.wait(), timeout=30.0)
+        async def cleanup_run_task() -> str:
+            error_message = (
+                "Failed to establish WebSocket connection within 10s timeout"
+            )
+
+            if self._run_task:
+                if not self._run_task.done():
+                    self._run_task.cancel()
+                try:
+                    await self._run_task
+                except asyncio.CancelledError:
+                    pass  # Expected on cancel
+                except Exception as task_error:
+                    error_msg = str(task_error).strip()
+                    error_detail = f": {error_msg}" if error_msg else ""
+                    return f"{error_message}: {type(task_error).__name__}{error_detail}"
+
+            return error_message
+
+        try:
+            # Wait for connection with timeout
+            await asyncio.wait_for(self._connected_event.wait(), timeout=10.0)
+        except asyncio.TimeoutError as e:
+            # Clean up on timeout
+            raise RuntimeError(await cleanup_run_task()) from e
+        except Exception:
+            # Clean up on any other error
+            await cleanup_run_task()
+            raise
+
+        # Check if run_task failed
+        if self._run_task.done():
+            exception = self._run_task.exception()
+            if exception:
+                raise exception
 
     async def disconnect(self) -> None:
         """Close SignalR connection."""
-        if self._client and hasattr(self._client, "_transport"):
-            transport = self._client._transport
-            if transport and hasattr(transport, "_ws") and transport._ws:
-                try:
+        if not self._client:
+            return
+
+        # Cancel the run task first
+        if self._run_task and not self._run_task.done():
+            self._run_task.cancel()
+            try:
+                await self._run_task
+            except (Exception, asyncio.CancelledError):
+                pass
+
+        # Try to close the client cleanly
+        try:
+            if hasattr(self._client, "_transport"):
+                transport = self._client._transport
+                if transport and hasattr(transport, "_ws") and transport._ws:
                     await transport._ws.close()
-                except Exception as e:
-                    logger.warning(f"Error closing SignalR WebSocket: {e}")
+        except Exception as e:
+            logger.warning(f"Error closing SignalR WebSocket: {e}")
 
     async def emit_execution_started(self, execution_id: str, **kwargs) -> None:
         """Send execution started event."""
@@ -379,6 +585,9 @@ class SignalRDebugBridge(UiPathDebugBridge):
         error: str,
     ) -> None:
         """Send execution error event."""
+        if not self._connected_event.is_set():
+            return
+
         logger.error(f"Execution error: {execution_id} - {error}")
         await self._send(
             "OnExecutionError",
@@ -396,18 +605,132 @@ class SignalRDebugBridge(UiPathDebugBridge):
         logger.info("Resume command received")
         return self._resume_data
 
-    async def _send(self, method: str, data: Dict[str, Any]) -> None:
-        """Send message to SignalR hub."""
+    def get_breakpoints(self) -> List[str] | Literal["*"]:
+        """Get nodes to suspend execution at."""
+        if self.state.step_mode:
+            return "*"  # Suspend at all nodes
+        return list(self.state.breakpoints)  # Only suspend at breakpoints
+
+    async def _send(self, event_name: str, data: Dict[str, Any]) -> None:
+        """Send message to SignalR hub via SendCommand.
+
+        Args:
+            event_name: The event/command name (e.g., "OnExecutionStarted")
+            data: The data payload to send
+        """
         if not self._client:
             raise RuntimeError("SignalR client not connected")
+        try:
+            # Wrap the event in SendCommand protocol
+            # Server expects: SendCommand(event_name, json_string_of_data)
+            # Use serialize_object to recursively handle Pydantic models and nested objects
+            serialized_data = serialize_object(data)
+            data_json = json.dumps(serialized_data)
+            arguments: list[Any] = [event_name, data_json]
+            await self._client.send(method="SendCommand", arguments=arguments)
+            logger.debug(f"Sent command: {event_name}")
+        except Exception as e:
+            logger.error(f"Error sending command {event_name} to SignalR hub: {e}")
 
-        await self._client.send(method=method, arguments=[data])
+    async def _handle_start(self, args: list[Any]) -> None:
+        """Handle Start command from SignalR server.
+
+        Args:
+            args: List containing command arguments as JSON string
+        """
+        if not args or len(args) == 0:
+            logger.warning("Start command received with empty args.")
+            return
+
+        command_args = json.loads(args[0])
+        self.state.breakpoints = set(command_args.get("breakpoints", []))
+        step_mode = command_args.get("enableStepMode", False)
+        self.state.step_mode = step_mode
+        logger.info(
+            f"Debug started: breakpoints={self.state.breakpoints}, step_mode={step_mode}"
+        )
 
     async def _handle_resume(self, args: list[Any]) -> None:
-        """Handle resume command from SignalR server."""
-        if self._resume_event and len(args) > 0:
-            self._resume_data = args[0]
+        """Handle Resume command from SignalR server.
+
+        Args:
+            args: List containing command arguments as JSON string
+        """
+        command_args = json.loads(args[0]) if args and len(args) > 0 else {}
+
+        if self._resume_event:
+            self._resume_data = command_args
             self._resume_event.set()
+        else:
+            logger.warning("Resume command received but no resume event is waiting")
+
+    async def _handle_step(self, args: list[Any]) -> None:
+        """Handle Step command from SignalR server.
+
+        Args:
+            args: List containing command arguments as JSON string
+        """
+        command_args = json.loads(args[0]) if args and len(args) > 0 else {}
+        step_mode = command_args.get("enableStepMode", True)
+        self.state.step_mode = step_mode
+
+    async def _handle_add_breakpoints(self, args: list[Any]) -> None:
+        """Handle AddBreakpoints command from SignalR server.
+
+        Args:
+            args: List containing command arguments as JSON string with breakpoints list
+        """
+        if not args or len(args) == 0:
+            logger.warning("AddBreakpoints command received with empty args.")
+            return
+
+        command_args = json.loads(args[0])
+        break_points = command_args.get("breakpoints", [])
+
+        for bp in break_points:
+            node_name = (
+                bp.get("node", {}).get("name")
+                if isinstance(bp.get("node"), dict)
+                else None
+            )
+            if node_name:
+                self.state.add_breakpoint(node_name)
+                logger.info(f"Breakpoint added: {node_name}")
+            else:
+                logger.warning(f"Breakpoint without node name: {bp}")
+
+    async def _handle_remove_breakpoints(self, args: list[Any]) -> None:
+        """Handle RemoveBreakpoints command from SignalR server.
+
+        Args:
+            args: List containing command arguments as JSON string with breakpoints list
+        """
+        if not args or len(args) == 0:
+            self.state.clear_all_breakpoints()
+            logger.info("All breakpoints cleared")
+            return
+
+        command_args = json.loads(args[0])
+        break_points = command_args.get("breakpoints", [])
+
+        if not break_points:
+            self.state.clear_all_breakpoints()
+            logger.info("All breakpoints cleared")
+        else:
+            for bp in break_points:
+                node_name = (
+                    bp.get("node", {}).get("name")
+                    if isinstance(bp.get("node"), dict)
+                    else None
+                )
+                if node_name:
+                    self.state.remove_breakpoint(node_name)
+                    logger.info(f"Breakpoint removed: {node_name}")
+
+    async def _handle_quit(self, _args: list[Any]) -> None:
+        """Handle Quit command from SignalR server."""
+        logger.info("Quit command received")
+        raise DebuggerQuitException("Quit command received from server")
 
     async def _handle_open(self) -> None:
         """Handle SignalR connection open."""
@@ -434,7 +757,8 @@ def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridge:
     if not context.trace_context:
         raise ValueError("trace_context is required for remote debugging")
 
-    signalr_url = uipath_url + "/agenthub_/wsstunnel?jobId=" + context.job_id
+    signalr_url = f"{uipath_url.rstrip('/')}/orchestrator_/signalr/robotdebug?sessionId={context.job_id}"
+
     return SignalRDebugBridge(
         hub_url=signalr_url,
         access_token=os.environ.get("UIPATH_ACCESS_TOKEN"),

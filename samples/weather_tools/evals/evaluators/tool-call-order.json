@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "id": "ToolCallOrderEvaluator",
+  "description": "Evaluates if tools were called in the correct sequence.",
+  "evaluatorTypeId": "uipath-tool-call-order",
+  "evaluatorConfig": {
+    "name": "ToolCallOrderEvaluator",
+    "strict": false,
+    "defaultEvaluationCriteria": {
+      "toolCallsOrder": []
+    }
+  }
+}

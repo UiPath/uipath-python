@@ -1,4 +1,5 @@
 # type: ignore
+import asyncio
 import importlib.resources
 import json
 import logging
@@ -9,6 +10,7 @@ from typing import Any, Dict, Optional
 
 import click
 
+from .._config import UiPathConfig
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
@@ -42,9 +44,7 @@ def create_telemetry_config_file(target_directory: str) -> None:
         return
 
     os.makedirs(uipath_dir, exist_ok=True)
-    telemetry_data = {
-        _PROJECT_KEY: os.getenv("UIPATH_PROJECT_ID", None) or str(uuid.uuid4())
-    }
+    telemetry_data = {_PROJECT_KEY: UiPathConfig.project_id or str(uuid.uuid4())}
 
     with open(telemetry_file, "w") as f:
         json.dump(telemetry_data, f, indent=4)
@@ -218,15 +218,15 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             "entrypoint": script_path,
         }
 
-        def initialize() -> None:
+        async def initialize() -> None:
             try:
                 runtime = generate_runtime_factory().new_runtime(**context_args)
                 bindings = Bindings(
                     version="2.0",
-                    resources=runtime.get_binding_resources,
+                    resources=await runtime.get_binding_resources(),
                 )
                 config_data = RuntimeSchema(
-                    entryPoints=[runtime.get_entrypoint],
+                    entryPoints=[await runtime.get_entrypoint()],
                     bindings=bindings,
                 )
                 config_path = write_config_file(config_data)
@@ -234,4 +234,4 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             except Exception as e:
                 console.error(f"Error creating configuration file:\n {str(e)}")
 
-        initialize()
+        asyncio.run(initialize())

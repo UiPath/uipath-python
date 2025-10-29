@@ -1,17 +1,30 @@
 """JSON similarity evaluator for flexible structural comparison of outputs."""
 
 import math
-from typing import Any, Tuple, TypeVar
+from typing import Any, Tuple
 
-from uipath.eval.models import EvaluationResult, NumericEvaluationResult
+from ..models import (
+    AgentExecution,
+    EvaluationResult,
+    EvaluatorType,
+    NumericEvaluationResult,
+)
+from .output_evaluator import (
+    OutputEvaluationCriteria,
+    OutputEvaluator,
+    OutputEvaluatorConfig,
+)
 
-from ..models.models import AgentExecution
-from .deterministic_evaluator_base import DeterministicEvaluatorBase
 
-T = TypeVar("T")
+class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria]):
+    """Configuration for the json similarity evaluator."""
+
+    name: str = "JsonSimilarityEvaluator"
 
 
-class JsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
+class JsonSimilarityEvaluator(
+    OutputEvaluator[OutputEvaluationCriteria, JsonSimilarityEvaluatorConfig, str]
+):
     """Deterministic evaluator that scores structural JSON similarity between expected and actual output.
 
     Compares expected versus actual JSON-like structures and returns a
@@ -19,8 +32,15 @@ class JsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
     and tolerant for numbers and strings (via Levenshtein distance).
     """
 
+    @classmethod
+    def get_evaluator_id(cls) -> str:
+        """Get the evaluator id."""
+        return EvaluatorType.JSON_SIMILARITY.value
+
     async def evaluate(
-        self, agent_execution: AgentExecution, evaluation_criteria: dict[str, Any]
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: OutputEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate similarity between expected and actual JSON outputs.
 
@@ -36,16 +56,25 @@ class JsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
         Returns:
             EvaluationResult: Numerical score between 0-100 indicating similarity
         """
+        score, justification = self._compare_json(
+            self._get_expected_output(evaluation_criteria),
+            self._get_actual_output(agent_execution),
+        )
+        validated_justification = self.validate_justification(justification)
         return NumericEvaluationResult(
-            score=self._compare_json(evaluation_criteria, agent_execution.agent_output)
+            score=score,
+            details=validated_justification,
         )
 
-    def _compare_json(self, expected: Any, actual: Any) -> float:
+    def _compare_json(self, expected: Any, actual: Any) -> tuple[float, str]:
         matched_leaves, total_leaves = self._compare_tokens(expected, actual)
         if total_leaves == 0:
-            return 100.0
-        sim = (matched_leaves / total_leaves) * 100.0
-        return max(0.0, min(100.0, sim))
+            return 1.0, "Total leaves are 0"
+        sim = matched_leaves / total_leaves
+        return (
+            max(0.0, min(1.0, sim)),
+            f"Matched leaves: {matched_leaves}, Total leaves: {total_leaves}",
+        )
 
     def _compare_tokens(
         self, expected_token: Any, actual_token: Any

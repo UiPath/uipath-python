@@ -3,9 +3,9 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SkipValidation, model_validator
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
+from uipath._cli._evals._models._evaluation_set import AnyEvaluationItem, AnyEvaluator
 from uipath.eval.models import EvalItemResult
 
 
@@ -20,13 +20,15 @@ class EvalSetRunCreatedEvent(BaseModel):
     execution_id: str
     entrypoint: str
     eval_set_id: str
+    eval_set_run_id: Optional[str] = None
     no_of_evals: int
-    evaluators: List[Any]
+    # skip validation to avoid abstract class instantiation
+    evaluators: SkipValidation[List[AnyEvaluator]]
 
 
 class EvalRunCreatedEvent(BaseModel):
     execution_id: str
-    eval_item: EvaluationItem
+    eval_item: AnyEvaluationItem
 
 
 class EvalItemExceptionDetails(BaseModel):
@@ -40,7 +42,7 @@ class EvalRunUpdatedEvent(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     execution_id: str
-    eval_item: EvaluationItem
+    eval_item: AnyEvaluationItem
     eval_results: List[EvalItemResult]
     success: bool
     agent_output: Any
