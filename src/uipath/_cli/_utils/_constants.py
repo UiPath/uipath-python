@@ -45,8 +45,6 @@ PYTHON_BINARY_EXTENSIONS = {".pickle", ".pkl"}
 
 SPECIAL_EXTENSIONS = {""}  # Extensionless binary files
 
-UIPATH_PROJECT_ID = "UIPATH_PROJECT_ID"
-
 # Pre-compute the union for optimal performance
 BINARY_EXTENSIONS = (
     IMAGE_EXTENSIONS
