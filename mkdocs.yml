@@ -96,7 +96,6 @@ plugins:
   - search
   - llmstxt:
       sections:
-        # Mirrors nav structure - when you add to nav, add one line here
         "UiPath SDK":
           - core/*.md
           - cli/*.md
