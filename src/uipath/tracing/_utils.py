@@ -384,6 +384,56 @@ class _SpanUtils:
         return False
 
     @staticmethod
+    def readable_span_to_dict(span: ReadableSpan) -> Dict[str, Any]:
+        """Convert a ReadableSpan to a dictionary for direct serialization.
+
+        This method preserves the raw OpenTelemetry span structure without
+        UiPath-specific transformations.
+
+        Args:
+            span: The OpenTelemetry ReadableSpan to convert
+
+        Returns:
+            A dictionary representation of the span
+        """
+        return {
+            "name": span.name,
+            "context": {
+                "trace_id": format(span.context.trace_id, "032x"),
+                "span_id": format(span.context.span_id, "016x"),
+                "trace_state": dict(span.context.trace_state) if span.context.trace_state else {},
+            },
+            "kind": str(span.kind),
+            "parent_id": format(span.parent.span_id, "016x") if span.parent else None,
+            "start_time": span.start_time,
+            "end_time": span.end_time,
+            "status": {
+                "status_code": str(span.status.status_code),
+                "description": span.status.description,
+            },
+            "attributes": dict(span.attributes) if span.attributes else {},
+            "events": [
+                {
+                    "name": event.name,
+                    "timestamp": event.timestamp,
+                    "attributes": dict(event.attributes) if event.attributes else {},
+                }
+                for event in span.events
+            ],
+            "links": [
+                {
+                    "context": {
+                        "trace_id": format(link.context.trace_id, "032x"),
+                        "span_id": format(link.context.span_id, "016x"),
+                    },
+                    "attributes": dict(link.attributes) if link.attributes else {},
+                }
+                for link in span.links
+            ],
+            "resource": dict(span.resource.attributes) if span.resource else {},
+        }
+
+    @staticmethod
     def spans_to_llm_context(spans: list[ReadableSpan]) -> str:
         """Convert spans to a formatted conversation history string suitable for LLM context.
 
