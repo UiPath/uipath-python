@@ -100,11 +100,47 @@ sdk.attachments.upload_async(name: str, content: Union[str, bytes, NoneType]=Non
 Buckets service
 
 ```python
+# Create a new bucket.
+sdk.buckets.create(name: str, description: Optional[str]=None, identifier: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.buckets.Bucket
+
+# Async version of create().
+sdk.buckets.create_async(name: str, description: Optional[str]=None, identifier: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.buckets.Bucket
+
+# Delete a file from a bucket.
+sdk.buckets.delete(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
+# Delete a file from a bucket asynchronously.
+sdk.buckets.delete_async(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
 # Download a file from a bucket.
 sdk.buckets.download(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, destination_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
 # Download a file from a bucket asynchronously.
 sdk.buckets.download_async(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, destination_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
+# Check if bucket exists.
+sdk.buckets.exists(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Async version of exists().
+sdk.buckets.exists_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Get files using OData GetFiles API (Studio-compatible).
+sdk.buckets.get_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.BucketFile]
+
+# Async version of get_files().
+sdk.buckets.get_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.BucketFile]
+
+# List buckets with auto-pagination.
+sdk.buckets.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.Bucket]
+
+# Async version of list() with auto-pagination.
+sdk.buckets.list_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.Bucket]
+
+# List files in a bucket.
+sdk.buckets.list_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.BucketFile]
+
+# List files in a bucket asynchronously.
+sdk.buckets.list_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.BucketFile]
 
 # Retrieve bucket information by its name.
 sdk.buckets.retrieve(name: Optional[str]=None, key: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.buckets.Bucket
