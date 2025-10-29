@@ -210,7 +210,7 @@ class StudioWebProgressReporter:
         }
 
     @gracefully_handle_errors
-    async def create_eval_set_run(
+    async def create_eval_set_run_sw(
         self,
         eval_set_id: str,
         agent_snapshot: StudioWebAgentSnapshot,
@@ -352,13 +352,15 @@ class StudioWebProgressReporter:
             is_coded = self._is_coded_evaluator(payload.evaluators)
             self.is_coded_eval[payload.execution_id] = is_coded
 
-            eval_set_run_id = await self.create_eval_set_run(
-                eval_set_id=payload.eval_set_id,
-                agent_snapshot=self._extract_agent_snapshot(payload.entrypoint),
-                no_of_evals=payload.no_of_evals,
-                evaluators=payload.evaluators,
-                is_coded=is_coded,
-            )
+            eval_set_run_id = payload.eval_set_run_id
+            if not eval_set_run_id:
+                eval_set_run_id = await self.create_eval_set_run_sw(
+                    eval_set_id=payload.eval_set_id,
+                    agent_snapshot=self._extract_agent_snapshot(payload.entrypoint),
+                    no_of_evals=payload.no_of_evals,
+                    evaluators=payload.evaluators,
+                    is_coded=is_coded,
+                )
             self.eval_set_run_ids[payload.execution_id] = eval_set_run_id
             current_span = trace.get_current_span()
             if current_span.is_recording():
