@@ -20,6 +20,7 @@ import click
 from httpx import HTTPError
 
 from ...models.errors import BaseUrlMissingError, SecretMissingError
+from ...models.exceptions import EnrichedException
 from ._context import get_cli_context
 
 
@@ -127,10 +128,61 @@ def service_command(f: Callable[..., Any]) -> Callable[..., Any]:
                 "Authentication required. Set the UIPATH_ACCESS_TOKEN environment variable or run 'uipath auth'."
             ) from None
 
+        except EnrichedException as e:
+            if cli_ctx.debug:
+                raise
+
+            if e.status_code == 401:
+                raise click.ClickException(
+                    "Authentication failed (401). Your access token may have expired or is invalid.\n"
+                    "Please run 'uipath auth' to re-authenticate."
+                ) from e
+
+            if e.status_code == 400:
+                try:
+                    import json
+
+                    error_data = json.loads(e.response_content)
+                    if (
+                        isinstance(error_data, dict)
+                        and error_data.get("errorCode") == 1101
+                    ):
+                        raise click.ClickException(
+                            "Folder context required (400). The command requires a folder to be specified.\n"
+                            'Set UIPATH_FOLDER_PATH environment variable (e.g., export UIPATH_FOLDER_PATH="Shared") '
+                            'or use the --folder-path option (e.g., --folder-path "Shared").'
+                        ) from e
+                except (ValueError, json.JSONDecodeError):
+                    pass
+
+            raise click.ClickException(str(e)) from e
+
         except HTTPError as e:
             if cli_ctx.debug:
                 raise
             response = getattr(e, "response", None)
+
+            if response and response.status_code == 401:
+                raise click.ClickException(
+                    "Authentication failed (401). Your access token may have expired or is invalid.\n"
+                    "Please run 'uipath auth' to re-authenticate."
+                ) from e
+
+            if response and response.status_code == 400:
+                try:
+                    error_data = response.json()
+                    if (
+                        isinstance(error_data, dict)
+                        and error_data.get("errorCode") == 1101
+                    ):
+                        raise click.ClickException(
+                            "Folder context required (400). The command requires a folder to be specified.\n"
+                            'Set UIPATH_FOLDER_PATH environment variable (e.g., export UIPATH_FOLDER_PATH="Shared") '
+                            'or use the --folder-path option (e.g., --folder-path "Shared").'
+                        ) from e
+                except ValueError:
+                    pass
+
             if response:
                 error_msg = f"HTTP Error {response.status_code}: {response.url}"
                 if hasattr(response, "text"):
@@ -184,7 +236,7 @@ def common_service_options(f: Callable[..., Any]) -> Callable[..., Any]:
         click.option(
             "--folder-path",
             callback=validate_folder_path,
-            help='Folder path (e.g., "Shared")',
+            help='Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable.',
         ),
         click.option("--folder-key", callback=validate_uuid, help="Folder key (UUID)"),
         click.option(

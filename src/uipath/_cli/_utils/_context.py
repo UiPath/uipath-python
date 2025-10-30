@@ -5,7 +5,7 @@ improving developer experience and enabling better IDE autocomplete.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import click
 
@@ -18,7 +18,6 @@ class CliContext:
     Using a dataclass ensures all attributes are properly typed and documented.
 
     Attributes:
-        default_folder: Default folder path for operations
         output_format: Output format (table, json, csv)
         debug: Enable debug logging
 
@@ -27,7 +26,6 @@ class CliContext:
         (UIPATH_URL and UIPATH_ACCESS_TOKEN).
     """
 
-    default_folder: Optional[str] = None
     output_format: str = "table"
     debug: bool = False
 
@@ -54,7 +52,7 @@ def get_cli_context(ctx: click.Context) -> CliContext:
         >>> @click.pass_context
         >>> def list(ctx):
         ...     cli_ctx = get_cli_context(ctx)  # Fully typed!
-        ...     print(cli_ctx.default_folder)  # Autocomplete works
+        ...     print(cli_ctx.output_format)  # Autocomplete works
     """
     if not isinstance(ctx.obj, CliContext):
         raise click.ClickException(

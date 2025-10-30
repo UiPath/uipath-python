@@ -21,7 +21,7 @@ def runner():
 @pytest.fixture
 def mock_client():
     """Provide a mocked UiPath client."""
-    # Patch at the actual import location (inside get_client method)
+    # Patch where UiPath is actually defined
     with patch("uipath._uipath.UiPath") as mock:
         client_instance = MagicMock()
         mock.return_value = client_instance
@@ -34,19 +34,21 @@ def mock_client():
 
 def test_buckets_list_command_basic(runner, mock_client, mock_env_vars):
     """Test basic buckets list command."""
-    # Mock bucket data
-    mock_client.buckets.list.return_value = [
-        MagicMock(
-            name="bucket1",
-            description="First bucket",
-            model_dump=lambda: {"name": "bucket1", "description": "First bucket"},
-        ),
-        MagicMock(
-            name="bucket2",
-            description="Second bucket",
-            model_dump=lambda: {"name": "bucket2", "description": "Second bucket"},
-        ),
-    ]
+    # Mock bucket data - list command now expects an iterator
+    mock_client.buckets.list.return_value = iter(
+        [
+            MagicMock(
+                name="bucket1",
+                description="First bucket",
+                model_dump=lambda: {"name": "bucket1", "description": "First bucket"},
+            ),
+            MagicMock(
+                name="bucket2",
+                description="Second bucket",
+                model_dump=lambda: {"name": "bucket2", "description": "Second bucket"},
+            ),
+        ]
+    )
 
     result = runner.invoke(cli, ["buckets", "list"])
 
@@ -57,9 +59,11 @@ def test_buckets_list_command_basic(runner, mock_client, mock_env_vars):
 
 def test_buckets_list_with_json_format(runner, mock_client, mock_env_vars):
     """Test buckets list with JSON output format."""
-    mock_client.buckets.list.return_value = [
-        MagicMock(model_dump=lambda: {"name": "test-bucket", "id": "123"}),
-    ]
+    mock_client.buckets.list.return_value = iter(
+        [
+            MagicMock(model_dump=lambda: {"name": "test-bucket", "id": "123"}),
+        ]
+    )
 
     result = runner.invoke(cli, ["buckets", "list", "--format", "json"])
 
@@ -205,7 +209,7 @@ def test_buckets_list_help_text(runner):
     result = runner.invoke(cli, ["buckets", "list", "--help"])
 
     assert result.exit_code == 0
-    assert "List all buckets" in result.output
+    assert "List all Buckets" in result.output
     assert "--folder-path" in result.output
     assert "--limit" in result.output
 

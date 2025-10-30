@@ -12,7 +12,6 @@ def test_cli_context_default_values():
     """Test that CliContext has sensible default values."""
     ctx = CliContext()
 
-    assert ctx.default_folder is None
     assert ctx.output_format == "table"
     assert ctx.debug is False
     assert ctx._client is None
@@ -21,12 +20,10 @@ def test_cli_context_default_values():
 def test_cli_context_with_values():
     """Test that CliContext accepts custom values."""
     ctx = CliContext(
-        default_folder="Shared/Production",
         output_format="json",
         debug=True,
     )
 
-    assert ctx.default_folder == "Shared/Production"
     assert ctx.output_format == "json"
     assert ctx.debug is True
 
@@ -39,12 +36,12 @@ def test_get_cli_context_returns_typed_object():
     def test_cmd(ctx):
         cli_ctx = get_cli_context(ctx)
         assert isinstance(cli_ctx, CliContext)
-        assert hasattr(cli_ctx, "default_folder")
         assert hasattr(cli_ctx, "output_format")
+        assert hasattr(cli_ctx, "debug")
 
     # Create a Click context with CliContext
     runner = click.testing.CliRunner()
-    ctx_obj = CliContext(default_folder="Test")
+    ctx_obj = CliContext(output_format="json")
 
     with runner.isolated_filesystem():
         result = runner.invoke(test_cmd, obj=ctx_obj)
@@ -58,8 +55,8 @@ def test_cli_context_is_dataclass():
     assert dataclasses.is_dataclass(CliContext)
 
     # Test that we can use dataclass features
-    ctx1 = CliContext(default_folder="test", output_format="json")
-    ctx2 = CliContext(default_folder="test", output_format="json")
+    ctx1 = CliContext(output_format="json", debug=True)
+    ctx2 = CliContext(output_format="json", debug=True)
 
     # Dataclasses with same values should be equal
     assert ctx1 == ctx2

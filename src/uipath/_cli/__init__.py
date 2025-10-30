@@ -51,11 +51,6 @@ def _get_safe_version() -> str:
     help="Display the current version of uipath.",
 )
 @click.option(
-    "--folder",
-    envvar="UIPATH_FOLDER_PATH",
-    help='Default folder path (e.g., "Shared")',
-)
-@click.option(
     "--format",
     type=click.Choice(["json", "table", "csv"]),
     default="table",
@@ -71,22 +66,19 @@ def cli(
     ctx: click.Context,
     lv: bool,
     v: bool,
-    folder: str,
     format: str,
     debug: bool,
 ) -> None:
-    r"""UiPath CLI - Automate everything.
-
-    Use service-specific commands to interact with UiPath platform services:
+    """UiPath CLI - Automate everything.
 
     \b
     Examples:
+        uipath new my-project
+        uipath dev
+        uipath deploy
         uipath buckets list --folder-path "Shared"
-        uipath assets retrieve config --format json
-        uipath jobs list --limit 10
-    """
+    """  # noqa: D301
     ctx.obj = CliContext(
-        default_folder=folder,
         output_format=format,
         debug=debug,
     )
@@ -105,6 +97,10 @@ def cli(
         except importlib.metadata.PackageNotFoundError:
             click.echo("uipath is not installed", err=True)
             sys.exit(1)
+
+    # Show help if no command was provided (matches docker, kubectl, git behavior)
+    if ctx.invoked_subcommand is None and not lv and not v:
+        click.echo(ctx.get_help())
 
 
 cli.add_command(new)

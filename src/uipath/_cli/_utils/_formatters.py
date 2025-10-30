@@ -96,14 +96,14 @@ def _format_json(data: Any) -> str:
 
 
 def _format_table(data: Any, no_color: bool = False) -> str:
-    """Format data as table using rich (or simple fallback).
+    """Format data as simple table (AWS/Azure CLI style).
 
-    Note: rich is required for full table formatting. If unavailable,
-    a simple ASCII table fallback is used.
+    Uses a simple ASCII table format with column alignment similar to
+    AWS CLI and Azure CLI, avoiding fancy box-drawing characters.
 
     Args:
         data: Data to format
-        no_color: Disable colored output
+        no_color: Disable colored output (ignored, kept for API compatibility)
 
     Returns:
         Formatted table string
@@ -117,28 +117,31 @@ def _format_table(data: Any, no_color: bool = False) -> str:
 
     columns = list(items[0].keys())
 
-    try:
-        from rich.console import Console
-        from rich.table import Table
+    str_items = []
+    for item in items:
+        str_items.append({col: str(item.get(col, "")) for col in columns})
 
-        table = Table(show_header=True, header_style="bold")
-        for col in columns:
-            table.add_column(col)
+    col_widths = {}
+    for col in columns:
+        col_widths[col] = len(col)
+        for item in str_items:
+            col_widths[col] = max(col_widths[col], len(item[col]))
 
-        for item in items:
-            table.add_row(*[str(item.get(col, "")) for col in columns])
+    header_parts = []
+    separator_parts = []
+    for col in columns:
+        header_parts.append(col.ljust(col_widths[col]))
+        separator_parts.append("-" * col_widths[col])
 
-        buffer = StringIO()
-        console = Console(file=buffer, force_terminal=not no_color)
-        console.print(table)
+    header = "  ".join(header_parts)
+    separator = "  ".join(separator_parts)
 
-        return buffer.getvalue()
+    rows = []
+    for item in str_items:
+        row_parts = [item[col].ljust(col_widths[col]) for col in columns]
+        rows.append("  ".join(row_parts))
 
-    except ImportError:
-        header = " | ".join(columns)
-        separator = "-" * len(header)
-        rows = [" | ".join(str(item.get(col, "")) for col in columns) for item in items]
-        return "\n".join([header, separator, *rows])
+    return "\n".join([header, separator, *rows])
 
 
 def _format_csv(data: Any) -> str:

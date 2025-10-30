@@ -2,6 +2,14 @@
 
 Buckets are cloud storage containers for files used by automation processes.
 Similar to AWS S3 or Azure Blob Storage.
+
+This module uses the Service CLI Generator to auto-generate standard CRUD commands
+for bucket management, with custom implementations for file operations.
+
+Architecture:
+    - Auto-generated commands: list, create, delete, exists (via ServiceCLIGenerator)
+    - Overridden command: retrieve (custom --name/--key dual-option support)
+    - Manual nested group: files (with 6 custom file operation commands)
 """
 # ruff: noqa: D301 - Using regular """ strings (not r""") for Click \b formatting
 
@@ -9,107 +17,64 @@ from itertools import islice
 
 import click
 
-from .._utils._context import get_cli_context
 from .._utils._service_base import (
     ServiceCommandBase,
     common_service_options,
     handle_not_found_error,
     service_command,
 )
+from .._utils._service_cli_generator import ServiceCLIGenerator
+from ._buckets_metadata import BUCKETS_METADATA
 
+_cli = click.Group()
+generator = ServiceCLIGenerator(BUCKETS_METADATA)
+buckets = generator.register(_cli)
+buckets.help = """Manage UiPath storage buckets and files.
 
-@click.group()
-def buckets():
-    """Manage UiPath storage buckets and files.
+Buckets are cloud storage containers for files used by automation processes.
 
-    Buckets are cloud storage containers for files used by automation processes.
+\b
+Bucket Operations:
+    list      - List all buckets
+    create    - Create a new bucket
+    delete    - Delete a bucket
+    retrieve  - Get bucket details
+    exists    - Check if bucket exists
 
+\b
+File Operations (use 'buckets files' subcommand):
+    files list     - List files in a bucket
+    files search   - Search files using glob patterns
+    files upload   - Upload a file to a bucket
+    files download - Download a file from a bucket
+    files delete   - Delete a file from a bucket
+    files exists   - Check if a file exists
+
+\b
+Examples:
     \b
-    Bucket Operations:
-        list      - List all buckets
-        create    - Create a new bucket
-        delete    - Delete a bucket
-        retrieve  - Get bucket details
-        exists    - Check if bucket exists
-
+    # Bucket operations with explicit folder
+    uipath buckets list --folder-path "Shared"
+    uipath buckets create my-bucket --description "Data storage"
+    uipath buckets exists my-bucket
+    uipath buckets delete my-bucket --confirm
     \b
-    File Operations (use 'buckets files' subcommand):
-        files list     - List files in a bucket
-        files search   - Search files using glob patterns
-        files upload   - Upload a file to a bucket
-        files download - Download a file from a bucket
-        files delete   - Delete a file from a bucket
-        files exists   - Check if a file exists
-
+    # Using environment variable for folder context
+    export UIPATH_FOLDER_PATH="Shared"
+    uipath buckets list
+    uipath buckets create my-bucket --description "Data storage"
     \b
-    Examples:
-        # Bucket operations
-        uipath buckets list --folder-path "Shared"
-        uipath buckets create my-bucket --description "Data storage"
-        uipath buckets exists my-bucket
-        uipath buckets delete my-bucket --confirm
-
-        # File operations
-        uipath buckets files list my-bucket
-        uipath buckets files search my-bucket "*.pdf"
-        uipath buckets files upload my-bucket ./data.csv remote/data.csv
-        uipath buckets files download my-bucket data.csv ./local.csv
-        uipath buckets files delete my-bucket old-data.csv --confirm
-        uipath buckets files exists my-bucket data.csv
-    """
-    pass
+    # File operations
+    uipath buckets files list my-bucket
+    uipath buckets files search my-bucket "*.pdf"
+    uipath buckets files upload my-bucket ./data.csv remote/data.csv
+    uipath buckets files download my-bucket data.csv ./local.csv
+    uipath buckets files delete my-bucket old-data.csv --confirm
+    uipath buckets files exists my-bucket data.csv
+"""
 
 
-@buckets.command(name="list")
-@click.option(
-    "--limit",
-    type=click.IntRange(min=0),
-    help="Maximum number of items to return",
-)
-@click.option(
-    "--offset",
-    type=click.IntRange(min=0),
-    default=0,
-    help="Number of items to skip",
-)
-@click.option(
-    "--all", "fetch_all", is_flag=True, help="Fetch all items (auto-paginate)"
-)
-@common_service_options
-@service_command
-def list_buckets(
-    ctx, folder_path, folder_key, format, output, limit, offset, fetch_all
-):
-    """List all buckets in a folder.
-
-    The SDK provides an auto-paginating iterator over all buckets.
-    The CLI applies client-side slicing using --limit and --offset to control
-    which results are displayed.
-
-    \b
-    Examples:
-        uipath buckets list
-        uipath buckets list --folder-path "Production"
-        uipath buckets list --limit 10 --format json
-        uipath buckets list --all  # Fetch all buckets with auto-pagination
-    """
-    client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
-
-    buckets_iterator = client.buckets.list(
-        folder_path=folder_path or cli_ctx.default_folder,
-        folder_key=folder_key,
-    )
-
-    if not fetch_all and limit == 0:
-        return []
-
-    start = offset
-    stop = None if fetch_all or limit is None else start + limit
-    return list(islice(buckets_iterator, start, stop))
-
-
-@buckets.command()
+@click.command()
 @click.option("--name", help="Bucket name")
 @click.option("--key", help="Bucket key (UUID)")
 @common_service_options
@@ -131,13 +96,12 @@ def retrieve(ctx, name, key, folder_path, folder_key, format, output):
         raise click.UsageError("Provide either --name or --key, not both")
 
     client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
 
     try:
         bucket = client.buckets.retrieve(
             name=name,
             key=key,
-            folder_path=folder_path or cli_ctx.default_folder,
+            folder_path=folder_path,
             folder_key=folder_key,
         )
     except LookupError:
@@ -150,64 +114,34 @@ def retrieve(ctx, name, key, folder_path, folder_key, format, output):
     return bucket
 
 
-@buckets.command()
-@click.argument("name")
-@click.option("--description", help="Bucket description")
-@common_service_options
-@service_command
-def create(ctx, name, description, folder_path, folder_key, format, output):
-    """Create a new bucket.
-
-    \b
-    Arguments:
-        NAME: Name of the bucket to create
-
-    \b
-    Examples:
-        uipath buckets create my-bucket
-        uipath buckets create reports --description "Monthly reports storage"
-    """
-    client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
-
-    bucket = client.buckets.create(
-        name=name,
-        description=description,
-        folder_path=folder_path or cli_ctx.default_folder,
-        folder_key=folder_key,
-    )
-
-    click.echo(f"Created bucket '{name}'", err=True)
-    return bucket
+generator.override_command(buckets, "retrieve", retrieve)
 
 
-@buckets.command()
+@click.command()
 @click.argument("name")
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
-@click.option("--dry-run", is_flag=True, help="Show what would be deleted")
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be deleted without deleting"
+)
 @common_service_options
 @service_command
 def delete(ctx, name, confirm, dry_run, folder_path, folder_key, format, output):
     """Delete a bucket.
 
     \b
-    Arguments:
-        NAME: Name of the bucket to delete
-
-    \b
     Examples:
-        uipath buckets delete old-bucket --confirm
-        uipath buckets delete test-bucket --dry-run
+        uipath buckets delete my-bucket --confirm
+        uipath buckets delete my-bucket --dry-run
     """
     from httpx import HTTPStatusError
 
     client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
 
+    # First retrieve to verify bucket exists
     try:
-        bucket = client.buckets.retrieve(
+        client.buckets.retrieve(
             name=name,
-            folder_path=folder_path or cli_ctx.default_folder,
+            folder_path=folder_path,
             folder_key=folder_key,
         )
     except LookupError:
@@ -217,55 +151,28 @@ def delete(ctx, name, confirm, dry_run, folder_path, folder_key, format, output)
             handle_not_found_error("Bucket", name, e)
         raise
 
+    # Handle dry-run
     if dry_run:
-        click.echo(f"Would delete bucket: {bucket.name} (ID: {bucket.id})", err=True)
+        click.echo(f"Would delete bucket '{name}'", err=True)
         return
 
+    # Handle confirmation
     if not confirm:
-        if not click.confirm(f"Delete bucket '{bucket.name}'?"):
-            click.echo("Aborted", err=True)
+        if not click.confirm(f"Delete bucket '{name}'?"):
+            click.echo("Deletion cancelled.")
             return
 
+    # Perform delete
     client.buckets.delete(
         name=name,
-        folder_path=folder_path or cli_ctx.default_folder,
+        folder_path=folder_path,
         folder_key=folder_key,
     )
 
     click.echo(f"Deleted bucket '{name}'", err=True)
 
 
-@buckets.command()
-@click.argument("name")
-@common_service_options
-@service_command
-def exists(ctx, name, folder_path, folder_key, format, output):
-    """Check if a bucket exists.
-
-    \b
-    Arguments:
-        NAME: Name of the bucket to check
-
-    \b
-    Examples:
-        uipath buckets exists my-bucket
-        uipath buckets exists reports --folder-path "Production"
-    """
-    client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
-
-    bucket_exists = client.buckets.exists(
-        name=name,
-        folder_path=folder_path or cli_ctx.default_folder,
-        folder_key=folder_key,
-    )
-
-    if bucket_exists:
-        click.echo(f"Bucket '{name}' exists", err=True)
-        return {"exists": True, "name": name}
-    else:
-        click.echo(f"Bucket '{name}' does not exist", err=True)
-        return {"exists": False, "name": name}
+generator.override_command(buckets, "delete", delete)
 
 
 @click.group()
@@ -274,28 +181,26 @@ def files():
 
     \b
     Examples:
+        \b
         # List files in a bucket
         uipath buckets files list my-bucket
-
+        \b
         # Search for files with glob pattern
         uipath buckets files search my-bucket "*.pdf"
-
+        \b
         # Upload a file
         uipath buckets files upload my-bucket ./data.csv remote/data.csv
-
+        \b
         # Download a file
         uipath buckets files download my-bucket data.csv ./local.csv
-
+        \b
         # Delete a file
         uipath buckets files delete my-bucket old-data.csv --confirm
-
+        \b
         # Check if file exists
         uipath buckets files exists my-bucket data.csv
     """
     pass
-
-
-buckets.add_command(files)
 
 
 @files.command(name="list")
@@ -345,13 +250,12 @@ def list_files(
     from httpx import HTTPStatusError
 
     client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
 
     try:
         files_iterator = client.buckets.list_files(
             name=bucket_name,
             prefix=prefix,
-            folder_path=folder_path or cli_ctx.default_folder,
+            folder_path=folder_path,
             folder_key=folder_key,
         )
 
@@ -415,7 +319,6 @@ def search_files(
     from httpx import HTTPStatusError
 
     client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
 
     try:
         files_iterator = client.buckets.get_files(
@@ -423,7 +326,7 @@ def search_files(
             prefix=prefix,
             recursive=recursive,
             file_name_glob=pattern,
-            folder_path=folder_path or cli_ctx.default_folder,
+            folder_path=folder_path,
             folder_key=folder_key,
         )
 
@@ -464,14 +367,13 @@ def upload_file(
         uipath buckets files upload reports ./report.pdf monthly/report.pdf
     """
     client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
 
     click.echo(f"Uploading {local_path}...", err=True)
     client.buckets.upload(
         name=bucket_name,
         source_path=local_path,
         blob_file_path=remote_path,
-        folder_path=folder_path or cli_ctx.default_folder,
+        folder_path=folder_path,
         folder_key=folder_key,
     )
 
@@ -501,14 +403,13 @@ def download_file(
         uipath buckets files download reports monthly/report.pdf ./report.pdf
     """
     client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
 
     click.echo(f"Downloading {remote_path}...", err=True)
     client.buckets.download(
         name=bucket_name,
         blob_file_path=remote_path,
         destination_path=local_path,
-        folder_path=folder_path or cli_ctx.default_folder,
+        folder_path=folder_path,
         folder_key=folder_key,
     )
 
@@ -548,7 +449,6 @@ def delete_file(
     from httpx import HTTPStatusError
 
     client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
 
     if dry_run:
         click.echo(
@@ -565,7 +465,7 @@ def delete_file(
         client.buckets.delete_file(
             name=bucket_name,
             blob_file_path=file_path,
-            folder_path=folder_path or cli_ctx.default_folder,
+            folder_path=folder_path,
             folder_key=folder_key,
         )
         click.echo(f"Deleted file '{file_path}' from bucket '{bucket_name}'", err=True)
@@ -598,13 +498,12 @@ def file_exists(ctx, bucket_name, file_path, folder_path, folder_key, format, ou
     from httpx import HTTPStatusError
 
     client = ServiceCommandBase.get_client(ctx)
-    cli_ctx = get_cli_context(ctx)
 
     try:
         file_exists_result = client.buckets.exists_file(
             name=bucket_name,
             blob_file_path=file_path,
-            folder_path=folder_path or cli_ctx.default_folder,
+            folder_path=folder_path,
             folder_key=folder_key,
         )
 
@@ -622,3 +521,6 @@ def file_exists(ctx, bucket_name, file_path, folder_path, folder_key, format, ou
         if e.response.status_code == 404:
             handle_not_found_error("Bucket", bucket_name, e)
         raise
+
+
+generator.add_nested_group(buckets, "files", files)
