@@ -17,8 +17,9 @@ from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._runtime._runtime import get_user_script
 from ._runtime._runtime_factory import generate_runtime_factory
 from ._utils._console import ConsoleLogger
+from ._utils._parse_ast import write_bindings_file
 from .middlewares import Middlewares
-from .models.runtime_schema import Bindings, RuntimeSchema
+from .models.runtime_schema import RuntimeSchema
 
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
@@ -221,16 +222,16 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
         async def initialize() -> None:
             try:
                 runtime = generate_runtime_factory().new_runtime(**context_args)
-                bindings = Bindings(
-                    version="2.0",
-                    resources=await runtime.get_binding_resources(),
-                )
+
+                bindings = await runtime.get_bindings()
+                bindings_path = write_bindings_file(bindings)
+
                 config_data = RuntimeSchema(
                     entryPoints=[await runtime.get_entrypoint()],
-                    bindings=bindings,
                 )
                 config_path = write_config_file(config_data)
                 console.success(f"Created '{config_path}' file.")
+                console.success(f"Created '{bindings_path}' file.")
             except Exception as e:
                 console.error(f"Error creating configuration file:\n {str(e)}")
 

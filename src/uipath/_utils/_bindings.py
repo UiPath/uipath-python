@@ -51,7 +51,7 @@ class ResourceOverwritesContext:
             _resource_overwrites.reset(self._token)
 
 
-def infer_bindings(
+def resource_override(
     resource_type: str,
     name: str = "name",
     folder_path: str = "folder_path",

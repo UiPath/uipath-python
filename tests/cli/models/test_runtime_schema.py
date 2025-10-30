@@ -40,56 +40,6 @@ def test_runtime_schema_validation():
                 },
             }
         ],
-        "bindings": {
-            "version": "2.0",
-            "resources": [
-                {
-                    "resource": "process",
-                    "key": "process-key",
-                    "value": {
-                        "name": {
-                            "defaultValue": "process-name",
-                            "isExpression": False,
-                            "displayName": "Process name",
-                        }
-                    },
-                    "metadata": {
-                        "subType": "agent",
-                        "bindingsVersion": "2.2",
-                        "solutionsSupport": "true",
-                    },
-                },
-                {
-                    "resource": "connection",
-                    "key": "connection-key",
-                    "value": {
-                        "connectionId": {
-                            "defaultValue": "connection-id",
-                            "isExpression": False,
-                            "displayName": "Connection ID",
-                        }
-                    },
-                    "metadata": {
-                        "connector": "uipath-salesforce-slack",
-                        "useConnectionService": "true",
-                        "bindingsVersion": "2.2",
-                        "solutionsSupport": "true",
-                    },
-                },
-                {
-                    "resource": "app",
-                    "key": "ActionApp",
-                    "value": {
-                        "name": {
-                            "defaultValue": "ActionApp",
-                            "isExpression": False,
-                            "displayName": "App name",
-                        }
-                    },
-                    "metadata": {"bindingsVersion": "2.2", "solutionsSupport": "true"},
-                },
-            ],
-        },
     }
 
     # Act and Assert

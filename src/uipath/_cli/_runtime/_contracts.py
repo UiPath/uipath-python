@@ -39,7 +39,7 @@ from uipath._events._events import UiPathRuntimeEvent
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 from uipath.tracing import TracingManager
 
-from ..models.runtime_schema import BindingResource, Entrypoint
+from ..models.runtime_schema import Bindings, Entrypoint
 from ._logging import LogsInterceptor
 
 logger = logging.getLogger(__name__)
@@ -581,10 +581,10 @@ class UiPathBaseRuntime(ABC):
         runtime = cls(context)
         return runtime
 
-    async def get_binding_resources(self) -> List[BindingResource]:
+    async def get_bindings(self) -> Bindings:
         """Get binding resources for this runtime.
 
-        Returns: A list of binding resources.
+        Returns: A bindings object.
         """
         raise NotImplementedError()
 

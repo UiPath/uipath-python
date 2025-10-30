@@ -224,18 +224,25 @@ def main(input: Input) -> Output:
 
             with open("bindings.py", "w") as f:
                 f.write(bindings_script)
-            print(1)
             result = runner.invoke(cli, ["init", "bindings.py"])
             assert result.exit_code == 0
             assert "Created 'uipath.json' file" in result.output
+            assert "Created 'bindings.json' file" in result.output
             assert os.path.exists("uipath.json")
+            assert os.path.exists("bindings.json")
+
+            # Verify uipath.json doesn't have bindings
             with open("uipath.json", "r") as f:
                 config = json.load(f)
-                assert "bindings" in config
-                bindings = config["bindings"]
-                assert len(bindings) > 0
-                assert "resources" in config["bindings"]
-                resources = config["bindings"]["resources"]
+                assert "bindings" not in config
+
+            # Verify bindings are in separate file
+            with open("bindings.json", "r") as f:
+                bindings_data = json.load(f)
+                assert "version" in bindings_data
+                assert bindings_data["version"] == "2.0"
+                assert "resources" in bindings_data
+                resources = bindings_data["resources"]
                 assert len(resources) == 12
 
                 # Helper function to find resource by key
@@ -270,7 +277,7 @@ def main(input: Input) -> Output:
 
                     # Test folder path variant
                     folder_key = (
-                        f"{resource_type}_folder_path.{resource_type}_with_folder_path"
+                        f"{resource_type}_with_folder_path.{resource_type}_folder_path"
                     )
                     folder_resource = find_resource(folder_key)
                     assert folder_resource["resource"] == resource_type
@@ -307,7 +314,7 @@ def main(input: Input) -> Output:
 
                 # Test folder path variant
                 process_folder = find_resource(
-                    "process_folder_path.process_with_folder_path"
+                    "process_with_folder_path.process_folder_path"
                 )
                 assert process_folder["resource"] == "process"
                 assert process_folder["metadata"]["ActivityName"] == "invoke"
@@ -563,3 +570,32 @@ def main(input: Input) -> Output:
             assert output_schema["properties"]["result"]["type"] == "string"
             assert output_schema["properties"]["success"]["type"] == "boolean"
             assert set(output_schema["required"]) == {"result", "success"}
+
+    def test_bindings_file_creation(self, runner: CliRunner, temp_dir: str) -> None:
+        """Test that bindings.json file is created correctly during init."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create a simple Python file
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+
+            result = runner.invoke(cli, ["init"])
+            assert result.exit_code == 0
+            assert "Created 'uipath.json' file" in result.output
+            assert "Created 'bindings.json' file" in result.output
+
+            # Verify bindings.json exists
+            assert os.path.exists("bindings.json")
+
+            # Verify bindings.json has correct structure
+            with open("bindings.json", "r") as f:
+                bindings_data = json.load(f)
+                assert "version" in bindings_data
+                assert bindings_data["version"] == "2.0"
+                assert "resources" in bindings_data
+                assert isinstance(bindings_data["resources"], list)
+
+            # Verify uipath.json does NOT contain bindings
+            with open("uipath.json", "r") as f:
+                config = json.load(f)
+                assert "bindings" not in config
+                assert "entryPoints" in config
