@@ -72,6 +72,7 @@ class AssetsService(FolderContext, BaseService):
             params=spec.params,
             content=spec.content,
             headers=spec.headers,
+            json=spec.json,
         )
 
         if is_user:
@@ -118,6 +119,7 @@ class AssetsService(FolderContext, BaseService):
             params=spec.params,
             content=spec.content,
             headers=spec.headers,
+            json=spec.json,
         )
 
         if is_user:
