@@ -55,15 +55,6 @@ def create_validation_action_response(documents_tests_data_path: Path) -> dict: 
         return json.load(f)
 
 
-@pytest.fixture
-def validated_result(documents_tests_data_path: Path) -> dict:  # type: ignore
-    with open(
-        documents_tests_data_path / "validated_result.json",
-        "r",
-    ) as f:
-        return json.load(f)
-
-
 class TestDocumentsService:
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.parametrize(
@@ -171,6 +162,7 @@ class TestDocumentsService:
 
         # ASSERT
         modern_extraction_response["projectId"] = project_id
+        modern_extraction_response["projectType"] = ProjectType.MODERN
         modern_extraction_response["tag"] = "Production"
         modern_extraction_response["documentTypeId"] = document_type_id
         assert response.model_dump() == modern_extraction_response
@@ -476,6 +468,7 @@ class TestDocumentsService:
         # ASSERT
         expected_response = ixp_extraction_response
         expected_response["projectId"] = project_id
+        expected_response["projectType"] = ProjectType.IXP.value
         expected_response["tag"] = "live"
         expected_response["documentTypeId"] = str(UUID(int=0))
         assert response.model_dump() == expected_response
@@ -603,6 +596,7 @@ class TestDocumentsService:
         # ASSERT
         expected_response = modern_extraction_response
         expected_response["projectId"] = project_id
+        expected_response["projectType"] = ProjectType.MODERN.value
         expected_response["tag"] = "Production"
         expected_response["documentTypeId"] = document_type_id
         assert response.model_dump() == expected_response
@@ -886,12 +880,13 @@ class TestDocumentsService:
         )
 
         ixp_extraction_response["projectId"] = project_id
+        ixp_extraction_response["projectType"] = ProjectType.IXP.value
         ixp_extraction_response["tag"] = tag
         ixp_extraction_response["documentTypeId"] = document_type_id
 
         # ACT
         if mode == "async":
-            response = await service.create_validation_action_async(
+            response = await service.create_validate_extraction_action_async(
                 action_title=action_title,
                 action_priority=action_priority,
                 action_catalog=action_catalog,
@@ -903,7 +898,7 @@ class TestDocumentsService:
                 ),
             )
         else:
-            response = service.create_validation_action(
+            response = service.create_validate_extraction_action(
                 action_title=action_title,
                 action_priority=action_priority,
                 action_catalog=action_catalog,
@@ -917,12 +912,20 @@ class TestDocumentsService:
 
         # ASSERT
         create_validation_action_response["projectId"] = project_id
+        create_validation_action_response["projectType"] = ProjectType.IXP.value
         create_validation_action_response["tag"] = tag
         create_validation_action_response["documentTypeId"] = document_type_id
         create_validation_action_response["operationId"] = operation_id
         assert response.model_dump() == create_validation_action_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.parametrize(
+        "project_type,tag,extraction_response_fixture",
+        [
+            (ProjectType.MODERN, "Production", "modern_extraction_response"),
+            (ProjectType.IXP, "live", "ixp_extraction_response"),
+        ],
+    )
     @pytest.mark.asyncio
     async def test_get_validation_result(
         self,
@@ -932,25 +935,40 @@ class TestDocumentsService:
         tenant: str,
         service: DocumentsService,
         create_validation_action_response: dict,  # type: ignore
-        validated_result: dict,  # type: ignore
+        modern_extraction_response: dict,  # type: ignore
+        ixp_extraction_response: dict,  # type: ignore
         mode: str,
+        project_type: ProjectType,
+        tag: str,
+        extraction_response_fixture: str,
     ):
         # ARRANGE
         project_id = str(uuid4())
         operation_id = str(uuid4())
         document_type_id = str(UUID(int=0))
 
+        # Select the appropriate extraction response based on the fixture name
+        extraction_response = (
+            modern_extraction_response
+            if extraction_response_fixture == "modern_extraction_response"
+            else ixp_extraction_response
+        )
+
         create_validation_action_response["projectId"] = project_id
-        create_validation_action_response["tag"] = "live"
+        create_validation_action_response["projectType"] = project_type.value
+        create_validation_action_response["tag"] = tag
         create_validation_action_response["documentTypeId"] = document_type_id
         create_validation_action_response["operationId"] = operation_id
         create_validation_action_response["actionStatus"] = "Completed"
         create_validation_action_response["validatedExtractionResults"] = (
-            validated_result
+            extraction_response["extractionResult"]
+        )
+        create_validation_action_response["dataProjection"] = extraction_response.get(
+            "dataProjection", None
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{document_type_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/result/{operation_id}?api-version=1.1",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -958,20 +976,24 @@ class TestDocumentsService:
 
         # ACT
         if mode == "async":
-            response = await service.get_validation_result_async(
+            response = await service.get_validate_extraction_result_async(
                 validation_action=ValidationAction.model_validate(
                     create_validation_action_response
                 )
             )
         else:
-            response = service.get_validation_result(
+            response = service.get_validate_extraction_result(
                 validation_action=ValidationAction.model_validate(
                     create_validation_action_response
                 )
             )
 
         # ASSERT
-        assert response.model_dump() == validated_result
+        extraction_response["projectId"] = project_id
+        extraction_response["projectType"] = project_type
+        extraction_response["tag"] = tag
+        extraction_response["documentTypeId"] = document_type_id
+        assert response.model_dump() == extraction_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
