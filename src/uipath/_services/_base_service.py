@@ -19,8 +19,6 @@ from tenacity import (
     wait_exponential,
 )
 
-from uipath._utils._read_overwrites import OverwritesManager
-
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import UiPathUrl, user_agent_value
@@ -56,7 +54,6 @@ class BaseService:
         self._client = Client(**client_kwargs)
         self._client_async = AsyncClient(**client_kwargs)
 
-        self._overwrites_manager = OverwritesManager()
         self._logger.debug(f"HEADERS: {self.default_headers}")
 
         super().__init__()

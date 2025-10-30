@@ -6,7 +6,6 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
-from .._utils._read_overwrites import OverwritesManager
 from ..models import Asset, UserAsset
 from ..tracing._traced import traced
 from ._base_service import BaseService
@@ -21,7 +20,6 @@ class AssetsService(FolderContext, BaseService):
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
-        self._overwrites_manager = OverwritesManager()
         self._base_url = "assets"
 
     @traced(
