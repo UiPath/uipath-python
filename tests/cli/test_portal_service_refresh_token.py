@@ -112,15 +112,15 @@ class TestPortalServiceRefreshToken:
     @pytest.mark.parametrize(
         "env_var_url, environment, expected_token_url",
         [
-            # UIPATH_URL should be used when environment is "cloud" (default)
+            # UIPATH_URL should be used when environment is None (no flag specified)
             (
                 "https://custom.automationsuite.org/org/tenant",
-                "cloud",
+                None,
                 "https://custom.automationsuite.org/identity_/connect/token",
             ),
             (
                 "https://mycompany.uipath.com/org/tenant/",
-                "cloud",
+                None,
                 "https://mycompany.uipath.com/identity_/connect/token",
             ),
             # Explicit environment flags should override UIPATH_URL
@@ -133,6 +133,11 @@ class TestPortalServiceRefreshToken:
                 "https://custom.automationsuite.org/org/tenant",
                 "staging",
                 "https://staging.uipath.com/identity_/connect/token",
+            ),
+            (
+                "https://custom.automationsuite.org/org/tenant",
+                "cloud",
+                "https://cloud.uipath.com/identity_/connect/token",
             ),
         ],
     )
@@ -329,7 +334,7 @@ class TestPortalServiceRefreshToken:
             # Domain with trailing slash should not create double slash
             (
                 "https://example.uipath.com/",
-                "cloud",
+                None,
                 "https://example.uipath.com/identity_/connect/token",
             ),
             # Domain without scheme gets .uipath.com appended (current behavior)
@@ -391,13 +396,13 @@ class TestPortalServiceRefreshToken:
             (
                 "refresh_with_uipath_url_env_variable",
                 {"UIPATH_URL": "https://custom.automationsuite.org/org/tenant"},
-                "cloud",  # cloud is default when no flag specified
+                None,  # None when no flag specified
                 "https://custom.automationsuite.org/identity_/connect/token",
             ),
             (
                 "refresh_with_uipath_url_env_variable_with_trailing_slash",
                 {"UIPATH_URL": "https://custom.uipath.com/org/tenant/"},
-                "cloud",
+                None,
                 "https://custom.uipath.com/identity_/connect/token",
             ),
             (
@@ -413,15 +418,15 @@ class TestPortalServiceRefreshToken:
                 "https://staging.uipath.com/identity_/connect/token",
             ),
             (
-                "refresh_with_cloud_flag",
-                {},
-                "cloud",
+                "refresh_with_cloud_flag_overrides_env",
+                {"UIPATH_URL": "https://custom.uipath.com/org/tenant"},
+                "cloud",  # cloud flag overrides UIPATH_URL
                 "https://cloud.uipath.com/identity_/connect/token",
             ),
             (
                 "refresh_default_to_cloud",
                 {},
-                "cloud",
+                None,  # None defaults to cloud
                 "https://cloud.uipath.com/identity_/connect/token",
             ),
         ],
