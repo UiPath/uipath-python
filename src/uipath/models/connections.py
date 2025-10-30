@@ -8,6 +8,7 @@ class ConnectionMetadata(BaseModel):
     """Metadata about a connection."""
 
     fields: dict[str, Any] = Field(default_factory=dict, alias="fields")
+    metadata: dict[str, Any] = Field(default_factory=dict, alias="metadata")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

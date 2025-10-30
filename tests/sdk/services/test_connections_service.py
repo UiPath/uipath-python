@@ -98,6 +98,7 @@ class TestConnectionsService:
         version: str,
     ) -> None:
         element_instance_id = 123
+        connector_key = "test-connector"
         tool_path = "test-tool"
         valid_choice = {
             "index": 0,
@@ -188,14 +189,14 @@ class TestConnectionsService:
             },
         }
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{tool_path}/metadata",
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{connector_key}/objects/{tool_path}/metadata",
             status_code=200,
             json={
                 "fields": json_schema,
             },
         )
 
-        metadata = service.metadata(element_instance_id, tool_path)
+        metadata = service.metadata(element_instance_id, connector_key, tool_path)
 
         assert isinstance(metadata, ConnectionMetadata)
         dynamic_type = jsonschema_to_pydantic(metadata.fields)
@@ -263,6 +264,7 @@ class TestConnectionsService:
         version: str,
     ) -> None:
         element_instance_id = 123
+        connector_key = "test-connector"
         tool_path = "test-tool"
         valid_choice = {
             "index": 0,
@@ -353,14 +355,16 @@ class TestConnectionsService:
             },
         }
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{tool_path}/metadata",
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{connector_key}/objects/{tool_path}/metadata",
             status_code=200,
             json={
                 "fields": json_schema,
             },
         )
 
-        metadata = await service.metadata_async(element_instance_id, tool_path)
+        metadata = await service.metadata_async(
+            element_instance_id, connector_key, tool_path
+        )
 
         assert isinstance(metadata, ConnectionMetadata)
         dynamic_type = jsonschema_to_pydantic(metadata.fields)
@@ -1001,3 +1005,256 @@ class TestConnectionsService:
             exc_info.value
         )
         assert "cannot be provided together" in str(exc_info.value)
+
+    def test_get_jit_action_url_with_api_action(
+        self, service: ConnectionsService
+    ) -> None:
+        """Test _get_jit_action_url extracts URL from first API action."""
+        metadata = ConnectionMetadata(
+            fields={},
+            metadata={
+                "method": {
+                    "POST": {
+                        "design": {
+                            "actions": [
+                                {
+                                    "actionType": "reset",
+                                    "name": "Reset Form",
+                                },
+                                {
+                                    "actionType": "api",
+                                    "name": "Load Issue Types",
+                                    "apiConfiguration": {
+                                        "method": "GET",
+                                        "url": "elements/jira/projects/{project.id}/issuetypes",
+                                    },
+                                },
+                            ]
+                        }
+                    }
+                }
+            },
+        )
+
+        url = service._get_jit_action_url(metadata)
+
+        assert url == "elements/jira/projects/{project.id}/issuetypes"
+
+    def test_metadata_with_jit_parameters(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test metadata() triggers JIT fetch when parameters are provided."""
+        element_instance_id = 123
+        connector_key = "uipath-jira"
+        tool_path = "Issue"
+        parameters = {"project.id": "PROJ-123"}
+
+        # Mock initial metadata response
+        initial_response = {
+            "fields": {
+                "project.id": {"type": "string", "displayName": "Project ID"},
+                "summary": {"type": "string", "displayName": "Summary"},
+            },
+            "metadata": {
+                "method": {
+                    "POST": {
+                        "design": {
+                            "actions": [
+                                {
+                                    "actionType": "api",
+                                    "apiConfiguration": {
+                                        "url": "elements/jira/projects/{project.id}/issuetypes"
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+        }
+
+        # Mock JIT metadata response
+        jit_response = {
+            "fields": {
+                "CustomIssueType": {
+                    "type": "string",
+                    "displayName": "Custom Issue Type",
+                },
+            },
+        }
+
+        # Add mock responses
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{connector_key}/objects/{tool_path}/metadata",
+            json=initial_response,
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/jira/projects/PROJ-123/issuetypes",
+            json=jit_response,
+        )
+
+        metadata = service.metadata(
+            element_instance_id, connector_key, tool_path, parameters
+        )
+
+        # Should return JIT metadata
+        assert isinstance(metadata, ConnectionMetadata)
+        assert "CustomIssueType" in metadata.fields
+
+        # Verify both requests were made
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 2
+
+    @pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+    async def test_metadata_with_max_jit_depth(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test metadata() stops at max JIT depth to prevent infinite loops."""
+        element_instance_id = 123
+        connector_key = "uipath-jira"
+        tool_path = "Issue"
+        parameters = {"param": "value"}
+        max_jit_depth = 5
+
+        # Create a response that always has another action (infinite chain)
+        def create_response_with_action(level: int):
+            return {
+                "fields": {
+                    f"field_level_{level}": {
+                        "type": "string",
+                        "displayName": f"Field Level {level}",
+                    },
+                },
+                "metadata": {
+                    "method": {
+                        "POST": {
+                            "design": {
+                                "actions": [
+                                    {
+                                        "actionType": "api",
+                                        "apiConfiguration": {
+                                            "url": f"elements/jira/level{level + 1}"
+                                        },
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+            }
+
+        # Add initial response
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{connector_key}/objects/{tool_path}/metadata",
+            json=create_response_with_action(0),
+        )
+
+        # Add 10 more levels (more than max JIT depth) to test limit
+        for level in range(1, 11):
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/jira/level{level}",
+                json=create_response_with_action(level),
+            )
+
+        metadata = service.metadata(
+            element_instance_id, connector_key, tool_path, parameters, max_jit_depth
+        )
+
+        # Should return metadata from level 5 (stopped at max JIT depth)
+        assert isinstance(metadata, ConnectionMetadata)
+        assert "field_level_5" in metadata.fields
+
+        # Verify exactly 6 requests were made (initial + 5 JIT levels)
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 6
+
+    def test_metadata_stops_on_repeated_url(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test metadata() stops early when action URL repeats."""
+        element_instance_id = 123
+        connector_key = "uipath-jira"
+        tool_path = "Issue"
+        parameters = {"project.id": "PROJ-123"}
+
+        # First response with action URL
+        level1_response = {
+            "fields": {
+                "field1": {"type": "string", "displayName": "Field 1"},
+            },
+            "metadata": {
+                "method": {
+                    "POST": {
+                        "design": {
+                            "actions": [
+                                {
+                                    "actionType": "api",
+                                    "apiConfiguration": {
+                                        "url": "elements/jira/projects/{project.id}/metadata"
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+        }
+
+        # Second response with the same action URL
+        level2_response = {
+            "fields": {
+                "field2": {"type": "string", "displayName": "Field 2"},
+            },
+            "metadata": {
+                "method": {
+                    "POST": {
+                        "design": {
+                            "actions": [
+                                {
+                                    "actionType": "api",
+                                    "apiConfiguration": {
+                                        "url": "elements/jira/projects/{project.id}/metadata"
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/{connector_key}/objects/{tool_path}/metadata",
+            json=level1_response,
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/elements_/v3/element/instances/{element_instance_id}/elements/jira/projects/PROJ-123/metadata",
+            json=level2_response,
+        )
+
+        metadata = service.metadata(
+            element_instance_id, connector_key, tool_path, parameters
+        )
+
+        # Should return metadata from level 2 (stopped because next URL is same)
+        assert isinstance(metadata, ConnectionMetadata)
+        assert "field2" in metadata.fields
+
+        # Verify exactly 2 requests were made (initial + 1 JIT level, then stopped)
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 2
