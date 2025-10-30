@@ -21,8 +21,8 @@ class UiPathConversationCitationEvent(BaseModel):
     """Encapsulates sub-events related to citations."""
 
     citation_id: str = Field(..., alias="citationId")
-    start: Optional[UiPathConversationCitationStartEvent] = None
-    end: Optional[UiPathConversationCitationEndEvent] = None
+    start: Optional[UiPathConversationCitationStartEvent] = Field(None, alias="startCitation")
+    end: Optional[UiPathConversationCitationEndEvent] = Field(None, alias="endCitation")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 

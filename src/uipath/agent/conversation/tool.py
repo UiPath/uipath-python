@@ -35,7 +35,7 @@ class UiPathConversationToolCallStartEvent(BaseModel):
 
     tool_name: str = Field(..., alias="toolName")
     timestamp: Optional[str] = None
-    arguments: Optional[InlineOrExternal] = None
+    arguments: Optional[InlineOrExternal] = Field(default=None, alias="input")
     meta_data: Optional[Dict[str, Any]] = Field(None, alias="metaData")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
@@ -45,7 +45,7 @@ class UiPathConversationToolCallEndEvent(BaseModel):
     """Signals the end of a tool call."""
 
     timestamp: Optional[str] = None
-    result: Optional[Any] = None
+    result: Optional[Any] = Field(default=None, alias="output")
     is_error: Optional[bool] = Field(None, alias="isError")
     cancelled: Optional[bool] = None
     meta_data: Optional[Dict[str, Any]] = Field(None, alias="metaData")
@@ -57,8 +57,8 @@ class UiPathConversationToolCallEvent(BaseModel):
     """Encapsulates the data related to a tool call event."""
 
     tool_call_id: str = Field(..., alias="toolCallId")
-    start: Optional[UiPathConversationToolCallStartEvent] = None
-    end: Optional[UiPathConversationToolCallEndEvent] = None
+    start: Optional[UiPathConversationToolCallStartEvent] = Field(default=None, alias="startToolCall")
+    end: Optional[UiPathConversationToolCallEndEvent] = Field(default=None, alias="endToolCall")
     meta_event: Optional[Dict[str, Any]] = Field(None, alias="metaEvent")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
