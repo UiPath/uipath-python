@@ -25,6 +25,12 @@ class ConfigurationManager:
         return Path(UIPATH_BINDINGS_FILE)
 
     @property
+    def config_file_name(self) -> str:
+        from uipath._utils.constants import UIPATH_CONFIG_FILE
+
+        return UIPATH_CONFIG_FILE
+
+    @property
     def project_id(self) -> Optional[str]:
         from uipath._utils.constants import ENV_UIPATH_PROJECT_ID
 
@@ -39,6 +45,12 @@ class ConfigurationManager:
     @property
     def is_studio_project(self) -> bool:
         return self.project_id is not None
+
+    @property
+    def job_key(self) -> Optional[str]:
+        from uipath._utils.constants import ENV_JOB_KEY
+
+        return os.getenv(ENV_JOB_KEY, None)
 
 
 UiPathConfig = ConfigurationManager()

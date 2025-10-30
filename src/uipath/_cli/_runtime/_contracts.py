@@ -96,6 +96,7 @@ class UiPathErrorCategory(str, Enum):
 class UiPathErrorCode(str, Enum):
     """Standard error codes for UiPath runtime errors."""
 
+    AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED"
     # Entrypoint related errors
     ENTRYPOINT_MISSING = "ENTRYPOINT_MISSING"
     ENTRYPOINT_NOT_FOUND = "ENTRYPOINT_NOT_FOUND"
