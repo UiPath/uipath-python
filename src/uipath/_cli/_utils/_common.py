@@ -38,7 +38,6 @@ def environment_options(function):
         "--cloud",
         "environment",
         flag_value="cloud",
-        default=True,
         help="Use production environment",
     )(function)
     return function

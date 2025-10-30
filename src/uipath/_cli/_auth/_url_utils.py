@@ -7,9 +7,7 @@ from .._utils._console import ConsoleLogger
 console = ConsoleLogger()
 
 
-def resolve_domain(
-    base_url: Optional[str], environment: Optional[str], force: bool = False
-) -> str:
+def resolve_domain(base_url: Optional[str], environment: Optional[str]) -> str:
     """Resolve the UiPath domain, giving priority to base_url when valid.
 
     Args:
@@ -27,10 +25,9 @@ def resolve_domain(
         if domain:
             return domain
 
-    # If base_url is not set (or force is False), check UIPATH_URL
-    if not base_url or not force:
+    if environment is None:
         uipath_url = os.getenv("UIPATH_URL")
-        if uipath_url and environment == "cloud":
+        if uipath_url:
             parsed = urlparse(uipath_url)
             if parsed.scheme and parsed.netloc:
                 domain = f"{parsed.scheme}://{parsed.netloc}"
