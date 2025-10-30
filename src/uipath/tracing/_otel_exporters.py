@@ -85,7 +85,7 @@ class LlmOpsHttpExporter(SpanExporter):
     # Mapping of span types
     SPAN_TYPE_MAPPING: dict[str, str] = {
         "LLM": "completion",
-        "TOOL": "toolCall",
+        "TOOL": "toolCallaaaaaaaaaaa",
         # Add more mappings as needed
     }
 
