@@ -1,3 +1,5 @@
+from unittest.mock import Mock, patch
+
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -277,3 +279,187 @@ class TestAssetsService:
             sent_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.update_async/{version}"
         )
+
+    class TestRequestKwargs:
+        """Test that all methods pass the correct kwargs to request/request_async."""
+
+        def test_retrieve_passes_all_kwargs(
+            self, service: AssetsService, monkeypatch: pytest.MonkeyPatch
+        ) -> None:
+            """Test that retrieve passes all kwargs to request."""
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "value": [{"key": "test-key", "name": "Test", "value": "test-value"}]
+            }
+
+            monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+            service._execution_context = ExecutionContext()
+
+            with patch.object(
+                service, "request", return_value=mock_response
+            ) as mock_request:
+                service.retrieve(name="Test")
+
+                mock_request.assert_called_once()
+                call_kwargs = mock_request.call_args
+
+                # Verify all expected kwargs are present
+                assert "url" in call_kwargs.kwargs
+                assert "params" in call_kwargs.kwargs
+                assert "json" in call_kwargs.kwargs
+                assert "content" in call_kwargs.kwargs
+                assert "headers" in call_kwargs.kwargs
+
+                # Verify positional arg (method)
+                assert call_kwargs.args[0] == "GET"
+
+        @pytest.mark.anyio
+        async def test_retrieve_async_passes_all_kwargs(
+            self, service: AssetsService, monkeypatch: pytest.MonkeyPatch
+        ) -> None:
+            """Test that retrieve_async passes all kwargs to request_async."""
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "value": [{"key": "test-key", "name": "Test", "value": "test-value"}]
+            }
+
+            monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+            service._execution_context = ExecutionContext()
+
+            with patch.object(
+                service, "request_async", return_value=mock_response
+            ) as mock_request:
+                await service.retrieve_async(name="Test")
+
+                mock_request.assert_called_once()
+                call_kwargs = mock_request.call_args
+
+                # Verify all expected kwargs are present
+                assert "url" in call_kwargs.kwargs
+                assert "params" in call_kwargs.kwargs
+                assert "json" in call_kwargs.kwargs
+                assert "content" in call_kwargs.kwargs
+                assert "headers" in call_kwargs.kwargs
+
+                # Verify positional arg (method)
+                assert call_kwargs.args[0] == "GET"
+
+        def test_retrieve_credential_passes_all_kwargs(
+            self, service: AssetsService
+        ) -> None:
+            """Test that retrieve_credential passes all kwargs to request."""
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "id": 1,
+                "name": "Test",
+                "credential_password": "secret",
+            }
+
+            with patch.object(
+                service, "request", return_value=mock_response
+            ) as mock_request:
+                service.retrieve_credential(name="Test")
+
+                mock_request.assert_called_once()
+                call_kwargs = mock_request.call_args
+
+                # Verify all expected kwargs are present
+                assert "url" in call_kwargs.kwargs
+                assert "params" in call_kwargs.kwargs
+                assert "json" in call_kwargs.kwargs
+                assert "content" in call_kwargs.kwargs
+                assert "headers" in call_kwargs.kwargs
+
+                # Verify positional arg (method)
+                assert call_kwargs.args[0] == "POST"
+
+        @pytest.mark.anyio
+        async def test_retrieve_credential_async_passes_all_kwargs(
+            self, service: AssetsService
+        ) -> None:
+            """Test that retrieve_credential_async passes all kwargs to request_async."""
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "id": 1,
+                "name": "Test",
+                "credential_password": "secret",
+            }
+
+            with patch.object(
+                service, "request_async", return_value=mock_response
+            ) as mock_request:
+                await service.retrieve_credential_async(name="Test")
+
+                mock_request.assert_called_once()
+                call_kwargs = mock_request.call_args
+
+                # Verify all expected kwargs are present
+                assert "url" in call_kwargs.kwargs
+                assert "params" in call_kwargs.kwargs
+                assert "json" in call_kwargs.kwargs
+                assert "content" in call_kwargs.kwargs
+                assert "headers" in call_kwargs.kwargs
+
+                # Verify positional arg (method)
+                assert call_kwargs.args[0] == "POST"
+
+        def test_update_passes_all_kwargs(self, service: AssetsService) -> None:
+            """Test that update passes all kwargs to request."""
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "id": 1,
+                "name": "Test",
+                "value": "updated",
+            }
+
+            asset = UserAsset(name="Test", value="updated")
+
+            with patch.object(
+                service, "request", return_value=mock_response
+            ) as mock_request:
+                service.update(robot_asset=asset)
+
+                mock_request.assert_called_once()
+                call_kwargs = mock_request.call_args
+
+                # Verify all expected kwargs are present
+                assert "url" in call_kwargs.kwargs
+                assert "params" in call_kwargs.kwargs
+                assert "json" in call_kwargs.kwargs
+                assert "content" in call_kwargs.kwargs
+                assert "headers" in call_kwargs.kwargs
+
+                # Verify positional arg (method)
+                assert call_kwargs.args[0] == "POST"
+
+        @pytest.mark.anyio
+        async def test_update_async_passes_all_kwargs(
+            self, service: AssetsService
+        ) -> None:
+            """Test that update_async passes all kwargs to request_async."""
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "id": 1,
+                "name": "Test",
+                "value": "updated",
+            }
+
+            asset = UserAsset(name="Test", value="updated")
+
+            with patch.object(
+                service, "request_async", return_value=mock_response
+            ) as mock_request:
+                await service.update_async(robot_asset=asset)
+
+                mock_request.assert_called_once()
+                call_kwargs = mock_request.call_args
+
+                # Verify all expected kwargs are present
+                assert "url" in call_kwargs.kwargs
+                assert "params" in call_kwargs.kwargs
+                assert "json" in call_kwargs.kwargs
+                assert "content" in call_kwargs.kwargs
+                assert "headers" in call_kwargs.kwargs
+
+                # Verify positional arg (method)
+                assert call_kwargs.args[0] == "POST"

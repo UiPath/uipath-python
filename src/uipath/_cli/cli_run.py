@@ -7,7 +7,9 @@ from typing import Optional
 import click
 
 from uipath._cli._runtime._runtime_factory import generate_runtime_factory
+from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
+from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 
 from .._utils.constants import (
@@ -123,7 +125,17 @@ def run(
                 if trace_file:
                     runtime_factory.add_span_exporter(JsonLinesFileExporter(trace_file))
 
-                result = await runtime_factory.execute(context)
+                if context.job_id:
+                    async with ResourceOverwritesContext(
+                        lambda: read_resource_overwrites_from_file(context.runtime_dir)
+                    ) as ctx:
+                        console.info(
+                            f"Applied {ctx.overwrites_count} resource overwrite(s)"
+                        )
+
+                        result = await runtime_factory.execute(context)
+                else:
+                    result = await runtime_factory.execute(context)
 
                 if not context.job_id:
                     console.info(result.output)

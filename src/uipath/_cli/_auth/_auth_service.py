@@ -19,7 +19,7 @@ from uipath.models.auth import TokenData
 class AuthService:
     def __init__(
         self,
-        environment: str,
+        environment: Optional[str],
         *,
         force: bool,
         client_id: Optional[str] = None,
@@ -34,7 +34,7 @@ class AuthService:
         self._client_secret = client_secret
         self._base_url = base_url
         self._tenant = tenant
-        self._domain = resolve_domain(self._base_url, environment, self._force)
+        self._domain = resolve_domain(self._base_url, environment)
         self._scope = scope
 
     def authenticate(self) -> None:

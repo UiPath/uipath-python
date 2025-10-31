@@ -152,6 +152,8 @@ def generate_quick_api_docs() -> str:
     Returns:
         Markdown string with SDK API documentation
     """
+    from functools import cached_property
+
     from uipath import UiPath
 
     output = StringIO()
@@ -178,7 +180,7 @@ def generate_quick_api_docs() -> str:
         if name.startswith("_"):
             continue
         attr = getattr(UiPath, name, None)
-        if isinstance(attr, property):
+        if isinstance(attr, (property, cached_property)):
             uipath_properties.append(name)
 
     uipath_properties.sort()
@@ -186,12 +188,19 @@ def generate_quick_api_docs() -> str:
     for service_name in uipath_properties:
         try:
             service_property = getattr(UiPath, service_name)
-            if not isinstance(service_property, property):
+            if not isinstance(service_property, (property, cached_property)):
                 continue
 
-            service_doc = (
-                service_property.fget.__doc__ if service_property.fget else None
-            )
+            # Get the function object (property uses .fget, cached_property uses .func)
+            if isinstance(service_property, cached_property):
+                func = service_property.func
+            else:
+                func = service_property.fget  # type: ignore[assignment]
+
+            if func is None:
+                continue
+
+            service_doc = func.__doc__
 
             description = (
                 service_doc.strip().split("\n")[0]
@@ -200,9 +209,8 @@ def generate_quick_api_docs() -> str:
             )
 
             return_annotation = None
-            if service_property.fget:
-                property_sig = inspect.signature(service_property.fget)
-                return_annotation = property_sig.return_annotation
+            property_sig = inspect.signature(func)
+            return_annotation = property_sig.return_annotation
 
             output.write(f"### {service_name.replace('_', ' ').title()}\n\n")
             output.write(f"{description}\n\n")
@@ -473,6 +481,115 @@ def generate_cli_docs() -> str:
     return output.getvalue()
 
 
+def generate_service_cli_docs() -> str:
+    """Generate documentation for service CLI commands.
+
+    Returns:
+        Markdown string with service CLI commands documentation
+    """
+    from uipath._cli import cli
+
+    output = StringIO()
+    output.write("\n## Service Commands Reference\n\n")
+    output.write(
+        "The UiPath CLI provides commands for interacting with UiPath platform services. "
+        "These commands allow you to manage buckets, assets, jobs, and other resources.\n\n"
+    )
+
+    # Find all service command groups (Groups registered in CLI)
+    service_groups = []
+    for name, cmd in sorted(cli.commands.items()):
+        if isinstance(cmd, click.Group) and name not in [
+            "init",
+            "run",
+            "eval",
+            "new",
+            "pack",
+            "publish",
+            "deploy",
+        ]:
+            service_groups.append((name, cmd))
+
+    if not service_groups:
+        return ""
+
+    for service_name, service_group in service_groups:
+        output.write(f"### `uipath {service_name}`\n\n")
+        output.write(f"{service_group.help or 'Manage ' + service_name}\n\n")
+
+        # Document subcommands
+        if hasattr(service_group, "commands"):
+            subcommands = sorted(service_group.commands.items())
+            output.write("**Subcommands:**\n\n")
+
+            for subcmd_name, subcmd in subcommands:
+                # Handle nested groups (e.g., buckets files)
+                if isinstance(subcmd, click.Group):
+                    output.write(f"#### `uipath {service_name} {subcmd_name}`\n\n")
+                    output.write(f"{subcmd.help or f'{subcmd_name} commands'}\n\n")
+
+                    if hasattr(subcmd, "commands"):
+                        nested_cmds = sorted(subcmd.commands.items())
+                        for nested_name, nested_cmd in nested_cmds:
+                            cmd_info = get_command_help(
+                                nested_cmd,
+                                f"{service_name} {subcmd_name} {nested_name}",
+                            )
+                            _write_command_doc(
+                                output, cmd_info, service_name, subcmd_name
+                            )
+                else:
+                    cmd_info = get_command_help(subcmd, f"{service_name} {subcmd_name}")
+                    _write_command_doc(output, cmd_info, service_name)
+
+        output.write("---\n\n")
+
+    return output.getvalue()
+
+
+def _write_command_doc(
+    output: StringIO, cmd_info: Dict[str, Any], *path_parts: str
+) -> None:
+    """Write command documentation to output stream.
+
+    Args:
+        output: StringIO buffer to write to
+        cmd_info: Command information dict
+        path_parts: Command path parts (e.g., "buckets", "files")
+    """
+    full_path = " ".join(path_parts + (cmd_info["name"].split()[-1],))
+
+    output.write(f"**`uipath {full_path}`**\n\n")
+    output.write(f"{cmd_info['help']}\n\n")
+
+    arguments = [p for p in cmd_info["params"] if p["type"] == "Argument"]
+    options = [p for p in cmd_info["params"] if p["type"] == "Option"]
+
+    if arguments:
+        output.write("Arguments:\n")
+        for arg in arguments:
+            required = " (required)" if arg.get("required") else ""
+            help_text = arg["help"] if arg["help"] else "N/A"
+            output.write(f"- `{arg['name']}`{required}: {help_text}\n")
+        output.write("\n")
+
+    if options:
+        output.write("Options:\n")
+        for opt in options:
+            opts_str = ", ".join(f"`{o}`" for o in opt.get("opts", []))
+            help_text = opt["help"] if opt["help"] else ""
+
+            if opt.get("default") is not None and not opt.get("is_flag"):
+                default = opt["default"]
+                if isinstance(default, str):
+                    help_text += f" (default: `{default}`)"
+                else:
+                    help_text += f" (default: `{default}`)"
+
+            output.write(f"- {opts_str}: {help_text}\n")
+        output.write("\n")
+
+
 def generate_agents_md_reference_files() -> None:
     """Generate separate reference files."""
     resources_dir = Path(__file__).parent.parent / "src" / "uipath" / "_resources"
@@ -482,12 +599,15 @@ def generate_agents_md_reference_files() -> None:
 
     api_docs = generate_quick_api_docs()
     cli_docs = generate_cli_docs()
+    service_cli_docs = generate_service_cli_docs()
 
     with open(sdk_reference_path, "w", encoding="utf-8") as f:
         f.write(api_docs.lstrip("\n"))
 
     with open(cli_reference_path, "w", encoding="utf-8") as f:
         f.write(cli_docs.lstrip("\n"))
+        if service_cli_docs:
+            f.write(service_cli_docs)
 
 
 def main():
