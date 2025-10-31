@@ -77,8 +77,8 @@ class TestPull:
                     ],
                 },
                 {
-                    "id": "evals-folder-id",
-                    "name": "evals",
+                    "id": "coded-evals-folder-id",
+                    "name": "coded-evals",
                     "folders": [
                         {
                             "id": "eval-sets-id",
@@ -362,11 +362,11 @@ class TestPull:
             result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 0
             # assert "differs from remote version" in result.output
-            assert "Updated 'main.py'" in result.output
+            assert "Skipped 'main.py'" in result.output
 
-            # Verify file was updated
+            # Verify file was NOT updated (kept local version)
             with open("main.py", "r") as f:
-                assert f.read() != local_content
+                assert f.read() == local_content
 
     def test_pull_with_api_error(
         self,
@@ -396,3 +396,121 @@ class TestPull:
             result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 1
             assert "Failed to pull UiPath project" in result.output
+
+    def test_pull_uses_coded_evals_folder(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that pull command uses coded-evals folder instead of evals."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock the project structure with coded-evals folder
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [
+                {
+                    "id": "source-code-id",
+                    "name": "source_code",
+                    "files": [
+                        {
+                            "id": "main-py-id",
+                            "name": "main.py",
+                            "isMain": True,
+                            "fileType": "1",
+                            "isEntryPoint": True,
+                            "ignoredFromPublish": False,
+                        }
+                    ],
+                    "folders": [],
+                },
+                {
+                    "id": "coded-evals-id",
+                    "name": "coded-evals",
+                    "folders": [
+                        {
+                            "id": "evaluators-id",
+                            "name": "evaluators",
+                            "files": [
+                                {
+                                    "id": "evaluator-1-id",
+                                    "name": "contains.json",
+                                    "isMain": False,
+                                    "fileType": "1",
+                                    "isEntryPoint": False,
+                                    "ignoredFromPublish": False,
+                                }
+                            ],
+                            "folders": [],
+                        },
+                        {
+                            "id": "eval-sets-id",
+                            "name": "eval-sets",
+                            "files": [
+                                {
+                                    "id": "eval-set-1-id",
+                                    "name": "default.json",
+                                    "isMain": False,
+                                    "fileType": "1",
+                                    "isEntryPoint": False,
+                                    "ignoredFromPublish": False,
+                                }
+                            ],
+                            "folders": [],
+                        },
+                    ],
+                    "files": [],
+                },
+            ],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        # Mock file downloads
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/main-py-id",
+            content=b"print('test')",
+        )
+
+        evaluator_content = {"version": "1.0", "name": "Contains Evaluator"}
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/evaluator-1-id",
+            content=json.dumps(evaluator_content, indent=2).encode(),
+        )
+
+        eval_set_content = {"version": "1.0", "name": "Default Eval Set"}
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/eval-set-1-id",
+            content=json.dumps(eval_set_content, indent=2).encode(),
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["pull", "./"])
+            assert result.exit_code == 0
+
+            # Verify files from coded-evals are downloaded to evals/ directory
+            assert os.path.exists("evals/evaluators/contains.json")
+            assert os.path.exists("evals/eval-sets/default.json")
+
+            # Verify content
+            with open("evals/evaluators/contains.json", "r") as f:
+                assert json.load(f) == evaluator_content
+            with open("evals/eval-sets/default.json", "r") as f:
+                assert json.load(f) == eval_set_content

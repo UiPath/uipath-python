@@ -57,7 +57,11 @@ class FileConflictHandler(Protocol):
     """Protocol for handling file conflicts."""
 
     def should_overwrite(
-        self, file_path: str, local_hash: str, remote_hash: str
+        self,
+        file_path: str,
+        local_hash: str,
+        remote_hash: str,
+        local_full_path: Optional[Path] = None,
     ) -> bool:
         """Return True to overwrite, False to skip."""
         ...
@@ -67,7 +71,11 @@ class AlwaysOverwriteHandler:
     """Handler that always overwrites files."""
 
     def should_overwrite(
-        self, file_path: str, local_hash: str, remote_hash: str
+        self,
+        file_path: str,
+        local_hash: str,
+        remote_hash: str,
+        local_full_path: Optional[Path] = None,
     ) -> bool:
         return True
 
@@ -76,9 +84,71 @@ class AlwaysSkipHandler:
     """Handler that always skips conflicts."""
 
     def should_overwrite(
-        self, file_path: str, local_hash: str, remote_hash: str
+        self,
+        file_path: str,
+        local_hash: str,
+        remote_hash: str,
+        local_full_path: Optional[Path] = None,
     ) -> bool:
         return False
+
+
+class InteractiveConflictHandler:
+    """Handler that prompts the user for each conflict during pull or push operations.
+
+    Attributes:
+        operation: The operation type - either "pull" or "push"
+    """
+
+    def __init__(self, operation: Literal["pull", "push"]) -> None:
+        """Initialize the handler with an operation type.
+
+        Args:
+            operation: Either "pull" or "push" to determine the prompt message
+        """
+        self.operation = operation
+
+    def should_overwrite(
+        self,
+        file_path: str,
+        local_hash: str,
+        remote_hash: str,
+        local_full_path: Optional[Path] = None,
+    ) -> bool:
+        """Ask the user if they want to overwrite based on the operation.
+
+        Args:
+            file_path: Relative path to the file (for display)
+            local_hash: Hash of the local file content
+            remote_hash: Hash of the remote file content
+            local_full_path: Full path to the local file (unused, kept for protocol compatibility)
+
+        Returns:
+            True if the user wants to overwrite, False otherwise
+        """
+        import sys
+
+        import click
+
+        click.echo(
+            click.style(
+                f"\nFile '{file_path}' has different content on remote.",
+                fg="yellow",
+            )
+        )
+
+        # Prompt user for confirmation with operation-specific message
+        sys.stdout.flush()
+        if self.operation == "pull":
+            return click.confirm(
+                "Do you want to overwrite the local file with the remote version?",
+                default=False,
+            )
+        else:  # push
+            return click.confirm(
+                "Do you want to push and overwrite the remote file with your local version?",
+                default=False,
+            )
 
 
 class FileInfo(BaseModel):
@@ -608,7 +678,7 @@ async def download_folder_files(
 
             if local_hash != remote_hash:
                 if conflict_handler.should_overwrite(
-                    file_path, local_hash, remote_hash
+                    file_path, local_hash, remote_hash, local_path
                 ):
                     with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                         f.write(remote_content)

@@ -3,7 +3,7 @@
 
 This module provides functionality to pull remote project files from a UiPath StudioWeb solution.
 It handles:
-- File downloads from source_code and evals folders
+- File downloads from source_code and coded-evals folders
 - Maintaining folder structure locally
 - File comparison using hashes
 - Interactive confirmation for overwriting files
@@ -18,7 +18,11 @@ import click
 from .._config import UiPathConfig
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
-from ._utils._project_files import ProjectPullError, pull_project
+from ._utils._project_files import (
+    InteractiveConflictHandler,
+    ProjectPullError,
+    pull_project,
+)
 
 console = ConsoleLogger()
 
@@ -34,7 +38,7 @@ def pull(root: Path) -> None:
     """Pull remote project files from Studio Web Project.
 
     This command pulls the remote project files from a UiPath Studio Web project.
-    It downloads files from the source_code and evals folders, maintaining the
+    It downloads files from the source_code and coded-evals folders, maintaining the
     folder structure locally. Files are compared using hashes before overwriting,
     and user confirmation is required for differing files.
 
@@ -54,13 +58,18 @@ def pull(root: Path) -> None:
 
     download_configuration = {
         "source_code": root,
-        "evals": root / "evals",
+        "coded-evals": root / "evals",
     }
+
+    # Create interactive conflict handler for user confirmation
+    conflict_handler = InteractiveConflictHandler(operation="pull")
 
     try:
 
         async def run_pull():
-            async for update in pull_project(project_id, download_configuration):
+            async for update in pull_project(
+                project_id, download_configuration, conflict_handler
+            ):
                 console.info(f"Processing: {update.file_path}")
                 console.info(update.message)
 

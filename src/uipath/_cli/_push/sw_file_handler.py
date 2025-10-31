@@ -23,6 +23,8 @@ from .._utils._constants import (
 from .._utils._project_files import (  # type: ignore
     FileInfo,
     FileOperationUpdate,
+    InteractiveConflictHandler,
+    compute_normalized_hash,
     files_to_include,
     read_toml_project,
 )
@@ -56,6 +58,7 @@ class SwFileHandler:
         project_id: str,
         directory: str,
         include_uv_lock: bool = True,
+        conflict_handler: Optional[InteractiveConflictHandler] = None,
     ) -> None:
         """Initialize the SwFileHandler.
 
@@ -63,12 +66,16 @@ class SwFileHandler:
             project_id: The ID of the UiPath project
             directory: Local project directory
             include_uv_lock: Whether to include uv.lock file
+            conflict_handler: Optional handler for file conflicts
         """
         self.directory = directory
         self.include_uv_lock = include_uv_lock
         self.console = ConsoleLogger()
         self._studio_client = StudioClient(project_id)
         self._project_structure: Optional[ProjectStructure] = None
+        self._conflict_handler = conflict_handler or InteractiveConflictHandler(
+            operation="push"
+        )
 
     def _get_folder_by_name(
         self, structure: ProjectStructure, folder_name: str
@@ -186,20 +193,78 @@ class SwFileHandler:
             )
 
             if remote_file:
-                # File exists remotely - mark for update
+                # File exists remotely - check if content differs
                 processed_source_files.add(remote_file.id)
-                structural_migration.modified_resources.append(
-                    ModifiedResource(
-                        id=remote_file.id, content_file_path=local_file.file_path
+
+                # Download remote file and compare with local
+                try:
+                    remote_response = (
+                        await self._studio_client.download_project_file_async(
+                            remote_file
+                        )
                     )
-                )
-                updates.append(
-                    FileOperationUpdate(
-                        file_path=local_file.file_path,
-                        status="updating",
-                        message=f"Updating '{local_file.file_name}'",
+                    remote_content = remote_response.read().decode("utf-8")
+                    remote_hash = compute_normalized_hash(remote_content)
+
+                    with open(local_file.file_path, "r", encoding="utf-8") as f:
+                        local_content = f.read()
+                        local_hash = compute_normalized_hash(local_content)
+
+                    # Only update if content differs and user confirms
+                    if local_hash != remote_hash:
+                        if self._conflict_handler.should_overwrite(
+                            local_file.relative_path,
+                            remote_hash,
+                            local_hash,
+                            local_full_path=os.path.abspath(local_file.file_path),
+                        ):
+                            structural_migration.modified_resources.append(
+                                ModifiedResource(
+                                    id=remote_file.id,
+                                    content_file_path=local_file.file_path,
+                                )
+                            )
+                            updates.append(
+                                FileOperationUpdate(
+                                    file_path=local_file.file_path,
+                                    status="updating",
+                                    message=f"Updating '{local_file.file_name}'",
+                                )
+                            )
+                        else:
+                            updates.append(
+                                FileOperationUpdate(
+                                    file_path=local_file.file_path,
+                                    status="skipped",
+                                    message=f"Skipped '{local_file.file_name}'",
+                                )
+                            )
+                    else:
+                        # Content is the same, no need to update
+                        updates.append(
+                            FileOperationUpdate(
+                                file_path=local_file.file_path,
+                                status="up_to_date",
+                                message=f"File '{local_file.file_name}' is up to date",
+                            )
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to compare file '{local_file.file_path}': {e}"
                     )
-                )
+                    # If comparison fails, proceed with update
+                    structural_migration.modified_resources.append(
+                        ModifiedResource(
+                            id=remote_file.id, content_file_path=local_file.file_path
+                        )
+                    )
+                    updates.append(
+                        FileOperationUpdate(
+                            file_path=local_file.file_path,
+                            status="updating",
+                            message=f"Updating '{local_file.file_name}'",
+                        )
+                    )
             else:
                 # File doesn't exist remotely - mark for upload
                 parent_path = os.path.dirname(local_file.relative_path)
@@ -741,7 +806,7 @@ class SwFileHandler:
                 files[file.name] = file
         return files
 
-    def _process_file_sync(
+    async def _process_file_sync(
         self,
         local_file_path: str,
         remote_files: Dict[str, ProjectFile],
@@ -766,10 +831,51 @@ class SwFileHandler:
 
         if remote_file:
             processed_ids.add(remote_file.id)
-            structural_migration.modified_resources.append(
-                ModifiedResource(id=remote_file.id, content_file_path=local_file_path)
-            )
-            self.console.info(f"Updating {click.style(destination, fg='yellow')}")
+
+            # Download remote file and compare with local
+            try:
+                remote_response = await self._studio_client.download_project_file_async(
+                    remote_file
+                )
+                remote_content = remote_response.read().decode("utf-8")
+                remote_hash = compute_normalized_hash(remote_content)
+
+                with open(local_file_path, "r", encoding="utf-8") as f:
+                    local_content = f.read()
+                    local_hash = compute_normalized_hash(local_content)
+
+                # Only update if content differs and user confirms
+                if local_hash != remote_hash:
+                    if self._conflict_handler.should_overwrite(
+                        destination,
+                        remote_hash,
+                        local_hash,
+                        local_full_path=os.path.abspath(local_file_path),
+                    ):
+                        structural_migration.modified_resources.append(
+                            ModifiedResource(
+                                id=remote_file.id, content_file_path=local_file_path
+                            )
+                        )
+                        self.console.info(
+                            f"Updating {click.style(destination, fg='yellow')}"
+                        )
+                    else:
+                        self.console.info(
+                            f"Skipped {click.style(destination, fg='bright_black')}"
+                        )
+                else:
+                    # Content is the same, no need to update
+                    self.console.info(f"File '{destination}' is up to date")
+            except Exception as e:
+                logger.warning(f"Failed to compare file '{local_file_path}': {e}")
+                # If comparison fails, proceed with update
+                structural_migration.modified_resources.append(
+                    ModifiedResource(
+                        id=remote_file.id, content_file_path=local_file_path
+                    )
+                )
+                self.console.info(f"Updating {click.style(destination, fg='yellow')}")
         else:
             structural_migration.added_resources.append(
                 AddedResource(
@@ -870,7 +976,7 @@ class SwFileHandler:
                         register_evaluator(evaluator.custom_evaluator_file_name)
                     )
 
-                    self._process_file_sync(
+                    await self._process_file_sync(
                         evaluator_schema_file_path,
                         remote_custom_evaluator_files,
                         "coded-evals/evaluators/custom",
@@ -879,7 +985,7 @@ class SwFileHandler:
                         processed_custom_evaluator_ids,
                     )
 
-                    self._process_file_sync(
+                    await self._process_file_sync(
                         evaluator_types_file_path,
                         remote_custom_evaluator_type_files,
                         "coded-evals/evaluators/custom/types",
@@ -888,7 +994,7 @@ class SwFileHandler:
                         processed_evaluator_type_ids,
                     )
 
-                self._process_file_sync(
+                await self._process_file_sync(
                     evaluator.path,
                     remote_evaluator_files,
                     "coded-evals/evaluators",
@@ -898,7 +1004,7 @@ class SwFileHandler:
                 )
 
             for eval_set_file in eval_set_files:
-                self._process_file_sync(
+                await self._process_file_sync(
                     eval_set_file,
                     remote_eval_set_files,
                     "coded-evals/eval-sets",
