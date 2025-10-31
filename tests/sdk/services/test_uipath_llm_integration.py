@@ -5,10 +5,7 @@ import pytest
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.llm_gateway_service import (
-    ChatModels,
-    UiPathLlmChatService,
-)
+from uipath._services.llm_gateway_service import ChatModels, UiPathLlmChatService
 from uipath.models.llm_gateway import (
     AutoToolChoice,
     SpecificToolChoice,
@@ -278,7 +275,7 @@ class TestUiPathLLMServiceMocked:
 
         # Verify the correct endpoint and payload
         args, kwargs = mock_request.call_args
-        assert "/llmgateway_/api/chat/completions" in args[1]
+        assert "/orchestrator_/llm/api/chat/completions" in args[1]
         assert kwargs["json"]["messages"] == messages
         assert kwargs["json"]["max_tokens"] == 50
         assert kwargs["json"]["temperature"] == 0

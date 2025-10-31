@@ -67,7 +67,8 @@ async def test_generate_llm_input_with_model_settings(
     )
 
     httpx_mock.add_response(
-        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
         status_code=200,
         json={
             "role": "assistant",
