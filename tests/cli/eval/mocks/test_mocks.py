@@ -179,7 +179,8 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     )
 
     httpx_mock.add_response(
-        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
         status_code=200,
         json={
             "id": "response-id",
@@ -211,7 +212,8 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     with pytest.raises(NotImplementedError):
         assert foofoo()
     httpx_mock.add_response(
-        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
         status_code=200,
         json={},
     )
@@ -220,6 +222,7 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
 async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
@@ -251,8 +254,21 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
     evaluation = LegacyEvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
 
+    # Mock capability checks
     httpx_mock.add_response(
-        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
+        url="https://example.com/agenthub_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+    httpx_mock.add_response(
+        url="https://example.com/orchestrator_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+
+    httpx_mock.add_response(
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
         status_code=200,
         json={
             "id": "response-id",
@@ -285,7 +301,8 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
         assert await foofoo()
 
     httpx_mock.add_response(
-        url="https://example.com/api/chat/completions?api-version=2024-08-01-preview",
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
         status_code=200,
         json={},
     )
