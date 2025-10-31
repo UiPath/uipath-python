@@ -258,6 +258,62 @@ class BucketsService(FolderContext, BaseService):
         bucket = Bucket.model_validate(response)
         return bucket
 
+    @traced(name="buckets_delete", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    def delete(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> None:
+        """Delete a bucket.
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier (UUID)
+            folder_path: Folder path
+            folder_key: Folder key
+
+        Raises:
+            LookupError: If bucket is not found
+
+        Examples:
+            >>> sdk.buckets.delete(name="old-storage")
+            >>> sdk.buckets.delete(key="abc-123-def")
+        """
+        bucket = self.retrieve(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+
+        self.request(
+            "DELETE",
+            url=f"/orchestrator_/odata/Buckets({bucket.id})",
+            headers={**self.folder_headers},
+        )
+
+    @traced(name="buckets_delete", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    async def delete_async(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> None:
+        """Async version of delete()."""
+        bucket = await self.retrieve_async(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+
+        await self.request_async(
+            "DELETE",
+            url=f"/orchestrator_/odata/Buckets({bucket.id})",
+            headers={**self.folder_headers},
+        )
+
     @traced(name="buckets_download", run_type="uipath")
     @infer_bindings(resource_type="bucket")
     def download(
@@ -845,9 +901,116 @@ class BucketsService(FolderContext, BaseService):
             if not continuation_token:
                 break
 
-    @traced(name="buckets_delete", run_type="uipath")
+    @traced(name="buckets_exists_file", run_type="uipath")
     @infer_bindings(resource_type="bucket")
-    def delete(
+    def exists_file(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        blob_file_path: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Check if a file exists in a bucket.
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier
+            blob_file_path: Path to the file in the bucket (cannot be empty)
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            bool: True if file exists, False otherwise
+
+        Note:
+            This method uses short-circuit iteration to stop at the first match,
+            making it memory-efficient even for large buckets. It will raise
+            LookupError if the bucket itself doesn't exist.
+
+        Raises:
+            ValueError: If blob_file_path is empty or whitespace-only
+            LookupError: If bucket is not found
+
+        Examples:
+            >>> if sdk.buckets.exists_file(name="my-storage", blob_file_path="data/file.csv"):
+            ...     print("File exists")
+            >>> # Check in specific folder
+            >>> exists = sdk.buckets.exists_file(
+            ...     name="my-storage",
+            ...     blob_file_path="reports/2024/summary.pdf",
+            ...     folder_path="Production"
+            ... )
+        """
+        if not blob_file_path or not blob_file_path.strip():
+            raise ValueError("blob_file_path cannot be empty or whitespace-only")
+
+        normalized_target = (
+            blob_file_path if blob_file_path.startswith("/") else f"/{blob_file_path}"
+        )
+        for file in self.list_files(
+            name=name,
+            key=key,
+            prefix=blob_file_path,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        ):
+            if file.path == normalized_target:
+                return True
+        return False
+
+    @traced(name="buckets_exists_file", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    async def exists_file_async(
+        self,
+        *,
+        name: Optional[str] = None,
+        key: Optional[str] = None,
+        blob_file_path: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Async version of exists_file().
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier
+            blob_file_path: Path to the file in the bucket (cannot be empty)
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            bool: True if file exists, False otherwise
+
+        Raises:
+            ValueError: If blob_file_path is empty or whitespace-only
+            LookupError: If bucket is not found
+
+        Examples:
+            >>> if await sdk.buckets.exists_file_async(name="my-storage", blob_file_path="data/file.csv"):
+            ...     print("File exists")
+        """
+        if not blob_file_path or not blob_file_path.strip():
+            raise ValueError("blob_file_path cannot be empty or whitespace-only")
+
+        normalized_target = (
+            blob_file_path if blob_file_path.startswith("/") else f"/{blob_file_path}"
+        )
+        async for file in self.list_files_async(
+            name=name,
+            key=key,
+            prefix=blob_file_path,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        ):
+            if file.path == normalized_target:
+                return True
+        return False
+
+    @traced(name="buckets_delete_file", run_type="uipath")
+    @infer_bindings(resource_type="bucket")
+    def delete_file(
         self,
         *,
         name: Optional[str] = None,
@@ -866,7 +1029,7 @@ class BucketsService(FolderContext, BaseService):
             folder_path: Folder path
 
         Examples:
-            >>> sdk.buckets.delete(name="my-storage", blob_file_path="data/file.txt")
+            >>> sdk.buckets.delete_file(name="my-storage", blob_file_path="data/file.txt")
         """
         bucket = self.retrieve(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
@@ -881,9 +1044,9 @@ class BucketsService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-    @traced(name="buckets_delete", run_type="uipath")
+    @traced(name="buckets_delete_file", run_type="uipath")
     @infer_bindings(resource_type="bucket")
-    async def delete_async(
+    async def delete_file_async(
         self,
         *,
         name: Optional[str] = None,
@@ -902,7 +1065,7 @@ class BucketsService(FolderContext, BaseService):
             folder_path: Folder path
 
         Examples:
-            >>> await sdk.buckets.delete_async(name="my-storage", blob_file_path="data/file.txt")
+            >>> await sdk.buckets.delete_file_async(name="my-storage", blob_file_path="data/file.txt")
         """
         bucket = await self.retrieve_async(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path

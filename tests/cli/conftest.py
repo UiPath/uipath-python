@@ -7,14 +7,18 @@ from tests.cli.utils.uipath_json import UiPathJson
 
 
 @pytest.fixture
-def mock_env_vars() -> dict[str, str]:
-    """Fixture to provide mock environment variables."""
-    return {
+def mock_env_vars(monkeypatch) -> dict[str, str]:
+    """Fixture to provide mock environment variables and set them in os.environ."""
+    env_vars = {
         "UIPATH_URL": "https://cloud.uipath.com/organization/tenant",
         "UIPATH_TENANT_ID": "e150b32b-8815-4560-8243-055ffc9b7523",
         "UIPATH_ORGANIZATION_ID": "62d19041-d1aa-454d-958d-1375329845dc",
         "UIPATH_ACCESS_TOKEN": "mock_token",
     }
+    # Actually set the environment variables using monkeypatch
+    for key, value in env_vars.items():
+        monkeypatch.setenv(key, value)
+    return env_vars
 
 
 @pytest.fixture

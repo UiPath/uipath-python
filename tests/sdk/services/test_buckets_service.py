@@ -1251,3 +1251,321 @@ class TestGetFiles:
         files = [f async for f in service.get_files_async(name="test-bucket")]
         assert len(files) == 1
         assert files[0].path == "async-file.txt"
+
+
+class TestExistsFile:
+    """Tests for exists_file() method."""
+
+    def test_exists_file_found(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test exists_file() returns True when file is found."""
+        # Mock bucket retrieve
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        # Mock ListFiles response with matching file
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=data%2Ffile.txt&takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/data/file.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "continuationToken": None,
+            },
+        )
+
+        result = service.exists_file(name="test-bucket", blob_file_path="data/file.txt")
+        assert result is True
+
+    def test_exists_file_not_found(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test exists_file() returns False when file is not found."""
+        # Mock bucket retrieve
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        # Mock ListFiles response with no matching files
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=nonexistent.txt&takeHint=500",
+            status_code=200,
+            json={"items": [], "continuationToken": None},
+        )
+
+        result = service.exists_file(
+            name="test-bucket", blob_file_path="nonexistent.txt"
+        )
+        assert result is False
+
+    def test_exists_file_bucket_not_found(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test exists_file() raises LookupError when bucket doesn't exist."""
+        # Mock bucket retrieve returning empty (bucket not found)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'nonexistent-bucket'&$top=1",
+            status_code=200,
+            json={"value": []},
+        )
+
+        # Should raise LookupError, not return False
+        with pytest.raises(LookupError, match="Bucket.*not found"):
+            service.exists_file(
+                name="nonexistent-bucket", blob_file_path="some-file.txt"
+            )
+
+    def test_exists_file_short_circuit_on_match(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test exists_file() stops iteration on first match (short-circuit)."""
+        # Mock bucket retrieve
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        # Mock first page with matching file
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=target.txt&takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/target.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "continuationToken": "next-page-token",  # Has more pages
+            },
+        )
+
+        # Should not request second page since file was found on first page
+        result = service.exists_file(name="test-bucket", blob_file_path="target.txt")
+        assert result is True
+
+        # Verify only 2 requests were made (retrieve + first page)
+        # NOT 3 requests (which would include second page)
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 2
+
+    def test_exists_file_searches_across_pages(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test exists_file() searches across multiple pages if needed."""
+        # Mock bucket retrieve
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        # First page - no match
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=target.txt&takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/other-file.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "continuationToken": "page2",
+            },
+        )
+
+        # Second page - found
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=target.txt&continuationToken=page2&takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/target.txt",
+                        "contentType": "text/plain",
+                        "size": 200,
+                        "lastModified": "2024-01-02T00:00:00Z",
+                    }
+                ],
+                "continuationToken": None,
+            },
+        )
+
+        result = service.exists_file(name="test-bucket", blob_file_path="target.txt")
+        assert result is True
+
+        # Should have made 3 requests (retrieve + page1 + page2)
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 3
+
+    def test_exists_file_with_folder_context(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test exists_file() with folder_path parameter."""
+        # Mock bucket retrieve with folder path
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=file.txt&takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/file.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "continuationToken": None,
+            },
+        )
+
+        result = service.exists_file(
+            name="test-bucket", blob_file_path="file.txt", folder_path="Production"
+        )
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_exists_file_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test async version of exists_file()."""
+        # Mock bucket retrieve
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        # Mock ListFiles response
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=async-file.txt&takeHint=500",
+            status_code=200,
+            json={
+                "items": [
+                    {
+                        "fullPath": "/async-file.txt",
+                        "contentType": "text/plain",
+                        "size": 100,
+                        "lastModified": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "continuationToken": None,
+            },
+        )
+
+        result = await service.exists_file_async(
+            name="test-bucket", blob_file_path="async-file.txt"
+        )
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_exists_file_async_not_found(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test async version returns False when file not found."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=missing.txt&takeHint=500",
+            status_code=200,
+            json={"items": [], "continuationToken": None},
+        )
+
+        result = await service.exists_file_async(
+            name="test-bucket", blob_file_path="missing.txt"
+        )
+        assert result is False
+
+    def test_exists_file_empty_path_raises_error(self, service: BucketsService):
+        """Test exists_file() raises ValueError for empty blob_file_path."""
+        with pytest.raises(ValueError, match="blob_file_path cannot be empty"):
+            service.exists_file(name="test-bucket", blob_file_path="")
+
+    def test_exists_file_whitespace_path_raises_error(self, service: BucketsService):
+        """Test exists_file() raises ValueError for whitespace-only blob_file_path."""
+        with pytest.raises(ValueError, match="blob_file_path cannot be empty"):
+            service.exists_file(name="test-bucket", blob_file_path="   ")
+
+    @pytest.mark.asyncio
+    async def test_exists_file_async_empty_path_raises_error(
+        self, service: BucketsService
+    ):
+        """Test async version raises ValueError for empty blob_file_path."""
+        with pytest.raises(ValueError, match="blob_file_path cannot be empty"):
+            await service.exists_file_async(name="test-bucket", blob_file_path="")
+
+    @pytest.mark.asyncio
+    async def test_exists_file_async_whitespace_path_raises_error(
+        self, service: BucketsService
+    ):
+        """Test async version raises ValueError for whitespace-only blob_file_path."""
+        with pytest.raises(ValueError, match="blob_file_path cannot be empty"):
+            await service.exists_file_async(name="test-bucket", blob_file_path="  ")
