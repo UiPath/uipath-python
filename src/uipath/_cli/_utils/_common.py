@@ -141,7 +141,6 @@ async def read_resource_overwrites_from_file(
                 .get("internalArguments", {})
                 .get("resourceOverwrites", {})
             )
-
             for key, value in resource_overwrites.items():
                 overwrite = ResourceOverwrite.model_validate(value)
                 overwrites_dict[key] = overwrite

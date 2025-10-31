@@ -1,6 +1,6 @@
 import pytest
 
-from uipath._utils import infer_bindings
+from uipath._utils import resource_override
 from uipath._utils._bindings import (
     ResourceOverwrite,
     ResourceOverwritesContext,
@@ -17,7 +17,7 @@ class TestBindingsInference:
             )
         }
 
-        @infer_bindings(resource_type="bucket")
+        @resource_override(resource_type="bucket")
         def dummy_func(name, folder_path):
             return name, folder_path
 
@@ -37,7 +37,7 @@ class TestBindingsInference:
             )
         }
 
-        @infer_bindings(resource_type="bucket")
+        @resource_override(resource_type="bucket")
         def dummy_func(name, folder_path):
             return name, folder_path
 
@@ -52,7 +52,7 @@ class TestBindingsInference:
     def test_infer_bindings_skips_when_no_context(self):
         """Test that infer_bindings doesn't overwrite when context variable is not set."""
 
-        @infer_bindings(resource_type="bucket")
+        @resource_override(resource_type="bucket")
         def dummy_func(name, folder_path):
             return name, folder_path
 
@@ -67,7 +67,7 @@ class TestBindingsInference:
             )
         }
 
-        @infer_bindings(resource_type="bucket")
+        @resource_override(resource_type="bucket")
         def dummy_func(name, folder_path):
             return name, folder_path
 
@@ -87,7 +87,7 @@ class TestBindingsInference:
             )
         }
 
-        @infer_bindings(resource_type="asset")
+        @resource_override(resource_type="asset")
         def dummy_func(name, folder_path=None):
             return name, folder_path
 
@@ -110,7 +110,7 @@ class TestBindingsInference:
             ),
         }
 
-        @infer_bindings(resource_type="bucket")
+        @resource_override(resource_type="bucket")
         def dummy_func(name, folder_path):
             return name, folder_path
 
@@ -138,7 +138,7 @@ class TestResourceOverwritesContext:
                 )
             }
 
-        @infer_bindings(resource_type="asset")
+        @resource_override(resource_type="asset")
         def retrieve_asset(name, folder_path=None):
             return name, folder_path
 
@@ -169,7 +169,7 @@ class TestResourceOverwritesContext:
 
         client = MockClient()
 
-        @infer_bindings(resource_type="bucket")
+        @resource_override(resource_type="bucket")
         def use_bucket(name, folder_path):
             return name, folder_path
 
@@ -193,7 +193,7 @@ class TestResourceOverwritesContext:
                 )
             }
 
-        @infer_bindings(resource_type="process")
+        @resource_override(resource_type="process")
         def start_process(name, folder_path):
             return name, folder_path
 
@@ -221,11 +221,11 @@ class TestResourceOverwritesContext:
                 ),
             }
 
-        @infer_bindings(resource_type="asset")
+        @resource_override(resource_type="asset")
         def get_asset(name, folder_path):
             return name, folder_path
 
-        @infer_bindings(resource_type="bucket")
+        @resource_override(resource_type="bucket")
         def get_bucket(name, folder_path):
             return name, folder_path
 
@@ -251,7 +251,7 @@ class TestResourceOverwritesContext:
         async def get_overwrites():
             return {}
 
-        @infer_bindings(resource_type="asset")
+        @resource_override(resource_type="asset")
         def get_asset(name, folder_path):
             return name, folder_path
 
@@ -276,11 +276,11 @@ class TestResourceOverwritesContext:
                 ),
             }
 
-        @infer_bindings(resource_type="asset")
+        @resource_override(resource_type="asset")
         def get_config(name, folder_path):
             return name, folder_path
 
-        @infer_bindings(resource_type="bucket")
+        @resource_override(resource_type="bucket")
         def get_data(name, folder_path):
             return name, folder_path
 
@@ -306,7 +306,7 @@ class TestResourceOverwritesContext:
                 )
             }
 
-        @infer_bindings(resource_type="asset")
+        @resource_override(resource_type="asset")
         def get_asset(name, folder_path):
             return name, folder_path
 

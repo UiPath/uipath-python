@@ -211,13 +211,21 @@ def pack_fn(
     operate_file = generate_operate_file(entryPoints, dependencies)
     entrypoints_file = generate_entrypoints_file(entryPoints)
 
-    # Get bindings from uipath.json if available
     config_path = os.path.join(directory, "uipath.json")
     if not os.path.exists(config_path):
         console.error("uipath.json not found, please run `uipath init`.")
 
     with open(config_path, "r") as f:
         config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(f))
+
+    # for backwards compatibility. should be removed
+    if not len(config_data.bindings.resources):
+        # try to read bindings from bindings.json
+        bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
+        if os.path.exists(bindings_path):
+            with open(bindings_path, "r") as f:
+                bindings_data = TypeAdapter(Bindings).validate_python(json.load(f))
+                config_data.bindings = bindings_data
 
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(

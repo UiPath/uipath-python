@@ -1,4 +1,4 @@
-from ._bindings import get_inferred_bindings_names, infer_bindings
+from ._bindings import get_inferred_bindings_names, resource_override
 from ._endpoint import Endpoint
 from ._logs import setup_logging
 from ._request_override import header_folder
@@ -12,7 +12,7 @@ __all__ = [
     "RequestSpec",
     "header_folder",
     "get_inferred_bindings_names",
-    "infer_bindings",
+    "resource_override",
     "header_user_agent",
     "user_agent_value",
     "UiPathUrl",

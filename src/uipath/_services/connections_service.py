@@ -7,7 +7,7 @@ from httpx import Response
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
+from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..models import Connection, ConnectionMetadata, ConnectionToken, EventArguments
 from ..models.connections import ConnectionTokenType
 from ..tracing._traced import traced
@@ -401,7 +401,7 @@ class ConnectionsService(BaseService):
         name="connections_retrieve_event_payload",
         run_type="uipath",
     )
-    @infer_bindings(resource_type="ignored", ignore=True)
+    @resource_override(resource_type="ignored", ignore=True)
     def retrieve_event_payload(self, event_args: EventArguments) -> Dict[str, Any]:
         """Retrieve event payload from UiPath Integration Service.
 
@@ -436,7 +436,7 @@ class ConnectionsService(BaseService):
         name="connections_retrieve_event_payload",
         run_type="uipath",
     )
-    @infer_bindings(resource_type="ignored", ignore=True)
+    @resource_override(resource_type="ignored", ignore=True)
     async def retrieve_event_payload_async(
         self, event_args: EventArguments
     ) -> Dict[str, Any]:
