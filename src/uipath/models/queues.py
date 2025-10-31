@@ -180,3 +180,24 @@ class TransactionItemResult(BaseModel):
         description="The operation id which finished the queue item. Will be saved only if queue item is in final state",
         alias="OperationId",
     )
+
+
+class QueueDefinition(BaseModel):
+    """Queue definition model."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    id: Optional[int] = Field(None, alias="Id")
+    key: Optional[str] = Field(None, alias="Key")
+    name: str = Field(..., alias="Name")
+    description: Optional[str] = Field(None, alias="Description")
+    max_number_of_retries: int = Field(0, alias="MaxNumberOfRetries")
+    accept_automatically_retry: bool = Field(False, alias="AcceptAutomaticallyRetry")
+    enforce_unique_reference: bool = Field(False, alias="EnforceUniqueReference")
+    creation_time: Optional[datetime] = Field(None, alias="CreationTime")

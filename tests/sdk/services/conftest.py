@@ -67,3 +67,39 @@ def mock_tracer():
     TracingManager.reapply_traced_decorator(mock_tracer_impl)
     yield
     TracingManager.reapply_traced_decorator(None)
+
+
+@pytest.fixture
+def attachments_service(config: Config, execution_context: ExecutionContext):
+    from uipath._services.attachments_service import AttachmentsService
+
+    return AttachmentsService(config=config, execution_context=execution_context)
+
+
+@pytest.fixture
+def processes_service(
+    config: Config,
+    execution_context: ExecutionContext,
+    attachments_service,
+):
+    from uipath._services.processes_service import ProcessesService
+
+    return ProcessesService(
+        config=config,
+        execution_context=execution_context,
+        attachment_service=attachments_service,
+    )
+
+
+@pytest.fixture
+def queues_service(config: Config, execution_context: ExecutionContext):
+    from uipath._services.queues_service import QueuesService
+
+    return QueuesService(config=config, execution_context=execution_context)
+
+
+@pytest.fixture
+def jobs_service(config: Config, execution_context: ExecutionContext):
+    from uipath._services.jobs_service import JobsService
+
+    return JobsService(config=config, execution_context=execution_context)

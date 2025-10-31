@@ -13,7 +13,8 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils._ssl_context import get_httpx_client_kwargs
 from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
-from ..tracing import traced
+from ..models.exceptions import EnrichedException
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -130,9 +131,9 @@ class AttachmentsService(FolderContext, BaseService):
                                 file.write(chunk)
 
             return attachment_name
-        except Exception as e:
+        except EnrichedException as e:
             # If not found in UiPath, check local storage
-            if "404" in str(e):
+            if e.status_code == 404:
                 # Check if file exists in temp directory
                 if os.path.exists(self._temp_dir):
                     # Look for any file starting with our UUID
@@ -152,10 +153,11 @@ class AttachmentsService(FolderContext, BaseService):
 
                         return original_name
 
-            # Re-raise the original exception if we can't find it locally
-            raise Exception(
-                f"Attachment with key {key} not found in UiPath or local storage"
-            ) from e
+                raise Exception(
+                    f"Attachment with key {key} not found in UiPath or local storage"
+                ) from e
+
+            raise
 
     @traced(name="attachments_download", run_type="uipath")
     async def download_async(
@@ -248,9 +250,9 @@ class AttachmentsService(FolderContext, BaseService):
                                 file.write(chunk)
 
             return attachment_name
-        except Exception as e:
+        except EnrichedException as e:
             # If not found in UiPath, check local storage
-            if "404" in str(e):
+            if e.status_code == 404:
                 # Check if file exists in temp directory
                 if os.path.exists(self._temp_dir):
                     # Look for any file starting with our UUID
@@ -270,10 +272,11 @@ class AttachmentsService(FolderContext, BaseService):
 
                         return original_name
 
-            # Re-raise the original exception if we can't find it locally
-            raise Exception(
-                f"Attachment with key {key} not found in UiPath or local storage"
-            ) from e
+                raise Exception(
+                    f"Attachment with key {key} not found in UiPath or local storage"
+                ) from e
+
+            raise
 
     @overload
     def upload(
@@ -595,9 +598,9 @@ class AttachmentsService(FolderContext, BaseService):
                 url=spec.endpoint,
                 headers=spec.headers,
             )
-        except Exception as e:
+        except EnrichedException as e:
             # If not found in UiPath, check local storage
-            if "404" in str(e):
+            if e.status_code == 404:
                 # Check if file exists in temp directory
                 if os.path.exists(self._temp_dir):
                     # Look for any file starting with our UUID
@@ -610,10 +613,11 @@ class AttachmentsService(FolderContext, BaseService):
                             os.remove(file_path)
                         return
 
-            # Re-raise the original exception if we can't find it locally
-            raise Exception(
-                f"Attachment with key {key} not found in UiPath or local storage"
-            ) from e
+                raise Exception(
+                    f"Attachment with key {key} not found in UiPath or local storage"
+                ) from e
+
+            raise
 
     @traced(name="attachments_delete", run_type="uipath")
     async def delete_async(
@@ -667,9 +671,9 @@ class AttachmentsService(FolderContext, BaseService):
                 url=spec.endpoint,
                 headers=spec.headers,
             )
-        except Exception as e:
+        except EnrichedException as e:
             # If not found in UiPath, check local storage
-            if "404" in str(e):
+            if e.status_code == 404:
                 # Check if file exists in temp directory
                 if os.path.exists(self._temp_dir):
                     # Look for any file starting with our UUID
@@ -682,10 +686,11 @@ class AttachmentsService(FolderContext, BaseService):
                             os.remove(file_path)
                         return
 
-            # Re-raise the original exception if we can't find it locally
-            raise Exception(
-                f"Attachment with key {key} not found in UiPath or local storage"
-            ) from e
+                raise Exception(
+                    f"Attachment with key {key} not found in UiPath or local storage"
+                ) from e
+
+            raise
 
     @property
     def custom_headers(self) -> Dict[str, str]:

@@ -123,7 +123,7 @@ class TestJobsService:
             },
         )
 
-        job = service.retrieve(job_key)
+        job = service.retrieve(job_key=job_key)
 
         assert isinstance(job, Job)
         assert job.key == job_key
@@ -167,7 +167,7 @@ class TestJobsService:
             },
         )
 
-        job = await service.retrieve_async(job_key)
+        job = await service.retrieve_async(job_key=job_key)
 
         assert isinstance(job, Job)
         assert job.key == job_key
@@ -947,7 +947,7 @@ class TestJobsService:
             content=large_output_content.encode("utf-8"),
         )
 
-        job = service.retrieve(job_key)
+        job = service.retrieve(job_key=job_key)
 
         # job structure is correct for large output
         assert job.key == job_key
@@ -1040,7 +1040,7 @@ class TestJobsService:
             content=large_output_content.encode("utf-8"),
         )
 
-        job = await service.retrieve_async(job_key)
+        job = await service.retrieve_async(job_key=job_key)
 
         assert job.key == job_key
         assert job.state == "Successful"
@@ -1110,8 +1110,8 @@ class TestJobsService:
             },
         )
 
-        small_job = service.retrieve(small_job_key)
-        large_job = service.retrieve(large_job_key)
+        small_job = service.retrieve(job_key=small_job_key)
+        large_job = service.retrieve(job_key=large_job_key)
 
         assert small_job.output_arguments == small_output
         assert small_job.output_file is None
@@ -1377,3 +1377,58 @@ class TestJobsService:
         # Check content
         with open(expected_path, "r") as f:
             assert f.read() == source_content
+
+    def test_stop_requires_at_least_one_selector(self, service: JobsService) -> None:
+        """Test that stop() requires at least one of job_keys or job_ids."""
+        with pytest.raises(
+            ValueError, match="Either 'job_keys' or 'job_ids' must be provided"
+        ):
+            service.stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_async_requires_at_least_one_selector(
+        self, service: JobsService
+    ) -> None:
+        """Test that stop_async() requires at least one of job_keys or job_ids."""
+        with pytest.raises(
+            ValueError, match="Either 'job_keys' or 'job_ids' must be provided"
+        ):
+            await service.stop_async()
+
+    def test_stop_with_job_ids(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test that stop() can accept job_ids and converts them to job_keys."""
+        job_id = 12345
+        job_key = "test-job-uuid"
+
+        # Mock retrieve by ID to get job key
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs({job_id})",
+            status_code=200,
+            json={
+                "Key": job_key,
+                "Id": job_id,
+                "State": "Running",
+            },
+        )
+
+        # Mock stop request
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StopJobs",
+            status_code=200,
+            json={},
+        )
+
+        # Call stop with job_ids
+        service.stop(job_ids=[job_id])
+
+        # Verify stop request was made with converted key
+        stop_request = httpx_mock.get_requests()[-1]
+        assert stop_request.method == "POST"
+        assert "StopJobs" in str(stop_request.url)

@@ -94,7 +94,7 @@ class TestHitlReader:
             result = await HitlReader.read(resume_trigger)
             assert result == output_args
             mock_retrieve_async.assert_called_once_with(
-                job_key, folder_key="test-folder", folder_path="test-path"
+                job_key=job_key, folder_key="test-folder", folder_path="test-path"
             )
 
     @pytest.mark.anyio
@@ -128,7 +128,7 @@ class TestHitlReader:
             assert error_dict["title"] == "Invoked process did not finish successfully."
             assert job_error_info.code in error_dict["detail"]
             mock_retrieve_async.assert_called_once_with(
-                job_key, folder_key="test-folder", folder_path="test-path"
+                job_key=job_key, folder_key="test-folder", folder_path="test-path"
             )
 
     @pytest.mark.anyio

@@ -78,7 +78,7 @@ class HitlReader:
             case UiPathResumeTriggerType.JOB:
                 if resume_trigger.item_key:
                     job = await uipath.jobs.retrieve_async(
-                        resume_trigger.item_key,
+                        job_key=resume_trigger.item_key,
                         folder_key=resume_trigger.folder_key,
                         folder_path=resume_trigger.folder_path,
                     )
