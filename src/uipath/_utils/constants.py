@@ -15,7 +15,7 @@ ENV_TELEMETRY_ENABLED = "UIPATH_TELEMETRY_ENABLED"
 ENV_UIPATH_PROJECT_ID = "UIPATH_PROJECT_ID"
 
 # Headers
-HEADER_FOLDER_KEY = "x-uipath-folderkey"
+HEADER_FOLDER_KEY = "x-uipath-organizationunitid"
 HEADER_FOLDER_PATH = "x-uipath-folderpath"
 HEADER_USER_AGENT = "x-uipath-user-agent"
 HEADER_TENANT_ID = "x-uipath-tenantid"
