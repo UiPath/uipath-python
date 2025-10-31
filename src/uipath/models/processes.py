@@ -30,10 +30,14 @@ class Process(BaseModel):
     specific_priority_value: int = Field(alias="SpecificPriorityValue")
     target_framework: str = Field(alias="TargetFramework")
     id: int = Field(alias="Id")
-    retention_action: str = Field(alias="RetentionAction")
-    retention_period: int = Field(alias="RetentionPeriod")
-    stale_retention_action: str = Field(alias="StaleRetentionAction")
-    stale_retention_period: int = Field(alias="StaleRetentionPeriod")
+    retention_action: Optional[str] = Field(default=None, alias="RetentionAction")
+    retention_period: Optional[int] = Field(default=None, alias="RetentionPeriod", ge=0)
+    stale_retention_action: Optional[str] = Field(
+        default=None, alias="StaleRetentionAction"
+    )
+    stale_retention_period: Optional[int] = Field(
+        default=None, alias="StaleRetentionPeriod", ge=0
+    )
     arguments: Optional[Dict[str, Optional[Any]]] = Field(
         default=None, alias="Arguments"
     )
