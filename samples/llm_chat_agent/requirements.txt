@@ -1,0 +1,9 @@
+# Core dependencies
+uipath>=2.0.79
+pydantic>=2.0.0
+httpx>=0.24.0
+
+# Optional: For local development and testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+python-dotenv>=1.0.0
