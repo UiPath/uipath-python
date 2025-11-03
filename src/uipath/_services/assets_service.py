@@ -7,7 +7,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..models import Asset, UserAsset
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 
 

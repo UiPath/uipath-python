@@ -20,7 +20,7 @@ from .._utils.constants import (
 from ..models import IngestionInProgressException
 from ..models.context_grounding import ContextGroundingQueryResponse
 from ..models.context_grounding_index import ContextGroundingIndex
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 from .buckets_service import BucketsService
 from .folder_service import FolderService

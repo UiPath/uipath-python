@@ -10,7 +10,7 @@ from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..models import Connection, ConnectionMetadata, ConnectionToken, EventArguments
 from ..models.connections import ConnectionTokenType
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 from .folder_service import FolderService
 

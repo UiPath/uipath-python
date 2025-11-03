@@ -11,7 +11,7 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ..models.job import Job
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 from .attachments_service import AttachmentsService
 
