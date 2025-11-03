@@ -129,15 +129,9 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "-ra -q --cov -m 'not live'"
+addopts = "-ra -q --cov"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
-markers = [
-    "live: marks tests as live integration tests (requires UiPath credentials)",
-    "live_buckets: live tests for BucketsService (Phase 1 - proof of concept)",
-    "smoke: smoke tests that run quickly",
-    "slow: marks tests as slow running",
-]
 
 [tool.coverage.report]
 show_missing = true
