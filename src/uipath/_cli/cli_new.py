@@ -29,7 +29,7 @@ authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
     "uipath>=2.0.26"
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 """
 
     with open(project_toml_path, "w") as f:

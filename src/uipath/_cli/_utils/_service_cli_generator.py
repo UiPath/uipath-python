@@ -166,7 +166,7 @@ class ServiceCLIGenerator:
 
         Example:
             >>> generator = ServiceCLIGenerator(metadata)
-            >>> from uipath import UiPath
+            >>> from uipath.platform import UiPath
             >>> client = UiPath(...)
             >>> generator.validate_service(client)  # Fails early if invalid
             >>> generator.register(cli_group)  # Now safe to register

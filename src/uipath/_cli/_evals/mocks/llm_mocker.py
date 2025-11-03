@@ -90,8 +90,8 @@ class LLMMocker(Mocker):
         if function_name in [
             x.name for x in self.evaluation_item.mocking_strategy.tools_to_simulate
         ]:
-            from uipath import UiPath
             from uipath._services.llm_gateway_service import _cleanup_schema
+            from uipath.platform import UiPath
 
             from .mocks import (
                 cache_manager_context,

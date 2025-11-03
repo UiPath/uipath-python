@@ -78,7 +78,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
 
     def _get_llm_service(self):
         """Get the LLM service from the UiPath instance."""
-        from uipath import UiPath
+        from uipath.platform import UiPath
 
         try:
             uipath = UiPath()

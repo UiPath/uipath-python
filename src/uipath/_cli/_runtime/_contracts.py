@@ -871,11 +871,13 @@ class UiPathRuntimeFactory(Generic[T, C]):
     def add_instrumentor(
         self,
         instrumentor_class: Type[BaseInstrumentor],
-        get_current_span_func: Callable[[], Any],
+        get_current_span_func: Callable[[], Any] = None,
+        get_ancestor_spans: Callable[[], List[Any]] = None,
     ) -> "UiPathRuntimeFactory[T, C]":
         """Add and instrument immediately."""
         instrumentor_class().instrument(tracer_provider=self.tracer_provider)
         TracingManager.register_current_span_provider(get_current_span_func)
+        TracingManager.register_current_span_ancestors_provider(get_ancestor_spans)
         return self
 
     def new_context(self, **kwargs) -> C:

@@ -11,7 +11,7 @@ This project showcases how to run Google's Agent Development Kit (ADK) agents on
 
 ## Prerequisites
 
-1. Python 3.10+
+1. Python 3.11+
 2. Google AI Studio API key
 3. UiPath Platform account
 

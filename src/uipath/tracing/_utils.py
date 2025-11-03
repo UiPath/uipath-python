@@ -313,14 +313,6 @@ class _SpanUtils:
         )
 
     @staticmethod
-    def format_args_for_trace_json(
-        signature: inspect.Signature, *args: Any, **kwargs: Any
-    ) -> str:
-        """Return a JSON string of inputs from the function signature."""
-        result = _SpanUtils.format_args_for_trace(signature, *args, **kwargs)
-        return json.dumps(result, default=_simple_serialize_defaults)
-
-    @staticmethod
     def format_object_for_trace_json(
         input_object: Any,
     ) -> str:

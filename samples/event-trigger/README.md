@@ -26,7 +26,7 @@ Create a Python file with your agent logic using the UiPath SDK:
 ```python
 from dataclasses import dataclass
 from uipath.models import EventArguments
-from uipath import UiPath
+from uipath.platform import UiPath
 import logging
 
 logger = logging.getLogger(__name__)

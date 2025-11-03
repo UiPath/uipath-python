@@ -1,4 +1,4 @@
-from uipath import UiPath
+from uipath.platform import UiPath
 
 uipath = UiPath()
 
