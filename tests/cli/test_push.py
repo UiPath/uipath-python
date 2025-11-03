@@ -1674,7 +1674,7 @@ class TestResourceCreation:
             async def mock_list_by_type_async(*args, **kwargs):
                 yield mock_resource
 
-            with patch("uipath.UiPath") as MockUiPath:
+            with patch("uipath.platform.UiPath") as MockUiPath:
                 mock_uipath_instance = MockUiPath.return_value
                 mock_resource_catalog = AsyncMock()
                 mock_resource_catalog.list_by_type_async = mock_list_by_type_async
@@ -1916,7 +1916,7 @@ class TestResourceCreation:
                 return
                 yield  # This makes it a generator but never yields anything
 
-            with patch("uipath.UiPath") as MockUiPath:
+            with patch("uipath.platform.UiPath") as MockUiPath:
                 mock_uipath_instance = MockUiPath.return_value
                 mock_resource_catalog = AsyncMock()
                 mock_resource_catalog.list_by_type_async = mock_list_by_type_async_empty
@@ -2108,7 +2108,7 @@ class TestResourceCreation:
             async def mock_list_by_type_async(*args, **kwargs):
                 yield mock_resource
 
-            with patch("uipath.UiPath") as MockUiPath:
+            with patch("uipath.platform.UiPath") as MockUiPath:
                 mock_uipath_instance = MockUiPath.return_value
                 mock_resource_catalog = AsyncMock()
                 mock_resource_catalog.list_by_type_async = mock_list_by_type_async

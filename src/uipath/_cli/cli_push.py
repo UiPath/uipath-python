@@ -44,7 +44,7 @@ def get_org_scoped_url(base_url: str) -> str:
 async def create_resources(studio_client: StudioClient):
     console.info("\nImporting referenced resources to Studio Web project...")
 
-    from uipath import UiPath
+    from uipath.platform import UiPath
 
     uipath = UiPath()
     resource_catalog = uipath.resource_catalog

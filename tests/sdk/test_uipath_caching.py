@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 from pytest import MonkeyPatch
 
-from uipath import UiPath
+from uipath.platform import UiPath
 
 
 @pytest.fixture

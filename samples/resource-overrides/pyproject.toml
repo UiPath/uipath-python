@@ -1,10 +1,10 @@
 [project]
-name = "bindings-agent"
+name = "bindings-function"
 version = "0.0.1"
-description = "Agent using UiPath bindings"
+description = "Function with resource bindings"
 authors = [{ name = "John Doe" }]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "uipath>=2.1.169,<2.2.0",
+  "uipath>=2.2.0, <2.3.0",
 ]

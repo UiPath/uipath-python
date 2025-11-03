@@ -1,5 +1,5 @@
 from typing import Any
-from uipath import UiPath
+from uipath.platform import UiPath
 from pydantic import BaseModel
 
 

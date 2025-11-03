@@ -13,7 +13,7 @@ from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..models import Bucket, BucketFile
 from ..models.paging import PagedResult
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 
 # Pagination limits

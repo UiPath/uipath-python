@@ -1,7 +1,6 @@
 # type: ignore
 import json
 import os
-from functools import wraps
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qs, urlparse
@@ -12,24 +11,6 @@ from pytest_httpx import HTTPXMock
 
 from uipath._cli import cli
 from uipath._utils._bindings import ResourceOverwriteParser
-from uipath.tracing import TracingManager
-
-
-@pytest.fixture(autouse=True)
-def mock_tracer():
-    def mock_tracer_impl(**kwargs):
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                return func(*args, **kwargs)
-
-            return wrapper
-
-        return decorator
-
-    TracingManager.reapply_traced_decorator(mock_tracer_impl)
-    yield
-    TracingManager.reapply_traced_decorator(None)
 
 
 @pytest.fixture
@@ -188,6 +169,7 @@ class TestResourceOverrides:
 
     def _assert(self, result, httpx_mock):
         # Verify execution was successful
+        print(result.output)
         assert result.exit_code == 0
         assert "Applied 6 resource overwrite(s)" in result.output
 

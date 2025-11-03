@@ -105,7 +105,7 @@ class JobsService(FolderContext, BaseService):
             ```python
             import asyncio
 
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             sdk = UiPath()
 
@@ -167,7 +167,7 @@ class JobsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             sdk = UiPath()
             job = sdk.jobs.retrieve(job_key="ee9327fd-237d-419e-86ef-9946b34461e3", folder_path="Shared")
@@ -205,7 +205,7 @@ class JobsService(FolderContext, BaseService):
             ```python
             import asyncio
 
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             sdk = UiPath()
 
@@ -498,7 +498,7 @@ class JobsService(FolderContext, BaseService):
         Examples:
             ```python
             import asyncio
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -683,7 +683,7 @@ class JobsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -823,7 +823,7 @@ class JobsService(FolderContext, BaseService):
         Examples:
             ```python
             import asyncio
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 

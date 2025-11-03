@@ -56,7 +56,7 @@ class ProcessesService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -66,7 +66,7 @@ class ProcessesService(FolderContext, BaseService):
             ```python
             # if you want to execute the process in a specific folder
             # another one than the one set in the SDK config
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -122,7 +122,7 @@ class ProcessesService(FolderContext, BaseService):
             ```python
             import asyncio
 
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             sdk = UiPath()
 

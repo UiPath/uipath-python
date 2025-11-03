@@ -10,7 +10,6 @@ from typing_extensions import override
 
 from .._utils._console import ConsoleLogger
 from .._utils._input_args import generate_args
-from .._utils._parse_ast import generate_bindings
 from ..models.runtime_schema import Bindings, Entrypoint
 from ._contracts import (
     UiPathBaseRuntime,
@@ -121,14 +120,7 @@ class UiPathScriptRuntime(UiPathRuntime):
 
         Returns: A bindings object.
         """
-        working_dir = self.context.runtime_dir or os.getcwd()
-        script_path = get_user_script(working_dir, entrypoint=self.context.entrypoint)
-        bindings = (
-            generate_bindings(script_path)
-            if script_path
-            else Bindings(version="2.0", resources=[])
-        )
-        return bindings
+        return Bindings(version="2.0", resources=[])
 
     @override
     async def get_entrypoint(self) -> Entrypoint:

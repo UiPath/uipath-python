@@ -112,7 +112,7 @@ Breaking changes are introduced in minor releases (X.Y.0) and follow these guide
 
 The SDK maintains compatibility with:
 
-- Python 3.10+
+- Python 3.11+
 - Key dependencies as specified in `pyproject.toml`
 - Regular updates to dependencies are performed in minor releases
 

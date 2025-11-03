@@ -1,19 +1,16 @@
 [project]
 name = "uipath"
-version = "2.1.185"
+version = "2.2.0"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
+  "uipath-core>=0.0.5, <0.1.0",
   "click>=8.1.8",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
-  "opentelemetry-sdk>=1.31.1",
-  "opentelemetry-instrumentation>=0.52b1",
-  "pydantic>=2.11.1",
   "python-dotenv>=1.0.1",
   "tenacity>=9.0.0",
-  "tomli>=2.2.1",
   "pathlib>=1.0.1",
   "rich>=13.0.0",
   "truststore>=0.10.1",
@@ -26,12 +23,11 @@ dependencies = [
   "coverage>=7.8.2",
 ]
 classifiers = [
-  "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "Topic :: Software Development :: Build Tools",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 maintainers = [
   { name = "Marius Cosareanu", email = "marius.cosareanu@uipath.com" },
@@ -110,16 +106,18 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
+mypy_path = "src"
 plugins = ["pydantic.mypy"]
 exclude = ["samples/.*", "testcases/.*"]
-
+files = ["src", "tests"]
+namespace_packages = true
+explicit_package_bases = true
 follow_imports = "silent"
 warn_redundant_casts = true
 warn_unused_ignores = true
 disallow_any_generics = true
 check_untyped_defs = true
 no_implicit_reexport = true
-
 disallow_untyped_defs = false
 
 [tool.pydantic-mypy]
