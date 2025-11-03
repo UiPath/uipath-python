@@ -18,12 +18,13 @@ from ._services import (
     EntitiesService,
     FolderService,
     JobsService,
+    McpService,
     ProcessesService,
     QueuesService,
+    ResourceCatalogService,
     UiPathLlmChatService,
     UiPathOpenAIService,
 )
-from ._services.resource_catalog_service import ResourceCatalogService
 from ._utils._auth import resolve_config
 from ._utils._logs import setup_logging
 from .models.errors import BaseUrlMissingError, SecretMissingError
@@ -131,3 +132,7 @@ class UiPath:
     @property
     def conversational(self) -> ConversationsService:
         return ConversationsService(self._config, self._execution_context)
+
+    @property
+    def mcp(self) -> McpService:
+        return McpService(self._config, self._execution_context, self.folders)
