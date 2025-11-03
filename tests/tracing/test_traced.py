@@ -13,7 +13,7 @@ from opentelemetry.sdk.trace.export import (
     SpanExportResult,
 )
 
-from uipath.tracing._traced import traced
+from uipath.tracing import traced
 
 
 class InMemorySpanExporter(SpanExporter):

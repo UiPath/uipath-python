@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import AnyEvaluationItem
-from uipath.tracing._traced import traced
+from uipath.tracing import traced
 
 from .mocker import UiPathInputMockingError
 

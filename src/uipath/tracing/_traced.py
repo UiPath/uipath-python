@@ -38,11 +38,17 @@ class TracingManager:
     # Custom tracer implementation
     _custom_tracer_implementation = None  # Custom span provider function
     _current_span_provider: Optional[Callable[[], Any]] = None
+    _current_span_ancestors_provider: Optional[Callable[[], List[Any]]] = None
 
     @classmethod
     def get_custom_tracer_implementation(cls):
         """Get the currently set custom tracer implementation."""
         return cls._custom_tracer_implementation
+
+    @classmethod
+    def get_current_span_ancestors_provider(cls):
+        """Get the currently set custom span ancestors provider."""
+        return cls._current_span_ancestors_provider
 
     @classmethod
     def register_current_span_provider(
@@ -55,6 +61,19 @@ class TracingManager:
                                  tracing framework. If None, no custom span parenting will be used.
         """
         cls._current_span_provider = current_span_provider
+
+    @classmethod
+    def register_current_span_ancestors_provider(
+        cls, current_span_ancestors_provider: Optional[Callable[[], List[Any]]]
+    ):
+        """Register a custom current span ancestors provider function.
+
+        Args:
+            current_span_ancestors_provider: A function that returns a list of ancestor spans
+                                           from an external tracing framework. If None, no custom
+                                           span ancestor information will be used.
+        """
+        cls._current_span_ancestors_provider = current_span_ancestors_provider
 
     @staticmethod
     def get_parent_context():
