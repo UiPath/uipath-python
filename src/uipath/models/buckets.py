@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -73,4 +73,4 @@ class Bucket(BaseModel):
     folders_count: Optional[int] = Field(default=None, alias="FoldersCount")
     encrypted: Optional[bool] = Field(default=None, alias="Encrypted")
     id: Optional[int] = Field(default=None, alias="Id")
-    tags: Optional[List[str]] = Field(default=None, alias="Tags")
+    tags: Optional[List[Any]] = Field(default=None, alias="Tags")
