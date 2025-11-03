@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Optional
 
-from uipath import UiPath
 from uipath.models import CreateAction, InvokeProcess, WaitAction, WaitJob
+from uipath.platform import UiPath
 
 from .._runtime._contracts import (
     UiPathApiTrigger,

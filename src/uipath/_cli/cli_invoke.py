@@ -1,20 +1,15 @@
 import asyncio
 import logging
 import os
+import tomllib
 from typing import Optional
 
 import click
 import httpx
 
-from ._utils._console import ConsoleLogger
-
-try:
-    import tomllib  # type: ignore[import-not-found] # explicit ignore
-except ImportError:
-    import tomli as tomllib
-
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ._utils._common import get_env_vars
+from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info_async
 from ._utils._processes import get_release_info
 from .middlewares import Middlewares

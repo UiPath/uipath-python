@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
--   Python 3.10 or higher
+-   Python 3.11 or higher
 -   `pip` or `uv` package manager
 -   A UiPath Cloud Platform account with appropriate permissions
 
@@ -37,12 +37,12 @@
 
 ```shell
 # Initialize a new uv project in the current directory
-> uv init . --python 3.10
+> uv init . --python 3.11
 
 # Create a new virtual environment
 # By default, uv creates a virtual environment in a directory called .venv
 > uv venv
-Using CPython 3.10.16 interpreter at: [PATH]
+Using CPython 3.11 interpreter at: [PATH]
 Creating virtual environment at: .venv
 Activate with: source .venv/bin/activate
 
@@ -246,7 +246,7 @@ Create a **new project** (separate from the one you just packaged and published)
 Open `main.py` in your code editor and add the following code:
 
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 
 
 def main():

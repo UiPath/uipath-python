@@ -36,10 +36,10 @@ from opentelemetry.sdk.trace.export import (
 )
 from opentelemetry.trace import Tracer
 from pydantic import BaseModel, Field
+from uipath.core.tracing import UiPathSpanUtils
 
 from uipath._events._events import UiPathRuntimeEvent
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
-from uipath.tracing import TracingManager
 
 from ..models.runtime_schema import Bindings, Entrypoint
 from ._logging import LogsInterceptor
@@ -873,11 +873,15 @@ class UiPathRuntimeFactory(Generic[T, C]):
     def add_instrumentor(
         self,
         instrumentor_class: Type[BaseInstrumentor],
-        get_current_span_func: Callable[[], Any],
+        get_current_span_func: Callable[[], Any] | None = None,
+        get_ancestor_spans: Callable[[], List[Any]] | None = None,
     ) -> "UiPathRuntimeFactory[T, C]":
         """Add and instrument immediately."""
         instrumentor_class().instrument(tracer_provider=self.tracer_provider)
-        TracingManager.register_current_span_provider(get_current_span_func)
+        if get_current_span_func is not None:
+            UiPathSpanUtils.register_current_span_provider(get_current_span_func)
+        if get_ancestor_spans is not None:
+            UiPathSpanUtils.register_current_span_ancestors_provider(get_ancestor_spans)
         return self
 
     def new_context(self, **kwargs) -> C:

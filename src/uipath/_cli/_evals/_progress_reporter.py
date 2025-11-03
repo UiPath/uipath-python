@@ -14,7 +14,6 @@ from opentelemetry.trace import SpanContext, SpanKind, TraceFlags
 from pydantic import BaseModel
 from rich.console import Console
 
-from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
     EvaluationStatus,
@@ -47,6 +46,7 @@ from uipath.eval.evaluators import (
     LegacyBaseEvaluator,
 )
 from uipath.eval.models import EvalItemResult, ScoreType
+from uipath.platform import UiPath
 from uipath.tracing import LlmOpsHttpExporter
 
 logger = logging.getLogger(__name__)

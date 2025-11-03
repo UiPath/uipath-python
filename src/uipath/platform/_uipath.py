@@ -3,9 +3,9 @@ from typing import Optional
 
 from pydantic import ValidationError
 
-from ._config import Config
-from ._execution_context import ExecutionContext
-from ._services import (
+from .._config import Config
+from .._execution_context import ExecutionContext
+from .._services import (
     ActionsService,
     ApiClient,
     AssetsService,
@@ -20,13 +20,13 @@ from ._services import (
     JobsService,
     ProcessesService,
     QueuesService,
+    ResourceCatalogService,
     UiPathLlmChatService,
     UiPathOpenAIService,
 )
-from ._services.resource_catalog_service import ResourceCatalogService
-from ._utils._auth import resolve_config
-from ._utils._logs import setup_logging
-from .models.errors import BaseUrlMissingError, SecretMissingError
+from .._utils._auth import resolve_config
+from .._utils._logs import setup_logging
+from ..models.errors import BaseUrlMissingError, SecretMissingError
 
 
 class UiPath:

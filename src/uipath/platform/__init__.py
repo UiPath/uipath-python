@@ -12,7 +12,7 @@ Example:
     # export UIPATH_ACCESS_TOKEN="your_**_token"
     # export UIPATH_FOLDER_PATH="your/folder/path"
 
-    from uipath import UiPath
+    from uipath.platform import UiPath
     sdk = UiPath()
     # Invoke a process by name
     sdk.processes.invoke("MyProcess")
