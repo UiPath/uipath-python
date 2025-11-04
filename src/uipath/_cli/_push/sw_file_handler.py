@@ -184,10 +184,6 @@ class SwFileHandler:
                 logger.info(f"File not found: '{local_file.file_path}'")
                 continue
 
-            # Skip agent.json as it's handled separately
-            if local_file.file_name == "agent.json":
-                continue
-
             remote_file = source_code_files.get(
                 local_file.relative_path.replace("\\", "/"), None
             )
