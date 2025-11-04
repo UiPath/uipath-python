@@ -8,6 +8,7 @@ import click
 
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
+from ._utils._constants import EVALS_DIRECTORY_NAME
 from ._utils._resources import Resources
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ def generate_evaluator_template(evaluator_name: str) -> str:
 
 def create_evaluator(evaluator_name):
     cwd = Path.cwd()
-    custom_evaluators_dir = cwd / "evals" / "evaluators" / "custom"
+    custom_evaluators_dir = cwd / EVALS_DIRECTORY_NAME / "evaluators" / "custom"
 
     if not custom_evaluators_dir.exists():
         console.info(

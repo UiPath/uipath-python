@@ -8,6 +8,7 @@ from uipath._cli._evals._models._evaluation_set import (
     InputMockingStrategy,
     LLMMockingStrategy,
 )
+from uipath._cli._utils._constants import EVALS_DIRECTORY_NAME
 from uipath._cli._utils._studio_project import (
     ProjectFile,
     ProjectFolder,
@@ -48,7 +49,7 @@ async def load_agent_definition(project_id: str) -> AgentDefinition:
     evaluators = []
     try:
         evaluators_path = resolve_path(
-            project_structure, PurePath("evals", "evaluators")
+            project_structure, PurePath(EVALS_DIRECTORY_NAME, "evaluators")
         )
         if isinstance(evaluators_path, ProjectFolder):
             for file in evaluators_path.files:
@@ -71,7 +72,7 @@ async def load_agent_definition(project_id: str) -> AgentDefinition:
     evaluation_sets = []
     try:
         evaluation_sets_path = resolve_path(
-            project_structure, PurePath("evals", "eval-sets")
+            project_structure, PurePath(EVALS_DIRECTORY_NAME, "eval-sets")
         )
         if isinstance(evaluation_sets_path, ProjectFolder):
             for file in evaluation_sets_path.files:

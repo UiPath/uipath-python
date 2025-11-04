@@ -18,6 +18,7 @@ import click
 from .._config import UiPathConfig
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
+from ._utils._constants import EVALS_DIRECTORY_NAME
 from ._utils._project_files import (
     InteractiveConflictHandler,
     ProjectPullError,
@@ -58,7 +59,7 @@ def pull(root: Path) -> None:
 
     download_configuration = {
         "source_code": root,
-        "coded-evals": root / "evals",
+        "coded-evals": root / EVALS_DIRECTORY_NAME,
     }
 
     # Create interactive conflict handler for user confirmation
