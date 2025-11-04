@@ -19,6 +19,7 @@ from .._utils._constants import (
     AGENT_STORAGE_VERSION,
     AGENT_TARGET_RUNTIME,
     AGENT_VERSION,
+    EVALS_DIRECTORY_NAME,
 )
 from .._utils._project_files import (  # type: ignore
     FileInfo,
@@ -672,7 +673,7 @@ class SwFileHandler:
             settings,
             self.directory,
             self.include_uv_lock,
-            directories_to_ignore=["evals"],
+            directories_to_ignore=[EVALS_DIRECTORY_NAME],
         )
 
         # Process all files and get updates (this includes HTTP calls for agent.json/entry-points.json)
@@ -713,7 +714,9 @@ class SwFileHandler:
         eval_set_files = []
 
         # Check {self.directory}/evals/evaluators/ for files with version property
-        evaluators_dir = os.path.join(self.directory, "evals", "evaluators")
+        evaluators_dir = os.path.join(
+            self.directory, EVALS_DIRECTORY_NAME, "evaluators"
+        )
         if os.path.exists(evaluators_dir):
             for file_name in os.listdir(evaluators_dir):
                 if file_name.endswith(".json"):
@@ -727,7 +730,7 @@ class SwFileHandler:
                         )
 
         # Check {self.directory}/evals/eval-sets/ for files with version property
-        eval_sets_dir = os.path.join(self.directory, "evals", "eval-sets")
+        eval_sets_dir = os.path.join(self.directory, EVALS_DIRECTORY_NAME, "eval-sets")
         if os.path.exists(eval_sets_dir):
             for file_name in os.listdir(eval_sets_dir):
                 if file_name.endswith(".json"):
@@ -927,6 +930,8 @@ class SwFileHandler:
             # Refresh structure to get the new folders
             structure = await self._studio_client.get_project_structure_async()
             coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
+        else:
+            return
 
         if not coded_evals_folder:
             return  # Nothing to sync
