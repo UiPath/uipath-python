@@ -110,15 +110,15 @@ def push(root: str, nolock: bool) -> None:
         ):
             console.info(update.message)
 
-    with console.spinner("Pushing UiPath project to Studio Web..."):
-        try:
-            if not nolock:
-                handle_uv_operations(root)
+    console.log("Pushing UiPath project to Studio Web...")
+    try:
+        if not nolock:
+            handle_uv_operations(root)
 
-            asyncio.run(push_with_updates())
+        asyncio.run(push_with_updates())
 
-        except Exception as e:
-            console.error(
-                f"Failed to push UiPath project: {e}",
-                include_traceback=not isinstance(e, EnrichedException),
-            )
+    except Exception as e:
+        console.error(
+            f"Failed to push UiPath project: {e}",
+            include_traceback=not isinstance(e, EnrichedException),
+        )
