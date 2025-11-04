@@ -63,6 +63,7 @@ def pull(root: Path) -> None:
 
     # Create interactive conflict handler for user confirmation
     conflict_handler = InteractiveConflictHandler(operation="pull")
+    console.log("Pulling UiPath project from Studio Web...")
 
     try:
 
