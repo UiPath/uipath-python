@@ -437,7 +437,8 @@ class AgentEscalationResourceConfig(BaseAgentResourceConfig):
 def custom_discriminator(data: Any) -> str:
     """Discriminator for resource types. This is required due to multi-key discrimination requirements for resources."""
     if isinstance(data, dict):
-        resource_type = data.get("$resourceType")
+        # Handle both JSON format ($resourceType) and Python format (resource_type)
+        resource_type = data.get("$resourceType") or data.get("resource_type")
         if resource_type == AgentResourceType.CONTEXT:
             return "AgentContextResourceConfig"
         elif resource_type == AgentResourceType.ESCALATION:
