@@ -13,6 +13,11 @@ from uipath.eval.models.models import (
     ScoreType,
     TrajectoryEvaluationTrace,
 )
+from uipath._cli._evals._models._compositional_scoring import (
+    CompositionalScoreResult,
+    CompositionalScorer,
+    CompositionalScoringConfig,
+)
 
 
 class UiPathEvalRunExecutionOutput(BaseModel):
@@ -199,3 +204,51 @@ class UiPathEvalOutput(BaseModel):
         final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
 
         return final_score, agg_metrics_per_evaluator
+
+    def calculate_compositional_score(
+        self,
+        config: CompositionalScoringConfig,
+    ) -> CompositionalScoreResult:
+        """Calculate compositional score with advanced strategies and cascade support.
+
+        This method provides advanced scoring capabilities beyond simple weighted averaging:
+        - Multiple aggregation strategies (min, max, product, harmonic mean)
+        - Cascade modes to model interdependencies between evaluators
+        - Detailed per-evaluator breakdown with cascade penalties
+
+        Args:
+            config: Compositional scoring configuration with strategy, cascade mode, and weights
+
+        Returns:
+            CompositionalScoreResult with final score and detailed breakdowns
+        """
+        if not self.evaluation_set_results:
+            return CompositionalScoreResult(
+                final_score=0.0,
+                strategy=config.strategy,
+                cascade_mode=config.cascade_mode,
+                evaluator_breakdowns=[],
+                total_datapoints=0,
+            )
+
+        # Step 1: Flatten and group by evaluator to get per-datapoint scores
+        evaluator_datapoints: defaultdict[str, list[float]] = defaultdict(list)
+
+        for eval_run_result in self.evaluation_set_results:
+            for eval_run_result_dto in eval_run_result.evaluation_run_results:
+                evaluator_id = eval_run_result_dto.evaluator_id
+                score = eval_run_result_dto.result.score
+                evaluator_datapoints[evaluator_id].append(score)
+
+        # Step 2: Calculate average score per evaluator
+        evaluator_scores = {}
+        for evaluator_id, scores in evaluator_datapoints.items():
+            if scores:
+                evaluator_scores[evaluator_id] = sum(scores) / len(scores)
+
+        # Step 3: Use compositional scorer to calculate final score
+        return CompositionalScorer.calculate_compositional_score(
+            evaluator_scores=evaluator_scores,
+            evaluator_datapoints=evaluator_datapoints,
+            config=config,
+        )
