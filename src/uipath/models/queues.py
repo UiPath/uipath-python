@@ -33,7 +33,8 @@ class QueueItem(BaseModel):
             return value.isoformat() if value else None
         return value
 
-    name: str = Field(
+    name: Optional[str] = Field(
+        default=None,
         description="The name of the queue into which the item will be added.",
         alias="Name",
     )

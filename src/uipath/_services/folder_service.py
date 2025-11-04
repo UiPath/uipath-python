@@ -7,6 +7,7 @@ from uipath.tracing import traced
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec
+from ..models.errors import PaginationLimitError
 from ..models.folders import Folder
 from ._base_service import BaseService
 
@@ -46,9 +47,11 @@ class FolderService(BaseService):
             >>> for folder in sdk.folders.list():
             ...     print(folder.display_name, folder.fully_qualified_name)
         """
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 filter=filter,
                 orderby=orderby,
@@ -69,10 +72,22 @@ class FolderService(BaseService):
                 folder = Folder.model_validate(item)
                 yield folder
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list",
+                    current_skip=current_skip,
+                    filter_example="ProvisionType eq 'Manual'",
+                )
 
     @traced(name="folders_list", run_type="uipath")
     async def list_async(
@@ -84,9 +99,11 @@ class FolderService(BaseService):
         skip: int = 0,
     ) -> AsyncIterator[Folder]:
         """Async version of list()."""
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 filter=filter,
                 orderby=orderby,
@@ -109,10 +126,22 @@ class FolderService(BaseService):
                 folder = Folder.model_validate(item)
                 yield folder
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_async",
+                    current_skip=current_skip,
+                    filter_example="ProvisionType eq 'Manual'",
+                )
 
     @traced(name="folders_retrieve", run_type="uipath")
     def retrieve(
@@ -294,10 +323,12 @@ class FolderService(BaseService):
         Returns:
             The folder key if found, None otherwise.
         """
+        MAX_PAGES = 50  # Safety limit for search (20 items/page = 1000 items max)
         skip = 0
         take = 20
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._retrieve_spec(folder_path, skip=skip, take=take)
             response = self.request(
                 spec.method,
@@ -318,10 +349,22 @@ class FolderService(BaseService):
                 return folder_key
 
             page_items = response["PageItems"]
+            pages_fetched += 1
+
             if len(page_items) < take:
                 break
 
             skip += take
+
+        else:
+            if page_items and len(page_items) == take:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=take,
+                    method_name="retrieve_key",
+                    current_skip=skip,
+                    filter_example=f"folder_path='{folder_path}'",
+                )
 
         return None
 

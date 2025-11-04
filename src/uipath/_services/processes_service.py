@@ -8,6 +8,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
+from ..models.errors import PaginationLimitError
 from ..models.job import Job
 from ..models.processes import Process
 from ..tracing._traced import traced
@@ -60,9 +61,11 @@ class ProcessesService(FolderContext, BaseService):
             >>> for process in sdk.processes.list():
             ...     print(process.name, process.version)
         """
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -86,10 +89,22 @@ class ProcessesService(FolderContext, BaseService):
                 process = Process.model_validate(item)
                 yield process
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list",
+                    current_skip=current_skip,
+                    filter_example="IsLatestVersion eq true",
+                )
 
     @traced(name="processes_list", run_type="uipath")
     async def list_async(
@@ -103,9 +118,11 @@ class ProcessesService(FolderContext, BaseService):
         skip: int = 0,
     ) -> AsyncIterator[Process]:
         """Async version of list()."""
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -131,10 +148,22 @@ class ProcessesService(FolderContext, BaseService):
                 process = Process.model_validate(item)
                 yield process
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_async",
+                    current_skip=current_skip,
+                    filter_example="IsLatestVersion eq true",
+                )
 
     @traced(name="processes_retrieve", run_type="uipath")
     @resource_override(resource_type="process")

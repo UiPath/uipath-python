@@ -298,6 +298,13 @@ class TestJobsServiceStop:
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test stopping a single job by key."""
+        # Mock retrieve endpoint (stop() calls retrieve() to get job ID)
+        httpx_mock.add_response(
+            method="GET",
+            url="https://test.uipath.com/org/tenant/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier=job-123-abc)",
+            json={"Key": "job-123-abc", "Id": 12345, "State": "Running"},
+        )
+
         httpx_mock.add_response(
             method="POST",
             url="https://test.uipath.com/org/tenant/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StopJobs",
@@ -307,8 +314,9 @@ class TestJobsServiceStop:
         jobs_service.stop(job_keys=["job-123-abc"])
 
         requests = httpx_mock.get_requests()
-        assert len(requests) == 1
-        assert requests[0].method == "POST"
+        assert len(requests) == 2  # retrieve + stop
+        assert requests[0].method == "GET"  # retrieve
+        assert requests[1].method == "POST"  # stop
 
     def test_stop_job_with_folder_path(
         self,
@@ -316,6 +324,13 @@ class TestJobsServiceStop:
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test stopping a job with folder context."""
+        # Mock retrieve endpoint (stop() calls retrieve() to get job ID)
+        httpx_mock.add_response(
+            method="GET",
+            url="https://test.uipath.com/org/tenant/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier=job-123-abc)",
+            json={"Key": "job-123-abc", "Id": 12345, "State": "Running"},
+        )
+
         httpx_mock.add_response(
             method="POST",
             url="https://test.uipath.com/org/tenant/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StopJobs",
@@ -325,7 +340,7 @@ class TestJobsServiceStop:
         jobs_service.stop(job_keys=["job-123-abc"], folder_path="Shared")
 
         requests = httpx_mock.get_requests()
-        assert len(requests) == 1
+        assert len(requests) == 2  # retrieve + stop
 
 
 class TestJobsServiceAsync:
@@ -396,6 +411,13 @@ class TestJobsServiceAsync:
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test async job stop."""
+        # Mock retrieve endpoint (stop_async() calls retrieve_async() to get job ID)
+        httpx_mock.add_response(
+            method="GET",
+            url="https://test.uipath.com/org/tenant/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier=job-123-abc)",
+            json={"Key": "job-123-abc", "Id": 12345, "State": "Running"},
+        )
+
         httpx_mock.add_response(
             method="POST",
             url="https://test.uipath.com/org/tenant/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StopJobs",
@@ -405,7 +427,7 @@ class TestJobsServiceAsync:
         await jobs_service.stop_async(job_keys=["job-123-abc"])
 
         requests = httpx_mock.get_requests()
-        assert len(requests) == 1
+        assert len(requests) == 2  # retrieve + stop
 
 
 class TestJobsServiceFieldMapping:

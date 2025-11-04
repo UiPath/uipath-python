@@ -14,6 +14,7 @@ from ..models import (
     TransactionItem,
     TransactionItemResult,
 )
+from ..models.errors import PaginationLimitError
 from ..tracing._traced import traced
 from ._base_service import BaseService
 
@@ -58,9 +59,11 @@ class QueuesService(FolderContext, BaseService):
             >>> for queue in sdk.queues.list_definitions():
             ...     print(queue.name, queue.max_number_of_retries)
         """
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_definitions_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -85,10 +88,22 @@ class QueuesService(FolderContext, BaseService):
                 queue_def = QueueDefinition.model_validate(item)
                 yield queue_def
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_definitions",
+                    current_skip=current_skip,
+                    filter_example="Name eq 'MyQueue'",
+                )
 
     @traced(name="queues_list_definitions", run_type="uipath")
     async def list_definitions_async(
@@ -103,9 +118,11 @@ class QueuesService(FolderContext, BaseService):
         skip: int = 0,
     ) -> AsyncIterator[QueueDefinition]:
         """Async version of list_definitions()."""
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_definitions_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -132,10 +149,22 @@ class QueuesService(FolderContext, BaseService):
                 queue_def = QueueDefinition.model_validate(item)
                 yield queue_def
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_definitions_async",
+                    current_skip=current_skip,
+                    filter_example="Name eq 'MyQueue'",
+                )
 
     @traced(name="queues_retrieve_definition", run_type="uipath")
     @resource_override(resource_type="queue_definition")
@@ -484,9 +513,11 @@ class QueuesService(FolderContext, BaseService):
             >>> for item in sdk.queues.list_items(filter="Priority eq 'High'"):
             ...     print(item.reference)
         """
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_items_spec(
                 queue_name=queue_name,
                 queue_key=queue_key,
@@ -512,10 +543,22 @@ class QueuesService(FolderContext, BaseService):
             for item in items:
                 yield QueueItem.model_validate(item)
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_items",
+                    current_skip=current_skip,
+                    filter_example="Priority eq 'High'",
+                )
 
     @traced(name="queues_list_items", run_type="uipath")
     async def list_items_async(
@@ -551,9 +594,11 @@ class QueuesService(FolderContext, BaseService):
             >>> async for item in sdk.queues.list_items_async(queue_name="InvoiceQueue"):
             ...     print(item.reference)
         """
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_items_spec(
                 queue_name=queue_name,
                 queue_key=queue_key,
@@ -580,10 +625,22 @@ class QueuesService(FolderContext, BaseService):
             for item in items:
                 yield QueueItem.model_validate(item)
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_items_async",
+                    current_skip=current_skip,
+                    filter_example="Priority eq 'High'",
+                )
 
     @traced(name="queues_create_item", run_type="uipath")
     def create_item(

@@ -50,6 +50,36 @@ service = sdk.api_client
 Assets service
 
 ```python
+# Create a new asset.
+sdk.assets.create(name: str, value: Union[str, int, bool, Dict[str, Any]], value_type: str, description: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.assets.Asset
+
+# Async version of create().
+sdk.assets.create_async(name: str, value: Union[str, int, bool, Dict[str, Any]], value_type: str, description: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.assets.Asset
+
+# Delete an asset.
+sdk.assets.delete(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
+
+# Async version of delete().
+sdk.assets.delete_async(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
+
+# Check if asset exists.
+sdk.assets.exists(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Async version of exists().
+sdk.assets.exists_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Get the value of an asset (convenience method).
+sdk.assets.get_value(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Union[str, int, bool, typing.Dict[str, typing.Any]]
+
+# Async version of get_value().
+sdk.assets.get_value_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Union[str, int, bool, typing.Dict[str, typing.Any]]
+
+# List assets with automatic pagination (limited to 10 pages).
+sdk.assets.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.Iterator[uipath.models.assets.Asset]
+
+# Async version of list() with pagination limit.
+sdk.assets.list_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.AsyncIterator[uipath.models.assets.Asset]
+
 # Retrieve an asset by its name.
 sdk.assets.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.assets.UserAsset | uipath.models.assets.Asset
 
@@ -180,10 +210,10 @@ sdk.connections.list(name: Optional[str]=None, folder_path: Optional[str]=None, 
 sdk.connections.list_async(name: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, connector_key: Optional[str]=None, skip: Optional[int]=None, top: Optional[int]=None) -> typing.List[uipath.models.connections.Connection]
 
 # Synchronously retrieve connection API metadata.
-sdk.connections.metadata(element_instance_id: int, tool_path: str, schema_mode: bool=True) -> uipath.models.connections.ConnectionMetadata
+sdk.connections.metadata(element_instance_id: int, connector_key: str, tool_path: str, parameters: Optional[Dict[str, str]]=None, schema_mode: bool=True, max_jit_depth: int=5) -> uipath.models.connections.ConnectionMetadata
 
 # Asynchronously retrieve connection API metadata.
-sdk.connections.metadata_async(element_instance_id: int, tool_path: str, schema_mode: bool=True) -> uipath.models.connections.ConnectionMetadata
+sdk.connections.metadata_async(element_instance_id: int, connector_key: str, tool_path: str, parameters: Optional[Dict[str, str]]=None, schema_mode: bool=True, max_jit_depth: int=5) -> uipath.models.connections.ConnectionMetadata
 
 # Retrieve connection details by its key.
 sdk.connections.retrieve(key: str) -> uipath.models.connections.Connection
@@ -333,6 +363,30 @@ sdk.entities.update_records_async(entity_key: str, records: List[Any], schema: O
 Folders service
 
 ```python
+# Check if folder exists.
+sdk.folders.exists(key: Optional[str]=None, display_name: Optional[str]=None) -> bool
+
+# Async version of exists().
+sdk.folders.exists_async(key: Optional[str]=None, display_name: Optional[str]=None) -> bool
+
+# List folders with auto-pagination.
+sdk.folders.list(filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.Iterator[uipath.models.folders.Folder]
+
+# Async version of list().
+sdk.folders.list_async(filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.AsyncIterator[uipath.models.folders.Folder]
+
+# Retrieve a folder by key or display name.
+sdk.folders.retrieve(key: Optional[str]=None, display_name: Optional[str]=None) -> uipath.models.folders.Folder
+
+# Async version of retrieve().
+sdk.folders.retrieve_async(key: Optional[str]=None, display_name: Optional[str]=None) -> uipath.models.folders.Folder
+
+# Retrieve a folder by its fully qualified path.
+sdk.folders.retrieve_by_path(folder_path: str) -> uipath.models.folders.Folder
+
+# Async version of retrieve_by_path().
+sdk.folders.retrieve_by_path_async(folder_path: str) -> uipath.models.folders.Folder
+
 # Retrieve the folder key by folder path with pagination support.
 sdk.folders.retrieve_key(folder_path: str) -> typing.Optional[str]
 
@@ -349,6 +403,12 @@ sdk.jobs.create_attachment(name: str, content: Union[str, bytes, NoneType]=None,
 # Create and upload an attachment asynchronously, optionally linking it to a job.
 sdk.jobs.create_attachment_async(name: str, content: Union[str, bytes, NoneType]=None, source_path: Union[str, pathlib.Path, NoneType]=None, job_key: Union[str, uuid.UUID, NoneType]=None, category: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uuid.UUID
 
+# Check if job exists.
+sdk.jobs.exists(job_key: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Async version of exists().
+sdk.jobs.exists_async(job_key: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
 # Get the actual output data, downloading from attachment if necessary.
 sdk.jobs.extract_output(job: uipath.models.job.Job) -> typing.Optional[str]
 
@@ -360,6 +420,12 @@ sdk.jobs.link_attachment(attachment_key: uuid.UUID, job_key: uuid.UUID, category
 
 # Link an attachment to a job asynchronously.
 sdk.jobs.link_attachment_async(attachment_key: uuid.UUID, job_key: uuid.UUID, category: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None)
+
+# List jobs with automatic pagination (limited to 10 pages).
+sdk.jobs.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.Iterator[uipath.models.job.Job]
+
+# Async version of list() with pagination limit.
+sdk.jobs.list_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.AsyncIterator[uipath.models.job.Job]
 
 # List attachments associated with a specific job.
 sdk.jobs.list_attachments(job_key: uuid.UUID, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[str]
@@ -373,7 +439,7 @@ sdk.jobs.resume(inbox_id: Optional[str]=None, job_id: Optional[str]=None, folder
 # Asynchronously sends a payload to resume a paused job waiting for input, identified by its inbox ID.
 sdk.jobs.resume_async(inbox_id: Optional[str]=None, job_id: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, payload: Any) -> None
 
-# Retrieve a job identified by its key.
+# Retrieve a single job by key.
 sdk.jobs.retrieve(job_key: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.job.Job
 
 # Fetch payload data for API triggers.
@@ -382,8 +448,14 @@ sdk.jobs.retrieve_api_payload(inbox_id: str) -> typing.Any
 # Asynchronously fetch payload data for API triggers.
 sdk.jobs.retrieve_api_payload_async(inbox_id: str) -> typing.Any
 
-# Asynchronously retrieve a job identified by its key.
+# Asynchronously retrieve a single job by key.
 sdk.jobs.retrieve_async(job_key: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.job.Job
+
+# Stop one or more jobs with specified strategy.
+sdk.jobs.stop(job_keys: List[str], strategy: str="SoftStop", folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
+
+# Async version of stop() - stop one or more jobs with specified strategy.
+sdk.jobs.stop_async(job_keys: List[str], strategy: str="SoftStop", folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
 
 ```
 
@@ -415,11 +487,29 @@ sdk.llm_openai.embeddings(input: str, embedding_model: str="text-embedding-ada-0
 Processes service
 
 ```python
+# Check if process exists.
+sdk.processes.exists(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Async version of exists().
+sdk.processes.exists_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
 # Start execution of a process by its name.
 sdk.processes.invoke(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.job.Job
 
 # Asynchronously start execution of a process by its name.
 sdk.processes.invoke_async(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.job.Job
+
+# List processes with auto-pagination.
+sdk.processes.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.Iterator[uipath.models.processes.Process]
+
+# Async version of list().
+sdk.processes.list_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.AsyncIterator[uipath.models.processes.Process]
+
+# Retrieve a process by name or key.
+sdk.processes.retrieve(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.processes.Process
+
+# Async version of retrieve().
+sdk.processes.retrieve_async(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.processes.Process
 
 ```
 
@@ -434,11 +524,17 @@ sdk.queues.complete_transaction_item(transaction_key: str, result: Union[Dict[st
 # Asynchronously completes a transaction item with the specified result.
 sdk.queues.complete_transaction_item_async(transaction_key: str, result: Union[Dict[str, Any], uipath.models.queues.TransactionItemResult]) -> httpx.Response
 
-# Creates a new queue item in the Orchestrator.
-sdk.queues.create_item(item: Union[Dict[str, Any], uipath.models.queues.QueueItem]) -> httpx.Response
+# Create a new queue definition.
+sdk.queues.create_definition(name: str, description: Optional[str]=None, max_number_of_retries: int=0, accept_automatically_retry: bool=False, enforce_unique_reference: bool=False, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.queues.QueueDefinition
 
-# Asynchronously creates a new queue item in the Orchestrator.
-sdk.queues.create_item_async(item: Union[Dict[str, Any], uipath.models.queues.QueueItem]) -> httpx.Response
+# Async version of create_definition().
+sdk.queues.create_definition_async(name: str, description: Optional[str]=None, max_number_of_retries: int=0, accept_automatically_retry: bool=False, enforce_unique_reference: bool=False, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.queues.QueueDefinition
+
+# Creates a new queue item with explicit parameters.
+sdk.queues.create_item(queue_name: Optional[str]=None, queue_key: Optional[str]=None, reference: str, specific_content: Dict[str, Any], priority: Optional[str]=None, defer_date: Optional[datetime.datetime]=None, due_date: Optional[datetime.datetime]=None, risk_sla_date: Optional[datetime.datetime]=None, progress: Optional[str]=None, source: Optional[str]=None, parent_operation_id: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.queues.QueueItem
+
+# Asynchronously creates a new queue item with explicit parameters.
+sdk.queues.create_item_async(queue_name: Optional[str]=None, queue_key: Optional[str]=None, reference: str, specific_content: Dict[str, Any], priority: Optional[str]=None, defer_date: Optional[datetime.datetime]=None, due_date: Optional[datetime.datetime]=None, risk_sla_date: Optional[datetime.datetime]=None, progress: Optional[str]=None, source: Optional[str]=None, parent_operation_id: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.queues.QueueItem
 
 # Creates multiple queue items in bulk.
 sdk.queues.create_items(items: List[Union[Dict[str, Any], uipath.models.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType) -> httpx.Response
@@ -452,11 +548,35 @@ sdk.queues.create_transaction_item(item: Union[Dict[str, Any], uipath.models.que
 # Asynchronously creates a new transaction item in a queue.
 sdk.queues.create_transaction_item_async(item: Union[Dict[str, Any], uipath.models.queues.TransactionItem], no_robot: bool=False) -> httpx.Response
 
-# Retrieves a list of queue items from the Orchestrator.
-sdk.queues.list_items() -> httpx.Response
+# Delete a queue definition.
+sdk.queues.delete_definition(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
 
-# Asynchronously retrieves a list of queue items from the Orchestrator.
-sdk.queues.list_items_async() -> httpx.Response
+# Async version of delete_definition().
+sdk.queues.delete_definition_async(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
+
+# Check if queue definition exists.
+sdk.queues.exists_definition(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Async version of exists_definition().
+sdk.queues.exists_definition_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# List queue definitions with auto-pagination.
+sdk.queues.list_definitions(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.Iterator[uipath.models.queues.QueueDefinition]
+
+# Async version of list_definitions().
+sdk.queues.list_definitions_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.AsyncIterator[uipath.models.queues.QueueDefinition]
+
+# List queue items with server-side filtering and auto-pagination.
+sdk.queues.list_items(queue_name: Optional[str]=None, queue_key: Optional[str]=None, status: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.Iterator[uipath.models.queues.QueueItem]
+
+# Async version of list_items() with server-side filtering and auto-pagination.
+sdk.queues.list_items_async(queue_name: Optional[str]=None, queue_key: Optional[str]=None, status: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, filter: Optional[str]=None, orderby: Optional[str]=None, top: int=100, skip: int=0) -> typing.AsyncIterator[uipath.models.queues.QueueItem]
+
+# Retrieve a queue definition by name or key.
+sdk.queues.retrieve_definition(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.queues.QueueDefinition
+
+# Async version of retrieve_definition().
+sdk.queues.retrieve_definition_async(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.queues.QueueDefinition
 
 # Updates the progress of a transaction item.
 sdk.queues.update_progress_of_transaction_item(transaction_key: str, progress: str) -> httpx.Response

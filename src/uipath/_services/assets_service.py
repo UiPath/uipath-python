@@ -7,7 +7,8 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..models import Asset, UserAsset
-from ..tracing import traced
+from ..models.errors import PaginationLimitError
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -330,7 +331,7 @@ class AssetsService(FolderContext, BaseService):
         top: int = 100,
         skip: int = 0,
     ) -> Iterator[Asset]:
-        """List assets with auto-pagination.
+        """List assets with automatic pagination (limited to 10 pages).
 
         Args:
             folder_path: Folder path to filter assets
@@ -344,22 +345,32 @@ class AssetsService(FolderContext, BaseService):
         Yields:
             Asset: Asset resource instances
 
+        Raises:
+            PaginationLimitError: If more than 10 pages (1,000 items) exist.
+                Use filters or manual pagination to retrieve additional results.
+
+        Note:
+            Auto-pagination is limited to 10 pages (~1,000 items) to prevent
+            performance issues with deep OFFSET queries. If you hit this limit:
+
+            1. Add filters to narrow results:
+               >>> for asset in sdk.assets.list(filter="ValueType eq 'Text'"):
+               ...     print(asset.name)
+
         Examples:
-            >>> # List all assets
+            >>> # List all assets (up to 1,000)
             >>> for asset in sdk.assets.list():
             ...     print(asset.name, asset.value)
             >>>
             >>> # Filter by name
             >>> for asset in sdk.assets.list(name="API"):
             ...     print(asset.name)
-            >>>
-            >>> # OData filter
-            >>> for asset in sdk.assets.list(filter="ValueType eq 'Text'"):
-            ...     print(asset.name)
         """
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -384,10 +395,22 @@ class AssetsService(FolderContext, BaseService):
                 asset = Asset.model_validate(item)
                 yield asset
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list",
+                    current_skip=current_skip,
+                    filter_example="ValueType eq 'Text'",
+                )
 
     @traced(name="assets_list", run_type="uipath")
     async def list_async(
@@ -401,10 +424,15 @@ class AssetsService(FolderContext, BaseService):
         top: int = 100,
         skip: int = 0,
     ) -> AsyncIterator[Asset]:
-        """Async version of list() with auto-pagination."""
-        current_skip = skip
+        """Async version of list() with pagination limit.
 
-        while True:
+        See list() for full documentation.
+        """
+        MAX_PAGES = 10
+        current_skip = skip
+        pages_fetched = 0
+
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -431,10 +459,22 @@ class AssetsService(FolderContext, BaseService):
                 asset = Asset.model_validate(item)
                 yield asset
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_async",
+                    current_skip=current_skip,
+                    filter_example="ValueType eq 'Text'",
+                )
 
     @traced(name="assets_create", run_type="uipath")
     def create(
@@ -452,7 +492,12 @@ class AssetsService(FolderContext, BaseService):
         Args:
             name: Asset name (must be unique within folder)
             value: Asset value
-            value_type: Type of asset ("Text", "Integer", "Boolean", "Credential")
+            value_type: Type of asset ("Text", "Integer", "Boolean", "Credential", "Secret")
+                - Text: Plain text values
+                - Integer: Numeric values
+                - Boolean: True/False values
+                - Credential: Username/password pairs (robot-context only)
+                - Secret: Encrypted single values like API keys (robot-context only)
             description: Optional description
             folder_path: Folder to create asset in
             folder_key: Folder key
@@ -495,7 +540,24 @@ class AssetsService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
     ) -> Asset:
-        """Async version of create()."""
+        """Async version of create().
+
+        Args:
+            name: Asset name (must be unique within folder)
+            value: Asset value
+            value_type: Type of asset ("Text", "Integer", "Boolean", "Credential", "Secret")
+                - Text: Plain text values
+                - Integer: Numeric values
+                - Boolean: True/False values
+                - Credential: Username/password pairs (robot-context only)
+                - Secret: Encrypted single values like API keys (robot-context only)
+            description: Optional description
+            folder_path: Folder to create asset in
+            folder_key: Folder key
+
+        Returns:
+            Asset: Newly created asset
+        """
         spec = self._create_spec(
             name=name,
             value=value,

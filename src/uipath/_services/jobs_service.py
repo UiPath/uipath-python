@@ -20,6 +20,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
+from ..models.errors import PaginationLimitError
 from ..models.exceptions import EnrichedException
 from ..models.job import Job
 from ..tracing import traced
@@ -53,7 +54,7 @@ class JobsService(FolderContext, BaseService):
         top: int = 100,
         skip: int = 0,
     ) -> Iterator[Job]:
-        """List jobs with auto-pagination.
+        """List jobs with automatic pagination (limited to 10 pages).
 
         Args:
             folder_path: Folder path to filter jobs
@@ -66,13 +67,37 @@ class JobsService(FolderContext, BaseService):
         Yields:
             Job: Job instances
 
+        Raises:
+            PaginationLimitError: If more than 10 pages (1,000 items) exist.
+                Use filters or manual pagination to retrieve additional results.
+
+        Note:
+            Auto-pagination is limited to 10 pages (~1,000 items) to prevent
+            performance issues with deep OFFSET queries. If you hit this limit:
+
+            1. Add filters to narrow results:
+               >>> for job in sdk.jobs.list(filter="State eq 'Successful'"):
+               ...     print(job.key)
+
+            2. Use manual pagination for large datasets:
+               >>> skip = 0
+               >>> while True:
+               ...     page = list(sdk.jobs.list(skip=skip, top=100))
+               ...     if not page:
+               ...         break
+               ...     process(page)
+               ...     skip += 100
+
         Examples:
+            >>> # Get up to 1,000 jobs automatically
             >>> for job in sdk.jobs.list():
             ...     print(job.key, job.state)
         """
+        MAX_PAGES = 10
         current_skip = skip
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -96,10 +121,22 @@ class JobsService(FolderContext, BaseService):
                 job = Job.model_validate(item)
                 yield job
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list",
+                    current_skip=current_skip,
+                    filter_example="State eq 'Successful'",
+                )
 
     @traced(name="jobs_list", run_type="uipath")
     async def list_async(
@@ -112,10 +149,15 @@ class JobsService(FolderContext, BaseService):
         top: int = 100,
         skip: int = 0,
     ) -> AsyncIterator[Job]:
-        """Async version of list()."""
-        current_skip = skip
+        """Async version of list() with pagination limit.
 
-        while True:
+        See list() for full documentation.
+        """
+        MAX_PAGES = 10
+        current_skip = skip
+        pages_fetched = 0
+
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -141,17 +183,28 @@ class JobsService(FolderContext, BaseService):
                 job = Job.model_validate(item)
                 yield job
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             current_skip += top
 
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_async",
+                    current_skip=current_skip,
+                    filter_example="State eq 'Successful'",
+                )
+
     @traced(name="jobs_stop", run_type="uipath")
     def stop(
         self,
         *,
-        job_keys: Optional[List[str]] = None,
-        job_ids: Optional[List[int]] = None,
+        job_keys: List[str],
         strategy: str = "SoftStop",
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
@@ -159,21 +212,14 @@ class JobsService(FolderContext, BaseService):
         """Stop one or more jobs with specified strategy.
 
         Args:
-            job_keys: List of job UUID keys to stop (alternative to job_ids)
-            job_ids: List of job integer IDs to stop (alternative to job_keys)
+            job_keys: List of job UUID keys to stop
             strategy: Stop strategy - "SoftStop" (graceful) or "Kill" (force)
             folder_path: Folder path
             folder_key: Folder key
 
-        Raises:
-            ValueError: If neither job_keys nor job_ids is provided
-
         Examples:
             >>> # Stop single job by key
             >>> sdk.jobs.stop(job_keys=["ee9327fd-237d-419e-86ef-9946b34461e3"])
-
-            >>> # Stop multiple jobs by ID
-            >>> sdk.jobs.stop(job_ids=[12345, 67890], strategy="Kill")
 
             >>> # Stop multiple jobs with Kill strategy
             >>> sdk.jobs.stop(
@@ -181,20 +227,6 @@ class JobsService(FolderContext, BaseService):
             ...     strategy="Kill"
             ... )
         """
-        if job_keys is None and job_ids is None:
-            raise ValueError("Either 'job_keys' or 'job_ids' must be provided")
-
-        if job_ids and not job_keys:
-            jobs = [
-                self.retrieve(
-                    job_id=jid, folder_path=folder_path, folder_key=folder_key
-                )
-                for jid in job_ids
-            ]
-            job_keys = [job.key for job in jobs if job.key]
-
-        assert job_keys is not None  # for type checker
-
         spec = self._stop_spec(
             job_keys=job_keys,
             strategy=strategy,
@@ -212,8 +244,7 @@ class JobsService(FolderContext, BaseService):
     async def stop_async(
         self,
         *,
-        job_keys: Optional[List[str]] = None,
-        job_ids: Optional[List[int]] = None,
+        job_keys: List[str],
         strategy: str = "SoftStop",
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
@@ -221,45 +252,18 @@ class JobsService(FolderContext, BaseService):
         """Async version of stop() - stop one or more jobs with specified strategy.
 
         Args:
-            job_keys: List of job UUID keys to stop (alternative to job_ids)
-            job_ids: List of job integer IDs to stop (alternative to job_keys)
+            job_keys: List of job UUID keys to stop
             strategy: Stop strategy - "SoftStop" (graceful) or "Kill" (force)
             folder_path: Folder path
             folder_key: Folder key
-
-        Raises:
-            ValueError: If neither job_keys nor job_ids is provided
 
         Examples:
             >>> # Stop single job by key
             >>> await sdk.jobs.stop_async(job_keys=["ee9327fd-237d-419e-86ef-9946b34461e3"])
 
-            >>> # Stop multiple jobs by ID
-            >>> await sdk.jobs.stop_async(job_ids=[12345, 67890], strategy="Kill")
-
             >>> # Stop multiple jobs
             >>> await sdk.jobs.stop_async(job_keys=["uuid-1", "uuid-2"])
         """
-        if job_keys is None and job_ids is None:
-            raise ValueError("Either 'job_keys' or 'job_ids' must be provided")
-
-        # Convert job_ids to job_keys if needed
-        if job_ids and not job_keys:
-            # Use asyncio.gather for concurrent retrieval
-            import asyncio
-
-            jobs = await asyncio.gather(
-                *[
-                    self.retrieve_async(
-                        job_id=jid, folder_path=folder_path, folder_key=folder_key
-                    )
-                    for jid in job_ids
-                ]
-            )
-            job_keys = [job.key for job in jobs if job.key]
-
-        assert job_keys is not None  # for type checker
-
         spec = self._stop_spec(
             job_keys=job_keys,
             strategy=strategy,
@@ -440,16 +444,14 @@ class JobsService(FolderContext, BaseService):
     def retrieve(
         self,
         *,
-        job_key: Optional[str] = None,
-        job_id: Optional[int] = None,
+        job_key: str,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Job:
-        """Retrieve a single job by key or ID.
+        """Retrieve a single job by key.
 
         Args:
             job_key: Job UUID key
-            job_id: Job integer ID (alternative to job_key)
             folder_key: The key of the folder in which the job was executed
             folder_path: The path of the folder in which the job was executed
 
@@ -459,25 +461,10 @@ class JobsService(FolderContext, BaseService):
         Examples:
             >>> # Retrieve by key
             >>> job = sdk.jobs.retrieve(job_key="ee9327fd-237d-419e-86ef-9946b34461e3")
-
-            >>> # Retrieve by ID
-            >>> job = sdk.jobs.retrieve(job_id=123, folder_path="Shared")
         """
-        if job_key is None and job_id is None:
-            raise ValueError("Either 'job_key' or 'job_id' must be provided")
-
-        if job_key:
-            spec = self._retrieve_by_key_spec(
-                job_key=job_key, folder_key=folder_key, folder_path=folder_path
-            )
-            lookup_id = f"key '{job_key}'"
-        else:
-            # job_id must be provided if job_key is None (validated above)
-            assert job_id is not None  # for type checker
-            spec = self._retrieve_by_id_spec(
-                job_id=job_id, folder_key=folder_key, folder_path=folder_path
-            )
-            lookup_id = f"ID {job_id}"
+        spec = self._retrieve_by_key_spec(
+            job_key=job_key, folder_key=folder_key, folder_path=folder_path
+        )
 
         try:
             response = self.request(
@@ -488,22 +475,20 @@ class JobsService(FolderContext, BaseService):
             return Job.model_validate(response.json())
         except EnrichedException as e:
             if e.status_code == 404:
-                raise LookupError(f"Job with {lookup_id} not found.") from e
+                raise LookupError(f"Job with key '{job_key}' not found.") from e
             raise
 
     async def retrieve_async(
         self,
         *,
-        job_key: Optional[str] = None,
-        job_id: Optional[int] = None,
+        job_key: str,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Job:
-        """Asynchronously retrieve a single job by key or ID.
+        """Asynchronously retrieve a single job by key.
 
         Args:
             job_key: Job UUID key
-            job_id: Job integer ID (alternative to job_key)
             folder_key: The key of the folder in which the job was executed
             folder_path: The path of the folder in which the job was executed
 
@@ -513,24 +498,10 @@ class JobsService(FolderContext, BaseService):
         Examples:
             >>> # Retrieve by key
             >>> job = await sdk.jobs.retrieve_async(job_key="ee9327fd-237d-419e-86ef-9946b34461e3")
-
-            >>> # Retrieve by ID
-            >>> job = await sdk.jobs.retrieve_async(job_id=123, folder_path="Shared")
         """
-        if job_key is None and job_id is None:
-            raise ValueError("Either 'job_key' or 'job_id' must be provided")
-
-        if job_key:
-            spec = self._retrieve_by_key_spec(
-                job_key=job_key, folder_key=folder_key, folder_path=folder_path
-            )
-            lookup_id = f"key '{job_key}'"
-        else:
-            assert job_id is not None  # for type checker
-            spec = self._retrieve_by_id_spec(
-                job_id=job_id, folder_key=folder_key, folder_path=folder_path
-            )
-            lookup_id = f"ID {job_id}"
+        spec = self._retrieve_by_key_spec(
+            job_key=job_key, folder_key=folder_key, folder_path=folder_path
+        )
 
         try:
             response = await self.request_async(
@@ -541,7 +512,7 @@ class JobsService(FolderContext, BaseService):
             return Job.model_validate(response.json())
         except EnrichedException as e:
             if e.status_code == 404:
-                raise LookupError(f"Job with {lookup_id} not found.") from e
+                raise LookupError(f"Job with key '{job_key}' not found.") from e
             raise
 
     def _retrieve_inbox_id(
@@ -746,21 +717,6 @@ class JobsService(FolderContext, BaseService):
             endpoint=Endpoint(
                 f"/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.GetByKey(identifier={job_key})"
             ),
-            headers={
-                **header_folder(folder_key, folder_path),
-            },
-        )
-
-    def _retrieve_by_id_spec(
-        self,
-        job_id: int,
-        folder_key: Optional[str],
-        folder_path: Optional[str],
-    ) -> RequestSpec:
-        """Build request for retrieving job by ID."""
-        return RequestSpec(
-            method="GET",
-            endpoint=Endpoint(f"/orchestrator_/odata/Jobs({job_id})"),
             headers={
                 **header_folder(folder_key, folder_path),
             },
@@ -1285,14 +1241,25 @@ class JobsService(FolderContext, BaseService):
         folder_key: Optional[str],
         folder_path: Optional[str],
     ) -> RequestSpec:
-        """Build request for stopping jobs with strategy."""
+        """Build request for stopping jobs with strategy.
+
+        Note: The UiPath API requires integer job IDs, so we retrieve each job
+        by key to get its ID. This matches the Swagger StopJobsRequest schema.
+        """
+        job_ids = []
+        for job_key in job_keys:
+            job = self.retrieve(
+                job_key=job_key, folder_key=folder_key, folder_path=folder_path
+            )
+            job_ids.append(job.id)
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StopJobs"
             ),
             json={
-                "jobKeys": job_keys,
+                "jobIds": job_ids,
                 "strategy": strategy,
             },
             headers={

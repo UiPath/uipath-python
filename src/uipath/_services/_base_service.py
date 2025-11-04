@@ -1,4 +1,8 @@
 import inspect
+import random
+import time
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 from logging import getLogger
 from typing import Any, Literal, Union
 
@@ -36,6 +40,8 @@ def is_retryable_status_code(response: Response) -> bool:
 
 
 class BaseService:
+    MAX_RETRIES = 3
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         self._logger = getLogger("uipath")
         self._config = config
@@ -57,6 +63,31 @@ class BaseService:
         self._logger.debug(f"HEADERS: {self.default_headers}")
 
         super().__init__()
+
+    def _parse_retry_after(self, headers: Headers) -> float:
+        """Parse Retry-After header (RFC 6585/7231).
+
+        Args:
+            headers: HTTP response headers
+
+        Returns:
+            float: Seconds to wait before retry (minimum 1.0)
+        """
+        retry_after = headers.get("Retry-After")
+        if not retry_after:
+            return 1.0
+
+        try:
+            return float(retry_after)
+        except ValueError:
+            pass
+
+        try:
+            retry_date = parsedate_to_datetime(retry_after)
+            delta = (retry_date - datetime.now(retry_date.tzinfo)).total_seconds()
+            return max(delta, 1.0)
+        except (ValueError, TypeError):
+            return 1.0
 
     @retry(
         retry=(
@@ -102,7 +133,23 @@ class BaseService:
 
         scoped_url = self._url.scope_url(str(url), scoped)
 
-        response = self._client.request(method, scoped_url, **kwargs)
+        for attempt in range(self.MAX_RETRIES + 1):
+            response = self._client.request(method, scoped_url, **kwargs)
+
+            if response.status_code == 429:
+                if attempt < self.MAX_RETRIES:
+                    retry_after = self._parse_retry_after(response.headers)
+                    jitter = random.uniform(0, 0.1 * retry_after)
+                    sleep_time = retry_after + jitter
+                    self._logger.warning(
+                        f"Rate limited (429). Retrying after {sleep_time:.2f}s "
+                        f"(attempt {attempt + 1}/{self.MAX_RETRIES})"
+                    )
+                    time.sleep(sleep_time)
+                    continue
+                break
+
+            break
 
         try:
             response.raise_for_status()
@@ -127,6 +174,8 @@ class BaseService:
         scoped: Literal["org", "tenant"] = "tenant",
         **kwargs: Any,
     ) -> Response:
+        import asyncio
+
         self._logger.debug(f"Request: {method} {url}")
         self._logger.debug(
             f"HEADERS: {kwargs.get('headers', self._client_async.headers)}"
@@ -139,7 +188,23 @@ class BaseService:
 
         scoped_url = self._url.scope_url(str(url), scoped)
 
-        response = await self._client_async.request(method, scoped_url, **kwargs)
+        for attempt in range(self.MAX_RETRIES + 1):
+            response = await self._client_async.request(method, scoped_url, **kwargs)
+
+            if response.status_code == 429:
+                if attempt < self.MAX_RETRIES:
+                    retry_after = self._parse_retry_after(response.headers)
+                    jitter = random.uniform(0, 0.1 * retry_after)
+                    sleep_time = retry_after + jitter
+                    self._logger.warning(
+                        f"Rate limited (429). Retrying after {sleep_time:.2f}s "
+                        f"(attempt {attempt + 1}/{self.MAX_RETRIES})"
+                    )
+                    await asyncio.sleep(sleep_time)
+                    continue
+                break
+
+            break
 
         try:
             response.raise_for_status()
