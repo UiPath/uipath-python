@@ -279,12 +279,12 @@ def _generate_evaluation_set(
         # Create evaluation items
         evaluation_items = []
 
-        # If spans are provided, create an evaluation for each node
+        # If spans are provided, create per-node evaluations
         if spans:
-
-            # Filter spans to only include workflow nodes (look for spans with node-like names)
-            # and group by node execution
+            # Filter spans to only include workflow nodes
             node_spans = {}
+            node_order = []  # Track order of nodes
+
             for span in spans:
                 # First try to get the span name from the Name field (UiPath format)
                 span_name = span.get('Name', span.get('name', ''))
@@ -297,10 +297,7 @@ def _generate_evaluation_set(
                     except:
                         attributes = {}
 
-                # Determine the node name from various possible sources:
-                # 1. LangGraph-specific attributes (node_name, langgraph.node)
-                # 2. Span Name field (for @traced functions)
-                # 3. span_name as fallback
+                # Determine the node name from various possible sources
                 node_name = None
                 if isinstance(attributes, dict):
                     node_name = attributes.get('node_name', attributes.get('langgraph.node', None))
@@ -309,72 +306,64 @@ def _generate_evaluation_set(
                 if not node_name and span_name:
                     node_name = span_name
 
-                # Only include valid node names (exclude system nodes)
-                if node_name and node_name not in ['__start__', '__end__']:
+                # Only include valid workflow nodes (exclude system nodes, internal components, and LLM calls)
+                if node_name and node_name not in ['__start__', '__end__'] and not any(
+                    node_name.startswith(prefix) for prefix in ['Runnable', 'UiPath', 'JsonOutput']
+                ):
                     if node_name not in node_spans:
                         node_spans[node_name] = []
+                        node_order.append(node_name)
                     node_spans[node_name].append(span)
 
             if node_spans:
                 console.info(f"Found {len(node_spans)} workflow node(s) for evaluation generation")
 
-            # Create evaluation item for each node
-            for node_name, node_span_list in node_spans.items():
-                # Get the most recent span for this node (in case it executed multiple times)
-                node_span = node_span_list[-1]
-                node_attributes = node_span.get('Attributes', node_span.get('attributes', {}))
+                # Create evaluation for each node in execution order
+                for node_name in node_order:
+                    node_span_list = node_spans[node_name]
+                    # Get the most recent span for this node
+                    node_span = node_span_list[-1]
+                    node_attributes = node_span.get('Attributes', node_span.get('attributes', {}))
 
-                # Parse attributes if they're a JSON string
-                if isinstance(node_attributes, str):
-                    try:
-                        node_attributes = json.loads(node_attributes)
-                    except:
-                        node_attributes = {}
+                    # Parse attributes if they're a JSON string
+                    if isinstance(node_attributes, str):
+                        try:
+                            node_attributes = json.loads(node_attributes)
+                        except:
+                            node_attributes = {}
 
-                # Extract input/output from span attributes if available
-                # Try different attribute keys: input.value, input, inputs
-                node_input = node_attributes.get('input.value', node_attributes.get('input', node_attributes.get('inputs', None)))
-                if isinstance(node_input, str):
-                    try:
-                        node_input = json.loads(node_input)
-                    except:
-                        pass
+                    # Try different output keys: output.value, output, outputs
+                    node_output = node_attributes.get('output.value', node_attributes.get('output', node_attributes.get('outputs', None)))
+                    if isinstance(node_output, str):
+                        try:
+                            node_output = json.loads(node_output)
+                        except:
+                            pass
 
-                # Try different output keys: output.value, output, outputs
-                node_output = node_attributes.get('output.value', node_attributes.get('output', node_attributes.get('outputs', None)))
-                if isinstance(node_output, str):
-                    try:
-                        node_output = json.loads(node_output)
-                    except:
-                        pass
+                    if node_output:
+                        # Create node-specific evaluation
+                        node_eval_id = str(uuid.uuid4())
+                        node_evaluation_criteria = {}
 
-                # Use fallback values if node-specific data is not available
-                if not node_input:
-                    node_input = parsed_input
+                        # Add evaluation criteria for each evaluator with node output
+                        for evaluator_id in evaluator_refs:
+                            node_evaluation_criteria[evaluator_id] = {
+                                "expected_output": node_output,
+                            }
 
-                # If we have node-specific output, create an evaluation for it
-                if node_output:
-                    node_eval_id = str(uuid.uuid4())
-                    node_evaluation_criteria = {}
+                        evaluation_items.append({
+                            "id": node_eval_id,
+                            "name": f"Node: {node_name}",
+                            "inputs": parsed_input,  # Use agent input, not node-specific input
+                            "evaluationCriterias": node_evaluation_criteria,
+                            "expectedAgentBehavior": f"The agent should execute node '{node_name}' and produce the expected output during the workflow execution.",
+                            "nodeId": node_name,  # Add node identifier for evaluators to match against trace
+                        })
 
-                    # Add evaluation criteria for each evaluator
-                    for evaluator_id in evaluator_refs:
-                        node_evaluation_criteria[evaluator_id] = {
-                            "expected_output": node_output,
-                        }
-
-                    evaluation_items.append({
-                        "id": node_eval_id,
-                        "name": f"Node: {node_name} - Generated eval from run at {timestamp}",
-                        "inputs": node_input if isinstance(node_input, dict) else parsed_input,
-                        "evaluationCriterias": node_evaluation_criteria,
-                        "expectedAgentBehavior": f"Node '{node_name}' should produce the expected output",
-                    })
-
-        # Always include final output evaluation as well
+        # Always include final output evaluation
         evaluation_item = {
             "id": eval_id,
-            "name": f"Final Output - Generated eval from run at {timestamp}",
+            "name": f"Final Output",
             "inputs": parsed_input,
             "evaluationCriterias": evaluation_criteria,
             "expectedAgentBehavior": "Agent should produce the expected output for the given input",

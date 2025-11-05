@@ -420,6 +420,41 @@ def tool_calls_output_score(
     ), justifications
 
 
+def extract_node_output_from_trace(agent_trace: Sequence[ReadableSpan], node_id: str) -> Any:
+    """Extract the output of a specific node from the agent execution trace.
+
+    Args:
+        agent_trace: List of ReadableSpan objects from agent execution.
+        node_id: The identifier of the node to extract output from.
+
+    Returns:
+        The output value of the node, or None if not found.
+    """
+    for span in agent_trace:
+        if not span.attributes:
+            continue
+
+        # Check if this span matches the node_id
+        span_name = span.name
+        node_name_attr = span.attributes.get('node_name') or span.attributes.get('langgraph.node')
+
+        # Match by span name or node_name attribute
+        if span_name == node_id or node_name_attr == node_id:
+            # Extract output from span attributes
+            output_value = span.attributes.get('output.value') or span.attributes.get('output')
+
+            # Try to parse if it's a JSON string
+            if isinstance(output_value, str):
+                try:
+                    return json.loads(output_value)
+                except (json.JSONDecodeError, ValueError):
+                    return output_value
+
+            return output_value
+
+    return None
+
+
 def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
     """Convert OTEL spans to a platform-style agent run history string.
 

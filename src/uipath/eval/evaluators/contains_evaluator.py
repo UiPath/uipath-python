@@ -58,7 +58,7 @@ class ContainsEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating if output contains expected value (True/False)
         """
-        actual_output = str(self._get_actual_output(agent_execution))
+        actual_output = str(self._get_actual_output(agent_execution, evaluation_criteria))
         expected_output = str(self._get_expected_output(evaluation_criteria))
 
         if not self.evaluator_config.case_sensitive:

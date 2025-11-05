@@ -92,7 +92,9 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
             ) from e
 
     @abstractmethod
-    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
+    def _get_actual_output(
+        self, agent_execution: AgentExecution, evaluation_criteria: T
+    ) -> Any:
         """Get the actual output from the agent execution. Must be implemented by concrete evaluator classes."""
         pass
 
@@ -130,7 +132,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         """Create the evaluation prompt for the LLM."""
         formatted_prompt = self.evaluator_config.prompt.replace(
             self.actual_output_placeholder,
-            str(self._get_actual_output(agent_execution)),
+            str(self._get_actual_output(agent_execution, evaluation_criteria)),
         )
         formatted_prompt = formatted_prompt.replace(
             self.expected_output_placeholder,
