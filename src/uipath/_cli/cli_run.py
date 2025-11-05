@@ -126,42 +126,42 @@ def _generate_evaluation_set(
             "llm_judge": {
                 "name": "LLMJudgeOutputEvaluator",
                 "evaluatorTypeId": "uipath-llm-judge-output-semantic-similarity",
-                "config_defaults": {"name": "LLMJudgeOutputEvaluator", "model": ""}
+                "config_defaults": {"name": "LLMJudgeOutputEvaluator", "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"}
             },
             "uipath-llm-judge-output-semantic-similarity": {
                 "name": "LLMJudgeOutputEvaluator",
                 "evaluatorTypeId": "uipath-llm-judge-output-semantic-similarity",
-                "config_defaults": {"name": "LLMJudgeOutputEvaluator", "model": ""}
+                "config_defaults": {"name": "LLMJudgeOutputEvaluator", "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"}
             },
             "llm_judge_strict_json": {
                 "name": "LLMJudgeStrictJSONSimilarityOutputEvaluator",
                 "evaluatorTypeId": "uipath-llm-judge-output-strict-json-similarity",
-                "config_defaults": {"name": "LLMJudgeStrictJSONSimilarityOutputEvaluator", "model": ""}
+                "config_defaults": {"name": "LLMJudgeStrictJSONSimilarityOutputEvaluator", "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"}
             },
             "uipath-llm-judge-output-strict-json-similarity": {
                 "name": "LLMJudgeStrictJSONSimilarityOutputEvaluator",
                 "evaluatorTypeId": "uipath-llm-judge-output-strict-json-similarity",
-                "config_defaults": {"name": "LLMJudgeStrictJSONSimilarityOutputEvaluator", "model": ""}
+                "config_defaults": {"name": "LLMJudgeStrictJSONSimilarityOutputEvaluator", "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"}
             },
             "llm_judge_trajectory": {
                 "name": "LLMJudgeTrajectoryEvaluator",
                 "evaluatorTypeId": "uipath-llm-judge-trajectory",
-                "config_defaults": {"name": "LLMJudgeTrajectoryEvaluator", "model": ""}
+                "config_defaults": {"name": "LLMJudgeTrajectoryEvaluator", "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"}
             },
             "uipath-llm-judge-trajectory": {
                 "name": "LLMJudgeTrajectoryEvaluator",
                 "evaluatorTypeId": "uipath-llm-judge-trajectory",
-                "config_defaults": {"name": "LLMJudgeTrajectoryEvaluator", "model": ""}
+                "config_defaults": {"name": "LLMJudgeTrajectoryEvaluator", "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"}
             },
             "llm_judge_trajectory_simulation": {
                 "name": "LLMJudgeTrajectorySimulationEvaluator",
                 "evaluatorTypeId": "uipath-llm-judge-trajectory-simulation",
-                "config_defaults": {"name": "LLMJudgeTrajectorySimulationEvaluator", "model": ""}
+                "config_defaults": {"name": "LLMJudgeTrajectorySimulationEvaluator", "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"}
             },
             "uipath-llm-judge-trajectory-simulation": {
                 "name": "LLMJudgeTrajectorySimulationEvaluator",
                 "evaluatorTypeId": "uipath-llm-judge-trajectory-simulation",
-                "config_defaults": {"name": "LLMJudgeTrajectorySimulationEvaluator", "model": ""}
+                "config_defaults": {"name": "LLMJudgeTrajectorySimulationEvaluator", "model": "anthropic.claude-3-5-sonnet-20240620-v1:0"}
             },
             "tool_call_args": {
                 "name": "ToolCallArgsEvaluator",

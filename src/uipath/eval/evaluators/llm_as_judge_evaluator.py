@@ -147,22 +147,33 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
             model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
         # Prepare the request
+        # For Anthropic models, explicitly request JSON in the user message
+        is_anthropic = model.startswith("anthropic.")
+        user_content = evaluation_prompt
+        if is_anthropic:
+            schema_json = json.dumps(self.output_schema.model_json_schema(), indent=2)
+            user_content = f"{evaluation_prompt}\n\nYou MUST respond with valid JSON matching this exact schema:\n{schema_json}\n\nProvide ONLY the JSON response, no other text."
+
         request_data = {
             "model": model,
             "messages": [
                 {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": evaluation_prompt},
+                {"role": "user", "content": user_content},
             ],
-            "response_format": {
+            "max_tokens": self.evaluator_config.max_tokens,
+            "temperature": self.evaluator_config.temperature,
+        }
+
+        # Only add response_format for non-Anthropic models
+        # Anthropic models don't support json_schema response_format via Normalized API
+        if not is_anthropic:
+            request_data["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "evaluation_response",
                     "schema": self.output_schema.model_json_schema(),
                 },
-            },
-            "max_tokens": self.evaluator_config.max_tokens,
-            "temperature": self.evaluator_config.temperature,
-        }
+            }
 
         if self.llm_service is None:
             raise UiPathEvaluationError(
@@ -191,12 +202,26 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
                     detail="The LLM response message content was None.",
                     category=UiPathEvaluationErrorCategory.SYSTEM,
                 )
+            if not content or not str(content).strip():
+                raise UiPathEvaluationError(
+                    code="EMPTY_LLM_RESPONSE",
+                    title="Empty LLM response",
+                    detail=f"The LLM response message content was empty. Content: '{content}'",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                )
             parsed_response = json.loads(str(content))
+        except json.JSONDecodeError as e:
+            raise UiPathEvaluationError(
+                code="FAILED_TO_PARSE_LLM_RESPONSE",
+                title="Failed to parse LLM response",
+                detail=f"Error: {e}\nContent received: '{content}'\nContent type: {type(content)}",
+                category=UiPathEvaluationErrorCategory.SYSTEM,
+            ) from e
         except Exception as e:
             raise UiPathEvaluationError(
                 code="FAILED_TO_PARSE_LLM_RESPONSE",
                 title="Failed to parse LLM response",
-                detail=f"Error: {e}",
+                detail=f"Error: {e}\nContent received: '{content}'",
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             ) from e
         return LLMResponse(**parsed_response)
