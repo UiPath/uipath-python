@@ -30,7 +30,7 @@ from ..models.llm_gateway import (
     ToolChoice,
     ToolDefinition,
 )
-from ..tracing._traced import traced
+from ..tracing import traced
 from ..utils import EndpointManager
 from ._base_service import BaseService
 

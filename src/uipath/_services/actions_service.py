@@ -13,7 +13,7 @@ from .._utils.constants import (
     HEADER_TENANT_ID,
 )
 from ..models import Action, ActionSchema
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 
 

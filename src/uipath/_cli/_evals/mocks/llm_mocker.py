@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 
-from uipath.tracing._traced import traced
+from uipath.tracing import traced
 from uipath.tracing._utils import _SpanUtils
 
 from .._models._evaluation_set import (

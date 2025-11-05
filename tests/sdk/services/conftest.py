@@ -6,7 +6,7 @@ import pytest
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath.tracing._traced import TracingManager
+from uipath.tracing import TracingManager
 
 
 @pytest.fixture
