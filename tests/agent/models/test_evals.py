@@ -9,7 +9,6 @@ class TestEvalsAgentDefinition:
         """Test that EvalsAgentDefinition can load from the complete JSON with evaluators and evaluation sets"""
 
         json_data = {
-            "type": "lowCode",
             "features": [],
             "id": "0e2201f2-b983-42c6-8231-64806c09ae54",
             "inputSchema": {
@@ -462,7 +461,6 @@ class TestEvalsAgentDefinition:
         """Test that EvalsAgentDefinition can load JSON with an unknown resource type"""
 
         json_data = {
-            "type": "lowCode",
             "id": "b2564199-e479-4b6f-9336-dc50f457afda",
             "version": "1.0.0",
             "name": "Agent",
@@ -518,7 +516,7 @@ class TestEvalsAgentDefinition:
 
         # Should fall back to UnknownAgentResourceConfig
         assert isinstance(resource, AgentUnknownResourceConfig)
-        assert resource.resource_type == "unknownType"
+        assert resource.resource_type == "unknown"
         assert resource.name == "mystery_resource"
-        assert resource.extraField == {"foo": "bar"}  # type: ignore[attr-defined]
-        assert resource.slug == "mystery-resource"  # type: ignore[attr-defined]
+        assert resource.extraField == {"foo": "bar"}
+        assert resource.slug == "mystery-resource"
