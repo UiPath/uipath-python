@@ -2,7 +2,7 @@ from typing import Optional
 
 from typing_extensions import deprecated
 
-from uipath.tracing._traced import traced
+from uipath.tracing import traced
 
 from .._config import Config
 from .._execution_context import ExecutionContext

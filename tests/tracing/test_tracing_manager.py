@@ -1,6 +1,6 @@
 from functools import wraps
 
-from uipath.tracing._traced import TracingManager, traced
+from uipath.tracing import TracingManager, traced
 
 
 # Custom wrapper that does nothing

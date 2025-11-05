@@ -21,7 +21,7 @@ from ..models.documents import (
     ValidatedResult,
     ValidationAction,
 )
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 
 POLLING_INTERVAL = 2  # seconds
