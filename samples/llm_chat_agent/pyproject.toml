@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "Sample agent demonstrating actual LLM calls with UiPath LLM Gateway"
 requires-python = ">=3.10"
 dependencies = [
-    "uipath>=2.0.79",
+    "uipath>=2.0.79, <2.2.0",
     "pydantic>=2.0.0",
 ]
 
