@@ -58,6 +58,9 @@ BINARY_EXTENSIONS = (
     | SPECIAL_EXTENSIONS
 )
 
+# Directory names
+EVALS_DIRECTORY_NAME = "evals"
+
 
 def is_binary_file(file_extension: str) -> bool:
     """Determine if a file should be treated as binary."""

@@ -1475,3 +1475,147 @@ class TestPush:
             # Should not show updating messages
             assert "Updating 'main.py'" not in result.output
             assert "Updating 'helper.py'" not in result.output
+
+    def test_push_preserves_remote_coded_evals_when_no_local_evals(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that remote coded-evals files are not deleted when no local evals folder exists."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock the project structure with existing coded-evals folder and files
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [
+                {
+                    "id": "source-code-123",
+                    "name": "source_code",
+                    "files": [
+                        {
+                            "id": "main-456",
+                            "name": "main.py",
+                            "isMain": True,
+                            "fileType": "1",
+                            "isEntryPoint": True,
+                            "ignoredFromPublish": False,
+                        },
+                    ],
+                },
+                {
+                    "id": "coded-evals-folder-id",
+                    "name": "coded-evals",
+                    "folders": [
+                        {
+                            "id": "evaluators-folder-id",
+                            "name": "evaluators",
+                            "files": [
+                                {
+                                    "id": "evaluator-file-1",
+                                    "name": "evaluator-1.json",
+                                    "isMain": False,
+                                    "fileType": "1",
+                                    "isEntryPoint": False,
+                                    "ignoredFromPublish": False,
+                                },
+                            ],
+                            "folders": [],
+                        },
+                        {
+                            "id": "eval-sets-folder-id",
+                            "name": "eval-sets",
+                            "files": [
+                                {
+                                    "id": "eval-set-file-1",
+                                    "name": "eval-set-1.json",
+                                    "isMain": False,
+                                    "fileType": "1",
+                                    "isEntryPoint": False,
+                                    "ignoredFromPublish": False,
+                                },
+                            ],
+                            "folders": [],
+                        },
+                    ],
+                    "files": [],
+                },
+            ],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        # Mock file download for main.py - return same content to avoid conflict
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/main-456",
+            status_code=200,
+            text="print('Hello World')",
+        )
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        # Mock empty folder cleanup
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            # Importantly: Do NOT create any evals folder or files locally
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 0
+
+            # Verify that no deletion messages appear for coded-evals files
+            assert (
+                "Deleting coded-evals/evaluators/evaluator-1.json" not in result.output
+            )
+            assert "Deleting coded-evals/eval-sets/eval-set-1.json" not in result.output
+
+            # Get the StructuralMigration request to verify no deletions were sent
+            structural_migration_request = httpx_mock.get_request(
+                method="POST",
+                url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            )
+            assert structural_migration_request is not None
+
+            # Parse the multipart form data to check deleted_resources
+            # The deleted_resources should not include the coded-evals files
+            content = structural_migration_request.content
+
+            # Check that the deleted resource IDs are not present in the request
+            assert b"evaluator-file-1" not in content
+            assert b"eval-set-file-1" not in content

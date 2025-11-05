@@ -11,6 +11,7 @@ from typing import Any, Optional
 import click
 
 from uipath._cli._utils._console import ConsoleLogger
+from uipath._cli._utils._constants import EVALS_DIRECTORY_NAME
 from uipath._utils.constants import CUSTOM_EVALUATOR_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ def to_kebab_case(text: str) -> str:
 
 def find_evaluator_file(filename: str) -> Optional[Path]:
     """Find the evaluator file in evals/evaluators/custom folder."""
-    custom_evaluators_path = Path.cwd() / "evals" / "evaluators" / "custom"
+    custom_evaluators_path = Path.cwd() / EVALS_DIRECTORY_NAME / "evaluators" / "custom"
 
     if not custom_evaluators_path.exists():
         return None
@@ -150,7 +151,7 @@ def register_evaluator(filename: str) -> tuple[str, str]:
     evaluator_config = generate_evaluator_config(evaluator_class, class_name)
     evaluator_json_type = evaluator_class.generate_json_type()
 
-    evaluators_dir = Path.cwd() / "evals" / "evaluators"
+    evaluators_dir = Path.cwd() / EVALS_DIRECTORY_NAME / "evaluators"
     evaluators_dir.mkdir(parents=True, exist_ok=True)
 
     evaluator_types_dir = evaluators_dir / "custom" / "types"
