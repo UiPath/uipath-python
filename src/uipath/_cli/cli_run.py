@@ -4,16 +4,19 @@ import json
 import os
 from datetime import datetime
 from os import environ as env
-from typing import Optional
+from typing import Optional, Sequence
 import uuid
 
 import click
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
+from uipath.tracing._utils import _SpanUtils
 
 from .._utils.constants import (
     ENV_JOB_ID,
@@ -23,7 +26,44 @@ from ._runtime._contracts import UiPathRuntimeError
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
+# Import LangChain instrumentor for automatic span generation
+try:
+    from openinference.instrumentation.langchain import (
+        LangChainInstrumentor,
+        get_current_span,
+    )
+    LANGCHAIN_INSTRUMENTATION_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_INSTRUMENTATION_AVAILABLE = False
+
 console = ConsoleLogger()
+
+
+class MemorySpanExporter(SpanExporter):
+    """Span exporter that collects spans in memory for later processing."""
+
+    def __init__(self):
+        self.spans = []
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        """Export spans to memory."""
+        try:
+            for span in spans:
+                uipath_span = _SpanUtils.otel_span_to_uipath_span(
+                    span, serialize_attributes=True
+                )
+                self.spans.append(uipath_span.to_dict(serialize_attributes=False))
+            return SpanExportResult.SUCCESS
+        except Exception:
+            return SpanExportResult.FAILURE
+
+    def shutdown(self) -> None:
+        """Shutdown the exporter."""
+        pass
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        """Force flush any buffered spans."""
+        return True
 
 
 def _generate_evaluation_set(
@@ -32,6 +72,7 @@ def _generate_evaluation_set(
     entrypoint: str,
     eval_set_path: str,
     evaluators: list[str] = None,
+    spans: list[dict] = None,
 ) -> None:
     """Generate an evaluation set JSON file from a run execution.
 
@@ -41,6 +82,7 @@ def _generate_evaluation_set(
         entrypoint: Path to the agent script
         eval_set_path: Path where the evaluation set JSON file will be saved
         evaluators: List of evaluator names to use (e.g., ['json_similarity', 'exact_match'])
+        spans: Optional list of span dictionaries containing node execution data
     """
     try:
         # Use json_similarity as default if no evaluators specified
@@ -234,14 +276,110 @@ def _generate_evaluation_set(
                 "expected_output": parsed_output,
             }
 
-        # Create evaluation item
+        # Create evaluation items
+        evaluation_items = []
+
+        # If spans are provided, create an evaluation for each node
+        if spans:
+
+            # Filter spans to only include workflow nodes (look for spans with node-like names)
+            # and group by node execution
+            node_spans = {}
+            for span in spans:
+                # First try to get the span name from the Name field (UiPath format)
+                span_name = span.get('Name', span.get('name', ''))
+                attributes = span.get('Attributes', span.get('attributes', {}))
+
+                # Parse attributes if they're a JSON string
+                if isinstance(attributes, str):
+                    try:
+                        attributes = json.loads(attributes)
+                    except:
+                        attributes = {}
+
+                # Determine the node name from various possible sources:
+                # 1. LangGraph-specific attributes (node_name, langgraph.node)
+                # 2. Span Name field (for @traced functions)
+                # 3. span_name as fallback
+                node_name = None
+                if isinstance(attributes, dict):
+                    node_name = attributes.get('node_name', attributes.get('langgraph.node', None))
+
+                # If no node_name attribute, use the span Name as the node name
+                if not node_name and span_name:
+                    node_name = span_name
+
+                # Only include valid node names (exclude system nodes)
+                if node_name and node_name not in ['__start__', '__end__']:
+                    if node_name not in node_spans:
+                        node_spans[node_name] = []
+                    node_spans[node_name].append(span)
+
+            if node_spans:
+                console.info(f"Found {len(node_spans)} workflow node(s) for evaluation generation")
+
+            # Create evaluation item for each node
+            for node_name, node_span_list in node_spans.items():
+                # Get the most recent span for this node (in case it executed multiple times)
+                node_span = node_span_list[-1]
+                node_attributes = node_span.get('Attributes', node_span.get('attributes', {}))
+
+                # Parse attributes if they're a JSON string
+                if isinstance(node_attributes, str):
+                    try:
+                        node_attributes = json.loads(node_attributes)
+                    except:
+                        node_attributes = {}
+
+                # Extract input/output from span attributes if available
+                # Try different attribute keys: input.value, input, inputs
+                node_input = node_attributes.get('input.value', node_attributes.get('input', node_attributes.get('inputs', None)))
+                if isinstance(node_input, str):
+                    try:
+                        node_input = json.loads(node_input)
+                    except:
+                        pass
+
+                # Try different output keys: output.value, output, outputs
+                node_output = node_attributes.get('output.value', node_attributes.get('output', node_attributes.get('outputs', None)))
+                if isinstance(node_output, str):
+                    try:
+                        node_output = json.loads(node_output)
+                    except:
+                        pass
+
+                # Use fallback values if node-specific data is not available
+                if not node_input:
+                    node_input = parsed_input
+
+                # If we have node-specific output, create an evaluation for it
+                if node_output:
+                    node_eval_id = str(uuid.uuid4())
+                    node_evaluation_criteria = {}
+
+                    # Add evaluation criteria for each evaluator
+                    for evaluator_id in evaluator_refs:
+                        node_evaluation_criteria[evaluator_id] = {
+                            "expected_output": node_output,
+                        }
+
+                    evaluation_items.append({
+                        "id": node_eval_id,
+                        "name": f"Node: {node_name} - Generated eval from run at {timestamp}",
+                        "inputs": node_input if isinstance(node_input, dict) else parsed_input,
+                        "evaluationCriterias": node_evaluation_criteria,
+                        "expectedAgentBehavior": f"Node '{node_name}' should produce the expected output",
+                    })
+
+        # Always include final output evaluation as well
         evaluation_item = {
             "id": eval_id,
-            "name": f"Generated eval from run at {timestamp}",
+            "name": f"Final Output - Generated eval from run at {timestamp}",
             "inputs": parsed_input,
             "evaluationCriterias": evaluation_criteria,
             "expectedAgentBehavior": "Agent should produce the expected output for the given input",
         }
+        evaluation_items.append(evaluation_item)
 
         # Create evaluation set
         eval_set = {
@@ -249,7 +387,7 @@ def _generate_evaluation_set(
             "name": f"Evaluation set generated from {entrypoint}",
             "version": "1.0",
             "evaluatorRefs": evaluator_refs,
-            "evaluations": [evaluation_item],
+            "evaluations": evaluation_items,
         }
 
         # Save eval set to file
@@ -257,7 +395,7 @@ def _generate_evaluation_set(
             json.dump(eval_set, f, indent=2)
 
         console.success(f"Evaluation set generated and saved to: {eval_set_file}")
-        console.info(f"Generated {len(evaluator_refs)} evaluator(s) in: {evaluators_dir}")
+        console.info(f"Generated {len(evaluation_items)} evaluation(s) with {len(evaluator_refs)} evaluator(s) in: {evaluators_dir}")
 
     except Exception as e:
         console.error(f"Failed to generate evaluation set: {str(e)}", include_traceback=True)
@@ -339,6 +477,8 @@ def run(
         "trace_file": trace_file,
         "debug": debug,
         "generate_evals": generate_evals,
+        # Enable tracing if we're generating evals to capture node data
+        "tracing_enabled": True if generate_evals else None,
     }
     input_file = file or input_file
     # Setup debugging if requested
@@ -371,9 +511,10 @@ def run(
 
         try:
             execution_result = None
+            memory_span_exporter = None
 
             async def execute() -> None:
-                nonlocal execution_result
+                nonlocal execution_result, memory_span_exporter
                 runtime_factory = generate_runtime_factory()
                 context = runtime_factory.new_context(**context_args)
                 if context.job_id:
@@ -381,6 +522,16 @@ def run(
 
                 if trace_file:
                     runtime_factory.add_span_exporter(JsonLinesFileExporter(trace_file))
+
+                # Add memory span exporter if generating evals to capture node-level data
+                # Use batch=False to ensure immediate export of spans
+                if generate_evals:
+                    memory_span_exporter = MemorySpanExporter()
+                    runtime_factory.add_span_exporter(memory_span_exporter, batch=False)
+
+                    # Add LangChain instrumentor to automatically trace LangChain/LangGraph operations
+                    if LANGCHAIN_INSTRUMENTATION_AVAILABLE:
+                        runtime_factory.add_instrumentor(LangChainInstrumentor, get_current_span)
 
                 if context.job_id:
                     async with ResourceOverwritesContext(
@@ -427,12 +578,16 @@ def run(
                     except:
                         pass  # Keep as-is if parsing fails
 
+                # Get spans from memory exporter if available
+                collected_spans = memory_span_exporter.spans if memory_span_exporter else None
+
                 _generate_evaluation_set(
                     input_data=actual_input,
                     output_data=output_for_eval,
                     entrypoint=entrypoint,
                     eval_set_path=generate_evals,
                     evaluators=list(eval_evaluators) if eval_evaluators else None,
+                    spans=collected_spans,
                 )
 
         except UiPathRuntimeError as e:
