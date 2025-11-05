@@ -262,8 +262,21 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             wait_for_completion=False,
         )
 
+        # Calculate compositional score if configuration is provided
+        output_dict = results.model_dump(by_alias=True)
+        if (
+            hasattr(evaluation_set, "compositional_scoring_config")
+            and evaluation_set.compositional_scoring_config is not None
+        ):
+            compositional_score = results.calculate_compositional_score(
+                evaluation_set.compositional_scoring_config
+            )
+            output_dict["compositionalScore"] = compositional_score.model_dump(
+                by_alias=True
+            )
+
         self.context.result = UiPathRuntimeResult(
-            output={**results.model_dump(by_alias=True)},
+            output={**output_dict},
             status=UiPathRuntimeStatus.SUCCESSFUL,
         )
         return self.context.result

@@ -5,6 +5,9 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 from pydantic.alias_generators import to_camel
 
 from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
+from uipath._cli._evals._models._compositional_scoring import (
+    CompositionalScoringConfig,
+)
 
 
 class EvaluationSimulationTool(BaseModel):
@@ -160,6 +163,11 @@ class EvaluationSet(BaseModel):
     version: Literal["1.0"] = "1.0"
     evaluator_refs: List[str] = Field(default_factory=list)
     evaluations: List[EvaluationItem] = Field(default_factory=list)
+    compositional_scoring_config: Optional[CompositionalScoringConfig] = Field(
+        default=None,
+        alias="compositionalScoringConfig",
+        description="Optional configuration for compositional scoring with weights and cascade modes",
+    )
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[EvaluationItem] = []

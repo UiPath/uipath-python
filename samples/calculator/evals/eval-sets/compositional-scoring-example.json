@@ -1,0 +1,157 @@
+{
+  "version": "1.0",
+  "id": "CompositionalScoringExample",
+  "name": "Compositional Scoring Example - Calculator",
+  "evaluatorRefs": [
+    "TrajectoryEvaluator",
+    "LLMJudgeOutputEvaluator",
+    "ExactMatchEvaluator",
+    "CorrectOperatorEvaluator"
+  ],
+  "compositionalScoringConfig": {
+    "strategy": "weighted_average",
+    "cascadeMode": "multiplicative",
+    "evaluatorWeights": [
+      {
+        "evaluatorId": "TrajectoryEvaluator",
+        "weight": 2.0,
+        "cascadeOrder": 1,
+        "cascadeImpact": 0.8,
+        "threshold": 70.0
+      },
+      {
+        "evaluatorId": "LLMJudgeOutputEvaluator",
+        "weight": 1.5,
+        "cascadeOrder": 2,
+        "cascadeImpact": 0.6,
+        "threshold": 75.0
+      },
+      {
+        "evaluatorId": "ExactMatchEvaluator",
+        "weight": 1.0,
+        "cascadeOrder": 3,
+        "cascadeImpact": 0.4,
+        "threshold": 0.0
+      },
+      {
+        "evaluatorId": "CorrectOperatorEvaluator",
+        "weight": 0.5,
+        "cascadeOrder": 4,
+        "cascadeImpact": 0.2,
+        "threshold": 0.0
+      }
+    ],
+    "defaultWeight": 1.0,
+    "normalizeWeights": true
+  },
+  "evaluations": [
+    {
+      "id": "add-test",
+      "name": "Addition Test",
+      "inputs": {
+        "a": 5,
+        "b": 3,
+        "operator": "+"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should correctly parse the addition operation, perform 5 + 3, and return 8.0"
+        },
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "result": "8.0"
+          }
+        },
+        "CorrectOperatorEvaluator": {
+          "operator": "+"
+        }
+      }
+    },
+    {
+      "id": "multiply-test",
+      "name": "Multiplication Test",
+      "inputs": {
+        "a": 7,
+        "b": 6,
+        "operator": "*"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should correctly parse the multiplication operation, perform 7 * 6, and return 42.0"
+        },
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 42.0
+          }
+        },
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "result": "42.0"
+          }
+        },
+        "CorrectOperatorEvaluator": {
+          "operator": "*"
+        }
+      }
+    },
+    {
+      "id": "subtract-test",
+      "name": "Subtraction Test",
+      "inputs": {
+        "a": 10,
+        "b": 4,
+        "operator": "-"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should correctly parse the subtraction operation, perform 10 - 4, and return 6.0"
+        },
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 6.0
+          }
+        },
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "result": "6.0"
+          }
+        },
+        "CorrectOperatorEvaluator": {
+          "operator": "-"
+        }
+      }
+    },
+    {
+      "id": "divide-test",
+      "name": "Division Test",
+      "inputs": {
+        "a": 20,
+        "b": 5,
+        "operator": "/"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should correctly parse the division operation, perform 20 / 5, and return 4.0"
+        },
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 4.0
+          }
+        },
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "result": "4.0"
+          }
+        },
+        "CorrectOperatorEvaluator": {
+          "operator": "/"
+        }
+      }
+    }
+  ]
+}
