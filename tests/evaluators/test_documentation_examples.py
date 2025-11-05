@@ -17,6 +17,9 @@ from uipath.eval.evaluators import (
     LLMJudgeOutputEvaluator,
     LLMJudgeTrajectoryEvaluator,
 )
+from uipath.eval.evaluators.tool_call_order_evaluator import (
+    ToolCallOrderEvaluatorJustification,
+)
 from uipath.eval.models import AgentExecution
 
 
@@ -1057,7 +1060,8 @@ class TestToolCallOrderExamples:
 
         # Score: 3/4 = 0.75 (3 tools in correct order out of 4 expected)
         assert result.score == 0.75
-        assert result.details.lcs == ["search", "filter", "display"]  # type: ignore[attr-defined]
+        assert isinstance(result.details, ToolCallOrderEvaluatorJustification)
+        assert result.details.lcs == ["search", "filter", "display"]
 
     @pytest.mark.asyncio
     async def test_database_transaction_sequence(self) -> None:
