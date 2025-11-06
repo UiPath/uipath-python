@@ -10,6 +10,7 @@ This module tests:
 import uuid
 
 import pytest
+from pydantic import ValidationError
 from pytest_mock.plugin import MockerFixture
 
 from uipath.eval.evaluators.exact_match_evaluator import (
@@ -579,3 +580,104 @@ class TestEvaluatorInstances:
         assert isinstance(criteria_schema, dict)
         assert "properties" in config_schema
         assert "properties" in criteria_schema
+
+
+class TestEvaluatorReference:
+    """Test EvaluatorReference model functionality."""
+
+    def test_evaluator_reference_from_string(self) -> None:
+        """Test creating EvaluatorReference from a string."""
+        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+
+        ref = EvaluatorReference.model_validate("evaluator-id-123")
+        assert ref.ref == "evaluator-id-123"
+        assert ref.weight == 1.0
+
+    def test_evaluator_reference_from_dict_with_weight(self) -> None:
+        """Test creating EvaluatorReference from a dict with weight."""
+        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+
+        ref = EvaluatorReference.model_validate({"ref": "evaluator-id-123", "weight": 2.5})
+        assert ref.ref == "evaluator-id-123"
+        assert ref.weight == 2.5
+
+    def test_evaluator_reference_from_dict_without_weight(self) -> None:
+        """Test creating EvaluatorReference from a dict without weight."""
+        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+
+        ref = EvaluatorReference.model_validate({"ref": "evaluator-id-123"})
+        assert ref.ref == "evaluator-id-123"
+        assert ref.weight == 1.0
+
+    def test_evaluator_reference_serialization_with_weight(self) -> None:
+        """Test serializing EvaluatorReference with weight."""
+        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+
+        ref = EvaluatorReference(ref="evaluator-id-123", weight=2.5)
+        serialized = ref.model_dump(mode="json")
+        assert serialized == {"ref": "evaluator-id-123", "weight": 2.5}
+
+    def test_evaluator_reference_serialization_without_weight(self) -> None:
+        """Test serializing EvaluatorReference without weight."""
+        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+
+        ref = EvaluatorReference(ref="evaluator-id-123")
+        serialized = ref.model_dump(mode="json")
+        assert serialized == "evaluator-id-123"
+
+    def test_evaluator_reference_weight_validation(self) -> None:
+        """Test that weight must be non-negative."""
+        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+
+        # Valid weight
+        ref = EvaluatorReference.model_validate({"ref": "evaluator-id-123", "weight": 0})
+        assert ref.weight == 0
+
+        # Invalid negative weight should raise error
+        with pytest.raises(ValidationError):
+            EvaluatorReference.model_validate({"ref": "evaluator-id-123", "weight": -1})
+
+    def test_evaluation_set_with_evaluator_references(self) -> None:
+        """Test EvaluationSet with EvaluatorReference objects in evaluatorConfigs."""
+        from uipath._cli._evals._models._evaluation_set import EvaluationSet
+
+        eval_set_data = {
+            "id": "test-set-123",
+            "name": "Test Evaluation Set",
+            "version": "1.0",
+            "evaluatorConfigs": [
+                "evaluator-1",
+                {"ref": "evaluator-2", "weight": 2.0},
+                {"ref": "evaluator-3", "weight": 1.5},
+            ],
+            "evaluations": [],
+        }
+
+        eval_set = EvaluationSet.model_validate(eval_set_data)
+        assert len(eval_set.evaluator_configs) == 3
+        assert eval_set.evaluator_configs[0].ref == "evaluator-1"
+        assert eval_set.evaluator_configs[0].weight == 1.0
+        assert eval_set.evaluator_configs[1].ref == "evaluator-2"
+        assert eval_set.evaluator_configs[1].weight == 2.0
+        assert eval_set.evaluator_configs[2].ref == "evaluator-3"
+        assert eval_set.evaluator_configs[2].weight == 1.5
+
+    def test_evaluation_set_backward_compatibility(self) -> None:
+        """Test EvaluationSet with old evaluatorRefs field (backward compatibility)."""
+        from uipath._cli._evals._models._evaluation_set import EvaluationSet
+
+        eval_set_data = {
+            "id": "test-set-456",
+            "name": "Legacy Evaluation Set",
+            "version": "1.0",
+            "evaluatorRefs": ["evaluator-1", "evaluator-2", "evaluator-3"],
+            "evaluations": [],
+        }
+
+        eval_set = EvaluationSet.model_validate(eval_set_data)
+        assert len(eval_set.evaluator_refs) == 3
+        assert eval_set.evaluator_refs[0] == "evaluator-1"
+        assert eval_set.evaluator_refs[1] == "evaluator-2"
+        assert eval_set.evaluator_refs[2] == "evaluator-3"
+        # evaluator_configs should be empty when using old field
+        assert len(eval_set.evaluator_configs) == 0

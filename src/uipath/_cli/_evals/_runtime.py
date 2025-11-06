@@ -621,7 +621,16 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         evaluators_dir = Path(self.context.eval_set).parent.parent / "evaluators"  # type: ignore
-        evaluator_refs = set(evaluation_set.evaluator_refs)
+
+        # If evaluatorConfigs is specified, use that (new field with weights)
+        # Otherwise, fall back to evaluatorRefs (old field without weights)
+        if hasattr(evaluation_set, 'evaluator_configs') and evaluation_set.evaluator_configs:
+            # Use new evaluatorConfigs field - supports weights
+            evaluator_ref_ids = {ref.ref for ref in evaluation_set.evaluator_configs}
+        else:
+            # Fall back to old evaluatorRefs field - plain strings
+            evaluator_ref_ids = set(evaluation_set.evaluator_refs)
+
         found_evaluator_ids = set()
 
         for file in evaluators_dir.glob("*.json"):
@@ -636,7 +645,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
             try:
                 evaluator_id = data.get("id")
-                if evaluator_id in evaluator_refs:
+                if evaluator_id in evaluator_ref_ids:
                     evaluator = EvaluatorFactory.create_evaluator(data)
                     evaluators.append(evaluator)
                     found_evaluator_ids.add(evaluator_id)
@@ -646,7 +655,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                     f"Please verify the evaluator configuration."
                 ) from e
 
-        missing_evaluators = evaluator_refs - found_evaluator_ids
+        missing_evaluators = evaluator_ref_ids - found_evaluator_ids
         if missing_evaluators:
             raise ValueError(
                 f"Could not find the following evaluators: {missing_evaluators}"
