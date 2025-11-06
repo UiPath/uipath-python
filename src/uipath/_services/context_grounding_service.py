@@ -476,6 +476,7 @@ class ContextGroundingService(FolderContext, BaseService):
             spec.method,
             spec.endpoint,
             json=spec.json,
+            headers=spec.headers,
         )
 
         return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
@@ -527,6 +528,7 @@ class ContextGroundingService(FolderContext, BaseService):
             spec.method,
             spec.endpoint,
             json=spec.json,
+            headers=spec.headers,
         )
 
         return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
