@@ -15,9 +15,7 @@ from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
-    ensure_config_file,
     files_to_include,
-    get_project_config,
     read_toml_project,
     validate_config,
 )
@@ -51,22 +49,6 @@ def get_project_id() -> str:
             pass
 
     return str(uuid.uuid4())
-
-
-def get_project_version(directory):
-    toml_path = os.path.join(directory, "pyproject.toml")
-    if not os.path.exists(toml_path):
-        console.warning("pyproject.toml not found. Using default version 0.0.1")
-        return "0.0.1"
-    toml_data = read_toml_project(toml_path)
-    return toml_data["version"]
-
-
-def validate_config_structure(config_data):
-    required_fields = ["entryPoints"]
-    for field in required_fields:
-        if field not in config_data:
-            console.error(f"uipath.json is missing the required field: {field}.")
 
 
 def generate_operate_file(entryPoints, dependencies=None, is_conversational=False):
@@ -194,47 +176,44 @@ def generate_package_descriptor_content(entryPoints):
     return package_descriptor_content
 
 
-def is_venv_dir(d):
-    return (
-        os.path.exists(os.path.join(d, "Scripts", "activate"))
-        if os.name == "nt"
-        else os.path.exists(os.path.join(d, "bin", "activate"))
+def pack_fn(
+    runtime_schema: RuntimeSchema,
+    toml_data: dict,
+    directory: str,
+    include_uv_lock: bool = True,
+):
+    is_conversational = (
+        runtime_schema.settings.get("isConversational", False)
+        if runtime_schema.settings
+        else False
     )
 
-
-def pack_fn(
-    projectName,
-    description,
-    entryPoints,
-    version,
-    authors,
-    directory,
-    dependencies=None,
-    include_uv_lock=True,
-):
-    config_path = os.path.join(directory, "uipath.json")
-    if not os.path.exists(config_path):
-        console.error("uipath.json not found, please run `uipath init`.")
-
-    with open(config_path, "r") as f:
-        config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(f))
-
-    is_conversational = config_data.settings.get("isConversational") or False
-
-    if not isinstance(is_conversational, bool):
+    if not isinstance(is_conversational, bool | None):
         console.error("isConversational must be a boolean value")
 
-    operate_file = generate_operate_file(entryPoints, dependencies, is_conversational)
+    # Get entryPoints from RuntimeSchema
+    entryPoints = [ep.model_dump(by_alias=True) for ep in runtime_schema.entrypoints]
+
+    # Extract fields from toml_data
+    projectName = toml_data["name"]
+    description = toml_data["description"]
+    version = toml_data["version"]
+    authors = toml_data["authors"]
+    dependencies = toml_data.get("dependencies")
+
+    operate_file = generate_operate_file(
+        entryPoints, dependencies, is_conversational or False
+    )
     entrypoints_file = generate_entrypoints_file(entryPoints)
 
-    # for backwards compatibility. should be removed
-    if not len(config_data.bindings.resources):
-        # try to read bindings from bindings.json
+    # For backwards compatibility. should be removed
+    if not len(runtime_schema.bindings.resources):
+        # Try to read bindings from bindings.json
         bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
         if os.path.exists(bindings_path):
             with open(bindings_path, "r") as f:
                 bindings_data = TypeAdapter(Bindings).validate_python(json.load(f))
-                config_data.bindings = bindings_data
+                runtime_schema.bindings = bindings_data
 
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
@@ -267,12 +246,12 @@ def pack_fn(
         z.writestr("content/entry-points.json", json.dumps(entrypoints_file, indent=4))
         z.writestr(
             "content/bindings_v2.json",
-            json.dumps(config_data.bindings.model_dump(by_alias=True), indent=4),
+            json.dumps(runtime_schema.bindings.model_dump(by_alias=True), indent=4),
         )
         z.writestr(f"{projectName}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        files = files_to_include(config_data.settings, directory, include_uv_lock)
+        files = files_to_include(runtime_schema.settings, directory, include_uv_lock)
 
         for file in files:
             if file.is_binary:
@@ -323,11 +302,25 @@ def display_project_info(config):
 @track
 def pack(root, nolock):
     """Pack the project."""
-    version = get_project_version(root)
+    config_path = os.path.join(root, "uipath.json")
+    if not os.path.exists(config_path):
+        console.error(
+            "uipath.json not found. Please run `uipath init` in the project directory."
+        )
 
-    ensure_config_file(root)
-    config = get_project_config(root)
-    validate_config(config)
+    with open(config_path, "r") as f:
+        runtime_schema = TypeAdapter(RuntimeSchema).validate_python(json.load(f))
+
+    # Read pyproject.toml
+    toml_path = os.path.join(root, "pyproject.toml")
+    if not os.path.exists(toml_path):
+        console.error("pyproject.toml not found.")
+    toml_data = read_toml_project(toml_path)
+
+    # Add project_name key for validate_config (it expects this key)
+    toml_data["project_name"] = toml_data["name"]
+
+    validate_config(toml_data)
 
     with console.spinner("Packaging project ..."):
         try:
@@ -336,21 +329,17 @@ def pack(root, nolock):
                 handle_uv_operations(root)
 
             pack_fn(
-                config["project_name"],
-                config["description"],
-                config["entryPoints"],
-                version or config["version"],
-                config["authors"],
+                runtime_schema,
+                toml_data,
                 root,
-                config.get("dependencies"),
                 include_uv_lock=not nolock,
             )
-            display_project_info(config)
+            display_project_info(toml_data)
             console.success("Project successfully packaged.")
 
         except Exception as e:
             console.error(
-                f"Failed to create package {config['project_name']}.{version or config['version']}: {str(e)}"
+                f"Failed to create package {toml_data['project_name']}.{toml_data['version']}: {str(e)}"
             )
 
 
