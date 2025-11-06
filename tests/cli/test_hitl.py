@@ -43,12 +43,12 @@ class TestHitlReader:
         action_data = {"answer": "test-action-data"}
 
         mock_action = Action(key=action_key, data=action_data)
+        mock_retrieve_async = AsyncMock(return_value=mock_action)
 
         with patch(
-            "uipath._services.actions_service.ActionsService.retrieve_async"
-        ) as mock_action_retrieve_async:
-            mock_action_retrieve_async.return_value = mock_action
-
+            "uipath._services.actions_service.ActionsService.retrieve_async",
+            new=mock_retrieve_async,
+        ):
             resume_trigger = UiPathResumeTrigger(
                 trigger_type=UiPathResumeTriggerType.ACTION,
                 item_key=action_key,
@@ -58,7 +58,7 @@ class TestHitlReader:
 
             result = await HitlReader.read(resume_trigger)
             assert result == action_data
-            mock_action_retrieve_async.assert_called_once_with(
+            mock_retrieve_async.assert_called_once_with(
                 action_key, app_folder_key="test-folder", app_folder_path="test-path"
             )
 
@@ -78,12 +78,12 @@ class TestHitlReader:
             state=UiPathRuntimeStatus.SUCCESSFUL.value,
             output_arguments=output_args,
         )
+        mock_retrieve_async = AsyncMock(return_value=mock_job)
 
         with patch(
-            "uipath._services.jobs_service.JobsService.retrieve_async"
-        ) as mock_job_retrieve_async:
-            mock_job_retrieve_async.return_value = mock_job
-
+            "uipath._services.jobs_service.JobsService.retrieve_async",
+            new=mock_retrieve_async,
+        ):
             resume_trigger = UiPathResumeTrigger(
                 trigger_type=UiPathResumeTriggerType.JOB,
                 item_key=job_key,
@@ -93,7 +93,7 @@ class TestHitlReader:
 
             result = await HitlReader.read(resume_trigger)
             assert result == output_args
-            mock_job_retrieve_async.assert_called_once_with(
+            mock_retrieve_async.assert_called_once_with(
                 job_key, folder_key="test-folder", folder_path="test-path"
             )
 
@@ -108,12 +108,12 @@ class TestHitlReader:
         job_id = 1234
 
         mock_job = Job(id=job_id, key=job_key, state="Failed", job_error=job_error_info)
+        mock_retrieve_async = AsyncMock(return_value=mock_job)
 
         with patch(
-            "uipath._services.jobs_service.JobsService.retrieve_async"
-        ) as mock_job_retrieve_async:
-            mock_job_retrieve_async.return_value = mock_job
-
+            "uipath._services.jobs_service.JobsService.retrieve_async",
+            new=mock_retrieve_async,
+        ):
             resume_trigger = UiPathResumeTrigger(
                 trigger_type=UiPathResumeTriggerType.JOB,
                 item_key=job_key,
@@ -127,7 +127,7 @@ class TestHitlReader:
             assert error_dict["code"] == "Python.INVOKED_PROCESS_FAILURE"
             assert error_dict["title"] == "Invoked process did not finish successfully."
             assert job_error_info.code in error_dict["detail"]
-            mock_job_retrieve_async.assert_called_once_with(
+            mock_retrieve_async.assert_called_once_with(
                 job_key, folder_key="test-folder", folder_path="test-path"
             )
 
@@ -202,12 +202,12 @@ class TestHitlProcessor:
         )
 
         mock_action = Action(key=action_key)
+        mock_create_async = AsyncMock(return_value=mock_action)
 
         with patch(
-            "uipath._services.actions_service.ActionsService.create_async"
-        ) as mock_action_create_async:
-            mock_action_create_async.return_value = mock_action
-
+            "uipath._services.actions_service.ActionsService.create_async",
+            new=mock_create_async,
+        ):
             processor = HitlProcessor(create_action)
             resume_trigger = await processor.create_resume_trigger()
 
@@ -215,7 +215,7 @@ class TestHitlProcessor:
             assert resume_trigger.trigger_type == UiPathResumeTriggerType.ACTION
             assert resume_trigger.item_key == action_key
             assert resume_trigger.folder_path == create_action.app_folder_path
-            mock_action_create_async.assert_called_once_with(
+            mock_create_async.assert_called_once_with(
                 title=create_action.title,
                 app_name=create_action.app_name,
                 app_folder_path=create_action.app_folder_path,

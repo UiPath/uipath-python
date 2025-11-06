@@ -8,7 +8,7 @@ import click
 from dotenv import load_dotenv
 
 from ..._config import UiPathConfig
-from ..._utils._bindings import ResourceOverwrite
+from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from ..._utils.constants import DOTENV_FILE
 from ..spinner import Spinner
 
@@ -142,8 +142,7 @@ async def read_resource_overwrites_from_file(
                 .get("resourceOverwrites", {})
             )
             for key, value in resource_overwrites.items():
-                overwrite = ResourceOverwrite.model_validate(value)
-                overwrites_dict[key] = overwrite
+                overwrites_dict[key] = ResourceOverwriteParser.parse(key, value)
 
     # Return empty dict if file doesn't exist or invalid json
     except FileNotFoundError:

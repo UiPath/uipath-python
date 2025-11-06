@@ -141,7 +141,9 @@ def debug(
                     async with ResourceOverwritesContext(
                         lambda: studio_client.get_resource_overwrites()
                     ) as ctx:
-                        console.info(f"Applied {ctx.overwrites_count} overwrite(s)")
+                        console.info(
+                            f"Applied {ctx.overwrites_count} resource overwrite(s)"
+                        )
                         await execute_debug_runtime()
                 else:
                     await execute_debug_runtime()
