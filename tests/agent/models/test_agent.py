@@ -2,19 +2,24 @@ from pydantic import TypeAdapter
 
 from uipath.agent.models.agent import (
     AgentBuiltInValidatorGuardrail,
+    AgentContextResourceConfig,
+    AgentContextRetrievalMode,
     AgentCustomGuardrail,
     AgentDefinition,
     AgentEscalationRecipientType,
     AgentEscalationResourceConfig,
+    AgentGuardrailActionType,
     AgentGuardrailBlockAction,
     AgentGuardrailEscalateAction,
+    AgentGuardrailUnknownAction,
     AgentIntegrationToolResourceConfig,
     AgentMcpResourceConfig,
     AgentProcessToolResourceConfig,
     AgentResourceType,
     AgentToolType,
-    LowCodeAgentDefinition,
-    UnknownAgentDefinition,
+    AgentUnknownGuardrail,
+    AgentUnknownResourceConfig,
+    AgentUnknownToolResourceConfig,
 )
 from uipath.models.guardrails import (
     EnumListParameterValue,
@@ -24,53 +29,6 @@ from uipath.models.guardrails import (
 
 
 class TestAgentBuilderConfig:
-    def test_agent_config_loads_unknown_agent_type(self):
-        """Test that AgentDefinition can load JSON with an unknown resource type"""
-
-        json_data = {
-            "type": "unknownType",
-            "id": "b2564199-e479-4b6f-9336-dc50f457afda",
-            "version": "1.0.0",
-            "name": "Agent",
-            "metadata": {
-                "storageVersion": "19.0.0",
-                "isConversational": False,
-            },
-            "messages": [
-                {"role": "system", "content": "You are an agentic assistant."},
-            ],
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {
-                "type": "object",
-                "properties": {
-                    "content": {"type": "string", "description": "Output content"}
-                },
-            },
-            "settings": {
-                "model": "gpt-5-2025-08-07",
-                "maxTokens": 16384,
-                "temperature": 0,
-                "engine": "basic-v1",
-            },
-            "resources": [],
-        }
-
-        config: UnknownAgentDefinition = TypeAdapter(
-            UnknownAgentDefinition
-        ).validate_python(json_data)
-
-        # Basic assertions
-        assert isinstance(config, UnknownAgentDefinition), (
-            "AgentDefinition should be an unknown type."
-        )
-        config_data = config.model_dump()
-        assert config_data["id"] == "b2564199-e479-4b6f-9336-dc50f457afda"
-        assert config_data["name"] == "Agent"
-        assert config_data["version"] == "1.0.0"
-
-        # Validate resources
-        assert len(config_data["resources"]) == 0
-
     def test_agent_with_all_tool_types_loads(self):
         """Test that AgentDefinition can load a complete agent package with all tool types"""
 
@@ -78,7 +36,6 @@ class TestAgentBuilderConfig:
             "version": "1.0.0",
             "id": "e0f589ff-469a-44b3-8c5f-085826d8fa55",
             "name": "Agent with All Tools",
-            "type": "lowCode",
             "metadata": {"isConversational": False, "storageVersion": "22.0.0"},
             "messages": [
                 {"role": "System", "content": "You are an agentic assistant."},
@@ -429,12 +386,12 @@ class TestAgentBuilderConfig:
         }
 
         # Test that the model loads without errors
-        config: LowCodeAgentDefinition = TypeAdapter(
-            LowCodeAgentDefinition
-        ).validate_python(json_data)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
 
         # Basic assertions
-        assert isinstance(config, LowCodeAgentDefinition), (
+        assert isinstance(config, AgentDefinition), (
             "AgentDefinition should be a low code agent."
         )
         assert config.id == "e0f589ff-469a-44b3-8c5f-085826d8fa55"
@@ -548,7 +505,6 @@ class TestAgentBuilderConfig:
                 },
             },
             "metadata": {"storageVersion": "23.0.0", "isConversational": False},
-            "type": "lowCode",
             "resources": [
                 {
                     "$resourceType": "tool",
@@ -645,9 +601,7 @@ class TestAgentBuilderConfig:
         )
 
         # Validate the main agent properties
-        assert isinstance(config, LowCodeAgentDefinition), (
-            "Agent should be a LowCodeAgentDefinition"
-        )
+        assert isinstance(config, AgentDefinition), "Agent should be a AgentDefinition"
 
         # Validate tool resource type discrimination
         tool_resource = config.resources[0]
@@ -761,7 +715,6 @@ class TestAgentBuilderConfig:
             "version": "1.0.0",
             "id": "aaaaaaaa-0000-0000-0000-000000000001",
             "name": "Agent with Send Email Tool",
-            "type": "lowCode",
             "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
             "messages": [
                 {"role": "System", "content": "You are an agentic assistant."},
@@ -1061,9 +1014,9 @@ class TestAgentBuilderConfig:
         }
 
         # Test deserialization
-        config: LowCodeAgentDefinition = TypeAdapter(
-            LowCodeAgentDefinition
-        ).validate_python(json_data)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
 
         # Validate agent
         assert config.id == "aaaaaaaa-0000-0000-0000-000000000001"
@@ -1157,7 +1110,6 @@ class TestAgentBuilderConfig:
             "version": "1.0.0",
             "id": "aaaaaaaa-0000-0000-0000-000000000002",
             "name": "Jira CreateIssue Agent",
-            "type": "lowCode",
             "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
             "messages": [
                 {"role": "System", "content": "You are an agentic assistant."},
@@ -1264,9 +1216,9 @@ class TestAgentBuilderConfig:
         }
 
         # Test deserialization
-        config: LowCodeAgentDefinition = TypeAdapter(
-            LowCodeAgentDefinition
-        ).validate_python(json_data)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
 
         # Validate agent
         assert config.name == "Jira CreateIssue Agent"
@@ -1326,7 +1278,6 @@ class TestAgentBuilderConfig:
             "version": "1.0.0",
             "id": "aaaaaaaa-0000-0000-0000-000000000003",
             "name": "Jira SearchIssues Agent",
-            "type": "lowCode",
             "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
             "messages": [
                 {"role": "System", "content": "You are an agentic assistant."},
@@ -1415,9 +1366,9 @@ class TestAgentBuilderConfig:
         }
 
         # Test deserialization
-        config: LowCodeAgentDefinition = TypeAdapter(
-            LowCodeAgentDefinition
-        ).validate_python(json_data)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
 
         # Validate agent
         assert config.name == "Jira SearchIssues Agent"
@@ -1456,3 +1407,363 @@ class TestAgentBuilderConfig:
         assert schema_props["jql"]["type"] == "string"
         assert schema_props["jql"]["title"] == "JQL Query"
         assert schema_props["jql"]["description"] == "Jira Query Language query string"
+
+    def test_agent_with_unknown_guardrail_type(self):
+        """Test that AgentDefinition handles unknown guardrail types gracefully"""
+
+        json_data = {
+            "id": "test-unknown-guardrail",
+            "name": "Agent with Unknown Guardrail",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "guardrails": [
+                {
+                    "$guardrailType": "futureGuardrailType",
+                    "id": "future-guardrail-id",
+                    "name": "Future Guardrail",
+                    "description": "A guardrail type that doesn't exist yet",
+                    "someNewField": "someValue",
+                    "action": {"$actionType": "block", "reason": "Test reason"},
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.guardrails is not None
+        assert len(config.guardrails) == 1
+
+        unknown_guardrail = config.guardrails[0]
+        assert isinstance(unknown_guardrail, AgentUnknownGuardrail)
+        assert unknown_guardrail.guardrail_type == "unknown"
+        assert unknown_guardrail.raw["$guardrailType"] == "futureGuardrailType"
+        assert unknown_guardrail.raw["name"] == "Future Guardrail"
+        assert unknown_guardrail.raw["someNewField"] == "someValue"
+
+    def test_agent_with_unknown_action_type(self):
+        """Test that AgentDefinition handles unknown action types gracefully"""
+
+        json_data = {
+            "id": "test-unknown-action",
+            "name": "Agent with Unknown Action",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "guardrails": [
+                {
+                    "$guardrailType": "custom",
+                    "id": "custom-guardrail-with-unknown-action",
+                    "name": "Custom Guardrail",
+                    "description": "Custom guardrail with unknown action",
+                    "rules": [{"$ruleType": "always", "applyTo": "inputAndOutput"}],
+                    "action": {
+                        "$actionType": "futureActionType",
+                        "someParameter": "someValue",
+                        "anotherParameter": 123,
+                    },
+                    "enabledForEvals": True,
+                    "selector": {"scopes": ["Agent"]},
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.guardrails is not None
+        assert len(config.guardrails) == 1
+
+        custom_guardrail = config.guardrails[0]
+        assert isinstance(custom_guardrail, AgentCustomGuardrail)
+        assert custom_guardrail.guardrail_type == "custom"
+
+        action = custom_guardrail.action
+        assert isinstance(action, AgentGuardrailUnknownAction)
+        assert action.action_type == AgentGuardrailActionType.UNKNOWN
+        assert action.details is not None
+        assert action.details["$actionType"] == "futureActionType"
+        assert action.details["someParameter"] == "someValue"
+        assert action.details["anotherParameter"] == 123
+
+    def test_agent_with_unknown_context_retrieval_mode(self):
+        """Test that AgentDefinition handles unknown context retrieval modes gracefully"""
+
+        json_data = {
+            "id": "test-unknown-retrieval-mode",
+            "name": "Agent with Unknown Retrieval Mode",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "context",
+                    "folderPath": "TestFolder",
+                    "indexName": "Test Index",
+                    "settings": {
+                        "threshold": 0.5,
+                        "resultCount": 5,
+                        "retrievalMode": "FutureRetrievalMode",
+                        "query": {"description": "Test query", "variant": "Dynamic"},
+                    },
+                    "name": "Test Context",
+                    "description": "Context with unknown retrieval mode",
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert len(config.resources) == 1
+
+        context_resource = config.resources[0]
+        assert isinstance(context_resource, AgentContextResourceConfig)
+        assert context_resource.resource_type == AgentResourceType.CONTEXT
+        assert (
+            context_resource.settings.retrieval_mode
+            == AgentContextRetrievalMode.UNKNOWN
+        )
+
+    def test_agent_with_unknown_resource_type(self):
+        """Test that AgentDefinition handles unknown resource types gracefully"""
+
+        json_data = {
+            "id": "test-unknown-resource",
+            "name": "Agent with Unknown Resource",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "futureResourceType",
+                    "name": "Future Resource",
+                    "description": "A resource type that doesn't exist yet",
+                    "someNewField": "someValue",
+                    "anotherField": {"nested": "data"},
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert len(config.resources) == 1
+
+        unknown_resource = config.resources[0]
+        assert isinstance(unknown_resource, AgentUnknownResourceConfig)
+        assert unknown_resource.resource_type == AgentResourceType.UNKNOWN
+        assert unknown_resource.name == "Future Resource"
+        assert unknown_resource.description == "A resource type that doesn't exist yet"
+
+    def test_agent_with_unknown_tool_type(self):
+        """Test that AgentDefinition handles unknown tool types gracefully"""
+
+        json_data = {
+            "id": "test-unknown-tool",
+            "name": "Agent with Unknown Tool",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "type": "FutureToolType",
+                    "name": "Future Tool",
+                    "description": "A tool type that doesn't exist yet",
+                    "inputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "someNewToolField": "someValue",
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert len(config.resources) == 1
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentUnknownToolResourceConfig)
+        assert tool_resource.resource_type == AgentResourceType.TOOL
+        assert tool_resource.type == AgentToolType.UNKNOWN
+        assert tool_resource.name == "Future Tool"
+        assert tool_resource.description == "A tool type that doesn't exist yet"
+
+    def test_agent_with_mixed_known_and_unknown_types(self):
+        """Test that AgentDefinition handles a mix of known and unknown types"""
+
+        json_data = {
+            "id": "test-mixed-types",
+            "name": "Agent with Mixed Types",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "type": "Agent",
+                    "name": "Valid Agent Tool",
+                    "description": "A valid agent tool",
+                    "inputSchema": {"type": "object", "properties": {}},
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "settings": {},
+                    "properties": {
+                        "processName": "TestAgent",
+                        "folderPath": "TestFolder",
+                    },
+                },
+                {
+                    "$resourceType": "tool",
+                    "type": "UnknownToolType",
+                    "name": "Unknown Tool",
+                    "description": "An unknown tool type",
+                    "inputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                },
+                {
+                    "$resourceType": "context",
+                    "folderPath": "TestFolder",
+                    "indexName": "Test Index",
+                    "settings": {
+                        "threshold": 0,
+                        "resultCount": 3,
+                        "retrievalMode": "Semantic",
+                    },
+                    "name": "Valid Context",
+                    "description": "A valid context resource",
+                },
+                {
+                    "$resourceType": "unknownResourceType",
+                    "name": "Unknown Resource",
+                    "description": "An unknown resource type",
+                },
+            ],
+            "guardrails": [
+                {
+                    "$guardrailType": "custom",
+                    "id": "valid-custom",
+                    "name": "Valid Custom Guardrail",
+                    "description": "A valid custom guardrail",
+                    "rules": [{"$ruleType": "always", "applyTo": "inputAndOutput"}],
+                    "action": {"$actionType": "block", "reason": "Test reason"},
+                    "enabledForEvals": True,
+                    "selector": {"scopes": ["Agent"]},
+                },
+                {
+                    "$guardrailType": "unknownGuardrailType",
+                    "id": "unknown-guardrail",
+                    "name": "Unknown Guardrail",
+                    "description": "An unknown guardrail type",
+                },
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "valid-builtin",
+                    "name": "Valid Built-in Guardrail",
+                    "description": "A valid built-in guardrail",
+                    "validatorType": "pii_detection",
+                    "validatorParameters": [],
+                    "action": {
+                        "$actionType": "unknownActionType",
+                        "someParameter": "value",
+                    },
+                    "enabledForEvals": True,
+                    "selector": {"scopes": ["Agent"]},
+                },
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        # Validate resources
+        assert len(config.resources) == 4
+
+        # First resource should be a valid agent tool
+        assert isinstance(config.resources[0], AgentProcessToolResourceConfig)
+        assert config.resources[0].type == AgentToolType.AGENT
+
+        # Second resource should be unknown tool
+        assert isinstance(config.resources[1], AgentUnknownToolResourceConfig)
+        assert config.resources[1].type == AgentToolType.UNKNOWN
+
+        # Third resource should be valid context
+        assert isinstance(config.resources[2], AgentContextResourceConfig)
+        assert config.resources[2].resource_type == AgentResourceType.CONTEXT
+
+        # Fourth resource should be unknown resource
+        assert isinstance(config.resources[3], AgentUnknownResourceConfig)
+        assert config.resources[3].resource_type == AgentResourceType.UNKNOWN
+
+        # Validate guardrails
+        assert config.guardrails is not None
+        assert len(config.guardrails) == 3
+
+        # First guardrail should be valid custom
+        assert isinstance(config.guardrails[0], AgentCustomGuardrail)
+        assert config.guardrails[0].guardrail_type == "custom"
+        assert isinstance(config.guardrails[0].action, AgentGuardrailBlockAction)
+
+        # Second guardrail should be unknown
+        assert isinstance(config.guardrails[1], AgentUnknownGuardrail)
+        assert config.guardrails[1].guardrail_type == "unknown"
+
+        # Third guardrail should be valid built-in with unknown action
+        assert isinstance(config.guardrails[2], AgentBuiltInValidatorGuardrail)
+        assert config.guardrails[2].guardrail_type == "builtInValidator"
+        assert isinstance(config.guardrails[2].action, AgentGuardrailUnknownAction)
+        assert (
+            config.guardrails[2].action.action_type == AgentGuardrailActionType.UNKNOWN
+        )
