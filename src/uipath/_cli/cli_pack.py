@@ -69,7 +69,7 @@ def validate_config_structure(config_data):
             console.error(f"uipath.json is missing the required field: {field}.")
 
 
-def generate_operate_file(entryPoints, dependencies=None):
+def generate_operate_file(entryPoints, dependencies=None, is_conversational=False):
     project_id = get_project_id()
 
     first_entry = entryPoints[0]
@@ -83,7 +83,11 @@ def generate_operate_file(entryPoints, dependencies=None):
         "contentType": type,
         "targetFramework": "Portable",
         "targetRuntime": "python",
-        "runtimeOptions": {"requiresUserInteraction": False, "isAttended": False},
+        "runtimeOptions": {
+            "requiresUserInteraction": False,
+            "isAttended": False,
+            "isConversational": is_conversational,
+        },
     }
 
     # Add dependencies if provided
@@ -208,15 +212,20 @@ def pack_fn(
     dependencies=None,
     include_uv_lock=True,
 ):
-    operate_file = generate_operate_file(entryPoints, dependencies)
-    entrypoints_file = generate_entrypoints_file(entryPoints)
-
     config_path = os.path.join(directory, "uipath.json")
     if not os.path.exists(config_path):
         console.error("uipath.json not found, please run `uipath init`.")
 
     with open(config_path, "r") as f:
         config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(f))
+
+    is_conversational = config_data.settings.get("isConversational") or False
+
+    if not isinstance(is_conversational, bool):
+        console.error("isConversational must be a boolean value")
+
+    operate_file = generate_operate_file(entryPoints, dependencies, is_conversational)
+    entrypoints_file = generate_entrypoints_file(entryPoints)
 
     # for backwards compatibility. should be removed
     if not len(config_data.bindings.resources):
