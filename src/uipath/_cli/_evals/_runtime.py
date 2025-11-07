@@ -219,6 +219,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 eval_set_id=evaluation_set.id,
                 no_of_evals=len(evaluation_set.evaluations),
                 evaluators=evaluators,
+                evaluator_weights=getattr(evaluation_set, 'evaluator_weights', None),
             ),
         )
 

@@ -24,6 +24,7 @@ class EvalSetRunCreatedEvent(BaseModel):
     no_of_evals: int
     # skip validation to avoid abstract class instantiation
     evaluators: SkipValidation[List[AnyEvaluator]]
+    evaluator_weights: Optional[Dict[str, float]] = None
 
 
 class EvalRunCreatedEvent(BaseModel):

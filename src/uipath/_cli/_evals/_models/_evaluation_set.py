@@ -160,6 +160,9 @@ class EvaluationSet(BaseModel):
     version: Literal["1.0"] = "1.0"
     evaluator_refs: List[str] = Field(default_factory=list)
     evaluations: List[EvaluationItem] = Field(default_factory=list)
+    evaluator_weights: Optional[Dict[str, float]] = Field(
+        default=None, alias="evaluatorWeights"
+    )
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[EvaluationItem] = []

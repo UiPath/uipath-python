@@ -1,7 +1,7 @@
 """Base class for all output evaluator configurations."""
 
 import json
-from typing import Any, TypeVar, Union
+from typing import Any, Optional, TypeVar, Union
 
 from pydantic import Field
 
@@ -13,12 +13,16 @@ from .base_evaluator import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
+from .._helpers.evaluators_helpers import extract_node_output_from_trace
 
 
 class OutputEvaluationCriteria(BaseEvaluationCriteria):
     """Base class for all output evaluation criteria."""
 
     expected_output: dict[str, Any] | str
+    node_id: Optional[str] = Field(
+        default=None, alias="nodeId"
+    )  # Optional node identifier for node-level evaluations
 
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
@@ -50,8 +54,31 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         J: The justification type
     """
 
-    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
-        """Get the actual output from the agent execution."""
+    def _get_actual_output(
+        self, agent_execution: AgentExecution, evaluation_criteria: T
+    ) -> Any:
+        """Get the actual output from the agent execution.
+
+        If the evaluation criteria contains a node_id, extract the node output from the trace.
+        Otherwise, return the agent's final output.
+        """
+        # Check if this is a node-level evaluation
+        node_id = getattr(evaluation_criteria, "node_id", None)
+        if node_id:
+            # Extract node output from trace
+            node_output = extract_node_output_from_trace(
+                agent_execution.agent_trace, node_id
+            )
+            if node_output is None:
+                raise UiPathEvaluationError(
+                    code="NODE_OUTPUT_NOT_FOUND",
+                    title=f"Node output not found for node_id: {node_id}",
+                    detail=f"Could not find output for node '{node_id}' in agent trace",
+                    category=UiPathEvaluationErrorCategory.USER,
+                )
+            return node_output
+
+        # Standard agent output extraction
         if self.evaluator_config.target_output_key != "*":
             try:
                 return agent_execution.agent_output[

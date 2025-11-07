@@ -76,7 +76,9 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
         """Evaluate using trajectory analysis."""
         return await super().evaluate(agent_execution, evaluation_criteria)
 
-    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
+    def _get_actual_output(
+        self, agent_execution: AgentExecution, evaluation_criteria: TrajectoryEvaluationCriteria
+    ) -> Any:
         """Get the actual output from the agent execution."""
         return trace_to_str(agent_execution.agent_trace)
 

@@ -58,7 +58,7 @@ class JsonSimilarityEvaluator(
         """
         score, justification = self._compare_json(
             self._get_expected_output(evaluation_criteria),
-            self._get_actual_output(agent_execution),
+            self._get_actual_output(agent_execution, evaluation_criteria),
         )
         validated_justification = self.validate_justification(justification)
         return NumericEvaluationResult(
