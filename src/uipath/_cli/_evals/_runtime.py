@@ -624,7 +624,10 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         # If evaluatorConfigs is specified, use that (new field with weights)
         # Otherwise, fall back to evaluatorRefs (old field without weights)
-        if hasattr(evaluation_set, 'evaluator_configs') and evaluation_set.evaluator_configs:
+        if (
+            hasattr(evaluation_set, "evaluator_configs")
+            and evaluation_set.evaluator_configs
+        ):
             # Use new evaluatorConfigs field - supports weights
             evaluator_ref_ids = {ref.ref for ref in evaluation_set.evaluator_configs}
         else:

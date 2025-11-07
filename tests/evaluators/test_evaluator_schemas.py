@@ -597,7 +597,9 @@ class TestEvaluatorReference:
         """Test creating EvaluatorReference from a dict with weight."""
         from uipath._cli._evals._models._evaluation_set import EvaluatorReference
 
-        ref = EvaluatorReference.model_validate({"ref": "evaluator-id-123", "weight": 2.5})
+        ref = EvaluatorReference.model_validate(
+            {"ref": "evaluator-id-123", "weight": 2.5}
+        )
         assert ref.ref == "evaluator-id-123"
         assert ref.weight == 2.5
 
@@ -630,7 +632,9 @@ class TestEvaluatorReference:
         from uipath._cli._evals._models._evaluation_set import EvaluatorReference
 
         # Valid weight
-        ref = EvaluatorReference.model_validate({"ref": "evaluator-id-123", "weight": 0})
+        ref = EvaluatorReference.model_validate(
+            {"ref": "evaluator-id-123", "weight": 0}
+        )
         assert ref.weight == 0
 
         # Invalid negative weight should raise error
