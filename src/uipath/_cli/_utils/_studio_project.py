@@ -9,7 +9,6 @@ import click
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from uipath import UiPath
-from uipath._cli._utils._console import ConsoleLogger
 from uipath._config import UiPathConfig
 from uipath._utils._bindings import ResourceOverwrite
 from uipath._utils.constants import ENV_TENANT_ID, HEADER_SW_LOCK_KEY, HEADER_TENANT_ID
@@ -271,25 +270,28 @@ class StructuralMigration(BaseModel):
     modified_resources: List[ModifiedResource]
 
 
+class ProjectLockUnavailableError(RuntimeError):
+    """Raised when a project lock prevents execution."""
+
+    pass
+
+
 def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
-    async def wrapper(self, *args, **kwargs):
+    async def wrapper(self: "StudioClient", *args, **kwargs):
         try:
-            lock_info = await self._retrieve_lock()
-            if not lock_info.project_lock_key:
-                raise RuntimeError("Failed to retrieve project lock key.")
-
-            headers = kwargs.get("headers", {}) or {}
-            headers[HEADER_SW_LOCK_KEY] = lock_info.project_lock_key
-            kwargs["headers"] = headers
+            lock_info: LockInfo = await self._retrieve_lock()
+            if lock_info is not None and lock_info.project_lock_key is not None:
+                headers = kwargs.get("headers", {}) or {}
+                headers[HEADER_SW_LOCK_KEY] = lock_info.project_lock_key
+                kwargs["headers"] = headers
 
             return await func(self, *args, **kwargs)
         except EnrichedException as e:
             if e.status_code == 423:
-                console = ConsoleLogger().get_instance()
-                console.error(
-                    "The project is temporarily locked. This could be due to modifications or active processes. Please wait a moment and try again."
-                )
+                raise ProjectLockUnavailableError(
+                    "Project is locked by another operation. Please try again later."
+                ) from e
             raise
 
     return wrapper
