@@ -236,16 +236,13 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             eval_run_result_list = await self._execute_sequential(
                 evaluation_set, evaluators, event_bus
             )
-        results = UiPathEvalOutput(
-            evaluation_set_name=evaluation_set.name,
-            evaluation_set_results=eval_run_result_list,
-        )
 
         # Computing evaluator averages
         evaluator_averages: Dict[str, float] = defaultdict(float)
         evaluator_count: Dict[str, int] = defaultdict(int)
 
-        for eval_run_result in results.evaluation_set_results:
+        # Collect all evaluation results first
+        for eval_run_result in eval_run_result_list:
             for result_dto in eval_run_result.evaluation_run_results:
                 evaluator_averages[result_dto.evaluator_id] += result_dto.result.score
                 evaluator_count[result_dto.evaluator_id] += 1
@@ -254,11 +251,33 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluator_averages[eval_id] = (
                 evaluator_averages[eval_id] / evaluator_count[eval_id]
             )
+
+        # Calculate weighted final score if weights are defined
+        evaluator_weights = getattr(evaluation_set, 'evaluator_weights', None)
+        weighted_final_score = None
+        if evaluator_weights:
+            weighted_total = 0.0
+            for evaluator_id, avg_score in evaluator_averages.items():
+                weight = evaluator_weights.get(evaluator_id)
+                if weight is not None:
+                    weighted_total += weight * avg_score
+            weighted_final_score = weighted_total
+
+        # Create results with weighted score and weights
+        results = UiPathEvalOutput(
+            evaluation_set_name=evaluation_set.name,
+            evaluation_set_results=eval_run_result_list,
+            weighted_final_score=weighted_final_score,
+            evaluator_weights=evaluator_weights,
+        )
+
         await event_bus.publish(
             EvaluationEvents.UPDATE_EVAL_SET_RUN,
             EvalSetRunUpdatedEvent(
                 execution_id=self.execution_id,
                 evaluator_scores=evaluator_averages,
+                weighted_final_score=weighted_final_score,
+                evaluator_weights=evaluator_weights,
             ),
             wait_for_completion=False,
         )
@@ -457,11 +476,26 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                     evaluation_result
                 )
 
+                # Extract node_id from evaluation criteria if available
+                node_id = None
+                if evaluator.id in eval_item.evaluation_criterias:
+                    criteria_dict = eval_item.evaluation_criterias[evaluator.id]
+                    node_id = criteria_dict.get("nodeId")
+
+                # Get evaluator type from evaluator's get_evaluator_id method
+                evaluator_type = None
+                try:
+                    evaluator_type = evaluator.get_evaluator_id()
+                except AttributeError:
+                    pass
+
                 evaluation_run_results.evaluation_run_results.append(
                     EvaluationRunResultDto(
                         evaluator_name=evaluator.name,
                         result=dto_result,
                         evaluator_id=evaluator.id,
+                        evaluator_type=evaluator_type,
+                        node_id=node_id,
                     )
                 )
                 evaluation_item_results.append(
@@ -490,10 +524,25 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             exception_details = EvalItemExceptionDetails(exception=e)
 
             for evaluator in evaluators:
+                # Extract node_id from evaluation criteria if available
+                node_id = None
+                if evaluator.id in eval_item.evaluation_criterias:
+                    criteria_dict = eval_item.evaluation_criterias[evaluator.id]
+                    node_id = criteria_dict.get("nodeId")
+
+                # Get evaluator type from evaluator's get_evaluator_id method
+                evaluator_type = None
+                try:
+                    evaluator_type = evaluator.get_evaluator_id()
+                except AttributeError:
+                    pass
+
                 evaluation_run_results.evaluation_run_results.append(
                     EvaluationRunResultDto(
                         evaluator_name=evaluator.name,
                         evaluator_id=evaluator.id,
+                        evaluator_type=evaluator_type,
+                        node_id=node_id,
                         result=EvaluationResultDto(score=0),
                     )
                 )

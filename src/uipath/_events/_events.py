@@ -62,6 +62,8 @@ class EvalRunUpdatedEvent(BaseModel):
 class EvalSetRunUpdatedEvent(BaseModel):
     execution_id: str
     evaluator_scores: dict[str, float]
+    weighted_final_score: Optional[float] = None
+    evaluator_weights: Optional[Dict[str, float]] = None
 
 
 ProgressEvent = Union[

@@ -85,6 +85,8 @@ class EvaluationRunResultDto(BaseModel):
 
     evaluator_name: str
     evaluator_id: str
+    evaluator_type: Optional[str] = None
+    node_id: Optional[str] = None
     result: EvaluationResultDto
 
 
@@ -110,6 +112,8 @@ class UiPathEvalOutput(BaseModel):
 
     evaluation_set_name: str
     evaluation_set_results: List[EvaluationRunResult]
+    weighted_final_score: Optional[float] = None
+    evaluator_weights: Optional[Dict[str, float]] = None
 
     @property
     def score(self) -> float:

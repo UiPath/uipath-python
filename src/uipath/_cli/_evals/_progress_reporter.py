@@ -329,10 +329,11 @@ class StudioWebProgressReporter:
         eval_set_run_id: str,
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
+        weighted_final_score: float | None = None,
     ):
         """Update the evaluation set run status to complete."""
         spec = self._update_eval_set_run_spec(
-            eval_set_run_id, evaluator_scores, is_coded
+            eval_set_run_id, evaluator_scores, is_coded, weighted_final_score
         )
         await self._client.request_async(
             method=spec.method,
@@ -452,6 +453,7 @@ class StudioWebProgressReporter:
                     eval_set_run_id,
                     payload.evaluator_scores,
                     is_coded=is_coded,
+                    weighted_final_score=payload.weighted_final_score,
                 )
                 logger.debug(
                     f"Updated eval set run with ID: {eval_set_run_id} (coded={is_coded})"
@@ -797,6 +799,7 @@ class StudioWebProgressReporter:
         eval_set_run_id: str,
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
+        weighted_final_score: float | None = None,
     ) -> RequestSpec:
         # Legacy API expects evaluatorId as GUID, coded accepts string
         evaluator_scores_list = []
@@ -820,16 +823,24 @@ class StudioWebProgressReporter:
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        # Build the JSON payload
+        json_payload = {
+            "evalSetRunId": eval_set_run_id,
+            "status": EvaluationStatus.COMPLETED.value,
+            "evaluatorScores": evaluator_scores_list,
+        }
+
+        # Add weighted final score if available
+        if weighted_final_score is not None:
+            json_payload["weightedFinalScore"] = weighted_final_score
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalSetRun"
             ),
-            json={
-                "evalSetRunId": eval_set_run_id,
-                "status": EvaluationStatus.COMPLETED.value,
-                "evaluatorScores": evaluator_scores_list,
-            },
+            json=json_payload,
             headers=self._tenant_header(),
         )
 

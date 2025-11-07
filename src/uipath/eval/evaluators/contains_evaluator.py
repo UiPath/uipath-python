@@ -1,5 +1,7 @@
 """Contains evaluator for agent outputs."""
 
+import logging
+
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -11,6 +13,8 @@ from .output_evaluator import (
     OutputEvaluator,
     OutputEvaluatorConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ContainsEvaluationCriteria(BaseEvaluationCriteria):
@@ -61,14 +65,43 @@ class ContainsEvaluator(
         actual_output = str(self._get_actual_output(agent_execution, evaluation_criteria))
         expected_output = str(self._get_expected_output(evaluation_criteria))
 
+        # Debug logging (before case conversion)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("\n" + "="*80)
+            logger.debug("[DEBUG] ContainsEvaluator - Comparison:")
+            logger.debug("="*80)
+            logger.debug("[ACTUAL OUTPUT (original)]:\n%s", actual_output)
+            logger.debug("\n" + "-"*80)
+            logger.debug("[EXPECTED OUTPUT (original)]:\n%s", expected_output)
+            logger.debug("-"*80)
+
         if not self.evaluator_config.case_sensitive:
             actual_output = actual_output.lower()
             expected_output = expected_output.lower()
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("[ACTUAL OUTPUT (lowercased)]:\n%s", actual_output)
+                logger.debug("\n" + "-"*80)
+                logger.debug("[EXPECTED OUTPUT (lowercased)]:\n%s", expected_output)
+                logger.debug("-"*80)
 
         is_contains = expected_output in actual_output
 
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("[CASE SENSITIVE]: %s", self.evaluator_config.case_sensitive)
+            logger.debug("[NEGATED]: %s", self.evaluator_config.negated)
+            logger.debug("[CONTAINS RESULT]: %s", is_contains)
+
         if self.evaluator_config.negated:
             is_contains = not is_contains
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("[FINAL RESULT (after negation)]: %s", is_contains)
+        else:
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("[FINAL RESULT]: %s", is_contains)
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("="*80 + "\n")
+
         return NumericEvaluationResult(
             score=float(is_contains),
         )

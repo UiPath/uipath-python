@@ -82,6 +82,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     type=click.Path(exists=False),
     help="File path where the output will be written",
 )
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose debug output for evaluators",
+    default=False,
+)
 @track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
 def eval(
     entrypoint: Optional[str],
@@ -91,6 +97,7 @@ def eval(
     no_report: bool,
     workers: int,
     output_file: Optional[str],
+    verbose: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -101,7 +108,18 @@ def eval(
         eval_set_run_id: Custom evaluation set run ID (optional, will generate UUID if not specified)
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
+        verbose: Enable verbose debug output for evaluators
     """
+    # Configure logging level for evaluators if verbose is enabled
+    if verbose:
+        import logging
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(message)s'
+        )
+        # Set the evaluators logger to DEBUG
+        logging.getLogger('uipath.eval.evaluators').setLevel(logging.DEBUG)
+
     context_args = {
         "entrypoint": entrypoint or auto_discover_entrypoint(),
         "eval_set": eval_set,

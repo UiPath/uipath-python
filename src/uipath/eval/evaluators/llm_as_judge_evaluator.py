@@ -1,11 +1,14 @@
 """LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
 
 import json
+import logging
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
+
+logger = logging.getLogger(__name__)
 
 from .._helpers.evaluators_helpers import COMMUNITY_agents_SUFFIX
 from ..models import (
@@ -130,13 +133,26 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         evaluation_criteria: T,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
+        actual_output = str(self._get_actual_output(agent_execution, evaluation_criteria))
+        expected_output = str(self._get_expected_output(evaluation_criteria))
+
+        # Debug logging
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("\n" + "="*80)
+            logger.debug("[DEBUG] LLMJudgeOutputEvaluator - Comparison:")
+            logger.debug("="*80)
+            logger.debug("[ACTUAL OUTPUT]:\n%s", actual_output)
+            logger.debug("\n" + "-"*80)
+            logger.debug("[EXPECTED OUTPUT]:\n%s", expected_output)
+            logger.debug("="*80 + "\n")
+
         formatted_prompt = self.evaluator_config.prompt.replace(
             self.actual_output_placeholder,
-            str(self._get_actual_output(agent_execution, evaluation_criteria)),
+            actual_output,
         )
         formatted_prompt = formatted_prompt.replace(
             self.expected_output_placeholder,
-            str(self._get_expected_output(evaluation_criteria)),
+            expected_output,
         )
 
         return formatted_prompt
