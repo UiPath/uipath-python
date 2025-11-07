@@ -16,6 +16,7 @@ from ._utils._project_files import (
     get_project_config,
     validate_config,
 )
+from ._utils._studio_project import ProjectLockUnavailableError
 from ._utils._uv_helpers import handle_uv_operations
 
 console = ConsoleLogger()
@@ -117,6 +118,10 @@ def push(root: str, nolock: bool) -> None:
 
         asyncio.run(push_with_updates())
 
+    except ProjectLockUnavailableError:
+        console.error(
+            "The project is temporarily locked. This could be due to modifications or active processes. Please wait a moment and try again."
+        )
     except Exception as e:
         console.error(
             f"Failed to push UiPath project: {e}",
