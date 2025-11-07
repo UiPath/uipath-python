@@ -13,17 +13,71 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint
 from ..models.documents import (
     ActionPriority,
+    ClassificationResponse,
+    ClassificationResult,
     ExtractionResponse,
     ExtractionResponseIXP,
     ProjectType,
     ValidatedResult,
     ValidationAction,
 )
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
+
+
+def _is_provided(arg: Any) -> bool:
+    return arg is not None
+
+
+def _must_not_be_provided(**kwargs: Any) -> None:
+    for name, value in kwargs.items():
+        if value is not None:
+            raise ValueError(f"`{name}` must not be provided")
+
+
+def _must_be_provided(**kwargs: Any) -> None:
+    for name, value in kwargs.items():
+        if value is None:
+            raise ValueError(f"`{name}` must be provided")
+
+
+def _exactly_one_must_be_provided(**kwargs: Any) -> None:
+    provided = [name for name, value in kwargs.items() if value is not None]
+    if len(provided) != 1:
+        raise ValueError(
+            f"Exactly one of `{', '.join(kwargs.keys())}` must be provided"
+        )
+
+
+def _validate_extract_params_and_get_project_type(
+    project_name: Optional[str],
+    file: Optional[FileContent],
+    file_path: Optional[str],
+    classification_result: Optional[ClassificationResult],
+    project_type: Optional[ProjectType],
+    document_type_name: Optional[str],
+) -> ProjectType:
+    if _is_provided(project_name):
+        _must_be_provided(project_type=project_type)
+        _exactly_one_must_be_provided(file=file, file_path=file_path)
+        _must_not_be_provided(classification_result=classification_result)
+        if project_type == ProjectType.MODERN:
+            _must_be_provided(document_type_name=document_type_name)
+    else:
+        _must_not_be_provided(
+            project_name=project_name,
+            project_type=project_type,
+            file=file,
+            file_path=file_path,
+            document_type_name=document_type_name,
+        )
+        _must_be_provided(classification_result=classification_result)
+        project_type = ProjectType.MODERN
+
+    return project_type  # type: ignore
 
 
 class DocumentsService(FolderContext, BaseService):
@@ -100,10 +154,65 @@ class DocumentsService(FolderContext, BaseService):
         )
         return {tag["name"] for tag in response.json().get("tags", [])}
 
-    def _get_project_id_and_validate_tag(
-        self, project_name: str, project_type: ProjectType, tag: str
+    def _get_document_id(
+        self,
+        project_id: Optional[str],
+        file: Optional[FileContent],
+        file_path: Optional[str],
+        classification_result: Optional[ClassificationResult],
     ) -> str:
-        project_id = self._get_project_id_by_name(project_name, project_type)
+        if classification_result is not None:
+            return classification_result.document_id
+
+        document_id = self._start_digitization(
+            project_id=project_id,  # type: ignore
+            file=file,
+            file_path=file_path,
+        )
+        self._wait_for_digitization(
+            project_id=project_id,  # type: ignore
+            document_id=document_id,
+        )
+
+        return document_id
+
+    async def _get_document_id_async(
+        self,
+        project_id: Optional[str],
+        file: Optional[FileContent],
+        file_path: Optional[str],
+        classification_result: Optional[ClassificationResult],
+    ) -> str:
+        if classification_result is not None:
+            return classification_result.document_id
+
+        document_id = await self._start_digitization_async(
+            project_id=project_id,  # type: ignore
+            file=file,
+            file_path=file_path,
+        )
+        await self._wait_for_digitization_async(
+            project_id=project_id,  # type: ignore
+            document_id=document_id,
+        )
+
+        return document_id
+
+    def _get_project_id_and_validate_tag(
+        self,
+        tag: str,
+        project_name: Optional[str],
+        project_type: Optional[ProjectType],
+        classification_result: Optional[ClassificationResult],
+    ) -> str:
+        if project_name is not None:
+            project_id = self._get_project_id_by_name(
+                project_name,
+                project_type,  # type: ignore
+            )
+        else:
+            project_id = classification_result.project_id  # type: ignore
+
         tags = self._get_project_tags(project_id)
         if tag not in tags:
             raise ValueError(
@@ -113,11 +222,20 @@ class DocumentsService(FolderContext, BaseService):
         return project_id
 
     async def _get_project_id_and_validate_tag_async(
-        self, project_name: str, project_type: ProjectType, tag: str
+        self,
+        tag: str,
+        project_name: Optional[str],
+        project_type: Optional[ProjectType],
+        classification_result: Optional[ClassificationResult],
     ) -> str:
-        project_id = await self._get_project_id_by_name_async(
-            project_name, project_type
-        )
+        if project_name is not None:
+            project_id = await self._get_project_id_by_name_async(
+                project_name,
+                project_type,  # type: ignore
+            )
+        else:
+            project_id = classification_result.project_id  # type: ignore
+
         tags = await self._get_project_tags_async(project_id)
         if tag not in tags:
             raise ValueError(
@@ -129,43 +247,99 @@ class DocumentsService(FolderContext, BaseService):
     def _start_digitization(
         self,
         project_id: str,
-        file: FileContent,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
     ) -> str:
-        return self.request(
-            "POST",
-            url=Endpoint(
-                f"/du_/api/framework/projects/{project_id}/digitization/start"
-            ),
-            params={"api-version": 1.1},
-            headers=self._get_common_headers(),
-            files={"File": file},
-        ).json()["documentId"]
-
-    async def _start_digitization_async(
-        self,
-        project_id: str,
-        file: FileContent,
-    ) -> str:
-        return (
-            await self.request_async(
+        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
+            return self.request(
                 "POST",
                 url=Endpoint(
                     f"/du_/api/framework/projects/{project_id}/digitization/start"
                 ),
                 params={"api-version": 1.1},
                 headers=self._get_common_headers(),
-                files={"File": file},
+                files={"File": handle},
+            ).json()["documentId"]
+
+    async def _start_digitization_async(
+        self,
+        project_id: str,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+    ) -> str:
+        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
+            return (
+                await self.request_async(
+                    "POST",
+                    url=Endpoint(
+                        f"/du_/api/framework/projects/{project_id}/digitization/start"
+                    ),
+                    params={"api-version": 1.1},
+                    headers=self._get_common_headers(),
+                    files={"File": handle},
+                )
+            ).json()["documentId"]
+
+    def _wait_for_digitization(self, project_id: str, document_id: str) -> None:
+        def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
+            result = self.request(
+                method="GET",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{project_id}/digitization/result/{document_id}"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+            ).json()
+            return (
+                result["status"],
+                result.get("error", None),
+                result.get("result", None),
             )
-        ).json()["documentId"]
+
+        self._wait_for_operation(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
+
+    async def _wait_for_digitization_async(
+        self, project_id: str, document_id: str
+    ) -> None:
+        async def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
+            result = (
+                await self.request_async(
+                    method="GET",
+                    url=Endpoint(
+                        f"/du_/api/framework/projects/{project_id}/digitization/result/{document_id}"
+                    ),
+                    params={"api-version": 1.1},
+                    headers=self._get_common_headers(),
+                )
+            ).json()
+            return (
+                result["status"],
+                result.get("error", None),
+                result.get("result", None),
+            )
+
+        await self._wait_for_operation_async(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
 
     def _get_document_type_id(
         self,
         project_id: str,
         document_type_name: Optional[str],
         project_type: ProjectType,
+        classification_result: Optional[ClassificationResult],
     ) -> str:
         if project_type == ProjectType.IXP:
             return str(UUID(int=0))
+
+        if classification_result is not None:
+            return classification_result.document_type_id
 
         response = self.request(
             "GET",
@@ -190,9 +364,13 @@ class DocumentsService(FolderContext, BaseService):
         project_id: str,
         document_type_name: Optional[str],
         project_type: ProjectType,
+        classification_result: Optional[ClassificationResult],
     ) -> str:
         if project_type == ProjectType.IXP:
             return str(UUID(int=0))
+
+        if classification_result is not None:
+            return classification_result.document_type_id
 
         response = await self.request_async(
             "GET",
@@ -380,25 +558,225 @@ class DocumentsService(FolderContext, BaseService):
 
         return ExtractionResponse.model_validate(extraction_response)
 
+    def _start_classification(
+        self,
+        project_id: str,
+        tag: str,
+        document_id: str,
+    ) -> str:
+        return self.request(
+            "POST",
+            url=Endpoint(
+                f"/du_/api/framework/projects/{project_id}/{tag}/classification/start"
+            ),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+            json={"documentId": document_id},
+        ).json()["operationId"]
+
+    async def _start_classification_async(
+        self,
+        project_id: str,
+        tag: str,
+        document_id: str,
+    ) -> str:
+        return (
+            await self.request_async(
+                "POST",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{project_id}/{tag}/classification/start"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+                json={"documentId": document_id},
+            )
+        ).json()["operationId"]
+
+    def _wait_for_classification(
+        self,
+        project_id: str,
+        tag: str,
+        operation_id: str,
+    ) -> List[ClassificationResult]:
+        def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
+            result = self.request(
+                method="GET",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{project_id}/{tag}/classification/result/{operation_id}"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+            ).json()
+            return (
+                result["status"],
+                result.get("error", None),
+                result.get("result", None),
+            )
+
+        classification_response = self._wait_for_operation(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
+        for classification_result in classification_response["classificationResults"]:
+            classification_result["ProjectId"] = project_id
+
+        return ClassificationResponse.model_validate(
+            classification_response
+        ).classification_results
+
+    async def _wait_for_classification_async(
+        self,
+        project_id: str,
+        tag: str,
+        operation_id: str,
+    ) -> List[ClassificationResult]:
+        async def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
+            result = (
+                await self.request_async(
+                    method="GET",
+                    url=Endpoint(
+                        f"/du_/api/framework/projects/{project_id}/{tag}/classification/result/{operation_id}"
+                    ),
+                    params={"api-version": 1.1},
+                    headers=self._get_common_headers(),
+                )
+            ).json()
+            return (
+                result["status"],
+                result.get("error", None),
+                result.get("result", None),
+            )
+
+        classification_response = await self._wait_for_operation_async(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
+        for classification_result in classification_response["classificationResults"]:
+            classification_result["ProjectId"] = project_id
+
+        return ClassificationResponse.model_validate(
+            classification_response
+        ).classification_results
+
+    @traced(name="documents_classify", run_type="uipath")
+    def classify(
+        self,
+        tag: str,
+        project_name: str,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+    ) -> List[ClassificationResult]:
+        """Classify a document using a DU Modern project.
+
+        Args:
+            project_name (str): Name of the [DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project.
+            tag (str): Tag of the published project version.
+            file (FileContent, optional): The document file to be classified.
+            file_path (str, optional): Path to the document file to be classified.
+
+        Note:
+            Either `file` or `file_path` must be provided, but not both.
+
+        Returns:
+            List[ClassificationResult]: A list of classification results.
+
+        Examples:
+            ```python
+            with open("path/to/document.pdf", "rb") as file:
+                classification_results = service.classify(
+                    project_name="MyModernProjectName",
+                    tag="Production",
+                    file=file,
+                )
+            ```
+        """
+        _exactly_one_must_be_provided(file=file, file_path=file_path)
+
+        project_id = self._get_project_id_and_validate_tag(
+            tag=tag,
+            project_name=project_name,
+            project_type=ProjectType.MODERN,
+            classification_result=None,
+        )
+
+        document_id = self._get_document_id(
+            project_id=project_id,
+            file=file,
+            file_path=file_path,
+            classification_result=None,
+        )
+
+        operation_id = self._start_classification(
+            project_id=project_id,
+            tag=tag,
+            document_id=document_id,
+        )
+
+        return self._wait_for_classification(
+            project_id=project_id,
+            tag=tag,
+            operation_id=operation_id,
+        )
+
+    @traced(name="documents_classify_async", run_type="uipath")
+    async def classify_async(
+        self,
+        tag: str,
+        project_name: str,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+    ) -> List[ClassificationResult]:
+        """Asynchronously version of the [`classify`][uipath._services.documents_service.DocumentsService.classify] method."""
+        _exactly_one_must_be_provided(file=file, file_path=file_path)
+
+        project_id = await self._get_project_id_and_validate_tag_async(
+            tag=tag,
+            project_name=project_name,
+            project_type=ProjectType.MODERN,
+            classification_result=None,
+        )
+
+        document_id = await self._get_document_id_async(
+            project_id=project_id,
+            file=file,
+            file_path=file_path,
+            classification_result=None,
+        )
+
+        operation_id = await self._start_classification_async(
+            project_id=project_id,
+            tag=tag,
+            document_id=document_id,
+        )
+
+        return await self._wait_for_classification_async(
+            project_id=project_id,
+            tag=tag,
+            operation_id=operation_id,
+        )
+
     @traced(name="documents_extract", run_type="uipath")
     def extract(
         self,
-        project_name: str,
         tag: str,
+        project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
-        project_type: ProjectType = ProjectType.IXP,
+        classification_result: Optional[ClassificationResult] = None,
+        project_type: Optional[ProjectType] = None,
         document_type_name: Optional[str] = None,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
-        """Extract predicted data from a document using an IXP project.
+        """Extract predicted data from a document using an DU Modern/IXP project.
 
         Args:
-            project_name (str): Name of the [IXP](https://docs.uipath.com/ixp/automation-cloud/latest/overview/managing-projects#creating-a-new-project)/[DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project.
+            project_name (str, optional): Name of the [IXP](https://docs.uipath.com/ixp/automation-cloud/latest/overview/managing-projects#creating-a-new-project)/[DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project. Must be provided if `classification_result` is not provided.
             tag (str): Tag of the published project version.
-            file (FileContent, optional): The document file to be processed.
-            file_path (str, optional): Path to the document file to be processed.
-            project_type (ProjectType, optional): Type of the project. Defaults to `ProjectType.IXP`.
-            document_type_name (str, optional): Document type name associated with the extractor to be used for extraction. Required if `project_type` is `ProjectType.MODERN`.
+            file (FileContent, optional): The document file to be processed. Must be provided if `classification_result` is not provided.
+            file_path (str, optional): Path to the document file to be processed. Must be provided if `classification_result` is not provided.
+            project_type (ProjectType, optional): Type of the project. Must be provided if `project_name` is provided.
+            document_type_name (str, optional): Document type name associated with the extractor to be used for extraction. Required if `project_type` is `ProjectType.MODERN` and `project_name` is provided.
 
         Note:
             Either `file` or `file_path` must be provided, but not both.
@@ -417,7 +795,7 @@ class DocumentsService(FolderContext, BaseService):
                 )
             ```
 
-            DU Modern projects:
+            DU Modern projects (providing document type name):
             ```python
             with open("path/to/document.pdf", "rb") as file:
                 extraction_response = service.extract(
@@ -428,27 +806,50 @@ class DocumentsService(FolderContext, BaseService):
                     document_type_name="Receipts",
                 )
             ```
-        """
-        if file is None and file_path is None:
-            raise ValueError("Either `file` or `file_path` must be provided")
-        if file is not None and file_path is not None:
-            raise ValueError("`file` and `file_path` are mutually exclusive")
-        if project_type == ProjectType.MODERN and document_type_name is None:
-            raise ValueError(
-                "`document_type_name` must be provided when `project_type` is `ProjectType.MODERN`"
-            )
 
-        project_id = self._get_project_id_and_validate_tag(
-            project_name=project_name, project_type=project_type, tag=tag
+            DU Modern projects (using existing classification result):
+            ```python
+            with open("path/to/document.pdf", "rb") as file:
+                classification_results = uipath.documents.classify(
+                    tag="Production",
+                    project_name="MyModernProjectName",
+                    file=file,
+                )
+
+            extraction_result = uipath.documents.extract(
+                tag="Production",
+                classification_result=max(classification_results, key=lambda result: result.confidence),
+            )
+            ```
+        """
+        project_type = _validate_extract_params_and_get_project_type(
+            project_name=project_name,
+            file=file,
+            file_path=file_path,
+            classification_result=classification_result,
+            project_type=project_type,
+            document_type_name=document_type_name,
         )
 
-        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
-            document_id = self._start_digitization(project_id=project_id, file=handle)  # type: ignore
+        project_id = self._get_project_id_and_validate_tag(
+            tag=tag,
+            project_name=project_name,
+            project_type=project_type,
+            classification_result=classification_result,
+        )
+
+        document_id = self._get_document_id(
+            project_id=project_id,
+            file=file,
+            file_path=file_path,
+            classification_result=classification_result,
+        )
 
         document_type_id = self._get_document_type_id(
             project_id=project_id,
             document_type_name=document_type_name,
             project_type=project_type,
+            classification_result=classification_result,
         )
 
         operation_id = self._start_extraction(
@@ -469,37 +870,43 @@ class DocumentsService(FolderContext, BaseService):
     @traced(name="documents_extract_async", run_type="uipath")
     async def extract_async(
         self,
-        project_name: str,
         tag: str,
+        project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
-        project_type: ProjectType = ProjectType.IXP,
+        classification_result: Optional[ClassificationResult] = None,
+        project_type: Optional[ProjectType] = None,
         document_type_name: Optional[str] = None,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         """Asynchronously version of the [`extract`][uipath._services.documents_service.DocumentsService.extract] method."""
-        if file is None and file_path is None:
-            raise ValueError("Either `file` or `file_path` must be provided")
-        if file is not None and file_path is not None:
-            raise ValueError("`file` and `file_path` are mutually exclusive")
-        if project_type == ProjectType.MODERN and document_type_name is None:
-            raise ValueError(
-                "`document_type_name` must be provided when `project_type` is `ProjectType.MODERN`"
-            )
-
-        project_id = await self._get_project_id_and_validate_tag_async(
-            project_name=project_name, project_type=project_type, tag=tag
+        project_type = _validate_extract_params_and_get_project_type(
+            project_name=project_name,
+            file=file,
+            file_path=file_path,
+            classification_result=classification_result,
+            project_type=project_type,
+            document_type_name=document_type_name,
         )
 
-        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
-            document_id = await self._start_digitization_async(
-                project_id=project_id,
-                file=handle,  # type: ignore
-            )
+        project_id = await self._get_project_id_and_validate_tag_async(
+            tag=tag,
+            project_name=project_name,
+            project_type=project_type,
+            classification_result=classification_result,
+        )
+
+        document_id = await self._get_document_id_async(
+            project_id=project_id,
+            file=file,
+            file_path=file_path,
+            classification_result=classification_result,
+        )
 
         document_type_id = await self._get_document_type_id_async(
             project_id=project_id,
             document_type_name=document_type_name,
             project_type=project_type,
+            classification_result=classification_result,
         )
 
         operation_id = await self._start_extraction_async(

@@ -13,7 +13,7 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils._ssl_context import get_httpx_client_kwargs
 from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 
 

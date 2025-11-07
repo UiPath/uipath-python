@@ -11,6 +11,13 @@ import uipath._cli.cli_pack as cli_pack
 from uipath._cli import cli
 
 
+def create_bindings_file():
+    """Helper to create a default bindings.json file for tests."""
+    bindings_content = {"version": "2.0", "resources": []}
+    with open("bindings.json", "w") as f:
+        json.dump(bindings_content, f, indent=4)
+
+
 class TestPack:
     """Test pack command."""
 
@@ -28,6 +35,7 @@ class TestPack:
                 f.write(uipath_json.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            create_bindings_file()
 
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 0
@@ -49,6 +57,7 @@ class TestPack:
                 f.write(uipath_json.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            create_bindings_file()
 
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
@@ -71,6 +80,7 @@ class TestPack:
                 f.write(uipath_json.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            create_bindings_file()
 
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
@@ -92,7 +102,7 @@ class TestPack:
                 f.write(uipath_json.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-
+            create_bindings_file()
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
@@ -113,7 +123,7 @@ class TestPack:
                 f.write(uipath_json.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-
+            create_bindings_file()
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
@@ -134,7 +144,7 @@ class TestPack:
                 f.write(uipath_json.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-
+            create_bindings_file()
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert """Project name contains invalid character: '<'""" in result.output
@@ -152,7 +162,7 @@ class TestPack:
                 f.write(uipath_json.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-
+            create_bindings_file()
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
@@ -167,6 +177,7 @@ class TestPack:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            create_bindings_file()
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert (
@@ -181,7 +192,7 @@ class TestPack:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
                 f.write(uipath_json.to_json())
-
+            create_bindings_file()
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert "pyproject.toml not found" in result.output
@@ -190,7 +201,7 @@ class TestPack:
         self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
     ) -> None:
         """Test generating operate.json and its content."""
-
+        create_bindings_file()
         operate_data = cli_pack.generate_operate_file(
             json.loads(uipath_json.to_json())["entryPoints"]
         )
@@ -206,14 +217,6 @@ class TestPack:
             "requiresUserInteraction": False,
             "isAttended": False,
         }
-
-    def test_generate_entrypoints_file(
-        self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
-    ) -> None:
-        """Test generating operate.json and its content."""
-        bindings_data = cli_pack.generate_bindings_content()
-        assert bindings_data.version == "2.0"
-        assert bindings_data.resources == []
 
     def test_generate_bindings_content(
         self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
@@ -867,3 +870,63 @@ class TestPack:
                     "content/tests/new/config.json" in z.namelist()
                 )  # Different path included
                 assert "content/old/config.json" in z.namelist()  # Root old included
+
+    def test_bindings_v2_naming_in_nupkg(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that bindings.json is named bindings_v2.json in the .nupkg."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create necessary files for packing
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create bindings.json with some test resources
+            bindings_content = {
+                "version": "2.0",
+                "resources": [
+                    {
+                        "resource": "asset",
+                        "key": "test-asset",
+                        "value": {
+                            "name": {
+                                "defaultValue": "test-asset",
+                                "isExpression": False,
+                                "displayName": "Asset Name",
+                            }
+                        },
+                        "metadata": {
+                            "BindingsVersion": "2.2",
+                            "ActivityName": "retrieve",
+                        },
+                    }
+                ],
+            }
+            with open("bindings.json", "w") as f:
+                json.dump(bindings_content, f, indent=4)
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 0
+
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            assert os.path.exists(nupkg_path)
+
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                # Verify bindings file is named bindings_v2.json in the package
+                assert "content/bindings_v2.json" in z.namelist()
+
+                # Verify the content is correct
+                bindings_v2_content = z.read("content/bindings_v2.json").decode("utf-8")
+                bindings_v2_data = json.loads(bindings_v2_content)
+
+                assert bindings_v2_data["version"] == "2.0"
+                assert len(bindings_v2_data["resources"]) == 1
+                assert bindings_v2_data["resources"][0]["resource"] == "asset"
+                assert bindings_v2_data["resources"][0]["key"] == "test-asset"

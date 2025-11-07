@@ -4,14 +4,14 @@ import logging
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Awaitable, Callable, List, Optional, TypeVar
+from typing import Any, Awaitable, Callable, Optional, TypeVar
 
 from typing_extensions import override
 
 from .._utils._console import ConsoleLogger
 from .._utils._input_args import generate_args
 from .._utils._parse_ast import generate_bindings  # type: ignore[attr-defined]
-from ..models.runtime_schema import BindingResource, Entrypoint
+from ..models.runtime_schema import Bindings, Entrypoint
 from ._contracts import (
     UiPathBaseRuntime,
     UiPathErrorCategory,
@@ -116,15 +116,15 @@ class UiPathScriptRuntime(UiPathRuntime):
         return UiPathScriptRuntime(context, context.entrypoint or "")
 
     @override
-    async def get_binding_resources(self) -> List[BindingResource]:
+    async def get_bindings(self) -> Bindings:
         """Get binding resources for script runtime.
 
-        Returns: A list of binding resources.
+        Returns: A bindings object.
         """
         working_dir = self.context.runtime_dir or os.getcwd()
         script_path = get_user_script(working_dir, entrypoint=self.context.entrypoint)
         bindings = generate_bindings(script_path)
-        return bindings.resources
+        return bindings
 
     @override
     async def get_entrypoint(self) -> Entrypoint:

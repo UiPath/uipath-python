@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -873,3 +875,159 @@ class TestContextGroundingService:
 
         request_data = json.loads(create_request.content)
         assert request_data["preProcessing"]["@odata.type"] == LLMV3Mini
+
+    def test_all_requests_pass_spec_parameters(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Verify that all requests pass spec.method, spec.endpoint, spec.params, and spec.headers correctly."""
+        # Mock folder service to always return the test folder key
+        with patch.object(
+            service._folders_service, "retrieve_key", return_value="test-folder-key"
+        ):
+            # Test retrieve method
+            with patch.object(service, "request") as mock_request:
+                mock_response = MagicMock()
+                mock_response.json.return_value = {
+                    "value": [
+                        {
+                            "id": "test-index-id",
+                            "name": "test-index",
+                            "lastIngestionStatus": "Completed",
+                        }
+                    ]
+                }
+                mock_request.return_value = mock_response
+
+                service.retrieve(name="test-index")
+
+                # Verify request was called with spec parameters
+                assert mock_request.called
+                call_args = mock_request.call_args
+                # Check positional args (method and endpoint)
+                assert call_args[0][0] == "GET"  # method
+                assert str(call_args[0][1]) == "/ecs_/v2/indexes"  # endpoint
+                # Check keyword args (params and headers)
+                assert "params" in call_args[1]
+                assert call_args[1]["params"]["$filter"] == "Name eq 'test-index'"
+                assert call_args[1]["params"]["$expand"] == "dataSource"
+                assert "headers" in call_args[1]
+                assert "x-uipath-folderkey" in call_args[1]["headers"]
+                assert (
+                    call_args[1]["headers"]["x-uipath-folderkey"] == "test-folder-key"
+                )
+
+            # Test search method
+            with patch.object(service, "request") as mock_request:
+                # First call for retrieve
+                retrieve_response = MagicMock()
+                retrieve_response.json.return_value = {
+                    "value": [
+                        {
+                            "id": "test-index-id",
+                            "name": "test-index",
+                            "lastIngestionStatus": "Completed",
+                        }
+                    ]
+                }
+                # Second call for search
+                search_response = MagicMock()
+                search_response.json.return_value = []
+                mock_request.side_effect = [retrieve_response, search_response]
+
+                service.search(
+                    name="test-index", query="test query", number_of_results=10
+                )
+
+                # Check the search request (second call)
+                assert mock_request.call_count == 2
+                search_call = mock_request.call_args_list[1]
+                assert search_call[0][0] == "POST"  # method
+                assert str(search_call[0][1]) == "/ecs_/v1/search"  # endpoint
+                assert "json" in search_call[1]
+                assert search_call[1]["json"]["query"]["query"] == "test query"
+                assert search_call[1]["json"]["query"]["numberOfResults"] == 10
+                assert "headers" in search_call[1]
+                assert "x-uipath-folderkey" in search_call[1]["headers"]
+                assert (
+                    search_call[1]["headers"]["x-uipath-folderkey"] == "test-folder-key"
+                )
+
+            # Test create_index method
+            with patch.object(service, "request") as mock_request:
+                mock_response = MagicMock()
+                mock_response.json.return_value = {
+                    "id": "new-index-id",
+                    "name": "test-new-index",
+                    "lastIngestionStatus": "Queued",
+                }
+                mock_request.return_value = mock_response
+
+                source = {
+                    "type": "bucket",
+                    "bucket_name": "test-bucket",
+                    "folder_path": "/test/folder",
+                }
+                service.create_index(name="test-new-index", source=source)
+
+                assert mock_request.called
+                call_args = mock_request.call_args
+                assert call_args[0][0] == "POST"  # method
+                assert str(call_args[0][1]) == "/ecs_/v2/indexes/create"  # endpoint
+                assert "content" in call_args[1]
+                assert "headers" in call_args[1]
+                assert "x-uipath-folderkey" in call_args[1]["headers"]
+                assert (
+                    call_args[1]["headers"]["x-uipath-folderkey"] == "test-folder-key"
+                )
+                assert "Content-Type" in call_args[1]["headers"]
+
+            # Test ingest_data method
+            with patch.object(service, "request") as mock_request:
+                mock_request.return_value = MagicMock()
+
+                test_index = ContextGroundingIndex(
+                    id="test-index-id",
+                    name="test-index",
+                    last_ingestion_status="Completed",
+                )
+                service.ingest_data(test_index)
+
+                assert mock_request.called
+                call_args = mock_request.call_args
+                assert call_args[0][0] == "POST"  # method
+                assert (
+                    str(call_args[0][1]) == "/ecs_/v2/indexes/test-index-id/ingest"
+                )  # endpoint
+                assert "headers" in call_args[1]
+                assert "x-uipath-folderkey" in call_args[1]["headers"]
+                assert (
+                    call_args[1]["headers"]["x-uipath-folderkey"] == "test-folder-key"
+                )
+
+            # Test delete_index method
+            with patch.object(service, "request") as mock_request:
+                mock_request.return_value = MagicMock()
+
+                test_index = ContextGroundingIndex(
+                    id="test-index-id",
+                    name="test-index",
+                    last_ingestion_status="Completed",
+                )
+                service.delete_index(test_index)
+
+                assert mock_request.called
+                call_args = mock_request.call_args
+                assert call_args[0][0] == "DELETE"  # method
+                assert (
+                    str(call_args[0][1]) == "/ecs_/v2/indexes/test-index-id"
+                )  # endpoint
+                assert "headers" in call_args[1]
+                assert "x-uipath-folderkey" in call_args[1]["headers"]
+                assert (
+                    call_args[1]["headers"]["x-uipath-folderkey"] == "test-folder-key"
+                )

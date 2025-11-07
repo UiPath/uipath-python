@@ -1,6 +1,5 @@
 # type: ignore
 import asyncio
-import os
 from typing import Any, AsyncIterator, Optional
 from urllib.parse import urlparse
 
@@ -8,12 +7,10 @@ import click
 
 from uipath.models.exceptions import EnrichedException
 
+from .._config import UiPathConfig
 from ..telemetry import track
 from ._push.sw_file_handler import FileOperationUpdate, SwFileHandler
 from ._utils._console import ConsoleLogger
-from ._utils._constants import (
-    UIPATH_PROJECT_ID,
-)
 from ._utils._project_files import (
     ensure_config_file,
     get_project_config,
@@ -99,7 +96,7 @@ def push(root: str, nolock: bool) -> None:
     config = get_project_config(root)
     validate_config(config)
 
-    project_id = os.getenv(UIPATH_PROJECT_ID)
+    project_id = UiPathConfig.project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
@@ -113,15 +110,15 @@ def push(root: str, nolock: bool) -> None:
         ):
             console.info(update.message)
 
-    with console.spinner("Pushing UiPath project to Studio Web..."):
-        try:
-            if not nolock:
-                handle_uv_operations(root)
+    console.log("Pushing UiPath project to Studio Web...")
+    try:
+        if not nolock:
+            handle_uv_operations(root)
 
-            asyncio.run(push_with_updates())
+        asyncio.run(push_with_updates())
 
-        except Exception as e:
-            console.error(
-                f"Failed to push UiPath project: {e}",
-                include_traceback=not isinstance(e, EnrichedException),
-            )
+    except Exception as e:
+        console.error(
+            f"Failed to push UiPath project: {e}",
+            include_traceback=not isinstance(e, EnrichedException),
+        )

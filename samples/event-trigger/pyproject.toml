@@ -4,6 +4,6 @@ version = "0.0.5"
 description = "event-agent"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
-    "uipath>=2.1.18",
+    "uipath>=2.1.18, <2.2.0",
 ]
 requires-python = ">=3.10"

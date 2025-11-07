@@ -1,10 +1,12 @@
 # type: ignore
 
 import ast
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+from ..._config import UiPathConfig
 from ..._services import (
     AssetsService,
     BucketsService,
@@ -481,7 +483,7 @@ def convert_to_bindings_format(sdk_usage_data) -> Bindings:
             folder_path = folder_path.replace("EXPR$", "") if folder_path else None
             key = name
             if folder_path:
-                key = f"{folder_path}.{name}"
+                key = f"{name}.{folder_path}"
             resource_entry = BindingResource(
                 resource=service_name_resource_mapping[resource_type],
                 key=key,
@@ -556,6 +558,22 @@ def generate_bindings(file_path: str) -> Bindings:
         bindings = convert_to_bindings_format(sdk_usage)
 
         return bindings
-
     except Exception as e:
         raise Exception(f"Error generating bindings JSON: {e}") from e
+
+
+def write_bindings_file(bindings: Bindings) -> str:
+    """Write bindings to a JSON file.
+
+    Args:
+        bindings: The Bindings object to write to file
+
+    Returns:
+        str: The path to the written bindings file
+    """
+    bindings_file_path = UiPathConfig.bindings_file_path
+    with open(bindings_file_path, "w") as bindings_file:
+        json_object = bindings.model_dump(by_alias=True, exclude_unset=True)
+        json.dump(json_object, bindings_file, indent=4)
+
+    return bindings_file_path

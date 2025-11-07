@@ -63,7 +63,9 @@ class RuntimeArguments(BaseModel):
 class RuntimeSchema(BaseModel):
     runtime: Optional[RuntimeArguments] = Field(default=None, alias="runtime")
     entrypoints: List[Entrypoint] = Field(..., alias="entryPoints")
-    bindings: Bindings = Field(
+
+    # left for backward compatibility with uipath-langchain and uipath-llamaindex libraries. should be removed on major release
+    bindings: Optional[Bindings] = Field(
         default=Bindings(version="2.0", resources=[]), alias="bindings"
     )
     settings: Optional[Dict[str, Any]] = Field(default=None, alias="setting")

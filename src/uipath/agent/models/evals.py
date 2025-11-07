@@ -11,11 +11,11 @@ from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._models._evaluator import Evaluator
 from uipath._cli._evals._models._mocks import ExampleCall
 from uipath.agent.models.agent import (
+    AgentDefinition,
     AgentEscalationChannelProperties,
     AgentIntegrationToolProperties,
     AgentProcessToolProperties,
     BaseResourceProperties,
-    LowCodeAgentDefinition,
 )
 
 
@@ -43,7 +43,7 @@ class AgentEvalEscalationChannelProperties(AgentEscalationChannelProperties):
     example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
 
 
-class AgentEvalsDefinition(LowCodeAgentDefinition):
+class AgentEvalsDefinition(AgentDefinition):
     """Agent definition with evaluation sets and evaluators support."""
 
     evaluation_sets: Optional[List[EvaluationSet]] = Field(

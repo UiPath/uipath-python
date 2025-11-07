@@ -151,6 +151,7 @@ class UiPathEvalContext(UiPathRuntimeContext):
     workers: Optional[int] = 1
     eval_set: Optional[str] = None
     eval_ids: Optional[List[str]] = None
+    eval_set_run_id: Optional[str] = None
     verbose: bool = False
 
 
@@ -214,6 +215,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             EvalSetRunCreatedEvent(
                 execution_id=self.execution_id,
                 entrypoint=self.context.entrypoint or "",
+                eval_set_run_id=self.context.eval_set_run_id,
                 eval_set_id=evaluation_set.id,
                 no_of_evals=len(evaluation_set.evaluations),
                 evaluators=evaluators,

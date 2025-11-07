@@ -1,5 +1,7 @@
+import json
 import logging
-from pathlib import PurePath
+from pathlib import Path, PurePath
+from typing import Any
 
 from httpx import Response
 from pydantic import TypeAdapter
@@ -8,6 +10,12 @@ from uipath._cli._evals._models._evaluation_set import (
     InputMockingStrategy,
     LLMMockingStrategy,
 )
+from uipath._cli._utils._constants import (
+    DEBUG_DIRECTORY_NAME,
+    EVALS_DIRECTORY_NAME,
+    SRC_DIRECTORY_NAME,
+)
+from uipath._cli._utils._project_files import pull_project  # type: ignore[attr-defined]
 from uipath._cli._utils._studio_project import (
     ProjectFile,
     ProjectFolder,
@@ -17,8 +25,8 @@ from uipath._cli._utils._studio_project import (
 )
 from uipath.agent.models.agent import (
     AgentDefinition,
-    UnknownAgentDefinition,
 )
+from uipath.agent.models.evals import AgentEvalsDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -37,88 +45,107 @@ async def create_agent_project(solution_id: str, project_name: str) -> str:
     return project["id"]
 
 
-async def load_agent_definition(project_id: str) -> AgentDefinition:
-    studio_client = StudioClient(project_id=project_id)
-    project_structure = await studio_client.get_project_structure_async()
+async def download_agent_project(
+    project_id: str,
+    target_project_dir: Path,
+) -> None:
+    """Downloads all project files to the target directory.
 
-    agent = (
-        await get_file(project_structure, PurePath("agent.json"), studio_client)
-    ).json()
+    Args:
+        project_id: The project ID to download from
+        target_project_dir: Directory where files will be downloaded
+    """
+    default_download_configuration = {
+        EVALS_DIRECTORY_NAME: target_project_dir / EVALS_DIRECTORY_NAME,
+        "coded-evals": target_project_dir / EVALS_DIRECTORY_NAME,  # this is intentional
+        SRC_DIRECTORY_NAME: target_project_dir,
+        DEBUG_DIRECTORY_NAME: target_project_dir,  # this should be removed
+    }
 
+    logger.info(f"Downloading project {project_id}...")
+    async for update in pull_project(project_id, default_download_configuration):
+        logger.info(update.message)
+
+    logger.info(f"Successfully downloaded project {project_id}.")
+
+
+def load_agent_definition(
+    target_project_dir: Path,
+) -> AgentDefinition:
+    """Loads agent definition from downloaded files and applies migrations.
+
+    Args:
+        target_project_dir: Directory containing the downloaded files
+
+    Returns:
+        AgentDefinition with migrations applied
+    """
+    # Load agent definition from downloaded files
+    agent_definition_path = target_project_dir / "agent.json"
+
+    agent: dict[str, Any] = {}
+    with open(agent_definition_path) as f:
+        agent = json.load(f)
+
+    # Load resources from downloaded files
+    resources = agent.get("resources", []) if "resources" in agent else []
+    resources_dir = target_project_dir / "resources"
+    if resources_dir.exists() and resources_dir.is_dir():
+        for file_path in resources_dir.rglob("*.json"):
+            try:
+                with open(file_path) as f:
+                    resources.append(json.load(f))
+            except Exception as e:
+                logger.warning(f"Failed to load resource from {file_path}: {e}")
+
+    # Load evaluators from downloaded files
     evaluators = []
-    try:
-        evaluators_path = resolve_path(
-            project_structure, PurePath("evals", "evaluators")
-        )
-        if isinstance(evaluators_path, ProjectFolder):
-            for file in evaluators_path.files:
-                evaluators.append(
-                    (
-                        await get_file(
-                            evaluators_path, PurePath(file.name), studio_client
-                        )
-                    ).json()
-                )
-        else:
-            logger.warning(
-                "Unable to read evaluators from project. Defaulting to empty evaluators."
-            )
-    except Exception:
+    evaluators_dir = target_project_dir / EVALS_DIRECTORY_NAME / "evaluators"
+    if evaluators_dir.exists() and evaluators_dir.is_dir():
+        for file_path in evaluators_dir.glob("*.json"):
+            try:
+                with open(file_path) as f:
+                    evaluators.append(json.load(f))
+            except Exception as e:
+                logger.warning(f"Failed to load evaluator from {file_path}: {e}")
+    else:
         logger.warning(
             "Unable to read evaluators from project. Defaulting to empty evaluators."
         )
 
+    # Load evaluation sets from downloaded files
     evaluation_sets = []
-    try:
-        evaluation_sets_path = resolve_path(
-            project_structure, PurePath("evals", "eval-sets")
-        )
-        if isinstance(evaluation_sets_path, ProjectFolder):
-            for file in evaluation_sets_path.files:
-                evaluation_sets.append(
-                    (
-                        await get_file(
-                            evaluation_sets_path, PurePath(file.name), studio_client
-                        )
-                    ).json()
-                )
-        else:
-            logger.warning(
-                "Unable to read eval-sets from project. Defaulting to empty eval-sets."
-            )
-    except Exception:
+    eval_sets_dir = target_project_dir / EVALS_DIRECTORY_NAME / "eval-sets"
+    if eval_sets_dir.exists() and eval_sets_dir.is_dir():
+        for file_path in eval_sets_dir.glob("*.json"):
+            try:
+                with open(file_path) as f:
+                    evaluation_sets.append(json.load(f))
+            except Exception as e:
+                logger.warning(f"Failed to load eval-set from {file_path}: {e}")
+    else:
         logger.warning(
             "Unable to read eval-sets from project. Defaulting to empty eval-sets."
         )
 
-    resolved_path = resolve_path(project_structure, PurePath("resources"))
-    if isinstance(resolved_path, ProjectFolder):
-        resource_folders = resolved_path.folders
-    else:
-        logger.warning(
-            "Unable to read resource information from project. Defaulting to empty resources."
-        )
-        resource_folders = []
-
-    resources = []
-    for resource in resource_folders:
-        resources.append(
-            (await get_file(resource, PurePath("resource.json"), studio_client)).json()
-        )
-
-    agent_definition = {
-        "id": project_id,
-        "name": project_structure.name,
-        "resources": resources,
+    # Construct agent definition dictionary
+    agent_definition_dict = {
         "evaluators": evaluators,
         "evaluationSets": evaluation_sets,
         **agent,
+        "resources": resources,  # This overrides agent["resources"] if it exists
     }
-    agent_definition = TypeAdapter(AgentDefinition).validate_python(agent_definition)
-    if agent_definition and isinstance(agent_definition, UnknownAgentDefinition):
-        if agent_definition.evaluation_sets:
-            for evaluation_set in agent_definition.evaluation_sets:
-                for evaluation in evaluation_set.evaluations:
+
+    # Validate and create AgentDefinition
+    agent_definition = TypeAdapter(AgentEvalsDefinition).validate_python(
+        agent_definition_dict
+    )
+
+    # Apply migrations
+    if agent_definition.evaluation_sets:
+        for evaluation_set in agent_definition.evaluation_sets:
+            for evaluation in evaluation_set.evaluations:
+                if evaluation.model_extra:
                     if not evaluation.mocking_strategy:
                         # Migrate lowCode evaluation definitions
                         if evaluation.model_extra.get("simulateTools", False):
@@ -138,7 +165,10 @@ async def load_agent_definition(project_id: str) -> AgentDefinition:
                             prompt = evaluation.model_extra.get(
                                 "inputGenerationInstructions",
                             )
-                            evaluation.input_mocking_strategy = InputMockingStrategy(
-                                prompt=prompt
-                            )
+                            if isinstance(prompt, str):
+                                evaluation.input_mocking_strategy = (
+                                    InputMockingStrategy(prompt=prompt)
+                                )
+
+    logger.info("Successfully loaded agent definition.")
     return agent_definition

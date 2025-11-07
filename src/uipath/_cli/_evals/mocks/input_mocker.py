@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import AnyEvaluationItem
-from uipath.tracing._traced import traced
+from uipath.tracing import traced
 
 from .mocker import UiPathInputMockingError
 
@@ -52,7 +52,7 @@ Based on the above information, provide a realistic input to the LLM agent. Your
 OUTPUT: ONLY the simulated agent input in the exact format of the INPUT_SCHEMA in valid JSON. Do not include any explanations, quotation marks, or markdown."""
 
 
-@traced(name="__mocker__")
+@traced(name="__mocker__", recording=False)
 async def generate_llm_input(
     evaluation_item: AnyEvaluationItem,
     input_schema: Dict[str, Any],

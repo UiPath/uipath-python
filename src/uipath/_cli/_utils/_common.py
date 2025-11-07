@@ -1,10 +1,14 @@
+import json
 import os
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
 import click
 from dotenv import load_dotenv
 
+from ..._config import UiPathConfig
+from ..._utils._bindings import ResourceOverwrite
 from ..._utils.constants import DOTENV_FILE
 from ..spinner import Spinner
 
@@ -34,7 +38,6 @@ def environment_options(function):
         "--cloud",
         "environment",
         flag_value="cloud",
-        default=True,
         help="Use production environment",
     )(function)
     return function
@@ -116,3 +119,36 @@ def clean_directory(directory: str) -> None:
 
 def load_environment_variables():
     load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
+
+
+async def read_resource_overwrites_from_file(
+    directory_path: Optional[Path] = None,
+) -> dict[str, ResourceOverwrite]:
+    """Read resource overwrites from a JSON file."""
+    config_file_name = UiPathConfig.config_file_name
+    if directory_path is not None:
+        file_path = Path(f"{directory_path}/{config_file_name}")
+    else:
+        file_path = Path(f"{config_file_name}")
+
+    overwrites_dict = {}
+
+    try:
+        with open(file_path, "r") as f:
+            data = json.load(f)
+            resource_overwrites = (
+                data.get("runtime", {})
+                .get("internalArguments", {})
+                .get("resourceOverwrites", {})
+            )
+            for key, value in resource_overwrites.items():
+                overwrite = ResourceOverwrite.model_validate(value)
+                overwrites_dict[key] = overwrite
+
+    # Return empty dict if file doesn't exist or invalid json
+    except FileNotFoundError:
+        pass
+    except json.JSONDecodeError:
+        pass
+
+    return overwrites_dict

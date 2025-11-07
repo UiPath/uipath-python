@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 
-from uipath.tracing._traced import traced
+from uipath.tracing import traced
 from uipath.tracing._utils import _SpanUtils
 
 from .._models._evaluation_set import (
@@ -82,7 +82,7 @@ class LLMMocker(Mocker):
         self.evaluation_item = evaluation_item
         assert isinstance(self.evaluation_item.mocking_strategy, LLMMockingStrategy)
 
-    @traced(name="__mocker__")
+    @traced(name="__mocker__", recording=False)
     async def response(
         self, func: Callable[[T], R], params: dict[str, Any], *args: T, **kwargs
     ) -> R:

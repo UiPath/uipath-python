@@ -39,7 +39,7 @@ from uipath._events._events import UiPathRuntimeEvent
 from uipath.agent.conversation import UiPathConversationEvent, UiPathConversationMessage
 from uipath.tracing import TracingManager
 
-from ..models.runtime_schema import BindingResource, Entrypoint
+from ..models.runtime_schema import Bindings, Entrypoint
 from ._logging import LogsInterceptor
 
 logger = logging.getLogger(__name__)
@@ -96,6 +96,7 @@ class UiPathErrorCategory(str, Enum):
 class UiPathErrorCode(str, Enum):
     """Standard error codes for UiPath runtime errors."""
 
+    AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED"
     # Entrypoint related errors
     ENTRYPOINT_MISSING = "ENTRYPOINT_MISSING"
     ENTRYPOINT_NOT_FOUND = "ENTRYPOINT_NOT_FOUND"
@@ -383,6 +384,7 @@ class UiPathRuntimeContext(BaseModel):
     chat_handler: Optional[UiPathConversationHandler] = None
     is_conversational: Optional[bool] = None
     breakpoints: Optional[List[str] | Literal["*"]] = None
+    intercept_logs: bool = True
 
     model_config = {"arbitrary_types_allowed": True, "extra": "allow"}
 
@@ -579,10 +581,10 @@ class UiPathBaseRuntime(ABC):
         runtime = cls(context)
         return runtime
 
-    async def get_binding_resources(self) -> List[BindingResource]:
+    async def get_bindings(self) -> Bindings:
         """Get binding resources for this runtime.
 
-        Returns: A list of binding resources.
+        Returns: A bindings object.
         """
         raise NotImplementedError()
 
@@ -630,16 +632,17 @@ class UiPathBaseRuntime(ABC):
 
         # Intercept all stdout/stderr/logs
         # write to file (runtime) or stdout (debug)
-        self.logs_interceptor = LogsInterceptor(
-            min_level=self.context.logs_min_level,
-            dir=self.context.runtime_dir,
-            file=self.context.logs_file,
-            job_id=self.context.job_id,
-            execution_id=self.context.execution_id,
-            is_debug_run=self.is_debug_run(),
-            log_handler=self.context.log_handler,
-        )
-        self.logs_interceptor.setup()
+        if self.context.intercept_logs:
+            self.logs_interceptor = LogsInterceptor(
+                min_level=self.context.logs_min_level,
+                dir=self.context.runtime_dir,
+                file=self.context.logs_file,
+                job_id=self.context.job_id,
+                execution_id=self.context.execution_id,
+                is_debug_run=self.is_debug_run(),
+                log_handler=self.context.log_handler,
+            )
+            self.logs_interceptor.setup()
 
         logger.debug(f"Starting runtime with job id: {self.context.job_id}")
 

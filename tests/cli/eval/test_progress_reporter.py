@@ -5,15 +5,17 @@ This module tests the progress reporting functionality including:
 - Endpoint routing for localhost vs production
 - Usage metrics extraction from spans
 - Request spec generation for different evaluator types
+- Custom eval set run ID handling
 """
 
 import json
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
+from uipath._events._events import EvalSetRunCreatedEvent
 from uipath.tracing import LlmOpsHttpExporter
 
 # Test fixtures - simple mocks without full evaluator instantiation
@@ -311,3 +313,110 @@ class TestRequestSpecGeneration:
         assert spec.json["assertionRuns"] == assertion_runs
         assert spec.json["result"]["evaluatorScores"] == evaluator_scores
         assert spec.json["completionMetrics"]["duration"] == 5
+
+
+# Tests for custom eval set run ID handling
+class TestCustomEvalSetRunId:
+    """Tests for handling custom eval set run IDs."""
+
+    @pytest.mark.asyncio
+    async def test_eval_set_run_created_event_with_skip_sw_creation_true(
+        self, progress_reporter
+    ):
+        """Test that when eval_set_run_id is provided, create_eval_set_run_sw is not called."""
+        # Arrange
+        execution_id = "execution-id-12345"
+        custom_run_id = "custom-run-id-12345"
+        event = EvalSetRunCreatedEvent(
+            execution_id=execution_id,
+            entrypoint="test.py",
+            eval_set_id="test-eval-set",
+            eval_set_run_id=custom_run_id,  # When this is provided, SW creation is skipped
+            no_of_evals=5,
+            evaluators=[],
+        )
+
+        # Mock the create_eval_set_run_sw method to ensure it's not called
+        with patch.object(
+            progress_reporter, "create_eval_set_run_sw", new_callable=AsyncMock
+        ) as mock_create:
+            # Act
+            await progress_reporter.handle_create_eval_set_run(event)
+
+            # Assert
+            # Verify that create_eval_set_run_sw was NOT called
+            mock_create.assert_not_called()
+            # Verify that the custom run ID was stored (indexed by execution_id)
+            assert progress_reporter.eval_set_run_ids[execution_id] == custom_run_id
+
+    @pytest.mark.asyncio
+    async def test_eval_set_run_created_event_with_skip_sw_creation_false(
+        self, progress_reporter
+    ):
+        """Test that when eval_set_run_id is not provided, create_eval_set_run_sw is called."""
+        # Arrange
+        execution_id = "execution-id-67890"
+        generated_run_id = "generated-run-id-abcde"
+        event = EvalSetRunCreatedEvent(
+            execution_id=execution_id,
+            entrypoint="test.py",
+            eval_set_id="test-eval-set",
+            eval_set_run_id=None,  # When this is None, SW creation happens
+            no_of_evals=5,
+            evaluators=[],
+        )
+
+        # Mock the create_eval_set_run_sw method to return a generated ID
+        with patch.object(
+            progress_reporter,
+            "create_eval_set_run_sw",
+            new_callable=AsyncMock,
+            return_value=generated_run_id,
+        ) as mock_create:
+            with patch.object(
+                progress_reporter, "_extract_agent_snapshot"
+            ) as mock_extract:
+                mock_extract.return_value = Mock()
+                # Act
+                await progress_reporter.handle_create_eval_set_run(event)
+
+                # Assert
+                # Verify that create_eval_set_run_sw was called
+                mock_create.assert_called_once()
+                # Verify that the generated run ID was stored
+                assert (
+                    progress_reporter.eval_set_run_ids[execution_id] == generated_run_id
+                )
+
+    def test_eval_set_run_created_event_initialization_with_custom_run_id(self):
+        """Test that EvalSetRunCreatedEvent can be initialized with eval_set_run_id."""
+        # Act
+        event = EvalSetRunCreatedEvent(
+            execution_id="test-id",
+            entrypoint="main.py",
+            eval_set_id="eval-123",
+            eval_set_run_id="custom-run-id",
+            no_of_evals=10,
+            evaluators=[],
+        )
+
+        # Assert
+        assert event.execution_id == "test-id"
+        assert event.entrypoint == "main.py"
+        assert event.eval_set_id == "eval-123"
+        assert event.eval_set_run_id == "custom-run-id"
+        assert event.no_of_evals == 10
+
+    def test_eval_set_run_created_event_initialization_without_custom_run_id(self):
+        """Test that EvalSetRunCreatedEvent can be initialized without eval_set_run_id."""
+        # Act
+        event = EvalSetRunCreatedEvent(
+            execution_id="test-id",
+            entrypoint="main.py",
+            eval_set_id="eval-123",
+            no_of_evals=10,
+            evaluators=[],
+        )
+
+        # Assert
+        assert event.eval_set_run_id is None

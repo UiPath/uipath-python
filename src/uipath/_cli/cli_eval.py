@@ -12,10 +12,12 @@ from uipath._cli._evals._runtime import (
     UiPathEvalContext,
 )
 from uipath._cli._runtime._runtime_factory import generate_runtime_factory
-from uipath._cli._utils._constants import UIPATH_PROJECT_ID
 from uipath._cli._utils._folders import get_personal_workspace_key_async
+from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
+from uipath._config import UiPathConfig
 from uipath._events._event_bus import EventBus
+from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -39,12 +41,13 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     if no_report:
         return False
 
-    if not os.getenv(UIPATH_PROJECT_ID, False):
+    if not UiPathConfig.is_studio_project:
         console.warning(
             "UIPATH_PROJECT_ID environment variable not set. Results will no be reported to Studio Web."
         )
         return False
-    if not os.getenv("UIPATH_FOLDER_KEY"):
+
+    if not UiPathConfig.folder_key:
         folder_key = asyncio.run(get_personal_workspace_key_async())
         if folder_key:
             os.environ["UIPATH_FOLDER_KEY"] = folder_key
@@ -55,6 +58,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
 @click.argument("entrypoint", required=False)
 @click.argument("eval_set", required=False)
 @click.option("--eval-ids", cls=LiteralOption, default="[]")
+@click.option(
+    "--eval-set-run-id",
+    required=False,
+    type=str,
+    help="Custom evaluation set run ID (if not provided, a UUID will be generated)",
+)
 @click.option(
     "--no-report",
     is_flag=True,
@@ -78,6 +87,7 @@ def eval(
     entrypoint: Optional[str],
     eval_set: Optional[str],
     eval_ids: List[str],
+    eval_set_run_id: Optional[str],
     no_report: bool,
     workers: int,
     output_file: Optional[str],
@@ -88,6 +98,7 @@ def eval(
         entrypoint: Path to the agent script to evaluate (optional, will auto-discover if not specified)
         eval_set: Path to the evaluation set JSON file (optional, will auto-discover if not specified)
         eval_ids: Optional list of evaluation IDs
+        eval_set_run_id: Custom evaluation set run ID (optional, will generate UUID if not specified)
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
     """
@@ -95,6 +106,7 @@ def eval(
         "entrypoint": entrypoint or auto_discover_entrypoint(),
         "eval_set": eval_set,
         "eval_ids": eval_ids,
+        "eval_set_run_id": eval_set_run_id,
         "workers": workers,
         "no_report": no_report,
         "output_file": output_file,
@@ -130,6 +142,7 @@ def eval(
 
         eval_context.no_report = no_report
         eval_context.workers = workers
+        eval_context.eval_set_run_id = eval_set_run_id
 
         # Load eval set to resolve the path
         eval_set_path = eval_set or EvalHelpers.auto_discover_eval_set()
@@ -144,7 +157,25 @@ def eval(
             runtime_factory = generate_runtime_factory()
             if eval_context.job_id:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
-            asyncio.run(evaluate(runtime_factory, eval_context, event_bus))
+
+            async def execute_eval():
+                project_id = UiPathConfig.project_id
+
+                if project_id:
+                    studio_client = StudioClient(project_id)
+
+                    async with ResourceOverwritesContext(
+                        lambda: studio_client.get_resource_overwrites()
+                    ) as ctx:
+                        console.info(
+                            f"Applied {ctx.overwrites_count} resource overwrite(s)"
+                        )
+                        await evaluate(runtime_factory, eval_context, event_bus)
+                else:
+                    # Fall back to execution without overwrites
+                    await evaluate(runtime_factory, eval_context, event_bus)
+
+            asyncio.run(execute_eval())
 
         except Exception as e:
             console.error(

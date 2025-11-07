@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.1.118"
+version = "2.1.140"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -73,6 +73,7 @@ dev = [
   "toml>=0.10.2",
   "inflection>=0.5.1",
   "types-toml>=0.10.8",
+  "pytest-timeout>=2.4.0",
 ]
 
 [tool.hatch.build.targets.wheel]

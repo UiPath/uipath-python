@@ -45,8 +45,6 @@ PYTHON_BINARY_EXTENSIONS = {".pickle", ".pkl"}
 
 SPECIAL_EXTENSIONS = {""}  # Extensionless binary files
 
-UIPATH_PROJECT_ID = "UIPATH_PROJECT_ID"
-
 # Pre-compute the union for optimal performance
 BINARY_EXTENSIONS = (
     IMAGE_EXTENSIONS
@@ -59,6 +57,11 @@ BINARY_EXTENSIONS = (
     | PYTHON_BINARY_EXTENSIONS
     | SPECIAL_EXTENSIONS
 )
+
+# Directory names
+EVALS_DIRECTORY_NAME = "evals"
+DEBUG_DIRECTORY_NAME = "debug"
+SRC_DIRECTORY_NAME = "src"
 
 
 def is_binary_file(file_extension: str) -> bool:

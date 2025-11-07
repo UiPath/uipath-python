@@ -100,11 +100,59 @@ sdk.attachments.upload_async(name: str, content: Union[str, bytes, NoneType]=Non
 Buckets service
 
 ```python
+# Create a new bucket.
+sdk.buckets.create(name: str, description: Optional[str]=None, identifier: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.buckets.Bucket
+
+# Async version of create().
+sdk.buckets.create_async(name: str, description: Optional[str]=None, identifier: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.buckets.Bucket
+
+# Delete a bucket.
+sdk.buckets.delete(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
+
+# Async version of delete().
+sdk.buckets.delete_async(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
+
+# Delete a file from a bucket.
+sdk.buckets.delete_file(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
+# Delete a file from a bucket asynchronously.
+sdk.buckets.delete_file_async(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
 # Download a file from a bucket.
 sdk.buckets.download(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, destination_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
 # Download a file from a bucket asynchronously.
 sdk.buckets.download_async(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, destination_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
+# Check if bucket exists.
+sdk.buckets.exists(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Async version of exists().
+sdk.buckets.exists_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Check if a file exists in a bucket.
+sdk.buckets.exists_file(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Async version of exists_file().
+sdk.buckets.exists_file_async(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
+
+# Get files using OData GetFiles API (Studio-compatible).
+sdk.buckets.get_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.BucketFile]
+
+# Async version of get_files().
+sdk.buckets.get_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.BucketFile]
+
+# List buckets with auto-pagination.
+sdk.buckets.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.Bucket]
+
+# Async version of list() with auto-pagination.
+sdk.buckets.list_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.Bucket]
+
+# List files in a bucket.
+sdk.buckets.list_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.BucketFile]
+
+# List files in a bucket asynchronously.
+sdk.buckets.list_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.BucketFile]
 
 # Retrieve bucket information by its name.
 sdk.buckets.retrieve(name: Optional[str]=None, key: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.buckets.Bucket
@@ -211,22 +259,28 @@ sdk.context_grounding.search_async(name: str, query: str, number_of_results: int
 Documents service
 
 ```python
+# Classify a document using a DU Modern project.
+sdk.documents.classify(tag: str, project_name: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.models.documents.ClassificationResult]
+
+# Asynchronously version of the [`classify`][uipath._services.documents_service.DocumentsService.classify] method.
+sdk.documents.classify_async(tag: str, project_name: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.models.documents.ClassificationResult]
+
 # Create a validation action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
 sdk.documents.create_validation_action(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.models.documents.ExtractionResponse) -> uipath.models.documents.ValidationAction
 
-# Asynchronously create a validation action for a document based on the extraction response.
+# Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validation_action] method.
 sdk.documents.create_validation_action_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.models.documents.ExtractionResponse) -> uipath.models.documents.ValidationAction
 
-# Extract predicted data from a document using an IXP project.
-sdk.documents.extract(project_name: str, tag: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> uipath.models.documents.ExtractionResponse
+# Extract predicted data from a document using an DU Modern/IXP project.
+sdk.documents.extract(tag: str, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.models.documents.ClassificationResult]=None, project_type: Optional[uipath.models.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.models.documents.ExtractionResponse, uipath.models.documents.ExtractionResponseIXP]
 
-# Asynchronously extract predicted data from a document using an IXP project.
-sdk.documents.extract_async(project_name: str, tag: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> uipath.models.documents.ExtractionResponse
+# Asynchronously version of the [`extract`][uipath._services.documents_service.DocumentsService.extract] method.
+sdk.documents.extract_async(tag: str, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.models.documents.ClassificationResult]=None, project_type: Optional[uipath.models.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.models.documents.ExtractionResponse, uipath.models.documents.ExtractionResponseIXP]
 
 # Get the result of a validation action.
 sdk.documents.get_validation_result(validation_action: uipath.models.documents.ValidationAction) -> uipath.models.documents.ValidatedResult
 
-# Asynchronously get the result of a validation action.
+# Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validation_result] method.
 sdk.documents.get_validation_result_async(validation_action: uipath.models.documents.ValidationAction) -> uipath.models.documents.ValidatedResult
 
 ```
@@ -339,7 +393,7 @@ Llm service
 
 ```python
 # Generate chat completions using UiPath's normalized LLM Gateway API.
-sdk.llm.chat_completions(messages: List[Dict[str, str]], model: str="gpt-4o-mini-2024-07-18", max_tokens: int=4096, temperature: float=0, n: int=1, frequency_penalty: float=0, presence_penalty: float=0, top_p: Optional[float]=1, top_k: Optional[int]=None, tools: Optional[List[uipath.models.llm_gateway.ToolDefinition]]=None, tool_choice: Union[uipath.models.llm_gateway.AutoToolChoice, uipath.models.llm_gateway.RequiredToolChoice, uipath.models.llm_gateway.SpecificToolChoice, Literal['auto', 'none'], NoneType]=None, response_format: Union[Dict[str, Any], type[pydantic.main.BaseModel], NoneType]=None, api_version: str="2024-08-01-preview")
+sdk.llm.chat_completions(messages: Union[List[Dict[str, str]], List[tuple[str, str]]], model: str="gpt-4o-mini-2024-07-18", max_tokens: int=4096, temperature: float=0, n: int=1, frequency_penalty: float=0, presence_penalty: float=0, top_p: Optional[float]=1, top_k: Optional[int]=None, tools: Optional[List[uipath.models.llm_gateway.ToolDefinition]]=None, tool_choice: Union[uipath.models.llm_gateway.AutoToolChoice, uipath.models.llm_gateway.RequiredToolChoice, uipath.models.llm_gateway.SpecificToolChoice, Literal['auto', 'none'], NoneType]=None, response_format: Union[Dict[str, Any], type[pydantic.main.BaseModel], NoneType]=None, api_version: str="2024-08-01-preview")
 
 ```
 

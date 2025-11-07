@@ -1,0 +1,53 @@
+trigger: none
+pr: none
+
+schedules:
+  - cron: "0 11 * * 1"
+    displayName: "Every Monday at 1:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+
+resources:
+  repositories:
+    - repository: codeql
+      type: github
+      name: UiPath/AzurePipelinesTemplates
+      ref: refs/tags/uipath.security.codeql.1.9.5
+      endpoint: UiPath
+    - repository: fossa
+      type: github
+      name: UiPath/AzurePipelinesTemplates
+      ref: refs/tags/uipath.security.fossa.3.0.13
+      endpoint: UiPath
+
+variables:
+  - template: ./variables.yml
+
+stages:
+  - stage: FOSSA
+    dependsOn: []
+    jobs:
+      - job: FOSSA
+        steps:
+          - template: Security/fossa.steps.yml@fossa
+            parameters:
+              OS: linux
+              azureSubscription: $(azureInternalProductionEaConnectionName)
+              FOSSAFlags: '--project "UiPath Python SDK" --branch "$(Build.SourceBranch)" --revision "$(Build.SourceVersion)-$(Build.BuildId)"'
+              FOSSATestFlags: '--project "UiPath Python SDK" --revision "$(Build.SourceVersion)-$(Build.BuildId)"'
+              ${{ if contains(variables['Build.SourceBranch'], 'main') }}:
+                publishSecurityReports: true
+
+
+  - stage: CODEQL
+    dependsOn: []
+    jobs:
+      - job: CODEQL
+        steps:
+          - template: Security/codeql.interpreted.steps.yml@codeql
+            parameters:
+              os: 'linux64'
+              language: 'python'
+              azureSubscription: $(azureInternalProductionEaConnectionName)

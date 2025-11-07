@@ -5,10 +5,9 @@ from httpx import Response
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, infer_bindings
-from .._utils._read_overwrites import OverwritesManager
+from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..models import Asset, UserAsset
-from ..tracing._traced import traced
+from ..tracing import traced
 from ._base_service import BaseService
 
 
@@ -21,13 +20,12 @@ class AssetsService(FolderContext, BaseService):
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
-        self._overwrites_manager = OverwritesManager()
         self._base_url = "assets"
 
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="asset")
+    @resource_override(resource_type="asset")
     def retrieve(
         self,
         name: str,
@@ -72,6 +70,7 @@ class AssetsService(FolderContext, BaseService):
             params=spec.params,
             content=spec.content,
             headers=spec.headers,
+            json=spec.json,
         )
 
         if is_user:
@@ -82,7 +81,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="asset")
+    @resource_override(resource_type="asset")
     async def retrieve_async(
         self,
         name: str,
@@ -118,6 +117,7 @@ class AssetsService(FolderContext, BaseService):
             params=spec.params,
             content=spec.content,
             headers=spec.headers,
+            json=spec.json,
         )
 
         if is_user:
@@ -128,7 +128,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="asset")
+    @resource_override(resource_type="asset")
     def retrieve_credential(
         self,
         name: str,
@@ -183,7 +183,7 @@ class AssetsService(FolderContext, BaseService):
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
     )
-    @infer_bindings(resource_type="asset")
+    @resource_override(resource_type="asset")
     async def retrieve_credential_async(
         self,
         name: str,
