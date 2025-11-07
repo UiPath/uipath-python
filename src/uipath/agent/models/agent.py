@@ -111,7 +111,9 @@ class BaseAgentResourceConfig(BaseCfg):
 class AgentUnknownResourceConfig(BaseAgentResourceConfig):
     """Fallback for unknown or future resource types."""
 
-    resource_type: Literal[AgentResourceType.UNKNOWN] = Field(alias="$resourceType")
+    resource_type: Literal[AgentResourceType.UNKNOWN] = Field(
+        alias="$resourceType", default=AgentResourceType.UNKNOWN, frozen=True
+    )
 
 
 class AgentContextQuerySetting(BaseCfg):
@@ -168,7 +170,9 @@ class AgentContextSettings(BaseCfg):
 class AgentContextResourceConfig(BaseAgentResourceConfig):
     """Agent context resource configuration model."""
 
-    resource_type: Literal[AgentResourceType.CONTEXT] = Field(alias="$resourceType")
+    resource_type: Literal[AgentResourceType.CONTEXT] = Field(
+        alias="$resourceType", default=AgentResourceType.CONTEXT, frozen=True
+    )
     folder_path: str = Field(alias="folderPath")
     index_name: str = Field(alias="indexName")
     settings: AgentContextSettings = Field(..., description="Context settings")
@@ -186,7 +190,9 @@ class AgentMcpTool(BaseCfg):
 class AgentMcpResourceConfig(BaseAgentResourceConfig):
     """Agent MCP resource configuration model."""
 
-    resource_type: Literal[AgentResourceType.MCP] = Field(alias="$resourceType")
+    resource_type: Literal[AgentResourceType.MCP] = Field(
+        alias="$resourceType", default=AgentResourceType.MCP, frozen=True
+    )
     folder_path: str = Field(alias="folderPath")
     slug: str = Field(..., alias="slug")
     available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
@@ -250,7 +256,9 @@ class AgentEscalationResourceConfig(BaseAgentResourceConfig):
     """Agent escalation resource configuration model."""
 
     id: Optional[str] = Field(None, alias="id")
-    resource_type: Literal[AgentResourceType.ESCALATION] = Field(alias="$resourceType")
+    resource_type: Literal[AgentResourceType.ESCALATION] = Field(
+        alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
+    )
     channels: List[AgentEscalationChannel] = Field(alias="channels")
     is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
     escalation_type: int = Field(default=0, alias="escalationType")
@@ -259,7 +267,9 @@ class AgentEscalationResourceConfig(BaseAgentResourceConfig):
 class BaseAgentToolResourceConfig(BaseAgentResourceConfig):
     """Base agent tool resource configuration model."""
 
-    resource_type: Literal[AgentResourceType.TOOL] = Field(alias="$resourceType")
+    resource_type: Literal[AgentResourceType.TOOL] = Field(
+        alias="$resourceType", default=AgentResourceType.TOOL, frozen=True
+    )
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
 
 
@@ -362,7 +372,9 @@ AgentResourceConfig = Annotated[
 class AgentGuardrailBlockAction(BaseModel):
     """Agent guardrail block action model."""
 
-    action_type: Literal[AgentGuardrailActionType.BLOCK] = Field(alias="$actionType")
+    action_type: Literal[AgentGuardrailActionType.BLOCK] = Field(
+        alias="$actionType", default=AgentGuardrailActionType.BLOCK, frozen=True
+    )
     reason: str
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -370,7 +382,9 @@ class AgentGuardrailBlockAction(BaseModel):
 class AgentGuardrailFilterAction(BaseModel):
     """Agent guardrail filter action model."""
 
-    action_type: Literal[AgentGuardrailActionType.FILTER] = Field(alias="$actionType")
+    action_type: Literal[AgentGuardrailActionType.FILTER] = Field(
+        alias="$actionType", default=AgentGuardrailActionType.FILTER, frozen=True
+    )
     fields: List[FieldReference]
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -386,7 +400,9 @@ class AgentGuardrailSeverityLevel(str, Enum):
 class AgentGuardrailLogAction(BaseModel):
     """Agent guardrail log action model."""
 
-    action_type: Literal[AgentGuardrailActionType.LOG] = Field(alias="$actionType")
+    action_type: Literal[AgentGuardrailActionType.LOG] = Field(
+        alias="$actionType", default=AgentGuardrailActionType.LOG, frozen=True
+    )
     message: Optional[str] = Field(None, alias="message")
     severity_level: AgentGuardrailSeverityLevel = Field(alias="severityLevel")
     model_config = ConfigDict(populate_by_name=True, extra="allow")
@@ -408,7 +424,9 @@ class AgentGuardrailEscalateActionApp(BaseModel):
 class AgentGuardrailEscalateAction(BaseModel):
     """Agent guardrail escalate action model."""
 
-    action_type: Literal[AgentGuardrailActionType.ESCALATE] = Field(alias="$actionType")
+    action_type: Literal[AgentGuardrailActionType.ESCALATE] = Field(
+        alias="$actionType", default=AgentGuardrailActionType.ESCALATE, frozen=True
+    )
     app: AgentGuardrailEscalateActionApp
     recipient: "AgentEscalationRecipient"  # forward ref ok
     model_config = ConfigDict(populate_by_name=True, extra="allow")
@@ -417,7 +435,9 @@ class AgentGuardrailEscalateAction(BaseModel):
 class AgentGuardrailUnknownAction(BaseModel):
     """Fallback for unknown guardrail actions."""
 
-    action_type: Literal[AgentGuardrailActionType.UNKNOWN] = Field(alias="$actionType")
+    action_type: Literal[AgentGuardrailActionType.UNKNOWN] = Field(
+        alias="$actionType", default=AgentGuardrailActionType.UNKNOWN, frozen=True
+    )
     # Accept arbitrary payload for forward-compat
     details: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(populate_by_name=True, extra="allow")
@@ -462,7 +482,9 @@ class AgentCustomGuardrail(CustomGuardrail):
 class AgentUnknownGuardrail(BaseCfg):
     """Fallback wrapper for unknown guardrail kinds."""
 
-    guardrail_type: Literal["unknown"] = Field(alias="$guardrailType")
+    guardrail_type: Literal["unknown"] = Field(
+        alias="$guardrailType", default="unknown", frozen=True
+    )
     # store the original payload under 'raw' for round-trip/debug
     raw: Dict[str, Any]
 
