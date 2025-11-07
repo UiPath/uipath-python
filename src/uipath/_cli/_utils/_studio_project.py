@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from uipath import UiPath
 from uipath._config import UiPathConfig
-from uipath._utils._bindings import ResourceOverwrite
+from uipath._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from uipath._utils.constants import ENV_TENANT_ID, HEADER_SW_LOCK_KEY, HEADER_TENANT_ID
 from uipath.models.exceptions import EnrichedException
 from uipath.tracing import traced
@@ -415,7 +415,7 @@ class StudioClient:
         overwrites = {}
 
         for key, value in data.items():
-            overwrites[key] = ResourceOverwrite.model_validate(value)
+            overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
         return overwrites
 

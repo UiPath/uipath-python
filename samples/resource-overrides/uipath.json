@@ -1,0 +1,36 @@
+{
+    "entryPoints": [
+        {
+            "filePath": "main.py",
+            "uniqueId": "acd3fc27-cbc7-4488-b8c4-1965fa265ab4",
+            "type": "agent",
+            "input": {},
+            "output": {
+                "type": "object",
+                "properties": {
+                    "resources": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "value": {
+                                    "type": "object",
+                                    "properties": {},
+                                    "required": []
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "value"
+                            ]
+                        }
+                    }
+                },
+                "required": []
+            }
+        }
+    ]
+}

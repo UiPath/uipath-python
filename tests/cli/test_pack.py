@@ -201,22 +201,23 @@ class TestPack:
         self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
     ) -> None:
         """Test generating operate.json and its content."""
-        create_bindings_file()
-        operate_data = cli_pack.generate_operate_file(
-            json.loads(uipath_json.to_json())["entryPoints"]
-        )
-        assert (
-            operate_data["$schema"]
-            == "https://cloud.uipath.com/draft/2024-12/entry-point"
-        )
-        assert operate_data["main"] == uipath_json.entry_points[0].file_path
-        assert operate_data["contentType"] == uipath_json.entry_points[0].type
-        assert operate_data["targetFramework"] == "Portable"
-        assert operate_data["targetRuntime"] == "python"
-        assert operate_data["runtimeOptions"] == {
-            "requiresUserInteraction": False,
-            "isAttended": False,
-        }
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            create_bindings_file()
+            operate_data = cli_pack.generate_operate_file(
+                json.loads(uipath_json.to_json())["entryPoints"]
+            )
+            assert (
+                operate_data["$schema"]
+                == "https://cloud.uipath.com/draft/2024-12/entry-point"
+            )
+            assert operate_data["main"] == uipath_json.entry_points[0].file_path
+            assert operate_data["contentType"] == uipath_json.entry_points[0].type
+            assert operate_data["targetFramework"] == "Portable"
+            assert operate_data["targetRuntime"] == "python"
+            assert operate_data["runtimeOptions"] == {
+                "requiresUserInteraction": False,
+                "isAttended": False,
+            }
 
     def test_generate_bindings_content(
         self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson

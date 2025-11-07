@@ -1,0 +1,27 @@
+{
+    "entryPoints": [
+        {
+            "filePath": "multi_tool_agent/agent.py",
+            "uniqueId": "083a7cdf-e61e-4b02-b3e8-80af24ec1645",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "query"
+                ]
+            },
+            "output": {
+                "type": "string"
+            }
+        }
+    ],
+    "bindings": {
+        "version": "2.0",
+        "resources": []
+    }
+}

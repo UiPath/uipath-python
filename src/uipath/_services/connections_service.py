@@ -38,6 +38,7 @@ class ConnectionsService(BaseService):
         run_type="uipath",
         hide_output=True,
     )
+    @resource_override("connection", resource_identifier="key")
     def retrieve(self, key: str) -> Connection:
         """Retrieve connection details by its key.
 
@@ -248,6 +249,7 @@ class ConnectionsService(BaseService):
         run_type="uipath",
         hide_output=True,
     )
+    @resource_override("connection", resource_identifier="key")
     async def retrieve_async(self, key: str) -> Connection:
         """Asynchronously retrieve connection details by its key.
 
@@ -401,7 +403,6 @@ class ConnectionsService(BaseService):
         name="connections_retrieve_event_payload",
         run_type="uipath",
     )
-    @resource_override(resource_type="ignored", ignore=True)
     def retrieve_event_payload(self, event_args: EventArguments) -> Dict[str, Any]:
         """Retrieve event payload from UiPath Integration Service.
 
@@ -436,7 +437,6 @@ class ConnectionsService(BaseService):
         name="connections_retrieve_event_payload",
         run_type="uipath",
     )
-    @resource_override(resource_type="ignored", ignore=True)
     async def retrieve_event_payload_async(
         self, event_args: EventArguments
     ) -> Dict[str, Any]:

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec
+from .._utils import Endpoint, RequestSpec, resource_override
 from .._utils.constants import (
     ENV_TENANT_ID,
     HEADER_FOLDER_KEY,
@@ -168,6 +168,11 @@ class ActionsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="actions_create", run_type="uipath")
+    @resource_override(
+        resource_type="app",
+        resource_identifier="app_name",
+        folder_identifier="app_folder_path",
+    )
     async def create_async(
         self,
         title: str,
@@ -234,6 +239,11 @@ class ActionsService(FolderContext, BaseService):
         return Action.model_validate(json_response)
 
     @traced(name="actions_create", run_type="uipath")
+    @resource_override(
+        resource_type="app",
+        resource_identifier="app_name",
+        folder_identifier="app_folder_path",
+    )
     def create(
         self,
         title: str,

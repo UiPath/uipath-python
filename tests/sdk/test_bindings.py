@@ -1,8 +1,10 @@
+# type: ignore
+
 import pytest
 
 from uipath._utils import resource_override
 from uipath._utils._bindings import (
-    ResourceOverwrite,
+    GenericResourceOverwrite,
     ResourceOverwritesContext,
     _resource_overwrites,
 )
@@ -12,8 +14,8 @@ class TestBindingsInference:
     def test_infer_bindings_overwrites_name_and_folder_path(self):
         """Test that infer_bindings overwrites both name and folder_path when context is set."""
         overwrites = {
-            "bucket.old_name.old_folder": ResourceOverwrite(
-                overwrite_name="new_name", overwrite_folder_path="new_folder"
+            "bucket.old_name.old_folder": GenericResourceOverwrite(
+                resource_type="bucket", name="new_name", folder_path="new_folder"
             )
         }
 
@@ -32,8 +34,8 @@ class TestBindingsInference:
     def test_infer_bindings_overwrites_without_folder_path(self):
         """Test that infer_bindings overwrites when key doesn't include folder_path."""
         overwrites = {
-            "bucket.old_name": ResourceOverwrite(
-                overwrite_name="new_name", overwrite_folder_path="new_folder"
+            "bucket.old_name": GenericResourceOverwrite(
+                resource_type="bucket", name="new_name", folder_path="new_folder"
             )
         }
 
@@ -62,8 +64,8 @@ class TestBindingsInference:
     def test_infer_bindings_skips_when_no_matching_overwrite(self):
         """Test that infer_bindings doesn't overwrite when no matching key exists."""
         overwrites = {
-            "bucket.different_name": ResourceOverwrite(
-                overwrite_name="new_name", overwrite_folder_path="new_folder"
+            "bucket.different_name": GenericResourceOverwrite(
+                name="new_name", folder_path="new_folder", resource_type="bucket"
             )
         }
 
@@ -82,8 +84,8 @@ class TestBindingsInference:
     def test_infer_bindings_only_name_present(self):
         """Test that infer_bindings works when only name parameter is present."""
         overwrites = {
-            "asset.old_name": ResourceOverwrite(
-                overwrite_name="new_name", overwrite_folder_path="new_folder"
+            "asset.old_name": GenericResourceOverwrite(
+                name="new_name", folder_path="new_folder", resource_type="asset"
             )
         }
 
@@ -102,11 +104,15 @@ class TestBindingsInference:
     def test_infer_bindings_prefers_specific_folder_path_key(self):
         """Test that infer_bindings prefers the more specific key with folder_path."""
         overwrites = {
-            "bucket.my_bucket": ResourceOverwrite(
-                overwrite_name="generic_name", overwrite_folder_path="generic_folder"
+            "bucket.my_bucket": GenericResourceOverwrite(
+                name="generic_name",
+                folder_path="generic_folder",
+                resource_type="bucket",
             ),
-            "bucket.my_bucket.specific_folder": ResourceOverwrite(
-                overwrite_name="specific_name", overwrite_folder_path="specific_folder"
+            "bucket.my_bucket.specific_folder": GenericResourceOverwrite(
+                name="specific_name",
+                folder_path="specific_folder",
+                resource_type="bucket",
             ),
         }
 
@@ -132,9 +138,10 @@ class TestResourceOverwritesContext:
 
         async def get_overwrites():
             return {
-                "asset.test_asset": ResourceOverwrite(
-                    overwrite_name="overwritten_asset",
-                    overwrite_folder_path="overwritten_folder",
+                "asset.test_asset": GenericResourceOverwrite(
+                    name="overwritten_asset",
+                    folder_path="overwritten_folder",
+                    resource_type="asset",
                 )
             }
 
@@ -161,9 +168,10 @@ class TestResourceOverwritesContext:
         class MockClient:
             async def get_resource_overwrites(self):
                 return {
-                    "bucket.my_bucket": ResourceOverwrite(
-                        overwrite_name="prod_bucket",
-                        overwrite_folder_path="prod_folder",
+                    "bucket.my_bucket": GenericResourceOverwrite(
+                        name="prod_bucket",
+                        folder_path="prod_folder",
+                        resource_type="bucket",
                     )
                 }
 
@@ -187,9 +195,10 @@ class TestResourceOverwritesContext:
         async def read_resource_overwrites_from_file(directory=None):
             """Simulates reading from a file."""
             return {
-                "process.my_process": ResourceOverwrite(
-                    overwrite_name="overwritten_process",
-                    overwrite_folder_path="overwritten_folder",
+                "process.my_process": GenericResourceOverwrite(
+                    name="overwritten_process",
+                    folder_path="overwritten_folder",
+                    resource_type="process",
                 )
             }
 
@@ -210,14 +219,16 @@ class TestResourceOverwritesContext:
 
         async def get_overwrites():
             return {
-                "asset.asset1": ResourceOverwrite(
-                    overwrite_name="new_asset1", overwrite_folder_path="folder1"
+                "asset.asset1": GenericResourceOverwrite(
+                    name="new_asset1", folder_path="folder1", resource_type="asset"
                 ),
-                "asset.asset2": ResourceOverwrite(
-                    overwrite_name="new_asset2", overwrite_folder_path="folder2"
+                "asset.asset2": GenericResourceOverwrite(
+                    name="new_asset2", folder_path="folder2", resource_type="asset"
                 ),
-                "bucket.bucket1.specific": ResourceOverwrite(
-                    overwrite_name="new_bucket1", overwrite_folder_path="new_specific"
+                "bucket.bucket1.specific": GenericResourceOverwrite(
+                    name="new_bucket1",
+                    folder_path="new_specific",
+                    resource_type="bucket",
                 ),
             }
 
@@ -268,11 +279,11 @@ class TestResourceOverwritesContext:
 
         async def get_overwrites():
             return {
-                "asset.config_asset": ResourceOverwrite(
-                    overwrite_name="prod_config", overwrite_folder_path="prod"
+                "asset.config_asset": GenericResourceOverwrite(
+                    name="prod_config", folder_path="prod", resource_type="asset"
                 ),
-                "bucket.data_bucket": ResourceOverwrite(
-                    overwrite_name="prod_data", overwrite_folder_path="prod"
+                "bucket.data_bucket": GenericResourceOverwrite(
+                    name="prod_data", folder_path="prod", resource_type="bucket"
                 ),
             }
 
@@ -301,8 +312,8 @@ class TestResourceOverwritesContext:
 
         async def get_overwrites():
             return {
-                "asset.test": ResourceOverwrite(
-                    overwrite_name="overwritten", overwrite_folder_path="overwritten"
+                "asset.test": GenericResourceOverwrite(
+                    name="overwritten", folder_path="overwritten", resource_type="asset"
                 )
             }
 

@@ -1,0 +1,28 @@
+{
+  "asset.asset_name": {
+    "name": "Overwritten Asset Name",
+    "folderPath": "Overwritten/Asset/Folder"
+  },
+  "connection.connection_key": {
+    "connectionId": "overwritten-connection-id-12345",
+    "elementInstanceId": "999999",
+    "folderKey": "overwritten-folder-key-abc",
+    "ConnectionId": "overwritten-connection-id-12345"
+  },
+  "app.app_name": {
+    "name": "Overwritten App Name",
+    "folderPath": "Overwritten/App/Folder"
+  },
+  "index.index_name": {
+    "name": "Overwritten Index Name",
+    "folderPath": "Overwritten/Index/Folder"
+  },
+  "bucket.bucket_name": {
+    "name": "Overwritten Bucket Name",
+    "folderPath": "Overwritten/Bucket/Folder"
+  },
+  "process.process_name": {
+    "name": "Overwritten Process Name",
+    "folderPath": "Overwritten/Process/Folder"
+  }
+}

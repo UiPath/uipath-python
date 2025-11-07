@@ -1,0 +1,127 @@
+{
+  "version": "2.0",
+  "resources": [
+    {
+      "resource": "asset",
+      "key": "asset_name.folder_key",
+      "value": {
+        "name": {
+          "defaultValue": "asset_name",
+          "isExpression": false,
+          "displayName": "Name"
+        },
+        "folderPath": {
+          "defaultValue": "folder_key",
+          "isExpression": false,
+          "displayName": "Folder Path"
+        }
+      },
+      "metadata": {
+        "ActivityName": "retrieve_async",
+        "BindingsVersion": "2.2",
+        "DisplayLabel": "asset_name"
+      }
+    },
+    {
+      "resource": "connection",
+      "key": "connection_key",
+      "value": {
+        "connectionId": {
+          "defaultValue": "connection_key",
+          "isExpression": false,
+          "displayName": "Connection ID"
+        }
+      },
+      "metadata": {
+        "connector": "uipath-salesforce-slack",
+        "useConnectionService": "true",
+        "bindingsVersion": "2.2",
+        "solutionsSupport": "true"
+      }
+    },
+    {
+      "resource": "app",
+      "key": "app_name.app_folder_path",
+      "value": {
+        "name": {
+          "defaultValue": "app_name",
+          "isExpression": false,
+          "displayName": "App Name"
+        },
+        "folderPath": {
+          "defaultValue": "app_folder_path",
+          "isExpression": false,
+          "displayName": "App Folder Path"
+        }
+      },
+      "metadata": {
+        "ActivityName": "create_async",
+        "BindingsVersion": "2.2",
+        "DisplayLabel": "app_name"
+      }
+    },
+    {
+      "resource": "index",
+      "key": "index_name.folder_path",
+      "value": {
+        "name": {
+          "defaultValue": "index_name",
+          "isExpression": false,
+          "displayName": "Name"
+        },
+        "folderPath": {
+          "defaultValue": "folder_path",
+          "isExpression": false,
+          "displayName": "Folder Path"
+        }
+      },
+      "metadata": {
+        "ActivityName": "retrieve",
+        "BindingsVersion": "2.2",
+        "DisplayLabel": "index_name"
+      }
+    },
+    {
+      "resource": "bucket",
+      "key": "bucket_name.folder_path",
+      "value": {
+        "name": {
+          "defaultValue": "bucket_name",
+          "isExpression": false,
+          "displayName": "Name"
+        },
+        "folderPath": {
+          "defaultValue": "folder_path",
+          "isExpression": false,
+          "displayName": "Folder Path"
+        }
+      },
+      "metadata": {
+        "ActivityName": "retrieve_async",
+        "BindingsVersion": "2.2",
+        "DisplayLabel": "bucket_name"
+      }
+    },
+    {
+      "resource": "process",
+      "key": "process_name.folder_path",
+      "value": {
+        "name": {
+          "defaultValue": "process_name",
+          "isExpression": false,
+          "displayName": "Name"
+        },
+        "folderPath": {
+          "defaultValue": "folder_path",
+          "isExpression": false,
+          "displayName": "Folder Path"
+        }
+      },
+      "metadata": {
+        "ActivityName": "invoke_async",
+        "BindingsVersion": "2.2",
+        "DisplayLabel": "process_name"
+      }
+    }
+  ]
+}
