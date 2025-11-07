@@ -216,7 +216,61 @@ class TestPack:
         assert operate_data["runtimeOptions"] == {
             "requiresUserInteraction": False,
             "isAttended": False,
+            "isConversational": False,
         }
+
+    def test_is_conversational_true_in_operate_file(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that isConversational=true is reflected in operate.json runtimeOptions."""
+        uipath_json.settings.is_conversational = True
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            create_bindings_file()
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 0
+
+            # Verify operate.json has isConversational set to true
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            assert os.path.exists(nupkg_path)
+
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                operate_content = z.read("content/operate.json").decode("utf-8")
+                operate_data = json.loads(operate_content)
+
+                assert operate_data["runtimeOptions"]["isConversational"] is True
+
+    def test_is_conversational_non_boolean_error(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json: UiPathJson,
+    ) -> None:
+        """Test that isConversational with non-boolean value raises an error."""
+        uipath_json.settings.is_conversational = "yes"  # Non-boolean value
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            create_bindings_file()
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 1
+            assert "isConversational must be a boolean value" in result.output
 
     def test_generate_bindings_content(
         self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson

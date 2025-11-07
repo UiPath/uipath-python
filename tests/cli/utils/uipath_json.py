@@ -72,6 +72,7 @@ class Settings:
         files_included=None,
         files_excluded=None,
         directories_excluded=None,
+        is_conversational=None,
     ):
         self.file_extensions_included = (
             file_extensions_included if file_extensions_included else []
@@ -79,6 +80,7 @@ class Settings:
         self.files_included = files_included if files_included else []
         self.files_excluded = files_excluded if files_excluded else []
         self.directories_excluded = directories_excluded if directories_excluded else []
+        self.is_conversational = is_conversational
 
 
 class UiPathJson:

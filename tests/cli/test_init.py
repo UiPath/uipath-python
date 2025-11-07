@@ -599,3 +599,26 @@ def main(input: Input) -> Output:
                 config = json.load(f)
                 assert "bindings" not in config
                 assert "entryPoints" in config
+
+    def test_init_default_is_conversational_setting(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that isConversational is set to False by default during init."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create a simple Python file
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+
+            result = runner.invoke(cli, ["init"])
+            assert result.exit_code == 0
+            assert "Created 'uipath.json' file" in result.output
+
+            # Verify uipath.json exists
+            assert os.path.exists("uipath.json")
+
+            # Verify settings.isConversational is set to False by default
+            with open("uipath.json", "r") as f:
+                config = json.load(f)
+                assert "setting" in config
+                assert "isConversational" in config["setting"]
+                assert config["setting"]["isConversational"] is False

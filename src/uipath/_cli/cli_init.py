@@ -228,6 +228,7 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
 
                 config_data = RuntimeSchema(
                     entryPoints=[await runtime.get_entrypoint()],
+                    settings={"isConversational": False},
                 )
                 config_path = write_config_file(config_data)
                 console.success(f"Created '{config_path}' file.")
