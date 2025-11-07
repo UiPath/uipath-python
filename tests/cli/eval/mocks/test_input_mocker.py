@@ -9,6 +9,7 @@ from uipath._cli._evals._models._evaluation_set import (
     InputMockingStrategy,
     ModelSettings,
 )
+from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.input_mocker import generate_llm_input
 
 
@@ -19,6 +20,8 @@ async def test_generate_llm_input_with_model_settings(
 ):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "test-token")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
 
     evaluation_item: dict[str, Any] = {
         "id": "test-eval-id",

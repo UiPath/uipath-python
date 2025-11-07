@@ -10,6 +10,7 @@ from uipath._cli._evals._models._evaluation_set import (
     LLMMockingStrategy,
     MockitoMockingStrategy,
 )
+from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.mocker import UiPathMockResponseGenerationError
 from uipath._cli._evals.mocks.mocks import set_execution_context
 from uipath.eval.mocks import mockable
@@ -136,6 +137,8 @@ async def test_mockito_mockable_async():
 def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
 
     # Arrange
     @mockable()
@@ -220,6 +223,8 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
 async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
 
     # Arrange
     @mockable()

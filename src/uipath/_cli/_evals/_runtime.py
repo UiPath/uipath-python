@@ -12,6 +12,7 @@ from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
+from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.input_mocker import (
     generate_llm_input,
 )
@@ -57,6 +58,7 @@ from ._models._output import (
 )
 from ._span_collection import ExecutionSpanCollector
 from .mocks.mocks import (
+    cache_manager_context,
     clear_execution_context,
     set_execution_context,
 )
@@ -150,6 +152,7 @@ class UiPathEvalContext(UiPathRuntimeContext):
     eval_ids: Optional[List[str]] = None
     eval_set_run_id: Optional[str] = None
     verbose: bool = False
+    enable_mocker_cache: bool = False
 
 
 class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
@@ -201,41 +204,54 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         event_bus = self.event_bus
 
-        # Load eval set (path is already resolved in cli_eval.py)
-        evaluation_set, _ = EvalHelpers.load_eval_set(
-            self.context.eval_set, self.context.eval_ids
-        )
-        evaluators = self._load_evaluators(evaluation_set)
+        # Create cache manager if enabled
+        if self.context.enable_mocker_cache:
+            cache_mgr = CacheManager()
+            cache_manager_context.set(cache_mgr)
 
-        await event_bus.publish(
-            EvaluationEvents.CREATE_EVAL_SET_RUN,
-            EvalSetRunCreatedEvent(
-                execution_id=self.execution_id,
-                entrypoint=self.context.entrypoint or "",
-                eval_set_run_id=self.context.eval_set_run_id,
-                eval_set_id=evaluation_set.id,
-                no_of_evals=len(evaluation_set.evaluations),
-                evaluators=evaluators,
-            ),
-        )
+        try:
+            # Load eval set (path is already resolved in cli_eval.py)
+            evaluation_set, _ = EvalHelpers.load_eval_set(
+                self.context.eval_set, self.context.eval_ids
+            )
+            evaluators = self._load_evaluators(evaluation_set)
 
-        # Check if parallel execution should be used
-        if (
-            self.context.workers
-            and self.context.workers > 1
-            and len(evaluation_set.evaluations) > 1
-        ):
-            eval_run_result_list = await self._execute_parallel(
-                evaluation_set, evaluators, event_bus, self.context.workers
+            await event_bus.publish(
+                EvaluationEvents.CREATE_EVAL_SET_RUN,
+                EvalSetRunCreatedEvent(
+                    execution_id=self.execution_id,
+                    entrypoint=self.context.entrypoint or "",
+                    eval_set_run_id=self.context.eval_set_run_id,
+                    eval_set_id=evaluation_set.id,
+                    no_of_evals=len(evaluation_set.evaluations),
+                    evaluators=evaluators,
+                ),
             )
-        else:
-            eval_run_result_list = await self._execute_sequential(
-                evaluation_set, evaluators, event_bus
+
+            # Check if parallel execution should be used
+            if (
+                self.context.workers
+                and self.context.workers > 1
+                and len(evaluation_set.evaluations) > 1
+            ):
+                eval_run_result_list = await self._execute_parallel(
+                    evaluation_set, evaluators, event_bus, self.context.workers
+                )
+            else:
+                eval_run_result_list = await self._execute_sequential(
+                    evaluation_set, evaluators, event_bus
+                )
+            results = UiPathEvalOutput(
+                evaluation_set_name=evaluation_set.name,
+                evaluation_set_results=eval_run_result_list,
             )
-        results = UiPathEvalOutput(
-            evaluation_set_name=evaluation_set.name,
-            evaluation_set_results=eval_run_result_list,
-        )
+        finally:
+            # Flush cache to disk at end of eval set and cleanup
+            if self.context.enable_mocker_cache:
+                cache_manager = cache_manager_context.get()
+                if cache_manager is not None:
+                    cache_manager.flush()
+                cache_manager_context.set(None)
 
         # Computing evaluator averages
         evaluator_averages: Dict[str, float] = defaultdict(float)

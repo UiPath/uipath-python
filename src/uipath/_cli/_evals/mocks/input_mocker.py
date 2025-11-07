@@ -58,8 +58,11 @@ async def generate_llm_input(
     input_schema: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
+    from .mocks import cache_manager_context
+
     try:
         llm = UiPath().llm
+        cache_manager = cache_manager_context.get()
 
         # Ensure additionalProperties is set for strict mode compatibility
         if "additionalProperties" not in input_schema:
@@ -71,14 +74,16 @@ async def generate_llm_input(
             or {}
         )
 
-        prompt = get_input_mocking_prompt(
-            input_schema=json.dumps(input_schema, indent=2),
-            input_generation_instructions=evaluation_item.input_mocking_strategy.prompt
+        prompt_generation_args = {
+            "input_schema": json.dumps(input_schema),
+            "input_generation_instructions": evaluation_item.input_mocking_strategy.prompt
             if evaluation_item.input_mocking_strategy
             else "",
-            expected_behavior=evaluation_item.expected_agent_behavior or "",
-            expected_output=json.dumps(expected_output, indent=2),
-        )
+            "expected_behavior": evaluation_item.expected_agent_behavior or "",
+            "expected_output": json.dumps(expected_output),
+        }
+
+        prompt = get_input_mocking_prompt(**prompt_generation_args)
 
         response_format = {
             "type": "json_schema",
@@ -100,6 +105,22 @@ async def generate_llm_input(
             else {}
         )
 
+        if cache_manager is not None:
+            cache_key_data = {
+                "response_format": response_format,
+                "completion_kwargs": completion_kwargs,
+                "prompt_generation_args": prompt_generation_args,
+            }
+
+            cached_response = cache_manager.get(
+                mocker_type="input_mocker",
+                cache_key_data=cache_key_data,
+                function_name="generate_llm_input",
+            )
+
+            if cached_response is not None:
+                return cached_response
+
         response = await llm.chat_completions(
             [{"role": "user", "content": prompt}],
             response_format=response_format,
@@ -107,8 +128,17 @@ async def generate_llm_input(
         )
 
         generated_input_str = response.choices[0].message.content
+        result = json.loads(generated_input_str)
 
-        return json.loads(generated_input_str)
+        if cache_manager is not None:
+            cache_manager.set(
+                mocker_type="input_mocker",
+                cache_key_data=cache_key_data,
+                response=result,
+                function_name="generate_llm_input",
+            )
+
+        return result
     except json.JSONDecodeError as e:
         raise UiPathInputMockingError(
             f"Failed to parse LLM response as JSON: {str(e)}"

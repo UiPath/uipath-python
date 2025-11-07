@@ -6,6 +6,7 @@ from typing import Any, Callable, Optional
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath._cli._evals._span_collection import ExecutionSpanCollector
+from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.mocker import Mocker, UiPathNoMockFoundError
 from uipath._cli._evals.mocks.mocker_factory import MockerFactory
 
@@ -24,6 +25,11 @@ span_collector_context: ContextVar[Optional[ExecutionSpanCollector]] = ContextVa
 # Execution ID for the current evaluation item
 execution_id_context: ContextVar[Optional[str]] = ContextVar(
     "execution_id", default=None
+)
+
+# Cache manager for LLM and input mocker responses
+cache_manager_context: ContextVar[Optional[CacheManager]] = ContextVar(
+    "cache_manager", default=None
 )
 
 logger = logging.getLogger(__name__)

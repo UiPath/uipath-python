@@ -94,6 +94,7 @@ class LLMMocker(Mocker):
             from uipath._services.llm_gateway_service import _cleanup_schema
 
             from .mocks import (
+                cache_manager_context,
                 evaluation_context,
                 execution_id_context,
                 span_collector_context,
@@ -158,7 +159,7 @@ class LLMMocker(Mocker):
                     },
                     "testRunProctorInstructions": self.evaluation_item.mocking_strategy.prompt,
                 }
-                prompt_input = {
+                prompt_generation_args = {
                     k: json.dumps(pydantic_to_dict_safe(v))
                     for k, v in prompt_input.items()
                 }
@@ -168,11 +169,31 @@ class LLMMocker(Mocker):
                     if model_parameters
                     else {}
                 )
+
+                formatted_prompt = PROMPT.format(**prompt_generation_args)
+
+                cache_key_data = {
+                    "response_format": response_format,
+                    "completion_kwargs": completion_kwargs,
+                    "prompt_generation_args": prompt_generation_args,
+                }
+
+                cache_manager = cache_manager_context.get()
+                if cache_manager is not None:
+                    cached_response = cache_manager.get(
+                        mocker_type="llm_mocker",
+                        cache_key_data=cache_key_data,
+                        function_name=function_name,
+                    )
+
+                    if cached_response is not None:
+                        return cached_response
+
                 response = await llm.chat_completions(
                     [
                         {
                             "role": "user",
-                            "content": PROMPT.format(**prompt_input),
+                            "content": formatted_prompt,
                         },
                     ],
                     response_format=response_format,
@@ -181,7 +202,17 @@ class LLMMocker(Mocker):
                 mocked_response = OutputSchema(
                     **json.loads(response.choices[0].message.content)
                 )
-                return mocked_response.model_dump(mode="json")["response"]
+                result = mocked_response.model_dump(mode="json")["response"]
+
+                if cache_manager is not None:
+                    cache_manager.set(
+                        mocker_type="llm_mocker",
+                        cache_key_data=cache_key_data,
+                        response=result,
+                        function_name=function_name,
+                    )
+
+                return result
             except Exception as e:
                 raise UiPathMockResponseGenerationError() from e
         else:
