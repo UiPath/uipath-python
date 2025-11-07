@@ -12,9 +12,7 @@ from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
-from uipath._cli._evals.mocks.input_mocker import (
-    generate_llm_input,
-)
+from uipath._cli._evals.mocks.input_mocker import generate_llm_input
 
 from ..._events._event_bus import EventBus
 from ..._events._events import (
@@ -59,13 +57,113 @@ from ._models._output import (
     convert_eval_execution_output_to_serializable,
 )
 from ._span_collection import ExecutionSpanCollector
-from .mocks.mocks import (
-    clear_execution_context,
-    set_execution_context,
-)
+from .mocks.mocks import clear_execution_context, set_execution_context
 
 T = TypeVar("T", bound=UiPathBaseRuntime)
 C = TypeVar("C", bound=UiPathRuntimeContext)
+
+
+def extract_workflow_from_spans(spans: list[ReadableSpan]) -> list[str]:
+    """Extract ordered list of main workflow nodes from execution spans.
+
+    Only captures workflow nodes that are direct children of a LangGraph parent span,
+    which naturally filters out sub-nodes and internal components.
+
+    Args:
+        spans: List of ReadableSpan objects from agent execution
+
+    Returns:
+        List of unique main node names in execution order
+    """
+   
+    for i, span in enumerate(spans):
+        span_name = getattr(span, "name", "NO_NAME")
+        attributes = getattr(span, "attributes", {})
+        parent_context = getattr(span, "parent", None)
+        parent_span_id = None
+        if parent_context:
+            parent_span_id = getattr(parent_context, "span_id", None)
+
+        span_context = span.get_span_context()
+        span_id = span_context.span_id if span_context else "NO_ID"
+
+        if isinstance(attributes, dict):
+            node_name = attributes.get("node_name")
+            langgraph_node = attributes.get("langgraph.node")
+
+    node_order = []
+    seen_nodes = set()
+
+    # System nodes to exclude
+    system_nodes = {"__start__", "__end__"}
+
+    # First pass: Find LangGraph-related parent span IDs
+    # Look for spans that could be the main graph span (could have different names)
+    langgraph_span_ids = set()
+    for span in spans:
+        span_name = getattr(span, "name", "")
+        # Check if this is a LangGraph main span
+        if span_name and "langgraph" in span_name.lower():
+            span_context = span.get_span_context()
+            if span_context:
+                langgraph_span_ids.add(span_context.span_id)
+
+
+    # If we found potential parent spans, use them; otherwise we'll check all spans with langgraph.node
+    if langgraph_span_ids:
+        # Second pass: Collect spans that have a LangGraph parent
+        for span in spans:
+            # Get parent span ID
+            parent_context = getattr(span, "parent", None)
+            parent_span_id = None
+            if parent_context:
+                parent_span_id = getattr(parent_context, "span_id", None)
+
+            # Skip if parent is not one of the LangGraph spans
+            if parent_span_id not in langgraph_span_ids:
+                continue
+
+            # Get node name - use span name directly since attributes might not have it
+            span_name = getattr(span, "name", "")
+            attributes = getattr(span, "attributes", {})
+
+            # Try to get from attributes first, then fall back to span name
+            node_name = None
+            if isinstance(attributes, dict):
+                node_name = attributes.get("langgraph.node") or attributes.get("node_name")
+
+            if not node_name:
+                node_name = span_name
+
+            # Skip if no node name found
+            if not node_name:
+                continue
+
+            # Filter out system nodes
+            if node_name in system_nodes:
+                continue
+
+            # Add to workflow if not seen before
+            if node_name not in seen_nodes:
+                seen_nodes.add(node_name)
+                node_order.append(node_name)
+    else:
+        # Fallback: Just get all spans with langgraph.node attribute
+        for span in spans:
+            attributes = getattr(span, "attributes", None)
+            if not attributes or not isinstance(attributes, dict):
+                continue
+
+            node_name = attributes.get("langgraph.node")
+
+            if not node_name or node_name in system_nodes:
+                continue
+
+            if node_name not in seen_nodes:
+                seen_nodes.add(node_name)
+                node_order.append(node_name)
+
+    return node_order
 
 
 class ExecutionSpanExporter(SpanExporter):
@@ -219,7 +317,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 eval_set_id=evaluation_set.id,
                 no_of_evals=len(evaluation_set.evaluations),
                 evaluators=evaluators,
-                evaluator_weights=getattr(evaluation_set, 'evaluator_weights', None),
+                evaluator_weights=getattr(evaluation_set, "evaluator_weights", None),
             ),
         )
 
@@ -253,7 +351,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             )
 
         # Calculate weighted final score if weights are defined
-        evaluator_weights = getattr(evaluation_set, 'evaluator_weights', None)
+        evaluator_weights = getattr(evaluation_set, "evaluator_weights", None)
         weighted_final_score = None
         if evaluator_weights:
             weighted_total = 0.0
@@ -425,6 +523,11 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                             )
                         )
                     )
+                    # Extract workflow nodes from spans even in error case
+                    if spans:
+                        workflow = extract_workflow_from_spans(spans)
+                        if workflow:
+                            evaluation_run_results.workflow = workflow
                 raise
 
             if self.context.verbose:
@@ -433,6 +536,12 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                         agent_execution_output
                     )
                 )
+
+            # Extract workflow nodes from spans
+            workflow = extract_workflow_from_spans(agent_execution_output.spans)
+            # Always set workflow, even if empty, to distinguish from no extraction
+            evaluation_run_results.workflow = workflow if workflow else None
+
             evaluation_item_results: list[EvalItemResult] = []
 
             for evaluator in evaluators:

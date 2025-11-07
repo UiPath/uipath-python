@@ -95,6 +95,7 @@ class EvaluationRunResult(BaseModel):
 
     evaluation_name: str
     evaluation_run_results: List[EvaluationRunResultDto]
+    workflow: Optional[List[str]] = None
     agent_execution_output: Optional[UiPathSerializableEvalRunExecutionOutput] = None
 
     @property
