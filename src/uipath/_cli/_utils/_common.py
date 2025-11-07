@@ -1,17 +1,22 @@
 import json
 import os
+from enum import Enum
+
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Generator
 from urllib.parse import urlparse
 
 import click
 from dotenv import load_dotenv
 
+from pydantic import BaseModel
+
+from .._contracts._contracts import UiPathUpdateEvent, Severity
+from ..models.runtime_schema import Bindings
 from ..._config import UiPathConfig
 from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from ..._utils.constants import DOTENV_FILE
 from ..spinner import Spinner
-
 
 def add_cwd_to_path():
     import sys
@@ -99,6 +104,98 @@ def get_org_scoped_url(base_url: str) -> str:
     org_name, *_ = parsed.path.strip("/").split("/")
     org_scoped_url = f"{parsed.scheme}://{parsed.netloc}/{org_name}"
     return org_scoped_url
+
+def create_binding_files() -> Generator[UiPathUpdateEvent, None, None]:
+    import importlib.resources
+    import shutil
+
+    bindings_file_path = UiPathConfig.bindings_file_path
+
+    if bindings_file_path.exists():
+        yield UiPathUpdateEvent(
+            message="Bindings file already exists. Skipping...",
+            severity=Severity.ATTENTION
+        )
+    else:
+        default_bindings = Bindings(
+            version="2.0",
+            resources=[],
+        )
+
+        try:
+            with open(bindings_file_path, "w") as f:
+                json.dump(default_bindings.model_dump(by_alias=True), f, indent=2)
+
+            yield UiPathUpdateEvent(
+                message="Created 'bindings.json' file.",
+                severity=Severity.SUCCESS
+            )
+
+        except Exception as e:
+            yield UiPathUpdateEvent(
+                message=f"Failed to create 'bindings.json' file. Error: {e}",
+                severity=Severity.ERROR
+            )
+            return
+
+    # Ensure .agent directory exists
+    agent_dir = Path(os.getcwd()) / ".agent"
+    agent_dir.mkdir(exist_ok=True)
+
+    # Handle BINDINGS.md documentation file in .agent directory
+    bindings_md_path = agent_dir / "BINDINGS.md"
+
+    if bindings_md_path.exists():
+        yield UiPathUpdateEvent(
+            message="Bindings documentation (.agent/BINDINGS.md) already exists. Skipping...",
+            severity=Severity.INFO
+        )
+    else:
+        try:
+            # Copy BINDINGS.md from resources
+            source_path = importlib.resources.files("uipath._resources").joinpath("BINDINGS.md")
+
+            with importlib.resources.as_file(source_path) as src_path:
+                shutil.copy(src_path, bindings_md_path)
+
+            yield UiPathUpdateEvent(
+                message="Created '.agent/BINDINGS.md' documentation file.",
+                severity=Severity.SUCCESS
+            )
+
+        except Exception as e:
+            yield UiPathUpdateEvent(
+                message=f"Failed to create bindings documentation: {e}",
+                severity=Severity.WARN
+            )
+
+    # Handle bindings.json.example file
+    bindings_example_path = Path(os.getcwd()) / "bindings.json.example"
+
+    if bindings_example_path.exists():
+        yield UiPathUpdateEvent(
+            message="Bindings example file already exists. Skipping...",
+            severity=Severity.INFO
+        )
+    else:
+        try:
+            # Copy bindings.json.example from resources
+            source_path = importlib.resources.files("uipath._resources").joinpath("bindings.json.example")
+
+            with importlib.resources.as_file(source_path) as src_path:
+                shutil.copy(src_path, bindings_example_path)
+
+            yield UiPathUpdateEvent(
+                message="Created 'bindings.json.example' file.",
+                severity=Severity.SUCCESS
+            )
+
+        except Exception as e:
+            yield UiPathUpdateEvent(
+                message=f"Failed to create bindings example file: {e}",
+                severity=Severity.WARN
+            )
+
 
 
 def clean_directory(directory: str) -> None:

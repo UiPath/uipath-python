@@ -19,3 +19,7 @@ This documentation is split into multiple files for efficient context loading. L
 3. **@.agent/CLI_REFERENCE.md** - CLI commands documentation
    - **When to load:** Working with `uipath init`, `uipath run`, or `uipath eval` commands
    - **Contains:** Command syntax, options, usage examples, and workflows
+
+4. **@.agent/BINDINGS.md** - Resource bindings configuration guide
+   - **When to load:** Configuring runtime resource replacement for Orchestrator/StudioWeb deployments
+   - **Contains:** Binding structure, resource types, matching rules, and environment strategies

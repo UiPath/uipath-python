@@ -1,6 +1,9 @@
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional, Type, TypeVar
+from typing import Any, Dict, Iterator, List, Optional, Type, TypeVar, Union, AsyncIterator, Callable, Generator, \
+    AsyncGenerator
+import asyncio
+import inspect
 
 import click
 from rich.console import Console
@@ -15,12 +18,15 @@ from rich.progress import (
 from rich.spinner import Spinner as RichSpinner
 from rich.text import Text
 
+from uipath._cli._contracts._contracts import UiPathUpdateEvent, Severity
+
 
 class LogLevel(Enum):
     """Enum for log levels with corresponding emojis."""
 
     INFO = ""
     SUCCESS = click.style("✓ ", fg="green", bold=True)
+    ATTENTION = "🔵"
     WARNING = "⚠️"
     ERROR = "❌"
     HINT = "💡"
@@ -130,6 +136,10 @@ class ConsoleLogger:
         """Log a hint message."""
         self.log(message, LogLevel.HINT)
 
+    def attention(self, message: str) -> None:
+        """Log a hint message."""
+        self.log(message, LogLevel.ATTENTION)
+
     def magic(self, message: str) -> None:
         """Log a magic message."""
         self.log(message, LogLevel.MAGIC, "green")
@@ -154,6 +164,97 @@ class ConsoleLogger:
             f"{message} {click.style(formatted_url, fg='bright_blue', bold=True)}",
             LogLevel.LINK,
         )
+
+    def process_events(
+        self,
+        event_source: Union[Callable[..., Generator[UiPathUpdateEvent, None, None]], Callable[..., AsyncGenerator[UiPathUpdateEvent, None]]],
+        *args,
+        **kwargs
+    ) -> Any:
+        """Process UpdateEvent objects from a generator or async generator.
+
+        This method handles both sync and async generators that yield UpdateEvent objects,
+        automatically routing each event to the appropriate console method based on severity.
+
+        Args:
+            event_source: A callable that returns either an Iterator or AsyncIterator of UpdateEvent objects
+            *args: Arguments to pass to the event_source callable
+            **kwargs: Keyword arguments to pass to the event_source callable
+
+        Returns:
+            The return value from the generator (if any)
+
+        Example:
+            # For a sync generator function:
+            def my_operation() -> Iterator[UpdateEvent]:
+                yield UpdateEvent(message="Starting...", severity=Severity.INFO)
+                # do work...
+                yield UpdateEvent(message="Done!", severity=Severity.SUCCESS)
+
+            # Use it like:
+            console.process_events(my_operation)
+
+            # For an async generator:
+            async def async_operation() -> AsyncIterator[UpdateEvent]:
+                yield UpdateEvent(message="Processing...", severity=Severity.INFO)
+
+            # Use it like:
+            console.process_events(async_operation)
+        """
+        generator = event_source(*args, **kwargs)
+
+        if inspect.isasyncgen(generator):
+            # Handle async generator
+            return asyncio.run(self._process_async_events(generator))
+        else:
+            # Handle sync generator
+            return self._process_sync_events(generator)
+
+    def _process_sync_events(self, generator: Generator[UiPathUpdateEvent, None, None]) -> Any:
+        """Process events from a synchronous generator.
+
+        Args:
+            generator: Iterator yielding UpdateEvent objects
+
+        Returns:
+            The return value from the generator (if any)
+        """
+        result = None
+        for event in generator:
+            self._log_event(event)
+
+
+        return result
+
+    async def _process_async_events(self, generator: AsyncGenerator[UiPathUpdateEvent, None]) -> Any:
+        """Process events from an asynchronous generator.
+
+        Args:
+            generator: AsyncIterator yielding UpdateEvent objects
+
+        Returns:
+            The return value from the generator (if any)
+        """
+        result = None
+        async for event in generator:
+            self._log_event(event)
+
+        return result
+
+    def _log_event(self, event: UiPathUpdateEvent) -> None:
+        match event.severity:
+            case Severity.ERROR:
+                self.error(event.message, include_traceback=False)
+            case Severity.WARN:
+                self.warning(event.message)
+            case Severity.INFO:
+                self.info(event.message)
+            case Severity.ATTENTION:
+                self.attention(event.message)
+            case Severity.SUCCESS:
+                self.success(event.message)
+            case _:
+                self.info(event.message)
 
     def prompt(self, message: str, **kwargs: Any) -> Any:
         """Wrapper for click.prompt with emoji.
