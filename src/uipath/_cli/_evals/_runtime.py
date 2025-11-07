@@ -25,7 +25,7 @@ from ..._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from ...eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
+from ...eval.evaluators import BaseEvaluator
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (
@@ -43,11 +43,8 @@ from .._utils._eval_set import EvalHelpers
 from ..models.runtime_schema import Entrypoint
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
-    AnyEvaluationItem,
-    AnyEvaluationSet,
-    AnyEvaluator,
     EvaluationItem,
-    LegacyEvaluationItem,
+    EvaluationSet,
 )
 from ._models._exceptions import EvaluationRuntimeException
 from ._models._output import (
@@ -270,8 +267,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_sequential(
         self,
-        evaluation_set: AnyEvaluationSet,
-        evaluators: List[AnyEvaluator],
+        evaluation_set: EvaluationSet,
+        evaluators: List[BaseEvaluator[Any, Any, Any]],
         event_bus: EventBus,
     ) -> List[EvaluationRunResult]:
         all_eval_run_result: list[EvaluationRunResult] = []
@@ -285,13 +282,13 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_parallel(
         self,
-        evaluation_set: AnyEvaluationSet,
-        evaluators: List[AnyEvaluator],
+        evaluation_set: EvaluationSet,
+        evaluators: List[BaseEvaluator[Any, Any, Any]],
         event_bus: EventBus,
         workers: int,
     ) -> List[EvaluationRunResult]:
         # Create a queue with max concurrency
-        queue: asyncio.Queue[tuple[int, AnyEvaluationItem]] = asyncio.Queue(
+        queue: asyncio.Queue[tuple[int, EvaluationItem]] = asyncio.Queue(
             maxsize=workers
         )
 
@@ -301,7 +298,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         # Producer task to fill the queue
         async def producer() -> None:
             for index, eval_item in enumerate(evaluation_set.evaluations):
-                await queue.put((index, eval_item))  # type: ignore[arg-type]
+                await queue.put((index, eval_item))
             # Signal completion by putting None markers
             for _ in range(workers):
                 await queue.put(None)  # type: ignore
@@ -343,8 +340,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_eval(
         self,
-        eval_item: AnyEvaluationItem,
-        evaluators: List[AnyEvaluator],
+        eval_item: EvaluationItem,
+        evaluators: List[BaseEvaluator[Any, Any, Any]],
         event_bus: EventBus,
     ) -> EvaluationRunResult:
         # Generate LLM-based input if input_mocking_strategy is defined
@@ -416,41 +413,21 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluation_item_results: list[EvalItemResult] = []
 
             for evaluator in evaluators:
-                # Determine which evaluator method to use based on evaluation set/item type
-                evaluation_result: Optional[EvaluationResult] = None
-
-                match eval_item:
-                    case LegacyEvaluationItem():
-                        # Legacy evaluation - use run_legacy_evaluator
-                        evaluation_result = await self.run_legacy_evaluator(
-                            evaluator=evaluator,  # type: ignore
-                            execution_output=agent_execution_output,
-                            eval_item=eval_item,
-                        )
-                    case EvaluationItem() if (
-                        evaluator.id in eval_item.evaluation_criterias
-                    ):
-                        # New evaluation with criteria
-                        evaluation_criteria = eval_item.evaluation_criterias[
-                            evaluator.id
-                        ]
-
-                        evaluation_result = await self.run_evaluator(
-                            evaluator=evaluator,  # type: ignore
-                            execution_output=agent_execution_output,
-                            eval_item=eval_item,
-                            evaluation_criteria=evaluator.evaluation_criteria_type(  # type: ignore
-                                **evaluation_criteria
-                            )
-                            if evaluation_criteria
-                            else evaluator.evaluator_config.default_evaluation_criteria,  # type: ignore
-                        )
-                    case _:
-                        # Skip if evaluator not in evaluation criteria
-                        continue
-
-                if evaluation_result is None:
+                if evaluator.id not in eval_item.evaluation_criterias:
+                    # Skip!
                     continue
+                evaluation_criteria = eval_item.evaluation_criterias[evaluator.id]
+
+                evaluation_result = await self.run_evaluator(
+                    evaluator=evaluator,
+                    execution_output=agent_execution_output,
+                    eval_item=eval_item,
+                    evaluation_criteria=evaluator.evaluation_criteria_type(
+                        **evaluation_criteria
+                    )
+                    if evaluation_criteria
+                    else evaluator.evaluator_config.default_evaluation_criteria,
+                )
 
                 dto_result = EvaluationResultDto.from_evaluation_result(
                     evaluation_result
@@ -527,8 +504,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         return evaluation_run_results
 
     async def _generate_input_for_eval(
-        self, eval_item: AnyEvaluationItem
-    ) -> AnyEvaluationItem:
+        self, eval_item: EvaluationItem
+    ) -> EvaluationItem:
         """Use LLM to generate a mock input for an evaluation item."""
         generated_input = await generate_llm_input(
             eval_item, (await self.get_entrypoint()).input
@@ -549,7 +526,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         return spans, logs
 
     async def execute_runtime(
-        self, eval_item: AnyEvaluationItem, execution_id: str
+        self, eval_item: EvaluationItem, execution_id: str
     ) -> UiPathEvalRunExecutionOutput:
         context_args = self.context.model_dump()
         context_args["execution_id"] = execution_id
@@ -622,28 +599,9 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         return result
 
-    async def run_legacy_evaluator(
-        self,
-        evaluator: LegacyBaseEvaluator[Any],
-        execution_output: UiPathEvalRunExecutionOutput,
-        eval_item: LegacyEvaluationItem,
-    ) -> EvaluationResult:
-        agent_execution = AgentExecution(
-            agent_input=eval_item.inputs,
-            agent_output=execution_output.result.output or {},
-            agent_trace=execution_output.spans,
-            expected_agent_behavior=eval_item.expected_agent_behavior,
-        )
-
-        result = await evaluator.evaluate(
-            agent_execution=agent_execution,
-            # at the moment evaluation_criteria is always the expected output
-            evaluation_criteria=eval_item.expected_output,
-        )
-
-        return result
-
-    def _load_evaluators(self, evaluation_set: AnyEvaluationSet) -> list[AnyEvaluator]:
+    def _load_evaluators(
+        self, evaluation_set: EvaluationSet
+    ) -> list[BaseEvaluator[Any, Any, Any]]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         evaluators_dir = Path(self.context.eval_set).parent.parent / "evaluators"  # type: ignore

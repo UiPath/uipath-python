@@ -1,14 +1,21 @@
 """Exact match evaluator for binary pass/fail evaluation of agent outputs."""
 
-from typing import Any
-
 from uipath.eval.models import BooleanEvaluationResult, EvaluationResult
 
 from ..models.models import AgentExecution
+from .legacy_base_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
 from .legacy_deterministic_evaluator_base import DeterministicEvaluatorBase
 
 
-class LegacyExactMatchEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
+class LegacyExactMatchEvaluatorConfig(LegacyEvaluatorConfig):
+    """Configuration for legacy exact-match evaluators."""
+
+    name: str = "LegacyExactMatchEvaluator"
+
+
+class LegacyExactMatchEvaluator(
+    DeterministicEvaluatorBase[LegacyExactMatchEvaluatorConfig]
+):
     """Evaluator that performs exact structural matching between expected and actual outputs.
 
     This evaluator returns True if the actual output exactly matches the expected output
@@ -17,7 +24,9 @@ class LegacyExactMatchEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
     """
 
     async def evaluate(
-        self, agent_execution: AgentExecution, evaluation_criteria: dict[str, Any]
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate whether actual output exactly matches expected output.
 
@@ -33,5 +42,5 @@ class LegacyExactMatchEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
         """
         return BooleanEvaluationResult(
             score=self._canonical_json(agent_execution.agent_output)
-            == self._canonical_json(evaluation_criteria)
+            == self._canonical_json(evaluation_criteria.expected_output)
         )

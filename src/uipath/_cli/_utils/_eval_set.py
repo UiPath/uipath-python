@@ -5,7 +5,12 @@ from typing import List, Optional
 import click
 from pydantic import TypeAdapter, ValidationError
 
-from uipath._cli._evals._models._evaluation_set import AnyEvaluationSet
+from uipath._cli._evals._models._evaluation_set import (
+    EvaluationItem,
+    EvaluationSet,
+    LegacyEvaluationItem,
+    LegacyEvaluationSet,
+)
 from uipath._cli._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
@@ -58,7 +63,7 @@ class EvalHelpers:
     @staticmethod
     def load_eval_set(
         eval_set_path: str, eval_ids: Optional[List[str]] = None
-    ) -> tuple[AnyEvaluationSet, str]:
+    ) -> tuple[EvaluationSet, str]:
         """Load the evaluation set from file.
 
         Args:
@@ -66,7 +71,7 @@ class EvalHelpers:
             eval_ids: Optional list of evaluation IDs to filter
 
         Returns:
-            Tuple of (AnyEvaluationSet, resolved_path)
+            Tuple of (EvaluationSet, resolved_path)
         """
         # If the file doesn't exist at the given path, try looking in evals/eval-sets/
         resolved_path = eval_set_path
@@ -92,9 +97,41 @@ class EvalHelpers:
             ) from e
 
         try:
-            eval_set: AnyEvaluationSet = TypeAdapter(AnyEvaluationSet).validate_python(
-                data
-            )
+            eval_set: EvaluationSet | LegacyEvaluationSet = TypeAdapter(
+                EvaluationSet | LegacyEvaluationSet
+            ).validate_python(data)
+            if isinstance(eval_set, LegacyEvaluationSet):
+
+                def migrate_evaluation_item(
+                    evaluation: LegacyEvaluationItem, evaluators: list[str]
+                ) -> EvaluationItem:
+                    return EvaluationItem.model_validate(
+                        {
+                            "id": evaluation.id,
+                            "name": evaluation.name,
+                            "inputs": evaluation.inputs,
+                            "expectedAgentBehavior": evaluation.expected_agent_behavior,
+                            "mockingStrategy": evaluation.mocking_strategy,
+                            "inputMockingStrategy": evaluation.input_mocking_strategy,
+                            "evaluationCriterias": {
+                                k: {
+                                    "expectedOutput": evaluation.expected_output,
+                                    "expectedAgentBehavior": evaluation.expected_agent_behavior,
+                                }
+                                for k in evaluators
+                            },
+                        }
+                    )
+
+                eval_set = EvaluationSet(
+                    id=eval_set.id,
+                    name=eval_set.name,
+                    evaluator_refs=eval_set.evaluator_refs,
+                    evaluations=[
+                        migrate_evaluation_item(evaluation, eval_set.evaluator_refs)
+                        for evaluation in eval_set.evaluations
+                    ],
+                )
         except ValidationError as e:
             raise ValueError(
                 f"Invalid evaluation set format in '{resolved_path}': {str(e)}. "

@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "id": "ExactMatchEvaluator",
+  "description": "Checks if the response text exactly matches the expected value.",
+  "evaluatorTypeId": "uipath-exact-match",
+  "evaluatorConfig": {
+    "name": "ExactMatchEvaluator",
+    "targetOutputKey": "*",
+    "negated": false,
+    "ignoreCase": false,
+    "defaultEvaluationCriteria": {
+      "expectedOutput": {
+        "foo": "bar"
+      }
+    }
+  }
+}

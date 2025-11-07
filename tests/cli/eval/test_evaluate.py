@@ -50,13 +50,13 @@ async def test_evaluate():
         result.output["evaluationSetResults"][0]["evaluationRunResults"][0]["result"][
             "score"
         ]
-        == 100.0
+        == 1.0
     )
     assert (
         result.output["evaluationSetResults"][0]["evaluationRunResults"][0][
             "evaluatorId"
         ]
-        == "equality"
+        == "ExactMatchEvaluator"
     )
 
 
