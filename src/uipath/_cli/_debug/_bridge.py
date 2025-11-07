@@ -449,7 +449,6 @@ class SignalRDebugBridge(UiPathDebugBridge):
         self._client: Optional[SignalRClient] = None
         self._connected_event = asyncio.Event()
         self._resume_event: Optional[asyncio.Event] = None
-        self._resume_data: Any = None
 
     async def connect(self) -> None:
         """Establish SignalR connection."""
@@ -597,13 +596,12 @@ class SignalRDebugBridge(UiPathDebugBridge):
             },
         )
 
-    async def wait_for_resume(self) -> Any:
+    async def wait_for_resume(self) -> None:
         """Wait for resume command from server."""
         logger.info("Waiting for resume command...")
         self._resume_event = asyncio.Event()
         await self._resume_event.wait()
         logger.info("Resume command received")
-        return self._resume_data
 
     def get_breakpoints(self) -> List[str] | Literal["*"]:
         """Get nodes to suspend execution at."""
@@ -656,13 +654,34 @@ class SignalRDebugBridge(UiPathDebugBridge):
         Args:
             args: List containing command arguments as JSON string
         """
-        command_args = json.loads(args[0]) if args and len(args) > 0 else {}
+        if not self._resume_event:
+            logger.warning("Resume command received but no resume event is waiting.")
+            return
 
-        if self._resume_event:
-            self._resume_data = command_args
-            self._resume_event.set()
-        else:
-            logger.warning("Resume command received but no resume event is waiting")
+        if args and len(args) > 0:
+            command_args = json.loads(args[0])
+            if not command_args.get("enableStepMode", False):
+                self.state.step_mode = False
+                breakpoints = command_args.get("breakpoints", [])
+                self.state.clear_all_breakpoints()
+                self._add_breakpoints(breakpoints)
+            else:
+                self.state.step_mode = True
+
+        self._resume_event.set()
+
+    def _add_breakpoints(self, breakpoints: list[dict[str, Any]]) -> None:
+        for bp in breakpoints:
+            node_name = (
+                bp.get("node", {}).get("name")
+                if isinstance(bp.get("node"), dict)
+                else None
+            )
+            if node_name:
+                self.state.add_breakpoint(node_name)
+                logger.info(f"Breakpoint added: {node_name}")
+            else:
+                logger.warning(f"Breakpoint without node name: {bp}")
 
     async def _handle_step(self, args: list[Any]) -> None:
         """Handle Step command from SignalR server.
@@ -685,19 +704,9 @@ class SignalRDebugBridge(UiPathDebugBridge):
             return
 
         command_args = json.loads(args[0])
-        break_points = command_args.get("breakpoints", [])
+        breakpoints = command_args.get("breakpoints", [])
 
-        for bp in break_points:
-            node_name = (
-                bp.get("node", {}).get("name")
-                if isinstance(bp.get("node"), dict)
-                else None
-            )
-            if node_name:
-                self.state.add_breakpoint(node_name)
-                logger.info(f"Breakpoint added: {node_name}")
-            else:
-                logger.warning(f"Breakpoint without node name: {bp}")
+        self._add_breakpoints(breakpoints)
 
     async def _handle_remove_breakpoints(self, args: list[Any]) -> None:
         """Handle RemoveBreakpoints command from SignalR server.
