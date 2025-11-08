@@ -102,8 +102,18 @@ class ContainsEvaluator(
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("="*80 + "\n")
 
+        # Create details with comparison information
+        details = {
+            "actual_output": str(self._get_actual_output(agent_execution, evaluation_criteria)),
+            "search_text": str(self._get_expected_output(evaluation_criteria)),
+            "case_sensitive": self.evaluator_config.case_sensitive,
+            "negated": self.evaluator_config.negated,
+            "contains": is_contains,
+        }
+
         return NumericEvaluationResult(
             score=float(is_contains),
+            details=details,
         )
 
     def _get_expected_output(

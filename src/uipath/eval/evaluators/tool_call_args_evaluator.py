@@ -76,7 +76,17 @@ class ToolCallArgsEvaluator(
             self.evaluator_config.subset,
         )
         validated_justification = self.validate_justification(justification)
+
+        # Create details with comparison information
+        details = {
+            "actual_tool_calls": [{"name": tc.name, "args": tc.args} for tc in tool_calls_order],
+            "expected_tool_calls": [{"name": tc.name, "args": tc.args} for tc in evaluation_criteria.tool_calls],
+            "strict_mode": self.evaluator_config.strict,
+            "subset_mode": self.evaluator_config.subset,
+            "explanation": validated_justification,
+        }
+
         return NumericEvaluationResult(
             score=score,
-            details=validated_justification,
+            details=details,
         )

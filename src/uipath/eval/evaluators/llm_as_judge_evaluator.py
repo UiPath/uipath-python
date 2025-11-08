@@ -112,6 +112,9 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         evaluation_criteria: T,
     ) -> EvaluationResult:
         """Evaluate using an LLM as a judge."""
+        actual_output = str(self._get_actual_output(agent_execution, evaluation_criteria))
+        expected_output = str(self._get_expected_output(evaluation_criteria))
+
         evaluation_prompt = self._create_evaluation_prompt(
             agent_execution=agent_execution,
             evaluation_criteria=evaluation_criteria,
@@ -122,9 +125,17 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
             llm_response.justification
         )
 
+        # Create detailed response with comparison info and LLM justification
+        details = {
+            "actual_output": actual_output,
+            "expected_output": expected_output,
+            "llm_justification": validated_justification,
+            "llm_score": llm_response.score,
+        }
+
         return NumericEvaluationResult(
             score=max(0.0, min(1.0, round(llm_response.score / 100.0, 2))),
-            details=validated_justification,
+            details=details,
         )
 
     def _create_evaluation_prompt(

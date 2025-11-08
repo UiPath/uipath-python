@@ -56,14 +56,23 @@ class JsonSimilarityEvaluator(
         Returns:
             EvaluationResult: Numerical score between 0-100 indicating similarity
         """
-        score, justification = self._compare_json(
-            self._get_expected_output(evaluation_criteria),
-            self._get_actual_output(agent_execution, evaluation_criteria),
-        )
+        expected_output = self._get_expected_output(evaluation_criteria)
+        actual_output = self._get_actual_output(agent_execution, evaluation_criteria)
+
+        score, justification = self._compare_json(expected_output, actual_output)
         validated_justification = self.validate_justification(justification)
+
+        # Create details with comparison information
+        details = {
+            "actual_output": str(actual_output),
+            "expected_output": str(expected_output),
+            "similarity_details": validated_justification,
+            "score": score,
+        }
+
         return NumericEvaluationResult(
             score=score,
-            details=validated_justification,
+            details=details,
         )
 
     def _compare_json(self, expected: Any, actual: Any) -> tuple[float, str]:

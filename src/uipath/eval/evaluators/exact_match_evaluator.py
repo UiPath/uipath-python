@@ -63,6 +63,16 @@ class ExactMatchEvaluator(
         if self.evaluator_config.negated:
             is_exact_match = not is_exact_match
 
+        # Create details with comparison information
+        details = {
+            "actual_output": str(self._get_actual_output(agent_execution, evaluation_criteria)),
+            "expected_output": str(self._get_expected_output(evaluation_criteria)),
+            "case_sensitive": self.evaluator_config.case_sensitive,
+            "negated": self.evaluator_config.negated,
+            "match": is_exact_match,
+        }
+
         return NumericEvaluationResult(
             score=float(is_exact_match),
+            details=details,
         )

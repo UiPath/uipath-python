@@ -3,7 +3,7 @@
 import json
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar, Union, cast, get_args
+from typing import Any, Generic, Optional, TypeVar, Union, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
@@ -17,7 +17,10 @@ class BaseEvaluationCriteria(BaseModel):
     """Base class for all evaluation criteria."""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-    pass
+
+    node_id: Optional[str] = Field(
+        default=None, alias="nodeId"
+    )  # Optional node identifier for node-level evaluations
 
 
 # Type variable for evaluation criteria, used by both Config and Evaluator

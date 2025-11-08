@@ -587,9 +587,10 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
                 # Extract node_id from evaluation criteria if available
                 node_id = None
-                if evaluator.id in eval_item.evaluation_criterias:
+                if isinstance(eval_item, EvaluationItem) and evaluator.id in eval_item.evaluation_criterias:
                     criteria_dict = eval_item.evaluation_criterias[evaluator.id]
-                    node_id = criteria_dict.get("nodeId")
+                    if criteria_dict:
+                        node_id = criteria_dict.get("nodeId")
 
                 # Get evaluator type from evaluator's get_evaluator_id method
                 evaluator_type = None
@@ -635,9 +636,10 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             for evaluator in evaluators:
                 # Extract node_id from evaluation criteria if available
                 node_id = None
-                if evaluator.id in eval_item.evaluation_criterias:
+                if isinstance(eval_item, EvaluationItem) and evaluator.id in eval_item.evaluation_criterias:
                     criteria_dict = eval_item.evaluation_criterias[evaluator.id]
-                    node_id = criteria_dict.get("nodeId")
+                    if criteria_dict:
+                        node_id = criteria_dict.get("nodeId")
 
                 # Get evaluator type from evaluator's get_evaluator_id method
                 evaluator_type = None

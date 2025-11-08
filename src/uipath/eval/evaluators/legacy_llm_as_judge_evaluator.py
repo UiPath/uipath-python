@@ -71,9 +71,17 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
 
         llm_response = await self._get_llm_response(evaluation_prompt)
 
+        # Create details with comparison information
+        details = {
+            "actual_output": str(agent_execution.agent_output),
+            "expected_output": str(evaluation_criteria),
+            "llm_justification": llm_response.justification,
+            "llm_score": llm_response.score,
+        }
+
         return NumericEvaluationResult(
             score=llm_response.score,
-            details=llm_response.justification,
+            details=details,
         )
 
     def _create_evaluation_prompt(

@@ -46,7 +46,7 @@ class EvaluationResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     score: float
-    details: Optional[str | BaseModel] = None
+    details: Optional[str | Dict[str, Any] | BaseModel] = None
     evaluation_time: Optional[float] = None
 
     @model_serializer(mode="wrap")
@@ -56,6 +56,7 @@ class EvaluationResultDto(BaseModel):
         info: core_schema.SerializationInfo,
     ) -> Any:
         data = serializer(self)
+        # Only remove details if it's None, keep empty dicts and populated dicts
         if self.details is None and isinstance(data, dict):
             data.pop("details", None)
         return data

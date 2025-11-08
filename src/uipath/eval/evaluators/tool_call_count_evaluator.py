@@ -81,7 +81,16 @@ class ToolCallCountEvaluator(
             self.evaluator_config.strict,
         )
         validated_justification = self.validate_justification(justification)
+
+        # Create details with comparison information
+        details = {
+            "actual_tool_calls": dict(tool_calls_count),
+            "expected_tool_calls": evaluation_criteria.tool_calls_count,
+            "strict_mode": self.evaluator_config.strict,
+            "explanation": validated_justification,
+        }
+
         return NumericEvaluationResult(
             score=score,
-            details=validated_justification,
+            details=details,
         )

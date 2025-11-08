@@ -20,9 +20,7 @@ class OutputEvaluationCriteria(BaseEvaluationCriteria):
     """Base class for all output evaluation criteria."""
 
     expected_output: dict[str, Any] | str
-    node_id: Optional[str] = Field(
-        default=None, alias="nodeId"
-    )  # Optional node identifier for node-level evaluations
+    # node_id inherited from BaseEvaluationCriteria
 
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
