@@ -218,7 +218,7 @@ class ConsoleProgressReporter:
                 for evaluator_id in evaluator_ids:
                     weight = self.evaluator_weights.get(evaluator_id, "-")
                     if weight != "-":
-                        weight_row_values.append(f"[bold]{weight:.1f}[/bold]")
+                        weight_row_values.append(f"[bold]{weight:.2f}[/bold]")
                     else:
                         weight_row_values.append("[bold]-[/bold]")
                 summary_table.add_row(*weight_row_values)
