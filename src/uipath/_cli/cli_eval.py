@@ -8,9 +8,7 @@ import click
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
-from uipath._cli._evals._runtime import (
-    UiPathEvalContext,
-)
+from uipath._cli._evals._runtime import UiPathEvalContext
 from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
@@ -83,10 +81,10 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     help="File path where the output will be written",
 )
 @click.option(
-    "--enable-mocker-cache",
+    "--verbose",
     is_flag=True,
+    help="Enable verbose debug output for evaluators",
     default=False,
-    help="Enable caching for LLM mocker responses",
 )
 @track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
 def eval(
@@ -97,7 +95,7 @@ def eval(
     no_report: bool,
     workers: int,
     output_file: Optional[str],
-    enable_mocker_cache: bool,
+    verbose: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -108,8 +106,16 @@ def eval(
         eval_set_run_id: Custom evaluation set run ID (optional, will generate UUID if not specified)
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
-        enable_mocker_cache: Enable caching for LLM mocker responses
+        verbose: Enable verbose debug output for evaluators
     """
+    # Configure logging level for evaluators if verbose is enabled
+    if verbose:
+        import logging
+
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+        # Set the evaluators logger to DEBUG
+        logging.getLogger("uipath.eval.evaluators").setLevel(logging.DEBUG)
+
     context_args = {
         "entrypoint": entrypoint or auto_discover_entrypoint(),
         "eval_set": eval_set,
@@ -118,7 +124,6 @@ def eval(
         "workers": workers,
         "no_report": no_report,
         "output_file": output_file,
-        "enable_mocker_cache": enable_mocker_cache,
     }
 
     should_register_progress_reporter = setup_reporting_prereq(no_report)
@@ -152,7 +157,6 @@ def eval(
         eval_context.no_report = no_report
         eval_context.workers = workers
         eval_context.eval_set_run_id = eval_set_run_id
-        eval_context.enable_mocker_cache = enable_mocker_cache
 
         # Load eval set to resolve the path
         eval_set_path = eval_set or EvalHelpers.auto_discover_eval_set()

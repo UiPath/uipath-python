@@ -5,8 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, Field, SkipValidation, model_validator
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
-from uipath.eval.evaluators import BaseEvaluator
+from uipath._cli._evals._models._evaluation_set import AnyEvaluationItem, AnyEvaluator
 from uipath.eval.models import EvalItemResult
 
 
@@ -24,12 +23,13 @@ class EvalSetRunCreatedEvent(BaseModel):
     eval_set_run_id: Optional[str] = None
     no_of_evals: int
     # skip validation to avoid abstract class instantiation
-    evaluators: SkipValidation[List[BaseEvaluator[Any, Any, Any]]]
+    evaluators: SkipValidation[List[AnyEvaluator]]
+    evaluator_weights: Optional[Dict[str, float]] = None
 
 
 class EvalRunCreatedEvent(BaseModel):
     execution_id: str
-    eval_item: EvaluationItem
+    eval_item: AnyEvaluationItem
 
 
 class EvalItemExceptionDetails(BaseModel):
@@ -43,7 +43,7 @@ class EvalRunUpdatedEvent(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     execution_id: str
-    eval_item: EvaluationItem
+    eval_item: AnyEvaluationItem
     eval_results: List[EvalItemResult]
     success: bool
     agent_output: Any
@@ -62,6 +62,8 @@ class EvalRunUpdatedEvent(BaseModel):
 class EvalSetRunUpdatedEvent(BaseModel):
     execution_id: str
     evaluator_scores: dict[str, float]
+    weighted_final_score: Optional[float] = None
+    evaluator_weights: Optional[Dict[str, float]] = None
 
 
 ProgressEvent = Union[

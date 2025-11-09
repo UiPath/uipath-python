@@ -9,23 +9,21 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from opentelemetry import trace
-from pydantic import BaseModel
 from rich.console import Console
 
 from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import (
+    AnyEvaluationItem,
+    AnyEvaluator,
     EvaluationItem,
     EvaluationStatus,
 )
-from uipath._cli._evals._models._evaluator import Evaluator
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
     StudioWebProgressItem,
 )
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._cli._utils._project_files import (  # type: ignore
-    get_project_config,
-)
+from uipath._cli._utils._project_files import get_project_config  # type: ignore
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -40,10 +38,7 @@ from uipath._utils.constants import (
     ENV_TENANT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
-from uipath.eval.evaluators import (
-    BaseEvaluator,
-    LegacyBaseEvaluator,
-)
+from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.tracing import LlmOpsHttpExporter
 
@@ -136,9 +131,7 @@ class StudioWebProgressReporter:
             return "api/"
         return "agentsruntime_/api/"
 
-    def _is_coded_evaluator(
-        self, evaluators: List[BaseEvaluator[Any, Any, Any]]
-    ) -> bool:
+    def _is_coded_evaluator(self, evaluators: List[AnyEvaluator]) -> bool:
         """Check if evaluators are coded (BaseEvaluator) vs legacy (LegacyBaseEvaluator).
 
         Args:
@@ -150,7 +143,7 @@ class StudioWebProgressReporter:
         if not evaluators:
             return False
         # Check the first evaluator type
-        return not isinstance(evaluators[0], LegacyBaseEvaluator)
+        return isinstance(evaluators[0], BaseEvaluator)
 
     def _extract_usage_from_spans(
         self, spans: list[Any]
@@ -240,7 +233,7 @@ class StudioWebProgressReporter:
 
     @gracefully_handle_errors
     async def create_eval_run(
-        self, eval_item: EvaluationItem, eval_set_run_id: str, is_coded: bool = False
+        self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> str:
         """Create a new evaluation run in StudioWeb.
 
@@ -267,7 +260,7 @@ class StudioWebProgressReporter:
     async def update_eval_run(
         self,
         sw_progress_item: StudioWebProgressItem,
-        evaluators: dict[str, Evaluator],
+        evaluators: dict[str, AnyEvaluator],
         is_coded: bool = False,
         spans: list[Any] | None = None,
     ):
@@ -334,10 +327,11 @@ class StudioWebProgressReporter:
         eval_set_run_id: str,
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
+        weighted_final_score: float | None = None,
     ):
         """Update the evaluation set run status to complete."""
         spec = self._update_eval_set_run_spec(
-            eval_set_run_id, evaluator_scores, is_coded
+            eval_set_run_id, evaluator_scores, is_coded, weighted_final_score
         )
         await self._client.request_async(
             method=spec.method,
@@ -457,6 +451,7 @@ class StudioWebProgressReporter:
                     eval_set_run_id,
                     payload.evaluator_scores,
                     is_coded=is_coded,
+                    weighted_final_score=payload.weighted_final_score,
                 )
                 logger.debug(
                     f"Updated eval set run with ID: {eval_set_run_id} (coded={is_coded})"
@@ -485,9 +480,7 @@ class StudioWebProgressReporter:
 
         logger.debug("StudioWeb progress reporter subscribed to evaluation events")
 
-    def _serialize_justification(
-        self, justification: BaseModel | str | None
-    ) -> str | None:
+    def _serialize_justification(self, justification: Any) -> str | None:
         """Serialize justification to JSON string for API compatibility.
 
         Args:
@@ -497,9 +490,12 @@ class StudioWebProgressReporter:
         Returns:
             JSON string representation or None if justification is None
         """
-        if isinstance(justification, BaseModel):
-            justification = json.dumps(justification.model_dump())
-
+        if justification is None:
+            return None
+        if hasattr(justification, "model_dump"):
+            return json.dumps(justification.model_dump())
+        if not isinstance(justification, str):
+            return json.dumps(justification)
         return justification
 
     def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
@@ -708,7 +704,7 @@ class StudioWebProgressReporter:
         )
 
     def _create_eval_run_spec(
-        self, eval_item: EvaluationItem, eval_set_run_id: str, is_coded: bool = False
+        self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> RequestSpec:
         # Legacy API expects eval IDs as GUIDs, coded accepts strings
         # Convert string IDs to deterministic GUIDs for legacy
@@ -801,6 +797,7 @@ class StudioWebProgressReporter:
         eval_set_run_id: str,
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
+        weighted_final_score: float | None = None,
     ) -> RequestSpec:
         # Legacy API expects evaluatorId as GUID, coded accepts string
         evaluator_scores_list = []
@@ -824,16 +821,24 @@ class StudioWebProgressReporter:
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        # Build the JSON payload
+        json_payload = {
+            "evalSetRunId": eval_set_run_id,
+            "status": EvaluationStatus.COMPLETED.value,
+            "evaluatorScores": evaluator_scores_list,
+        }
+
+        # Add weighted final score if available
+        if weighted_final_score is not None:
+            json_payload["weightedFinalScore"] = weighted_final_score
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalSetRun"
             ),
-            json={
-                "evalSetRunId": eval_set_run_id,
-                "status": EvaluationStatus.COMPLETED.value,
-                "evaluatorScores": evaluator_scores_list,
-            },
+            json=json_payload,
             headers=self._tenant_header(),
         )
 
