@@ -5,6 +5,53 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
+class EvaluatorReference(BaseModel):
+    """Reference to an evaluator with optional weight.
+
+    Can be constructed from:
+    - A string (evaluator ID): EvaluatorReference(ref="evaluator-id")
+    - A dict with ref and optional weight: EvaluatorReference(ref="evaluator-id", weight=2.0)
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    ref: str = Field(..., description="Path to the evaluator configuration file")
+    weight: float = Field(
+        default=1.0,
+        description="Weight for this evaluator in scoring calculations",
+        ge=0,
+    )
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any) -> Any:
+        """Allow creating EvaluatorReference from a string or dict."""
+        from pydantic_core import core_schema
+
+        def validate_from_str(value: str) -> dict[str, Any]:
+            """Convert a string to a dict with ref field."""
+            return {"ref": value}
+
+        def serialize(instance: "EvaluatorReference") -> Any:
+            if instance.weight != 1.0:
+                return {"ref": instance.ref, "weight": instance.weight}
+            return instance.ref
+
+        python_schema = handler(source_type)
+        return core_schema.union_schema(
+            [
+                core_schema.chain_schema(
+                    [
+                        core_schema.str_schema(),
+                        core_schema.no_info_plain_validator_function(validate_from_str),
+                        python_schema,
+                    ]
+                ),
+                python_schema,
+            ],
+            serialization=core_schema.plain_serializer_function_ser_schema(serialize),
+        )
+
+
 class EvaluationSimulationTool(BaseModel):
     name: str = Field(..., alias="name")
 
@@ -157,6 +204,9 @@ class EvaluationSet(BaseModel):
     name: str
     version: Literal["1.0"] = "1.0"
     evaluator_refs: List[str] = Field(default_factory=list)
+    evaluator_configs: List[EvaluatorReference] = Field(
+        default_factory=list, alias="evaluatorConfigs"
+    )
     evaluations: List[EvaluationItem] = Field(default_factory=list)
 
     def extract_selected_evals(self, eval_ids) -> None:
@@ -178,6 +228,9 @@ class LegacyEvaluationSet(BaseModel):
     id: str
     file_name: str = Field(..., alias="fileName")
     evaluator_refs: List[str] = Field(default_factory=list)
+    evaluator_configs: List[EvaluatorReference] = Field(
+        default_factory=list, alias="evaluatorConfigs"
+    )
     evaluations: List[LegacyEvaluationItem] = Field(default_factory=list)
     name: str
     batch_size: int = Field(10, alias="batchSize")
