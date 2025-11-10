@@ -1,7 +1,9 @@
 from enum import Enum
-from typing import List, Optional
+from typing import IO, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+
+FileContent = Union[IO[bytes], bytes, str]
 
 
 class FieldType(str, Enum):
@@ -98,6 +100,7 @@ class ExtractionResponse(BaseModel):
 
     extraction_result: ExtractionResult = Field(alias="extractionResult")
     project_id: str = Field(alias="projectId")
+    project_type: ProjectType = Field(alias="projectType")
     tag: str
     document_type_id: str = Field(alias="documentTypeId")
 
@@ -131,26 +134,10 @@ class ValidationAction(BaseModel):
     action_data: dict = Field(alias="actionData")  # type: ignore
     action_status: str = Field(alias="actionStatus")
     project_id: str = Field(alias="projectId")
+    project_type: ProjectType = Field(alias="projectType")
     tag: str
     document_type_id: str = Field(alias="documentTypeId")
     operation_id: str = Field(alias="operationId")
-
-
-class ValidatedResult(BaseModel):
-    """A model representing the result of a validation action.
-
-    Attributes:
-        document_id (str): The ID of the validated document.
-        results_document (dict): The validated results document.
-    """
-
-    model_config = ConfigDict(
-        serialize_by_alias=True,
-        validate_by_alias=True,
-    )
-
-    document_id: str = Field(alias="DocumentId")
-    results_document: dict = Field(alias="ResultsDocument")  # type: ignore
 
 
 class Reference(BaseModel):
