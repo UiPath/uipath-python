@@ -4,14 +4,15 @@ import json
 import logging
 import os
 import re
+from enum import IntEnum
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Literal, Optional, Protocol, Tuple
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter
 
 from .._utils._console import ConsoleLogger
 from ..models.runtime_schema import RuntimeSchema
-from ._constants import is_binary_file
+from ._constants import is_binary_file, special_files
 from ._studio_project import (
     ProjectFile,
     ProjectFolder,
@@ -26,7 +27,12 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class FileOperationUpdate(BaseModel):
+class Severity(IntEnum):
+    LOG = 0
+    WARNING = 1
+
+
+class UpdateEvent(BaseModel):
     """Update about a file operation in progress."""
 
     file_path: str
@@ -42,6 +48,7 @@ class FileOperationUpdate(BaseModel):
         "created_folder",
     ]
     message: str
+    severity: Severity = Field(default=Severity.LOG)
 
 
 class ProjectPullError(Exception):
@@ -609,9 +616,9 @@ def collect_files_from_folder(
 
 async def pull_project(
     project_id: str,
-    download_configuration: dict[str, Path],
+    download_configuration: dict[str | None, Path],
     conflict_handler: Optional[FileConflictHandler] = None,
-) -> AsyncIterator[FileOperationUpdate]:
+) -> AsyncIterator[UpdateEvent]:
     """Pull project with configurable conflict handling.
 
     Yields:
@@ -642,7 +649,7 @@ async def download_folder_files(
     folder: ProjectFolder,
     base_path: Path,
     conflict_handler: FileConflictHandler,
-) -> AsyncIterator[FileOperationUpdate]:
+) -> AsyncIterator[UpdateEvent]:
     """Download files from a folder recursively, yielding progress updates.
 
     Args:
@@ -657,13 +664,10 @@ async def download_folder_files(
     files_dict: Dict[str, ProjectFile] = {}
     collect_files_from_folder(folder, "", files_dict)
 
-    yield FileOperationUpdate(
-        file_path=folder.name,
-        status="downloading",
-        message=f"Downloading '{folder.name}'...",
-    )
-
     for file_path, remote_file in files_dict.items():
+        if remote_file.name in special_files:
+            continue
+
         local_path = base_path / file_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -683,19 +687,19 @@ async def download_folder_files(
                     with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                         f.write(remote_content)
 
-                    yield FileOperationUpdate(
+                    yield UpdateEvent(
                         file_path=file_path,
                         status="updated",
                         message=f"Updated '{file_path}'",
                     )
                 else:
-                    yield FileOperationUpdate(
+                    yield UpdateEvent(
                         file_path=file_path,
                         status="skipped",
                         message=f"Skipped '{file_path}'",
                     )
             else:
-                yield FileOperationUpdate(
+                yield UpdateEvent(
                     file_path=file_path,
                     status="up_to_date",
                     message=f"File '{file_path}' is up to date",
@@ -704,7 +708,7 @@ async def download_folder_files(
             with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(remote_content)
 
-            yield FileOperationUpdate(
+            yield UpdateEvent(
                 file_path=file_path,
                 status="downloaded",
                 message=f"Downloaded '{file_path}'",

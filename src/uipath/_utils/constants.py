@@ -50,5 +50,8 @@ COMMUNITY_agents_SUFFIX = "-community-agents"
 UIPATH_CONFIG_FILE = "uipath.json"
 UIPATH_BINDINGS_FILE = "bindings.json"
 
+# Folder names
+EVAL_FOLDER = "evals"
+CODED_EVALS_FOLDER = "coded-evals"
 # Evaluators
 CUSTOM_EVALUATOR_PREFIX = "file://"

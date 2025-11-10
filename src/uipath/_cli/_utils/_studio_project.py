@@ -185,17 +185,20 @@ class ResourceOverwriteData(BaseModel):
 
 
 def get_folder_by_name(
-    structure: ProjectStructure, folder_name: str
+    structure: ProjectStructure, folder_name: str | None
 ) -> Optional[ProjectFolder]:
     """Get a folder from the project structure by name.
 
     Args:
         structure: The project structure
-        folder_name: Name of the folder to find
+        folder_name: Name of the folder to find or None for root folder
 
     Returns:
         Optional[ProjectFolder]: The found folder or None
     """
+    if not folder_name:
+        return structure
+
     for folder in structure.folders:
         if folder.name == folder_name:
             return folder
@@ -747,7 +750,6 @@ class StudioClient:
                     (None, modified_resource.id),
                 )
             )
-
         response = await self.uipath.api_client.request_async(
             "POST",
             url=f"{self.file_operations_base_url}/StructuralMigration",

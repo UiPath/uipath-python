@@ -9,9 +9,10 @@ from uipath.models.exceptions import EnrichedException
 
 from .._config import UiPathConfig
 from ..telemetry import track
-from ._push.sw_file_handler import FileOperationUpdate, SwFileHandler
+from ._push.sw_file_handler import SwFileHandler, UpdateEvent
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
+    Severity,
     ensure_config_file,
     get_project_config,
     validate_config,
@@ -35,7 +36,7 @@ async def upload_source_files_to_project(
     settings: Optional[dict[str, Any]],
     directory: str,
     include_uv_lock: bool = True,
-) -> AsyncIterator[FileOperationUpdate]:
+) -> AsyncIterator[UpdateEvent]:
     """Upload source files to UiPath project, yielding progress updates.
 
     This function handles the pushing of local files to the remote project:
@@ -58,8 +59,6 @@ async def upload_source_files_to_project(
 
     async for update in sw_file_handler.upload_source_files(settings):
         yield update
-
-    await sw_file_handler.upload_coded_evals_files()
 
 
 @click.command()
@@ -109,7 +108,11 @@ def push(root: str, nolock: bool) -> None:
             root,
             include_uv_lock=not nolock,
         ):
-            console.info(update.message)
+            match update.severity:
+                case Severity.WARNING:
+                    console.warning(update.message)
+                case _:
+                    console.info(update.message)
 
     console.log("Pushing UiPath project to Studio Web...")
     try:

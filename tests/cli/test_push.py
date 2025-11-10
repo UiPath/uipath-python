@@ -148,39 +148,32 @@ class TestPush:
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [
-                {
-                    "id": "414af585-7e88-4774-ad94-cf6bd48f6c2d",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "123",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        },
-                        {
-                            "id": "456",
-                            "name": "pyproject.toml",
-                            "isMain": False,
-                            "fileType": "1",
-                            "isEntryPoint": False,
-                            "ignoredFromPublish": False,
-                        },
-                        {
-                            "id": "789",
-                            "name": "uipath.json",
-                            "isMain": False,
-                            "fileType": "1",
-                            "isEntryPoint": False,
-                            "ignoredFromPublish": False,
-                        },
-                    ],
-                }
-            ],
+            "folders": [],
             "files": [
+                {
+                    "id": "123",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "456",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "789",
+                    "name": "uipath.json",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
                 {
                     "id": "246",
                     "name": "agent.json",
@@ -200,11 +193,6 @@ class TestPush:
             ],
             "folderType": "0",
         }
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -335,25 +323,13 @@ class TestPush:
             "files": [],
             "folderType": "0",
         }
-        # Create source_code folder
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
-            status_code=200,
-            json={
-                "id": "123",
-                "name": "source_code",
-                "folders": [],
-                "files": [],
-            },
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
         httpx_mock.add_response(
             method="POST",
@@ -363,10 +339,6 @@ class TestPush:
         )
 
         # Mock empty folder cleanup - get structure again after migration
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -482,31 +454,25 @@ class TestPush:
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [
+            "folders": [],
+            "files": [
                 {
                     "id": "123",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "123",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        },
-                        {
-                            "id": "789",
-                            "name": "uipath.json",
-                            "isMain": False,
-                            "fileType": "1",
-                            "isEntryPoint": False,
-                            "ignoredFromPublish": False,
-                        },
-                    ],
-                }
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "789",
+                    "name": "uipath.json",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
             ],
-            "files": [],
             "folderType": "0",
         }
 
@@ -542,10 +508,6 @@ class TestPush:
         )
 
         # Mock empty folder cleanup - get structure again after migration
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -613,25 +575,12 @@ class TestPush:
             "folderType": "0",
         }
 
-        # Create source_code folder
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
-            status_code=200,
-            json={
-                "id": "123",
-                "name": "source_code",
-                "folders": [],
-                "files": [],
-            },
-        )
-
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
         httpx_mock.add_response(
             method="POST",
@@ -641,10 +590,6 @@ class TestPush:
         )
 
         # Mock empty folder cleanup
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -702,25 +647,12 @@ class TestPush:
             "folderType": "0",
         }
 
-        # Create source_code folder
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
-            status_code=200,
-            json={
-                "id": "123",
-                "name": "source_code",
-                "folders": [],
-                "files": [],
-            },
-        )
-
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
         httpx_mock.add_response(
             method="POST",
@@ -730,10 +662,6 @@ class TestPush:
         )
 
         # Mock empty folder cleanup
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -788,18 +716,11 @@ class TestPush:
         }
 
         httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
-            status_code=200,
-            json={"id": "123", "name": "source_code", "folders": [], "files": []},
-        )
-
-        httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
         httpx_mock.add_response(
             method="POST",
@@ -808,10 +729,6 @@ class TestPush:
             json={"success": True},
         )
 
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -892,18 +809,11 @@ class TestPush:
         }
 
         httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
-            status_code=200,
-            json={"id": "123", "name": "source_code", "folders": [], "files": []},
-        )
-
-        httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
         httpx_mock.add_response(
             method="POST",
@@ -912,10 +822,6 @@ class TestPush:
             json={"success": True},
         )
 
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -998,18 +904,11 @@ class TestPush:
         }
 
         httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Folder",
-            status_code=200,
-            json={"id": "123", "name": "source_code", "folders": [], "files": []},
-        )
-
-        httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
         httpx_mock.add_response(
             method="POST",
@@ -1018,10 +917,6 @@ class TestPush:
             json={"success": True},
         )
 
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -1095,23 +990,17 @@ class TestPush:
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [
+            "folders": [],
+            "files": [
                 {
-                    "id": "123",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "456",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        },
-                    ],
-                }
+                    "id": "456",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
             ],
-            "files": [],
             "folderType": "0",
         }
 
@@ -1143,12 +1032,6 @@ class TestPush:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
-        )
-
-        # Mock empty folder cleanup
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -1185,23 +1068,17 @@ class TestPush:
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [
+            "folders": [],
+            "files": [
                 {
-                    "id": "123",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "456",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        },
-                    ],
-                }
+                    "id": "456",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
             ],
-            "files": [],
             "folderType": "0",
         }
 
@@ -1233,12 +1110,6 @@ class TestPush:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
-        )
-
-        # Mock empty folder cleanup
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -1276,31 +1147,25 @@ class TestPush:
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [
+            "folders": [],
+            "files": [
                 {
-                    "id": "123",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "456",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        },
-                        {
-                            "id": "789",
-                            "name": "helper.py",
-                            "isMain": False,
-                            "fileType": "1",
-                            "isEntryPoint": False,
-                            "ignoredFromPublish": False,
-                        },
-                    ],
-                }
+                    "id": "456",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "789",
+                    "name": "helper.py",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
             ],
-            "files": [],
             "folderType": "0",
         }
 
@@ -1339,12 +1204,6 @@ class TestPush:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
-        )
-
-        # Mock empty folder cleanup
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -1386,31 +1245,25 @@ class TestPush:
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [
+            "folders": [],
+            "files": [
                 {
-                    "id": "123",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "456",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        },
-                        {
-                            "id": "789",
-                            "name": "helper.py",
-                            "isMain": False,
-                            "fileType": "1",
-                            "isEntryPoint": False,
-                            "ignoredFromPublish": False,
-                        },
-                    ],
-                }
+                    "id": "456",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "789",
+                    "name": "helper.py",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
             ],
-            "files": [],
             "folderType": "0",
         }
 
@@ -1446,12 +1299,6 @@ class TestPush:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
-        )
-
-        # Mock empty folder cleanup
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -1495,20 +1342,6 @@ class TestPush:
             "name": "root",
             "folders": [
                 {
-                    "id": "source-code-123",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "main-456",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        },
-                    ],
-                },
-                {
                     "id": "coded-evals-folder-id",
                     "name": "coded-evals",
                     "folders": [
@@ -1546,7 +1379,16 @@ class TestPush:
                     "files": [],
                 },
             ],
-            "files": [],
+            "files": [
+                {
+                    "id": "main-456",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
 
@@ -1575,12 +1417,6 @@ class TestPush:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
-        )
-
-        # Mock empty folder cleanup
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
