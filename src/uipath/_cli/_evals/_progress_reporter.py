@@ -106,6 +106,19 @@ class StudioWebProgressReporter:
         """Helper method to format and display error messages consistently."""
         self._rich_console.print(f"    • \u26a0  [dim]{context}: {error}[/dim]")
 
+    def _status_to_string(self, status: EvaluationStatus) -> str:
+        """Convert EvaluationStatus enum to PascalCase string for API.
+
+        Args:
+            status: The EvaluationStatus enum value
+
+        Returns:
+            PascalCase string representation (e.g., "InProgress", "Completed")
+        """
+        # Convert SNAKE_CASE enum name to PascalCase
+        components = status.name.split("_")
+        return "".join(x.title() for x in components)
+
     def _is_localhost(self) -> bool:
         """Check if the eval backend URL is localhost.
 
@@ -568,7 +581,7 @@ class StudioWebProgressReporter:
             )
             assertion_runs.append(
                 {
-                    "status": EvaluationStatus.COMPLETED.value,
+                    "status": self._status_to_string(EvaluationStatus.COMPLETED),
                     "evaluatorId": evaluator_id_value,
                     "completionMetrics": {
                         "duration": int(eval_result.result.evaluation_time)
@@ -626,7 +639,7 @@ class StudioWebProgressReporter:
             )
             evaluator_runs.append(
                 {
-                    "status": EvaluationStatus.COMPLETED.value,
+                    "status": self._status_to_string(EvaluationStatus.COMPLETED),
                     "evaluatorId": eval_result.evaluator_id,
                     "result": {
                         "score": {
@@ -659,21 +672,27 @@ class StudioWebProgressReporter:
     ) -> RequestSpec:
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalRunId": eval_run_id,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.COMPLETED.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "result": {
+                "output": dict(actual_output),
+                "evaluatorScores": evaluator_scores,
+            },
+            "completionMetrics": {"duration": int(execution_time)},
+            "assertionRuns": assertion_runs,
+        }
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
-            json={
-                "evalRunId": eval_run_id,
-                "status": EvaluationStatus.COMPLETED.value,
-                "result": {
-                    "output": {**actual_output},
-                    "evaluatorScores": evaluator_scores,
-                },
-                "completionMetrics": {"duration": int(execution_time)},
-                "assertionRuns": assertion_runs,
-            },
+            json=payload,
             headers=self._tenant_header(),
         )
 
@@ -689,21 +708,27 @@ class StudioWebProgressReporter:
         """Create update spec for coded evaluators."""
         # For coded evaluations, endpoint has /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalRunId": eval_run_id,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.COMPLETED.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "result": {
+                "output": dict(actual_output),
+                "scores": evaluator_scores,
+            },
+            "completionMetrics": {"duration": int(execution_time)},
+            "evaluatorRuns": evaluator_runs,
+        }
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
-            json={
-                "evalRunId": eval_run_id,
-                "status": EvaluationStatus.COMPLETED.value,
-                "result": {
-                    "output": {**actual_output},
-                    "scores": evaluator_scores,
-                },
-                "completionMetrics": {"duration": int(execution_time)},
-                "evaluatorRuns": evaluator_runs,
-            },
+            json=payload,
             headers=self._tenant_header(),
         )
 
@@ -739,16 +764,22 @@ class StudioWebProgressReporter:
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalSetRunId": eval_set_run_id,
+            "evalSnapshot": eval_snapshot,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.IN_PROGRESS.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.IN_PROGRESS),
+        }
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
-            json={
-                "evalSetRunId": eval_set_run_id,
-                "evalSnapshot": eval_snapshot,
-                "status": EvaluationStatus.IN_PROGRESS.value,
-            },
+            json=payload,
             headers=self._tenant_header(),
         )
 
@@ -779,7 +810,10 @@ class StudioWebProgressReporter:
             "agentId": self._project_id,
             "evalSetId": eval_set_id_value,
             "agentSnapshot": agent_snapshot.model_dump(by_alias=True),
-            "status": EvaluationStatus.IN_PROGRESS.value,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.IN_PROGRESS.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.IN_PROGRESS),
             "numberOfEvalsExecuted": no_of_evals,
         }
 
@@ -824,16 +858,22 @@ class StudioWebProgressReporter:
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalSetRunId": eval_set_run_id,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.COMPLETED.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "evaluatorScores": evaluator_scores_list,
+        }
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalSetRun"
             ),
-            json={
-                "evalSetRunId": eval_set_run_id,
-                "status": EvaluationStatus.COMPLETED.value,
-                "evaluatorScores": evaluator_scores_list,
-            },
+            json=payload,
             headers=self._tenant_header(),
         )
 
