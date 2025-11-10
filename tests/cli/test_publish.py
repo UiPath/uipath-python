@@ -400,3 +400,141 @@ class TestPublish:
                     "Use the link above to configure any environment variables"
                     in result.output
                 )
+
+    def test_publish_with_folder_success(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+        mock_feeds_response: list[tuple[str, str]],
+    ) -> None:
+        """Test successful publish using --folder option."""
+        base_url = mock_env_vars.get("UIPATH_URL")
+        folder_feed_name, folder_feed_id = mock_feeds_response[1]
+
+        # Mock the GetFeeds API
+        feeds_response_data = [
+            {"name": name, "id": id, "purpose": "Processes"}
+            for name, id in mock_feeds_response
+        ]
+        httpx_mock.add_response(
+            url=f"{base_url}/orchestrator_/api/PackageFeeds/GetFeeds",
+            status_code=200,
+            text=json.dumps(feeds_response_data),
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/orchestrator_/odata/Processes/UiPath.Server.Configuration.OData.UploadPackage()?feedId={folder_feed_id}",
+            status_code=200,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            os.makedirs(".uipath")
+            with open(os.path.join(".uipath", "test.1.0.0.nupkg"), "wb") as f:
+                f.write(b"dummy package content")
+
+            with patch(
+                "uipath._cli.cli_publish.get_personal_workspace_info_async"
+            ) as mock_workspace:
+                mock_workspace.return_value = (
+                    "different-feed-id",
+                    "folder-id",
+                )
+                _create_env_file(mock_env_vars)
+
+                result = runner.invoke(cli, ["publish", "--folder", folder_feed_name])
+
+                assert result.exit_code == 0
+                assert "Package published successfully!" in result.output
+                assert f"Using feed: {folder_feed_name}" in result.output
+
+    def test_publish_with_folder_not_found(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+        mock_feeds_response: list[tuple[str, str]],
+    ) -> None:
+        """Test publish with non-existent folder name."""
+        base_url = mock_env_vars.get("UIPATH_URL")
+
+        # Mock the GetFeeds API
+        feeds_response_data = [
+            {"name": name, "id": id, "purpose": "Processes"}
+            for name, id in mock_feeds_response
+        ]
+        httpx_mock.add_response(
+            url=f"{base_url}/orchestrator_/api/PackageFeeds/GetFeeds",
+            status_code=200,
+            text=json.dumps(feeds_response_data),
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            os.makedirs(".uipath")
+            with open(os.path.join(".uipath", "test.1.0.0.nupkg"), "wb") as f:
+                f.write(b"dummy package content")
+
+            _create_env_file(mock_env_vars)
+
+            result = runner.invoke(cli, ["publish", "--folder", "NonExistentFolder"])
+
+            assert result.exit_code == 1  # Exits with error when folder not found
+            assert "Folder 'NonExistentFolder' not found" in result.output
+            assert "Available feeds:" in result.output
+
+    def test_publish_with_folder_core_name_match(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test publish using --folder with core name (without Orchestrator prefix and Feed suffix)."""
+        base_url = mock_env_vars.get("UIPATH_URL")
+
+        # Create a realistic feed name like "Orchestrator Ion Folder Feed Feed"
+        folder_feed_name = "Orchestrator Ion Folder Feed Feed"
+        folder_feed_id = "ion-folder-feed-id"
+
+        # Mock the GetFeeds API
+        feeds_response_data = [
+            {
+                "name": "Orchestrator Tenant Processes Feed",
+                "id": "tenant_feed_id",
+                "purpose": "Processes",
+            },
+            {"name": folder_feed_name, "id": folder_feed_id, "purpose": "Processes"},
+        ]
+        httpx_mock.add_response(
+            url=f"{base_url}/orchestrator_/api/PackageFeeds/GetFeeds",
+            status_code=200,
+            text=json.dumps(feeds_response_data),
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/orchestrator_/odata/Processes/UiPath.Server.Configuration.OData.UploadPackage()?feedId={folder_feed_id}",
+            status_code=200,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            os.makedirs(".uipath")
+            with open(os.path.join(".uipath", "test.1.0.0.nupkg"), "wb") as f:
+                f.write(b"dummy package content")
+
+            with patch(
+                "uipath._cli.cli_publish.get_personal_workspace_info_async"
+            ) as mock_workspace:
+                mock_workspace.return_value = (
+                    "different-feed-id",
+                    "folder-id",
+                )
+                _create_env_file(mock_env_vars)
+
+                # Test with just the core folder name "Ion Folder Feed"
+                result = runner.invoke(cli, ["publish", "--folder", "Ion Folder Feed"])
+
+                assert result.exit_code == 0
+                assert "Package published successfully!" in result.output
+                assert f"Using feed: {folder_feed_name}" in result.output

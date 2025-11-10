@@ -52,6 +52,50 @@ def get_available_feeds(
         console.error(f"Failed to deserialize available feeds: {str(e)}")
 
 
+def find_feed_by_folder_name(
+    folder: str, available_feeds: list[tuple[str, str]]
+) -> tuple[str, str] | None:
+    """Find a feed by folder name with flexible matching.
+
+    Args:
+        folder: The folder name to search for
+        available_feeds: List of (feed_name, feed_id) tuples
+
+    Returns:
+        Tuple of (feed_name, feed_id) if found, None otherwise
+
+    Matching strategy:
+        1. Exact match (case-insensitive)
+        2. Core name match (strips "Orchestrator " prefix and " Feed" suffix)
+    """
+    folder_lower = folder.lower()
+
+    for feed_tuple in available_feeds:
+        feed_name = feed_tuple[0]
+        feed_name_lower = feed_name.lower()
+
+        # Try exact match first
+        if feed_name_lower == folder_lower:
+            return feed_tuple
+
+        # Extract the core folder name by removing "Orchestrator" prefix and "Feed" suffix
+        # e.g., "Orchestrator My Folder Name Feed" -> "My Folder Name"
+        core_name = feed_name_lower
+        feed_prefix = "orchestrator "
+        if core_name.startswith(f"{feed_prefix}"):
+            core_name = core_name[len(feed_prefix) :]  # Remove "orchestrator "
+
+        suffix = " feed"
+        if core_name.endswith(suffix):
+            core_name = core_name[: -len(suffix)]  # Remove " feed"
+
+        # Try matching with core name
+        if core_name == folder_lower:
+            return feed_tuple
+
+    return None
+
+
 @click.command()
 @click.option(
     "--tenant",
@@ -67,13 +111,33 @@ def get_available_feeds(
     flag_value="personal",
     help="Whether to publish to the personal workspace",
 )
+@click.option(
+    "--folder",
+    "-f",
+    "folder",
+    type=str,
+    help="Folder name to publish to (skips interactive selection)",
+)
 @track
-def publish(feed):
+def publish(feed, folder):
     """Publish the package."""
     [base_url, token] = get_env_vars()
     headers = {"Authorization": f"Bearer {token}"}
 
-    if feed is None:
+    # If folder is provided directly, look it up
+    if folder:
+        with console.spinner("Fetching available package feeds..."):
+            available_feeds = get_available_feeds(base_url, headers)
+
+        matching_feed = find_feed_by_folder_name(folder, available_feeds)
+
+        if matching_feed:
+            feed = matching_feed[1]
+            console.info(f"Using feed: {click.style(matching_feed[0], fg='cyan')}")
+        else:
+            console.display_options([f[0] for f in available_feeds], "Available feeds:")
+            console.error(f"Folder '{folder}' not found.")
+    elif feed is None:
         with console.spinner("Fetching available package feeds..."):
             available_feeds = get_available_feeds(base_url, headers)
         console.display_options(
