@@ -14,7 +14,8 @@ from uipath.models.documents import (
     ClassificationResult,
     ExtractionResponse,
     ProjectType,
-    ValidationAction,
+    ValidateClassificationAction,
+    ValidateExtractionAction,
 )
 
 
@@ -110,6 +111,7 @@ class TestDocumentsService:
         document_id = str(uuid4())
         document_type_id = str(uuid4())
         classification_response["classificationResults"][0]["ProjectId"] = project_id
+        classification_response["classificationResults"][0]["Tag"] = "Production"
         classification_response["classificationResults"][0]["DocumentId"] = document_id
         classification_response["classificationResults"][0]["DocumentTypeId"] = (
             document_type_id
@@ -260,6 +262,7 @@ class TestDocumentsService:
 
         # ASSERT
         classification_response["classificationResults"][0]["ProjectId"] = project_id
+        classification_response["classificationResults"][0]["Tag"] = "Production"
         assert (
             response[0].model_dump()
             == classification_response["classificationResults"][0]
@@ -818,7 +821,125 @@ class TestDocumentsService:
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
-    async def test_create_validation_action(
+    async def test_create_validate_classification_action(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        classification_response: dict,  # type: ignore
+        create_validation_action_response: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        tag = "Production"
+        action_title = "TestAction"
+        action_priority = ActionPriority.MEDIUM
+        action_catalog = "TestCatalog"
+        action_folder = "TestFolder"
+        storage_bucket_name = "TestBucket"
+        storage_bucket_directory_path = "Test/Directory/Path"
+
+        classification_result = classification_response["classificationResults"][0]
+        classification_result["ProjectId"] = project_id
+        classification_result["Tag"] = tag
+        classification_result = ClassificationResult.model_validate(
+            classification_result
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/start?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            match_json={
+                "actionTitle": action_title,
+                "actionPriority": action_priority,
+                "actionCatalog": action_catalog,
+                "actionFolder": action_folder,
+                "storageBucketName": storage_bucket_name,
+                "storageBucketDirectoryPath": storage_bucket_directory_path,
+                "classificationResults": [
+                    classification_result.model_dump(),
+                ],
+                "documentId": classification_result.document_id,
+            },
+            json={"operationId": operation_id},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Succeeded", "result": create_validation_action_response},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.create_validate_classification_action_async(
+                action_title=action_title,
+                action_priority=action_priority,
+                action_catalog=action_catalog,
+                action_folder=action_folder,
+                storage_bucket_name=storage_bucket_name,
+                storage_bucket_directory_path=storage_bucket_directory_path,
+                classification_results=[classification_result],
+            )
+        else:
+            response = service.create_validate_classification_action(
+                action_title=action_title,
+                action_priority=action_priority,
+                action_catalog=action_catalog,
+                action_folder=action_folder,
+                storage_bucket_name=storage_bucket_name,
+                storage_bucket_directory_path=storage_bucket_directory_path,
+                classification_results=[classification_result],
+            )
+        # ASSERT
+        create_validation_action_response["projectId"] = project_id
+        create_validation_action_response["projectType"] = ProjectType.MODERN.value
+        create_validation_action_response["tag"] = tag
+        create_validation_action_response["operationId"] = operation_id
+        assert response.model_dump() == create_validation_action_response
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_create_validate_classification_action_with_empty_classification_results(
+        self,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ACT & ASSERT
+        with pytest.raises(
+            ValueError,
+            match="`classification_results` must not be empty",
+        ):
+            if mode == "async":
+                await service.create_validate_classification_action_async(
+                    action_title="TestAction",
+                    action_priority=ActionPriority.MEDIUM,
+                    action_catalog="TestCatalog",
+                    action_folder="TestFolder",
+                    storage_bucket_name="TestBucket",
+                    storage_bucket_directory_path="Test/Directory/Path",
+                    classification_results=[],
+                )
+            else:
+                service.create_validate_classification_action(
+                    action_title="TestAction",
+                    action_priority=ActionPriority.MEDIUM,
+                    action_catalog="TestCatalog",
+                    action_folder="TestFolder",
+                    storage_bucket_name="TestBucket",
+                    storage_bucket_directory_path="Test/Directory/Path",
+                    classification_results=[],
+                )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_create_validate_extraction_action(
         self,
         httpx_mock: HTTPXMock,
         service: DocumentsService,
@@ -919,6 +1040,62 @@ class TestDocumentsService:
         assert response.model_dump() == create_validation_action_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_get_validate_classification_result(
+        self,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+        service: DocumentsService,
+        create_validation_action_response: dict,  # type: ignore
+        classification_response: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+
+        create_validation_action_response["actionStatus"] = "Completed"
+        create_validation_action_response["validatedClassificationResults"] = (
+            classification_response["classificationResults"]
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/classifiers/validation/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Succeeded", "result": create_validation_action_response},
+        )
+
+        create_validation_action_response["projectId"] = project_id
+        create_validation_action_response["projectType"] = ProjectType.MODERN.value
+        create_validation_action_response["tag"] = "Production"
+        create_validation_action_response["operationId"] = operation_id
+
+        # ACT
+        if mode == "async":
+            results = await service.get_validate_classification_result_async(
+                validation_action=ValidateClassificationAction.model_validate(
+                    create_validation_action_response
+                )
+            )
+        else:
+            results = service.get_validate_classification_result(
+                validation_action=ValidateClassificationAction.model_validate(
+                    create_validation_action_response
+                )
+            )
+
+        # ASSERT
+        classification_response["classificationResults"][0]["ProjectId"] = project_id
+        classification_response["classificationResults"][0]["Tag"] = "Production"
+        assert (
+            results[0].model_dump()
+            == classification_response["classificationResults"][0]
+        )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.parametrize(
         "project_type,tag,extraction_response_fixture",
         [
@@ -927,7 +1104,7 @@ class TestDocumentsService:
         ],
     )
     @pytest.mark.asyncio
-    async def test_get_validation_result(
+    async def test_get_validate_extraction_result(
         self,
         httpx_mock: HTTPXMock,
         base_url: str,
@@ -977,13 +1154,13 @@ class TestDocumentsService:
         # ACT
         if mode == "async":
             response = await service.get_validate_extraction_result_async(
-                validation_action=ValidationAction.model_validate(
+                validation_action=ValidateExtractionAction.model_validate(
                     create_validation_action_response
                 )
             )
         else:
             response = service.get_validate_extraction_result(
-                validation_action=ValidationAction.model_validate(
+                validation_action=ValidateExtractionAction.model_validate(
                     create_validation_action_response
                 )
             )

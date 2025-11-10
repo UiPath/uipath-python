@@ -17,7 +17,8 @@ from ..models.documents import (
     ExtractionResponseIXP,
     FileContent,
     ProjectType,
-    ValidationAction,
+    ValidateClassificationAction,
+    ValidateExtractionAction,
 )
 from ..tracing import traced
 from ._base_service import BaseService
@@ -620,6 +621,7 @@ class DocumentsService(FolderContext, BaseService):
         )
         for classification_result in classification_response["classificationResults"]:
             classification_result["ProjectId"] = project_id
+            classification_result["Tag"] = tag
 
         return ClassificationResponse.model_validate(
             classification_response
@@ -655,6 +657,7 @@ class DocumentsService(FolderContext, BaseService):
         )
         for classification_result in classification_response["classificationResults"]:
             classification_result["ProjectId"] = project_id
+            classification_result["Tag"] = tag
 
         return ClassificationResponse.model_validate(
             classification_response
@@ -925,7 +928,75 @@ class DocumentsService(FolderContext, BaseService):
             project_type=project_type,
         )
 
-    def _start_validation(
+    def _start_classification_validation(
+        self,
+        project_id: str,
+        tag: str,
+        action_title: str,
+        action_priority: ActionPriority,
+        action_catalog: str,
+        action_folder: str,
+        storage_bucket_name: str,
+        storage_bucket_directory_path: str,
+        classification_results: List[ClassificationResult],
+    ) -> str:
+        return self.request(
+            "POST",
+            url=Endpoint(
+                f"/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/start"
+            ),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+            json={
+                "classificationResults": [
+                    cr.model_dump() for cr in classification_results
+                ],
+                "documentId": classification_results[0].document_id,
+                "actionTitle": action_title,
+                "actionPriority": action_priority,
+                "actionCatalog": action_catalog,
+                "actionFolder": action_folder,
+                "storageBucketName": storage_bucket_name,
+                "storageBucketDirectoryPath": storage_bucket_directory_path,
+            },
+        ).json()["operationId"]
+
+    async def _start_classification_validation_async(
+        self,
+        project_id: str,
+        tag: str,
+        action_title: str,
+        action_priority: ActionPriority,
+        action_catalog: str,
+        action_folder: str,
+        storage_bucket_name: str,
+        storage_bucket_directory_path: str,
+        classification_results: List[ClassificationResult],
+    ) -> str:
+        return (
+            await self.request_async(
+                "POST",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/start"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+                json={
+                    "classificationResults": [
+                        cr.model_dump() for cr in classification_results
+                    ],
+                    "documentId": classification_results[0].document_id,
+                    "actionTitle": action_title,
+                    "actionPriority": action_priority,
+                    "actionCatalog": action_catalog,
+                    "actionFolder": action_folder,
+                    "storageBucketName": storage_bucket_name,
+                    "storageBucketDirectoryPath": storage_bucket_directory_path,
+                },
+            )
+        ).json()["operationId"]
+
+    def _start_extraction_validation(
         self,
         project_id: str,
         tag: str,
@@ -958,7 +1029,7 @@ class DocumentsService(FolderContext, BaseService):
             },
         ).json()["operationId"]
 
-    async def _start_validation_async(
+    async def _start_extraction_validation_async(
         self,
         project_id: str,
         tag: str,
@@ -993,7 +1064,33 @@ class DocumentsService(FolderContext, BaseService):
             )
         ).json()["operationId"]
 
-    def _get_validation_result(
+    def _get_classification_validation_result(
+        self, project_id: str, tag: str, operation_id: str
+    ) -> Dict:  # type: ignore
+        return self.request(
+            method="GET",
+            url=Endpoint(
+                f"/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/result/{operation_id}"
+            ),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+        ).json()
+
+    async def _get_classification_validation_result_async(
+        self, project_id: str, tag: str, operation_id: str
+    ) -> Dict:  # type: ignore
+        return (
+            await self.request_async(
+                method="GET",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/result/{operation_id}"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+            )
+        ).json()
+
+    def _get_extraction_validation_result(
         self, project_id: str, tag: str, document_type_id: str, operation_id: str
     ) -> Dict:  # type: ignore
         return self.request(
@@ -1005,7 +1102,7 @@ class DocumentsService(FolderContext, BaseService):
             headers=self._get_common_headers(),
         ).json()
 
-    async def _get_validation_result_async(
+    async def _get_extraction_validation_result_async(
         self, project_id: str, tag: str, document_type_id: str, operation_id: str
     ) -> Dict:  # type: ignore
         return (
@@ -1019,16 +1116,76 @@ class DocumentsService(FolderContext, BaseService):
             )
         ).json()
 
-    def _wait_for_create_validation_action(
+    def _wait_for_create_validate_classification_action(
+        self,
+        project_id: str,
+        tag: str,
+        operation_id: str,
+    ) -> ValidateClassificationAction:
+        def result_getter() -> Tuple[Any, Optional[Any], Optional[Any]]:
+            result = self._get_classification_validation_result(
+                project_id=project_id,
+                tag=tag,
+                operation_id=operation_id,
+            )
+            return (
+                result["status"],
+                result.get("error", None),
+                result.get("result", None),
+            )
+
+        response = self._wait_for_operation(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
+
+        response["projectId"] = project_id
+        response["projectType"] = ProjectType.MODERN
+        response["tag"] = tag
+        response["operationId"] = operation_id
+        return ValidateClassificationAction.model_validate(response)
+
+    async def _wait_for_create_validate_classification_action_async(
+        self,
+        project_id: str,
+        tag: str,
+        operation_id: str,
+    ) -> ValidateClassificationAction:
+        async def result_getter() -> Tuple[Any, Optional[Any], Optional[Any]]:
+            result = await self._get_classification_validation_result_async(
+                project_id=project_id,
+                tag=tag,
+                operation_id=operation_id,
+            )
+            return (
+                result["status"],
+                result.get("error", None),
+                result.get("result", None),
+            )
+
+        response = await self._wait_for_operation_async(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
+
+        response["projectId"] = project_id
+        response["projectType"] = ProjectType.MODERN
+        response["tag"] = tag
+        response["operationId"] = operation_id
+        return ValidateClassificationAction.model_validate(response)
+
+    def _wait_for_create_validate_extraction_action(
         self,
         project_id: str,
         project_type: ProjectType,
         tag: str,
         document_type_id: str,
         operation_id: str,
-    ) -> ValidationAction:
+    ) -> ValidateExtractionAction:
         def result_getter() -> Tuple[Any, Optional[Any], Optional[Any]]:
-            result = self._get_validation_result(
+            result = self._get_extraction_validation_result(
                 project_id=project_id,
                 tag=tag,
                 document_type_id=document_type_id,
@@ -1051,18 +1208,18 @@ class DocumentsService(FolderContext, BaseService):
         response["tag"] = tag
         response["documentTypeId"] = document_type_id
         response["operationId"] = operation_id
-        return ValidationAction.model_validate(response)
+        return ValidateExtractionAction.model_validate(response)
 
-    async def _wait_for_create_validation_action_async(
+    async def _wait_for_create_validate_extraction_action_async(
         self,
         project_id: str,
         project_type: ProjectType,
         tag: str,
         document_type_id: str,
         operation_id: str,
-    ) -> ValidationAction:
+    ) -> ValidateExtractionAction:
         async def result_getter_async() -> Tuple[Any, Optional[Any], Optional[Any]]:
-            result = await self._get_validation_result_async(
+            result = await self._get_extraction_validation_result_async(
                 project_id=project_id,
                 tag=tag,
                 document_type_id=document_type_id,
@@ -1085,7 +1242,99 @@ class DocumentsService(FolderContext, BaseService):
         response["tag"] = tag
         response["documentTypeId"] = document_type_id
         response["operationId"] = operation_id
-        return ValidationAction.model_validate(response)
+        return ValidateExtractionAction.model_validate(response)
+
+    @traced(name="documents_create_validate_classification_action", run_type="uipath")
+    def create_validate_classification_action(
+        self,
+        action_title: str,
+        action_priority: ActionPriority,
+        action_catalog: str,
+        action_folder: str,
+        storage_bucket_name: str,
+        storage_bucket_directory_path: str,
+        classification_results: List[ClassificationResult],
+    ) -> ValidateClassificationAction:
+        """Create a validate classification action for a document based on the classification results. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-classifications).
+
+        Args:
+            action_title (str): Title of the action.
+            action_priority (ActionPriority): Priority of the action.
+            action_catalog (str): Catalog of the action.
+            action_folder (str): Folder of the action.
+            storage_bucket_name (str): Name of the storage bucket.
+            storage_bucket_directory_path (str): Directory path in the storage bucket.
+            classification_results (List[ClassificationResult]): The classification results to be validated, typically obtained from the [`classify`][uipath._services.documents_service.DocumentsService.classify] method.
+
+        Returns:
+            ValidateClassificationAction: The created validate classification action.
+
+        Examples:
+            ```python
+            validation_action = service.create_validate_classification_action(
+                action_title="Test Validation Action",
+                action_priority=ActionPriority.MEDIUM,
+                action_catalog="default_du_actions",
+                action_folder="Shared",
+                storage_bucket_name="du_storage_bucket",
+                storage_bucket_directory_path="TestDirectory",
+                classification_results=classification_results,
+            )
+            ```
+        """
+        if not classification_results:
+            raise ValueError("`classification_results` must not be empty")
+
+        operation_id = self._start_classification_validation(
+            project_id=classification_results[0].project_id,
+            tag=classification_results[0].tag,
+            action_title=action_title,
+            action_priority=action_priority,
+            action_catalog=action_catalog,
+            action_folder=action_folder,
+            storage_bucket_name=storage_bucket_name,
+            storage_bucket_directory_path=storage_bucket_directory_path,
+            classification_results=classification_results,
+        )
+
+        return self._wait_for_create_validate_classification_action(
+            project_id=classification_results[0].project_id,
+            tag=classification_results[0].tag,
+            operation_id=operation_id,
+        )
+
+    @traced(name="documents_create_validate_classification_action", run_type="uipath")
+    async def create_validate_classification_action_async(
+        self,
+        action_title: str,
+        action_priority: ActionPriority,
+        action_catalog: str,
+        action_folder: str,
+        storage_bucket_name: str,
+        storage_bucket_directory_path: str,
+        classification_results: List[ClassificationResult],
+    ) -> ValidateClassificationAction:
+        """Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validate_classification_action] method."""
+        if not classification_results:
+            raise ValueError("`classification_results` must not be empty")
+
+        operation_id = await self._start_classification_validation_async(
+            project_id=classification_results[0].project_id,
+            tag=classification_results[0].tag,
+            action_title=action_title,
+            action_priority=action_priority,
+            action_catalog=action_catalog,
+            action_folder=action_folder,
+            storage_bucket_name=storage_bucket_name,
+            storage_bucket_directory_path=storage_bucket_directory_path,
+            classification_results=classification_results,
+        )
+
+        return await self._wait_for_create_validate_classification_action_async(
+            project_id=classification_results[0].project_id,
+            tag=classification_results[0].tag,
+            operation_id=operation_id,
+        )
 
     @traced(name="documents_create_validate_extraction_action", run_type="uipath")
     def create_validate_extraction_action(
@@ -1097,7 +1346,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: str,
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
-    ) -> ValidationAction:
+    ) -> ValidateExtractionAction:
         """Create a validate extraction action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
 
         Args:
@@ -1110,7 +1359,7 @@ class DocumentsService(FolderContext, BaseService):
             extraction_response (ExtractionResponse): The extraction result to be validated, typically obtained from the [`extract`][uipath._services.documents_service.DocumentsService.extract] method.
 
         Returns:
-            ValidationAction: The created validation action.
+            ValidateClassificationAction: The created validation action.
 
         Examples:
             ```python
@@ -1125,7 +1374,7 @@ class DocumentsService(FolderContext, BaseService):
             )
             ```
         """
-        operation_id = self._start_validation(
+        operation_id = self._start_extraction_validation(
             project_id=extraction_response.project_id,
             tag=extraction_response.tag,
             document_type_id=extraction_response.document_type_id,
@@ -1138,7 +1387,7 @@ class DocumentsService(FolderContext, BaseService):
             extraction_response=extraction_response,
         )
 
-        return self._wait_for_create_validation_action(
+        return self._wait_for_create_validate_extraction_action(
             project_id=extraction_response.project_id,
             project_type=extraction_response.project_type,
             tag=extraction_response.tag,
@@ -1156,9 +1405,9 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: str,
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
-    ) -> ValidationAction:
+    ) -> ValidateExtractionAction:
         """Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validate_extraction_action] method."""
-        operation_id = await self._start_validation_async(
+        operation_id = await self._start_extraction_validation_async(
             project_id=extraction_response.project_id,
             tag=extraction_response.tag,
             document_type_id=extraction_response.document_type_id,
@@ -1171,7 +1420,7 @@ class DocumentsService(FolderContext, BaseService):
             extraction_response=extraction_response,
         )
 
-        return await self._wait_for_create_validation_action_async(
+        return await self._wait_for_create_validate_extraction_action_async(
             project_id=extraction_response.project_id,
             project_type=extraction_response.project_type,
             tag=extraction_response.tag,
@@ -1179,9 +1428,96 @@ class DocumentsService(FolderContext, BaseService):
             operation_id=operation_id,
         )
 
+    @traced(name="documents_get_validate_classification_result", run_type="uipath")
+    def get_validate_classification_result(
+        self, validation_action: ValidateClassificationAction
+    ) -> List[ClassificationResult]:
+        """Get the result of a validate classification action.
+
+        Note:
+            This method will block until the validation action is completed, meaning the user has completed the validation in UiPath Action Center.
+
+        Args:
+            validation_action (ValidateClassificationAction): The validation action to get the result for, typically obtained from the [`create_validate_classification_action`][uipath._services.documents_service.DocumentsService.create_validate_classification_action] method.
+
+        Returns:
+            List[ClassificationResult]: The validated classification results.
+
+        Examples:
+            ```python
+            validated_results = service.get_validate_classification_result(validate_classification_action)
+            ```
+        """
+
+        def result_getter() -> Tuple[str, None, Any]:
+            result = self._get_classification_validation_result(
+                project_id=validation_action.project_id,
+                tag=validation_action.tag,
+                operation_id=validation_action.operation_id,
+            )
+            return (result["result"]["actionStatus"], None, result["result"])
+
+        response = self._wait_for_operation(
+            result_getter=result_getter,
+            wait_statuses=["Unassigned", "Pending"],
+            success_status="Completed",
+        )
+
+        classification_results = []
+        for cr in response["validatedClassificationResults"]:
+            cr["ProjectId"] = validation_action.project_id
+            cr["Tag"] = validation_action.tag
+            classification_results.append(ClassificationResult.model_validate(cr))
+
+        return classification_results
+
+    @traced(
+        name="documents_get_validate_classification_result_async", run_type="uipath"
+    )
+    async def get_validate_classification_result_async(
+        self, validation_action: ValidateClassificationAction
+    ) -> List[ClassificationResult]:
+        """Get the result of a validate classification action.
+
+        Note:
+            This method will block until the validation action is completed, meaning the user has completed the validation in UiPath Action Center.
+
+        Args:
+            validation_action (ValidateClassificationAction): The validation action to get the result for, typically obtained from the [`create_validate_classification_action`][uipath._services.documents_service.DocumentsService.create_validate_classification_action] method.
+
+        Returns:
+            List[ClassificationResult]: The validated classification results.
+
+        Examples:
+            ```python
+            validated_results = service.get_validate_classification_result(validate_classification_action)
+            ```
+        """
+
+        async def result_getter() -> Tuple[str, None, Any]:
+            result = await self._get_classification_validation_result_async(
+                project_id=validation_action.project_id,
+                tag=validation_action.tag,
+                operation_id=validation_action.operation_id,
+            )
+            return (result["result"]["actionStatus"], None, result["result"])
+
+        response = await self._wait_for_operation_async(
+            result_getter=result_getter,
+            wait_statuses=["Unassigned", "Pending"],
+            success_status="Completed",
+        )
+        classification_results = []
+        for cr in response["validatedClassificationResults"]:
+            cr["ProjectId"] = validation_action.project_id
+            cr["Tag"] = validation_action.tag
+            classification_results.append(ClassificationResult.model_validate(cr))
+
+        return classification_results
+
     @traced(name="documents_get_validate_extraction_result", run_type="uipath")
     def get_validate_extraction_result(
-        self, validation_action: ValidationAction
+        self, validation_action: ValidateExtractionAction
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         """Get the result of a validate extraction action.
 
@@ -1189,7 +1525,7 @@ class DocumentsService(FolderContext, BaseService):
             This method will block until the validation action is completed, meaning the user has completed the validation in UiPath Action Center.
 
         Args:
-            validation_action (ValidationAction): The validation action to get the result for, typically obtained from the [`create_validate_extraction_action`][uipath._services.documents_service.DocumentsService.create_validate_extraction_action] method.
+            validation_action (ValidateClassificationAction): The validation action to get the result for, typically obtained from the [`create_validate_extraction_action`][uipath._services.documents_service.DocumentsService.create_validate_extraction_action] method.
 
         Returns:
             Union[ExtractionResponse, ExtractionResponseIXP]: The validated extraction response.
@@ -1201,7 +1537,7 @@ class DocumentsService(FolderContext, BaseService):
         """
 
         def result_getter() -> Tuple[str, None, Any]:
-            result = self._get_validation_result(
+            result = self._get_extraction_validation_result(
                 project_id=validation_action.project_id,
                 tag=validation_action.tag,
                 document_type_id=validation_action.document_type_id,
@@ -1227,12 +1563,12 @@ class DocumentsService(FolderContext, BaseService):
 
     @traced(name="documents_get_validate_extraction_result_async", run_type="uipath")
     async def get_validate_extraction_result_async(
-        self, validation_action: ValidationAction
+        self, validation_action: ValidateExtractionAction
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         """Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validate_extraction_result] method."""
 
         async def result_getter() -> Tuple[str, None, Any]:
-            result = await self._get_validation_result_async(
+            result = await self._get_extraction_validation_result_async(
                 project_id=validation_action.project_id,
                 tag=validation_action.tag,
                 document_type_id=validation_action.document_type_id,
