@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, Union
 from uuid import UUID
 
-from httpx._types import FileContent
-
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
@@ -17,8 +15,8 @@ from ..models.documents import (
     ClassificationResult,
     ExtractionResponse,
     ExtractionResponseIXP,
+    FileContent,
     ProjectType,
-    ValidatedResult,
     ValidationAction,
 )
 from ..tracing import traced
@@ -512,6 +510,7 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response["projectId"] = project_id
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
+        extraction_response["projectType"] = project_type
 
         if project_type == ProjectType.IXP:
             return ExtractionResponseIXP.model_validate(extraction_response)
@@ -552,6 +551,7 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response["projectId"] = project_id
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
+        extraction_response["projectType"] = project_type
 
         if project_type == ProjectType.IXP:
             return ExtractionResponseIXP.model_validate(extraction_response)
@@ -777,12 +777,13 @@ class DocumentsService(FolderContext, BaseService):
             file_path (str, optional): Path to the document file to be processed. Must be provided if `classification_result` is not provided.
             project_type (ProjectType, optional): Type of the project. Must be provided if `project_name` is provided.
             document_type_name (str, optional): Document type name associated with the extractor to be used for extraction. Required if `project_type` is `ProjectType.MODERN` and `project_name` is provided.
+            classification_result (ClassificationResult, optional): The classification result obtained from a previous classification step. If provided, `project_name`, `project_type`, `file`, `file_path`, and `document_type_name` must not be provided.
 
         Note:
             Either `file` or `file_path` must be provided, but not both.
 
         Returns:
-            ExtractionResponse: The extraction result containing predicted data.
+            Union[ExtractionResponse, ExtractionResponseIXP]: The extraction response containing the extracted data.
 
         Examples:
             IXP projects:
@@ -1019,7 +1020,12 @@ class DocumentsService(FolderContext, BaseService):
         ).json()
 
     def _wait_for_create_validation_action(
-        self, project_id: str, tag: str, document_type_id: str, operation_id: str
+        self,
+        project_id: str,
+        project_type: ProjectType,
+        tag: str,
+        document_type_id: str,
+        operation_id: str,
     ) -> ValidationAction:
         def result_getter() -> Tuple[Any, Optional[Any], Optional[Any]]:
             result = self._get_validation_result(
@@ -1041,13 +1047,19 @@ class DocumentsService(FolderContext, BaseService):
         )
 
         response["projectId"] = project_id
+        response["projectType"] = project_type
         response["tag"] = tag
         response["documentTypeId"] = document_type_id
         response["operationId"] = operation_id
         return ValidationAction.model_validate(response)
 
     async def _wait_for_create_validation_action_async(
-        self, project_id: str, tag: str, document_type_id: str, operation_id: str
+        self,
+        project_id: str,
+        project_type: ProjectType,
+        tag: str,
+        document_type_id: str,
+        operation_id: str,
     ) -> ValidationAction:
         async def result_getter_async() -> Tuple[Any, Optional[Any], Optional[Any]]:
             result = await self._get_validation_result_async(
@@ -1069,13 +1081,14 @@ class DocumentsService(FolderContext, BaseService):
         )
 
         response["projectId"] = project_id
+        response["projectType"] = project_type
         response["tag"] = tag
         response["documentTypeId"] = document_type_id
         response["operationId"] = operation_id
         return ValidationAction.model_validate(response)
 
-    @traced(name="documents_create_validation_action", run_type="uipath")
-    def create_validation_action(
+    @traced(name="documents_create_validate_extraction_action", run_type="uipath")
+    def create_validate_extraction_action(
         self,
         action_title: str,
         action_priority: ActionPriority,
@@ -1085,7 +1098,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
     ) -> ValidationAction:
-        """Create a validation action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
+        """Create a validate extraction action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
 
         Args:
             action_title (str): Title of the action.
@@ -1101,12 +1114,12 @@ class DocumentsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            validation_action = service.create_validation_action(
+            validation_action = service.create_validate_extraction_action(
                 action_title="Test Validation Action",
                 action_priority=ActionPriority.MEDIUM,
                 action_catalog="default_du_actions",
                 action_folder="Shared",
-                storage_bucket_name="TestBucket",
+                storage_bucket_name="du_storage_bucket",
                 storage_bucket_directory_path="TestDirectory",
                 extraction_response=extraction_response,
             )
@@ -1127,13 +1140,14 @@ class DocumentsService(FolderContext, BaseService):
 
         return self._wait_for_create_validation_action(
             project_id=extraction_response.project_id,
+            project_type=extraction_response.project_type,
             tag=extraction_response.tag,
             document_type_id=extraction_response.document_type_id,
             operation_id=operation_id,
         )
 
-    @traced(name="documents_create_validation_action_async", run_type="uipath")
-    async def create_validation_action_async(
+    @traced(name="documents_create_validate_extraction_action_async", run_type="uipath")
+    async def create_validate_extraction_action_async(
         self,
         action_title: str,
         action_priority: ActionPriority,
@@ -1143,7 +1157,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
     ) -> ValidationAction:
-        """Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validation_action] method."""
+        """Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validate_extraction_action] method."""
         operation_id = await self._start_validation_async(
             project_id=extraction_response.project_id,
             tag=extraction_response.tag,
@@ -1159,29 +1173,30 @@ class DocumentsService(FolderContext, BaseService):
 
         return await self._wait_for_create_validation_action_async(
             project_id=extraction_response.project_id,
+            project_type=extraction_response.project_type,
             tag=extraction_response.tag,
             document_type_id=extraction_response.document_type_id,
             operation_id=operation_id,
         )
 
-    @traced(name="documents_get_validation_result", run_type="uipath")
-    def get_validation_result(
+    @traced(name="documents_get_validate_extraction_result", run_type="uipath")
+    def get_validate_extraction_result(
         self, validation_action: ValidationAction
-    ) -> ValidatedResult:
-        """Get the result of a validation action.
+    ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
+        """Get the result of a validate extraction action.
 
         Note:
             This method will block until the validation action is completed, meaning the user has completed the validation in UiPath Action Center.
 
         Args:
-            validation_action (ValidationAction): The validation action to get the result for, typically obtained from the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validation_action] method.
+            validation_action (ValidationAction): The validation action to get the result for, typically obtained from the [`create_validate_extraction_action`][uipath._services.documents_service.DocumentsService.create_validate_extraction_action] method.
 
         Returns:
-            ValidatedResult: The result of the validation action.
+            Union[ExtractionResponse, ExtractionResponseIXP]: The validated extraction response.
 
         Examples:
             ```python
-            validated_result = service.get_validation_result(validation_action)
+            validated_result = service.get_validate_extraction_result(validate_extraction_action)
             ```
         """
 
@@ -1192,25 +1207,29 @@ class DocumentsService(FolderContext, BaseService):
                 document_type_id=validation_action.document_type_id,
                 operation_id=validation_action.operation_id,
             )
-            return (
-                result["result"]["actionStatus"],
-                None,
-                result["result"].get("validatedExtractionResults", None),
-            )
+            return (result["result"]["actionStatus"], None, result["result"])
 
         response = self._wait_for_operation(
             result_getter=result_getter,
             wait_statuses=["Unassigned", "Pending"],
             success_status="Completed",
         )
+        response["extractionResult"] = response.pop("validatedExtractionResults")
+        response["projectId"] = validation_action.project_id
+        response["tag"] = validation_action.tag
+        response["documentTypeId"] = validation_action.document_type_id
+        response["projectType"] = validation_action.project_type
 
-        return ValidatedResult.model_validate(response)
+        if validation_action.project_type == ProjectType.IXP:
+            return ExtractionResponseIXP.model_validate(response)
 
-    @traced(name="documents_get_validation_result_async", run_type="uipath")
-    async def get_validation_result_async(
+        return ExtractionResponse.model_validate(response)
+
+    @traced(name="documents_get_validate_extraction_result_async", run_type="uipath")
+    async def get_validate_extraction_result_async(
         self, validation_action: ValidationAction
-    ) -> ValidatedResult:
-        """Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validation_result] method."""
+    ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
+        """Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validate_extraction_result] method."""
 
         async def result_getter() -> Tuple[str, None, Any]:
             result = await self._get_validation_result_async(
@@ -1219,16 +1238,20 @@ class DocumentsService(FolderContext, BaseService):
                 document_type_id=validation_action.document_type_id,
                 operation_id=validation_action.operation_id,
             )
-            return (
-                result["result"]["actionStatus"],
-                None,
-                result["result"].get("validatedExtractionResults", None),
-            )
+            return (result["result"]["actionStatus"], None, result["result"])
 
         response = await self._wait_for_operation_async(
             result_getter=result_getter,
             wait_statuses=["Unassigned", "Pending"],
             success_status="Completed",
         )
+        response["extractionResult"] = response.pop("validatedExtractionResults")
+        response["projectId"] = validation_action.project_id
+        response["tag"] = validation_action.tag
+        response["documentTypeId"] = validation_action.document_type_id
+        response["projectType"] = validation_action.project_type
 
-        return ValidatedResult.model_validate(response)
+        if validation_action.project_type == ProjectType.IXP:
+            return ExtractionResponseIXP.model_validate(response)
+
+        return ExtractionResponse.model_validate(response)
