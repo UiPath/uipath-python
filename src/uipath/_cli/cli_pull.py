@@ -1,13 +1,5 @@
 # type: ignore
-"""CLI command for pulling remote project files from UiPath StudioWeb solution.
-
-This module provides functionality to pull remote project files from a UiPath StudioWeb solution.
-It handles:
-- File downloads from source_code and coded-evals folders
-- Maintaining folder structure locally
-- File comparison using hashes
-- Interactive confirmation for overwriting files
-"""
+"""CLI command for pulling remote project files from UiPath StudioWeb solution."""
 
 # type: ignore
 import asyncio
@@ -18,7 +10,6 @@ import click
 from .._config import UiPathConfig
 from ..telemetry import track
 from ._utils._console import ConsoleLogger
-from ._utils._constants import EVALS_DIRECTORY_NAME
 from ._utils._project_files import (
     InteractiveConflictHandler,
     ProjectPullError,
@@ -39,9 +30,6 @@ def pull(root: Path) -> None:
     """Pull remote project files from Studio Web Project.
 
     This command pulls the remote project files from a UiPath Studio Web project.
-    It downloads files from the source_code and coded-evals folders, maintaining the
-    folder structure locally. Files are compared using hashes before overwriting,
-    and user confirmation is required for differing files.
 
     Args:
         root: The root directory to pull files into
@@ -58,8 +46,7 @@ def pull(root: Path) -> None:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
     download_configuration = {
-        "source_code": root,
-        "coded-evals": root / EVALS_DIRECTORY_NAME,
+        None: root,
     }
 
     # Create interactive conflict handler for user confirmation

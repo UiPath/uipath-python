@@ -47,36 +47,6 @@ class TestPull:
             "name": "root",
             "folders": [
                 {
-                    "id": "414af585-7e88-4774-ad94-cf6bd48f6c2d",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "123",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        },
-                        {
-                            "id": "456",
-                            "name": "pyproject.toml",
-                            "isMain": False,
-                            "fileType": "1",
-                            "isEntryPoint": False,
-                            "ignoredFromPublish": False,
-                        },
-                        {
-                            "id": "789",
-                            "name": "uipath.json",
-                            "isMain": False,
-                            "fileType": "1",
-                            "isEntryPoint": False,
-                            "ignoredFromPublish": False,
-                        },
-                    ],
-                },
-                {
                     "id": "coded-evals-folder-id",
                     "name": "coded-evals",
                     "folders": [
@@ -114,7 +84,32 @@ class TestPull:
                     "files": [],
                 },
             ],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "456",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "789",
+                    "name": "uipath.json",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
 
@@ -210,14 +205,14 @@ class TestPull:
                 assert f.read() == uipath_json.to_json()
 
             # Verify evals folder structure exists
-            assert os.path.isdir("evals")
-            assert os.path.isdir("evals/eval-sets")
-            assert os.path.isdir("evals/evaluators")
+            assert os.path.isdir("coded-evals")
+            assert os.path.isdir("coded-evals/eval-sets")
+            assert os.path.isdir("coded-evals/evaluators")
 
             # Verify eval files exist and have correct content
-            with open("evals/eval-sets/test-set.json", "r") as f:
+            with open("coded-evals/eval-sets/test-set.json", "r") as f:
                 assert json.load(f) == test_set_content
-            with open("evals/evaluators/test-evaluator.json", "r") as f:
+            with open("coded-evals/evaluators/test-evaluator.json", "r") as f:
                 assert json.load(f) == test_evaluator_content
 
     def test_pull_with_existing_files(
@@ -238,23 +233,17 @@ class TestPull:
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [
+            "folders": [],
+            "files": [
                 {
-                    "id": "414af585-7e88-4774-ad94-cf6bd48f6c2d",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "123",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        }
-                    ],
+                    "id": "123",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
                 }
             ],
-            "files": [],
             "folderType": "0",
         }
 
@@ -312,23 +301,17 @@ class TestPull:
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [
+            "folders": [],
+            "files": [
                 {
-                    "id": "414af585-7e88-4774-ad94-cf6bd48f6c2d",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "123",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        }
-                    ],
+                    "id": "123",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
                 }
             ],
-            "files": [],
             "folderType": "0",
         }
 
@@ -397,7 +380,7 @@ class TestPull:
             assert result.exit_code == 1
             assert "Failed to pull UiPath project" in result.output
 
-    def test_pull_uses_coded_evals_folder(
+    def test_pull_multiple_eval_folders(
         self,
         runner: CliRunner,
         temp_dir: str,
@@ -415,21 +398,6 @@ class TestPull:
             "id": "root",
             "name": "root",
             "folders": [
-                {
-                    "id": "source-code-id",
-                    "name": "source_code",
-                    "files": [
-                        {
-                            "id": "main-py-id",
-                            "name": "main.py",
-                            "isMain": True,
-                            "fileType": "1",
-                            "isEntryPoint": True,
-                            "ignoredFromPublish": False,
-                        }
-                    ],
-                    "folders": [],
-                },
                 {
                     "id": "coded-evals-id",
                     "name": "coded-evals",
@@ -467,8 +435,54 @@ class TestPull:
                     ],
                     "files": [],
                 },
+                {
+                    "id": "evals-id-legacy",
+                    "name": "evals",
+                    "folders": [
+                        {
+                            "id": "evaluators-id",
+                            "name": "evaluators",
+                            "files": [
+                                {
+                                    "id": "evaluator-1-id-legacy",
+                                    "name": "contains.json",
+                                    "isMain": False,
+                                    "fileType": "1",
+                                    "isEntryPoint": False,
+                                    "ignoredFromPublish": False,
+                                }
+                            ],
+                            "folders": [],
+                        },
+                        {
+                            "id": "eval-sets-id",
+                            "name": "eval-sets",
+                            "files": [
+                                {
+                                    "id": "eval-set-1-id-legacy",
+                                    "name": "default.json",
+                                    "isMain": False,
+                                    "fileType": "1",
+                                    "isEntryPoint": False,
+                                    "ignoredFromPublish": False,
+                                }
+                            ],
+                            "folders": [],
+                        },
+                    ],
+                    "files": [],
+                },
             ],
-            "files": [],
+            "files": [
+                {
+                    "id": "main-py-id",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                }
+            ],
             "folderType": "0",
         }
 
@@ -498,6 +512,23 @@ class TestPull:
             content=json.dumps(eval_set_content, indent=2).encode(),
         )
 
+        evaluator_content_legacy = {
+            "version": "1.0",
+            "name": "Contains Evaluator legacy",
+        }
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/evaluator-1-id-legacy",
+            content=json.dumps(evaluator_content_legacy, indent=2).encode(),
+        )
+
+        eval_set_content_legacy = {"version": "1.0", "name": "Default Eval Set legacy"}
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/eval-set-1-id-legacy",
+            content=json.dumps(eval_set_content_legacy, indent=2).encode(),
+        )
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
@@ -505,12 +536,22 @@ class TestPull:
             result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 0
 
-            # Verify files from coded-evals are downloaded to evals/ directory
+            # Verify files from coded-evals are downloaded to coded-evals/ directory
+            assert os.path.exists("coded-evals/evaluators/contains.json")
+            assert os.path.exists("coded-evals/eval-sets/default.json")
+
+            # Verify content
+            with open("coded-evals/evaluators/contains.json", "r") as f:
+                assert json.load(f) == evaluator_content
+            with open("coded-evals/eval-sets/default.json", "r") as f:
+                assert json.load(f) == eval_set_content
+
+            # Verify files from evals are downloaded to evals/ directory
             assert os.path.exists("evals/evaluators/contains.json")
             assert os.path.exists("evals/eval-sets/default.json")
 
             # Verify content
             with open("evals/evaluators/contains.json", "r") as f:
-                assert json.load(f) == evaluator_content
+                assert json.load(f) == evaluator_content_legacy
             with open("evals/eval-sets/default.json", "r") as f:
-                assert json.load(f) == eval_set_content
+                assert json.load(f) == eval_set_content_legacy

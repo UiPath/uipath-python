@@ -11,9 +11,7 @@ from uipath._cli._evals._models._evaluation_set import (
     LLMMockingStrategy,
 )
 from uipath._cli._utils._constants import (
-    DEBUG_DIRECTORY_NAME,
     EVALS_DIRECTORY_NAME,
-    SRC_DIRECTORY_NAME,
 )
 from uipath._cli._utils._project_files import pull_project  # type: ignore[attr-defined]
 from uipath._cli._utils._studio_project import (
@@ -56,10 +54,7 @@ async def download_agent_project(
         target_project_dir: Directory where files will be downloaded
     """
     default_download_configuration = {
-        EVALS_DIRECTORY_NAME: target_project_dir / EVALS_DIRECTORY_NAME,
-        "coded-evals": target_project_dir / EVALS_DIRECTORY_NAME,  # this is intentional
-        SRC_DIRECTORY_NAME: target_project_dir,
-        DEBUG_DIRECTORY_NAME: target_project_dir,  # this should be removed
+        None: target_project_dir,
     }
 
     logger.info(f"Downloading project {project_id}...")
