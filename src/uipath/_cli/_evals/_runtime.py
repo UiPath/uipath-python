@@ -8,7 +8,7 @@ from pathlib import Path
 from time import time
 from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar
 
-from opentelemetry import context as context_api
+from opentelemetry import context as context_api, trace
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
@@ -209,49 +209,76 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             cache_mgr = CacheManager()
             cache_manager_context.set(cache_mgr)
 
-        try:
-            # Load eval set (path is already resolved in cli_eval.py)
-            evaluation_set, _ = EvalHelpers.load_eval_set(
-                self.context.eval_set, self.context.eval_ids
-            )
-            evaluators = self._load_evaluators(evaluation_set)
+        # Get tracer for creating spans
+        tracer = trace.get_tracer("uipath-eval")
 
-            await event_bus.publish(
-                EvaluationEvents.CREATE_EVAL_SET_RUN,
-                EvalSetRunCreatedEvent(
-                    execution_id=self.execution_id,
-                    entrypoint=self.context.entrypoint or "",
-                    eval_set_run_id=self.context.eval_set_run_id,
-                    eval_set_id=evaluation_set.id,
-                    no_of_evals=len(evaluation_set.evaluations),
-                    evaluators=evaluators,
-                ),
-            )
+        # Wrap entire eval set execution in root span
+        with tracer.start_as_current_span(
+            "eval_set_run",
+            attributes={
+                "span_type": "eval_set_run",
+                "execution.id": self.execution_id,
+            },
+        ) as eval_set_span:
+            try:
+                # Load eval set (path is already resolved in cli_eval.py)
+                evaluation_set, _ = EvalHelpers.load_eval_set(
+                    self.context.eval_set, self.context.eval_ids
+                )
+                evaluators = self._load_evaluators(evaluation_set)
 
-            # Check if parallel execution should be used
-            if (
-                self.context.workers
-                and self.context.workers > 1
-                and len(evaluation_set.evaluations) > 1
-            ):
-                eval_run_result_list = await self._execute_parallel(
-                    evaluation_set, evaluators, event_bus, self.context.workers
+                # Add eval set metadata to span
+                eval_set_span.set_attribute("evalSetId", evaluation_set.id)
+                eval_set_span.set_attribute("evalSetName", evaluation_set.name)
+                eval_set_span.set_attribute(
+                    "numberOfEvals", len(evaluation_set.evaluations)
                 )
-            else:
-                eval_run_result_list = await self._execute_sequential(
-                    evaluation_set, evaluators, event_bus
+
+                await event_bus.publish(
+                    EvaluationEvents.CREATE_EVAL_SET_RUN,
+                    EvalSetRunCreatedEvent(
+                        execution_id=self.execution_id,
+                        entrypoint=self.context.entrypoint or "",
+                        eval_set_run_id=self.context.eval_set_run_id,
+                        eval_set_id=evaluation_set.id,
+                        no_of_evals=len(evaluation_set.evaluations),
+                        evaluators=evaluators,
+                    ),
+                    wait_for_completion=True,
                 )
-            results = UiPathEvalOutput(
-                evaluation_set_name=evaluation_set.name,
-                evaluation_set_results=eval_run_result_list,
-            )
-        finally:
-            # Flush cache to disk at end of eval set and cleanup
-            if self.context.enable_mocker_cache:
-                cache_manager = cache_manager_context.get()
-                if cache_manager is not None:
-                    cache_manager.flush()
-                cache_manager_context.set(None)
+
+                # After reporter creates eval set run, get the ID from the span
+                if eval_set_span.is_recording():
+                    eval_set_run_id_attr = eval_set_span.attributes.get("eval_set_run_id")
+                    if eval_set_run_id_attr:
+                        self.context.eval_set_run_id = str(eval_set_run_id_attr)
+                        # Also set it in camelCase for consistency with other attributes
+                        eval_set_span.set_attribute("evalSetRunId", str(eval_set_run_id_attr))
+
+                # Check if parallel execution should be used
+                if (
+                    self.context.workers
+                    and self.context.workers > 1
+                    and len(evaluation_set.evaluations) > 1
+                ):
+                    eval_run_result_list = await self._execute_parallel(
+                        evaluation_set, evaluators, event_bus, self.context.workers
+                    )
+                else:
+                    eval_run_result_list = await self._execute_sequential(
+                        evaluation_set, evaluators, event_bus
+                    )
+                results = UiPathEvalOutput(
+                    evaluation_set_name=evaluation_set.name,
+                    evaluation_set_results=eval_run_result_list,
+                )
+            finally:
+                # Flush cache to disk at end of eval set and cleanup
+                if self.context.enable_mocker_cache:
+                    cache_manager = cache_manager_context.get()
+                    if cache_manager is not None:
+                        cache_manager.flush()
+                    cache_manager_context.set(None)
 
         # Computing evaluator averages
         evaluator_averages: Dict[str, float] = defaultdict(float)
@@ -368,154 +395,151 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         set_execution_context(eval_item, self.span_collector, execution_id)
 
-        await event_bus.publish(
-            EvaluationEvents.CREATE_EVAL_RUN,
-            EvalRunCreatedEvent(
-                execution_id=self.execution_id,
-                eval_item=eval_item,
-            ),
-        )
+        # Get tracer for creating spans
+        tracer = trace.get_tracer("uipath-eval")
 
-        evaluation_run_results = EvaluationRunResult(
-            evaluation_name=eval_item.name, evaluation_run_results=[]
-        )
-
-        try:
-            try:
-                agent_execution_output = await self.execute_runtime(
-                    eval_item, execution_id
-                )
-            except Exception as e:
-                if self.context.verbose:
-                    if isinstance(e, EvaluationRuntimeException):
-                        spans = e.spans
-                        logs = e.logs
-                        execution_time = e.execution_time
-                        loggable_error = e.root_exception
-                    else:
-                        spans = []
-                        logs = []
-                        execution_time = 0
-                        loggable_error = e
-
-                    error_info = UiPathErrorContract(
-                        code="RUNTIME_SHUTDOWN_ERROR",
-                        title="Runtime shutdown failed",
-                        detail=f"Error: {str(loggable_error)}",
-                        category=UiPathErrorCategory.UNKNOWN,
-                    )
-                    error_result = UiPathRuntimeResult(
-                        status=UiPathRuntimeStatus.FAULTED,
-                        error=error_info,
-                    )
-                    evaluation_run_results.agent_execution_output = (
-                        convert_eval_execution_output_to_serializable(
-                            UiPathEvalRunExecutionOutput(
-                                execution_time=execution_time,
-                                result=error_result,
-                                spans=spans,
-                                logs=logs,
-                            )
-                        )
-                    )
-                raise
-
-            if self.context.verbose:
-                evaluation_run_results.agent_execution_output = (
-                    convert_eval_execution_output_to_serializable(
-                        agent_execution_output
-                    )
-                )
-            evaluation_item_results: list[EvalItemResult] = []
-
-            for evaluator in evaluators:
-                if evaluator.id not in eval_item.evaluation_criterias:
-                    # Skip!
-                    continue
-                evaluation_criteria = eval_item.evaluation_criterias[evaluator.id]
-
-                evaluation_result = await self.run_evaluator(
-                    evaluator=evaluator,
-                    execution_output=agent_execution_output,
-                    eval_item=eval_item,
-                    evaluation_criteria=evaluator.evaluation_criteria_type(
-                        **evaluation_criteria
-                    )
-                    if evaluation_criteria
-                    else evaluator.evaluator_config.default_evaluation_criteria,
-                )
-
-                dto_result = EvaluationResultDto.from_evaluation_result(
-                    evaluation_result
-                )
-
-                evaluation_run_results.evaluation_run_results.append(
-                    EvaluationRunResultDto(
-                        evaluator_name=evaluator.name,
-                        result=dto_result,
-                        evaluator_id=evaluator.id,
-                    )
-                )
-                evaluation_item_results.append(
-                    EvalItemResult(
-                        evaluator_id=evaluator.id,
-                        result=evaluation_result,
-                    )
-                )
-
+        # Wrap entire evaluation run in a span
+        with tracer.start_as_current_span(
+            "evaluation_run",
+            attributes={
+                "evaluationRunId": execution_id,
+                "evalSetRunId": self.context.eval_set_run_id,
+                "evalId": eval_item.id,
+                "evalName": eval_item.name,
+                "span_type": "evaluation_run",
+                "execution.id": execution_id,
+            },
+        ) as eval_run_span:
             await event_bus.publish(
-                EvaluationEvents.UPDATE_EVAL_RUN,
-                EvalRunUpdatedEvent(
+                EvaluationEvents.CREATE_EVAL_RUN,
+                EvalRunCreatedEvent(
                     execution_id=self.execution_id,
                     eval_item=eval_item,
-                    eval_results=evaluation_item_results,
-                    success=not agent_execution_output.result.error,
-                    agent_output=agent_execution_output.result.output,
-                    agent_execution_time=agent_execution_output.execution_time,
-                    spans=agent_execution_output.spans,
-                    logs=agent_execution_output.logs,
                 ),
-                wait_for_completion=False,
             )
 
-        except Exception as e:
-            exception_details = EvalItemExceptionDetails(exception=e)
+            evaluation_run_results = EvaluationRunResult(
+                evaluation_name=eval_item.name, evaluation_run_results=[]
+            )
 
-            for evaluator in evaluators:
-                evaluation_run_results.evaluation_run_results.append(
-                    EvaluationRunResultDto(
-                        evaluator_name=evaluator.name,
-                        evaluator_id=evaluator.id,
-                        result=EvaluationResultDto(score=0),
+            try:
+                try:
+                    agent_execution_output = await self.execute_runtime_with_span(
+                        eval_item, execution_id, tracer
                     )
+                except Exception as e:
+                    if self.context.verbose:
+                        if isinstance(e, EvaluationRuntimeException):
+                            spans = e.spans
+                            logs = e.logs
+                            execution_time = e.execution_time
+                            loggable_error = e.root_exception
+                        else:
+                            spans = []
+                            logs = []
+                            execution_time = 0
+                            loggable_error = e
+
+                        error_info = UiPathErrorContract(
+                            code="RUNTIME_SHUTDOWN_ERROR",
+                            title="Runtime shutdown failed",
+                            detail=f"Error: {str(loggable_error)}",
+                            category=UiPathErrorCategory.UNKNOWN,
+                        )
+                        error_result = UiPathRuntimeResult(
+                            status=UiPathRuntimeStatus.FAULTED,
+                            error=error_info,
+                        )
+                        evaluation_run_results.agent_execution_output = (
+                            convert_eval_execution_output_to_serializable(
+                                UiPathEvalRunExecutionOutput(
+                                    execution_time=execution_time,
+                                    result=error_result,
+                                    spans=spans,
+                                    logs=logs,
+                                )
+                            )
+                        )
+                    raise
+
+                if self.context.verbose:
+                    evaluation_run_results.agent_execution_output = (
+                        convert_eval_execution_output_to_serializable(
+                            agent_execution_output
+                        )
+                    )
+
+                # Mark agent execution status
+                eval_run_span.set_attribute(
+                    "agentExecutionSuccess", not agent_execution_output.result.error
                 )
 
-            eval_run_updated_event = EvalRunUpdatedEvent(
-                execution_id=self.execution_id,
-                eval_item=eval_item,
-                eval_results=[],
-                success=False,
-                agent_output={},
-                agent_execution_time=0.0,
-                exception_details=exception_details,
-                spans=[],
-                logs=[],
-            )
-            if isinstance(e, EvaluationRuntimeException):
-                eval_run_updated_event.spans = e.spans
-                eval_run_updated_event.logs = e.logs
-                eval_run_updated_event.exception_details.exception = (  # type: ignore
-                    e.root_exception
+                # Execute evaluators with span tracking
+                evaluation_item_results = await self._execute_evaluators_with_span(
+                    evaluators,
+                    eval_item,
+                    agent_execution_output,
+                    evaluation_run_results,
+                    tracer,
                 )
-                eval_run_updated_event.exception_details.runtime_exception = True  # type: ignore
 
-            await event_bus.publish(
-                EvaluationEvents.UPDATE_EVAL_RUN,
-                eval_run_updated_event,
-                wait_for_completion=False,
-            )
-        finally:
-            clear_execution_context()
+                await event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_RUN,
+                    EvalRunUpdatedEvent(
+                        execution_id=self.execution_id,
+                        eval_item=eval_item,
+                        eval_results=evaluation_item_results,
+                        success=not agent_execution_output.result.error,
+                        agent_output=agent_execution_output.result.output,
+                        agent_execution_time=agent_execution_output.execution_time,
+                        spans=agent_execution_output.spans,
+                        logs=agent_execution_output.logs,
+                    ),
+                    wait_for_completion=False,
+                )
+
+            except Exception as e:
+                exception_details = EvalItemExceptionDetails(exception=e)
+
+                # Mark span as failed
+                eval_run_span.set_attribute("error", True)
+                eval_run_span.set_attribute("errorMessage", str(e))
+
+                for evaluator in evaluators:
+                    evaluation_run_results.evaluation_run_results.append(
+                        EvaluationRunResultDto(
+                            evaluator_name=evaluator.name,
+                            evaluator_id=evaluator.id,
+                            result=EvaluationResultDto(score=0),
+                        )
+                    )
+
+                eval_run_updated_event = EvalRunUpdatedEvent(
+                    execution_id=self.execution_id,
+                    eval_item=eval_item,
+                    eval_results=[],
+                    success=False,
+                    agent_output={},
+                    agent_execution_time=0.0,
+                    exception_details=exception_details,
+                    spans=[],
+                    logs=[],
+                )
+                if isinstance(e, EvaluationRuntimeException):
+                    eval_run_updated_event.spans = e.spans
+                    eval_run_updated_event.logs = e.logs
+                    eval_run_updated_event.exception_details.exception = (  # type: ignore
+                        e.root_exception
+                    )
+                    eval_run_updated_event.exception_details.runtime_exception = True  # type: ignore
+
+                await event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_RUN,
+                    eval_run_updated_event,
+                    wait_for_completion=False,
+                )
+            finally:
+                clear_execution_context()
 
         return evaluation_run_results
 
@@ -588,6 +612,75 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             result=result,
         )
 
+    async def execute_runtime_with_span(
+        self, eval_item: EvaluationItem, execution_id: str, tracer
+    ) -> UiPathEvalRunExecutionOutput:
+        """Execute runtime wrapped in an agent_execution span."""
+
+        with tracer.start_as_current_span(
+            "agent_execution",
+            attributes={
+                "evaluationRunId": execution_id,
+                "evalSetRunId": self.context.eval_set_run_id,
+                "evalId": eval_item.id,
+                "span_type": "agent_execution",
+                "execution.id": execution_id,
+            },
+        ) as agent_span:
+            context_args = self.context.model_dump()
+            context_args["execution_id"] = execution_id
+            context_args["input_json"] = eval_item.inputs
+            context_args["is_eval_run"] = True
+            context_args["log_handler"] = self._setup_execution_logging(execution_id)
+            runtime_context: C = self.factory.new_context(**context_args)
+
+            if runtime_context.execution_id is None:
+                raise ValueError("execution_id must be set for eval runs")
+
+            attributes = {
+                "evalId": eval_item.id,
+                "span_type": "eval",
+                "execution.id": runtime_context.execution_id,
+            }
+
+            start_time = time()
+            try:
+                result = await self.factory.execute_in_root_span(
+                    runtime_context, root_span=eval_item.name, attributes=attributes
+                )
+                agent_span.set_attribute("executionSuccess", True)
+            except Exception as e:
+                agent_span.set_attribute("executionSuccess", False)
+                agent_span.set_attribute("errorMessage", str(e))
+                end_time = time()
+                spans, logs = self._get_and_clear_execution_data(
+                    runtime_context.execution_id
+                )
+                raise EvaluationRuntimeException(
+                    spans=spans,
+                    logs=logs,
+                    root_exception=e,
+                    execution_time=end_time - start_time,
+                ) from e
+
+            end_time = time()
+            execution_time = end_time - start_time
+            agent_span.set_attribute("executionTime", execution_time)
+
+            spans, logs = self._get_and_clear_execution_data(
+                runtime_context.execution_id
+            )
+
+            if result is None:
+                raise ValueError("Execution result cannot be None for eval runs")
+
+            return UiPathEvalRunExecutionOutput(
+                execution_time=execution_time,
+                spans=spans,
+                logs=logs,
+                result=result,
+            )
+
     def _setup_execution_logging(self, eval_item_id: str) -> ExecutionLogHandler:
         execution_log_handler = ExecutionLogHandler(eval_item_id)
         self.logs_exporter.register(eval_item_id, execution_log_handler)
@@ -614,6 +707,96 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         )
 
         return result
+
+    async def _execute_evaluators_with_span(
+        self,
+        evaluators: List[BaseEvaluator[Any, Any, Any]],
+        eval_item: EvaluationItem,
+        agent_execution_output: UiPathEvalRunExecutionOutput,
+        evaluation_run_results: EvaluationRunResult,
+        tracer,
+    ) -> list[EvalItemResult]:
+        """Execute all evaluators wrapped in evaluators parent span."""
+
+        evaluation_item_results: list[EvalItemResult] = []
+
+        # Parent span for all evaluators
+        with tracer.start_as_current_span(
+            "evaluators",
+            attributes={
+                "evalSetRunId": self.context.eval_set_run_id,
+                "span_type": "evaluators",
+                "numberOfEvaluators": len(
+                    [e for e in evaluators if e.id in eval_item.evaluation_criterias]
+                ),
+            },
+        ):
+            for evaluator in evaluators:
+                if evaluator.id not in eval_item.evaluation_criterias:
+                    continue
+
+                evaluation_criteria = eval_item.evaluation_criterias[evaluator.id]
+
+                # Individual evaluator span
+                with tracer.start_as_current_span(
+                    f"evaluator_{evaluator.id}",
+                    attributes={
+                        "evaluatorId": evaluator.id,
+                        "evaluatorName": evaluator.name,
+                        "evalSetRunId": self.context.eval_set_run_id,
+                        "span_type": "evaluator_execution",
+                    },
+                ) as evaluator_span:
+                    start_time = time()
+                    try:
+                        evaluation_result = await self.run_evaluator(
+                            evaluator=evaluator,
+                            execution_output=agent_execution_output,
+                            eval_item=eval_item,
+                            evaluation_criteria=evaluator.evaluation_criteria_type(
+                                **evaluation_criteria
+                            )
+                            if evaluation_criteria
+                            else evaluator.evaluator_config.default_evaluation_criteria,
+                        )
+
+                        # Add result attributes to span
+                        evaluator_span.set_attribute("score", evaluation_result.score)
+                        evaluator_span.set_attribute("executionSuccess", True)
+                        if evaluation_result.details:
+                            evaluator_span.set_attribute(
+                                "details", str(evaluation_result.details)
+                            )
+
+                    except Exception as e:
+                        evaluator_span.set_attribute("executionSuccess", False)
+                        evaluator_span.set_attribute("errorMessage", str(e))
+                        raise
+                    finally:
+                        end_time = time()
+                        evaluator_span.set_attribute(
+                            "executionTime", end_time - start_time
+                        )
+
+                    dto_result = EvaluationResultDto.from_evaluation_result(
+                        evaluation_result
+                    )
+
+                    evaluation_run_results.evaluation_run_results.append(
+                        EvaluationRunResultDto(
+                            evaluator_name=evaluator.name,
+                            result=dto_result,
+                            evaluator_id=evaluator.id,
+                        )
+                    )
+                    evaluation_item_results.append(
+                        EvalItemResult(
+                            evaluator_id=evaluator.id,
+                            result=evaluation_result,
+                        )
+                    )
+
+        return evaluation_item_results
 
     def _load_evaluators(
         self, evaluation_set: EvaluationSet
