@@ -136,8 +136,15 @@ class ValidationAction(BaseModel):
     project_id: str = Field(alias="projectId")
     project_type: ProjectType = Field(alias="projectType")
     tag: str
-    document_type_id: str = Field(alias="documentTypeId")
     operation_id: str = Field(alias="operationId")
+
+
+class ValidateClassificationAction(ValidationAction):
+    pass
+
+
+class ValidateExtractionAction(ValidationAction):
+    document_type_id: str = Field(alias="documentTypeId")
 
 
 class Reference(BaseModel):
@@ -191,6 +198,7 @@ class ClassificationResult(BaseModel):
     document_bounds: DocumentBounds = Field(alias="DocumentBounds")
     classifier_name: str = Field(alias="ClassifierName")
     project_id: str = Field(alias="ProjectId")
+    tag: str = Field(alias="Tag")
 
 
 class ClassificationResponse(BaseModel):
