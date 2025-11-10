@@ -49,10 +49,10 @@ class FieldValueProjection(BaseModel):
 
     id: str
     name: str
-    value: str
-    unformatted_value: str = Field(alias="unformattedValue")
-    confidence: float
-    ocr_confidence: float = Field(alias="ocrConfidence")
+    value: Optional[str]
+    unformatted_value: Optional[str] = Field(alias="unformattedValue")
+    confidence: Optional[float]
+    ocr_confidence: Optional[float] = Field(alias="ocrConfidence")
     type: FieldType
 
 
