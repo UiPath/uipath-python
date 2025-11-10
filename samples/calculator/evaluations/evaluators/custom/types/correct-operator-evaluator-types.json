@@ -24,7 +24,7 @@
         "title": "Name",
         "type": "string"
       },
-      "default_evaluation_criteria": {
+      "defaultEvaluationCriteria": {
         "$ref": "#/$defs/CorrectOperatorEvaluationCriteria",
         "default": {
           "operator": "+"

@@ -117,6 +117,20 @@ class LlmOpsHttpExporter(SpanExporter):
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to UiPath LLM Ops."""
+        # Early return if no spans (empty batch)
+        if not spans:
+            logger.debug("Skipping export of empty span batch")
+            return SpanExportResult.SUCCESS
+
+        logger.info(
+            f"Exporting {len(spans)} span(s) to {self.base_url}/llmopstenant_/api/Traces/spans"
+        )
+
+        # Log span names at INFO level for visibility
+        for span in spans:
+            span_type = span.attributes.get('span_type') if span.attributes else None
+            logger.info(f"  → {span.name}" + (f" (type: {span_type})" if span_type else ""))
+
         logger.debug(
             f"Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
         )
