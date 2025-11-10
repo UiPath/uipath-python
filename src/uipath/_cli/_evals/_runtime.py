@@ -8,7 +8,8 @@ from pathlib import Path
 from time import time
 from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar
 
-from opentelemetry import context as context_api, trace
+from opentelemetry import context as context_api
+from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
@@ -210,7 +211,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             cache_manager_context.set(cache_mgr)
 
         # Get tracer for creating spans
-        tracer = trace.get_tracer("uipath-eval")
+        tracer = trace.get_tracer("uipath-runtime")
 
         # Wrap entire eval set execution in root span
         with tracer.start_as_current_span(
@@ -249,11 +250,15 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
                 # After reporter creates eval set run, get the ID from the span
                 if eval_set_span.is_recording():
-                    eval_set_run_id_attr = eval_set_span.attributes.get("eval_set_run_id")
+                    eval_set_run_id_attr = eval_set_span.attributes.get(
+                        "eval_set_run_id"
+                    )
                     if eval_set_run_id_attr:
                         self.context.eval_set_run_id = str(eval_set_run_id_attr)
                         # Also set it in camelCase for consistency with other attributes
-                        eval_set_span.set_attribute("evalSetRunId", str(eval_set_run_id_attr))
+                        eval_set_span.set_attribute(
+                            "evalSetRunId", str(eval_set_run_id_attr)
+                        )
 
                 # Check if parallel execution should be used
                 if (
@@ -396,7 +401,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         set_execution_context(eval_item, self.span_collector, execution_id)
 
         # Get tracer for creating spans
-        tracer = trace.get_tracer("uipath-eval")
+        tracer = trace.get_tracer("uipath-runtime")
 
         # Wrap entire evaluation run in a span
         with tracer.start_as_current_span(

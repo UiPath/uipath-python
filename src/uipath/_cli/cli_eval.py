@@ -165,7 +165,7 @@ def eval(
 
         try:
             runtime_factory = generate_runtime_factory()
-            if eval_context.job_id:
+            if should_register_progress_reporter:
                 runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 
             async def execute_eval():
