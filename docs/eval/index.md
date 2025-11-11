@@ -25,6 +25,25 @@ These evaluators assess the execution path, decision-making process, and tool us
 -   **[Tool Call Output Evaluator](tool_call_output.md)**: Validates the outputs returned by tool calls
 -   **[LLM Judge Trajectory Evaluator](llm_judge_trajectory.md)**: Evaluates agent execution trajectories and decision-making with LLM judgment
 
+### Custom Evaluators
+
+When built-in evaluators don't meet your specific needs, you can create custom evaluators with your own logic.
+
+Custom evaluators enable:
+
+-   **Domain-specific validation**: Implement validation logic tailored to your industry or use case
+-   **Complex scoring algorithms**: Use specialized algorithms like Jaccard similarity, Levenshtein distance, or custom metrics
+-   **Tool call inspection**: Extract and validate data from specific tool calls in the agent trace
+-   **Integration with external systems**: Connect to databases, APIs, or other validation services
+
+See **[Custom Python Evaluators](custom_evaluators.md)** for detailed implementation guide, including:
+
+-   Creating evaluator classes with proper type annotations
+-   Implementing custom evaluation criteria and configuration
+-   Extracting data from agent traces and tool calls
+-   Registering evaluators with the CLI
+-   Complete examples and best practices
+
 ## Core Concepts
 
 ### Evaluation Criteria
@@ -96,6 +115,93 @@ print(f"Score: {result.score}")
 4. **Set appropriate thresholds**: Define minimum acceptable scores based on your use case
 
 5. **Evaluate both outputs and trajectories**: For complex agents, validate both what they produce and how they produce it
+
+6. **Create custom evaluators when needed**: If built-in evaluators don't cover your use case, implement custom evaluators with domain-specific logic
+
+## Running Evaluations
+
+The UiPath SDK provides a CLI command to run evaluations against your agents. The evaluation framework automatically discovers your agent and evaluation sets, or you can specify them explicitly.
+
+### Basic Usage
+
+```bash
+# Auto-discover entrypoint and evaluation set
+uipath eval
+
+# Specify entrypoint and evaluation set
+uipath eval <entrypoint> <eval-set-path>
+
+# Run with parallel workers
+uipath eval --workers 4
+
+# Save results to file
+uipath eval --output-file results.json
+
+# Run specific evaluation IDs
+uipath eval --eval-ids "['eval-1', 'eval-2']"
+
+# Disable reporting to Studio Web
+uipath eval --no-report
+```
+
+### Command Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `entrypoint` | Positional | Path to agent script (optional, auto-discovered if not specified) |
+| `eval_set` | Positional | Path to evaluation set JSON file (optional, auto-discovered if not specified) |
+| `--eval-ids` | List | Specific evaluation IDs to run from the eval set |
+| `--eval-set-run-id` | String | Custom evaluation run ID (UUID generated if not provided) |
+| `--workers` | Integer | Number of parallel workers (default: 1) |
+| `--output-file` | Path | File path to save evaluation results |
+| `--no-report` | Flag | Disable reporting results to Studio Web |
+
+### Evaluation Sets
+
+Evaluation sets are JSON files that define test cases and specify which evaluators to use:
+
+```json
+{
+  "version": "1.0",
+  "id": "my-eval-set",
+  "evaluatorRefs": ["exact-match-1", "MyCustomEvaluator"],
+  "evaluationItems": [
+    {
+      "id": "test-1",
+      "agentInput": {"query": "What is 2+2?"},
+      "evaluations": [
+        {
+          "evaluatorId": "exact-match-1",
+          "evaluationCriteria": {
+            "expectedOutput": {"result": "4"}
+          }
+        },
+        {
+          "evaluatorId": "MyCustomEvaluator",
+          "evaluationCriteria": {
+            "expectedValues": ["value1", "value2"]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Results
+
+Evaluation results include:
+
+-   **Score**: Numeric score (typically 0.0 to 1.0) or boolean pass/fail
+-   **Details**: Additional information about the evaluation (justification, matched items, etc.)
+-   **Metrics**: Token usage, latency, and other execution metrics
+-   **Trace**: Full execution trace including tool calls and outputs
+
+Results can be viewed in:
+
+-   **Console output**: Real-time progress and summary
+-   **Output file**: JSON file with detailed results (use `--output-file`)
+-   **Studio Web**: Automatically reported if running in a Studio project (unless `--no-report` is specified)
 
 ## Reference Documentation
 
