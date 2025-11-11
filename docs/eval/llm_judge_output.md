@@ -18,6 +18,60 @@ There are two variants of LLM Judge Output Evaluators:
 
 **Returns**: Continuous score from 0.0 to 1.0 with justification
 
+## LLM Service Integration
+
+LLM Judge evaluators require an LLM service to perform evaluations. By default, the evaluators use the **UiPathLlmService** to handle LLM requests, which automatically integrates with your configured LLM providers through the UiPath platform.
+
+### Custom LLM Service
+
+You can supply a custom LLM service that supports the following request format:
+
+```python
+{
+    "model": "model-name",
+    "messages": [
+        {"role": "system", "content": "system prompt"},
+        {"role": "user", "content": "evaluation prompt"}
+    ],
+    "response_format": {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "evaluation_response",
+            "schema": {
+                # JSON schema for structured output
+            }
+        }
+    },
+    "max_tokens": 1000,  # or None
+    "temperature": 0.0
+}
+```
+
+The LLM service must:
+
+- Accept messages with `system` and `user` roles
+- Support structured output via `response_format` with JSON schema
+- Return responses conforming to the specified schema
+- Handle `temperature` and `max_tokens` parameters
+
+### Model Selection
+
+When configuring the evaluator, specify the model name according to your LLM service's conventions:
+
+```python
+evaluator = LLMJudgeOutputEvaluator(
+    id="llm-judge-1",
+    config={
+        "name": "LLMJudgeOutputEvaluator",
+        "model": "gpt-4o-2024-11-20",  # Use your service's model naming
+        "temperature": 0.0
+    }
+)
+```
+
+!!! note "UiPathLlmService"
+    The default `UiPathLlmService` supports multiple LLM providers configured through the UiPath platform. Model names follow the provider's conventions (e.g., `gpt-4o-2024-11-20` for OpenAI, `claude-3-5-sonnet-20241022` for Anthropic).
+
 ## LLM Judge Output Evaluator
 
 ### Configuration
@@ -67,6 +121,7 @@ evaluator = LLMJudgeOutputEvaluator(
     id="llm-judge-1",
     config={
         "name": "LLMJudgeOutputEvaluator",
+        # Use the UiPathLlmChatService convention for model names; should be changed according to selected service
         "model": "gpt-4o-2024-11-20",
         "temperature": 0.0,
         "target_output_key": "answer"  # Extract the "answer" field

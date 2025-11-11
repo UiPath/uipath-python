@@ -49,7 +49,7 @@ The Tool Call Args Evaluator validates that an agent calls tools with the correc
 ```python
 {
     "name": "tool_name",           # Tool name
-    "arguments": {"key": "value"}  # Expected arguments
+    "args": {"key": "value"}  # Expected arguments
 }
 ```
 
@@ -158,7 +158,7 @@ result = await evaluator.validate_and_evaluate_criteria(
         "tool_calls": [
             {
                 "name": "api_request",
-                "arguments": {
+                "args": {
                     "endpoint": "/api/users",
                     "method": "GET",
                     "headers": {"Authorization": "Bearer token123"}
@@ -292,7 +292,7 @@ result = await evaluator.validate_and_evaluate_criteria(
         "tool_calls": [
             {
                 "name": "send_email",
-                "arguments": {
+                "args": {
                     "to": "user@example.com",
                     "subject": "Welcome"
                     # Agent can include additional args like "cc", "bcc", "body", etc.
@@ -362,15 +362,15 @@ result = await evaluator.validate_and_evaluate_criteria(
         "tool_calls": [
             {
                 "name": "validate_input",
-                "arguments": {"data": {"user_id": 123}}
+                "args": {"data": {"user_id": 123}}
             },
             {
                 "name": "fetch_user",
-                "arguments": {"user_id": 123}
+                "args": {"user_id": 123}
             },
             {
                 "name": "update_profile",
-                "arguments": {
+                "args": {
                     "user_id": 123,
                     "updates": {"name": "John Doe"}
                 }
@@ -421,7 +421,7 @@ result = await evaluator.validate_and_evaluate_criteria(
         "tool_calls": [
             {
                 "name": "create_order",
-                "arguments": {
+                "args": {
                     "customer": {
                         "id": 123,
                         "name": "John Doe",
