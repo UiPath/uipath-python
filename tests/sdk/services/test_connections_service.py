@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import unquote_plus
 
 import pytest
@@ -23,7 +23,8 @@ from uipath.utils.dynamic_schema import jsonschema_to_pydantic
 def mock_folders_service() -> MagicMock:
     """Mock FolderService for testing."""
     service = MagicMock(spec=FolderService)
-    service.retrieve_key.return_value = "test-folder-key"
+    service.retrieve_folder_key.return_value = "test-folder-key"
+    service.retrieve_folder_key_async = AsyncMock(return_value="test-folder-key")
     return service
 
 
@@ -560,7 +561,7 @@ class TestConnectionsService:
         version: str,
     ) -> None:
         """Test list method with folder path resolution."""
-        mock_folders_service.retrieve_key.return_value = "folder-123"
+        mock_folders_service.retrieve_folder_key.return_value = "folder-123"
 
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections?%24expand=connector%2Cfolder",
@@ -571,8 +572,8 @@ class TestConnectionsService:
         service.list(folder_path="Finance/Production")
 
         # Verify folder service was called
-        mock_folders_service.retrieve_key.assert_called_once_with(
-            folder_path="Finance/Production"
+        mock_folders_service.retrieve_folder_key.assert_called_once_with(
+            "Finance/Production"
         )
 
         sent_request = httpx_mock.get_request()
@@ -657,7 +658,7 @@ class TestConnectionsService:
         version: str,
     ) -> None:
         """Test list method with multiple filters combined."""
-        mock_folders_service.retrieve_key.return_value = "folder-456"
+        mock_folders_service.retrieve_folder_key.return_value = "folder-456"
 
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections?%24filter=contains%28Name%2C%20%27Slack%27%29%20and%20connector%2Fkey%20eq%20%27uipath-slack%27&%24expand=connector%2Cfolder",
@@ -930,20 +931,6 @@ class TestConnectionsService:
         ):
             await service.retrieve_event_payload_async(event_args=event_args)
 
-    def test_list_with_invalid_folder_path(
-        self, service: ConnectionsService, mock_folders_service: MagicMock
-    ) -> None:
-        """Test that ValueError is raised when folder_path cannot be resolved."""
-        mock_folders_service.retrieve_key.return_value = None
-
-        with pytest.raises(ValueError) as exc_info:
-            service.list(folder_path="NonExistent/Folder")
-
-        assert "Folder with path 'NonExistent/Folder' not found" in str(exc_info.value)
-        mock_folders_service.retrieve_key.assert_called_once_with(
-            folder_path="NonExistent/Folder"
-        )
-
     def test_list_with_name_containing_quote(
         self, httpx_mock: HTTPXMock, service: ConnectionsService
     ) -> None:
@@ -993,18 +980,6 @@ class TestConnectionsService:
         assert len(connections) == 1
         assert connections[0].id == "conn-1"
         assert connections[0].name == "Direct List Connection"
-
-    def test_list_with_both_folder_path_and_folder_key_raises_error(
-        self, service: ConnectionsService
-    ) -> None:
-        """Test that providing both folder_path and folder_key raises ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            service.list(folder_path="Finance/Production", folder_key="folder-123")
-
-        assert "folder_path and folder_key are mutually exclusive" in str(
-            exc_info.value
-        )
-        assert "cannot be provided together" in str(exc_info.value)
 
     def test_get_jit_action_url_with_api_action(
         self, service: ConnectionsService

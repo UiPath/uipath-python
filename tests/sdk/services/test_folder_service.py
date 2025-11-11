@@ -368,3 +368,134 @@ class TestFolderService:
         for i, request in enumerate(requests):
             assert request.method == "GET"
             assert request.url == expected_urls[i]
+
+    def test_retrieve_folder_key_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: FolderService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test retrieve_folder_key resolves folder_path to folder_key."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=Production&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "retrieved-folder-key",
+                        "FullyQualifiedName": "Finance/Production",
+                    }
+                ]
+            },
+        )
+
+        retrieved_key = service.retrieve_folder_key(folder_path="Finance/Production")
+
+        assert retrieved_key == "retrieved-folder-key"
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert sent_request.method == "GET"
+
+    def test_retrieve_folder_key_raises_error(
+        self,
+        service: FolderService,
+    ) -> None:
+        """Test retrieve_folder_key raises ValueError when folder_path is not provided."""
+        with pytest.raises(ValueError) as exc_info:
+            service.retrieve_folder_key(folder_path=None)
+
+        assert "Cannot obtain folder_key without providing folder_path" in str(
+            exc_info.value
+        )
+
+    def test_retrieve_folder_key_not_found_raises_error(
+        self,
+        httpx_mock: HTTPXMock,
+        service: FolderService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test retrieve_folder_key raises ValueError when folder_path is not found."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=Folder&skip=0&take=20",
+            status_code=200,
+            json={"PageItems": []},
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            service.retrieve_folder_key(folder_path="NonExistent/Folder")
+
+        assert "Folder with path 'NonExistent/Folder' not found" in str(exc_info.value)
+
+    @pytest.mark.anyio
+    async def test_retrieve_folder_key_async_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: FolderService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test retrieve_folder_key_async resolves folder_path to folder_key."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=Production&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "async-retrieved-key",
+                        "FullyQualifiedName": "Finance/Production",
+                    }
+                ]
+            },
+        )
+
+        retrieved_key = await service.retrieve_folder_key_async(
+            folder_path="Finance/Production"
+        )
+
+        assert retrieved_key == "async-retrieved-key"
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert sent_request.method == "GET"
+
+    @pytest.mark.anyio
+    async def test_retrieve_folder_key_async_raises_error(
+        self,
+        service: FolderService,
+    ) -> None:
+        """Test retrieve_folder_key_async raises ValueError when folder_path is not provided."""
+        with pytest.raises(ValueError) as exc_info:
+            await service.retrieve_folder_key_async(folder_path=None)
+
+        assert "Cannot obtain folder_key without providing folder_path" in str(
+            exc_info.value
+        )
+
+    @pytest.mark.anyio
+    async def test_retrieve_folder_key_async_not_found_raises_error(
+        self,
+        httpx_mock: HTTPXMock,
+        service: FolderService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test retrieve_folder_key_async raises ValueError when folder_path is not found."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=Folder&skip=0&take=20",
+            status_code=200,
+            json={"PageItems": []},
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            await service.retrieve_folder_key_async(folder_path="NonExistent/Folder")
+
+        assert "Folder with path 'NonExistent/Folder' not found" in str(exc_info.value)

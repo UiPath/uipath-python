@@ -22,6 +22,7 @@ from ._services import (
     UiPathLlmChatService,
     UiPathOpenAIService,
 )
+from ._services.resource_catalog_service import ResourceCatalogService
 from ._utils._auth import resolve_config
 from ._utils._logs import setup_logging
 from .models.errors import BaseUrlMissingError, SecretMissingError
@@ -119,3 +120,9 @@ class UiPath:
     @property
     def entities(self) -> EntitiesService:
         return EntitiesService(self._config, self._execution_context)
+
+    @cached_property
+    def resource_catalog(self) -> ResourceCatalogService:
+        return ResourceCatalogService(
+            self._config, self._execution_context, self.folders
+        )
