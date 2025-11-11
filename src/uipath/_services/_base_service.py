@@ -1,4 +1,9 @@
+import asyncio
 import inspect
+import random
+import time
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 from logging import getLogger
 from typing import Any, Literal, Union
 
@@ -36,6 +41,8 @@ def is_retryable_status_code(response: Response) -> bool:
 
 
 class BaseService:
+    MAX_RETRIES = 3
+
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         self._logger = getLogger("uipath")
         self._config = config
@@ -57,6 +64,34 @@ class BaseService:
         self._logger.debug(f"HEADERS: {self.default_headers}")
 
         super().__init__()
+
+    def _parse_retry_after(self, headers: Headers) -> float:
+        """Parse Retry-After header (RFC 6585/7231).
+
+        Args:
+            headers: HTTP response headers
+
+        Returns:
+            float: Seconds to wait before retry (minimum 0.0, default 1.0 if missing/invalid).
+                  RFC 7231 allows 0 to indicate immediate retry.
+        """
+        DEFAULT_RETRY_AFTER = 1.0
+        retry_after = headers.get("Retry-After")
+        if not retry_after:
+            return DEFAULT_RETRY_AFTER
+
+        try:
+            # Clamp to non-negative to prevent ValueError in time.sleep()
+            return max(float(retry_after), 0.0)
+        except ValueError:
+            pass
+
+        try:
+            retry_date = parsedate_to_datetime(retry_after)
+            delta = (retry_date - datetime.now(retry_date.tzinfo)).total_seconds()
+            return max(delta, 0.0)  # Allow 0 per RFC 7231, but not negative
+        except (ValueError, TypeError):
+            return DEFAULT_RETRY_AFTER
 
     @retry(
         retry=(
@@ -102,12 +137,30 @@ class BaseService:
 
         scoped_url = self._url.scope_url(str(url), scoped)
 
-        response = self._client.request(method, scoped_url, **kwargs)
+        for attempt in range(self.MAX_RETRIES + 1):
+            response = self._client.request(method, scoped_url, **kwargs)
+
+            if response.status_code == 429:
+                if attempt < self.MAX_RETRIES:
+                    retry_after = self._parse_retry_after(response.headers)
+                    jitter = random.uniform(0, 0.1 * retry_after)
+                    sleep_time = retry_after + jitter
+                    self._logger.warning(
+                        f"Rate limited (429). Retrying after {sleep_time:.2f}s "
+                        f"(attempt {attempt + 1}/{self.MAX_RETRIES})"
+                    )
+                    response.close()
+                    time.sleep(sleep_time)
+                    continue
+                break
+
+            break
 
         try:
             response.raise_for_status()
         except HTTPStatusError as e:
             # include the http response in the error message
+            response.close()
             raise EnrichedException(e) from e
 
         return response
@@ -139,12 +192,30 @@ class BaseService:
 
         scoped_url = self._url.scope_url(str(url), scoped)
 
-        response = await self._client_async.request(method, scoped_url, **kwargs)
+        for attempt in range(self.MAX_RETRIES + 1):
+            response = await self._client_async.request(method, scoped_url, **kwargs)
+
+            if response.status_code == 429:
+                if attempt < self.MAX_RETRIES:
+                    retry_after = self._parse_retry_after(response.headers)
+                    jitter = random.uniform(0, 0.1 * retry_after)
+                    sleep_time = retry_after + jitter
+                    self._logger.warning(
+                        f"Rate limited (429). Retrying after {sleep_time:.2f}s "
+                        f"(attempt {attempt + 1}/{self.MAX_RETRIES})"
+                    )
+                    await response.aclose()  # Release connection before retry
+                    await asyncio.sleep(sleep_time)
+                    continue
+                break
+
+            break
 
         try:
             response.raise_for_status()
         except HTTPStatusError as e:
             # include the http response in the error message
+            await response.aclose()
             raise EnrichedException(e) from e
         return response
 
