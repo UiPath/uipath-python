@@ -11,8 +11,8 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils._ssl_context import get_httpx_client_kwargs
-from ..models import Bucket, BucketFile
-from ..tracing import traced
+from ..models import Bucket, BucketFile, PaginationLimitError
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -24,6 +24,7 @@ class BucketsService(FolderContext, BaseService):
     """
 
     _GET_FILES_PAGE_SIZE = 500  # OData GetFiles pagination page size
+    _MAX_AUTO_PAGINATION_PAGES = 10
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
@@ -40,6 +41,9 @@ class BucketsService(FolderContext, BaseService):
     ) -> Iterator[Bucket]:
         """List buckets with auto-pagination.
 
+        Auto-pagination is limited to {_MAX_AUTO_PAGINATION_PAGES} pages to prevent
+        performance issues. Use filters to narrow results if you hit this limit.
+
         Args:
             folder_path: Folder path to filter buckets
             folder_key: Folder key (mutually exclusive with folder_path)
@@ -47,6 +51,9 @@ class BucketsService(FolderContext, BaseService):
 
         Yields:
             Bucket: Bucket resource instances
+
+        Raises:
+            PaginationLimitError: If pagination limit is exceeded
 
         Examples:
             >>> # List all buckets
@@ -63,8 +70,9 @@ class BucketsService(FolderContext, BaseService):
         """
         skip = 0
         top = 100
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < self._MAX_AUTO_PAGINATION_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -87,10 +95,21 @@ class BucketsService(FolderContext, BaseService):
                 bucket = Bucket.model_validate(item)
                 yield bucket
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             skip += top
+
+        else:
+            if items:
+                raise PaginationLimitError.create(
+                    max_pages=self._MAX_AUTO_PAGINATION_PAGES,
+                    items_per_page=top,
+                    method_name="list",
+                    filter_example='name="my-bucket"',
+                )
 
     @traced(name="buckets_list", run_type="uipath")
     async def list_async(
@@ -100,11 +119,19 @@ class BucketsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         name: Optional[str] = None,
     ) -> AsyncIterator[Bucket]:
-        """Async version of list() with auto-pagination."""
+        """Async version of list() with auto-pagination.
+
+        Auto-pagination is limited to {_MAX_AUTO_PAGINATION_PAGES} pages to prevent
+        performance issues. Use filters to narrow results if you hit this limit.
+
+        Raises:
+            PaginationLimitError: If pagination limit is exceeded
+        """
         skip = 0
         top = 50
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < self._MAX_AUTO_PAGINATION_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -129,10 +156,21 @@ class BucketsService(FolderContext, BaseService):
                 bucket = Bucket.model_validate(item)
                 yield bucket
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             skip += top
+
+        else:
+            if items:
+                raise PaginationLimitError.create(
+                    max_pages=self._MAX_AUTO_PAGINATION_PAGES,
+                    items_per_page=top,
+                    method_name="list_async",
+                    filter_example='name="my-bucket"',
+                )
 
     @traced(name="buckets_exists", run_type="uipath")
     def exists(
@@ -812,8 +850,9 @@ class BucketsService(FolderContext, BaseService):
         )
 
         continuation_token: Optional[str] = None
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < self._MAX_AUTO_PAGINATION_PAGES:
             spec = self._list_files_spec(
                 bucket.id,
                 prefix,
@@ -832,9 +871,20 @@ class BucketsService(FolderContext, BaseService):
             for item in items:
                 yield BucketFile.model_validate(item)
 
+            pages_fetched += 1
             continuation_token = response.get("continuationToken")
+
             if not continuation_token:
                 break
+
+        else:
+            if continuation_token:
+                raise PaginationLimitError.create(
+                    max_pages=self._MAX_AUTO_PAGINATION_PAGES,
+                    items_per_page=500,
+                    method_name="list_files",
+                    filter_example='prefix="data/"',
+                )
 
     @traced(name="buckets_list_files", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -875,8 +925,9 @@ class BucketsService(FolderContext, BaseService):
         )
 
         continuation_token: Optional[str] = None
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < self._MAX_AUTO_PAGINATION_PAGES:
             spec = self._list_files_spec(
                 bucket.id,
                 prefix,
@@ -897,9 +948,20 @@ class BucketsService(FolderContext, BaseService):
             for item in items:
                 yield BucketFile.model_validate(item)
 
+            pages_fetched += 1
             continuation_token = response.get("continuationToken")
+
             if not continuation_token:
                 break
+
+        else:
+            if continuation_token:
+                raise PaginationLimitError.create(
+                    max_pages=self._MAX_AUTO_PAGINATION_PAGES,
+                    items_per_page=500,
+                    method_name="list_files_async",
+                    filter_example='prefix="data/"',
+                )
 
     @traced(name="buckets_exists_file", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -1149,8 +1211,9 @@ class BucketsService(FolderContext, BaseService):
 
         skip = 0
         top = self._GET_FILES_PAGE_SIZE
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < self._MAX_AUTO_PAGINATION_PAGES:
             spec = self._get_files_spec(
                 bucket.id,
                 prefix=prefix,
@@ -1183,10 +1246,21 @@ class BucketsService(FolderContext, BaseService):
                             f"Failed to parse file entry: {e}. Item: {item}"
                         ) from e
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             skip += top
+
+        else:
+            if items:
+                raise PaginationLimitError.create(
+                    max_pages=self._MAX_AUTO_PAGINATION_PAGES,
+                    items_per_page=top,
+                    method_name="get_files",
+                    filter_example='prefix="subdir/", file_name_glob="*.pdf"',
+                )
 
     @traced(name="buckets_get_files", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -1225,8 +1299,9 @@ class BucketsService(FolderContext, BaseService):
 
         skip = 0
         top = self._GET_FILES_PAGE_SIZE
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < self._MAX_AUTO_PAGINATION_PAGES:
             spec = self._get_files_spec(
                 bucket.id,
                 prefix=prefix,
@@ -1261,10 +1336,21 @@ class BucketsService(FolderContext, BaseService):
                             f"Failed to parse file entry: {e}. Item: {item}"
                         ) from e
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             skip += top
+
+        else:
+            if items:
+                raise PaginationLimitError.create(
+                    max_pages=self._MAX_AUTO_PAGINATION_PAGES,
+                    items_per_page=top,
+                    method_name="get_files_async",
+                    filter_example='prefix="subdir/", file_name_glob="*.pdf"',
+                )
 
     @property
     def custom_headers(self) -> Dict[str, str]:

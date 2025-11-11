@@ -6,7 +6,7 @@ from .buckets import Bucket, BucketFile
 from .connections import Connection, ConnectionMetadata, ConnectionToken, EventArguments
 from .context_grounding import ContextGroundingQueryResponse
 from .context_grounding_index import ContextGroundingIndex
-from .errors import BaseUrlMissingError, SecretMissingError
+from .errors import BaseUrlMissingError, PaginationLimitError, SecretMissingError
 from .exceptions import IngestionInProgressException
 from .interrupt_models import (
     CreateAction,
@@ -50,6 +50,7 @@ __all__ = [
     "CreateAction",
     "IngestionInProgressException",
     "BaseUrlMissingError",
+    "PaginationLimitError",
     "SecretMissingError",
     "Bucket",
     "BucketFile",
