@@ -47,8 +47,8 @@ class TestPull:
             "name": "root",
             "folders": [
                 {
-                    "id": "coded-evals-folder-id",
-                    "name": "coded-evals",
+                    "id": "evaluations-folder-id",
+                    "name": "evaluations",
                     "folders": [
                         {
                             "id": "eval-sets-id",
@@ -205,14 +205,14 @@ class TestPull:
                 assert f.read() == uipath_json.to_json()
 
             # Verify evals folder structure exists
-            assert os.path.isdir("coded-evals")
-            assert os.path.isdir("coded-evals/eval-sets")
-            assert os.path.isdir("coded-evals/evaluators")
+            assert os.path.isdir("evaluations")
+            assert os.path.isdir("evaluations/eval-sets")
+            assert os.path.isdir("evaluations/evaluators")
 
             # Verify eval files exist and have correct content
-            with open("coded-evals/eval-sets/test-set.json", "r") as f:
+            with open("evaluations/eval-sets/test-set.json", "r") as f:
                 assert json.load(f) == test_set_content
-            with open("coded-evals/evaluators/test-evaluator.json", "r") as f:
+            with open("evaluations/evaluators/test-evaluator.json", "r") as f:
                 assert json.load(f) == test_evaluator_content
 
     def test_pull_with_existing_files(
@@ -389,18 +389,18 @@ class TestPull:
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
-        """Test that pull command uses coded-evals folder instead of evals."""
+        """Test that pull command uses evaluations folder instead of evals."""
         base_url = "https://cloud.uipath.com/organization"
         project_id = "test-project-id"
 
-        # Mock the project structure with coded-evals folder
+        # Mock the project structure with evaluations folder
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [
                 {
-                    "id": "coded-evals-id",
-                    "name": "coded-evals",
+                    "id": "evaluations-id",
+                    "name": "evaluations",
                     "folders": [
                         {
                             "id": "evaluators-id",
@@ -536,14 +536,14 @@ class TestPull:
             result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 0
 
-            # Verify files from coded-evals are downloaded to coded-evals/ directory
-            assert os.path.exists("coded-evals/evaluators/contains.json")
-            assert os.path.exists("coded-evals/eval-sets/default.json")
+            # Verify files from evaluations are downloaded to evaluations/ directory
+            assert os.path.exists("evaluations/evaluators/contains.json")
+            assert os.path.exists("evaluations/eval-sets/default.json")
 
             # Verify content
-            with open("coded-evals/evaluators/contains.json", "r") as f:
+            with open("evaluations/evaluators/contains.json", "r") as f:
                 assert json.load(f) == evaluator_content
-            with open("coded-evals/eval-sets/default.json", "r") as f:
+            with open("evaluations/eval-sets/default.json", "r") as f:
                 assert json.load(f) == eval_set_content
 
             # Verify files from evals are downloaded to evals/ directory

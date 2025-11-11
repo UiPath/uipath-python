@@ -51,7 +51,7 @@ UIPATH_CONFIG_FILE = "uipath.json"
 UIPATH_BINDINGS_FILE = "bindings.json"
 
 # Folder names
-EVAL_FOLDER = "evals"
-CODED_EVALS_FOLDER = "coded-evals"
+LEGACY_EVAL_FOLDER = "evals"
+EVALS_FOLDER = "evaluations"
 # Evaluators
 CUSTOM_EVALUATOR_PREFIX = "file://"

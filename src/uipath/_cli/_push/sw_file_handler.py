@@ -280,8 +280,8 @@ class SwFileHandler:
             directories_to_ignore=[
                 name
                 for name, condition in [
-                    ("evals", not UiPathConfig.has_eval_folder),
-                    ("coded-evals", not UiPathConfig.has_coded_eval_folder),
+                    ("evals", not UiPathConfig.has_legacy_eval_folder),
+                    ("evaluations", not UiPathConfig.has_eval_folder),
                 ]
                 if condition
             ],

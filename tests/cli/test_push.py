@@ -1332,18 +1332,18 @@ class TestPush:
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
-        """Test that remote coded-evals files are not deleted when no local evals folder exists."""
+        """Test that remote evaluations files are not deleted when no local evals folder exists."""
         base_url = "https://cloud.uipath.com/organization"
         project_id = "test-project-id"
 
-        # Mock the project structure with existing coded-evals folder and files
+        # Mock the project structure with existing evaluations folder and files
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [
                 {
-                    "id": "coded-evals-folder-id",
-                    "name": "coded-evals",
+                    "id": "evaluations-folder-id",
+                    "name": "evaluations",
                     "folders": [
                         {
                             "id": "evaluators-folder-id",
@@ -1435,11 +1435,11 @@ class TestPush:
             result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 0
 
-            # Verify that no deletion messages appear for coded-evals files
+            # Verify that no deletion messages appear for evaluations files
             assert (
-                "Deleting coded-evals/evaluators/evaluator-1.json" not in result.output
+                "Deleting evaluations/evaluators/evaluator-1.json" not in result.output
             )
-            assert "Deleting coded-evals/eval-sets/eval-set-1.json" not in result.output
+            assert "Deleting evaluations/eval-sets/eval-set-1.json" not in result.output
 
             # Get the StructuralMigration request to verify no deletions were sent
             structural_migration_request = httpx_mock.get_request(
@@ -1449,7 +1449,7 @@ class TestPush:
             assert structural_migration_request is not None
 
             # Parse the multipart form data to check deleted_resources
-            # The deleted_resources should not include the coded-evals files
+            # The deleted_resources should not include the evaluations files
             content = structural_migration_request.content
 
             # Check that the deleted resource IDs are not present in the request

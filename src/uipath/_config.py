@@ -53,18 +53,18 @@ class ConfigurationManager:
         return os.getenv(ENV_JOB_KEY, None)
 
     @property
-    def has_eval_folder(self) -> bool:
-        from uipath._utils.constants import EVAL_FOLDER
+    def has_legacy_eval_folder(self) -> bool:
+        from uipath._utils.constants import LEGACY_EVAL_FOLDER
 
-        eval_path = Path(os.getcwd()) / EVAL_FOLDER
+        eval_path = Path(os.getcwd()) / LEGACY_EVAL_FOLDER
         return eval_path.exists() and eval_path.is_dir()
 
     # TODO: to be renamed to "evaluations"
     @property
-    def has_coded_eval_folder(self) -> bool:
-        from uipath._utils.constants import CODED_EVALS_FOLDER
+    def has_eval_folder(self) -> bool:
+        from uipath._utils.constants import EVALS_FOLDER
 
-        coded_eval_path = Path(os.getcwd()) / CODED_EVALS_FOLDER
+        coded_eval_path = Path(os.getcwd()) / EVALS_FOLDER
         return coded_eval_path.exists() and coded_eval_path.is_dir()
 
 
