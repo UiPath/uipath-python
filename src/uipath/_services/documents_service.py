@@ -52,6 +52,7 @@ def _exactly_one_must_be_provided(**kwargs: Any) -> None:
 
 
 def _validate_extract_params_and_get_project_type(
+    tag: Optional[str],
     project_name: Optional[str],
     file: Optional[FileContent],
     file_path: Optional[str],
@@ -60,13 +61,14 @@ def _validate_extract_params_and_get_project_type(
     document_type_name: Optional[str],
 ) -> ProjectType:
     if _is_provided(project_name):
-        _must_be_provided(project_type=project_type)
+        _must_be_provided(project_type=project_type, tag=tag)
         _exactly_one_must_be_provided(file=file, file_path=file_path)
         _must_not_be_provided(classification_result=classification_result)
         if project_type == ProjectType.MODERN:
             _must_be_provided(document_type_name=document_type_name)
     else:
         _must_not_be_provided(
+            tag=tag,
             project_name=project_name,
             project_type=project_type,
             file=file,
@@ -197,13 +199,13 @@ class DocumentsService(FolderContext, BaseService):
 
         return document_id
 
-    def _get_project_id_and_validate_tag(
+    def _get_project_id_and_tag(
         self,
-        tag: str,
+        tag: Optional[str],
         project_name: Optional[str],
         project_type: Optional[ProjectType],
         classification_result: Optional[ClassificationResult],
-    ) -> str:
+    ) -> Tuple[str, str]:
         if project_name is not None:
             project_id = self._get_project_id_by_name(
                 project_name,
@@ -211,6 +213,7 @@ class DocumentsService(FolderContext, BaseService):
             )
         else:
             project_id = classification_result.project_id  # type: ignore
+            tag = classification_result.tag  # type: ignore
 
         tags = self._get_project_tags(project_id)
         if tag not in tags:
@@ -218,15 +221,15 @@ class DocumentsService(FolderContext, BaseService):
                 f"Tag '{tag}' not found in project '{project_name}'. Available tags: {tags}"
             )
 
-        return project_id
+        return project_id, tag
 
-    async def _get_project_id_and_validate_tag_async(
+    async def _get_project_id_and_tag_async(
         self,
-        tag: str,
+        tag: Optional[str],
         project_name: Optional[str],
         project_type: Optional[ProjectType],
         classification_result: Optional[ClassificationResult],
-    ) -> str:
+    ) -> Tuple[str, str]:
         if project_name is not None:
             project_id = await self._get_project_id_by_name_async(
                 project_name,
@@ -234,6 +237,7 @@ class DocumentsService(FolderContext, BaseService):
             )
         else:
             project_id = classification_result.project_id  # type: ignore
+            tag = classification_result.tag  # type: ignore
 
         tags = await self._get_project_tags_async(project_id)
         if tag not in tags:
@@ -241,7 +245,7 @@ class DocumentsService(FolderContext, BaseService):
                 f"Tag '{tag}' not found in project '{project_name}'. Available tags: {tags}"
             )
 
-        return project_id
+        return project_id, tag
 
     def _start_digitization(
         self,
@@ -697,7 +701,7 @@ class DocumentsService(FolderContext, BaseService):
         """
         _exactly_one_must_be_provided(file=file, file_path=file_path)
 
-        project_id = self._get_project_id_and_validate_tag(
+        project_id, tag = self._get_project_id_and_tag(
             tag=tag,
             project_name=project_name,
             project_type=ProjectType.MODERN,
@@ -734,7 +738,7 @@ class DocumentsService(FolderContext, BaseService):
         """Asynchronously version of the [`classify`][uipath._services.documents_service.DocumentsService.classify] method."""
         _exactly_one_must_be_provided(file=file, file_path=file_path)
 
-        project_id = await self._get_project_id_and_validate_tag_async(
+        project_id, tag = await self._get_project_id_and_tag_async(
             tag=tag,
             project_name=project_name,
             project_type=ProjectType.MODERN,
@@ -763,7 +767,7 @@ class DocumentsService(FolderContext, BaseService):
     @traced(name="documents_extract", run_type="uipath")
     def extract(
         self,
-        tag: str,
+        tag: Optional[str] = None,
         project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
@@ -775,7 +779,7 @@ class DocumentsService(FolderContext, BaseService):
 
         Args:
             project_name (str, optional): Name of the [IXP](https://docs.uipath.com/ixp/automation-cloud/latest/overview/managing-projects#creating-a-new-project)/[DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project. Must be provided if `classification_result` is not provided.
-            tag (str): Tag of the published project version.
+            tag (str): Tag of the published project version. Must be provided if `classification_result` is not provided.
             file (FileContent, optional): The document file to be processed. Must be provided if `classification_result` is not provided.
             file_path (str, optional): Path to the document file to be processed. Must be provided if `classification_result` is not provided.
             project_type (ProjectType, optional): Type of the project. Must be provided if `project_name` is provided.
@@ -821,12 +825,12 @@ class DocumentsService(FolderContext, BaseService):
                 )
 
             extraction_result = uipath.documents.extract(
-                tag="Production",
                 classification_result=max(classification_results, key=lambda result: result.confidence),
             )
             ```
         """
         project_type = _validate_extract_params_and_get_project_type(
+            tag=tag,
             project_name=project_name,
             file=file,
             file_path=file_path,
@@ -835,7 +839,7 @@ class DocumentsService(FolderContext, BaseService):
             document_type_name=document_type_name,
         )
 
-        project_id = self._get_project_id_and_validate_tag(
+        project_id, tag = self._get_project_id_and_tag(
             tag=tag,
             project_name=project_name,
             project_type=project_type,
@@ -874,7 +878,7 @@ class DocumentsService(FolderContext, BaseService):
     @traced(name="documents_extract_async", run_type="uipath")
     async def extract_async(
         self,
-        tag: str,
+        tag: Optional[str] = None,
         project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
@@ -884,6 +888,7 @@ class DocumentsService(FolderContext, BaseService):
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         """Asynchronously version of the [`extract`][uipath._services.documents_service.DocumentsService.extract] method."""
         project_type = _validate_extract_params_and_get_project_type(
+            tag=tag,
             project_name=project_name,
             file=file,
             file_path=file_path,
@@ -892,7 +897,7 @@ class DocumentsService(FolderContext, BaseService):
             document_type_name=document_type_name,
         )
 
-        project_id = await self._get_project_id_and_validate_tag_async(
+        project_id, tag = await self._get_project_id_and_tag_async(
             tag=tag,
             project_name=project_name,
             project_type=project_type,

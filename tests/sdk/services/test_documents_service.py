@@ -155,12 +155,10 @@ class TestDocumentsService:
         # ACT
         if mode == "async":
             response = await service.extract_async(
-                tag="Production", classification_result=classification_result
+                classification_result=classification_result
             )
         else:
-            response = service.extract(
-                tag="Production", classification_result=classification_result
-            )
+            response = service.extract(classification_result=classification_result)
 
         # ASSERT
         modern_extraction_response["projectId"] = project_id
@@ -271,9 +269,10 @@ class TestDocumentsService:
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "project_name,file,file_path,classification_result,project_type,document_type_name, error",
+        "tag,project_name,file,file_path,classification_result,project_type,document_type_name, error",
         [
             (
+                None,
                 None,
                 None,
                 None,
@@ -283,6 +282,7 @@ class TestDocumentsService:
                 "`classification_result` must be provided",
             ),
             (
+                "live",
                 "TestProject",
                 None,
                 None,
@@ -292,6 +292,7 @@ class TestDocumentsService:
                 "`project_type` must be provided",
             ),
             (
+                "live",
                 "TestProject",
                 None,
                 None,
@@ -301,6 +302,7 @@ class TestDocumentsService:
                 "Exactly one of `file, file_path` must be provided",
             ),
             (
+                "live",
                 "TestProject",
                 b"something",
                 None,
@@ -310,6 +312,7 @@ class TestDocumentsService:
                 "`document_type_name` must be provided",
             ),
             (
+                "live",
                 "TestProject",
                 b"something",
                 None,
@@ -318,12 +321,23 @@ class TestDocumentsService:
                 "dummy doctype",
                 "`classification_result` must not be provided",
             ),
+            (
+                None,
+                "TestProject",
+                b"something",
+                None,
+                None,
+                ProjectType.MODERN,
+                "dummy doctype",
+                "`tag` must be provided",
+            ),
         ],
     )
     async def test_extract_with_invalid_parameters(
         self,
         service: DocumentsService,
         mode: str,
+        tag,
         project_name,
         file,
         file_path,
@@ -336,7 +350,7 @@ class TestDocumentsService:
         with pytest.raises(ValueError, match=error):
             if mode == "async":
                 await service.extract_async(
-                    tag="live",
+                    tag=tag,
                     project_name=project_name,
                     project_type=project_type,
                     file=file,
@@ -346,7 +360,7 @@ class TestDocumentsService:
                 )
             else:
                 service.extract(
-                    tag="live",
+                    tag=tag,
                     project_name=project_name,
                     project_type=project_type,
                     file=file,
