@@ -9,12 +9,12 @@ uipath run main.py '{"a": 0, "b": 1, "operator": "+"}'
 
 # Run evaluations
 ```
-uipath eval .\main.py .\evals\eval-sets\default.json --no-report --output-file output.json
+uipath eval .\main.py .\evaluations\eval-sets\default.json --no-report --output-file output.json
 ```
 
 # Add and register custom evaluator
 
-1. (Optional) Add a new evaluator -> can be created manually in the evals/custom-evaluators directory
+1. (Optional) Add a new evaluator -> can be created manually in the evaluations/custom-evaluators directory
 ```
 uipath add evaluator my_custom_evaluator
 ```
