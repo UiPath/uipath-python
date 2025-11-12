@@ -17,12 +17,10 @@ from .._utils._constants import (
     AGENT_STORAGE_VERSION,
     AGENT_TARGET_RUNTIME,
     AGENT_VERSION,
-    special_files,
 )
 from .._utils._project_files import (  # type: ignore
     FileInfo,
     InteractiveConflictHandler,
-    Severity,
     UpdateEvent,
     compute_normalized_hash,
     files_to_include,
@@ -166,17 +164,6 @@ class SwFileHandler:
         updates: list[UpdateEvent] = []
 
         for local_file in local_files:
-            if local_file.file_name in special_files:
-                updates.append(
-                    UpdateEvent(
-                        file_path=local_file.file_path,
-                        status="skipped",
-                        message=f"Skipped '{local_file.file_name}' as it is conflicting with a project configuration file.",
-                        severity=Severity.WARNING,
-                    )
-                )
-                continue
-
             if not os.path.exists(local_file.file_path):
                 logger.info(f"File not found: '{local_file.file_path}'")
                 continue

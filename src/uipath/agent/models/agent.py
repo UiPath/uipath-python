@@ -537,8 +537,8 @@ class AgentDefinition(BaseModel):
     output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
     guardrails: Optional[List[AgentGuardrail]] = Field(None)
 
-    id: str
-    name: str
+    id: Optional[str] = None
+    name: Optional[str] = None
     metadata: Optional[AgentMetadata] = None
     messages: List[AgentMessage]
 

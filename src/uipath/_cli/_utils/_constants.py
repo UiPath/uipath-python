@@ -59,7 +59,6 @@ BINARY_EXTENSIONS = (
 )
 
 EVALS_DIRECTORY_NAME = "evals"
-special_files = {"agent.json"}
 
 
 def is_binary_file(file_extension: str) -> bool:
