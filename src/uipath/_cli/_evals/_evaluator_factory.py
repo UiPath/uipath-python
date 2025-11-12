@@ -71,15 +71,18 @@ class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
 
     @classmethod
-    def create_evaluator(cls, data: Dict[str, Any]) -> BaseEvaluator[Any, Any, Any]:
+    def create_evaluator(
+        cls, data: Dict[str, Any], evaluators_dir: Path | None = None
+    ) -> BaseEvaluator[Any, Any, Any]:
         if data.get("version", None) == "1.0":
-            return cls._create_evaluator_internal(data)
+            return cls._create_evaluator_internal(data, evaluators_dir)
         else:
             return cls._create_legacy_evaluator_internal(data)
 
     @staticmethod
     def _create_evaluator_internal(
         data: Dict[str, Any],
+        evaluators_dir: Path | None = None,
     ) -> BaseEvaluator[Any, Any, Any]:
         # check custom evaluator
         evaluator_schema = data.get("evaluatorSchema", "")
@@ -88,7 +91,7 @@ class EvaluatorFactory:
         )
         if success:
             return EvaluatorFactory._create_coded_evaluator_internal(
-                data, file_path, class_name
+                data, file_path, class_name, evaluators_dir
             )
 
         # use built-in evaluators
@@ -139,13 +142,17 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_coded_evaluator_internal(
-        data: Dict[str, Any], file_path_str: str, class_name: str
+        data: Dict[str, Any],
+        file_path_str: str,
+        class_name: str,
+        evaluators_dir: Path | None = None,
     ) -> BaseEvaluator[Any, Any, Any]:
         """Create a coded evaluator by dynamically loading from a Python file.
 
         Args:
             data: Dictionary containing evaluator configuration with evaluatorTypeId
                   in format "file://path/to/file.py:ClassName"
+            evaluators_dir: Directory containing evaluator configuration files
 
         Returns:
             Instance of the dynamically loaded evaluator class
@@ -156,18 +163,23 @@ class EvaluatorFactory:
         file_path = Path(file_path_str)
         if not file_path.is_absolute():
             if not file_path.exists():
-                file_path = (
-                    Path.cwd()
-                    / EVALS_DIRECTORY_NAME
-                    / "evaluators"
-                    / "custom"
-                    / file_path_str
-                )
+                # Try using the provided evaluators_dir first
+                if evaluators_dir is not None:
+                    file_path = evaluators_dir / "custom" / file_path_str
+                else:
+                    # Fall back to the old behavior
+                    file_path = (
+                        Path.cwd()
+                        / EVALS_DIRECTORY_NAME
+                        / "evaluators"
+                        / "custom"
+                        / file_path_str
+                    )
 
         if not file_path.exists():
             raise ValueError(
                 f"Evaluator file not found: {file_path}. "
-                f"Make sure the file exists in evals/evaluators/custom/"
+                f"Make sure the file exists in the evaluators/custom/ directory"
             )
 
         module_name = f"_custom_evaluator_{file_path.stem}_{id(data)}"

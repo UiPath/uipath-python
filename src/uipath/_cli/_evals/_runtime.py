@@ -649,7 +649,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             try:
                 evaluator_id = data.get("id")
                 if evaluator_id in evaluator_ref_ids:
-                    evaluator = EvaluatorFactory.create_evaluator(data)
+                    evaluator = EvaluatorFactory.create_evaluator(data, evaluators_dir)
                     evaluators.append(evaluator)
                     found_evaluator_ids.add(evaluator_id)
             except Exception as e:
