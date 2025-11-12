@@ -109,9 +109,8 @@ ToolOutput(name="get_weather_condition", output='{"content": {"condition": "sunn
 Each mocked tool uses a specific decorator order to ensure proper tracing:
 
 ```python
-@traced()                    # Creates OTEL span for tracing
+@traced(name="get_temperature", span_type="tool")  # Creates OTEL spans for tracing
 @mockable(example_calls=...) # Provides mock data during evaluation
-@mock_tool_span              # Innermost - sets tool.name attribute
 async def get_temperature(city: str) -> dict:
     """Returns simulated temperature data"""
     city_enum = City(city)
@@ -129,9 +128,8 @@ temp_data = await get_temperature(city)
 This ensures:
 1. `@traced()` creates an OTEL span for the tool call
 2. `@mockable()` can provide mock responses during evaluation
-3. `@mock_tool_span` sets the `tool.name` attribute on the span
-4. The trajectory evaluator can extract the tool call with its arguments and output
-5. Simulated data is returned from hardcoded dictionaries with content wrapper
+3. The trajectory evaluator can extract the tool call with its arguments and output
+4. Simulated data is returned from hardcoded dictionaries with content wrapper
 
 ### Content Wrapper Pattern
 All tool outputs and final agent output use a consistent `{"content": {...}}` structure:
