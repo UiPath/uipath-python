@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from .._utils._console import ConsoleLogger
 from ..models.runtime_schema import RuntimeSchema
-from ._constants import is_binary_file, special_files
+from ._constants import is_binary_file
 from ._studio_project import (
     ProjectFile,
     ProjectFolder,
@@ -665,9 +665,6 @@ async def download_folder_files(
     collect_files_from_folder(folder, "", files_dict)
 
     for file_path, remote_file in files_dict.items():
-        if remote_file.name in special_files:
-            continue
-
         local_path = base_path / file_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
