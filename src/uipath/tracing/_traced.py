@@ -177,7 +177,21 @@ def _opentelemetry_traced(
     output_processor: Optional[Callable[..., Any]] = None,
     recording: bool = True,
 ):
-    """Default tracer implementation using OpenTelemetry."""
+    """Default tracer implementation using OpenTelemetry.
+
+    Args:
+        name: Optional name for the span
+        run_type: Optional string to categorize the run type
+        span_type: Optional string to categorize the span type. If set to "tool" or "TOOL",
+                   the function is treated as an OpenInference tool call with:
+                   - openinference.span.kind = "TOOL"
+                   - tool.name = function name
+                   - span_type = "TOOL"
+                   - input.value and output.value (already set by default)
+        input_processor: Optional function to process inputs before recording
+        output_processor: Optional function to process outputs before recording
+        recording: If False, span is not recorded
+    """
 
     def decorator(func):
         trace_name = name or func.__name__
@@ -219,7 +233,17 @@ def _opentelemetry_traced(
             span_cm, span = get_span()
             token = _active_traced_span.set(span)
             try:
-                span.set_attribute("span_type", span_type or "function_call_sync")
+                # Check if this should be treated as a tool call
+                is_tool = span_type and span_type.upper() == "TOOL"
+
+                if is_tool:
+                    # Set OpenInference tool call attributes
+                    span.set_attribute("openinference.span.kind", "TOOL")
+                    span.set_attribute("tool.name", trace_name)
+                    span.set_attribute("span_type", "TOOL")
+                else:
+                    span.set_attribute("span_type", span_type or "function_call_sync")
+
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
@@ -264,7 +288,17 @@ def _opentelemetry_traced(
             span_cm, span = get_span()
             token = _active_traced_span.set(span)
             try:
-                span.set_attribute("span_type", span_type or "function_call_async")
+                # Check if this should be treated as a tool call
+                is_tool = span_type and span_type.upper() == "TOOL"
+
+                if is_tool:
+                    # Set OpenInference tool call attributes
+                    span.set_attribute("openinference.span.kind", "TOOL")
+                    span.set_attribute("tool.name", trace_name)
+                    span.set_attribute("span_type", "TOOL")
+                else:
+                    span.set_attribute("span_type", span_type or "function_call_async")
+
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
@@ -309,9 +343,19 @@ def _opentelemetry_traced(
             span_cm, span = get_span()
             token = _active_traced_span.set(span)
             try:
-                span.set_attribute(
-                    "span_type", span_type or "function_call_generator_sync"
-                )
+                # Check if this should be treated as a tool call
+                is_tool = span_type and span_type.upper() == "TOOL"
+
+                if is_tool:
+                    # Set OpenInference tool call attributes
+                    span.set_attribute("openinference.span.kind", "TOOL")
+                    span.set_attribute("tool.name", trace_name)
+                    span.set_attribute("span_type", "TOOL")
+                else:
+                    span.set_attribute(
+                        "span_type", span_type or "function_call_generator_sync"
+                    )
+
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
@@ -351,9 +395,19 @@ def _opentelemetry_traced(
             span_cm, span = get_span()
             token = _active_traced_span.set(span)
             try:
-                span.set_attribute(
-                    "span_type", span_type or "function_call_generator_async"
-                )
+                # Check if this should be treated as a tool call
+                is_tool = span_type and span_type.upper() == "TOOL"
+
+                if is_tool:
+                    # Set OpenInference tool call attributes
+                    span.set_attribute("openinference.span.kind", "TOOL")
+                    span.set_attribute("tool.name", trace_name)
+                    span.set_attribute("span_type", "TOOL")
+                else:
+                    span.set_attribute(
+                        "span_type", span_type or "function_call_generator_async"
+                    )
+
                 if run_type is not None:
                     span.set_attribute("run_type", run_type)
 
@@ -442,15 +496,22 @@ def traced(
     """Decorator that will trace function invocations.
 
     Args:
+        name: Optional name for the span
         run_type: Optional string to categorize the run type
-        span_type: Optional string to categorize the span type
+        span_type: Optional string to categorize the span type. If set to "tool" or "TOOL",
+                   the function is treated as an OpenInference tool call by setting:
+                   - openinference.span.kind = "TOOL"
+                   - tool.name = function name
+                   - span_type = "TOOL"
+                   - input.value and output.value (already set by default)
+                   This makes the span compatible with evaluation helpers that extract tool calls from traces.
         input_processor: Optional function to process function inputs before recording
             Should accept a dictionary of inputs and return a processed dictionary
         output_processor: Optional function to process function outputs before recording
             Should accept the function output and return a processed value
         hide_input: If True, don't log any input data
         hide_output: If True, don't log any output data
-        recording: If False, current span and all child spans are not captured regardless of their recording status.
+        recording: If False, current span and all child spans are not captured regardless of their recording status
     """
     # Apply default processors selectively based on hide flags
     if hide_input:

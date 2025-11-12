@@ -39,9 +39,15 @@ async def get_random_operator() -> Wrapper:
     """Get a random operator."""
     return Wrapper(result=random.choice([Operator.ADD, Operator.SUBTRACT, Operator.MULTIPLY, Operator.DIVIDE]))
 
-@traced(name="track_operator")
-def track_operator(operator: Operator):
-    pass
+@traced(name="apply_operator", span_type="tool")
+def apply_operator(operator: Operator, a: float, b: float) -> CalculatorOutput:
+    match operator:
+        case Operator.ADD: result = a + b
+        case Operator.SUBTRACT: result = a - b
+        case Operator.MULTIPLY: result = a * b
+        case Operator.DIVIDE: result = a / b if b != 0.0 else 0.0
+        case _: raise ValueError("Unknown operator")
+    return CalculatorOutput(result=result)
 
 @traced()
 async def main(input: CalculatorInput) -> CalculatorOutput:
@@ -49,11 +55,5 @@ async def main(input: CalculatorInput) -> CalculatorOutput:
         operator = (await get_random_operator()).result
     else:
         operator = input.operator
-    track_operator(operator)
-    match operator:
-        case Operator.ADD: result = input.a + input.b
-        case Operator.SUBTRACT: result = input.a - input.b
-        case Operator.MULTIPLY: result = input.a * input.b
-        case Operator.DIVIDE: result = input.a / input.b if input.b != 0.0 else 0.0
-        case _: raise ValueError("Unknown operator")
-    return CalculatorOutput(result=result)
+    result = apply_operator(operator, input.a, input.b)
+    return result
