@@ -817,9 +817,9 @@ class StudioWebProgressReporter:
             "numberOfEvalsExecuted": no_of_evals,
         }
 
-        # Add version field for coded evaluations
         if is_coded:
-            payload["version"] = "1.0"
+            # Source: 0 = cli, 1 = protegi
+            payload["source"] = 0
 
         return RequestSpec(
             method="POST",
