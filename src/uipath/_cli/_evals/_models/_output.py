@@ -46,7 +46,7 @@ class EvaluationResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     score: float
-    details: Optional[str | BaseModel] = None
+    details: Optional[str | Dict[str, Any] | BaseModel] = None
     evaluation_time: Optional[float] = None
 
     @model_serializer(mode="wrap")
@@ -56,6 +56,7 @@ class EvaluationResultDto(BaseModel):
         info: core_schema.SerializationInfo,
     ) -> Any:
         data = serializer(self)
+        # Only remove details if it's None, keep empty dicts and populated dicts
         if self.details is None and isinstance(data, dict):
             data.pop("details", None)
         return data
@@ -85,6 +86,8 @@ class EvaluationRunResultDto(BaseModel):
 
     evaluator_name: str
     evaluator_id: str
+    evaluator_type: Optional[str] = None
+    node_id: Optional[str] = None
     result: EvaluationResultDto
 
 
@@ -93,6 +96,7 @@ class EvaluationRunResult(BaseModel):
 
     evaluation_name: str
     evaluation_run_results: List[EvaluationRunResultDto]
+    workflow: Optional[List[str]] = None
     agent_execution_output: Optional[UiPathSerializableEvalRunExecutionOutput] = None
 
     @property
@@ -110,6 +114,8 @@ class UiPathEvalOutput(BaseModel):
 
     evaluation_set_name: str
     evaluation_set_results: List[EvaluationRunResult]
+    weighted_final_score: Optional[float] = None
+    evaluator_weights: Optional[Dict[str, float]] = None
 
     @property
     def score(self) -> float:

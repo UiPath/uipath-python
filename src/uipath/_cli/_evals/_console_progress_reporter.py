@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.rule import Rule
 from rich.table import Table
 
+from uipath._cli._evals._models._evaluation_set import AnyEvaluator
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -15,7 +16,6 @@ from uipath._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import ScoreType
 
 logger = logging.getLogger(__name__)
@@ -26,9 +26,10 @@ class ConsoleProgressReporter:
 
     def __init__(self):
         self.console = Console()
-        self.evaluators: Dict[str, BaseEvaluator[Any, Any, Any]] = {}
+        self.evaluators: Dict[str, AnyEvaluator] = {}
         self.display_started = False
         self.eval_results_by_name: Dict[str, list[Any]] = {}
+        self.evaluator_weights: Dict[str, float] = {}
 
     def _convert_score_to_numeric(self, eval_result) -> float:
         """Convert evaluation result score to numeric value."""
@@ -99,6 +100,8 @@ class ConsoleProgressReporter:
         """Handle evaluation set run creation."""
         try:
             self.evaluators = {eval.id: eval for eval in payload.evaluators}
+            if payload.evaluator_weights:
+                self.evaluator_weights = payload.evaluator_weights
         except Exception as e:
             logger.error(f"Failed to handle create eval set run event: {e}")
 
@@ -206,8 +209,19 @@ class ConsoleProgressReporter:
 
                 summary_table.add_row(*row_values)
 
-            # Add separator row before average
+            # Add separator row before weights and average
             summary_table.add_section()
+
+            # Add weights row if weights are defined
+            if self.evaluator_weights:
+                weight_row_values = ["[bold]Weights[/bold]"]
+                for evaluator_id in evaluator_ids:
+                    weight = self.evaluator_weights.get(evaluator_id, "-")
+                    if weight != "-":
+                        weight_row_values.append(f"[bold]{weight:.2f}[/bold]")
+                    else:
+                        weight_row_values.append("[bold]-[/bold]")
+                summary_table.add_row(*weight_row_values)
 
             # Add average row
             avg_row_values = ["[bold]Average[/bold]"]
@@ -217,8 +231,31 @@ class ConsoleProgressReporter:
 
             summary_table.add_row(*avg_row_values)
 
-            self.console.print(summary_table)
-            self.console.print()
+            # Calculate and display weighted final score if weights are defined
+            if self.evaluator_weights:
+                weighted_total = 0.0
+                weights_sum = 0.0
+                for evaluator_id in evaluator_ids:
+                    weight = self.evaluator_weights.get(evaluator_id)
+                    if weight is not None:
+                        avg_score = self.final_results[evaluator_id]
+                        weighted_total += weight * avg_score
+                        weights_sum += weight
+
+                # Display as a separate info line
+                self.console.print(summary_table)
+                self.console.print()
+                self.console.print(
+                    f"[bold cyan]Weighted Final Score:[/bold cyan] [bold green]{weighted_total:.2f}[/bold green]"
+                )
+                if weights_sum != 1.0:
+                    self.console.print(
+                        f"[dim](Note: Weights sum to {weights_sum:.2f})[/dim]"
+                    )
+                self.console.print()
+            else:
+                self.console.print(summary_table)
+                self.console.print()
         else:
             self.console.print(
                 "→ [bold green]All evaluations completed successfully![/bold green]"

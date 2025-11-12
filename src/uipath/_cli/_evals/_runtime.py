@@ -12,10 +12,7 @@ from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
-from uipath._cli._evals.mocks.cache_manager import CacheManager
-from uipath._cli._evals.mocks.input_mocker import (
-    generate_llm_input,
-)
+from uipath._cli._evals.mocks.input_mocker import generate_llm_input
 
 from ..._events._event_bus import EventBus
 from ..._events._events import (
@@ -26,7 +23,7 @@ from ..._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from ...eval.evaluators import BaseEvaluator
+from ...eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._runtime._contracts import (
@@ -44,8 +41,11 @@ from .._utils._eval_set import EvalHelpers
 from ..models.runtime_schema import Entrypoint
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
+    AnyEvaluationItem,
+    AnyEvaluationSet,
+    AnyEvaluator,
     EvaluationItem,
-    EvaluationSet,
+    LegacyEvaluationItem,
 )
 from ._models._exceptions import EvaluationRuntimeException
 from ._models._output import (
@@ -57,14 +57,114 @@ from ._models._output import (
     convert_eval_execution_output_to_serializable,
 )
 from ._span_collection import ExecutionSpanCollector
-from .mocks.mocks import (
-    cache_manager_context,
-    clear_execution_context,
-    set_execution_context,
-)
+from .mocks.mocks import clear_execution_context, set_execution_context
 
 T = TypeVar("T", bound=UiPathBaseRuntime)
 C = TypeVar("C", bound=UiPathRuntimeContext)
+
+
+def extract_workflow_from_spans(spans: list[ReadableSpan]) -> list[str]:
+    """Extract ordered list of main workflow nodes from execution spans.
+
+    Only captures workflow nodes that are direct children of a LangGraph parent span,
+    which naturally filters out sub-nodes and internal components.
+
+    Args:
+        spans: List of ReadableSpan objects from agent execution
+
+    Returns:
+        List of unique main node names in execution order
+    """
+
+    for i, span in enumerate(spans):
+        span_name = getattr(span, "name", "NO_NAME")
+        attributes = getattr(span, "attributes", {})
+        parent_context = getattr(span, "parent", None)
+        parent_span_id = None
+        if parent_context:
+            parent_span_id = getattr(parent_context, "span_id", None)
+
+        span_context = span.get_span_context()
+        span_id = span_context.span_id if span_context else "NO_ID"
+
+        if isinstance(attributes, dict):
+            node_name = attributes.get("node_name")
+            langgraph_node = attributes.get("langgraph.node")
+
+    node_order = []
+    seen_nodes = set()
+
+    # System nodes to exclude
+    system_nodes = {"__start__", "__end__"}
+
+    # First pass: Find LangGraph-related parent span IDs
+    # Look for spans that could be the main graph span (could have different names)
+    langgraph_span_ids = set()
+    for span in spans:
+        span_name = getattr(span, "name", "")
+        # Check if this is a LangGraph main span
+        if span_name and "langgraph" in span_name.lower():
+            span_context = span.get_span_context()
+            if span_context:
+                langgraph_span_ids.add(span_context.span_id)
+
+    # If we found potential parent spans, use them; otherwise we'll check all spans with langgraph.node
+    if langgraph_span_ids:
+        # Second pass: Collect spans that have a LangGraph parent
+        for span in spans:
+            # Get parent span ID
+            parent_context = getattr(span, "parent", None)
+            parent_span_id = None
+            if parent_context:
+                parent_span_id = getattr(parent_context, "span_id", None)
+
+            # Skip if parent is not one of the LangGraph spans
+            if parent_span_id not in langgraph_span_ids:
+                continue
+
+            # Get node name - use span name directly since attributes might not have it
+            span_name = getattr(span, "name", "")
+            attributes = getattr(span, "attributes", {})
+
+            # Try to get from attributes first, then fall back to span name
+            node_name = None
+            if isinstance(attributes, dict):
+                node_name = attributes.get("langgraph.node") or attributes.get(
+                    "node_name"
+                )
+
+            if not node_name:
+                node_name = span_name
+
+            # Skip if no node name found
+            if not node_name:
+                continue
+
+            # Filter out system nodes
+            if node_name in system_nodes:
+                continue
+
+            # Add to workflow if not seen before
+            if node_name not in seen_nodes:
+                seen_nodes.add(node_name)
+                node_order.append(node_name)
+    else:
+        # Fallback: Just get all spans with langgraph.node attribute
+        for span in spans:
+            attributes = getattr(span, "attributes", None)
+            if not attributes or not isinstance(attributes, dict):
+                continue
+
+            node_name = attributes.get("langgraph.node")
+
+            if not node_name or node_name in system_nodes:
+                continue
+
+            if node_name not in seen_nodes:
+                seen_nodes.add(node_name)
+                node_order.append(node_name)
+
+    return node_order
 
 
 class ExecutionSpanExporter(SpanExporter):
@@ -152,7 +252,6 @@ class UiPathEvalContext(UiPathRuntimeContext):
     eval_ids: Optional[List[str]] = None
     eval_set_run_id: Optional[str] = None
     verbose: bool = False
-    enable_mocker_cache: bool = False
 
 
 class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
@@ -204,60 +303,45 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         event_bus = self.event_bus
 
-        # Create cache manager if enabled
-        if self.context.enable_mocker_cache:
-            cache_mgr = CacheManager()
-            cache_manager_context.set(cache_mgr)
+        # Load eval set (path is already resolved in cli_eval.py)
+        evaluation_set, _ = EvalHelpers.load_eval_set(
+            self.context.eval_set, self.context.eval_ids
+        )
+        evaluators = self._load_evaluators(evaluation_set)
 
-        try:
-            # Load eval set (path is already resolved in cli_eval.py)
-            evaluation_set, _ = EvalHelpers.load_eval_set(
-                self.context.eval_set, self.context.eval_ids
-            )
-            evaluators = self._load_evaluators(evaluation_set)
+        await event_bus.publish(
+            EvaluationEvents.CREATE_EVAL_SET_RUN,
+            EvalSetRunCreatedEvent(
+                execution_id=self.execution_id,
+                entrypoint=self.context.entrypoint or "",
+                eval_set_run_id=self.context.eval_set_run_id,
+                eval_set_id=evaluation_set.id,
+                no_of_evals=len(evaluation_set.evaluations),
+                evaluators=evaluators,
+                evaluator_weights=getattr(evaluation_set, "evaluator_weights", None),
+            ),
+        )
 
-            await event_bus.publish(
-                EvaluationEvents.CREATE_EVAL_SET_RUN,
-                EvalSetRunCreatedEvent(
-                    execution_id=self.execution_id,
-                    entrypoint=self.context.entrypoint or "",
-                    eval_set_run_id=self.context.eval_set_run_id,
-                    eval_set_id=evaluation_set.id,
-                    no_of_evals=len(evaluation_set.evaluations),
-                    evaluators=evaluators,
-                ),
+        # Check if parallel execution should be used
+        if (
+            self.context.workers
+            and self.context.workers > 1
+            and len(evaluation_set.evaluations) > 1
+        ):
+            eval_run_result_list = await self._execute_parallel(
+                evaluation_set, evaluators, event_bus, self.context.workers
             )
-
-            # Check if parallel execution should be used
-            if (
-                self.context.workers
-                and self.context.workers > 1
-                and len(evaluation_set.evaluations) > 1
-            ):
-                eval_run_result_list = await self._execute_parallel(
-                    evaluation_set, evaluators, event_bus, self.context.workers
-                )
-            else:
-                eval_run_result_list = await self._execute_sequential(
-                    evaluation_set, evaluators, event_bus
-                )
-            results = UiPathEvalOutput(
-                evaluation_set_name=evaluation_set.name,
-                evaluation_set_results=eval_run_result_list,
+        else:
+            eval_run_result_list = await self._execute_sequential(
+                evaluation_set, evaluators, event_bus
             )
-        finally:
-            # Flush cache to disk at end of eval set and cleanup
-            if self.context.enable_mocker_cache:
-                cache_manager = cache_manager_context.get()
-                if cache_manager is not None:
-                    cache_manager.flush()
-                cache_manager_context.set(None)
 
         # Computing evaluator averages
         evaluator_averages: Dict[str, float] = defaultdict(float)
         evaluator_count: Dict[str, int] = defaultdict(int)
 
-        for eval_run_result in results.evaluation_set_results:
+        # Collect all evaluation results first
+        for eval_run_result in eval_run_result_list:
             for result_dto in eval_run_result.evaluation_run_results:
                 evaluator_averages[result_dto.evaluator_id] += result_dto.result.score
                 evaluator_count[result_dto.evaluator_id] += 1
@@ -266,11 +350,33 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             evaluator_averages[eval_id] = (
                 evaluator_averages[eval_id] / evaluator_count[eval_id]
             )
+
+        # Calculate weighted final score if weights are defined
+        evaluator_weights = getattr(evaluation_set, "evaluator_weights", None)
+        weighted_final_score = None
+        if evaluator_weights:
+            weighted_total = 0.0
+            for evaluator_id, avg_score in evaluator_averages.items():
+                weight = evaluator_weights.get(evaluator_id)
+                if weight is not None:
+                    weighted_total += weight * avg_score
+            weighted_final_score = weighted_total
+
+        # Create results with weighted score and weights
+        results = UiPathEvalOutput(
+            evaluation_set_name=evaluation_set.name,
+            evaluation_set_results=eval_run_result_list,
+            weighted_final_score=weighted_final_score,
+            evaluator_weights=evaluator_weights,
+        )
+
         await event_bus.publish(
             EvaluationEvents.UPDATE_EVAL_SET_RUN,
             EvalSetRunUpdatedEvent(
                 execution_id=self.execution_id,
                 evaluator_scores=evaluator_averages,
+                weighted_final_score=weighted_final_score,
+                evaluator_weights=evaluator_weights,
             ),
             wait_for_completion=False,
         )
@@ -283,8 +389,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_sequential(
         self,
-        evaluation_set: EvaluationSet,
-        evaluators: List[BaseEvaluator[Any, Any, Any]],
+        evaluation_set: AnyEvaluationSet,
+        evaluators: List[AnyEvaluator],
         event_bus: EventBus,
     ) -> List[EvaluationRunResult]:
         all_eval_run_result: list[EvaluationRunResult] = []
@@ -298,13 +404,13 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_parallel(
         self,
-        evaluation_set: EvaluationSet,
-        evaluators: List[BaseEvaluator[Any, Any, Any]],
+        evaluation_set: AnyEvaluationSet,
+        evaluators: List[AnyEvaluator],
         event_bus: EventBus,
         workers: int,
     ) -> List[EvaluationRunResult]:
         # Create a queue with max concurrency
-        queue: asyncio.Queue[tuple[int, EvaluationItem]] = asyncio.Queue(
+        queue: asyncio.Queue[tuple[int, AnyEvaluationItem]] = asyncio.Queue(
             maxsize=workers
         )
 
@@ -314,7 +420,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         # Producer task to fill the queue
         async def producer() -> None:
             for index, eval_item in enumerate(evaluation_set.evaluations):
-                await queue.put((index, eval_item))
+                await queue.put((index, eval_item))  # type: ignore[arg-type]
             # Signal completion by putting None markers
             for _ in range(workers):
                 await queue.put(None)  # type: ignore
@@ -356,8 +462,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
     async def _execute_eval(
         self,
-        eval_item: EvaluationItem,
-        evaluators: List[BaseEvaluator[Any, Any, Any]],
+        eval_item: AnyEvaluationItem,
+        evaluators: List[AnyEvaluator],
         event_bus: EventBus,
     ) -> EvaluationRunResult:
         # Generate LLM-based input if input_mocking_strategy is defined
@@ -418,6 +524,11 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                             )
                         )
                     )
+                    # Extract workflow nodes from spans even in error case
+                    if spans:
+                        workflow = extract_workflow_from_spans(spans)
+                        if workflow:
+                            evaluation_run_results.workflow = workflow
                 raise
 
             if self.context.verbose:
@@ -426,34 +537,79 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                         agent_execution_output
                     )
                 )
+
+            # Extract workflow nodes from spans
+            workflow = extract_workflow_from_spans(agent_execution_output.spans)
+            # Always set workflow, even if empty, to distinguish from no extraction
+            evaluation_run_results.workflow = workflow if workflow else None
+
             evaluation_item_results: list[EvalItemResult] = []
 
             for evaluator in evaluators:
-                if evaluator.id not in eval_item.evaluation_criterias:
-                    # Skip!
-                    continue
-                evaluation_criteria = eval_item.evaluation_criterias[evaluator.id]
+                # Determine which evaluator method to use based on evaluation set/item type
+                evaluation_result: Optional[EvaluationResult] = None
 
-                evaluation_result = await self.run_evaluator(
-                    evaluator=evaluator,
-                    execution_output=agent_execution_output,
-                    eval_item=eval_item,
-                    evaluation_criteria=evaluator.evaluation_criteria_type(
-                        **evaluation_criteria
-                    )
-                    if evaluation_criteria
-                    else evaluator.evaluator_config.default_evaluation_criteria,
-                )
+                match eval_item:
+                    case LegacyEvaluationItem():
+                        # Legacy evaluation - use run_legacy_evaluator
+                        evaluation_result = await self.run_legacy_evaluator(
+                            evaluator=evaluator,  # type: ignore
+                            execution_output=agent_execution_output,
+                            eval_item=eval_item,
+                        )
+                    case EvaluationItem() if (
+                        evaluator.id in eval_item.evaluation_criterias
+                    ):
+                        # New evaluation with criteria
+                        evaluation_criteria = eval_item.evaluation_criterias[
+                            evaluator.id
+                        ]
+
+                        evaluation_result = await self.run_evaluator(
+                            evaluator=evaluator,  # type: ignore
+                            execution_output=agent_execution_output,
+                            eval_item=eval_item,
+                            evaluation_criteria=evaluator.evaluation_criteria_type(  # type: ignore
+                                **evaluation_criteria
+                            )
+                            if evaluation_criteria
+                            else evaluator.evaluator_config.default_evaluation_criteria,  # type: ignore
+                        )
+                    case _:
+                        # Skip if evaluator not in evaluation criteria
+                        continue
+
+                if evaluation_result is None:
+                    continue
 
                 dto_result = EvaluationResultDto.from_evaluation_result(
                     evaluation_result
                 )
+
+                # Extract node_id from evaluation criteria if available
+                node_id = None
+                if (
+                    isinstance(eval_item, EvaluationItem)
+                    and evaluator.id in eval_item.evaluation_criterias
+                ):
+                    criteria_dict = eval_item.evaluation_criterias[evaluator.id]
+                    if criteria_dict:
+                        node_id = criteria_dict.get("nodeId")
+
+                # Get evaluator type from evaluator's get_evaluator_id method
+                evaluator_type = None
+                try:
+                    evaluator_type = evaluator.get_evaluator_id()
+                except AttributeError:
+                    pass
 
                 evaluation_run_results.evaluation_run_results.append(
                     EvaluationRunResultDto(
                         evaluator_name=evaluator.name,
                         result=dto_result,
                         evaluator_id=evaluator.id,
+                        evaluator_type=evaluator_type,
+                        node_id=node_id,
                     )
                 )
                 evaluation_item_results.append(
@@ -482,10 +638,29 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             exception_details = EvalItemExceptionDetails(exception=e)
 
             for evaluator in evaluators:
+                # Extract node_id from evaluation criteria if available
+                node_id = None
+                if (
+                    isinstance(eval_item, EvaluationItem)
+                    and evaluator.id in eval_item.evaluation_criterias
+                ):
+                    criteria_dict = eval_item.evaluation_criterias[evaluator.id]
+                    if criteria_dict:
+                        node_id = criteria_dict.get("nodeId")
+
+                # Get evaluator type from evaluator's get_evaluator_id method
+                evaluator_type = None
+                try:
+                    evaluator_type = evaluator.get_evaluator_id()
+                except AttributeError:
+                    pass
+
                 evaluation_run_results.evaluation_run_results.append(
                     EvaluationRunResultDto(
                         evaluator_name=evaluator.name,
                         evaluator_id=evaluator.id,
+                        evaluator_type=evaluator_type,
+                        node_id=node_id,
                         result=EvaluationResultDto(score=0),
                     )
                 )
@@ -520,8 +695,8 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         return evaluation_run_results
 
     async def _generate_input_for_eval(
-        self, eval_item: EvaluationItem
-    ) -> EvaluationItem:
+        self, eval_item: AnyEvaluationItem
+    ) -> AnyEvaluationItem:
         """Use LLM to generate a mock input for an evaluation item."""
         generated_input = await generate_llm_input(
             eval_item, (await self.get_entrypoint()).input
@@ -542,7 +717,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         return spans, logs
 
     async def execute_runtime(
-        self, eval_item: EvaluationItem, execution_id: str
+        self, eval_item: AnyEvaluationItem, execution_id: str
     ) -> UiPathEvalRunExecutionOutput:
         context_args = self.context.model_dump()
         context_args["execution_id"] = execution_id
@@ -615,9 +790,28 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
 
         return result
 
-    def _load_evaluators(
-        self, evaluation_set: EvaluationSet
-    ) -> list[BaseEvaluator[Any, Any, Any]]:
+    async def run_legacy_evaluator(
+        self,
+        evaluator: LegacyBaseEvaluator[Any],
+        execution_output: UiPathEvalRunExecutionOutput,
+        eval_item: LegacyEvaluationItem,
+    ) -> EvaluationResult:
+        agent_execution = AgentExecution(
+            agent_input=eval_item.inputs,
+            agent_output=execution_output.result.output or {},
+            agent_trace=execution_output.spans,
+            expected_agent_behavior=eval_item.expected_agent_behavior,
+        )
+
+        result = await evaluator.evaluate(
+            agent_execution=agent_execution,
+            # at the moment evaluation_criteria is always the expected output
+            evaluation_criteria=eval_item.expected_output,
+        )
+
+        return result
+
+    def _load_evaluators(self, evaluation_set: AnyEvaluationSet) -> list[AnyEvaluator]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         evaluators_dir = Path(self.context.eval_set).parent.parent / "evaluators"  # type: ignore

@@ -1,8 +1,10 @@
 from enum import Enum, IntEnum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 from pydantic.alias_generators import to_camel
+
+from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
 
 
 class EvaluatorReference(BaseModel):
@@ -208,6 +210,9 @@ class EvaluationSet(BaseModel):
         default_factory=list, alias="evaluatorConfigs"
     )
     evaluations: List[EvaluationItem] = Field(default_factory=list)
+    evaluator_weights: Optional[Dict[str, float]] = Field(
+        default=None, alias="evaluatorWeights"
+    )
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[EvaluationItem] = []
@@ -267,3 +272,15 @@ def _discriminate_eval_set(
         if version == "1.0":
             return "evaluation_set"
     return "legacy_evaluation_set"
+
+
+AnyEvaluationSet = Annotated[
+    Union[
+        Annotated[EvaluationSet, Tag("evaluation_set")],
+        Annotated[LegacyEvaluationSet, Tag("legacy_evaluation_set")],
+    ],
+    Discriminator(_discriminate_eval_set),
+]
+
+AnyEvaluationItem = Union[EvaluationItem, LegacyEvaluationItem]
+AnyEvaluator = Union[LegacyBaseEvaluator[Any], BaseEvaluator[Any, Any, Any]]
