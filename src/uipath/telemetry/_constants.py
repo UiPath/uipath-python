@@ -14,6 +14,7 @@ _CODE_LINENO = "code.line.number"
 _CLOUD_ORG_ID = "CloudOrganizationId"
 _CLOUD_TENANT_ID = "CloudTenantId"
 _CLOUD_URL = "CloudUrl"
+_CLOUD_USER_ID = "CloudUserId"
 _APP_NAME = "ApplicationName"
 
 _UNKNOWN = ""

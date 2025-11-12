@@ -9,6 +9,7 @@ from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.util.types import Attributes
 
+from .._cli._utils._common import get_claim_from_token
 from .._utils.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
@@ -21,6 +22,7 @@ from ._constants import (
     _CLOUD_ORG_ID,
     _CLOUD_TENANT_ID,
     _CLOUD_URL,
+    _CLOUD_USER_ID,
     _CODE_FILEPATH,
     _CODE_FUNCTION,
     _CODE_LINENO,
@@ -66,6 +68,11 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
         attributes[_CLOUD_URL] = os.getenv(ENV_BASE_URL, _UNKNOWN)
         attributes[_APP_NAME] = "UiPath.Sdk"
         attributes[_SDK_VERSION] = version("uipath")
+        try:
+            cloud_user_id = get_claim_from_token("sub")
+        except Exception:
+            cloud_user_id = _UNKNOWN
+        attributes[_CLOUD_USER_ID] = cloud_user_id
         attributes[_PROJECT_KEY] = _get_project_key()
 
         if _CODE_FILEPATH in attributes:

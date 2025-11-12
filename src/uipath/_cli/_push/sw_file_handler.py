@@ -10,6 +10,7 @@ import click
 
 from ..._config import UiPathConfig
 from ...models.exceptions import EnrichedException
+from .._utils._common import get_claim_from_token
 from .._utils._console import ConsoleLogger
 from .._utils._constants import (
     AGENT_INITIAL_CODE_VERSION,
@@ -531,20 +532,13 @@ class SwFileHandler:
 
         def get_author_from_token_or_toml() -> str:
             """Get author from JWT token or fall back to pyproject.toml."""
-            import jwt
-
-            token = os.getenv("UIPATH_ACCESS_TOKEN")
-            if token:
-                try:
-                    decoded_token = jwt.decode(
-                        token, options={"verify_signature": False}
-                    )
-                    preferred_username = decoded_token.get("preferred_username")
-                    if preferred_username:
-                        return preferred_username
-                except Exception:
-                    # If JWT decoding fails, fall back to toml
-                    pass
+            try:
+                preferred_username = get_claim_from_token("preferred_username")
+                if preferred_username:
+                    return preferred_username
+            except Exception:
+                # fallback to toml
+                pass
 
             toml_data = read_toml_project(
                 os.path.join(self.directory, "pyproject.toml")

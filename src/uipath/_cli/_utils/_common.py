@@ -9,8 +9,18 @@ from dotenv import load_dotenv
 
 from ..._config import UiPathConfig
 from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
-from ..._utils.constants import DOTENV_FILE
+from ..._utils.constants import DOTENV_FILE, ENV_UIPATH_ACCESS_TOKEN
 from ..spinner import Spinner
+
+
+def get_claim_from_token(claim_name: str) -> Optional[str]:
+    import jwt
+
+    token = os.getenv(ENV_UIPATH_ACCESS_TOKEN)
+    if not token:
+        raise Exception("JWT token not available")
+    decoded_token = jwt.decode(token, options={"verify_signature": False})
+    return decoded_token.get(claim_name)
 
 
 def add_cwd_to_path():
