@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 import click
 
+from ._utils._common import create_binding_files, Severity
 from .._config import UiPathConfig
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry import track
@@ -223,15 +224,14 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             try:
                 runtime = generate_runtime_factory().new_runtime(**context_args)
 
-                bindings = await runtime.get_bindings()
-                bindings_path = write_bindings_file(bindings)
-
                 config_data = RuntimeSchema(
                     entryPoints=[await runtime.get_entrypoint()],
                 )
                 config_path = write_config_file(config_data)
+
+                console.process_events(create_binding_files)
+
                 console.success(f"Created '{config_path}' file.")
-                console.success(f"Created '{bindings_path}' file.")
             except Exception as e:
                 console.error(f"Error creating configuration file:\n {str(e)}")
 

@@ -102,14 +102,6 @@ def generate_entrypoints_file(entryPoints):
 
     return entrypoint_json_data
 
-
-def generate_bindings_content() -> Bindings:
-    return Bindings(
-        version="2.0",
-        resources=[],
-    )
-
-
 def generate_content_types_content():
     templates_path = os.path.join(
         os.path.dirname(__file__), "_templates", "[Content_Types].xml.template"
