@@ -205,7 +205,9 @@ def get_project_config(directory: str) -> dict[str, str]:
     return {
         "project_name": toml_data["name"],
         "description": toml_data["description"],
-        "entryPoints": [ep.model_dump(by_alias=True) for ep in config_data.entrypoints],
+        "entryPoints": [ep.model_dump(by_alias=True) for ep in config_data.entrypoints]
+        if config_data.entrypoints
+        else [],
         "version": toml_data["version"],
         "authors": toml_data["authors"],
         "dependencies": toml_data.get("dependencies", {}),

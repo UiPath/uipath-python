@@ -17,9 +17,9 @@ from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._runtime._runtime import get_user_script
 from ._runtime._runtime_factory import generate_runtime_factory
 from ._utils._console import ConsoleLogger
-from ._utils._parse_ast import write_bindings_file
+from ._utils._parse_ast import write_bindings_file, write_entry_points_file
 from .middlewares import Middlewares
-from .models.runtime_schema import RuntimeSchema
+from .models.runtime_schema import Entrypoints, RuntimeSchema
 
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
@@ -140,7 +140,6 @@ def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
     """
     if not os.path.exists(config_path):
         return None
-
     try:
         with open(config_path, "r") as config_file:
             existing_config = json.load(config_file)
@@ -153,7 +152,6 @@ def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
     existing_settings = get_existing_settings(CONFIG_PATH)
     if existing_settings is not None:
         config_data.settings = existing_settings
-
     with open(CONFIG_PATH, "w") as config_file:
         if isinstance(config_data, RuntimeSchema):
             json_object = config_data.model_dump(by_alias=True, exclude_unset=True)
@@ -223,15 +221,21 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             try:
                 runtime = generate_runtime_factory().new_runtime(**context_args)
 
-                bindings = await runtime.get_bindings()
-                bindings_path = write_bindings_file(bindings)
-
-                config_data = RuntimeSchema(
-                    entryPoints=[await runtime.get_entrypoint()],
+                config_path = write_config_file(
+                    RuntimeSchema(
+                        # settings={"isConversational": False}
+                    )
                 )
-                config_path = write_config_file(config_data)
                 console.success(f"Created '{config_path}' file.")
+
+                bindings_path = write_bindings_file(await runtime.get_bindings())
                 console.success(f"Created '{bindings_path}' file.")
+                entry_point = await runtime.get_entrypoint()
+                entry_points_path = write_entry_points_file(
+                    Entrypoints(entry_points=[entry_point])
+                )
+                console.success(f"Created '{entry_points_path}' file.")
+
             except Exception as e:
                 console.error(f"Error creating configuration file:\n {str(e)}")
 
