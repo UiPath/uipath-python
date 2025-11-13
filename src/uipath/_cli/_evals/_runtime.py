@@ -371,7 +371,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         await event_bus.publish(
             EvaluationEvents.CREATE_EVAL_RUN,
             EvalRunCreatedEvent(
-                execution_id=self.execution_id,
+                execution_id=execution_id,
                 eval_item=eval_item,
             ),
         )
@@ -466,7 +466,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             await event_bus.publish(
                 EvaluationEvents.UPDATE_EVAL_RUN,
                 EvalRunUpdatedEvent(
-                    execution_id=self.execution_id,
+                    execution_id=execution_id,
                     eval_item=eval_item,
                     eval_results=evaluation_item_results,
                     success=not agent_execution_output.result.error,
@@ -491,7 +491,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 )
 
             eval_run_updated_event = EvalRunUpdatedEvent(
-                execution_id=self.execution_id,
+                execution_id=execution_id,
                 eval_item=eval_item,
                 eval_results=[],
                 success=False,
