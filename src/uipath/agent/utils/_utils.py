@@ -6,13 +6,10 @@ from typing import Any
 from httpx import Response
 from pydantic import TypeAdapter
 
-from uipath._cli._evals._models._evaluation_set import (
-    InputMockingStrategy,
-    LLMMockingStrategy,
-)
 from uipath._cli._utils._constants import (
     EVALS_DIRECTORY_NAME,
 )
+from uipath._cli._utils._eval_set import EvalHelpers
 from uipath._cli._utils._project_files import pull_project  # type: ignore[attr-defined]
 from uipath._cli._utils._studio_project import (
     ProjectFile,
@@ -113,11 +110,8 @@ def load_agent_definition(
     eval_sets_dir = target_project_dir / EVALS_DIRECTORY_NAME / "eval-sets"
     if eval_sets_dir.exists() and eval_sets_dir.is_dir():
         for file_path in eval_sets_dir.glob("*.json"):
-            try:
-                with open(file_path) as f:
-                    evaluation_sets.append(json.load(f))
-            except Exception as e:
-                logger.warning(f"Failed to load eval-set from {file_path}: {e}")
+            evaluation_set, _ = EvalHelpers.load_eval_set(str(file_path))
+            evaluation_sets.append(evaluation_set)
     else:
         logger.warning(
             "Unable to read eval-sets from project. Defaulting to empty eval-sets."
@@ -135,35 +129,6 @@ def load_agent_definition(
     agent_definition = TypeAdapter(AgentEvalsDefinition).validate_python(
         agent_definition_dict
     )
-
-    # Apply migrations
-    if agent_definition.evaluation_sets:
-        for evaluation_set in agent_definition.evaluation_sets:
-            for evaluation in evaluation_set.evaluations:
-                if evaluation.model_extra:
-                    if not evaluation.mocking_strategy:
-                        # Migrate lowCode evaluation definitions
-                        if evaluation.model_extra.get("simulateTools", False):
-                            tools_to_simulate = evaluation.model_extra.get(
-                                "toolsToSimulate", []
-                            )
-                            prompt = evaluation.model_extra.get(
-                                "simulationInstructions", ""
-                            )
-                            evaluation.mocking_strategy = LLMMockingStrategy(
-                                prompt=prompt, tools_to_simulate=tools_to_simulate
-                            )
-
-                    if not evaluation.input_mocking_strategy:
-                        # Migrate lowCode input mocking fields
-                        if evaluation.model_extra.get("simulateInput", False):
-                            prompt = evaluation.model_extra.get(
-                                "inputGenerationInstructions",
-                            )
-                            if isinstance(prompt, str):
-                                evaluation.input_mocking_strategy = (
-                                    InputMockingStrategy(prompt=prompt)
-                                )
 
     logger.info("Successfully loaded agent definition.")
     return agent_definition
