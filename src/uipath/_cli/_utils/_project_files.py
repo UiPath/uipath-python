@@ -157,6 +157,33 @@ class InteractiveConflictHandler:
                 default=False,
             )
 
+    def should_delete_remote(self, file_path: str) -> bool:
+        """Ask the user if they want to delete a remote file that doesn't exist locally.
+
+        Args:
+            file_path: Relative path to the file (for display)
+
+        Returns:
+            True if the user wants to delete the file, False otherwise
+        """
+        import sys
+
+        import click
+
+        click.echo(
+            click.style(
+                f"\nFile '{file_path}' exists remotely but not locally.",
+                fg="yellow",
+            )
+        )
+
+        # Prompt user for confirmation
+        sys.stdout.flush()
+        return click.confirm(
+            "Do you want to delete this file from the remote project?",
+            default=False,
+        )
+
 
 class FileInfo(BaseModel):
     """Information about a file to be included in the project.

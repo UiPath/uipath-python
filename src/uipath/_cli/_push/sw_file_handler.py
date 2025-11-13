@@ -8,7 +8,6 @@ from typing import Any, AsyncIterator, Dict, Optional, Set
 
 import click
 
-from ..._config import UiPathConfig
 from ...models.exceptions import EnrichedException
 from .._utils._common import get_claim_from_token
 from .._utils._console import ConsoleLogger
@@ -260,34 +259,38 @@ class SwFileHandler:
                 )
 
         # Identify and add deleted files (files that exist remotely but not locally)
-        deleted_files = self._collect_deleted_files(
+        # User will be prompted to confirm deletion for each file
+        candidate_deleted_files = self._collect_deleted_files(
             remote_files,
             processed_source_files,
-            files_to_ignore=["agent.json"],
-            directories_to_ignore=[
-                name
-                for name, condition in [
-                    ("evals", not UiPathConfig.has_legacy_eval_folder),
-                    ("evaluations", not UiPathConfig.has_eval_folder),
-                ]
-                if condition
-            ],
         )
-        structural_migration.deleted_resources.extend(deleted_files)
 
-        # Add delete updates
-        for file_id in deleted_files:
+        # Prompt user for each file deletion
+        confirmed_deleted_files = []
+        for file_id in candidate_deleted_files:
             file_name = next(
                 (name for name, f in remote_files.items() if f.id == file_id),
                 file_id,
             )
-            updates.append(
-                UpdateEvent(
-                    file_path=file_name,
-                    status="deleting",
-                    message=f"Deleting '{file_name}'",
+            if self._conflict_handler.should_delete_remote(file_name):
+                confirmed_deleted_files.append(file_id)
+                updates.append(
+                    UpdateEvent(
+                        file_path=file_name,
+                        status="deleting",
+                        message=f"Deleting '{file_name}'",
+                    )
                 )
-            )
+            else:
+                updates.append(
+                    UpdateEvent(
+                        file_path=file_name,
+                        status="skipped",
+                        message=f"Skipped deleting '{file_name}'",
+                    )
+                )
+
+        structural_migration.deleted_resources.extend(confirmed_deleted_files)
 
         # Load uipath.json configuration
         with open(os.path.join(self.directory, "uipath.json"), "r") as f:
