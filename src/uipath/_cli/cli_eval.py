@@ -140,8 +140,13 @@ def eval(
     if result.should_continue:
         event_bus = EventBus()
 
+        # Create a single shared exporter instance for both progress reporter and runtime
+        spans_exporter = (
+            LlmOpsHttpExporter() if should_register_progress_reporter else None
+        )
+
         if should_register_progress_reporter:
-            progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
+            progress_reporter = StudioWebProgressReporter(spans_exporter)
             asyncio.run(progress_reporter.subscribe_to_eval_runtime_events(event_bus))
 
         eval_context = UiPathEvalContext.with_defaults(
@@ -166,7 +171,8 @@ def eval(
         try:
             runtime_factory = generate_runtime_factory()
             if should_register_progress_reporter:
-                runtime_factory.add_span_exporter(LlmOpsHttpExporter())
+                # Use the same exporter instance that the progress reporter has
+                runtime_factory.add_span_exporter(spans_exporter)
 
             async def execute_eval():
                 project_id = UiPathConfig.project_id
