@@ -101,6 +101,9 @@ class StudioWebProgressReporter:
         self.eval_spans: Dict[
             str, list[Any]
         ] = {}  # Store spans per execution for usage metrics
+        self.eval_set_execution_id: str | None = (
+            None  # Track current eval set execution ID
+        )
 
     def _format_error_message(self, error: Exception, context: str) -> None:
         """Helper method to format and display error messages consistently."""
@@ -366,6 +369,9 @@ class StudioWebProgressReporter:
             self.evaluators = {eval.id: eval for eval in payload.evaluators}
             self.evaluator_scores = {eval.id: [] for eval in payload.evaluators}
 
+            # Store the eval set execution ID for mapping eval runs to eval set
+            self.eval_set_execution_id = payload.execution_id
+
             # Detect if using coded evaluators and store for this execution
             is_coded = self._is_coded_evaluator(payload.evaluators)
             self.is_coded_eval[payload.execution_id] = is_coded
@@ -393,13 +399,17 @@ class StudioWebProgressReporter:
 
     async def handle_create_eval_run(self, payload: EvalRunCreatedEvent) -> None:
         try:
-            if eval_set_run_id := self.eval_set_run_ids.get(payload.execution_id):
+            # Use the stored eval set execution ID to find the eval_set_run_id
+            if self.eval_set_execution_id and (
+                eval_set_run_id := self.eval_set_run_ids.get(self.eval_set_execution_id)
+            ):
                 # Get the is_coded flag for this execution
-                is_coded = self.is_coded_eval.get(payload.execution_id, False)
+                is_coded = self.is_coded_eval.get(self.eval_set_execution_id, False)
                 eval_run_id = await self.create_eval_run(
                     payload.eval_item, eval_set_run_id, is_coded
                 )
                 if eval_run_id:
+                    # Store eval_run_id with the individual eval run's execution_id
                     self.eval_run_ids[payload.execution_id] = eval_run_id
                     logger.debug(
                         f"Created eval run with ID: {eval_run_id} (coded={is_coded})"
@@ -412,9 +422,11 @@ class StudioWebProgressReporter:
 
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
-            self.spans_exporter.trace_id = self.eval_set_run_ids.get(
-                payload.execution_id
-            )
+            # Use the eval set execution ID for trace ID
+            if self.eval_set_execution_id:
+                self.spans_exporter.trace_id = self.eval_set_run_ids.get(
+                    self.eval_set_execution_id
+                )
 
             self.spans_exporter.export(payload.spans)
 
@@ -433,10 +445,11 @@ class StudioWebProgressReporter:
                         case ScoreType.ERROR:
                             self.evaluator_scores[evaluator_id].append(0)
 
-            eval_run_id = self.eval_run_ids[payload.execution_id]
-            if eval_run_id:
+            # Use the individual eval run's execution_id to find its eval_run_id
+            eval_run_id = self.eval_run_ids.get(payload.execution_id)
+            if eval_run_id and self.eval_set_execution_id:
                 # Get the is_coded flag for this execution
-                is_coded = self.is_coded_eval.get(payload.execution_id, False)
+                is_coded = self.is_coded_eval.get(self.eval_set_execution_id, False)
 
                 # Extract usage metrics from spans
                 self._extract_usage_from_spans(payload.spans)
