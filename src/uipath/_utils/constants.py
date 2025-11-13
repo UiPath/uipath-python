@@ -49,6 +49,8 @@ COMMUNITY_agents_SUFFIX = "-community-agents"
 # File names
 UIPATH_CONFIG_FILE = "uipath.json"
 UIPATH_BINDINGS_FILE = "bindings.json"
+ENTRY_POINTS_FILE = "entry-points.json"
+
 
 # Folder names
 LEGACY_EVAL_FOLDER = "evals"

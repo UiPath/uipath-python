@@ -33,9 +33,9 @@ def project_details() -> ProjectDetails:
 
 
 @pytest.fixture
-def uipath_json(request) -> UiPathJson:
+def uipath_json_legacy(request) -> UiPathJson:
     file_name = (
-        "uipath-mock.json"
+        "uipath-mock-legacy.json"
         if not hasattr(request, "param") or request.param is None
         else request.param
     )

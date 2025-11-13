@@ -436,7 +436,6 @@ class UiPathRuntimeContext(BaseModel):
         if os.path.exists(path):
             with open(path, "r") as f:
                 config = json.load(f)
-
         instance = cls()
 
         mapping = {
@@ -458,7 +457,6 @@ class UiPathRuntimeContext(BaseModel):
             if attr_name in kwargs and hasattr(instance, attr_name):
                 if attr_name not in attributes_set:
                     setattr(instance, attr_name, kwargs[attr_name])
-
         return instance
 
 

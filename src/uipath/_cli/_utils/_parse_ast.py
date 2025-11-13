@@ -15,7 +15,12 @@ from ..._services import (
     ProcessesService,
 )
 from ..._utils import get_inferred_bindings_names
-from ..models.runtime_schema import BindingResource, BindingResourceValue, Bindings
+from ..models.runtime_schema import (
+    BindingResource,
+    BindingResourceValue,
+    Bindings,
+    Entrypoints,
+)
 from ._constants import BINDINGS_VERSION
 
 
@@ -577,3 +582,25 @@ def write_bindings_file(bindings: Bindings) -> str:
         json.dump(json_object, bindings_file, indent=4)
 
     return bindings_file_path
+
+
+def write_entry_points_file(entry_points: Entrypoints) -> str:
+    """Write entrypoints to a JSON file.
+
+    Args:
+        entry_points: The entrypoints list
+
+    Returns:
+        str: The path to the written entry_points file
+    """
+    json_object = {
+        "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+        "$id": "entry-points.json",
+        **entry_points.model_dump(by_alias=True, exclude_unset=True),
+    }
+
+    entry_points_file_path = UiPathConfig.entry_points_file_path
+    with open(entry_points_file_path, "w") as entry_points_file:
+        json.dump(json_object, entry_points_file, indent=4)
+
+    return entry_points_file_path

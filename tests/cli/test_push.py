@@ -116,14 +116,14 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
     ) -> None:
         """Test push when UIPATH_PROJECT_ID is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             configure_env_vars(mock_env_vars)
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -136,7 +136,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -258,7 +258,10 @@ class TestPush:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
+
+            with open("entry-points.json", "w") as f:
+                f.write('{"entryPoints": []}')
 
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
@@ -307,7 +310,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -347,7 +350,17 @@ class TestPush:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
+
+            with open("entry-points.json", "w") as f:
+                json.dump(
+                    {
+                        "entryPoints": json.loads(uipath_json_legacy.to_json()).get(
+                            "entryPoints"
+                        )
+                    },
+                    f,
+                )
 
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
@@ -391,20 +404,13 @@ class TestPush:
             )
             assert "targetRuntime" in agent_json_content["metadata"]
             assert agent_json_content["metadata"]["targetRuntime"] == "python"
-            assert "inputSchema" in agent_json_content
-            assert "outputSchema" in agent_json_content
-            assert (
-                agent_json_content["inputSchema"]["type"]
-                == uipath_json.entry_points[0].input.type
-            )
-            assert "agent_1_output" in agent_json_content["outputSchema"]["properties"]
 
     def test_push_with_api_error(
         self,
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -422,7 +428,7 @@ class TestPush:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("uv.lock", "w") as f:
@@ -442,7 +448,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -516,7 +522,7 @@ class TestPush:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
 
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
@@ -555,7 +561,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -564,7 +570,7 @@ class TestPush:
         project_id = "test-project-id"
 
         # Set up exclusions - exclude a JSON file that would normally be included
-        uipath_json.settings.files_excluded = ["config.json"]
+        uipath_json_legacy.settings.files_excluded = ["config.json"]
 
         # Mock the project structure response (empty project)
         mock_structure = {
@@ -597,7 +603,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -626,7 +632,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -635,8 +641,8 @@ class TestPush:
         project_id = "test-project-id"
 
         # Set up both inclusion and exclusion for the same file
-        uipath_json.settings.files_included = ["conflicting.txt"]
-        uipath_json.settings.files_excluded = ["conflicting.txt"]
+        uipath_json_legacy.settings.files_included = ["conflicting.txt"]
+        uipath_json_legacy.settings.files_excluded = ["conflicting.txt"]
 
         # Mock the project structure response (empty project)
         mock_structure = {
@@ -669,7 +675,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -695,7 +701,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -704,7 +710,10 @@ class TestPush:
         project_id = "test-project-id"
 
         # Exclude root config.json and specific path subdir2/settings.json
-        uipath_json.settings.files_excluded = ["config.json", "subdir2/settings.json"]
+        uipath_json_legacy.settings.files_excluded = [
+            "config.json",
+            "subdir2/settings.json",
+        ]
 
         # Mock empty project structure
         mock_structure = {
@@ -736,7 +745,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -788,7 +797,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -797,7 +806,7 @@ class TestPush:
         project_id = "test-project-id"
 
         # Include root data.txt and specific path subdir1/config.txt
-        uipath_json.settings.files_included = ["data.txt", "subdir1/config.txt"]
+        uipath_json_legacy.settings.files_included = ["data.txt", "subdir1/config.txt"]
 
         # Mock empty project structure
         mock_structure = {
@@ -829,7 +838,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -883,7 +892,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -892,7 +901,7 @@ class TestPush:
         project_id = "test-project-id"
 
         # Exclude root-level "temp" directory and specific path "tests/old"
-        uipath_json.settings.directories_excluded = ["temp", "tests/old"]
+        uipath_json_legacy.settings.directories_excluded = ["temp", "tests/old"]
 
         # Mock empty project structure
         mock_structure = {
@@ -924,7 +933,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -977,7 +986,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
         monkeypatch: Any,
@@ -1036,7 +1045,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
@@ -1055,7 +1064,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
         monkeypatch: Any,
@@ -1114,7 +1123,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
@@ -1134,7 +1143,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
         monkeypatch: Any,
@@ -1208,7 +1217,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
@@ -1230,7 +1239,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -1303,7 +1312,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
@@ -1328,7 +1337,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -1421,7 +1430,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:

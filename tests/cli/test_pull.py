@@ -20,7 +20,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test pull when UIPATH_PROJECT_ID is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -33,7 +33,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -137,7 +137,7 @@ class TestPull:
         httpx_mock.add_response(
             method="GET",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
-            content=uipath_json.to_json().encode(),
+            content=uipath_json_legacy.to_json().encode(),
         )
 
         # For eval-sets/test-set.json
@@ -202,7 +202,7 @@ class TestPull:
             with open("pyproject.toml", "r") as f:
                 assert f.read() == project_details.to_toml()
             with open("uipath.json", "r") as f:
-                assert f.read() == uipath_json.to_json()
+                assert f.read() == uipath_json_legacy.to_json()
 
             # Verify evals folder structure exists
             assert os.path.isdir("evaluations")
@@ -220,7 +220,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
         monkeypatch: Any,
@@ -288,7 +288,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
         monkeypatch: Any,
@@ -356,7 +356,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
@@ -385,7 +385,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
         mock_env_vars: Dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:

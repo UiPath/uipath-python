@@ -123,7 +123,6 @@ def publish(feed, folder):
     """Publish the package."""
     [base_url, token] = get_env_vars()
     headers = {"Authorization": f"Bearer {token}"}
-
     # If folder is provided directly, look it up
     if folder:
         with console.spinner("Fetching available package feeds..."):

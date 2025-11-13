@@ -26,13 +26,13 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test project packing scenarios."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files for packing
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             create_bindings_file()
@@ -48,13 +48,13 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test project packing scenarios."""
         project_details.description = None
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             create_bindings_file()
@@ -71,13 +71,13 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test project packing scenarios."""
         project_details.authors = None
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             create_bindings_file()
@@ -94,12 +94,12 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         project_details.requires_python = None
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             create_bindings_file()
@@ -115,12 +115,12 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         project_details.name = ""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             create_bindings_file()
@@ -136,12 +136,12 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         project_details.name = "project < name"
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             create_bindings_file()
@@ -154,12 +154,12 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         project_details.description = "invalid project description &"
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             create_bindings_file()
@@ -186,32 +186,34 @@ class TestPack:
             )
 
     def test_pack_without_pyproject_toml(
-        self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
+        self, runner: CliRunner, temp_dir: str, uipath_json_legacy: UiPathJson
     ) -> None:
         """Test packing when pyproject.toml is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             create_bindings_file()
             result = runner.invoke(cli, ["pack", "./"])
             assert result.exit_code == 1
             assert "pyproject.toml not found" in result.output
 
     def test_generate_operate_file(
-        self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
+        self, runner: CliRunner, temp_dir: str, uipath_json_legacy: UiPathJson
     ) -> None:
         """Test generating operate.json and its content."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             create_bindings_file()
             operate_data = cli_pack.generate_operate_file(
-                json.loads(uipath_json.to_json())["entryPoints"]
+                json.loads(uipath_json_legacy.to_json())["entryPoints"]
             )
             assert (
                 operate_data["$schema"]
                 == "https://cloud.uipath.com/draft/2024-12/entry-point"
             )
-            assert operate_data["main"] == uipath_json.entry_points[0].file_path
-            assert operate_data["contentType"] == uipath_json.entry_points[0].type
+            assert operate_data["main"] == uipath_json_legacy.entry_points[0].file_path
+            assert (
+                operate_data["contentType"] == uipath_json_legacy.entry_points[0].type
+            )
             assert operate_data["targetFramework"] == "Portable"
             assert operate_data["targetRuntime"] == "python"
             assert operate_data["runtimeOptions"] == {
@@ -220,11 +222,11 @@ class TestPack:
             }
 
     def test_generate_bindings_content(
-        self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
+        self, runner: CliRunner, temp_dir: str, uipath_json_legacy: UiPathJson
     ) -> None:
         """Test generating operate.json and its content."""
         entrypoints_data = cli_pack.generate_entrypoints_file(
-            json.loads(uipath_json.to_json())["entryPoints"]
+            json.loads(uipath_json_legacy.to_json())["entryPoints"]
         )
         assert (
             entrypoints_data["$schema"]
@@ -233,11 +235,11 @@ class TestPack:
         assert entrypoints_data["$id"] == "entry-points.json"
         assert (
             entrypoints_data["entryPoints"]
-            == json.loads(uipath_json.to_json())["entryPoints"]
+            == json.loads(uipath_json_legacy.to_json())["entryPoints"]
         )
 
     def test_package_descriptor_content(
-        self, runner: CliRunner, temp_dir: str, uipath_json: UiPathJson
+        self, runner: CliRunner, temp_dir: str, uipath_json_legacy: UiPathJson
     ) -> None:
         """Test generating operate.json and its content."""
         expected_files = {
@@ -245,16 +247,16 @@ class TestPack:
             "entry-points.json": "content/entry-points.json",
             "bindings.json": "content/bindings_v2.json",
         }
-        for entry in uipath_json.entry_points:
+        for entry in uipath_json_legacy.entry_points:
             expected_files[entry.file_path] = entry.file_path
         content = cli_pack.generate_package_descriptor_content(
-            json.loads(uipath_json.to_json())["entryPoints"]
+            json.loads(uipath_json_legacy.to_json())["entryPoints"]
         )
         assert (
             content["$schema"]
             == "https://cloud.uipath.com/draft/2024-12/package-descriptor"
         )
-        assert len(content["files"]) == 3 + len(uipath_json.entry_points)
+        assert len(content["files"]) == 3 + len(uipath_json_legacy.entry_points)
         assert content["files"] == expected_files
 
     def test_include_file_extensions(
@@ -262,7 +264,7 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test generating operate.json and its content."""
         xml_file_name = "test.xml"
@@ -274,10 +276,10 @@ class TestPack:
         # Binary content for the exe file (simulating a simple executable)
         binary_content = b"\x4d\x5a\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00\xb8\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00"
 
-        uipath_json.settings.file_extensions_included = [".xml", ".exe"]
+        uipath_json_legacy.settings.file_extensions_included = [".xml", ".exe"]
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open(xml_file_name, "w") as f:
@@ -313,15 +315,15 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test generating operate.json and its content."""
         file_to_add = "file_to_add.xml"
         random_file = "random_file.xml"
-        uipath_json.settings.files_included = [f"{file_to_add}"]
+        uipath_json_legacy.settings.files_included = [f"{file_to_add}"]
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open(file_to_add, "w") as f:
@@ -342,12 +344,12 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test generating operate.json and its content."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             os.mkdir("subdir")
@@ -366,15 +368,15 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test error handling in pack command."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-            for entry in uipath_json.entry_points:
+            for entry in uipath_json_legacy.entry_points:
                 with open(f"{entry.file_path}.py", "w") as f:
                     f.write("#agent content")
             result = runner.invoke(cli, ["pack", "./"])
@@ -384,7 +386,7 @@ class TestPack:
                 f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
             ) as z:
                 assert result.exit_code == 0
-                for entry in uipath_json.entry_points:
+                for entry in uipath_json_legacy.entry_points:
                     assert f"content/{entry.file_path}.py" in z.namelist()
                 assert "Packaging project" in result.output
                 assert f"Name       : {project_details.name}" in result.output
@@ -401,7 +403,7 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that all dependency version formats are parsed correctly and included in operate.json."""
 
@@ -436,12 +438,12 @@ class TestPack:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
             # Create entry point files
-            for entry in uipath_json.entry_points:
+            for entry in uipath_json_legacy.entry_points:
                 with open(f"{entry.file_path}.py", "w") as f:
                     f.write("# agent content")
 
@@ -548,16 +550,16 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("uv.lock", "w") as f:
                 f.write("# uv.lock content")
-            for entry in uipath_json.entry_points:
+            for entry in uipath_json_legacy.entry_points:
                 with open(f"{entry.file_path}.py", "w") as f:
                     f.write("# agent content")
 
@@ -579,7 +581,7 @@ class TestPack:
                 "content/uv.lock",
             ]
 
-            for entry in uipath_json.entry_points:
+            for entry in uipath_json_legacy.entry_points:
                 expected_files.append(f"content/{entry.file_path}.py")
 
             with zipfile.ZipFile(nupkg_path, "r") as z:
@@ -592,16 +594,16 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("uv.lock", "w") as f:
                 f.write("# uv.lock content")
-            for entry in uipath_json.entry_points:
+            for entry in uipath_json_legacy.entry_points:
                 with open(f"{entry.file_path}.py", "w") as f:
                     f.write("# agent content")
 
@@ -624,18 +626,18 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that files mentioned in filesExcluded are excluded from the package."""
         json_file_to_exclude = "config.json"
         json_file_to_include = "other.json"
 
         # Set up exclusions
-        uipath_json.settings.files_excluded = [json_file_to_exclude]
+        uipath_json_legacy.settings.files_excluded = [json_file_to_exclude]
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -661,18 +663,18 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that filesExcluded takes precedence over filesIncluded."""
         conflicting_file = "conflicting.txt"
 
         # Set up both inclusion and exclusion for the same file
-        uipath_json.settings.files_included = [conflicting_file]
-        uipath_json.settings.files_excluded = [conflicting_file]
+        uipath_json_legacy.settings.files_included = [conflicting_file]
+        uipath_json_legacy.settings.files_excluded = [conflicting_file]
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -694,15 +696,18 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that filename exclusion only affects root directory, path exclusion affects specific paths."""
         # Exclude root config.json and specific path subdir2/settings.json
-        uipath_json.settings.files_excluded = ["config.json", "subdir2/settings.json"]
+        uipath_json_legacy.settings.files_excluded = [
+            "config.json",
+            "subdir2/settings.json",
+        ]
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -752,15 +757,15 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that filename inclusion only affects root directory, path inclusion affects specific paths."""
         # Include root data.txt and specific path subdir2/config.txt
-        uipath_json.settings.files_included = ["data.txt", "subdir1/config.txt"]
+        uipath_json_legacy.settings.files_included = ["data.txt", "subdir1/config.txt"]
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -818,15 +823,15 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that directory exclusion by name only affects root level, by path affects specific paths."""
         # Exclude root-level "temp" directory and specific path "tests/old"
-        uipath_json.settings.directories_excluded = ["temp", "tests/old"]
+        uipath_json_legacy.settings.directories_excluded = ["temp", "tests/old"]
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -877,13 +882,13 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that bindings.json is named bindings_v2.json in the .nupkg."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files for packing
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 

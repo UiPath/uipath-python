@@ -142,7 +142,7 @@ class TestRun:
                 assert f"Script not found at path {entrypoint}" in result.output
 
         @pytest.mark.parametrize(
-            "uipath_json", ["uipath-simple-script-mock.json"], indirect=True
+            "uipath_json_legacy", ["uipath-simple-script-mock.json"], indirect=True
         )
         def test_successful_execution(
             self,
@@ -150,7 +150,7 @@ class TestRun:
             temp_dir: str,
             entrypoint: str,
             mock_env_vars: dict,
-            uipath_json: UiPathJson,
+            uipath_json_legacy: UiPathJson,
             simple_script: str,
         ):
             input_file_name = "input.json"
@@ -172,7 +172,7 @@ class TestRun:
                     f.write(simple_script)
                 # create uipath.json
                 with open("uipath.json", "w") as f:
-                    f.write(uipath_json.to_json())
+                    f.write(uipath_json_legacy.to_json())
                 result = runner.invoke(
                     cli,
                     [
@@ -198,7 +198,7 @@ class TestRun:
         temp_dir: str,
         entrypoint: str,
         mock_env_vars: dict,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ):
         input_file_name = "input.json"
         input_json_content = """
@@ -217,7 +217,7 @@ class TestRun:
                 f.write("print(0)")
             # create uipath.json
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             result = runner.invoke(cli, ["run", script_file_path, "{}"])
             assert result.exit_code == 1
             assert "No main function (main, run, or execute)" in result.output
@@ -229,7 +229,7 @@ class TestRun:
         temp_dir: str,
         entrypoint: str,
         mock_env_vars: dict,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ):
         input_file_name = "input.json"
         input_json_content = """
@@ -248,7 +248,7 @@ class TestRun:
                 f.write("print(0)")
             # create uipath.json
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
             with patch("uipath._cli.cli_run.Middlewares.next") as mock_middleware:
                 mock_middleware.return_value = MiddlewareResult(
                     should_continue=False,
@@ -267,7 +267,7 @@ class TestRun:
         temp_dir: str,
         entrypoint: str,
         mock_env_vars: dict,
-        uipath_json: UiPathJson,
+        uipath_json_legacy: UiPathJson,
     ):
         """Test successful execution with Pydantic models."""
         pydantic_script = """
@@ -320,7 +320,7 @@ def main(input_data: PersonIn) -> PersonOut:
                 f.write(pydantic_script)
             # create uipath.json
             with open("uipath.json", "w") as f:
-                f.write(uipath_json.to_json())
+                f.write(uipath_json_legacy.to_json())
 
             result = runner.invoke(
                 cli,

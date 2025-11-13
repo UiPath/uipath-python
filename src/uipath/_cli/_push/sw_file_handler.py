@@ -143,9 +143,8 @@ class SwFileHandler:
         This method:
         1. Compares local files with remote files
         2. Builds a structural migration with added/modified/deleted resources
-        3. Prepares agent.json and entry-points.json
-        4. Performs the structural migration
-        5. Cleans up empty folders
+        3. Performs the structural migration
+        4. Cleans up empty folders
 
         Args:
             local_files: List of files to upload
@@ -264,7 +263,7 @@ class SwFileHandler:
         deleted_files = self._collect_deleted_files(
             remote_files,
             processed_source_files,
-            files_to_ignore=["agent.json", "entry-points.json"],
+            files_to_ignore=["agent.json"],
             directories_to_ignore=[
                 name
                 for name, condition in [
@@ -300,14 +299,6 @@ class SwFileHandler:
         )
         if agent_update:
             updates.append(agent_update)
-
-        # TODO: remove this after entry-points.json is created on init
-        # Prepare entry-points.json migration (may download existing file to merge)
-        entry_points_update = await self._prepare_entrypoints_json_migration(
-            structural_migration, remote_files, uipath_config
-        )
-        if entry_points_update:
-            updates.append(entry_points_update)
 
         # Perform the structural migration (uploads/updates/deletes all files)
         await self._studio_client.perform_structural_migration_async(
@@ -420,80 +411,6 @@ class SwFileHandler:
 
         return True
 
-    async def _prepare_entrypoints_json_migration(
-        self,
-        structural_migration: StructuralMigration,
-        root_files: Dict[str, ProjectFile],
-        uipath_config: Dict[str, Any],
-    ) -> Optional[UpdateEvent]:
-        """Prepare entry-points.json to be included in the same structural migration.
-
-        This method:
-        1. Downloads existing entry-points.json if it exists
-        2. Merges entryPoints from uipath.json config
-        3. Adds to structural migration as modified or added resource
-
-        Args:
-            structural_migration: The structural migration to add resources to
-            root_files: Dictionary of root-level files
-            uipath_config: Configuration from uipath.json
-
-        Returns:
-            FileOperationUpdate describing the operation, or None if error occurred
-        """
-        existing = root_files.get("entry-points.json")
-
-        if existing:
-            # Entry-points.json exists - download and merge
-            try:
-                entry_points_json = (
-                    await self._studio_client.download_project_file_async(existing)
-                ).json()
-                entry_points_json["entryPoints"] = uipath_config["entryPoints"]
-            except Exception:
-                logger.info(
-                    "Could not parse existing 'entry-points.json' file, using default version"
-                )
-                # If parsing fails, create default structure
-                entry_points_json = {
-                    "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
-                    "$id": "entry-points.json",
-                    "entryPoints": uipath_config["entryPoints"],
-                }
-
-            structural_migration.modified_resources.append(
-                ModifiedResource(
-                    id=existing.id,
-                    content_string=json.dumps(entry_points_json),
-                )
-            )
-            return UpdateEvent(
-                file_path="entry-points.json",
-                status="updating",
-                message="Updating 'entry-points.json'",
-            )
-        else:
-            # Entry-points.json doesn't exist - create new one
-            logger.info(
-                "'entry-points.json' file does not exist in Studio Web project, initializing using default version"
-            )
-            entry_points_json = {
-                "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
-                "$id": "entry-points.json",
-                "entryPoints": uipath_config["entryPoints"],
-            }
-            structural_migration.added_resources.append(
-                AddedResource(
-                    file_name="entry-points.json",
-                    content_string=json.dumps(entry_points_json),
-                )
-            )
-            return UpdateEvent(
-                file_path="entry-points.json",
-                status="uploading",
-                message="Uploading 'entry-points.json'",
-            )
-
     async def _prepare_agent_json_migration(
         self,
         structural_migration: StructuralMigration,
@@ -532,16 +449,6 @@ class SwFileHandler:
             )
             return toml_data.get("authors", "").strip()
 
-        # Extract input and output schemas from entrypoints
-        try:
-            input_schema = uipath_config["entryPoints"][0]["input"]
-            output_schema = uipath_config["entryPoints"][0]["output"]
-        except (FileNotFoundError, KeyError) as e:
-            logger.error(
-                f"Unable to extract entrypoints from configuration file. Please run 'uipath init' : {str(e)}",
-            )
-            return None
-
         author = get_author_from_token_or_toml()
 
         # Initialize agent.json structure with metadata
@@ -555,12 +462,9 @@ class SwFileHandler:
                 "author": author,
                 "pushDate": datetime.now(timezone.utc).isoformat(),
             },
-            "inputSchema": input_schema,
-            "outputSchema": output_schema,
             "bindings": uipath_config.get(
                 "bindings", {"version": "2.0", "resources": []}
             ),
-            "settings": {},
             # TODO: remove this after validation check gets removed on SW side
             "entryPoints": [{}],
         }

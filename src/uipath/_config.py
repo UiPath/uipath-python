@@ -59,13 +59,18 @@ class ConfigurationManager:
         eval_path = Path(os.getcwd()) / LEGACY_EVAL_FOLDER
         return eval_path.exists() and eval_path.is_dir()
 
-    # TODO: to be renamed to "evaluations"
     @property
     def has_eval_folder(self) -> bool:
         from uipath._utils.constants import EVALS_FOLDER
 
         coded_eval_path = Path(os.getcwd()) / EVALS_FOLDER
         return coded_eval_path.exists() and coded_eval_path.is_dir()
+
+    @property
+    def entry_points_file_path(self) -> Path:
+        from uipath._utils.constants import ENTRY_POINTS_FILE
+
+        return Path(ENTRY_POINTS_FILE)
 
 
 UiPathConfig = ConfigurationManager()

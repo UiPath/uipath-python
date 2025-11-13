@@ -21,6 +21,12 @@ class Entrypoint(BaseModel):
     model_config = COMMON_MODEL_SCHEMA
 
 
+class Entrypoints(BaseModel):
+    entry_points: List[Entrypoint] = Field(..., alias="entryPoints")
+
+    model_config = COMMON_MODEL_SCHEMA
+
+
 class BindingResourceValue(BaseModel):
     default_value: str = Field(..., alias="defaultValue")
     is_expression: bool = Field(..., alias="isExpression")
@@ -62,12 +68,14 @@ class RuntimeArguments(BaseModel):
 
 class RuntimeSchema(BaseModel):
     runtime: Optional[RuntimeArguments] = Field(default=None, alias="runtime")
-    entrypoints: List[Entrypoint] = Field(..., alias="entryPoints")
 
-    # left for backward compatibility with uipath-langchain and uipath-llamaindex libraries. should be removed on major release
+    # TODO: left for backward compatibility with uipath-langchain and uipath-llamaindex libraries. should be removed on 2.2.x
+    entrypoints: Optional[List[Entrypoint]] = Field(default=None, alias="entryPoints")
+
+    # TODO: left for backward compatibility with uipath-langchain and uipath-llamaindex libraries. should be removed on 2.2.x
     bindings: Optional[Bindings] = Field(
         default=Bindings(version="2.0", resources=[]), alias="bindings"
     )
-    settings: Optional[Dict[str, Any]] = Field(default=None, alias="setting")
+    settings: Optional[Dict[str, Any]] = Field(default=None, alias="settings")
 
     model_config = COMMON_MODEL_SCHEMA

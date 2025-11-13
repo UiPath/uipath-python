@@ -87,9 +87,10 @@ class TestInit:
             result = runner.invoke(cli, ["init", "script.py"])
             assert result.exit_code == 0
             assert os.path.exists("uipath.json")
+            assert os.path.exists("entry-points.json")
 
             # Verify config content
-            with open("uipath.json", "r") as f:
+            with open("entry-points.json", "r") as f:
                 config = json.load(f)
                 assert "entryPoints" in config
                 assert len(config["entryPoints"]) == 1
@@ -191,8 +192,9 @@ def main(input: Input) -> Output:
             result = runner.invoke(cli, ["init", "test.py"])
             assert result.exit_code == 0
             assert os.path.exists("uipath.json")
+            assert os.path.exists("entry-points.json")
 
-            with open("uipath.json", "r") as f:
+            with open("entry-points.json", "r") as f:
                 config = json.load(f)
                 entry = config["entryPoints"][0]
 
@@ -450,9 +452,10 @@ def main(input: Input) -> Output:
             result = runner.invoke(cli, ["init", "comprehensive_types.py"])
             assert result.exit_code == 0
             assert os.path.exists("uipath.json")
+            assert os.path.exists("entry-points.json")
 
             # Load and validate the generated config
-            with open("uipath.json", "r") as f:
+            with open("entry-points.json", "r") as f:
                 config = json.load(f)
                 entry = config["entryPoints"][0]
                 input_schema = entry["input"]
@@ -571,7 +574,9 @@ def main(input: Input) -> Output:
             assert output_schema["properties"]["success"]["type"] == "boolean"
             assert set(output_schema["required"]) == {"result", "success"}
 
-    def test_bindings_file_creation(self, runner: CliRunner, temp_dir: str) -> None:
+    def test_bindings_and_entrypoints_files_creation(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
         """Test that bindings.json file is created correctly during init."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create a simple Python file
@@ -582,9 +587,10 @@ def main(input: Input) -> Output:
             assert result.exit_code == 0
             assert "Created 'uipath.json' file" in result.output
             assert "Created 'bindings.json' file" in result.output
+            assert "Created 'entry-points.json' file" in result.output
 
-            # Verify bindings.json exists
             assert os.path.exists("bindings.json")
+            assert os.path.exists("entry-points.json")
 
             # Verify bindings.json has correct structure
             with open("bindings.json", "r") as f:
@@ -594,8 +600,8 @@ def main(input: Input) -> Output:
                 assert "resources" in bindings_data
                 assert isinstance(bindings_data["resources"], list)
 
-            # Verify uipath.json does NOT contain bindings
+            # Verify uipath.json does NOT contain bindings and entryPoints
             with open("uipath.json", "r") as f:
                 config = json.load(f)
                 assert "bindings" not in config
-                assert "entryPoints" in config
+                assert "entryPoints" not in config

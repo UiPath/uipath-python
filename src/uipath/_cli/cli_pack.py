@@ -199,17 +199,30 @@ def is_venv_dir(d):
 
 
 def pack_fn(
-    projectName,
+    project_name,
     description,
-    entryPoints,
+    entry_points,
     version,
     authors,
     directory,
     dependencies=None,
     include_uv_lock=True,
 ):
-    operate_file = generate_operate_file(entryPoints, dependencies)
-    entrypoints_file = generate_entrypoints_file(entryPoints)
+    if legacy_config := entry_points:
+        entrypoints_file_content = generate_entrypoints_file(entry_points)
+    else:
+        entry_points_file_path = os.path.join(
+            directory, str(UiPathConfig.entry_points_file_path)
+        )
+        if not os.path.exists(entry_points_file_path):
+            raise Exception(
+                "'entry-points.json' file not found. Please run 'uipath init'."
+            )
+        else:
+            with open(entry_points_file_path, "r") as f:
+                entry_points = json.load(f).get("entryPoints", [])
+
+    operate_file = generate_operate_file(entry_points, dependencies)
 
     config_path = os.path.join(directory, "uipath.json")
     if not os.path.exists(config_path):
@@ -229,20 +242,22 @@ def pack_fn(
 
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
-        projectName, version, description, authors
+        project_name, version, description, authors
     )
-    nuspec_content = generate_nuspec_content(projectName, version, description, authors)
+    nuspec_content = generate_nuspec_content(
+        project_name, version, description, authors
+    )
     rels_content = generate_rels_content(
-        f"/{projectName}.nuspec",
+        f"/{project_name}.nuspec",
         f"/package/services/metadata/core-properties/{psmdcp_file_name}",
     )
-    package_descriptor_content = generate_package_descriptor_content(entryPoints)
+    package_descriptor_content = generate_package_descriptor_content(entry_points)
 
     # Create .uipath directory if it doesn't exist
     os.makedirs(".uipath", exist_ok=True)
 
     with zipfile.ZipFile(
-        f".uipath/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
+        f".uipath/{project_name}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
     ) as z:
         # Add metadata files
         z.writestr(
@@ -255,12 +270,16 @@ def pack_fn(
             json.dumps(package_descriptor_content, indent=4),
         )
         z.writestr("content/operate.json", json.dumps(operate_file, indent=4))
-        z.writestr("content/entry-points.json", json.dumps(entrypoints_file, indent=4))
+        if legacy_config:
+            z.writestr(
+                "content/entry-points.json",
+                json.dumps(entrypoints_file_content, indent=4),
+            )
         z.writestr(
             "content/bindings_v2.json",
             json.dumps(config_data.bindings.model_dump(by_alias=True), indent=4),
         )
-        z.writestr(f"{projectName}.nuspec", nuspec_content)
+        z.writestr(f"{project_name}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
         files = files_to_include(config_data.settings, directory, include_uv_lock)
@@ -329,7 +348,7 @@ def pack(root, nolock):
             pack_fn(
                 config["project_name"],
                 config["description"],
-                config["entryPoints"],
+                config.get("entryPoints", None),
                 version or config["version"],
                 config["authors"],
                 root,
