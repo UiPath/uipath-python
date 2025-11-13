@@ -10,6 +10,7 @@ from pydantic import TypeAdapter
 
 from uipath._cli.models.runtime_schema import Bindings, RuntimeSchema
 from uipath._config import UiPathConfig
+from uipath._utils.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 
 from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
@@ -282,7 +283,12 @@ def pack_fn(
         z.writestr(f"{project_name}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        files = files_to_include(config_data.settings, directory, include_uv_lock)
+        files = files_to_include(
+            config_data.settings,
+            directory,
+            include_uv_lock,
+            directories_to_ignore=[LEGACY_EVAL_FOLDER, EVALS_FOLDER],
+        )
 
         for file in files:
             if file.is_binary:

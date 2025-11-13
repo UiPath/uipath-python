@@ -936,3 +936,41 @@ class TestPack:
                 assert len(bindings_v2_data["resources"]) == 1
                 assert bindings_v2_data["resources"][0]["resource"] == "asset"
                 assert bindings_v2_data["resources"][0]["key"] == "test-asset"
+
+    def test_evals_and_evaluations_directories_excluded(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json_legacy: UiPathJson,
+    ) -> None:
+        """Test that evals and evaluations directories are excluded from the nupkg."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json_legacy.to_json())
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            os.makedirs("evals")
+            os.makedirs("evaluations")
+            os.makedirs("other_dir")
+
+            with open("evals/test_eval.json", "w") as f:
+                f.write('{"eval": "data"}')
+            with open("evaluations/test_evaluation.json", "w") as f:
+                f.write('{"evaluation": "data"}')
+            with open("other_dir/included.json", "w") as f:
+                f.write('{"should": "be included"}')
+
+            result = runner.invoke(cli, ["pack", "./"])
+            assert result.exit_code == 0
+
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            assert os.path.exists(nupkg_path)
+
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                assert "content/evals/test_eval.json" not in z.namelist()
+                assert "content/evaluations/test_evaluation.json" not in z.namelist()
+                assert "content/other_dir/included.json" in z.namelist()
