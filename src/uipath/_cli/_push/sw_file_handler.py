@@ -465,6 +465,9 @@ class SwFileHandler:
             "bindings": uipath_config.get(
                 "bindings", {"version": "2.0", "resources": []}
             ),
+            "inputSchema": {},
+            "outputSchema": {},
+            "settings": {},
             # TODO: remove this after validation check gets removed on SW side
             "entryPoints": [{}],
         }
