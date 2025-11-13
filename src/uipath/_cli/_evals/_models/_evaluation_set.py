@@ -183,13 +183,16 @@ class LegacyEvaluationItem(BaseModel):
     eval_set_id: str = Field(alias="evalSetId")
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
-    mocking_strategy: Optional[MockingStrategy] = Field(
-        default=None,
-        alias="mockingStrategy",
+    simulate_input: Optional[bool] = Field(default=None, alias="simulateInput")
+    input_generation_instructions: Optional[str] = Field(
+        default=None, alias="inputGenerationInstructions"
     )
-    input_mocking_strategy: Optional[InputMockingStrategy] = Field(
-        default=None,
-        alias="inputMockingStrategy",
+    simulate_tools: Optional[bool] = Field(default=None, alias="simulateInput")
+    simulation_instructions: Optional[str] = Field(
+        default=None, alias="simulationInstructions"
+    )
+    tools_to_simulate: list[EvaluationSimulationTool] = Field(
+        default_factory=list, alias="toolsToSimulate"
     )
 
 

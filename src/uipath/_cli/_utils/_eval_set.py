@@ -8,8 +8,10 @@ from pydantic import TypeAdapter, ValidationError
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
     EvaluationSet,
+    InputMockingStrategy,
     LegacyEvaluationItem,
     LegacyEvaluationSet,
+    LLMMockingStrategy,
 )
 from uipath._cli._utils._console import ConsoleLogger
 
@@ -105,14 +107,28 @@ class EvalHelpers:
                 def migrate_evaluation_item(
                     evaluation: LegacyEvaluationItem, evaluators: list[str]
                 ) -> EvaluationItem:
+                    mocking_strategy = None
+                    input_mocking_strategy = None
+                    if (
+                        evaluation.simulate_input
+                        and evaluation.input_generation_instructions
+                    ):
+                        input_mocking_strategy = InputMockingStrategy(
+                            prompt=evaluation.input_generation_instructions,
+                        )
+                    if evaluation.simulate_tools and evaluation.simulation_instructions:
+                        mocking_strategy = LLMMockingStrategy(
+                            prompt=evaluation.simulation_instructions,
+                            tools_to_simulate=evaluation.tools_to_simulate or [],
+                        )
                     return EvaluationItem.model_validate(
                         {
                             "id": evaluation.id,
                             "name": evaluation.name,
                             "inputs": evaluation.inputs,
                             "expectedAgentBehavior": evaluation.expected_agent_behavior,
-                            "mockingStrategy": evaluation.mocking_strategy,
-                            "inputMockingStrategy": evaluation.input_mocking_strategy,
+                            "mockingStrategy": mocking_strategy,
+                            "inputMockingStrategy": input_mocking_strategy,
                             "evaluationCriterias": {
                                 k: {
                                     "expectedOutput": evaluation.expected_output,
