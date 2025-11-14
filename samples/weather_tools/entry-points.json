@@ -1,0 +1,95 @@
+{
+    "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+    "$id": "entry-points.json",
+    "entryPoints": [
+        {
+            "filePath": "main.py",
+            "uniqueId": "23398490-4dc7-47b4-8886-88dea0ef0d13",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "enum": [
+                            "New York",
+                            "London",
+                            "Tokyo",
+                            "Paris",
+                            "Sydney"
+                        ]
+                    },
+                    "action": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "city",
+                    "action"
+                ]
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string"
+                    },
+                    "temperature": {
+                        "type": "number"
+                    },
+                    "condition": {
+                        "type": "string",
+                        "enum": [
+                            "sunny",
+                            "cloudy",
+                            "rainy",
+                            "snowy"
+                        ]
+                    },
+                    "humidity": {
+                        "type": "integer"
+                    },
+                    "forecast": {
+                        "type": "object"
+                    },
+                    "alerts": {
+                        "type": "object"
+                    },
+                    "content": {
+                        "type": "object",
+                        "properties": {
+                            "city": {
+                                "type": "string"
+                            },
+                            "temperature": {
+                                "type": "number"
+                            },
+                            "condition": {
+                                "type": "string",
+                                "enum": [
+                                    "sunny",
+                                    "cloudy",
+                                    "rainy",
+                                    "snowy"
+                                ]
+                            },
+                            "humidity": {
+                                "type": "integer"
+                            },
+                            "forecast": {
+                                "type": "object"
+                            },
+                            "alerts": {
+                                "type": "object"
+                            }
+                        },
+                        "required": []
+                    }
+                },
+                "required": [
+                    "content"
+                ]
+            }
+        }
+    ]
+}

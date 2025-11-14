@@ -1,7 +1,7 @@
 [project]
-name = "bindings-agent"
+name = "weather-tools"
 version = "0.0.1"
-description = "Agent using UiPath bindings"
+description = "Weather agent"
 authors = [{ name = "John Doe" }]
 readme = "README.md"
 requires-python = ">=3.11"

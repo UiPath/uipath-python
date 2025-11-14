@@ -2,7 +2,6 @@ from typing import Any
 from uipath import UiPath
 from pydantic import BaseModel
 
-uipath = UiPath()
 
 class Resource(BaseModel):
     name: str
@@ -12,6 +11,9 @@ class Response(BaseModel):
     resources: list[Resource] = []
 
 async def main() -> Response:
+
+    uipath = UiPath()
+
     response = Response()
 
     # Assets - retrieve asset value

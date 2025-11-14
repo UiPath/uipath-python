@@ -10,17 +10,22 @@ from uipath.tracing import traced
 dotenv.load_dotenv()
 logger = logging.getLogger(__name__)
 
-UIPATH_CLIENT_ID = "EXTERNAL_APP_CLIENT_ID_HERE"
-UIPATH_CLIENT_SECRET = os.getenv("UIPATH_CLIENT_SECRET")
-UIPATH_SCOPE = "OR.Assets"
-UIPATH_URL = "base_url"
+def get_uipath_client() -> UiPath:
+    """Initialize and return a UiPath client using environment variables.
 
-uipath = UiPath(
-    client_id=UIPATH_CLIENT_ID,
-    client_secret=UIPATH_CLIENT_SECRET,
-    scope=UIPATH_SCOPE,
-    base_url=UIPATH_URL
-)
+    Returns:
+        UiPath: An instance of the UiPath client.
+    """
+    UIPATH_CLIENT_ID = "EXTERNAL_APP_CLIENT_ID_HERE"
+    UIPATH_CLIENT_SECRET = os.getenv("UIPATH_CLIENT_SECRET")
+    UIPATH_SCOPE = "OR.Assets"
+    UIPATH_URL = "base_url"
+    return UiPath(
+        client_id=UIPATH_CLIENT_ID,
+        client_secret=UIPATH_CLIENT_SECRET,
+        scope=UIPATH_SCOPE,
+        base_url=UIPATH_URL
+    )
 
 @dataclasses.dataclass
 class AgentInput:
@@ -33,7 +38,7 @@ class AgentInput:
     asset_name: str
     folder_path: str
 
-def get_asset(name: str, folder_path: str) -> Optional[object]:
+def get_asset(client: UiPath, name: str, folder_path: str) -> Optional[object]:
     """Retrieve an asset from UiPath.
 
     Args:
@@ -43,7 +48,7 @@ def get_asset(name: str, folder_path: str) -> Optional[object]:
     Returns:
         Optional[object]: The asset object if found, else None.
     """
-    return uipath.assets.retrieve(name=name, folder_path=folder_path)
+    return client.assets.retrieve(name=name, folder_path=folder_path)
 
 def check_asset(asset: object) -> str:
     """Check if an asset's IntValue is within a valid range.
@@ -76,5 +81,6 @@ def main(input: AgentInput) -> str:
     Returns:
         str: Message with the result of the asset check.
     """
-    asset = get_asset(input.asset_name, input.folder_path)
+    client = get_uipath_client()
+    asset = get_asset(client, input.asset_name, input.folder_path)
     return check_asset(asset)

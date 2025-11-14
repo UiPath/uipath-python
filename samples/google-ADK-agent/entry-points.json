@@ -1,0 +1,25 @@
+{
+    "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+    "$id": "entry-points.json",
+    "entryPoints": [
+        {
+            "filePath": "multi_tool_agent/agent.py",
+            "uniqueId": "7de717bb-7fa2-46f6-99b6-7838c068da97",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "query"
+                ]
+            },
+            "output": {
+                "type": "string"
+            }
+        }
+    ]
+}
