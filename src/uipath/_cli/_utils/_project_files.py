@@ -10,6 +10,7 @@ from typing import Any, AsyncIterator, Dict, Literal, Optional, Protocol, Tuple
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from ..._config import UiPathConfig
 from .._utils._console import ConsoleLogger
 from ..models.runtime_schema import RuntimeSchema
 from ._constants import is_binary_file
@@ -214,6 +215,24 @@ def get_project_config(directory: str) -> dict[str, str]:
         "requires-python": toml_data.get("requires-python", None),
         "settings": config_data.settings or {},
     }
+
+
+def validate_project_files(directory: str) -> None:
+    required_files = [
+        UiPathConfig.bindings_file_path,
+        UiPathConfig.entry_points_file_path,
+    ]
+
+    missing_files = []
+    for file_path in required_files:
+        if not os.path.isfile(os.path.join(directory, str(file_path))):
+            missing_files.append(f"'{file_path}'")
+
+    if missing_files:
+        missing_str = ", ".join(missing_files)
+        console.error(
+            f"Missing required files: {missing_str}. Please run 'uipath init'."
+        )
 
 
 def validate_config(config: dict[str, str]) -> None:

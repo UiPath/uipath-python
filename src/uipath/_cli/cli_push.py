@@ -16,6 +16,7 @@ from ._utils._project_files import (
     ensure_config_file,
     get_project_config,
     validate_config,
+    validate_project_files,
 )
 from ._utils._studio_project import ProjectLockUnavailableError
 from ._utils._uv_helpers import handle_uv_operations
@@ -95,6 +96,7 @@ def push(root: str, nolock: bool) -> None:
     ensure_config_file(root)
     config = get_project_config(root)
     validate_config(config)
+    validate_project_files(root)
 
     project_id = UiPathConfig.project_id
     if not project_id:

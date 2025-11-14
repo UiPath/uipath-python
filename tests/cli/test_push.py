@@ -91,6 +91,14 @@ def extract_agent_json_from_added_resources(request: Request) -> dict[str, Any]:
 class TestPush:
     """Test push command."""
 
+    def _create_required_files(self, exclude: list[str] | None = None):
+        required_files = ["uipath.json", "bindings.json", "entry-points.json"]
+        for file in required_files:
+            if exclude and file in exclude:
+                continue
+            with open(file, "w") as file:
+                file.write("{}")
+
     def test_push_without_uipath_json(
         self,
         runner: CliRunner,
@@ -100,6 +108,7 @@ class TestPush:
     ) -> None:
         """Test push when uipath.json is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["uipath.json"])
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = "123"
             with open("pyproject.toml", "w") as f:
@@ -111,6 +120,56 @@ class TestPush:
                 in result.output
             )
 
+    def test_push_without_required_files_shows_specific_missing(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json_legacy: UiPathJson,
+        mock_env_vars: Dict[str, str],
+    ) -> None:
+        """Test push shows specific missing files when uipath.json and .uipath are missing."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = "123"
+
+            self._create_required_files(exclude=["bindings.json", "entry-points.json"])
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 1
+            # Should show exactly which file is missing
+            assert (
+                "Missing required files: 'bindings.json', 'entry-points.json'"
+                in result.output
+            )
+            assert "Please run 'uipath init'" in result.output
+
+    def test_push_with_only_enty_points_json_missing(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: Dict[str, str],
+    ) -> None:
+        """Test push when .uipath directory exists but uipath.json is missing."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["entry-points.json"])
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = "123"
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            result = runner.invoke(cli, ["push", "./"])
+            assert result.exit_code == 1
+            # Should show exactly which file is missing
+            assert "Missing required files: 'entry-points.json'" in result.output
+            assert "Please run 'uipath init'" in result.output
+
     def test_push_without_project_id(
         self,
         runner: CliRunner,
@@ -121,9 +180,9 @@ class TestPush:
     ) -> None:
         """Test push when UIPATH_PROJECT_ID is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
             configure_env_vars(mock_env_vars)
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
@@ -257,11 +316,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
-
-            with open("entry-points.json", "w") as f:
-                f.write('{"entryPoints": []}')
+            self._create_required_files()
 
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
@@ -349,8 +404,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+            self._create_required_files(exclude=["entry-points.json"])
 
             with open("entry-points.json", "w") as f:
                 json.dump(
@@ -427,10 +481,11 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+            self._create_required_files()
+
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+
             with open("uv.lock", "w") as f:
                 f.write("")
 
@@ -521,8 +576,7 @@ class TestPush:
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+            self._create_required_files()
 
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
@@ -602,6 +656,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["uipath.json"])
+
             with open("uipath.json", "w") as f:
                 f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
@@ -674,6 +730,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["uipath.json"])
+
             with open("uipath.json", "w") as f:
                 f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
@@ -744,6 +802,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["uipath.json"])
+
             with open("uipath.json", "w") as f:
                 f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
@@ -837,6 +897,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["uipath.json"])
+
             with open("uipath.json", "w") as f:
                 f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
@@ -932,6 +994,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["uipath.json"])
+
             with open("uipath.json", "w") as f:
                 f.write(uipath_json_legacy.to_json())
             with open("pyproject.toml", "w") as f:
@@ -1044,8 +1108,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+            self._create_required_files()
+
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
@@ -1122,8 +1186,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+            self._create_required_files()
+
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
@@ -1216,8 +1280,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+            self._create_required_files()
+
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
@@ -1311,8 +1375,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+            self._create_required_files()
+
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
@@ -1332,7 +1396,7 @@ class TestPush:
             assert "Updating 'main.py'" not in result.output
             assert "Updating 'helper.py'" not in result.output
 
-    def test_push_preserves_remote_coded_evals_when_no_local_evals(
+    def test_push_preserves_remote_evals_when_no_local_evals(
         self,
         runner: CliRunner,
         temp_dir: str,
@@ -1429,8 +1493,8 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+            self._create_required_files()
+
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("main.py", "w") as f:
