@@ -70,6 +70,38 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
 class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
 
+    @staticmethod
+    def _prepare_evaluator_config(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare evaluator config by merging top-level fields into evaluatorConfig.
+
+        This allows flexibility in specifying fields like 'name' and 'description' either at the
+        top level or within evaluatorConfig. Top-level values take precedence if both exist.
+
+        Args:
+            data: The raw evaluator data dictionary
+
+        Returns:
+            The prepared evaluatorConfig with merged fields
+        """
+        evaluator_config = data.get("evaluatorConfig", {})
+        if not isinstance(evaluator_config, dict):
+            evaluator_config = {}
+        else:
+            # Create a copy to avoid modifying the original
+            evaluator_config = evaluator_config.copy()
+
+        # Merge top-level 'name' into config if present
+        if "name" in data and data["name"] is not None:
+            # Top-level name takes precedence
+            evaluator_config["name"] = data["name"]
+
+        # Merge top-level 'description' into config if present
+        if "description" in data and data["description"] is not None:
+            # Top-level description takes precedence
+            evaluator_config["description"] = data["description"]
+
+        return evaluator_config
+
     @classmethod
     def create_evaluator(
         cls, data: Dict[str, Any], evaluators_dir: Path | None = None
@@ -137,7 +169,7 @@ class EvaluatorFactory:
             raise ValueError("Evaluator 'id' must be a non-empty string")
         return ContainsEvaluator(
             id=evaluator_id,
-            config=data.get("evaluatorConfig"),
+            config=EvaluatorFactory._prepare_evaluator_config(data),
         )  # type: ignore
 
     @staticmethod
@@ -217,7 +249,7 @@ class EvaluatorFactory:
             raise ValueError("Evaluator 'id' must be a non-empty string")
         return evaluator_class(
             id=evaluator_id,
-            config=data.get("evaluatorConfig", {}),
+            config=EvaluatorFactory._prepare_evaluator_config(data),
         )  # type: ignore
 
     @staticmethod
@@ -227,7 +259,7 @@ class EvaluatorFactory:
         return TypeAdapter(ExactMatchEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -238,7 +270,7 @@ class EvaluatorFactory:
         return TypeAdapter(JsonSimilarityEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -249,7 +281,7 @@ class EvaluatorFactory:
         return TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -260,7 +292,7 @@ class EvaluatorFactory:
         return TypeAdapter(LLMJudgeStrictJSONSimilarityOutputEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -271,7 +303,7 @@ class EvaluatorFactory:
         return TypeAdapter(LLMJudgeTrajectoryEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -282,7 +314,7 @@ class EvaluatorFactory:
         return TypeAdapter(ToolCallArgsEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -293,7 +325,7 @@ class EvaluatorFactory:
         return TypeAdapter(ToolCallCountEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -304,7 +336,7 @@ class EvaluatorFactory:
         return TypeAdapter(ToolCallOrderEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -315,7 +347,7 @@ class EvaluatorFactory:
         return TypeAdapter(ToolCallOutputEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -326,7 +358,7 @@ class EvaluatorFactory:
         return TypeAdapter(LLMJudgeTrajectorySimulationEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 

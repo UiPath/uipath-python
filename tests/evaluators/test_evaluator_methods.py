@@ -141,7 +141,7 @@ class TestExactMatchEvaluator:
         evaluator = ExactMatchEvaluator.model_validate(
             {"config": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})
+        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -162,7 +162,7 @@ class TestExactMatchEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"output": "Different output"}
+            expected_output={"output": "Different output"}  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
@@ -184,7 +184,7 @@ class TestExactMatchEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"output": "Test output"},
+            expected_output={"output": "Test output"},  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
@@ -295,7 +295,7 @@ class TestJsonSimilarityEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"name": "John", "age": 30, "city": "NYC"}
+            expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(execution, criteria)
@@ -319,7 +319,7 @@ class TestJsonSimilarityEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"name": "John", "age": 30, "city": "NYC"}
+            expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(execution, criteria)
@@ -828,7 +828,7 @@ class TestLlmAsAJudgeEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
 
-        criteria = OutputEvaluationCriteria(expected_output="Expected output")
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -868,7 +868,7 @@ class TestLlmAsAJudgeEvaluator:
             }
         )
 
-        criteria = OutputEvaluationCriteria(expected_output="Expected output")
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -1078,7 +1078,7 @@ class TestEvaluationResultTypes:
         evaluator = ExactMatchEvaluator.model_validate(
             {"config": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})
+        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -1101,7 +1101,7 @@ class TestJustificationHandling:
         evaluator = ExactMatchEvaluator.model_validate(
             {"config": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})
+        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -1129,7 +1129,7 @@ class TestJustificationHandling:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"name": "John", "age": 30, "city": "NYC"}
+            expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(execution, criteria)
@@ -1296,7 +1296,7 @@ class TestJustificationHandling:
         evaluator = LLMJudgeOutputEvaluator.model_validate(
             {"config": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output="Expected output")
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
