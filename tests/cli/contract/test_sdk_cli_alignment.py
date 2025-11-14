@@ -154,7 +154,11 @@ PARAM_MAPPINGS = {
 # SDK parameters to exclude for specific commands
 # Used when SDK has optional params that CLI doesn't expose
 SDK_EXCLUSIONS = {
-    "buckets_list": {"name"},  # CLI doesn't expose name filtering yet
+    "buckets_list": {
+        "name",
+        "skip",
+        "top",
+    },  # CLI doesn't expose filtering/pagination yet
     "buckets_retrieve": set(),  # All params exposed
     "buckets_create": {"identifier"},  # CLI doesn't expose identifier
     "buckets_delete": {"key"},  # CLI uses name, not key (yet)
@@ -167,8 +171,16 @@ SDK_EXCLUSIONS = {
     },  # CLI uses name + file path
     "buckets_files_delete": {"key"},  # CLI uses name, not key
     "buckets_files_exists": {"key"},  # CLI uses name, not key
-    "buckets_files_list": {"key"},  # CLI uses name, not key
-    "buckets_files_search": {"key"},  # CLI uses name, not key
+    "buckets_files_list": {
+        "key",
+        "take_hint",
+        "continuation_token",
+    },  # CLI uses name, doesn't expose pagination
+    "buckets_files_search": {
+        "key",
+        "skip",
+        "top",
+    },  # CLI uses name, doesn't expose pagination
 }
 
 

@@ -6,7 +6,7 @@ from .buckets import Bucket, BucketFile
 from .connections import Connection, ConnectionMetadata, ConnectionToken, EventArguments
 from .context_grounding import ContextGroundingQueryResponse
 from .context_grounding_index import ContextGroundingIndex
-from .errors import BaseUrlMissingError, PaginationLimitError, SecretMissingError
+from .errors import BaseUrlMissingError, SecretMissingError
 from .exceptions import IngestionInProgressException
 from .interrupt_models import (
     CreateAction,
@@ -15,6 +15,7 @@ from .interrupt_models import (
     WaitJob,
 )
 from .job import Job
+from .paging import PagedResult
 from .processes import Process
 from .queues import (
     CommitType,
@@ -50,10 +51,10 @@ __all__ = [
     "CreateAction",
     "IngestionInProgressException",
     "BaseUrlMissingError",
-    "PaginationLimitError",
     "SecretMissingError",
     "Bucket",
     "BucketFile",
+    "PagedResult",
     "Resource",
     "Tag",
     "Folder",
