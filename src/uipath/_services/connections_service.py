@@ -177,8 +177,7 @@ class ConnectionsService(BaseService):
         """
         spec = self._list_spec(
             name=name,
-            folder_path=folder_path,
-            folder_key=folder_key,
+            folder_key=self._folders_service.retrieve_folder_key(folder_path),
             connector_key=connector_key,
             skip=skip,
             top=top,
@@ -232,8 +231,9 @@ class ConnectionsService(BaseService):
         """
         spec = self._list_spec(
             name=name,
-            folder_path=folder_path,
-            folder_key=folder_key,
+            folder_key=await self._folders_service.retrieve_folder_key_async(
+                folder_path
+            ),
             connector_key=connector_key,
             skip=skip,
             top=top,
@@ -582,7 +582,6 @@ class ConnectionsService(BaseService):
     def _list_spec(
         self,
         name: Optional[str] = None,
-        folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         connector_key: Optional[str] = None,
         skip: Optional[int] = None,
@@ -592,8 +591,7 @@ class ConnectionsService(BaseService):
 
         Args:
             name: Optional connection name to filter (supports partial matching)
-            folder_path: Optional folder path for filtering connections
-            folder_key: Optional folder key (mutually exclusive with folder_path)
+            folder_key: Optional folder key
             connector_key: Optional connector key to filter by specific connector type
             skip: Number of records to skip (for pagination)
             top: Maximum number of records to return
@@ -605,21 +603,6 @@ class ConnectionsService(BaseService):
             ValueError: If both folder_path and folder_key are provided together, or if
                 folder_path is provided but cannot be resolved to a folder_key
         """
-        # Validate mutual exclusivity of folder_path and folder_key
-        if folder_path is not None and folder_key is not None:
-            raise ValueError(
-                "folder_path and folder_key are mutually exclusive and cannot be provided together"
-            )
-
-        # Resolve folder_path to folder_key if needed
-        resolved_folder_key = folder_key
-        if not resolved_folder_key and folder_path:
-            resolved_folder_key = self._folders_service.retrieve_key(
-                folder_path=folder_path
-            )
-            if not resolved_folder_key:
-                raise ValueError(f"Folder with path '{folder_path}' not found")
-
         # Build OData filters
         filters = []
         if name:
@@ -641,7 +624,7 @@ class ConnectionsService(BaseService):
         params["$expand"] = "connector,folder"
 
         # Use header_folder which handles validation
-        headers = header_folder(resolved_folder_key, None)
+        headers = header_folder(folder_key, None)
 
         return RequestSpec(
             method="GET",
