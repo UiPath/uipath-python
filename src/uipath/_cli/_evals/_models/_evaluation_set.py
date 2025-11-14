@@ -214,12 +214,13 @@ class EvaluationSet(BaseModel):
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[EvaluationItem] = []
+        remaining_ids = set(eval_ids)
         for evaluation in self.evaluations:
-            if evaluation.id in eval_ids:
+            if evaluation.id in remaining_ids:
                 selected_evals.append(evaluation)
-                eval_ids.remove(evaluation.id)
-        if len(eval_ids) > 0:
-            raise ValueError("Unknown evaluation ids: {}".format(eval_ids))
+                remaining_ids.remove(evaluation.id)
+        if len(remaining_ids) > 0:
+            raise ValueError("Unknown evaluation ids: {}".format(remaining_ids))
         self.evaluations = selected_evals
 
 
@@ -246,12 +247,13 @@ class LegacyEvaluationSet(BaseModel):
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[LegacyEvaluationItem] = []
+        remaining_ids = set(eval_ids)
         for evaluation in self.evaluations:
-            if evaluation.id in eval_ids:
+            if evaluation.id in remaining_ids:
                 selected_evals.append(evaluation)
-                eval_ids.remove(evaluation.id)
-        if len(eval_ids) > 0:
-            raise ValueError("Unknown evaluation ids: {}".format(eval_ids))
+                remaining_ids.remove(evaluation.id)
+        if len(remaining_ids) > 0:
+            raise ValueError("Unknown evaluation ids: {}".format(remaining_ids))
         self.evaluations = selected_evals
 
 
