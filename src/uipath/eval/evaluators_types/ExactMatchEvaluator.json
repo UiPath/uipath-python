@@ -32,6 +32,12 @@
         "title": "Name",
         "type": "string"
       },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
       "default_evaluation_criteria": {
         "anyOf": [
           {

@@ -20,8 +20,14 @@
     "description": "Configuration for the llm judge simulation trajectory evaluator.",
     "properties": {
       "name": {
-        "default": "LLMJudgeSimulationEvaluator",
+        "default": "LLMJudgeTrajectorySimulationEvaluator",
         "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
         "type": "string"
       },
       "default_evaluation_criteria": {
@@ -41,6 +47,7 @@
         "type": "string"
       },
       "model": {
+        "default": "",
         "title": "Model",
         "type": "string"
       },
@@ -62,10 +69,7 @@
         "title": "Max Tokens"
       }
     },
-    "required": [
-      "model"
-    ],
-    "title": "LLMJudgeSimulationEvaluatorConfig",
+    "title": "LLMJudgeTrajectorySimulationEvaluatorConfig",
     "type": "object"
   },
   "evaluationCriteriaSchema": {
