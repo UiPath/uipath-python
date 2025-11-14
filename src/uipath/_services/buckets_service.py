@@ -1,7 +1,6 @@
 import asyncio
 import mimetypes
 import uuid
-import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -16,6 +15,10 @@ from ..models import Bucket, BucketFile
 from ..models.paging import PagedResult
 from ..tracing._traced import traced
 from ._base_service import BaseService
+
+# Pagination limits
+MAX_PAGE_SIZE = 1000  # Maximum items per page (top parameter)
+MAX_SKIP_OFFSET = 10000  # Maximum skip offset for offset-based pagination
 
 
 class BucketsService(FolderContext, BaseService):
@@ -48,14 +51,14 @@ class BucketsService(FolderContext, BaseService):
             folder_path: Folder path to filter buckets
             folder_key: Folder key (mutually exclusive with folder_path)
             name: Filter by bucket name (contains match)
-            skip: Number of buckets to skip (default 0)
+            skip: Number of buckets to skip (default 0, max 10000)
             top: Maximum number of buckets to return (default 100, max 1000)
 
         Returns:
             PagedResult[Bucket]: Page containing buckets and pagination metadata
 
         Raises:
-            ValueError: If skip < 0 or top < 1
+            ValueError: If skip < 0, skip > 10000, top < 1, or top > 1000
 
         Examples:
             >>> # Get first page
@@ -95,12 +98,17 @@ class BucketsService(FolderContext, BaseService):
         # Validate parameters
         if skip < 0:
             raise ValueError("skip must be >= 0")
+        if skip > MAX_SKIP_OFFSET:
+            raise ValueError(
+                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
+                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
+            )
         if top < 1:
             raise ValueError("top must be >= 1")
-        if top > 1000:
-            warnings.warn(
-                f"top={top} may cause performance issues. Recommended maximum is 1000.",
-                stacklevel=2,
+        if top > MAX_PAGE_SIZE:
+            raise ValueError(
+                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
+                f"Use pagination with skip and top parameters to retrieve larger datasets."
             )
 
         spec = self._list_spec(
@@ -145,14 +153,14 @@ class BucketsService(FolderContext, BaseService):
             folder_path: Folder path to filter buckets
             folder_key: Folder key (mutually exclusive with folder_path)
             name: Filter by bucket name (contains match)
-            skip: Number of buckets to skip (default 0)
+            skip: Number of buckets to skip (default 0, max 10000)
             top: Maximum number of buckets to return (default 100, max 1000)
 
         Returns:
             PagedResult[Bucket]: Page containing buckets and pagination metadata
 
         Raises:
-            ValueError: If skip < 0 or top < 1
+            ValueError: If skip < 0, skip > 10000, top < 1, or top > 1000
 
         Examples:
             >>> # Get first page
@@ -174,12 +182,17 @@ class BucketsService(FolderContext, BaseService):
         # Validate parameters
         if skip < 0:
             raise ValueError("skip must be >= 0")
+        if skip > MAX_SKIP_OFFSET:
+            raise ValueError(
+                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
+                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
+            )
         if top < 1:
             raise ValueError("top must be >= 1")
-        if top > 1000:
-            warnings.warn(
-                f"top={top} may cause performance issues. Recommended maximum is 1000.",
-                stacklevel=2,
+        if top > MAX_PAGE_SIZE:
+            raise ValueError(
+                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
+                f"Use pagination with skip and top parameters to retrieve larger datasets."
             )
 
         spec = self._list_spec(
@@ -1307,7 +1320,7 @@ class BucketsService(FolderContext, BaseService):
             prefix: Directory path to filter files (default: root)
             recursive: Recurse subdirectories for flat view (default: False)
             file_name_glob: File filter pattern (e.g., "*.pdf", "data_*.csv")
-            skip: Number of files to skip (default 0). Used for pagination.
+            skip: Number of files to skip (default 0, max 10000). Used for pagination.
             top: Maximum number of files to return (default 500, max 1000).
             folder_key: Folder key
             folder_path: Folder path
@@ -1316,7 +1329,7 @@ class BucketsService(FolderContext, BaseService):
             PagedResult[BucketFile]: Page containing files (directories excluded) and pagination metadata
 
         Raises:
-            ValueError: If neither name nor key is provided, or if parameters are invalid
+            ValueError: If skip < 0, skip > 10000, top < 1, top > 1000, neither name nor key is provided, or file_name_glob is empty
             LookupError: If bucket not found
 
         Examples:
@@ -1381,12 +1394,17 @@ class BucketsService(FolderContext, BaseService):
         """
         if skip < 0:
             raise ValueError("skip must be >= 0")
+        if skip > MAX_SKIP_OFFSET:
+            raise ValueError(
+                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
+                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
+            )
         if top < 1:
             raise ValueError("top must be >= 1")
-        if top > 1000:
-            warnings.warn(
-                f"top={top} may cause performance issues. Recommended maximum is 1000.",
-                stacklevel=2,
+        if top > MAX_PAGE_SIZE:
+            raise ValueError(
+                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
+                f"Use pagination with skip and top parameters to retrieve larger datasets."
             )
 
         if not (name or key):
@@ -1462,13 +1480,17 @@ class BucketsService(FolderContext, BaseService):
             prefix: Directory path to filter files
             recursive: Recurse subdirectories for flat view
             file_name_glob: File filter pattern (e.g., "*.pdf")
-            skip: Number of files to skip (default 0)
+            skip: Number of files to skip (default 0, max 10000)
             top: Maximum number of files to return (default 500, max 1000)
             folder_key: Folder key
             folder_path: Folder path
 
         Returns:
             PagedResult[BucketFile]: Page containing files (directories excluded) and pagination metadata
+
+        Raises:
+            ValueError: If skip < 0, skip > 10000, top < 1, top > 1000, neither name nor key is provided, or file_name_glob is empty
+            LookupError: If bucket not found
 
         Examples:
             >>> # Get first page
@@ -1497,12 +1519,17 @@ class BucketsService(FolderContext, BaseService):
         """
         if skip < 0:
             raise ValueError("skip must be >= 0")
+        if skip > MAX_SKIP_OFFSET:
+            raise ValueError(
+                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
+                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
+            )
         if top < 1:
             raise ValueError("top must be >= 1")
-        if top > 1000:
-            warnings.warn(
-                f"top={top} may cause performance issues. Recommended maximum is 1000.",
-                stacklevel=2,
+        if top > MAX_PAGE_SIZE:
+            raise ValueError(
+                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
+                f"Use pagination with skip and top parameters to retrieve larger datasets."
             )
 
         if not (name or key):
