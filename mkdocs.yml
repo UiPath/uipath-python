@@ -69,6 +69,7 @@ nav:
             - LLM Gateway: core/llm_gateway.md
             - Queues: core/queues.md
             - Processes: core/processes.md
+            - Resource Catalog: core/resource_catalog.md
         - Models:
             - Documents: core/documents_models.md
         - Evaluations:
