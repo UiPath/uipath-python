@@ -6,8 +6,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
-class EntityType(str, Enum):
-    """Entity (resource) type."""
+class ResourceType(str, Enum):
+    """Resource type."""
 
     ASSET = "asset"
     BUCKET = "bucket"
@@ -25,7 +25,7 @@ class EntityType(str, Enum):
 
 
 class Tag(BaseModel):
-    """Tag model for entities."""
+    """Tag model for resources."""
 
     key: str
     display_name: str = Field(alias="displayName")
@@ -39,7 +39,7 @@ class Tag(BaseModel):
 
 
 class Folder(BaseModel):
-    """Folder model for entities."""
+    """Folder model for resources."""
 
     id: int
     key: str
@@ -55,13 +55,13 @@ class Folder(BaseModel):
     permissions: Optional[List[str]] = Field(default_factory=list)
 
 
-class ResourceEntity(BaseModel):
-    """Resource entity model from Resource Catalog."""
+class Resource(BaseModel):
+    """Resource model from Resource Catalog."""
 
-    entity_key: str = Field(alias="entityKey")
+    resource_key: str = Field(alias="entityKey")
     name: str
     description: Optional[str] = None
-    entity_type: str = Field(alias="entityType")
+    resource_type: str = Field(alias="entityType")
     tags: Optional[List[Tag]] = Field(default_factory=list)
     folders: List[Folder] = Field(default_factory=list)
     linked_folders_count: int = Field(0, alias="linkedFoldersCount")
@@ -76,11 +76,11 @@ class ResourceEntity(BaseModel):
     user_key: Optional[str] = Field(None, alias="userKey")
     dependencies: Optional[list[str]] = Field(default_factory=list)
     custom_data: Optional[str] = Field(None, alias="customData")
-    entity_sub_type: Optional[str] = Field(None, alias="entitySubType")
+    resource_sub_type: Optional[str] = Field(None, alias="entitySubType")
 
 
-class EntitySearchResponse(BaseModel):
-    """Response model for entity search API."""
+class ResourceSearchResponse(BaseModel):
+    """Response model for resource search API."""
 
     count: int
-    value: List[ResourceEntity]
+    value: List[Resource]

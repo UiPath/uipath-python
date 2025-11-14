@@ -23,7 +23,7 @@ from .queues import (
     TransactionItem,
     TransactionItemResult,
 )
-from .resource_catalog import EntityType, Folder, ResourceEntity, Tag
+from .resource_catalog import Folder, Resource, ResourceType, Tag
 
 __all__ = [
     "Action",
@@ -53,8 +53,8 @@ __all__ = [
     "SecretMissingError",
     "Bucket",
     "BucketFile",
-    "ResourceEntity",
+    "Resource",
     "Tag",
     "Folder",
-    "EntityType",
+    "ResourceType",
 ]

@@ -6,7 +6,7 @@ from uipath._folder_context import FolderContext
 from uipath._services import FolderService
 from uipath._services._base_service import BaseService
 from uipath._utils import Endpoint, RequestSpec, header_folder
-from uipath.models.resource_catalog import EntityType, ResourceEntity
+from uipath.models.resource_catalog import Resource, ResourceType
 from uipath.tracing import traced
 
 
@@ -16,10 +16,13 @@ class ResourceCatalogService(FolderContext, BaseService):
     The Resource Catalog Service provides a centralized way to search and retrieve
     UiPath resources (assets, queues, processes, storage buckets, etc.) across
     tenant and folder scopes. It enables programmatic discovery of resources with
-    flexible filtering by entity type, name, and folder location.
+    flexible filtering by resource type, name, and folder location.
 
     See Also:
         https://docs.uipath.com/orchestrator/standalone/2024.10/user-guide/about-resource-catalog-service
+
+    !!! info "Version Availability"
+        This service is available starting from **uipath** version **2.1.168**.
     """
 
     _DEFAULT_PAGE_SIZE = 20
@@ -33,48 +36,47 @@ class ResourceCatalogService(FolderContext, BaseService):
         self.folder_service = folder_service
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="resource_catalog_search_entities", run_type="uipath")
+    @traced(name="resource_catalog_search", run_type="uipath")
     def search(
         self,
         *,
         name: Optional[str] = None,
-        entity_types: Optional[List[EntityType]] = None,
-        entity_sub_types: Optional[List[str]] = None,
+        resource_types: Optional[List[ResourceType]] = None,
+        resource_sub_types: Optional[List[str]] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> Iterator[ResourceEntity]:
-        """Search for tenant scoped entities and folder scoped entities (accessible to the user).
+    ) -> Iterator[Resource]:
+        """Search for tenant scoped resources and folder scoped resources (accessible to the user).
 
-        This method automatically handles pagination and yields entities one by one.
+        This method automatically handles pagination and yields resources one by one.
 
         Args:
-            name: Optional name filter for entities
-            entity_types: Optional list of entity types to filter by
-            entity_sub_types: Optional list of entity subtypes to filter by
-            page_size: Number of entities to fetch per API call (default: 20, max: 100)
+            name: Optional name filter for resources
+            resource_types: Optional list of resource types to filter by
+            resource_sub_types: Optional list of resource subtypes to filter by
+            page_size: Number of resources to fetch per API call (default: 20, max: 100)
 
         Yields:
-            ResourceEntity: Each entity matching the search criteria
+            Resource: Each resource matching the search criteria
 
         Examples:
-            >>> # Search for all entities with "invoice" in the name
-            >>> for entity in uipath.resource_catalog.search(name="invoice"):
-            ...     print(f"{entity.name}: {entity.entity_type}")
+            >>> # Search for all resources with "invoice" in the name
+            >>> for resource in uipath.resource_catalog.search(name="invoice"):
+            ...     print(f"{resource.name}: {resource.resource_type}")
 
-            >>> # Search for specific entity types
-            >>> for entity in uipath.resource_catalog.search(
-            ...     entity_types=[EntityType.ASSET]
+            >>> # Search for specific resource types
+            >>> for resource in uipath.resource_catalog.search(
+            ...     resource_types=[ResourceType.ASSET]
             ... ):
-            ...     print(entity.name)
+            ...     print(resource.name)
         """
         skip = 0
-        # limit page sizes to 100
         take = min(page_size, 100)
 
         while True:
             spec = self._search_spec(
                 name=name,
-                entity_types=entity_types,
-                entity_sub_types=entity_sub_types,
+                resource_types=resource_types,
+                resource_sub_types=resource_sub_types,
                 skip=skip,
                 take=take,
             )
@@ -92,55 +94,54 @@ class ResourceCatalogService(FolderContext, BaseService):
                 break
 
             for item in items:
-                yield ResourceEntity.model_validate(item)
+                yield Resource.model_validate(item)
 
             if len(items) < take:
                 break
 
             skip += take
 
-    @traced(name="resource_catalog_search_entities", run_type="uipath")
+    @traced(name="resource_catalog_search", run_type="uipath")
     async def search_async(
         self,
         *,
         name: Optional[str] = None,
-        entity_types: Optional[List[EntityType]] = None,
-        entity_sub_types: Optional[List[str]] = None,
+        resource_types: Optional[List[ResourceType]] = None,
+        resource_sub_types: Optional[List[str]] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> AsyncIterator[ResourceEntity]:
-        """Asynchronously search for tenant scoped entities and folder scoped entities (accessible to the user).
+    ) -> AsyncIterator[Resource]:
+        """Asynchronously search for tenant scoped resources and folder scoped resources (accessible to the user).
 
-        This method automatically handles pagination and yields entities one by one.
+        This method automatically handles pagination and yields resources one by one.
 
         Args:
-            name: Optional name filter for entities
-            entity_types: Optional list of entity types to filter by
-            entity_sub_types: Optional list of entity subtypes to filter by
-            page_size: Number of entities to fetch per API call (default: 20, max: 100)
+            name: Optional name filter for resources
+            resource_types: Optional list of resource types to filter by
+            resource_sub_types: Optional list of resource subtypes to filter by
+            page_size: Number of resources to fetch per API call (default: 20, max: 100)
 
         Yields:
-            ResourceEntity: Each entity matching the search criteria
+            Resource: Each resource matching the search criteria
 
         Examples:
-            >>> # Search for all entities with "invoice" in the name
-            >>> async for entity in uipath.resource_catalog.search_entities_across_folders_async(name="invoice"):
-            ...     print(f"{entity.name}: {entity.entity_type}")
+            >>> # Search for all resources with "invoice" in the name
+            >>> async for resource in uipath.resource_catalog.search_async(name="invoice"):
+            ...     print(f"{resource.name}: {resource.resource_type}")
 
-            >>> # Search for specific entity types
-            >>> async for entity in uipath.resource_catalog.search_entities_across_folders_async(
-            ...     entity_types=[EntityType.ASSET]
+            >>> # Search for specific resource types
+            >>> async for resource in uipath.resource_catalog.search_async(
+            ...     resource_types=[ResourceType.ASSET]
             ... ):
-            ...     print(entity.name)
+            ...     print(resource.name)
         """
         skip = 0
-        # limit page sizes to 100
         take = min(page_size, 100)
 
         while True:
             spec = self._search_spec(
                 name=name,
-                entity_types=entity_types,
-                entity_sub_types=entity_sub_types,
+                resource_types=resource_types,
+                resource_sub_types=resource_sub_types,
                 skip=skip,
                 take=take,
             )
@@ -160,58 +161,57 @@ class ResourceCatalogService(FolderContext, BaseService):
                 break
 
             for item in items:
-                yield ResourceEntity.model_validate(item)
+                yield Resource.model_validate(item)
 
             if len(items) < take:
                 break
 
             skip += take
 
-    @traced(name="resource_catalog_list_entities", run_type="uipath")
+    @traced(name="resource_catalog_list", run_type="uipath")
     def list(
         self,
         *,
-        entity_types: Optional[List[EntityType]] = None,
-        entity_sub_types: Optional[List[str]] = None,
+        resource_types: Optional[List[ResourceType]] = None,
+        resource_sub_types: Optional[List[str]] = None,
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> Iterator[ResourceEntity]:
-        """Get tenant scoped entities and folder scoped entities (accessible to the user).
+    ) -> Iterator[Resource]:
+        """Get tenant scoped resources and folder scoped resources (accessible to the user).
 
         If no folder identifier is provided (path or key) only tenant resources will be retrieved.
-        This method automatically handles pagination and yields entities one by one.
+        This method automatically handles pagination and yields resources one by one.
 
         Args:
-            entity_types: Optional list of entity types to filter by
-            entity_sub_types: Optional list of entity subtypes to filter by
+            resource_types: Optional list of resource types to filter by
+            resource_sub_types: Optional list of resource subtypes to filter by
             folder_path: Optional folder path to scope the results
             folder_key: Optional folder key to scope the results
-            page_size: Number of entities to fetch per API call (default: 20, max: 100)
+            page_size: Number of resources to fetch per API call (default: 20, max: 100)
 
         Yields:
-            ResourceEntity: Each entity matching the criteria
+            Resource: Each resource matching the criteria
 
         Examples:
-            >>> # Get all entities
-            >>> for entity in uipath.resource_catalog.list():
-            ...     print(f"{entity.name}: {entity.entity_type}")
+            >>> # Get all resources
+            >>> for resource in uipath.resource_catalog.list():
+            ...     print(f"{resource.name}: {resource.resource_type}")
 
-            >>> # Get specific entity types
+            >>> # Get specific resource types
             >>> assets = list(uipath.resource_catalog.list(
-            ...     entity_types=[EntityType.ASSET],
+            ...     resource_types=[ResourceType.ASSET],
             ... ))
 
-            >>> # Get entities within a specific folder
-            >>> for entity in uipath.resource_catalog.list(
+            >>> # Get resources within a specific folder
+            >>> for resource in uipath.resource_catalog.list(
             ...     folder_path="/Shared/Finance",
-            ...     entity_types=[EntityType.ASSET],
-            ...     entity_sub_types=["number"]
+            ...     resource_types=[ResourceType.ASSET],
+            ...     resource_sub_types=["number"]
             ... ):
-            ...     print(entity.name)
+            ...     print(resource.name)
         """
         skip = 0
-        # limit page sizes to 100
         take = min(page_size, 100)
 
         if take <= 0:
@@ -221,8 +221,8 @@ class ResourceCatalogService(FolderContext, BaseService):
 
         while True:
             spec = self._list_spec(
-                entity_types=entity_types,
-                entity_sub_types=entity_sub_types,
+                resource_types=resource_types,
+                resource_sub_types=resource_sub_types,
                 folder_key=resolved_folder_key,
                 skip=skip,
                 take=take,
@@ -241,60 +241,59 @@ class ResourceCatalogService(FolderContext, BaseService):
                 break
 
             for item in items:
-                yield ResourceEntity.model_validate(item)
+                yield Resource.model_validate(item)
 
             if len(items) < take:
                 break
 
             skip += take
 
-    @traced(name="resource_catalog_list_entities", run_type="uipath")
+    @traced(name="resource_catalog_list", run_type="uipath")
     async def list_async(
         self,
         *,
-        entity_types: Optional[List[EntityType]] = None,
-        entity_sub_types: Optional[List[str]] = None,
+        resource_types: Optional[List[ResourceType]] = None,
+        resource_sub_types: Optional[List[str]] = None,
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> AsyncIterator[ResourceEntity]:
-        """Asynchronously get tenant scoped entities and folder scoped entities (accessible to the user).
+    ) -> AsyncIterator[Resource]:
+        """Asynchronously get tenant scoped resources and folder scoped resources (accessible to the user).
 
         If no folder identifier is provided (path or key) only tenant resources will be retrieved.
-        This method automatically handles pagination and yields entities one by one.
+        This method automatically handles pagination and yields resources one by one.
 
         Args:
-            entity_types: Optional list of entity types to filter by
-            entity_sub_types: Optional list of entity subtypes to filter by
+            resource_types: Optional list of resource types to filter by
+            resource_sub_types: Optional list of resource subtypes to filter by
             folder_path: Optional folder path to scope the results
             folder_key: Optional folder key to scope the results
-            page_size: Number of entities to fetch per API call (default: 20, max: 100)
+            page_size: Number of resources to fetch per API call (default: 20, max: 100)
 
         Yields:
-            ResourceEntity: Each entity matching the criteria
+            Resource: Each resource matching the criteria
 
         Examples:
-            >>> # Get all entities
-            >>> async for entity in uipath.resource_catalog.list_async():
-            ...     print(f"{entity.name}: {entity.entity_type}")
+            >>> # Get all resources
+            >>> async for resource in uipath.resource_catalog.list_async():
+            ...     print(f"{resource.name}: {resource.resource_type}")
 
-            >>> # Get specific entity types
+            >>> # Get specific resource types
             >>> assets = []
-            >>> async for entity in uipath.resource_catalog.list_async(
-            ...     entity_types=[EntityType.ASSET],
+            >>> async for resource in uipath.resource_catalog.list_async(
+            ...     resource_types=[ResourceType.ASSET],
             ... ):
-            ...     assets.append(entity)
+            ...     assets.append(resource)
 
-            >>> # Get entities within a specific folder
-            >>> async for entity in uipath.resource_catalog.list_async(
+            >>> # Get resources within a specific folder
+            >>> async for resource in uipath.resource_catalog.list_async(
             ...     folder_path="/Shared/Finance",
-            ...     entity_types=[EntityType.ASSET],
-            ...     entity_sub_types=["number"]
+            ...     resource_types=[ResourceType.ASSET],
+            ...     resource_sub_types=["number"]
             ... ):
-            ...     print(entity.name)
+            ...     print(resource.name)
         """
         skip = 0
-        # limit page sizes to 100
         take = min(page_size, 100)
 
         if take <= 0:
@@ -305,8 +304,8 @@ class ResourceCatalogService(FolderContext, BaseService):
         )
         while True:
             spec = self._list_spec(
-                entity_types=entity_types,
-                entity_sub_types=entity_sub_types,
+                resource_types=resource_types,
+                resource_sub_types=resource_sub_types,
                 folder_key=resolved_folder_key,
                 skip=skip,
                 take=take,
@@ -327,7 +326,7 @@ class ResourceCatalogService(FolderContext, BaseService):
                 break
 
             for item in items:
-                yield ResourceEntity.model_validate(item)
+                yield Resource.model_validate(item)
 
             if len(items) < take:
                 break
@@ -338,50 +337,49 @@ class ResourceCatalogService(FolderContext, BaseService):
     def list_by_type(
         self,
         *,
-        entity_type: EntityType,
+        resource_type: ResourceType,
         name: Optional[str] = None,
-        entity_sub_types: Optional[List[str]] = None,
+        resource_sub_types: Optional[List[str]] = None,
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> Iterator[ResourceEntity]:
-        """Get entities of a specific type (tenant scoped or folder scoped).
+    ) -> Iterator[Resource]:
+        """Get resources of a specific type (tenant scoped or folder scoped).
 
         If no folder identifier is provided (path or key) only tenant resources will be retrieved.
-        This method automatically handles pagination and yields entities one by one.
+        This method automatically handles pagination and yields resources one by one.
 
         Args:
-            entity_type: The specific entity type to filter by
-            name: Optional name filter for entities
-            entity_sub_types: Optional list of entity subtypes to filter by
+            resource_type: The specific resource type to filter by
+            name: Optional name filter for resources
+            resource_sub_types: Optional list of resource subtypes to filter by
             folder_path: Optional folder path to scope the results
             folder_key: Optional folder key to scope the results
-            page_size: Number of entities to fetch per API call (default: 20, max: 100)
+            page_size: Number of resources to fetch per API call (default: 20, max: 100)
 
         Yields:
-            ResourceEntity: Each entity matching the criteria
+            Resource: Each resource matching the criteria
 
         Examples:
             >>> # Get all assets
-            >>> for entity in uipath.resource_catalog.list_by_type(entity_type=EntityType.ASSET):
-            ...     print(f"{entity.name}: {entity.entity_sub_type}")
+            >>> for resource in uipath.resource_catalog.list_by_type(resource_type=ResourceType.ASSET):
+            ...     print(f"{resource.name}: {resource.resource_sub_type}")
 
             >>> # Get assets with a specific name pattern
             >>> assets = list(uipath.resource_catalog.list_by_type(
-            ...     entity_type=EntityType.ASSET,
+            ...     resource_type=ResourceType.ASSET,
             ...     name="config"
             ... ))
 
             >>> # Get assets within a specific folder with subtype filter
-            >>> for entity in uipath.resource_catalog.list_by_type(
-            ...     entity_type=EntityType.ASSET,
+            >>> for resource in uipath.resource_catalog.list_by_type(
+            ...     resource_type=ResourceType.ASSET,
             ...     folder_path="/Shared/Finance",
-            ...     entity_sub_types=["number"]
+            ...     resource_sub_types=["number"]
             ... ):
-            ...     print(entity.name)
+            ...     print(resource.name)
         """
         skip = 0
-        # limit page sizes to 100
         take = min(page_size, 100)
 
         if take <= 0:
@@ -391,9 +389,9 @@ class ResourceCatalogService(FolderContext, BaseService):
 
         while True:
             spec = self._list_by_type_spec(
-                entity_type=entity_type,
+                resource_type=resource_type,
                 name=name,
-                entity_sub_types=entity_sub_types,
+                resource_sub_types=resource_sub_types,
                 folder_key=resolved_folder_key,
                 skip=skip,
                 take=take,
@@ -412,7 +410,7 @@ class ResourceCatalogService(FolderContext, BaseService):
                 break
 
             for item in items:
-                yield ResourceEntity.model_validate(item)
+                yield Resource.model_validate(item)
 
             if len(items) < take:
                 break
@@ -423,52 +421,51 @@ class ResourceCatalogService(FolderContext, BaseService):
     async def list_by_type_async(
         self,
         *,
-        entity_type: EntityType,
+        resource_type: ResourceType,
         name: Optional[str] = None,
-        entity_sub_types: Optional[List[str]] = None,
+        resource_sub_types: Optional[List[str]] = None,
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> AsyncIterator[ResourceEntity]:
-        """Asynchronously get entities of a specific type (tenant scoped or folder scoped).
+    ) -> AsyncIterator[Resource]:
+        """Asynchronously get resources of a specific type (tenant scoped or folder scoped).
 
         If no folder identifier is provided (path or key) only tenant resources will be retrieved.
-        This method automatically handles pagination and yields entities one by one.
+        This method automatically handles pagination and yields resources one by one.
 
         Args:
-            entity_type: The specific entity type to filter by
-            name: Optional name filter for entities
-            entity_sub_types: Optional list of entity subtypes to filter by
+            resource_type: The specific resource type to filter by
+            name: Optional name filter for resources
+            resource_sub_types: Optional list of resource subtypes to filter by
             folder_path: Optional folder path to scope the results
             folder_key: Optional folder key to scope the results
-            page_size: Number of entities to fetch per API call (default: 20, max: 100)
+            page_size: Number of resources to fetch per API call (default: 20, max: 100)
 
         Yields:
-            ResourceEntity: Each entity matching the criteria
+            Resource: Each resource matching the criteria
 
         Examples:
             >>> # Get all assets asynchronously
-            >>> async for entity in uipath.resource_catalog.list_by_type_async(entity_type=EntityType.ASSET):
-            ...     print(f"{entity.name}: {entity.entity_sub_type}")
+            >>> async for resource in uipath.resource_catalog.list_by_type_async(resource_type=ResourceType.ASSET):
+            ...     print(f"{resource.name}: {resource.resource_sub_type}")
 
             >>> # Get assets with a specific name pattern
             >>> assets = []
-            >>> async for entity in uipath.resource_catalog.list_by_type_async(
-            ...     entity_type=EntityType.ASSET,
+            >>> async for resource in uipath.resource_catalog.list_by_type_async(
+            ...     resource_type=ResourceType.ASSET,
             ...     name="config"
             ... ):
-            ...     assets.append(entity)
+            ...     assets.append(resource)
 
             >>> # Get assets within a specific folder with subtype filter
-            >>> async for entity in uipath.resource_catalog.list_by_type_async(
-            ...     entity_type=EntityType.ASSET,
+            >>> async for resource in uipath.resource_catalog.list_by_type_async(
+            ...     resource_type=ResourceType.ASSET,
             ...     folder_path="/Shared/Finance",
-            ...     entity_sub_types=["number"]
+            ...     resource_sub_types=["number"]
             ... ):
-            ...     print(entity.name)
+            ...     print(resource.name)
         """
         skip = 0
-        # limit page sizes to 100
         take = min(page_size, 100)
 
         if take <= 0:
@@ -480,9 +477,9 @@ class ResourceCatalogService(FolderContext, BaseService):
 
         while True:
             spec = self._list_by_type_spec(
-                entity_type=entity_type,
+                resource_type=resource_type,
                 name=name,
-                entity_sub_types=entity_sub_types,
+                resource_sub_types=resource_sub_types,
                 folder_key=resolved_folder_key,
                 skip=skip,
                 take=take,
@@ -503,7 +500,7 @@ class ResourceCatalogService(FolderContext, BaseService):
                 break
 
             for item in items:
-                yield ResourceEntity.model_validate(item)
+                yield Resource.model_validate(item)
 
             if len(items) < take:
                 break
@@ -513,19 +510,19 @@ class ResourceCatalogService(FolderContext, BaseService):
     def _search_spec(
         self,
         name: Optional[str],
-        entity_types: Optional[List[EntityType]],
-        entity_sub_types: Optional[List[str]],
+        resource_types: Optional[List[ResourceType]],
+        resource_sub_types: Optional[List[str]],
         skip: int,
         take: int,
     ) -> RequestSpec:
-        """Build the request specification for searching entities.
+        """Build the request specification for searching resources.
 
         Args:
             name: Optional name filter
-            entity_types: Optional entity types filter
-            entity_sub_types: Optional entity subtypes filter
-            skip: Number of entities to skip (for pagination)
-            take: Number of entities to take
+            resource_types: Optional resource types filter
+            resource_sub_types: Optional resource subtypes filter
+            skip: Number of resources to skip (for pagination)
+            take: Number of resources to take
 
         Returns:
             RequestSpec: The request specification for the API call
@@ -538,11 +535,11 @@ class ResourceCatalogService(FolderContext, BaseService):
         if name:
             params["name"] = name
 
-        if entity_types:
-            params["entityTypes"] = [x.value for x in entity_types]
+        if resource_types:
+            params["entityTypes"] = [x.value for x in resource_types]
 
-        if entity_sub_types:
-            params["entitySubType"] = entity_sub_types
+        if resource_sub_types:
+            params["entitySubType"] = resource_sub_types
 
         return RequestSpec(
             method="GET",
@@ -552,20 +549,20 @@ class ResourceCatalogService(FolderContext, BaseService):
 
     def _list_spec(
         self,
-        entity_types: Optional[List[EntityType]],
-        entity_sub_types: Optional[List[str]],
+        resource_types: Optional[List[ResourceType]],
+        resource_sub_types: Optional[List[str]],
         folder_key: Optional[str],
         skip: int,
         take: int,
     ) -> RequestSpec:
-        """Build the request specification for getting entities.
+        """Build the request specification for getting resources.
 
         Args:
-            entity_types: Optional entity types filter
-            entity_sub_types: Optional entity subtypes filter
+            resource_types: Optional resource types filter
+            resource_sub_types: Optional resource subtypes filter
             folder_key: Optional folder key to scope the results
-            skip: Number of entities to skip (for pagination)
-            take: Number of entities to take
+            skip: Number of resources to skip (for pagination)
+            take: Number of resources to take
 
         Returns:
             RequestSpec: The request specification for the API call
@@ -575,11 +572,11 @@ class ResourceCatalogService(FolderContext, BaseService):
             "take": take,
         }
 
-        if entity_types:
-            params["entityTypes"] = [x.value for x in entity_types]
+        if resource_types:
+            params["entityTypes"] = [x.value for x in resource_types]
 
-        if entity_sub_types:
-            params["entitySubType"] = entity_sub_types
+        if resource_sub_types:
+            params["entitySubType"] = resource_sub_types
 
         headers = {
             **header_folder(folder_key, None),
@@ -594,21 +591,21 @@ class ResourceCatalogService(FolderContext, BaseService):
 
     def _list_by_type_spec(
         self,
-        entity_type: EntityType,
+        resource_type: ResourceType,
         name: Optional[str],
-        entity_sub_types: Optional[List[str]],
+        resource_sub_types: Optional[List[str]],
         folder_key: Optional[str],
         skip: int,
         take: int,
     ) -> RequestSpec:
-        """Build the request specification for getting entities.
+        """Build the request specification for getting resources.
 
         Args:
-            entity_type: Entity type
-            entity_sub_types: Optional entity subtypes filter
+            resource_type: Resource type
+            resource_sub_types: Optional resource subtypes filter
             folder_key: Optional folder key to scope the results
-            skip: Number of entities to skip (for pagination)
-            take: Number of entities to take
+            skip: Number of resources to skip (for pagination)
+            take: Number of resources to take
 
         Returns:
             RequestSpec: The request specification for the API call
@@ -621,8 +618,8 @@ class ResourceCatalogService(FolderContext, BaseService):
         if name:
             params["name"] = name
 
-        if entity_sub_types:
-            params["entitySubType"] = entity_sub_types
+        if resource_sub_types:
+            params["entitySubType"] = resource_sub_types
 
         headers = {
             **header_folder(folder_key, None),
@@ -630,7 +627,7 @@ class ResourceCatalogService(FolderContext, BaseService):
 
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(f"resourcecatalog_/Entities/{entity_type.value}"),
+            endpoint=Endpoint(f"resourcecatalog_/Entities/{resource_type.value}"),
             params=params,
             headers=headers,
         )
