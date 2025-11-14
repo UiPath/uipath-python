@@ -8,6 +8,7 @@ from .context_grounding import ContextGroundingQueryResponse
 from .context_grounding_index import ContextGroundingIndex
 from .errors import BaseUrlMissingError, SecretMissingError
 from .exceptions import IngestionInProgressException
+from .folders import Folder
 from .interrupt_models import (
     CreateAction,
     InvokeProcess,
@@ -18,6 +19,7 @@ from .job import Job
 from .processes import Process
 from .queues import (
     CommitType,
+    QueueDefinition,
     QueueItem,
     QueueItemPriority,
     TransactionItem,
@@ -32,6 +34,7 @@ __all__ = [
     "ContextGroundingQueryResponse",
     "ContextGroundingIndex",
     "Process",
+    "QueueDefinition",
     "QueueItem",
     "CommitType",
     "TransactionItem",
@@ -52,4 +55,5 @@ __all__ = [
     "SecretMissingError",
     "Bucket",
     "BucketFile",
+    "Folder",
 ]

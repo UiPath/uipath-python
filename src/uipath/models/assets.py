@@ -42,6 +42,29 @@ class UserAsset(BaseModel):
     )
     id: Optional[int] = Field(default=None, alias="Id")
 
+    @property
+    def display_value(self) -> str:
+        """Safe display value that masks secrets and credentials.
+
+        Returns "***" for Secret and Credential asset types to prevent
+        accidental exposure in logs or CLI output.
+        """
+        if self.value_type in ("Secret", "Credential"):
+            return "***"
+        return str(self.value) if self.value is not None else "None"
+
+    def __repr__(self) -> str:
+        """Override repr to prevent accidental secret exposure in logs."""
+        return (
+            f"UserAsset(name={self.name!r}, "
+            f"value_type={self.value_type!r}, "
+            f"value={self.display_value!r})"
+        )
+
+    def __str__(self) -> str:
+        """Override str for user-friendly display that masks secrets."""
+        return f"UserAsset '{self.name}' ({self.value_type}): {self.display_value}"
+
 
 class Asset(BaseModel):
     model_config = ConfigDict(
@@ -63,3 +86,26 @@ class Asset(BaseModel):
     credential_password: Optional[str] = Field(default=None, alias="CredentialPassword")
     external_name: Optional[str] = Field(default=None, alias="ExternalName")
     credential_store_id: Optional[int] = Field(default=None, alias="CredentialStoreId")
+
+    @property
+    def display_value(self) -> str:
+        """Safe display value that masks secrets and credentials.
+
+        Returns "***" for Secret and Credential asset types to prevent
+        accidental exposure in logs or CLI output.
+        """
+        if self.value_type in ("Secret", "Credential"):
+            return "***"
+        return str(self.value) if self.value is not None else "None"
+
+    def __repr__(self) -> str:
+        """Override repr to prevent accidental secret exposure in logs."""
+        return (
+            f"Asset(name={self.name!r}, "
+            f"value_type={self.value_type!r}, "
+            f"value={self.display_value!r})"
+        )
+
+    def __str__(self) -> str:
+        """Override str for user-friendly display that masks secrets."""
+        return f"Asset '{self.name}' ({self.value_type}): {self.display_value}"

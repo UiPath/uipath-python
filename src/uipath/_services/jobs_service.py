@@ -3,13 +3,25 @@ import shutil
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast, overload
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Union,
+    cast,
+    overload,
+)
 
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
+from ..models.errors import PaginationLimitError
+from ..models.exceptions import EnrichedException
 from ..models.job import Job
 from ..tracing import traced
 from ._base_service import BaseService
@@ -30,6 +42,287 @@ class JobsService(FolderContext, BaseService):
         # Define the temp directory path for local attachments
         self._temp_dir = os.path.join(tempfile.gettempdir(), TEMP_ATTACHMENTS_FOLDER)
         os.makedirs(self._temp_dir, exist_ok=True)
+
+    @traced(name="jobs_list", run_type="uipath")
+    def list(
+        self,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        filter: Optional[str] = None,
+        orderby: Optional[str] = None,
+        top: int = 100,
+        skip: int = 0,
+    ) -> Iterator[Job]:
+        """List jobs with automatic pagination (limited to 10 pages).
+
+        Args:
+            folder_path: Folder path to filter jobs
+            folder_key: Folder key (mutually exclusive with folder_path)
+            filter: OData $filter expression
+            orderby: OData $orderby expression
+            top: Maximum items per page (default 100)
+            skip: Number of items to skip
+
+        Yields:
+            Job: Job instances
+
+        Raises:
+            PaginationLimitError: If more than 10 pages (1,000 items) exist.
+                Use filters or manual pagination to retrieve additional results.
+
+        Note:
+            Auto-pagination is limited to 10 pages (~1,000 items) to prevent
+            performance issues with deep OFFSET queries. If you hit this limit:
+
+            1. Add filters to narrow results:
+               >>> for job in sdk.jobs.list(filter="State eq 'Successful'"):
+               ...     print(job.key)
+
+            2. Use manual pagination for large datasets:
+               >>> skip = 0
+               >>> while True:
+               ...     page = list(sdk.jobs.list(skip=skip, top=100))
+               ...     if not page:
+               ...         break
+               ...     process(page)
+               ...     skip += 100
+
+        Examples:
+            >>> # Get up to 1,000 jobs automatically
+            >>> for job in sdk.jobs.list():
+            ...     print(job.key, job.state)
+        """
+        MAX_PAGES = 10
+        current_skip = skip
+        pages_fetched = 0
+
+        while pages_fetched < MAX_PAGES:
+            spec = self._list_spec(
+                folder_path=folder_path,
+                folder_key=folder_key,
+                filter=filter,
+                orderby=orderby,
+                skip=current_skip,
+                top=top,
+            )
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            ).json()
+
+            items = response.get("value", [])
+            if not items:
+                break
+
+            for item in items:
+                job = Job.model_validate(item)
+                yield job
+
+            pages_fetched += 1
+
+            if len(items) < top:
+                break
+
+            current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list",
+                    current_skip=current_skip,
+                    filter_example="State eq 'Successful'",
+                )
+
+    @traced(name="jobs_list", run_type="uipath")
+    async def list_async(
+        self,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        filter: Optional[str] = None,
+        orderby: Optional[str] = None,
+        top: int = 100,
+        skip: int = 0,
+    ) -> AsyncIterator[Job]:
+        """Async version of list() with pagination limit.
+
+        See list() for full documentation.
+        """
+        MAX_PAGES = 10
+        current_skip = skip
+        pages_fetched = 0
+
+        while pages_fetched < MAX_PAGES:
+            spec = self._list_spec(
+                folder_path=folder_path,
+                folder_key=folder_key,
+                filter=filter,
+                orderby=orderby,
+                skip=current_skip,
+                top=top,
+            )
+            response = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                )
+            ).json()
+
+            items = response.get("value", [])
+            if not items:
+                break
+
+            for item in items:
+                job = Job.model_validate(item)
+                yield job
+
+            pages_fetched += 1
+
+            if len(items) < top:
+                break
+
+            current_skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_async",
+                    current_skip=current_skip,
+                    filter_example="State eq 'Successful'",
+                )
+
+    @traced(name="jobs_stop", run_type="uipath")
+    def stop(
+        self,
+        *,
+        job_keys: List[str],
+        strategy: str = "SoftStop",
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> None:
+        """Stop one or more jobs with specified strategy.
+
+        Args:
+            job_keys: List of job UUID keys to stop
+            strategy: Stop strategy - "SoftStop" (graceful) or "Kill" (force)
+            folder_path: Folder path
+            folder_key: Folder key
+
+        Examples:
+            >>> # Stop single job by key
+            >>> sdk.jobs.stop(job_keys=["ee9327fd-237d-419e-86ef-9946b34461e3"])
+
+            >>> # Stop multiple jobs with Kill strategy
+            >>> sdk.jobs.stop(
+            ...     job_keys=["uuid-1", "uuid-2"],
+            ...     strategy="Kill"
+            ... )
+        """
+        spec = self._stop_spec(
+            job_keys=job_keys,
+            strategy=strategy,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        self.request(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+    @traced(name="jobs_stop", run_type="uipath")
+    async def stop_async(
+        self,
+        *,
+        job_keys: List[str],
+        strategy: str = "SoftStop",
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> None:
+        """Async version of stop() - stop one or more jobs with specified strategy.
+
+        Args:
+            job_keys: List of job UUID keys to stop
+            strategy: Stop strategy - "SoftStop" (graceful) or "Kill" (force)
+            folder_path: Folder path
+            folder_key: Folder key
+
+        Examples:
+            >>> # Stop single job by key
+            >>> await sdk.jobs.stop_async(job_keys=["ee9327fd-237d-419e-86ef-9946b34461e3"])
+
+            >>> # Stop multiple jobs
+            >>> await sdk.jobs.stop_async(job_keys=["uuid-1", "uuid-2"])
+        """
+        spec = self._stop_spec(
+            job_keys=job_keys,
+            strategy=strategy,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+    @traced(name="jobs_exists", run_type="uipath")
+    def exists(
+        self,
+        job_key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Check if job exists.
+
+        Args:
+            job_key: Job unique identifier
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            bool: True if job exists
+
+        Examples:
+            >>> if sdk.jobs.exists(job_key="ee9327fd-237d-419e-86ef-9946b34461e3"):
+            ...     print("Job found")
+        """
+        try:
+            self.retrieve(
+                job_key=job_key, folder_key=folder_key, folder_path=folder_path
+            )
+            return True
+        except LookupError:
+            return False
+
+    @traced(name="jobs_exists", run_type="uipath")
+    async def exists_async(
+        self,
+        job_key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Async version of exists()."""
+        try:
+            await self.retrieve_async(
+                job_key=job_key, folder_key=folder_key, folder_path=folder_path
+            )
+            return True
+        except LookupError:
+            return False
 
     @overload
     def resume(self, *, inbox_id: str, payload: Any) -> None: ...
@@ -150,82 +443,77 @@ class JobsService(FolderContext, BaseService):
 
     def retrieve(
         self,
-        job_key: str,
         *,
+        job_key: str,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Job:
-        """Retrieve a job identified by its key.
+        """Retrieve a single job by key.
 
         Args:
-            job_key (str): The job unique identifier.
-            folder_key (Optional[str]): The key of the folder in which the job was executed.
-            folder_path (Optional[str]): The path of the folder in which the job was executed.
+            job_key: Job UUID key
+            folder_key: The key of the folder in which the job was executed
+            folder_path: The path of the folder in which the job was executed
 
         Returns:
-            Job: The retrieved job.
+            Job: The retrieved job
 
         Examples:
-            ```python
-            from uipath import UiPath
-
-            sdk = UiPath()
-            job = sdk.jobs.retrieve(job_key="ee9327fd-237d-419e-86ef-9946b34461e3", folder_path="Shared")
-            ```
+            >>> # Retrieve by key
+            >>> job = sdk.jobs.retrieve(job_key="ee9327fd-237d-419e-86ef-9946b34461e3")
         """
-        spec = self._retrieve_spec(
+        spec = self._retrieve_by_key_spec(
             job_key=job_key, folder_key=folder_key, folder_path=folder_path
         )
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            headers=spec.headers,
-        )
 
-        return Job.model_validate(response.json())
+        try:
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                headers=spec.headers,
+            )
+            return Job.model_validate(response.json())
+        except EnrichedException as e:
+            if e.status_code == 404:
+                raise LookupError(f"Job with key '{job_key}' not found.") from e
+            raise
 
     async def retrieve_async(
         self,
-        job_key: str,
         *,
+        job_key: str,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Job:
-        """Asynchronously retrieve a job identified by its key.
+        """Asynchronously retrieve a single job by key.
 
         Args:
-            job_key (str): The job unique identifier.
-            folder_key (Optional[str]): The key of the folder in which the job was executed.
-            folder_path (Optional[str]): The path of the folder in which the job was executed.
+            job_key: Job UUID key
+            folder_key: The key of the folder in which the job was executed
+            folder_path: The path of the folder in which the job was executed
 
         Returns:
-            Job: The retrieved job.
+            Job: The retrieved job
 
         Examples:
-            ```python
-            import asyncio
-
-            from uipath import UiPath
-
-            sdk = UiPath()
-
-
-            async def main():  # noqa: D103
-                job = await sdk.jobs.retrieve_async(job_key="ee9327fd-237d-419e-86ef-9946b34461e3", folder_path="Shared")
-
-            asyncio.run(main())
-            ```
+            >>> # Retrieve by key
+            >>> job = await sdk.jobs.retrieve_async(job_key="ee9327fd-237d-419e-86ef-9946b34461e3")
         """
-        spec = self._retrieve_spec(
+        spec = self._retrieve_by_key_spec(
             job_key=job_key, folder_key=folder_key, folder_path=folder_path
         )
-        response = await self.request_async(
-            spec.method,
-            url=spec.endpoint,
-            headers=spec.headers,
-        )
 
-        return Job.model_validate(response.json())
+        try:
+            response = await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                headers=spec.headers,
+            )
+            return Job.model_validate(response.json())
+        except EnrichedException as e:
+            if e.status_code == 404:
+                raise LookupError(f"Job with key '{job_key}' not found.") from e
+            raise
 
     def _retrieve_inbox_id(
         self,
@@ -417,13 +705,13 @@ class JobsService(FolderContext, BaseService):
             },
         )
 
-    def _retrieve_spec(
+    def _retrieve_by_key_spec(
         self,
-        *,
         job_key: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: Optional[str],
+        folder_path: Optional[str],
     ) -> RequestSpec:
+        """Build request for retrieving job by key."""
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
@@ -920,3 +1208,61 @@ class JobsService(FolderContext, BaseService):
 
             # Return only the UUID
             return attachment_id
+
+    def _list_spec(
+        self,
+        folder_path: Optional[str],
+        folder_key: Optional[str],
+        filter: Optional[str],
+        orderby: Optional[str],
+        skip: int,
+        top: int,
+    ) -> RequestSpec:
+        """Build OData request for listing jobs."""
+        params: Dict[str, Any] = {"$skip": skip, "$top": top}
+        if filter:
+            params["$filter"] = filter
+        if orderby:
+            params["$orderby"] = orderby
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/odata/Jobs"),
+            params=params,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _stop_spec(
+        self,
+        job_keys: List[str],
+        strategy: str,
+        folder_key: Optional[str],
+        folder_path: Optional[str],
+    ) -> RequestSpec:
+        """Build request for stopping jobs with strategy.
+
+        Note: The UiPath API requires integer job IDs, so we retrieve each job
+        by key to get its ID. This matches the Swagger StopJobsRequest schema.
+        """
+        job_ids = []
+        for job_key in job_keys:
+            job = self.retrieve(
+                job_key=job_key, folder_key=folder_key, folder_path=folder_path
+            )
+            job_ids.append(job.id)
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StopJobs"
+            ),
+            json={
+                "jobIds": job_ids,
+                "strategy": strategy,
+            },
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )

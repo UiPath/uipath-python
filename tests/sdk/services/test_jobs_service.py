@@ -123,7 +123,7 @@ class TestJobsService:
             },
         )
 
-        job = service.retrieve(job_key)
+        job = service.retrieve(job_key=job_key)
 
         assert isinstance(job, Job)
         assert job.key == job_key
@@ -167,7 +167,7 @@ class TestJobsService:
             },
         )
 
-        job = await service.retrieve_async(job_key)
+        job = await service.retrieve_async(job_key=job_key)
 
         assert isinstance(job, Job)
         assert job.key == job_key
@@ -947,7 +947,7 @@ class TestJobsService:
             content=large_output_content.encode("utf-8"),
         )
 
-        job = service.retrieve(job_key)
+        job = service.retrieve(job_key=job_key)
 
         # job structure is correct for large output
         assert job.key == job_key
@@ -1040,7 +1040,7 @@ class TestJobsService:
             content=large_output_content.encode("utf-8"),
         )
 
-        job = await service.retrieve_async(job_key)
+        job = await service.retrieve_async(job_key=job_key)
 
         assert job.key == job_key
         assert job.state == "Successful"
@@ -1110,8 +1110,8 @@ class TestJobsService:
             },
         )
 
-        small_job = service.retrieve(small_job_key)
-        large_job = service.retrieve(large_job_key)
+        small_job = service.retrieve(job_key=small_job_key)
+        large_job = service.retrieve(job_key=large_job_key)
 
         assert small_job.output_arguments == small_output
         assert small_job.output_file is None

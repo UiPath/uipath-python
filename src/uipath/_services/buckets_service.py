@@ -12,7 +12,8 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..models import Bucket, BucketFile
-from ..tracing import traced
+from ..models.errors import PaginationLimitError
+from ..tracing._traced import traced
 from ._base_service import BaseService
 
 
@@ -61,10 +62,12 @@ class BucketsService(FolderContext, BaseService):
             >>> for bucket in sdk.buckets.list(name="invoice"):
             ...     print(bucket.name)
         """
+        MAX_PAGES = 10
         skip = 0
         top = 100
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -87,10 +90,22 @@ class BucketsService(FolderContext, BaseService):
                 bucket = Bucket.model_validate(item)
                 yield bucket
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list",
+                    current_skip=skip,
+                    filter_example="name='specific-bucket'",
+                )
 
     @traced(name="buckets_list", run_type="uipath")
     async def list_async(
@@ -101,10 +116,12 @@ class BucketsService(FolderContext, BaseService):
         name: Optional[str] = None,
     ) -> AsyncIterator[Bucket]:
         """Async version of list() with auto-pagination."""
+        MAX_PAGES = 10
         skip = 0
         top = 50
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_spec(
                 folder_path=folder_path,
                 folder_key=folder_key,
@@ -129,10 +146,22 @@ class BucketsService(FolderContext, BaseService):
                 bucket = Bucket.model_validate(item)
                 yield bucket
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="list_async",
+                    current_skip=skip,
+                    filter_example="name='specific-bucket'",
+                )
 
     @traced(name="buckets_exists", run_type="uipath")
     def exists(
@@ -811,9 +840,11 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
+        MAX_PAGES = 10
         continuation_token: Optional[str] = None
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_files_spec(
                 bucket.id,
                 prefix,
@@ -832,9 +863,20 @@ class BucketsService(FolderContext, BaseService):
             for item in items:
                 yield BucketFile.model_validate(item)
 
+            pages_fetched += 1
             continuation_token = response.get("continuationToken")
             if not continuation_token:
                 break
+
+        else:
+            if continuation_token:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=500,
+                    method_name="list_files",
+                    current_skip=0,
+                    filter_example="prefix='data/'",
+                )
 
     @traced(name="buckets_list_files", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -874,9 +916,11 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
+        MAX_PAGES = 10
         continuation_token: Optional[str] = None
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._list_files_spec(
                 bucket.id,
                 prefix,
@@ -897,9 +941,20 @@ class BucketsService(FolderContext, BaseService):
             for item in items:
                 yield BucketFile.model_validate(item)
 
+            pages_fetched += 1
             continuation_token = response.get("continuationToken")
             if not continuation_token:
                 break
+
+        else:
+            if continuation_token:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=500,
+                    method_name="list_files_async",
+                    current_skip=0,
+                    filter_example="prefix='data/'",
+                )
 
     @traced(name="buckets_exists_file", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -1147,10 +1202,12 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
+        MAX_PAGES = 10
         skip = 0
         top = self._GET_FILES_PAGE_SIZE
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._get_files_spec(
                 bucket.id,
                 prefix=prefix,
@@ -1183,10 +1240,22 @@ class BucketsService(FolderContext, BaseService):
                             f"Failed to parse file entry: {e}. Item: {item}"
                         ) from e
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="get_files",
+                    current_skip=skip,
+                    filter_example="file_name_glob='*.pdf'",
+                )
 
     @traced(name="buckets_get_files", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -1223,10 +1292,12 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
+        MAX_PAGES = 10
         skip = 0
         top = self._GET_FILES_PAGE_SIZE
+        pages_fetched = 0
 
-        while True:
+        while pages_fetched < MAX_PAGES:
             spec = self._get_files_spec(
                 bucket.id,
                 prefix=prefix,
@@ -1261,10 +1332,22 @@ class BucketsService(FolderContext, BaseService):
                             f"Failed to parse file entry: {e}. Item: {item}"
                         ) from e
 
+            pages_fetched += 1
+
             if len(items) < top:
                 break
 
             skip += top
+
+        else:
+            if items and len(items) == top:
+                raise PaginationLimitError.create(
+                    max_pages=MAX_PAGES,
+                    items_per_page=top,
+                    method_name="get_files_async",
+                    current_skip=skip,
+                    filter_example="file_name_glob='*.pdf'",
+                )
 
     @property
     def custom_headers(self) -> Dict[str, str]:

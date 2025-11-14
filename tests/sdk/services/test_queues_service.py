@@ -37,7 +37,7 @@ class TestQueuesService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems?%24skip=0&%24top=100",
             status_code=200,
             json={
                 "value": [
@@ -50,11 +50,12 @@ class TestQueuesService:
             },
         )
 
-        response = service.list_items()
+        items = list(service.list_items())
 
-        assert response["value"][0]["Id"] == 1
-        assert response["value"][0]["Name"] == "test-queue"
-        assert response["value"][0]["Priority"] == "High"
+        assert len(items) == 1
+        assert items[0].Id == 1  # Id is an extra field in the model
+        assert items[0].name == "test-queue"
+        assert items[0].priority == "High"
 
         sent_request = httpx_mock.get_request()
         if sent_request is None:
@@ -63,7 +64,7 @@ class TestQueuesService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems"
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems?%24skip=0&%24top=100"
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -83,7 +84,7 @@ class TestQueuesService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems?%24skip=0&%24top=100",
             status_code=200,
             json={
                 "value": [
@@ -96,11 +97,14 @@ class TestQueuesService:
             },
         )
 
-        response = await service.list_items_async()
+        items = []
+        async for item in service.list_items_async():
+            items.append(item)
 
-        assert response["value"][0]["Id"] == 1
-        assert response["value"][0]["Name"] == "test-queue"
-        assert response["value"][0]["Priority"] == "High"
+        assert len(items) == 1
+        assert items[0].Id == 1  # Id is an extra field in the model
+        assert items[0].name == "test-queue"
+        assert items[0].priority == "High"
 
         sent_request = httpx_mock.get_request()
         if sent_request is None:
@@ -109,7 +113,7 @@ class TestQueuesService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems"
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems?%24skip=0&%24top=100"
         )
 
         assert HEADER_USER_AGENT in sent_request.headers
@@ -127,28 +131,31 @@ class TestQueuesService:
         tenant: str,
         version: str,
     ) -> None:
-        queue_item = QueueItem(
-            name="test-queue",
-            priority=QueueItemPriority.HIGH,
-            specific_content={"key": "value"},
-        )
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem",
             status_code=200,
             json={
                 "Id": 1,
                 "Name": "test-queue",
+                "Reference": "test-ref-001",
                 "Priority": "High",
                 "SpecificContent": {"key": "value"},
             },
         )
 
-        response = service.create_item(queue_item)
+        response = service.create_item(
+            queue_name="test-queue",
+            reference="test-ref-001",
+            specific_content={"key": "value"},
+            priority="High",
+        )
 
-        assert response["Id"] == 1
-        assert response["Name"] == "test-queue"
-        assert response["Priority"] == "High"
-        assert response["SpecificContent"] == {"key": "value"}
+        # Access via model_extra since id and reference are not defined fields
+        assert response.model_extra.get("Id") == 1
+        assert response.name == "test-queue"
+        assert response.model_extra.get("Reference") == "test-ref-001"
+        assert response.priority == "High"
+        assert response.specific_content == {"key": "value"}
 
         sent_request = httpx_mock.get_request()
         if sent_request is None:
@@ -159,13 +166,11 @@ class TestQueuesService:
             sent_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem"
         )
-        assert json.loads(sent_request.content.decode()) == {
-            "itemData": {
-                "Name": "test-queue",
-                "Priority": "High",
-                "SpecificContent": {"key": "value"},
-            }
-        }
+        request_body = json.loads(sent_request.content.decode())
+        assert request_body["itemData"]["Name"] == "test-queue"
+        assert request_body["itemData"]["Reference"] == "test-ref-001"
+        assert request_body["itemData"]["Priority"] == "High"
+        assert request_body["itemData"]["SpecificContent"] == {"key": "value"}
 
         assert HEADER_USER_AGENT in sent_request.headers
         assert (
@@ -183,28 +188,31 @@ class TestQueuesService:
         tenant: str,
         version: str,
     ) -> None:
-        queue_item = QueueItem(
-            name="test-queue",
-            priority=QueueItemPriority.HIGH,
-            specific_content={"key": "value"},
-        )
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem",
             status_code=200,
             json={
                 "Id": 1,
                 "Name": "test-queue",
+                "Reference": "test-ref-001",
                 "Priority": "High",
                 "SpecificContent": {"key": "value"},
             },
         )
 
-        response = await service.create_item_async(queue_item)
+        response = await service.create_item_async(
+            queue_name="test-queue",
+            reference="test-ref-001",
+            specific_content={"key": "value"},
+            priority="High",
+        )
 
-        assert response["Id"] == 1
-        assert response["Name"] == "test-queue"
-        assert response["Priority"] == "High"
-        assert response["SpecificContent"] == {"key": "value"}
+        # Access via model_extra since id and reference are not defined fields
+        assert response.model_extra.get("Id") == 1
+        assert response.name == "test-queue"
+        assert response.model_extra.get("Reference") == "test-ref-001"
+        assert response.priority == "High"
+        assert response.specific_content == {"key": "value"}
 
         sent_request = httpx_mock.get_request()
         if sent_request is None:
@@ -215,13 +223,11 @@ class TestQueuesService:
             sent_request.url
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem"
         )
-        assert json.loads(sent_request.content.decode()) == {
-            "itemData": {
-                "Name": "test-queue",
-                "Priority": "High",
-                "SpecificContent": {"key": "value"},
-            }
-        }
+        request_body = json.loads(sent_request.content.decode())
+        assert request_body["itemData"]["Name"] == "test-queue"
+        assert request_body["itemData"]["Reference"] == "test-ref-001"
+        assert request_body["itemData"]["Priority"] == "High"
+        assert request_body["itemData"]["SpecificContent"] == {"key": "value"}
 
         assert HEADER_USER_AGENT in sent_request.headers
         assert (
@@ -686,3 +692,46 @@ class TestQueuesService:
             sent_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.QueuesService.complete_transaction_item_async/{version}"
         )
+
+    def test_create_item_requires_reference(self, service: QueuesService) -> None:
+        """Test that create_item() requires the reference parameter."""
+        with pytest.raises(TypeError, match="reference"):
+            service.create_item(
+                queue_name="test-queue", specific_content={"key": "value"}
+            )
+
+    def test_create_item_requires_specific_content(
+        self, service: QueuesService
+    ) -> None:
+        """Test that create_item() requires the specific_content parameter."""
+        with pytest.raises(TypeError, match="specific_content"):
+            service.create_item(queue_name="test-queue", reference="REF-001")
+
+    def test_create_item_requires_queue_selector(self, service: QueuesService) -> None:
+        """Test that create_item() requires at least one of queue_name or queue_key."""
+        with pytest.raises(
+            ValueError, match="Either 'queue_name' or 'queue_key' must be provided"
+        ):
+            service.create_item(reference="REF-001", specific_content={"key": "value"})
+
+    @pytest.mark.asyncio
+    async def test_create_item_async_requires_reference(
+        self, service: QueuesService
+    ) -> None:
+        """Test that create_item_async() requires the reference parameter."""
+        with pytest.raises(TypeError, match="reference"):
+            await service.create_item_async(
+                queue_name="test-queue", specific_content={"key": "value"}
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_item_async_requires_queue_selector(
+        self, service: QueuesService
+    ) -> None:
+        """Test that create_item_async() requires at least one of queue_name or queue_key."""
+        with pytest.raises(
+            ValueError, match="Either 'queue_name' or 'queue_key' must be provided"
+        ):
+            await service.create_item_async(
+                reference="REF-001", specific_content={"key": "value"}
+            )
