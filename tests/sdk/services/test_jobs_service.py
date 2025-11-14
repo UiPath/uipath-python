@@ -1377,3 +1377,420 @@ class TestJobsService:
         # Check content
         with open(expected_path, "r") as f:
             assert f.read() == source_content
+
+    def test_list_jobs_basic(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs with basic parameters."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=25&$orderby=CreationTime desc&$filter=((ProcessType ne 'TestAutomationProcess'))",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 2,
+                "value": [
+                    {
+                        "Key": "job-key-1",
+                        "State": "Successful",
+                        "StartTime": "2025-11-14T14:29:21.98Z",
+                        "EndTime": "2025-11-14T14:29:30.837Z",
+                        "CreationTime": "2025-11-14T14:29:13.04Z",
+                        "Id": 123,
+                    },
+                    {
+                        "Key": "job-key-2",
+                        "State": "Running",
+                        "StartTime": "2025-11-14T14:28:22.24Z",
+                        "CreationTime": "2025-11-14T14:28:13.073Z",
+                        "Id": 124,
+                    },
+                ],
+            },
+        )
+
+        jobs = service.list()
+
+        assert len(jobs) == 2
+        assert isinstance(jobs[0], Job)
+        assert jobs[0].key == "job-key-1"
+        assert jobs[0].state == "Successful"
+        assert jobs[0].id == 123
+        assert jobs[1].key == "job-key-2"
+        assert jobs[1].state == "Running"
+        assert jobs[1].id == 124
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.method == "GET"
+        assert "$top=25" in str(sent_request.url)
+        assert "$orderby=CreationTime desc" in str(sent_request.url)
+        assert "ProcessType ne 'TestAutomationProcess'" in str(sent_request.url)
+        assert "$expand" not in str(sent_request.url)
+        assert HEADER_USER_AGENT in sent_request.headers
+
+    @pytest.mark.asyncio
+    async def test_list_jobs_async_basic(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs asynchronously with basic parameters."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=25&$orderby=CreationTime desc&$filter=((ProcessType ne 'TestAutomationProcess'))",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 2,
+                "value": [
+                    {
+                        "Key": "job-key-1",
+                        "State": "Successful",
+                        "StartTime": "2025-11-14T14:29:21.98Z",
+                        "EndTime": "2025-11-14T14:29:30.837Z",
+                        "CreationTime": "2025-11-14T14:29:13.04Z",
+                        "Id": 123,
+                    },
+                    {
+                        "Key": "job-key-2",
+                        "State": "Running",
+                        "StartTime": "2025-11-14T14:28:22.24Z",
+                        "CreationTime": "2025-11-14T14:28:13.073Z",
+                        "Id": 124,
+                    },
+                ],
+            },
+        )
+
+        jobs = await service.list_async()
+
+        assert len(jobs) == 2
+        assert isinstance(jobs[0], Job)
+        assert jobs[0].key == "job-key-1"
+        assert jobs[0].state == "Successful"
+        assert jobs[0].id == 123
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.method == "GET"
+        assert HEADER_USER_AGENT in sent_request.headers
+
+    def test_list_jobs_with_release_filter(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs filtered by release ID."""
+        release_id = 619188
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=25&$orderby=CreationTime desc&$filter=((Release/Id eq {release_id}) and (ProcessType ne 'TestAutomationProcess'))",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 1,
+                "value": [
+                    {
+                        "Key": "job-key-1",
+                        "State": "Successful",
+                        "StartTime": "2025-11-14T14:29:21.98Z",
+                        "EndTime": "2025-11-14T14:29:30.837Z",
+                        "CreationTime": "2025-11-14T14:29:13.04Z",
+                        "Id": 123,
+                    },
+                ],
+            },
+        )
+
+        jobs = service.list(release_id=release_id)
+
+        assert len(jobs) == 1
+        assert jobs[0].key == "job-key-1"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert f"Release/Id eq {release_id}" in str(sent_request.url)
+
+    def test_list_jobs_with_time_range(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs with time range filter."""
+        start_time = "2025-11-12T23:30:00.000Z"
+        end_time = "2025-11-14T00:00:00.000Z"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=25&$orderby=CreationTime desc&$filter=((CreationTime ge {start_time}) and (CreationTime le {end_time}) and (ProcessType ne 'TestAutomationProcess'))",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 1,
+                "value": [
+                    {
+                        "Key": "job-key-1",
+                        "State": "Successful",
+                        "StartTime": "2025-11-13T10:00:00.000Z",
+                        "EndTime": "2025-11-13T10:05:00.000Z",
+                        "CreationTime": "2025-11-13T09:55:00.000Z",
+                        "Id": 123,
+                    },
+                ],
+            },
+        )
+
+        jobs = service.list(
+            creation_time_start=start_time, creation_time_end=end_time
+        )
+
+        assert len(jobs) == 1
+        assert jobs[0].key == "job-key-1"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert f"CreationTime ge {start_time}" in str(sent_request.url)
+        assert f"CreationTime le {end_time}" in str(sent_request.url)
+
+    def test_list_jobs_with_pagination(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs with pagination parameters."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=10&$orderby=CreationTime desc&$skip=20&$filter=((ProcessType ne 'TestAutomationProcess'))",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 50,
+                "value": [
+                    {
+                        "Key": "job-key-21",
+                        "State": "Successful",
+                        "StartTime": "2025-11-14T12:00:00.000Z",
+                        "CreationTime": "2025-11-14T11:55:00.000Z",
+                        "Id": 200,
+                    },
+                ],
+            },
+        )
+
+        jobs = service.list(top=10, skip=20)
+
+        assert len(jobs) == 1
+        assert jobs[0].key == "job-key-21"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert "$top=10" in str(sent_request.url)
+        assert "$skip=20" in str(sent_request.url)
+
+    def test_list_jobs_with_custom_expand(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs with custom expand options."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=25&$orderby=CreationTime desc&$filter=((ProcessType ne 'TestAutomationProcess'))&$expand=Release",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 1,
+                "value": [
+                    {
+                        "Key": "job-key-1",
+                        "State": "Successful",
+                        "StartTime": "2025-11-14T14:29:21.98Z",
+                        "CreationTime": "2025-11-14T14:29:13.04Z",
+                        "Id": 123,
+                    },
+                ],
+            },
+        )
+
+        jobs = service.list(expand=["Release"])
+
+        assert len(jobs) == 1
+        assert jobs[0].key == "job-key-1"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert "$expand=Release" in str(sent_request.url)
+
+    def test_list_jobs_include_test_automation(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs including test automation processes."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=25&$orderby=CreationTime desc",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 1,
+                "value": [
+                    {
+                        "Key": "job-key-1",
+                        "State": "Successful",
+                        "StartTime": "2025-11-14T14:29:21.98Z",
+                        "CreationTime": "2025-11-14T14:29:13.04Z",
+                        "Id": 123,
+                    },
+                ],
+            },
+        )
+
+        jobs = service.list(include_test_automation=True)
+
+        assert len(jobs) == 1
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        # Should NOT contain the test automation filter
+        assert "ProcessType ne 'TestAutomationProcess'" not in str(sent_request.url)
+
+    def test_list_jobs_combined_filters(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs with multiple filters combined."""
+        release_id = 619188
+        start_time = "2025-11-12T23:30:00.000Z"
+        end_time = "2025-11-14T00:00:00.000Z"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=50&$orderby=CreationTime desc&$skip=10&$filter=((CreationTime ge {start_time}) and (CreationTime le {end_time}) and (Release/Id eq {release_id}) and (ProcessType ne 'TestAutomationProcess'))&$expand=Release",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 1,
+                "value": [
+                    {
+                        "Key": "job-key-1",
+                        "State": "Successful",
+                        "StartTime": "2025-11-13T10:00:00.000Z",
+                        "EndTime": "2025-11-13T10:05:00.000Z",
+                        "CreationTime": "2025-11-13T09:55:00.000Z",
+                        "Id": 123,
+                    },
+                ],
+            },
+        )
+
+        jobs = service.list(
+            release_id=release_id,
+            creation_time_start=start_time,
+            creation_time_end=end_time,
+            top=50,
+            skip=10,
+            expand=["Release"],
+        )
+
+        assert len(jobs) == 1
+        assert jobs[0].key == "job-key-1"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert f"CreationTime ge {start_time}" in str(sent_request.url)
+        assert f"CreationTime le {end_time}" in str(sent_request.url)
+        assert f"Release/Id eq {release_id}" in str(sent_request.url)
+        assert "$top=50" in str(sent_request.url)
+        assert "$skip=10" in str(sent_request.url)
+        assert "$expand=Release" in str(sent_request.url)
+
+    def test_list_jobs_empty_result(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs when no jobs are returned."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=25&$orderby=CreationTime desc&$filter=((ProcessType ne 'TestAutomationProcess'))",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 0,
+                "value": [],
+            },
+        )
+
+        jobs = service.list()
+
+        assert len(jobs) == 0
+        assert isinstance(jobs, list)
+
+    @pytest.mark.asyncio
+    async def test_list_jobs_async_with_filters(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test listing jobs asynchronously with filters."""
+        release_id = 619188
+        start_time = "2025-11-12T23:30:00.000Z"
+        end_time = "2025-11-14T00:00:00.000Z"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?$top=25&$orderby=CreationTime desc&$filter=((CreationTime ge {start_time}) and (CreationTime le {end_time}) and (Release/Id eq {release_id}) and (ProcessType ne 'TestAutomationProcess'))",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Jobs",
+                "@odata.count": 1,
+                "value": [
+                    {
+                        "Key": "job-key-1",
+                        "State": "Successful",
+                        "StartTime": "2025-11-13T10:00:00.000Z",
+                        "EndTime": "2025-11-13T10:05:00.000Z",
+                        "CreationTime": "2025-11-13T09:55:00.000Z",
+                        "Id": 123,
+                    },
+                ],
+            },
+        )
+
+        jobs = await service.list_async(
+            release_id=release_id,
+            creation_time_start=start_time,
+            creation_time_end=end_time,
+        )
+
+        assert len(jobs) == 1
+        assert jobs[0].key == "job-key-1"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert f"CreationTime ge {start_time}" in str(sent_request.url)
+        assert f"CreationTime le {end_time}" in str(sent_request.url)
+        assert f"Release/Id eq {release_id}" in str(sent_request.url)
+

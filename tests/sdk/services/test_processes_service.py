@@ -460,3 +460,149 @@ class TestProcessesService:
             job_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ProcessesService.invoke_async/{version}"
         )
+
+    def test_get_by_name(
+        self,
+        service: ProcessesService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test getting a release by exact name."""
+        release_name = "llamaindex-agent-no-llm"
+        release_id = 619190
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Releases?%24filter=Name+eq+%27{release_name}%27&%24top=2",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Releases",
+                "value": [
+                    {
+                        "Key": "A1079BF6-5882-4A2E-83EF-148736779841",
+                        "ProcessKey": release_name,
+                        "ProcessVersion": "0.0.1",
+                        "IsLatestVersion": True,
+                        "IsProcessDeleted": False,
+                        "Description": "Test release",
+                        "Name": release_name,
+                        "ProcessType": "Agent",
+                        "Id": release_id,
+                    }
+                ],
+            },
+        )
+
+        release = service.get_by_name(release_name)
+
+        assert release.name == release_name
+        assert release.id == release_id
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        # Check the filter parameter in the URL (encoded)
+        assert "Name+eq" in str(sent_request.url)
+        assert release_name in str(sent_request.url)
+
+    def test_get_by_name_not_found(
+        self,
+        service: ProcessesService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test getting a release by name when it doesn't exist."""
+        release_name = "nonexistent-release"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Releases?%24filter=Name+eq+%27{release_name}%27&%24top=2",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Releases",
+                "value": [],
+            },
+        )
+
+        with pytest.raises(ValueError, match=f"Release '{release_name}' not found"):
+            service.get_by_name(release_name)
+
+    def test_get_by_name_multiple_matches(
+        self,
+        service: ProcessesService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test getting a release by name when multiple matches exist."""
+        release_name = "duplicate-release"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Releases?%24filter=Name+eq+%27{release_name}%27&%24top=2",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Releases",
+                "value": [
+                    {
+                        "Key": "key1",
+                        "Name": release_name,
+                        "Id": 1,
+                    },
+                    {
+                        "Key": "key2",
+                        "Name": release_name,
+                        "Id": 2,
+                    },
+                ],
+            },
+        )
+
+        with pytest.raises(ValueError, match=f"Multiple releases found with name '{release_name}'"):
+            service.get_by_name(release_name)
+
+    @pytest.mark.asyncio
+    async def test_get_by_name_async(
+        self,
+        service: ProcessesService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Test getting a release by exact name asynchronously."""
+        release_name = "llamaindex-agent-no-llm"
+        release_id = 619190
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Releases?%24filter=Name+eq+%27{release_name}%27&%24top=2",
+            status_code=200,
+            json={
+                "@odata.context": f"{base_url}{org}{tenant}/orchestrator_/odata/$metadata#Releases",
+                "value": [
+                    {
+                        "Key": "A1079BF6-5882-4A2E-83EF-148736779841",
+                        "ProcessKey": release_name,
+                        "ProcessVersion": "0.0.1",
+                        "IsLatestVersion": True,
+                        "IsProcessDeleted": False,
+                        "Description": "Test release",
+                        "Name": release_name,
+                        "ProcessType": "Agent",
+                        "Id": release_id,
+                    }
+                ],
+            },
+        )
+
+        release = await service.get_by_name_async(release_name)
+
+        assert release.name == release_name
+        assert release.id == release_id
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        # Check the filter parameter in the URL (encoded)
+        assert "Name+eq" in str(sent_request.url)
+        assert release_name in str(sent_request.url)

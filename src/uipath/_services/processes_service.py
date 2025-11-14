@@ -9,6 +9,7 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
 from ..models.job import Job
+from ..models.processes import Process
 from ..tracing import traced
 from . import AttachmentsService
 from ._base_service import BaseService
@@ -159,6 +160,131 @@ class ProcessesService(FolderContext, BaseService):
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
+
+    @traced(name="processes_get_by_name", run_type="uipath")
+    def get_by_name(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Process:
+        """Get a release (process) by its exact name.
+
+        Args:
+            name (str): The exact name of the release to retrieve.
+            folder_key (Optional[str]): The key of the folder to search in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to search in. Override the default one set in the SDK config.
+
+        Returns:
+            Process: The process (release) matching the name.
+
+        Raises:
+            ValueError: If the release is not found or multiple releases match.
+
+        Examples:
+            ```python
+            from uipath import UiPath
+
+            client = UiPath()
+
+            # Get a release by exact name
+            release = client.processes.get_by_name("llamaindex-agent-no-llm")
+            print(release.id)
+            ```
+        """
+        spec = RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/odata/Releases"),
+            params={
+                "$filter": f"Name eq '{name}'",
+                "$top": 2,  # Get 2 to detect if there are multiple matches
+            },
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
+
+        data = response.json()
+        releases = data.get("value", [])
+
+        if len(releases) == 0:
+            raise ValueError(f"Release '{name}' not found")
+        elif len(releases) > 1:
+            raise ValueError(f"Multiple releases found with name '{name}'")
+
+        return Process.model_validate(releases[0])
+
+    @traced(name="processes_get_by_name", run_type="uipath")
+    async def get_by_name_async(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Process:
+        """Asynchronously get a release (process) by its exact name.
+
+        Args:
+            name (str): The exact name of the release to retrieve.
+            folder_key (Optional[str]): The key of the folder to search in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to search in. Override the default one set in the SDK config.
+
+        Returns:
+            Process: The process (release) matching the name.
+
+        Raises:
+            ValueError: If the release is not found or multiple releases match.
+
+        Examples:
+            ```python
+            import asyncio
+            from uipath import UiPath
+
+            sdk = UiPath()
+
+            async def main():
+                release = await sdk.processes.get_by_name_async("llamaindex-agent-no-llm")
+                print(release.id)
+
+            asyncio.run(main())
+            ```
+        """
+        spec = RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/odata/Releases"),
+            params={
+                "$filter": f"Name eq '{name}'",
+                "$top": 2,  # Get 2 to detect if there are multiple matches
+            },
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
+
+        data = response.json()
+        releases = data.get("value", [])
+
+        if len(releases) == 0:
+            raise ValueError(f"Release '{name}' not found")
+        elif len(releases) > 1:
+            raise ValueError(f"Multiple releases found with name '{name}'")
+
+        return Process.model_validate(releases[0])
 
     def _handle_input_arguments(
         self,
