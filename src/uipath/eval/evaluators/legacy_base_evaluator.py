@@ -71,7 +71,6 @@ class LegacyBaseEvaluator(
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Legacy-specific fields (in addition to inherited fields from BaseEvaluator)
-    description: str
     target_output_key: str = "*"
     created_at: str
     updated_at: str
