@@ -1,7 +1,9 @@
 import json
+from typing import List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
@@ -92,9 +94,6 @@ class TestOpenAIService:
     @pytest.mark.asyncio
     async def test_complex_company_pydantic_model(self, mock_request, llm_service):
         """Test using complex Company Pydantic model as response_format."""
-        from typing import List
-
-        from pydantic import BaseModel
 
         # Define the complex nested models
         class Task(BaseModel):
@@ -288,3 +287,100 @@ class TestOpenAIService:
         company_instance = Company.model_validate(response_json)
         assert company_instance.company_name == "FutureTech Ltd"
         assert len(company_instance.departments) >= 2
+
+    @patch.object(UiPathOpenAIService, "request_async")
+    @pytest.mark.asyncio
+    async def test_optional_request_format_model(self, mock_request, llm_service):
+        """Test using complex Company Pydantic model as response_format."""
+
+        class Article(BaseModel):
+            title: Optional[str] = None
+
+        # Mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "chatcmpl-test123",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "gpt-4o-mini-2024-07-18",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "{}",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 150,
+                "completion_tokens": 300,
+                "total_tokens": 450,
+            },
+        }
+        mock_request.return_value = mock_response
+
+        messages = [
+            {
+                "role": "system",
+                "content": "system-content",
+            },
+            {
+                "role": "user",
+                "content": "user-content",
+            },
+        ]
+
+        result = await llm_service.chat_completions(
+            messages=messages,
+            model=ChatModels.gpt_4o_mini_2024_07_18,
+            response_format=Article,  # Pass BaseModel directly instead of dict
+            max_tokens=2000,
+            temperature=0,
+        )
+        captured_request = mock_request.call_args[1]["json"]
+        expected_request = {
+            "messages": [
+                {"role": "system", "content": "system-content"},
+                {"role": "user", "content": "user-content"},
+            ],
+            "max_tokens": 2000,
+            "temperature": 0,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "article",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "title": {
+                                "anyOf": [{"type": "string"}, {"type": "null"}],
+                                "default": None,
+                            }
+                        },
+                        "required": ["title"],
+                    },
+                },
+            },
+        }
+
+        # validate the request to LLM gateway
+        assert expected_request == captured_request
+
+        # Validate the response
+        assert result is not None
+        assert len(result.choices) > 0
+        assert result.choices[0].message.content is not None
+
+        # Parse and validate the JSON response
+        response_json = json.loads(result.choices[0].message.content)
+
+        # Validate the structure matches our Company model
+        assert response_json == {}
+
+        # Try to parse it with our Pydantic model to ensure it's completely valid
+        article_instance = Article.model_validate(response_json)
+        assert article_instance.title is None

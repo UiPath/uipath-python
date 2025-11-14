@@ -123,6 +123,9 @@ def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
                 properties[key] = clean_type(value)
             cleaned_type["properties"] = properties
 
+        if type_def.get("type") == "object":
+            cleaned_type["required"] = list(cleaned_type.get("properties", {}).keys())
+
         if "$defs" in type_def:
             cleaned_defs = {}
             for key, value in type_def["$defs"].items():
