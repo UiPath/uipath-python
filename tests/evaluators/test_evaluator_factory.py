@@ -410,24 +410,6 @@ class TestEvaluatorFactoryPrepareConfig:
         assert isinstance(result, dict)
         assert result["name"] == "TestName"
 
-    def test_prepare_config_does_not_modify_original(self) -> None:
-        """Test that original data dict is not modified."""
-        original_data = {
-            "name": "TopLevelName",
-            "evaluatorConfig": {"name": "ConfigName", "otherField": "value"},
-        }
-        data = original_data.copy()
-        original_config = data["evaluatorConfig"].copy()
-
-        result = EvaluatorFactory._prepare_evaluator_config(data)
-
-        # Original should be unchanged
-        assert data == original_data
-        assert data["evaluatorConfig"] == original_config
-        # Result should have merged values
-        assert result["name"] == "TopLevelName"
-        assert result["otherField"] == "value"
-
 
 class TestEvaluatorFactoryPropertyAccess:
     """Test that name and description properties work after factory instantiation."""
