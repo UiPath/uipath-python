@@ -18,10 +18,13 @@ from uipath._cli._utils._console import ConsoleLogger
 console = ConsoleLogger()
 
 
+EVAL_SETS_DIRECTORY_NAME = "evaluations/eval-sets"
+
+
 class EvalHelpers:
     @staticmethod
     def auto_discover_eval_set() -> str:
-        """Auto-discover evaluation set from evals/eval-sets directory.
+        """Auto-discover evaluation set from {EVAL_SETS_DIRECTORY_NAME} directory.
 
         Returns:
             Path to the evaluation set file
@@ -29,11 +32,11 @@ class EvalHelpers:
         Raises:
             ValueError: If no eval set found or multiple eval sets exist
         """
-        eval_sets_dir = Path("evals/eval-sets")
+        eval_sets_dir = Path(EVAL_SETS_DIRECTORY_NAME)
 
         if not eval_sets_dir.exists():
             raise ValueError(
-                "No 'evals/eval-sets' directory found. "
+                f"No '{EVAL_SETS_DIRECTORY_NAME}' directory found. "
                 "Please set 'UIPATH_PROJECT_ID' env var and run 'uipath pull'."
             )
 
@@ -41,7 +44,7 @@ class EvalHelpers:
 
         if not eval_set_files:
             raise ValueError(
-                "No evaluation set files found in 'evals/eval-sets' directory. "
+                f"No evaluation set files found in '{EVAL_SETS_DIRECTORY_NAME}' directory. "
             )
 
         if len(eval_set_files) > 1:
@@ -75,12 +78,12 @@ class EvalHelpers:
         Returns:
             Tuple of (EvaluationSet, resolved_path)
         """
-        # If the file doesn't exist at the given path, try looking in evals/eval-sets/
+        # If the file doesn't exist at the given path, try looking in {EVAL_SETS_DIRECTORY_NAME}/
         resolved_path = eval_set_path
         if not Path(eval_set_path).exists():
-            # Check if it's just a filename, then search in evals/eval-sets/
+            # Check if it's just a filename, then search in {EVAL_SETS_DIRECTORY_NAME}/
             if Path(eval_set_path).name == eval_set_path:
-                eval_sets_path = Path("evals/eval-sets") / eval_set_path
+                eval_sets_path = Path(EVAL_SETS_DIRECTORY_NAME) / eval_set_path
                 if eval_sets_path.exists():
                     resolved_path = str(eval_sets_path)
 
@@ -90,7 +93,7 @@ class EvalHelpers:
         except FileNotFoundError as e:
             raise ValueError(
                 f"Evaluation set file not found: '{eval_set_path}'. "
-                f"Searched in current directory and evals/eval-sets/ directory."
+                f"Searched in current directory and {EVAL_SETS_DIRECTORY_NAME}/ directory."
             ) from e
         except json.JSONDecodeError as e:
             raise ValueError(
