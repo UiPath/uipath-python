@@ -33,7 +33,8 @@ class BaseEvaluatorConfig(BaseModel, Generic[T]):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-    name: str
+    name: str = Field(description="The name of the evaluator")
+    description: str = Field(default="", description="The description of the evaluator")
     default_evaluation_criteria: T | None = None
 
 
@@ -101,6 +102,21 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
     def name(self) -> str:
         """Evaluator's name."""
         return self.evaluator_config.name
+
+    @name.setter
+    def name(self, value: str) -> None:
+        """Set the evaluator's name."""
+        self.evaluator_config.name = value
+
+    @property
+    def description(self) -> str:
+        """Evaluator's description."""
+        return self.evaluator_config.description
+
+    @description.setter
+    def description(self, value: str) -> None:
+        """Set the evaluator's description."""
+        self.evaluator_config.description = value
 
     @model_validator(mode="before")
     @classmethod
