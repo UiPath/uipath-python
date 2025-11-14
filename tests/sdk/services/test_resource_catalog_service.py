@@ -9,7 +9,7 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.folder_service import FolderService
 from uipath._services.resource_catalog_service import ResourceCatalogService
 from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models.resource_catalog import EntityType
+from uipath.models.resource_catalog import ResourceType
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ class TestResourceCatalogService:
         folder_key: str = "test-folder-key",
         **extra_fields,
     ) -> dict[str, Any]:
-        """Generate a mock ResourceEntity response."""
+        """Generate a mock Resource response."""
         response = {
             "entityKey": entity_id,
             "name": name,
@@ -70,8 +70,8 @@ class TestResourceCatalogService:
         response.update(extra_fields)
         return response
 
-    class TestSearchEntities:
-        def test_search_entities_with_name_filter(
+    class TestSearchResources:
+        def test_search_resources_with_name_filter(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -103,13 +103,13 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(service.search(name="invoice"))
+            resources = list(service.search(name="invoice"))
 
-            assert len(entities) == 2
-            assert entities[0].name == "invoice-processor"
-            assert entities[0].entity_type == "process"
-            assert entities[1].name == "invoice-queue"
-            assert entities[1].entity_type == "queue"
+            assert len(resources) == 2
+            assert resources[0].name == "invoice-processor"
+            assert resources[0].resource_type == "process"
+            assert resources[1].name == "invoice-queue"
+            assert resources[1].resource_type == "queue"
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
@@ -123,7 +123,7 @@ class TestResourceCatalogService:
                 == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ResourceCatalogService.search/{version}"
             )
 
-        def test_search_entities_with_entity_types_filter(
+        def test_search_resources_with_resource_types_filter(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -152,13 +152,13 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(
-                service.search(entity_types=[EntityType.ASSET, EntityType.QUEUE])
+            resources = list(
+                service.search(resource_types=[ResourceType.ASSET, ResourceType.QUEUE])
             )
 
-            assert len(entities) == 2
-            assert entities[0].entity_type == "asset"
-            assert entities[1].entity_type == "queue"
+            assert len(resources) == 2
+            assert resources[0].resource_type == "asset"
+            assert resources[1].resource_type == "queue"
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
@@ -171,7 +171,7 @@ class TestResourceCatalogService:
                 sent_request.url
             ) or "entityTypes%5B%5D=queue" in str(sent_request.url)
 
-        def test_search_entities_pagination(
+        def test_search_resources_pagination(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -186,10 +186,10 @@ class TestResourceCatalogService:
                 json={
                     "value": [
                         TestResourceCatalogService._mock_response(
-                            "1", "entity-1", "asset"
+                            "1", "resource-1", "asset"
                         ),
                         TestResourceCatalogService._mock_response(
-                            "2", "entity-2", "queue"
+                            "2", "resource-2", "queue"
                         ),
                     ]
                 },
@@ -201,21 +201,21 @@ class TestResourceCatalogService:
                 json={
                     "value": [
                         TestResourceCatalogService._mock_response(
-                            "3", "entity-3", "process"
+                            "3", "resource-3", "process"
                         ),
                     ]
                 },
             )
 
-            entities = list(service.search(page_size=2))
+            resources = list(service.search(page_size=2))
 
-            assert len(entities) == 3
-            assert entities[0].name == "entity-1"
-            assert entities[1].name == "entity-2"
-            assert entities[2].name == "entity-3"
+            assert len(resources) == 3
+            assert resources[0].name == "resource-1"
+            assert resources[1].name == "resource-2"
+            assert resources[2].name == "resource-3"
 
-    class TestGetEntities:
-        def test_get_entities_without_filters(
+    class TestListResources:
+        def test_list_resources_without_filters(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -246,11 +246,11 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(service.list())
+            resources = list(service.list())
 
-            assert len(entities) == 2
-            assert entities[0].name == "test-asset"
-            assert entities[1].name == "test-queue"
+            assert len(resources) == 2
+            assert resources[0].name == "test-asset"
+            assert resources[1].name == "test-queue"
             mock_folder_service.retrieve_folder_key.assert_called_once_with(None)
 
             sent_request = httpx_mock.get_request()
@@ -265,7 +265,7 @@ class TestResourceCatalogService:
                 == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ResourceCatalogService.list/{version}"
             )
 
-        def test_get_entities_with_folder_path(
+        def test_list_resources_with_folder_path(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -289,14 +289,14 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(
+            resources = list(
                 service.list(
-                    folder_path="/Shared/Finance", entity_types=[EntityType.ASSET]
+                    folder_path="/Shared/Finance", resource_types=[ResourceType.ASSET]
                 )
             )
 
-            assert len(entities) == 1
-            assert entities[0].name == "finance-asset"
+            assert len(resources) == 1
+            assert resources[0].name == "finance-asset"
             mock_folder_service.retrieve_folder_key.assert_called_once_with(
                 "/Shared/Finance"
             )
@@ -305,10 +305,9 @@ class TestResourceCatalogService:
             if sent_request is None:
                 raise Exception("No request was sent")
 
-            # Check for folder headers
             assert "X-UIPATH-FolderKey" in sent_request.headers
 
-        def test_get_entities_with_entity_filters(
+        def test_list_resources_with_resource_filters(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -332,18 +331,18 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(
+            resources = list(
                 service.list(
-                    entity_types=[EntityType.PROCESS, EntityType.MCP_SERVER],
-                    entity_sub_types=["automation"],
+                    resource_types=[ResourceType.PROCESS, ResourceType.MCP_SERVER],
+                    resource_sub_types=["automation"],
                 )
             )
 
-            assert len(entities) == 1
-            assert entities[0].entity_type == "process"
-            assert entities[0].entity_sub_type == "automation"
+            assert len(resources) == 1
+            assert resources[0].resource_type == "process"
+            assert resources[0].resource_sub_type == "automation"
 
-        def test_get_entities_pagination(
+        def test_list_resources_pagination(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -359,13 +358,13 @@ class TestResourceCatalogService:
                 json={
                     "value": [
                         TestResourceCatalogService._mock_response(
-                            "1", "entity-1", "asset"
+                            "1", "resource-1", "asset"
                         ),
                         TestResourceCatalogService._mock_response(
-                            "2", "entity-2", "queue"
+                            "2", "resource-2", "queue"
                         ),
                         TestResourceCatalogService._mock_response(
-                            "3", "entity-3", "process"
+                            "3", "resource-3", "process"
                         ),
                     ]
                 },
@@ -377,19 +376,19 @@ class TestResourceCatalogService:
                 json={
                     "value": [
                         TestResourceCatalogService._mock_response(
-                            "4", "entity-4", "bucket"
+                            "4", "resource-4", "bucket"
                         ),
                     ]
                 },
             )
 
-            entities = list(service.list(page_size=3))
+            resources = list(service.list(page_size=3))
 
-            assert len(entities) == 4
-            assert entities[0].name == "entity-1"
-            assert entities[3].name == "entity-4"
+            assert len(resources) == 4
+            assert resources[0].name == "resource-1"
+            assert resources[3].name == "resource-4"
 
-        def test_get_entities_invalid_page_size(
+        def test_list_resources_invalid_page_size(
             self,
             service: ResourceCatalogService,
         ) -> None:
@@ -399,7 +398,7 @@ class TestResourceCatalogService:
             with pytest.raises(ValueError, match="page_size must be greater than 0"):
                 list(service.list(page_size=-1))
 
-    class TestGetEntitiesByType:
+    class TestListResourcesByType:
         def test_list_by_type_basic(
             self,
             httpx_mock: HTTPXMock,
@@ -431,13 +430,13 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(service.list_by_type(entity_type=EntityType.ASSET))
+            resources = list(service.list_by_type(resource_type=ResourceType.ASSET))
 
-            assert len(entities) == 2
-            assert entities[0].name == "config-asset"
-            assert entities[0].entity_type == "asset"
-            assert entities[1].name == "number-asset"
-            assert entities[1].entity_type == "asset"
+            assert len(resources) == 2
+            assert resources[0].name == "config-asset"
+            assert resources[0].resource_type == "asset"
+            assert resources[1].name == "number-asset"
+            assert resources[1].resource_type == "asset"
             mock_folder_service.retrieve_folder_key.assert_called_once_with(None)
 
             sent_request = httpx_mock.get_request()
@@ -476,13 +475,13 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(
-                service.list_by_type(entity_type=EntityType.PROCESS, name="invoice")
+            resources = list(
+                service.list_by_type(resource_type=ResourceType.PROCESS, name="invoice")
             )
 
-            assert len(entities) == 1
-            assert entities[0].name == "invoice-processor"
-            assert entities[0].entity_type == "process"
+            assert len(resources) == 1
+            assert resources[0].name == "invoice-processor"
+            assert resources[0].resource_type == "process"
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
@@ -514,16 +513,16 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(
+            resources = list(
                 service.list_by_type(
-                    entity_type=EntityType.ASSET,
+                    resource_type=ResourceType.ASSET,
                     folder_path="/Shared/Finance",
-                    entity_sub_types=["number"],
+                    resource_sub_types=["number"],
                 )
             )
 
-            assert len(entities) == 1
-            assert entities[0].entity_sub_type == "number"
+            assert len(resources) == 1
+            assert resources[0].resource_sub_type == "number"
             mock_folder_service.retrieve_folder_key.assert_called_once_with(
                 "/Shared/Finance"
             )
@@ -572,22 +571,26 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = list(
-                service.list_by_type(entity_type=EntityType.QUEUE, page_size=2)
+            resources = list(
+                service.list_by_type(resource_type=ResourceType.QUEUE, page_size=2)
             )
 
-            assert len(entities) == 3
-            assert all(e.entity_type == "queue" for e in entities)
+            assert len(resources) == 3
+            assert all(r.resource_type == "queue" for r in resources)
 
         def test_list_by_type_invalid_page_size(
             self,
             service: ResourceCatalogService,
         ) -> None:
             with pytest.raises(ValueError, match="page_size must be greater than 0"):
-                list(service.list_by_type(entity_type=EntityType.ASSET, page_size=0))
+                list(
+                    service.list_by_type(resource_type=ResourceType.ASSET, page_size=0)
+                )
 
             with pytest.raises(ValueError, match="page_size must be greater than 0"):
-                list(service.list_by_type(entity_type=EntityType.ASSET, page_size=-1))
+                list(
+                    service.list_by_type(resource_type=ResourceType.ASSET, page_size=-1)
+                )
 
     class TestAsyncMethods:
         @pytest.mark.asyncio
@@ -606,22 +609,22 @@ class TestResourceCatalogService:
                     "value": [
                         TestResourceCatalogService._mock_response(
                             entity_id="1",
-                            name="test-entity",
+                            name="test-resource",
                             entity_type="asset",
                         )
                     ]
                 },
             )
 
-            entities = []
-            async for entity in service.search_async(name="test"):
-                entities.append(entity)
+            resources = []
+            async for resource in service.search_async(name="test"):
+                resources.append(resource)
 
-            assert len(entities) == 1
-            assert entities[0].name == "test-entity"
+            assert len(resources) == 1
+            assert resources[0].name == "test-resource"
 
         @pytest.mark.asyncio
-        async def test_get_entities_async(
+        async def test_list_resources_async(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -637,23 +640,23 @@ class TestResourceCatalogService:
                     "value": [
                         TestResourceCatalogService._mock_response(
                             entity_id="1",
-                            name="async-entity",
+                            name="async-resource",
                             entity_type="queue",
                         )
                     ]
                 },
             )
 
-            entities = []
-            async for entity in service.list_async():
-                entities.append(entity)
+            resources = []
+            async for resource in service.list_async():
+                resources.append(resource)
 
-            assert len(entities) == 1
-            assert entities[0].name == "async-entity"
+            assert len(resources) == 1
+            assert resources[0].name == "async-resource"
             mock_folder_service.retrieve_folder_key_async.assert_called_once_with(None)
 
         @pytest.mark.asyncio
-        async def test_get_entities_async_with_filters(
+        async def test_list_resources_async_with_filters(
             self,
             httpx_mock: HTTPXMock,
             service: ResourceCatalogService,
@@ -677,16 +680,16 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = []
-            async for entity in service.list_async(
-                entity_types=[EntityType.ASSET],
-                entity_sub_types=["text"],
+            resources = []
+            async for resource in service.list_async(
+                resource_types=[ResourceType.ASSET],
+                resource_sub_types=["text"],
                 folder_path="/Test/Folder",
             ):
-                entities.append(entity)
+                resources.append(resource)
 
-            assert len(entities) == 1
-            assert entities[0].entity_sub_type == "text"
+            assert len(resources) == 1
+            assert resources[0].resource_sub_type == "text"
             mock_folder_service.retrieve_folder_key_async.assert_called_once_with(
                 "/Test/Folder"
             )
@@ -722,17 +725,17 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = []
-            async for entity in service.list_by_type_async(
-                entity_type=EntityType.ASSET
+            resources = []
+            async for resource in service.list_by_type_async(
+                resource_type=ResourceType.ASSET
             ):
-                entities.append(entity)
+                resources.append(resource)
 
-            assert len(entities) == 2
-            assert entities[0].name == "async-asset-1"
-            assert entities[0].entity_type == "asset"
-            assert entities[1].name == "async-asset-2"
-            assert entities[1].entity_type == "asset"
+            assert len(resources) == 2
+            assert resources[0].name == "async-asset-1"
+            assert resources[0].resource_type == "asset"
+            assert resources[1].name == "async-asset-2"
+            assert resources[1].resource_type == "asset"
             mock_folder_service.retrieve_folder_key_async.assert_called_once_with(None)
 
         @pytest.mark.asyncio
@@ -760,15 +763,15 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = []
-            async for entity in service.list_by_type_async(
-                entity_type=EntityType.PROCESS, name="workflow"
+            resources = []
+            async for resource in service.list_by_type_async(
+                resource_type=ResourceType.PROCESS, name="workflow"
             ):
-                entities.append(entity)
+                resources.append(resource)
 
-            assert len(entities) == 1
-            assert entities[0].name == "workflow-processor"
-            assert entities[0].entity_type == "process"
+            assert len(resources) == 1
+            assert resources[0].name == "workflow-processor"
+            assert resources[0].resource_type == "process"
 
         @pytest.mark.asyncio
         async def test_list_by_type_async_with_folder_and_subtype(
@@ -795,16 +798,16 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = []
-            async for entity in service.list_by_type_async(
-                entity_type=EntityType.QUEUE,
+            resources = []
+            async for resource in service.list_by_type_async(
+                resource_type=ResourceType.QUEUE,
                 folder_path="/Production",
-                entity_sub_types=["transactional"],
+                resource_sub_types=["transactional"],
             ):
-                entities.append(entity)
+                resources.append(resource)
 
-            assert len(entities) == 1
-            assert entities[0].entity_sub_type == "transactional"
+            assert len(resources) == 1
+            assert resources[0].resource_sub_type == "transactional"
             mock_folder_service.retrieve_folder_key_async.assert_called_once_with(
                 "/Production"
             )
@@ -847,11 +850,11 @@ class TestResourceCatalogService:
                 },
             )
 
-            entities = []
-            async for entity in service.list_by_type_async(
-                entity_type=EntityType.BUCKET, page_size=2
+            resources = []
+            async for resource in service.list_by_type_async(
+                resource_type=ResourceType.BUCKET, page_size=2
             ):
-                entities.append(entity)
+                resources.append(resource)
 
-            assert len(entities) == 3
-            assert all(e.entity_type == "bucket" for e in entities)
+            assert len(resources) == 3
+            assert all(r.resource_type == "bucket" for r in resources)
