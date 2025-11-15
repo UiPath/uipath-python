@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Generic, Optional, TypeVar
 
@@ -97,7 +98,15 @@ class UiPathDebugRuntime(UiPathBaseRuntime, Generic[T, C]):
         execution_completed = False
 
         # Starting in paused state - wait for breakpoints and resume
-        await self.debug_bridge.wait_for_resume()
+        try:
+            await asyncio.wait_for(self.debug_bridge.wait_for_resume(), timeout=60.0)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Initial resume wait timed out after 60s, assuming debug bridge disconnected"
+            )
+            return UiPathRuntimeResult(
+                status=UiPathRuntimeStatus.SUCCESSFUL,
+            )
 
         # Keep streaming until execution completes (not just paused at breakpoint)
         while not execution_completed:
