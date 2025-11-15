@@ -6,7 +6,6 @@ from string import Template
 
 import click
 
-from ..telemetry import track
 from ._utils._console import ConsoleLogger
 from ._utils._constants import EVALS_DIRECTORY_NAME
 from ._utils._resources import Resources
@@ -85,7 +84,6 @@ def create_evaluator(evaluator_name):
 @click.command()
 @click.argument("resource", required=True)
 @click.argument("args", nargs=-1)
-@track
 def add(resource: str, args: tuple[str]) -> None:
     """Create a local resource.
 

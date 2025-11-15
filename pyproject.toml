@@ -1,12 +1,13 @@
 [project]
 name = "uipath"
-version = "2.1.168"
+version = "2.1.169"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 dependencies = [
   "click>=8.1.8",
   "httpx>=0.28.1",
+  "pyjwt>=2.10.1",
   "opentelemetry-sdk>=1.31.1",
   "opentelemetry-instrumentation>=0.52b1",
   "pydantic>=2.11.1",
@@ -15,7 +16,6 @@ dependencies = [
   "tomli>=2.2.1",
   "pathlib>=1.0.1",
   "rich>=13.0.0",
-  "azure-monitor-opentelemetry>=1.6.8",
   "truststore>=0.10.1",
   "textual>=5.3.0",
   "pyperclip>=1.9.0",

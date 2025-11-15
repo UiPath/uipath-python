@@ -5,7 +5,6 @@ from importlib.metadata import version
 from logging import INFO, WARNING, LogRecord, getLogger
 from typing import Any, Callable, Dict, Optional, Union
 
-from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.util.types import Attributes
 
@@ -26,7 +25,6 @@ from ._constants import (
     _CODE_FILEPATH,
     _CODE_FUNCTION,
     _CODE_LINENO,
-    _CONNECTION_STRING,
     _OTEL_RESOURCE_ATTRIBUTES,
     _PROJECT_KEY,
     _SDK_VERSION,
@@ -103,11 +101,6 @@ class _TelemetryClient:
             )
             os.environ["OTEL_TRACES_EXPORTER"] = "none"
             os.environ["APPLICATIONINSIGHTS_STATSBEAT_DISABLED_ALL"] = "true"
-
-            configure_azure_monitor(
-                connection_string=_CONNECTION_STRING,
-                disable_offline_storage=True,
-            )
 
             getLogger("azure").setLevel(WARNING)
             _logger.addHandler(_AzureMonitorOpenTelemetryEventHandler())

@@ -1,7 +1,6 @@
 # type: ignore
 import click
 
-from ..telemetry import track
 from .cli_pack import pack
 from .cli_publish import publish
 
@@ -29,7 +28,6 @@ from .cli_publish import publish
     help="Folder name to publish to (skips interactive selection)",
 )
 @click.argument("root", type=str, default="./")
-@track
 def deploy(root, feed, folder):
     """Pack and publish the project."""
     ctx = click.get_current_context()
