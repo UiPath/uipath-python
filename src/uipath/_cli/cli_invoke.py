@@ -15,7 +15,6 @@ except ImportError:
     import tomli as tomllib
 
 from .._utils._ssl_context import get_httpx_client_kwargs
-from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._folders import get_personal_workspace_info_async
 from ._utils._processes import get_release_info
@@ -51,7 +50,6 @@ def _read_project_details() -> [str, str]:
     type=click.Path(exists=True),
     help="File path for the .json input",
 )
-@track
 def invoke(
     entrypoint: Optional[str], input: Optional[str], file: Optional[str]
 ) -> None:

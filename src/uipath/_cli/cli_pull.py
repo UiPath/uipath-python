@@ -8,7 +8,6 @@ from pathlib import Path
 import click
 
 from .._config import UiPathConfig
-from ..telemetry import track
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     InteractiveConflictHandler,
@@ -25,7 +24,6 @@ console = ConsoleLogger()
     type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=Path),
     default=Path("."),
 )
-@track
 def pull(root: Path) -> None:
     """Pull remote project files from Studio Web Project.
 

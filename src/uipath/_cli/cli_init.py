@@ -12,7 +12,6 @@ import click
 
 from .._config import UiPathConfig
 from .._utils.constants import ENV_TELEMETRY_ENABLED
-from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._runtime._runtime import get_user_script
 from ._runtime._runtime_factory import generate_runtime_factory
@@ -178,7 +177,6 @@ def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
     default=False,
     help="Won't override existing .agent files and AGENTS.md file.",
 )
-@track
 def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> None:
     """Create uipath.json with input/output schemas and bindings."""
     with console.spinner("Initializing UiPath project ..."):

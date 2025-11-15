@@ -11,7 +11,6 @@ from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli.cli_init import init  # type: ignore[attr-defined]
 from uipath._cli.middlewares import Middlewares
-from uipath.telemetry import track
 
 console = ConsoleLogger()
 
@@ -29,7 +28,6 @@ console = ConsoleLogger()
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
-@track
 def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
     """Launch interactive debugging interface."""
     project_file = os.path.join(os.getcwd(), "uipath.json")
