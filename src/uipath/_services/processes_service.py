@@ -352,6 +352,276 @@ class ProcessesService(FolderContext, BaseService):
         else:
             return {"InputArguments": payload_json}
 
+    @traced(name="processes_create_release", run_type="uipath")
+    def create_release(
+        self,
+        name: str,
+        process_key: str,
+        process_version: str,
+        entry_point_id: int,
+        *,
+        description: Optional[str] = None,
+        environment_variables: Optional[str] = None,
+        input_arguments: Optional[str] = None,
+        specific_priority_value: Optional[int] = None,
+        job_priority: Optional[str] = None,
+        robot_size: Optional[str] = None,
+        hidden_for_attended_user: bool = False,
+        resource_overwrites: Optional[list] = None,
+        remote_control_access: str = "None",
+        retention_action: str = "Delete",
+        retention_period: int = 20,
+        stale_retention_action: str = "Delete",
+        stale_retention_period: int = 30,
+        tags: Optional[list] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Process:
+        """Create a new release (process).
+
+        Args:
+            name (str): The name of the release.
+            process_key (str): The process key.
+            process_version (str): The process version.
+            entry_point_id (int): The entry point ID.
+            description (Optional[str]): The description of the release.
+            environment_variables (Optional[str]): Environment variables as a string.
+            input_arguments (Optional[str]): Input arguments as a JSON string.
+            specific_priority_value (Optional[int]): Specific priority value.
+            job_priority (Optional[str]): Job priority.
+            robot_size (Optional[str]): Robot size.
+            hidden_for_attended_user (bool): Whether hidden for attended user. Defaults to False.
+            resource_overwrites (Optional[list]): Resource overwrites. Defaults to empty list.
+            remote_control_access (str): Remote control access. Defaults to "None".
+            retention_action (str): Retention action. Defaults to "Delete".
+            retention_period (int): Retention period in days. Defaults to 20.
+            stale_retention_action (str): Stale retention action. Defaults to "Delete".
+            stale_retention_period (int): Stale retention period in days. Defaults to 30.
+            tags (Optional[list]): Tags. Defaults to empty list.
+            folder_key (Optional[str]): The key of the folder to create the release in.
+            folder_path (Optional[str]): The path of the folder to create the release in.
+
+        Returns:
+            Process: The created release.
+
+        Examples:
+            ```python
+            from uipath import UiPath
+
+            client = UiPath()
+
+            release = client.processes.create_release(
+                name="langchain-agent-no-llm",
+                description="simple langchain agent with no llm",
+                process_key="langchain-agent-no-llm",
+                process_version="0.0.1",
+                entry_point_id=596116,
+                input_arguments="{}",
+                specific_priority_value=45,
+            )
+            print(release.id)
+            ```
+        """
+        spec = self._create_release_spec(
+            name=name,
+            process_key=process_key,
+            process_version=process_version,
+            entry_point_id=entry_point_id,
+            description=description,
+            environment_variables=environment_variables,
+            input_arguments=input_arguments,
+            specific_priority_value=specific_priority_value,
+            job_priority=job_priority,
+            robot_size=robot_size,
+            hidden_for_attended_user=hidden_for_attended_user,
+            resource_overwrites=resource_overwrites or [],
+            remote_control_access=remote_control_access,
+            retention_action=retention_action,
+            retention_period=retention_period,
+            stale_retention_action=stale_retention_action,
+            stale_retention_period=stale_retention_period,
+            tags=tags or [],
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return Process.model_validate(response.json())
+
+    @traced(name="processes_create_release", run_type="uipath")
+    async def create_release_async(
+        self,
+        name: str,
+        process_key: str,
+        process_version: str,
+        entry_point_id: int,
+        *,
+        description: Optional[str] = None,
+        environment_variables: Optional[str] = None,
+        input_arguments: Optional[str] = None,
+        specific_priority_value: Optional[int] = None,
+        job_priority: Optional[str] = None,
+        robot_size: Optional[str] = None,
+        hidden_for_attended_user: bool = False,
+        resource_overwrites: Optional[list] = None,
+        remote_control_access: str = "None",
+        retention_action: str = "Delete",
+        retention_period: int = 20,
+        stale_retention_action: str = "Delete",
+        stale_retention_period: int = 30,
+        tags: Optional[list] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Process:
+        """Asynchronously create a new release (process).
+
+        Args:
+            name (str): The name of the release.
+            process_key (str): The process key.
+            process_version (str): The process version.
+            entry_point_id (int): The entry point ID.
+            description (Optional[str]): The description of the release.
+            environment_variables (Optional[str]): Environment variables as a string.
+            input_arguments (Optional[str]): Input arguments as a JSON string.
+            specific_priority_value (Optional[int]): Specific priority value.
+            job_priority (Optional[str]): Job priority.
+            robot_size (Optional[str]): Robot size.
+            hidden_for_attended_user (bool): Whether hidden for attended user. Defaults to False.
+            resource_overwrites (Optional[list]): Resource overwrites. Defaults to empty list.
+            remote_control_access (str): Remote control access. Defaults to "None".
+            retention_action (str): Retention action. Defaults to "Delete".
+            retention_period (int): Retention period in days. Defaults to 20.
+            stale_retention_action (str): Stale retention action. Defaults to "Delete".
+            stale_retention_period (int): Stale retention period in days. Defaults to 30.
+            tags (Optional[list]): Tags. Defaults to empty list.
+            folder_key (Optional[str]): The key of the folder to create the release in.
+            folder_path (Optional[str]): The path of the folder to create the release in.
+
+        Returns:
+            Process: The created release.
+
+        Examples:
+            ```python
+            import asyncio
+            from uipath import UiPath
+
+            sdk = UiPath()
+
+            async def main():
+                release = await sdk.processes.create_release_async(
+                    name="langchain-agent-no-llm",
+                    description="simple langchain agent with no llm",
+                    process_key="langchain-agent-no-llm",
+                    process_version="0.0.1",
+                    entry_point_id=596116,
+                    input_arguments="{}",
+                    specific_priority_value=45,
+                )
+                print(release.id)
+
+            asyncio.run(main())
+            ```
+        """
+        spec = self._create_release_spec(
+            name=name,
+            process_key=process_key,
+            process_version=process_version,
+            entry_point_id=entry_point_id,
+            description=description,
+            environment_variables=environment_variables,
+            input_arguments=input_arguments,
+            specific_priority_value=specific_priority_value,
+            job_priority=job_priority,
+            robot_size=robot_size,
+            hidden_for_attended_user=hidden_for_attended_user,
+            resource_overwrites=resource_overwrites or [],
+            remote_control_access=remote_control_access,
+            retention_action=retention_action,
+            retention_period=retention_period,
+            stale_retention_action=stale_retention_action,
+            stale_retention_period=stale_retention_period,
+            tags=tags or [],
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return Process.model_validate(response.json())
+
+    def _create_release_spec(
+        self,
+        name: str,
+        process_key: str,
+        process_version: str,
+        entry_point_id: int,
+        description: Optional[str],
+        environment_variables: Optional[str],
+        input_arguments: Optional[str],
+        specific_priority_value: Optional[int],
+        job_priority: Optional[str],
+        robot_size: Optional[str],
+        hidden_for_attended_user: bool,
+        resource_overwrites: list,
+        remote_control_access: str,
+        retention_action: str,
+        retention_period: int,
+        stale_retention_action: str,
+        stale_retention_period: int,
+        tags: list,
+        folder_key: Optional[str],
+        folder_path: Optional[str],
+    ) -> RequestSpec:
+        """Build request spec for creating a release."""
+        body = {
+            "Name": name,
+            "ProcessKey": process_key,
+            "ProcessVersion": process_version,
+            "EntryPointId": entry_point_id,
+            "EnvironmentVariables": environment_variables or "",
+            "InputArguments": input_arguments or "{}",
+            "HiddenForAttendedUser": hidden_for_attended_user,
+            "ResourceOverwrites": resource_overwrites,
+            "RemoteControlAccess": remote_control_access,
+            "RetentionAction": retention_action,
+            "RetentionPeriod": retention_period,
+            "StaleRetentionAction": stale_retention_action,
+            "StaleRetentionPeriod": stale_retention_period,
+            "Tags": tags,
+        }
+
+        # Add optional fields only if provided
+        if description is not None:
+            body["Description"] = description
+        if specific_priority_value is not None:
+            body["SpecificPriorityValue"] = specific_priority_value
+        if job_priority is not None:
+            body["JobPriority"] = job_priority
+        if robot_size is not None:
+            body["RobotSize"] = robot_size
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                "/orchestrator_/odata/Releases/UiPath.Server.Configuration.OData.CreateRelease"
+            ),
+            json=body,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
     def _invoke_spec(
         self,
         name: str,
