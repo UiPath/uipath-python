@@ -1,0 +1,11 @@
+[project]
+name = "documents-testcase"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.10"
+dependencies = [
+    "uipath",
+]
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }
