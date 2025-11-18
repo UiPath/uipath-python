@@ -1,0 +1,159 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cloud.uipath.com/draft/2024-12/bindings",
+  "title": "UiPath Resources Configuration",
+  "description": "Configuration file for UiPath resource bindings including assets, processes, buckets, indexes, and connections",
+  "type": "object",
+  "required": [
+    "version",
+    "resources"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON schema for editor support"
+    },
+    "version": {
+      "type": "string",
+      "description": "Configuration version",
+      "enum": [
+        "2.0"
+      ],
+      "default": "2.0"
+    },
+    "resources": {
+      "type": "array",
+      "description": "Array of resource bindings",
+      "items": {
+        "type": "object",
+        "required": [
+          "resource",
+          "key",
+          "value"
+        ],
+        "properties": {
+          "resource": {
+            "type": "string",
+            "description": "Type of resource",
+            "enum": [
+              "asset",
+              "process",
+              "bucket",
+              "index",
+              "connection"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "description": "Unique key for the resource, typically in format 'name.folder_path' or 'connection_key'"
+          },
+          "value": {
+            "type": "object",
+            "description": "Resource configuration values",
+            "oneOf": [
+              {
+                "title": "Asset/Process/Bucket/Index Value",
+                "properties": {
+                  "name": {
+                    "$ref": "#/definitions/propertyDefinition",
+                    "description": "Resource name configuration"
+                  },
+                  "folderPath": {
+                    "$ref": "#/definitions/propertyDefinition",
+                    "description": "Folder path configuration"
+                  }
+                },
+                "required": [
+                  "name",
+                  "folderPath"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "title": "Connection Value",
+                "properties": {
+                  "ConnectionId": {
+                    "$ref": "#/definitions/propertyDefinition",
+                    "description": "Connection ID configuration"
+                  }
+                },
+                "required": [
+                  "ConnectionId"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional metadata for the resource binding",
+            "properties": {
+              "ActivityName": {
+                "type": "string",
+                "description": "Name of the activity associated with this resource",
+                "examples": [
+                  "retrieve_async",
+                  "invoke_async"
+                ]
+              },
+              "BindingsVersion": {
+                "type": "string",
+                "description": "Version of the bindings schema",
+                "default": "2.2"
+              },
+              "DisplayLabel": {
+                "type": "string",
+                "description": "Display label for the resource",
+                "examples": [
+                  "FullName"
+                ]
+              },
+              "Connector": {
+                "type": "string",
+                "description": "Connector type (for connection resources)"
+              },
+              "UseConnectionService": {
+                "type": "string",
+                "description": "Whether to use connection service",
+                "enum": [
+                  "True",
+                  "False"
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "propertyDefinition": {
+      "type": "object",
+      "description": "Property configuration with default value and expression support",
+      "required": [
+        "defaultValue",
+        "isExpression",
+        "displayName"
+      ],
+      "properties": {
+        "defaultValue": {
+          "type": "string",
+          "description": "Default value for this property"
+        },
+        "isExpression": {
+          "type": "boolean",
+          "description": "Whether the value is an expression",
+          "default": false
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name for this property in the UI"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
