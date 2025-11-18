@@ -22,8 +22,7 @@ def test_extract_ixp(uipath: UiPath):
 
     import jwt
     test = jwt.decode(uipath._config.secret, options={"verify_signature": False}  )
-    print(test["aud"])
-    print(test["scope"])
+    raise Exception(test["aud"] + " " + test["scope"])
 
     extraction_response = uipath.documents.extract(
         tag="live",
