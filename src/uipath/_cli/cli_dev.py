@@ -30,7 +30,7 @@ console = ConsoleLogger()
 )
 def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
     """Launch interactive debugging interface."""
-    project_file = os.path.join(os.getcwd(), "uipath.json")
+    project_file = os.path.join(os.getcwd(), "entry-points.json")
 
     if not os.path.exists(project_file):
         console.warning("Project not initialized. Running `uipath init`...")
