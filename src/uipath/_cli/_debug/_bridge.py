@@ -449,6 +449,7 @@ class SignalRDebugBridge(UiPathDebugBridge):
         self._client: Optional[SignalRClient] = None
         self._connected_event = asyncio.Event()
         self._resume_event: Optional[asyncio.Event] = None
+        self._quit_event = asyncio.Event()
 
     async def connect(self) -> None:
         """Establish SignalR connection."""
@@ -597,10 +598,32 @@ class SignalRDebugBridge(UiPathDebugBridge):
         )
 
     async def wait_for_resume(self) -> None:
-        """Wait for resume command from server."""
+        """Wait for resume command from server.
+
+        Raises:
+            DebuggerQuitException: If quit command is received
+        """
         logger.info("Waiting for resume command...")
         self._resume_event = asyncio.Event()
-        await self._resume_event.wait()
+
+        resume_task = asyncio.create_task(self._resume_event.wait())
+        quit_task = asyncio.create_task(self._quit_event.wait())
+
+        done, pending = await asyncio.wait(
+            {resume_task, quit_task}, return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        if quit_task in done:
+            logger.info("Quit command received during wait")
+            raise DebuggerQuitException("Quit command received from server")
+
         logger.info("Resume command received")
 
     def get_breakpoints(self) -> List[str] | Literal["*"]:
@@ -739,7 +762,7 @@ class SignalRDebugBridge(UiPathDebugBridge):
     async def _handle_quit(self, _args: list[Any]) -> None:
         """Handle Quit command from SignalR server."""
         logger.info("Quit command received")
-        raise DebuggerQuitException("Quit command received from server")
+        self._quit_event.set()
 
     async def _handle_open(self) -> None:
         """Handle SignalR connection open."""
