@@ -20,6 +20,11 @@ class EchoOut:
 def test_extract_ixp(uipath: UiPath):
     os.makedirs("results", exist_ok=True)
 
+    import jwt
+    test = jwt.decode(uipath._config.secret, options={"verify_signature": False}  )
+    print(test["aud"])
+    print(test["scope"])
+
     extraction_response = uipath.documents.extract(
         tag="live",
         project_name="E2E Tests",
