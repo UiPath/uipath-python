@@ -39,7 +39,15 @@ jobs:
 
       - name: Configure
         run: |
-          echo "export default { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
+          cat > commitlint.config.js << 'EOF'
+          export default {
+            extends: ['@commitlint/config-conventional'],
+            rules: {
+              'body-max-line-length': [2, 'always', 100],
+              'footer-max-line-length': [2, 'always', 100]
+            }
+          };
+          EOF
 
       - name: Validate PR commits with commitlint
         run: |
