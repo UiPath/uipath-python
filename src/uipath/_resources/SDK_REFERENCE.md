@@ -7,7 +7,7 @@ This section provides a comprehensive reference for all UiPath SDK services and 
 Initialize the UiPath SDK client
 
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 
 # Initialize with environment variables
 sdk = UiPath()

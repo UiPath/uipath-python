@@ -1,12 +1,10 @@
 import importlib
-from functools import wraps
 from pathlib import Path
 
 import pytest
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath.tracing import TracingManager
 
 
 @pytest.fixture
@@ -50,20 +48,3 @@ def execution_context(monkeypatch: pytest.MonkeyPatch) -> ExecutionContext:
 @pytest.fixture
 def tests_data_path() -> Path:
     return Path(__file__).resolve().parent / "tests_data"
-
-
-@pytest.fixture(autouse=True)
-def mock_tracer():
-    def mock_tracer_impl(**kwargs):
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                return func(*args, **kwargs)
-
-            return wrapper
-
-        return decorator
-
-    TracingManager.reapply_traced_decorator(mock_tracer_impl)
-    yield
-    TracingManager.reapply_traced_decorator(None)

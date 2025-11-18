@@ -154,7 +154,7 @@ def generate_quick_api_docs() -> str:
     """
     from functools import cached_property
 
-    from uipath import UiPath
+    from uipath.platform import UiPath
 
     output = StringIO()
     output.write("\n## API Reference\n\n")
@@ -166,7 +166,7 @@ def generate_quick_api_docs() -> str:
     output.write("### SDK Initialization\n\n")
     output.write("Initialize the UiPath SDK client\n\n")
     output.write("```python\n")
-    output.write("from uipath import UiPath\n\n")
+    output.write("from uipath.platform import UiPath\n\n")
     output.write("# Initialize with environment variables\n")
     output.write("sdk = UiPath()\n\n")
     output.write("# Or with explicit credentials\n")

@@ -58,7 +58,7 @@ UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE
 ## Basic Usage
 
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 # Initialize the SDK
 sdk = UiPath()
 # Execute a process

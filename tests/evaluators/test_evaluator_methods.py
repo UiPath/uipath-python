@@ -817,7 +817,7 @@ class TestLlmAsAJudgeEvaluator:
 
         mock_llm.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmJudgeTest",
@@ -904,7 +904,7 @@ class TestLlmAsAJudgeEvaluator:
         mock_llm.chat_completions = mock_chat_completions
 
         # Mock the UiPath import and constructor
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmJudgeTest",
@@ -956,7 +956,7 @@ class TestLlmJudgeTrajectoryEvaluator:
         mock_llm.chat_completions = mock_chat_completions
 
         # Mock the UiPath import and constructor
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmTrajectoryTest",
@@ -1005,7 +1005,7 @@ class TestLlmJudgeTrajectoryEvaluator:
         mock_llm.chat_completions = mock_chat_completions
 
         # Mock the UiPath import and constructor
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmTrajectoryTest",
@@ -1050,7 +1050,7 @@ class TestEvaluatorErrorHandling:
         """Test that evaluators properly validate config fields."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LLMJudgeEvaluator",
@@ -1286,7 +1286,7 @@ class TestJustificationHandling:
             return mock_response
 
         mock_llm.chat_completions = mock_chat_completions
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmJudgeTest",
@@ -1336,7 +1336,7 @@ class TestJustificationHandling:
             return mock_response
 
         mock_llm.chat_completions = mock_chat_completions
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmTrajectoryTest",

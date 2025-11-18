@@ -263,7 +263,7 @@ def validate_config(config: dict[str, str]) -> None:
 
     if not config["requires-python"] or config["requires-python"].strip() == "":
         console.error(
-            "'requires-python' field cannot be empty. Please specify it in pyproject.toml:  requires-python = \">=3.10\""
+            "'requires-python' field cannot be empty. Please specify it in pyproject.toml:  requires-python = \">=3.11\""
         )
 
     invalid_chars = ["&", "<", ">", '"', "'", ";"]

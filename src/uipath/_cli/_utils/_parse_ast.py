@@ -246,10 +246,10 @@ class UiPathTracker:
                 self.generic_visit(node)
 
             def visit_ImportFrom(self, node):
-                if node.module == "uipath":
+                if node.module == "uipath" or node.module == "uipath.platform":
                     for alias in node.names:
                         if alias.name == "UiPath":
-                            self.imports[alias.asname or alias.name] = "uipath.UiPath"
+                            self.imports[alias.asname or alias.name] = f"{node.module}.UiPath"
                 elif node.module and not node.module.startswith(
                     ("__", "builtins", "typing")
                 ):

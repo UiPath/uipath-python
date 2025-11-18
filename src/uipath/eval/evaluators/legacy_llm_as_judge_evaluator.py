@@ -49,7 +49,7 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorC
 
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
-        from uipath import UiPath
+        from uipath.platform import UiPath
 
         uipath = UiPath()
         self.llm = uipath.llm

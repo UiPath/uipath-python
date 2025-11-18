@@ -1,4 +1,3 @@
-import inspect
 import json
 import os
 import uuid
@@ -213,54 +212,3 @@ class TestSpanUtils:
 
         # Verify the trace ID is taken from environment
         assert str(uipath_span.trace_id) == "00000000-0000-4000-8000-000000000000"
-
-    def test_format_args_for_trace(self):
-        # Simple function signature
-        def func1(a, b, c=3):
-            pass
-
-        sig = inspect.signature(func1)
-        result = _SpanUtils.format_args_for_trace(sig, 1, 2)
-        assert result == {"a": 1, "b": 2, "c": 3}
-
-        # Test with kwargs
-        result = _SpanUtils.format_args_for_trace(sig, 1, c=4, b=5)
-        assert result == {"a": 1, "b": 5, "c": 4}
-
-        # Function with self parameter
-        class TestClass:
-            def method(self, x, y):
-                pass
-
-        sig = inspect.signature(TestClass.method)
-        result = _SpanUtils.format_args_for_trace(sig, TestClass(), 10, 20)
-        assert result == {"x": 10, "y": 20}
-
-        # Function with **kwargs
-        def func2(a, **kwargs):
-            pass
-
-        sig = inspect.signature(func2)
-        result = _SpanUtils.format_args_for_trace(sig, 1, b=2, c=3)
-        assert result == {"a": 1, "b": 2, "c": 3}
-
-    def test_format_args_for_trace_json(self):
-        def sample_func(a, b=None):
-            pass
-
-        sig = inspect.signature(sample_func)
-
-        # Test with simple args
-        json_result = _SpanUtils.format_args_for_trace_json(sig, 1, b="test")
-        parsed = json.loads(json_result)
-        assert parsed == {"a": 1, "b": "test"}
-
-        # Test with non-serializable object
-        class NonSerializable:
-            pass
-
-        json_result = _SpanUtils.format_args_for_trace_json(sig, 1, b=NonSerializable())
-        # Should not raise exception
-        parsed = json.loads(json_result)
-        assert parsed["a"] == 1
-        assert "b" in parsed  # The value will be a string representation

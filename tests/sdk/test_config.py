@@ -1,7 +1,7 @@
 import pytest
 
-from uipath import UiPath
 from uipath.models.errors import BaseUrlMissingError
+from uipath.platform import UiPath
 
 
 class TestSdkConfig:
