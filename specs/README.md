@@ -17,6 +17,6 @@ Asset, process, bucket, index, and connection bindings.
 ### `entry-points.json` - Entry Points
 Entry point definitions with JSON Schema-based input/output contracts.
 
-- [Spec](entry-points.schema.md) | [Schema](entry-points.schema.json)
+- [Spec](entry-points.spec.md) | [Schema](entry-points.schema.json)
 
 
