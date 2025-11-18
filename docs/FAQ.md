@@ -35,7 +35,7 @@ This error might occur when deploying coded-agents to UiPath Cloud Platform, eve
 #### Common Causes
 
 1. Multiple top-level packages or modules in your project structure
-2. Improper configuration or formatting in the pyproject.toml or requirements.txt files
+2. Improper configuration or formatting in the pyproject.toml file
 
 #### Solution
 
@@ -66,7 +66,7 @@ packages = ["your_package"]
 
 ##### 3. Verify Dependencies
 
-- Ensure all required dependencies are properly listed in your `requirements.txt` or `pyproject.toml`
+- Ensure all required dependencies are properly listed in your `pyproject.toml`
 
 #### Reference
 
@@ -282,6 +282,55 @@ If you encounter SSL certificate errors:
 
    ////
 
+
+### Q: Why are my agent runs hanging on UiPath Cloud Platform?
+
+#### Error Message
+
+You may see errors like these in the logs panel:
+
+```python
+[Error] .venv/lib/python3.14/site-packages/azure/monitor/opentelemetry/exporter/export/_base.py:472: SyntaxWarning: 'return' in a 'finally' block
+[Error]   return ExportResult.FAILED_NOT_RETRYABLE  # pylint: disable=W0134
+[Error] .venv/lib/python3.14/site-packages/azure/monitor/opentelemetry/exporter/export/_base.py:474: SyntaxWarning: 'return' in a 'finally' block
+[Error]   return result  # pylint: disable=W0134
+```
+
+#### Description
+
+If your Python agent runs are hanging or not completing when deployed to UiPath Cloud Platform's serverless environment, this may be caused by a library incompatibility issue from an outdated version of the UiPath Python library.
+
+#### Solution
+
+Ensure you're using **`uipath` version 2.1.169 or later**. This version includes fixes for serverless execution.
+
+To check your current version:
+
+<!-- termynal -->
+```bash
+> uipath --version
+uipath version 2.1.169
+```
+
+To upgrade to the latest version:
+
+<!-- termynal -->
+```bash
+> uv sync --upgrade-package uipath
+Installed 1 package in 15ms
+ - uipath==2.1.140
+ + uipath==2.1.169
+```
+
+After upgrading, update your `pyproject.toml` to ensure the correct version is used in your deployment:
+
+**pyproject.toml:**
+```toml
+[project]
+dependencies = [
+    "uipath>=2.1.169",
+]
+```
 
 ---
 
