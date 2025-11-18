@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cloud.uipath.com/draft/2024-12/entry-point",
+  "title": "UiPath Entrypoints Configuration",
+  "description": "Configuration file for UiPath entrypoints with input/output schemas",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://cloud.uipath.com/draft/2024-12/entry-point"
+    },
+    "$id": {
+      "type": "string"
+    },
+    "entryPoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "uniqueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "type": {
+            "type": "string"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "$ref": "http://json-schema.org/draft-07/schema#"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "http://json-schema.org/draft-07/schema#"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "uniqueId",
+          "filePath",
+          "type"
+        ]
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "entryPoints"
+  ]
+}
