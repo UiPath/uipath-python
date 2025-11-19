@@ -10,7 +10,7 @@ from uipath._cli._utils._constants import (
     EVALS_DIRECTORY_NAME,
 )
 from uipath._cli._utils._eval_set import EvalHelpers
-from uipath._cli._utils._project_files import pull_project  # type: ignore[attr-defined]
+from uipath._cli._utils._project_files import pull_project
 from uipath._cli._utils._studio_project import (
     ProjectFile,
     ProjectFolder,
@@ -50,12 +50,15 @@ async def download_agent_project(
         project_id: The project ID to download from
         target_project_dir: Directory where files will be downloaded
     """
-    default_download_configuration = {
+    default_download_configuration: dict[str | None, Path] = {
         None: target_project_dir,
     }
 
+    studio_client = StudioClient(project_id)
     logger.info(f"Downloading project {project_id}...")
-    async for update in pull_project(project_id, default_download_configuration):
+    async for update in pull_project(
+        project_id, default_download_configuration, studio_client
+    ):
         logger.info(update.message)
 
     logger.info(f"Successfully downloaded project {project_id}.")
