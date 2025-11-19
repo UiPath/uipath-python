@@ -33,6 +33,7 @@ from .interrupt_models import (
     WaitJob,
 )
 from .job import Job
+from .mcp import McpServer
 from .processes import Process
 from .queues import (
     CommitType,
@@ -61,6 +62,7 @@ __all__ = [
     "ConnectionToken",
     "EventArguments",
     "Job",
+    "McpServer",
     "InvokeProcess",
     "ActionSchema",
     "WaitJob",
