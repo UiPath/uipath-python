@@ -9,7 +9,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..models import Connection, ConnectionMetadata, ConnectionToken, EventArguments
-from ..models.connections import ConnectionTokenType
+from ..models.connections import ActivityMetadata, ConnectionTokenType
 from ..tracing import traced
 from ._base_service import BaseService
 from .folder_service import FolderService
@@ -631,4 +631,179 @@ class ConnectionsService(BaseService):
             endpoint=Endpoint("/connections_/api/v1/Connections"),
             params=params,
             headers=headers,
+        )
+
+    @traced(
+        name="activity_invoke",
+        run_type="uipath",
+    )
+    def invoke_activity(
+        self,
+        activity_metadata: ActivityMetadata,
+        connection_id: str,
+        activity_input: Dict[str, Any],
+    ) -> Any:
+        """Invoke an activity synchronously.
+
+        Args:
+            activity_metadata: Metadata describing the activity to invoke
+            connection_id: The ID of the connection
+            activity_input: Input parameters for the activity
+
+        Returns:
+            The response from the activity
+
+        Raises:
+            ValueError: If required parameters are missing or invalid
+            RuntimeError: If the HTTP request fails or returns an error status
+        """
+        spec, files = self._build_activity_request_spec(
+            activity_metadata, connection_id, activity_input
+        )
+
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+            params=spec.params,
+            json=spec.json,
+            files=files,
+        )
+
+        return response.json()
+
+    @traced(
+        name="activity_invoke",
+        run_type="uipath",
+    )
+    async def invoke_activity_async(
+        self,
+        activity_metadata: ActivityMetadata,
+        connection_id: str,
+        activity_input: Dict[str, Any],
+    ) -> Any:
+        """Invoke an activity asynchronously.
+
+        Args:
+            activity_metadata: Metadata describing the activity to invoke
+            connection_id: The ID of the connection
+            activity_input: Input parameters for the activity
+
+        Returns:
+            The response from the activity
+
+        Raises:
+            ValueError: If required parameters are missing or invalid
+            RuntimeError: If the HTTP request fails or returns an error status
+        """
+        spec, files = self._build_activity_request_spec(
+            activity_metadata, connection_id, activity_input
+        )
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+            params=spec.params,
+            json=spec.json,
+            files=files,
+        )
+
+        return response.json()
+
+    def _build_activity_request_spec(
+        self,
+        activity_metadata: ActivityMetadata,
+        connection_id: str,
+        activity_input: Dict[str, Any],
+    ) -> tuple[RequestSpec, dict[str, Any] | None]:
+        """Build the request specification for invoking an activity."""
+        url = f"/elements_/v3/element/instances/{connection_id}{activity_metadata.object_path}"
+
+        query_params: Dict[str, str] = {}
+        path_params: Dict[str, str] = {}
+        header_params: Dict[str, str] = {}
+        multipart_params: Dict[str, Any] = {}
+        body_fields: Dict[str, Any] = {}
+
+        # iterating through input items instead of parameters because input will usually not contain all parameters
+        # and we don't want to add unused optional parameters to the request
+        for param_name, value in activity_input.items():
+            if value is None:
+                continue
+
+            value_str = str(value) if not isinstance(value, str) else value
+
+            if param_name in activity_metadata.parameter_location_info.query_params:
+                query_params[param_name] = value_str
+            elif param_name in activity_metadata.parameter_location_info.path_params:
+                path_params[param_name] = value_str
+            elif param_name in activity_metadata.parameter_location_info.header_params:
+                header_params[param_name] = value_str
+            elif (
+                param_name in activity_metadata.parameter_location_info.multipart_params
+            ):
+                multipart_params[param_name] = value
+            elif param_name in activity_metadata.parameter_location_info.body_fields:
+                body_fields[param_name] = value
+            else:
+                raise ValueError(
+                    f"Parameter {param_name} does not exist in activity metadata."
+                )
+
+        # path parameter handling
+        for key, value in path_params.items():
+            url = url.replace(f"{{{key}}}", value)
+
+        # header parameter handling
+        headers = {
+            "x-uipath-originator": "uipath-python",
+            "x-uipath-source": "uipath-python",
+            **header_params,
+        }
+
+        # body and files handling
+        json_data = None
+        files: Dict[str, Any] | None = None
+
+        # multipart/form-data for file uploads
+        if "multipart" in activity_metadata.content_type.lower():
+            files = {}
+
+            for key, val in multipart_params.items():
+                # json body itself appears as a multipart param as well
+                # instead of making assumptions on whether or not it's present, we'll handle it defensively
+                if key == "body":
+                    continue
+                # files not supported yet supported so this will likely not work
+                files[key] = (
+                    key,
+                    val,
+                    None,
+                )  # probably needs to extract content type from val since IS metadata doesn't provide it
+
+            # body fields need to get added as a separate part
+            files["body"] = (
+                "body",
+                json.dumps(body_fields),
+                "application/json",
+            )
+
+        # application/json for regular requests
+        elif "json" in activity_metadata.content_type.lower():
+            json_data = body_fields
+        else:
+            raise ValueError(
+                f"Unsupported content type: {activity_metadata.content_type}"
+            )
+
+        return (
+            RequestSpec(
+                method=activity_metadata.method_name,
+                endpoint=Endpoint(url),
+                headers=headers,
+                params=query_params,
+                json=json_data,
+            ),
+            files,
         )
