@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -76,3 +76,22 @@ class EventArguments(BaseModel):
         populate_by_name=True,
         extra="allow",
     )
+
+
+class ActivityParameterLocationInfo(BaseModel):
+    """Information about parameter location in an activity."""
+
+    query_params: List[str] = []
+    header_params: List[str] = []
+    path_params: List[str] = []
+    multipart_params: List[str] = []
+    body_fields: List[str] = []
+
+
+class ActivityMetadata(BaseModel):
+    """Metadata for an activity."""
+
+    object_path: str
+    method_name: str
+    content_type: str
+    parameter_location_info: ActivityParameterLocationInfo
