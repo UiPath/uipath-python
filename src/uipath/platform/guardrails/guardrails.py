@@ -1,7 +1,7 @@
 """Guardrails models for UiPath Platform."""
 
 from enum import Enum
-from typing import Annotated, Dict, List, Literal, Optional, Union
+from typing import Annotated, Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -67,13 +67,13 @@ class SpecificFieldsSelector(BaseModel):
     """Specific fields selector."""
 
     selector_type: Literal["specific"] = Field(alias="$selectorType")
-    fields: List[FieldReference]
+    fields: list[FieldReference]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
 FieldSelector = Annotated[
-    Union[AllFieldsSelector, SpecificFieldsSelector],
+    AllFieldsSelector | SpecificFieldsSelector,
     Field(discriminator="selector_type"),
 ]
 
@@ -99,7 +99,9 @@ class WordOperator(str, Enum):
     EQUALS = "equals"
     IS_EMPTY = "isEmpty"
     IS_NOT_EMPTY = "isNotEmpty"
+    MATCHES_REGEX = "matchesRegex"
     STARTS_WITH = "startsWith"
+    FUNC = "func"
 
 
 class WordRule(BaseModel):
@@ -108,7 +110,8 @@ class WordRule(BaseModel):
     rule_type: Literal["word"] = Field(alias="$ruleType")
     field_selector: FieldSelector = Field(alias="fieldSelector")
     operator: WordOperator
-    value: Optional[str] = None
+    value: str | None = None
+    func: Callable[[str], bool] | None = Field(default=None, exclude=True)
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -127,6 +130,7 @@ class NumberOperator(str, Enum):
 
     DOES_NOT_EQUAL = "doesNotEqual"
     EQUALS = "equals"
+    FUNC = "func"
     GREATER_THAN = "greaterThan"
     GREATER_THAN_OR_EQUAL = "greaterThanOrEqual"
     LESS_THAN = "lessThan"
@@ -140,6 +144,7 @@ class NumberRule(BaseModel):
     field_selector: FieldSelector = Field(alias="fieldSelector")
     operator: NumberOperator
     value: float
+    func: Callable[[float], bool] | None = Field(default=None, exclude=True)
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -166,7 +171,7 @@ class EnumListParameterValue(BaseModel):
 
     parameter_type: Literal["enum-list"] = Field(alias="$parameterType")
     id: str
-    value: List[str]
+    value: list[str]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -176,7 +181,7 @@ class MapEnumParameterValue(BaseModel):
 
     parameter_type: Literal["map-enum"] = Field(alias="$parameterType")
     id: str
-    value: Dict[str, float]
+    value: dict[str, float]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -192,13 +197,13 @@ class NumberParameterValue(BaseModel):
 
 
 ValidatorParameter = Annotated[
-    Union[EnumListParameterValue, MapEnumParameterValue, NumberParameterValue],
+    EnumListParameterValue | MapEnumParameterValue | NumberParameterValue,
     Field(discriminator="parameter_type"),
 ]
 
 
 Rule = Annotated[
-    Union[WordRule, NumberRule, BooleanRule, UniversalRule],
+    WordRule | NumberRule | BooleanRule | UniversalRule,
     Field(discriminator="rule_type"),
 ]
 
@@ -214,8 +219,8 @@ class GuardrailScope(str, Enum):
 class GuardrailSelector(BaseModel):
     """Guardrail selector model."""
 
-    scopes: List[GuardrailScope] = Field(default=[GuardrailScope.TOOL])
-    match_names: Optional[List[str]] = Field(None, alias="matchNames")
+    scopes: list[GuardrailScope] = Field(default=[GuardrailScope.TOOL])
+    match_names: list[str] | None = Field(None, alias="matchNames")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -225,7 +230,7 @@ class BaseGuardrail(BaseModel):
 
     id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     enabled_for_evals: bool = Field(True, alias="enabledForEvals")
     selector: GuardrailSelector
 
@@ -236,7 +241,7 @@ class CustomGuardrail(BaseGuardrail):
     """Custom guardrail model."""
 
     guardrail_type: Literal["custom"] = Field(alias="$guardrailType")
-    rules: List[Rule]
+    rules: list[Rule]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -246,7 +251,7 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
 
     guardrail_type: Literal["builtInValidator"] = Field(alias="$guardrailType")
     validator_type: str = Field(alias="validatorType")
-    validator_parameters: List[ValidatorParameter] = Field(
+    validator_parameters: list[ValidatorParameter] = Field(
         default_factory=list, alias="validatorParameters"
     )
 
@@ -254,7 +259,7 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
 
 
 Guardrail = Annotated[
-    Union[CustomGuardrail, BuiltInValidatorGuardrail],
+    CustomGuardrail | BuiltInValidatorGuardrail,
     Field(discriminator="guardrail_type"),
 ]
 

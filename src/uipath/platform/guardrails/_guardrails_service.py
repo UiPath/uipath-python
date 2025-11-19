@@ -1,9 +1,25 @@
 from typing import Any
 
+from uipath.platform.guardrails._evaluators import (
+    evaluate_boolean_rule,
+    evaluate_number_rule,
+    evaluate_universal_rule,
+    evaluate_word_rule,
+)
+
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
 from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
-from .guardrails import BuiltInValidatorGuardrail, Guardrail, GuardrailValidationResult
+from .guardrails import (
+    BooleanRule,
+    BuiltInValidatorGuardrail,
+    CustomGuardrail,
+    Guardrail,
+    GuardrailValidationResult,
+    NumberRule,
+    UniversalRule,
+    WordRule,
+)
 
 
 class GuardrailsService(BaseService):
@@ -69,3 +85,48 @@ class GuardrailsService(BaseService):
             raise NotImplementedError(
                 "Custom guardrail validation is not yet supported by the API."
             )
+
+    @traced("evaluate_pre_custom_guardrails", run_type="uipath")
+    def evaluate_pre_custom_guardrails(
+        self,
+        input_data: dict[str, Any],
+        guardrail: CustomGuardrail,
+    ) -> GuardrailValidationResult:
+        """Evaluate custom guardrail rules against input data (pre-execution)."""
+        return self.evaluate_post_custom_guardrails(
+            input_data=input_data,
+            output_data={},
+            guardrail=guardrail,
+        )
+
+    @traced("evaluate_post_custom_guardrails", run_type="uipath")
+    def evaluate_post_custom_guardrails(
+        self,
+        input_data: dict[str, Any],
+        output_data: dict[str, Any],
+        guardrail: CustomGuardrail,
+    ) -> GuardrailValidationResult:
+        """Evaluate custom guardrail rules against input and output data."""
+        for rule in guardrail.rules:
+            if isinstance(rule, WordRule):
+                passed, reason = evaluate_word_rule(rule, input_data, output_data)
+            elif isinstance(rule, NumberRule):
+                passed, reason = evaluate_number_rule(rule, input_data, output_data)
+            elif isinstance(rule, BooleanRule):
+                passed, reason = evaluate_boolean_rule(rule, input_data, output_data)
+            elif isinstance(rule, UniversalRule):
+                passed, reason = evaluate_universal_rule(rule, output_data)
+            else:
+                return GuardrailValidationResult(
+                    validation_passed=False,
+                    reason=f"Unknown rule type: {type(rule)}",
+                )
+
+            if not passed:
+                return GuardrailValidationResult(
+                    validation_passed=False, reason=reason or "Rule validation failed"
+                )
+
+        return GuardrailValidationResult(
+            validation_passed=True, reason="All custom guardrail rules passed"
+        )
