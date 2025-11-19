@@ -6,13 +6,27 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
-from ..models.guardrails import BuiltInValidatorGuardrail, Guardrail
+from ..agent.guardrails._evaluators import (
+    evaluate_boolean_rule,
+    evaluate_number_rule,
+    evaluate_universal_rule,
+    evaluate_word_rule,
+)
+from ..models.guardrails import (
+    BooleanRule,
+    BuiltInValidatorGuardrail,
+    CustomGuardrail,
+    Guardrail,
+    NumberRule,
+    UniversalRule,
+    WordRule,
+)
 from ..tracing import traced
 from ._base_service import BaseService
 
 
-class BuiltInGuardrailValidationResult(BaseModel):
-    """Result from built-in guardrail validation."""
+class GuardrailValidationResult(BaseModel):
+    """Result from guardrail validation."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -42,7 +56,7 @@ class GuardrailsService(FolderContext, BaseService):
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> BuiltInGuardrailValidationResult:
+    ) -> GuardrailValidationResult:
         """Call the API to validate input_data with the given guardrail.
 
         Only supports built-in guardrails for now.
@@ -69,8 +83,53 @@ class GuardrailsService(FolderContext, BaseService):
                 json=spec.json,
                 headers=spec.headers,
             )
-            return BuiltInGuardrailValidationResult.model_validate(response.json())
+            return GuardrailValidationResult.model_validate(response.json())
         else:
             raise NotImplementedError(
                 "Custom guardrail validation is not yet supported by the API."
             )
+
+    @traced("evaluate_pre_custom_guardrails", run_type="uipath")
+    def evaluate_pre_custom_guardrails(
+        self,
+        input_data: Dict[str, Any],
+        guardrail: CustomGuardrail,
+    ) -> GuardrailValidationResult:
+        """Evaluate custom guardrail rules against input data (pre-execution)."""
+        return self.evaluate_post_custom_guardrails(
+            input_data=input_data,
+            output_data={},
+            guardrail=guardrail,
+        )
+
+    @traced("evaluate_post_custom_guardrails", run_type="uipath")
+    def evaluate_post_custom_guardrails(
+        self,
+        input_data: Dict[str, Any],
+        output_data: Dict[str, Any],
+        guardrail: CustomGuardrail,
+    ) -> GuardrailValidationResult:
+        """Evaluate custom guardrail rules against input and output data."""
+        for rule in guardrail.rules:
+            if isinstance(rule, WordRule):
+                passed, reason = evaluate_word_rule(rule, input_data, output_data)
+            elif isinstance(rule, NumberRule):
+                passed, reason = evaluate_number_rule(rule, input_data, output_data)
+            elif isinstance(rule, BooleanRule):
+                passed, reason = evaluate_boolean_rule(rule, input_data, output_data)
+            elif isinstance(rule, UniversalRule):
+                passed, reason = evaluate_universal_rule(rule, output_data)
+            else:
+                return GuardrailValidationResult(
+                    validation_passed=False,
+                    reason=f"Unknown rule type: {type(rule)}",
+                )
+
+            if not passed:
+                return GuardrailValidationResult(
+                    validation_passed=False, reason=reason or "Rule validation failed"
+                )
+
+        return GuardrailValidationResult(
+            validation_passed=True, reason="All custom guardrail rules passed"
+        )
