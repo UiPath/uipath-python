@@ -18,7 +18,7 @@ from .._utils._constants import (
     AGENT_TARGET_RUNTIME,
     AGENT_VERSION,
 )
-from .._utils._project_files import (  # type: ignore
+from .._utils._project_files import (
     FileInfo,
     UpdateEvent,
     compute_normalized_hash,

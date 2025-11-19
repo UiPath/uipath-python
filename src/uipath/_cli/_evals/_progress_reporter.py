@@ -25,7 +25,7 @@ from uipath._cli._evals._models._sw_reporting import (
     StudioWebProgressItem,
 )
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._cli._utils._project_files import (  # type: ignore
+from uipath._cli._utils._project_files import (
     get_project_config,
 )
 from uipath._events._event_bus import EventBus

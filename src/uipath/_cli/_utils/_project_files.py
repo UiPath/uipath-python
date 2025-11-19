@@ -1,4 +1,3 @@
-# type: ignore
 import hashlib
 import json
 import logging
@@ -22,7 +21,7 @@ from ._studio_project import (
 )
 
 try:
-    import tomllib
+    import tomllib  # type: ignore[import-not-found]
 except ImportError:
     import tomli as tomllib
 logger = logging.getLogger(__name__)
@@ -79,7 +78,7 @@ class FileInfo(BaseModel):
 console = ConsoleLogger()
 
 
-def get_project_config(directory: str) -> dict[str, str]:
+def get_project_config(directory: str) -> dict[str, Any]:
     """Retrieve and combine project configuration from uipath.json and pyproject.toml.
 
     Args:
@@ -209,7 +208,7 @@ def ensure_config_file(directory: str) -> None:
         )
 
 
-def extract_dependencies_from_toml(project_data: Dict) -> Dict[str, str]:
+def extract_dependencies_from_toml(project_data: Dict[str, Any]) -> Dict[str, str]:
     """Extract and parse dependencies from pyproject.toml project data.
 
     Args:
@@ -218,7 +217,7 @@ def extract_dependencies_from_toml(project_data: Dict) -> Dict[str, str]:
     Returns:
         Dictionary mapping package names to version specifiers
     """
-    dependencies = {}
+    dependencies: dict[str, str] = {}
 
     if "dependencies" not in project_data:
         return dependencies
@@ -304,7 +303,7 @@ def parse_dependency_string(dependency: str) -> Tuple[str, str]:
     return package_name, version_spec
 
 
-def read_toml_project(file_path: str) -> dict:
+def read_toml_project(file_path: str) -> dict[str, Any]:
     """Read and parse pyproject.toml file with improved error handling and validation.
 
     Args:
