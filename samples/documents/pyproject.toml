@@ -1,0 +1,10 @@
+[project]
+name = "documents"
+version = "0.1.0"
+authors = [{ name = "John Doe" }]
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "uipath>=2.1.173",
+]
