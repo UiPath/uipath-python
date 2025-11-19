@@ -20,7 +20,6 @@ from .._utils._constants import (
 )
 from .._utils._project_files import (  # type: ignore
     FileInfo,
-    InteractiveConflictHandler,
     UpdateEvent,
     compute_normalized_hash,
     files_to_include,
@@ -55,7 +54,7 @@ class SwFileHandler:
         project_id: str,
         directory: str,
         include_uv_lock: bool = True,
-        conflict_handler: Optional[InteractiveConflictHandler] = None,
+        studio_client: Optional[StudioClient] = None,
     ) -> None:
         """Initialize the SwFileHandler.
 
@@ -63,16 +62,13 @@ class SwFileHandler:
             project_id: The ID of the UiPath project
             directory: Local project directory
             include_uv_lock: Whether to include uv.lock file
-            conflict_handler: Optional handler for file conflicts
+            studio_client: Optional; an existing StudioClient instance to reuse instead of creating a new one.
         """
         self.directory = directory
         self.include_uv_lock = include_uv_lock
         self.console = ConsoleLogger()
-        self._studio_client = StudioClient(project_id)
+        self._studio_client = studio_client or StudioClient(project_id)
         self._project_structure: Optional[ProjectStructure] = None
-        self._conflict_handler = conflict_handler or InteractiveConflictHandler(
-            operation="push"
-        )
 
     def _get_folder_by_name(
         self, structure: ProjectStructure, folder_name: str
@@ -187,35 +183,21 @@ class SwFileHandler:
                         local_content = f.read()
                         local_hash = compute_normalized_hash(local_content)
 
-                    # Only update if content differs and user confirms
+                    # Only update if content differs
                     if local_hash != remote_hash:
-                        if self._conflict_handler.should_overwrite(
-                            local_file.relative_path,
-                            remote_hash,
-                            local_hash,
-                            local_full_path=os.path.abspath(local_file.file_path),
-                        ):
-                            structural_migration.modified_resources.append(
-                                ModifiedResource(
-                                    id=remote_file.id,
-                                    content_file_path=local_file.file_path,
-                                )
+                        structural_migration.modified_resources.append(
+                            ModifiedResource(
+                                id=remote_file.id,
+                                content_file_path=local_file.file_path,
                             )
-                            updates.append(
-                                UpdateEvent(
-                                    file_path=local_file.file_path,
-                                    status="updating",
-                                    message=f"Updating '{local_file.file_name}'",
-                                )
+                        )
+                        updates.append(
+                            UpdateEvent(
+                                file_path=local_file.file_path,
+                                status="updating",
+                                message=f"Updating '{local_file.file_name}'",
                             )
-                        else:
-                            updates.append(
-                                UpdateEvent(
-                                    file_path=local_file.file_path,
-                                    status="skipped",
-                                    message=f"Skipped '{local_file.file_name}'",
-                                )
-                            )
+                        )
                     else:
                         # Content is the same, no need to update
                         updates.append(
@@ -609,26 +591,17 @@ class SwFileHandler:
                     local_content = f.read()
                     local_hash = compute_normalized_hash(local_content)
 
-                # Only update if content differs and user confirms
+                # Only update if content differs
                 if local_hash != remote_hash:
-                    if self._conflict_handler.should_overwrite(
-                        destination,
-                        remote_hash,
-                        local_hash,
-                        local_full_path=os.path.abspath(local_file_path),
-                    ):
-                        structural_migration.modified_resources.append(
-                            ModifiedResource(
-                                id=remote_file.id, content_file_path=local_file_path
-                            )
+                    structural_migration.modified_resources.append(
+                        ModifiedResource(
+                            id=remote_file.id, content_file_path=local_file_path
                         )
-                        self.console.info(
-                            f"Updating {click.style(destination, fg='yellow')}"
-                        )
-                    else:
-                        self.console.info(
-                            f"Skipped {click.style(destination, fg='bright_black')}"
-                        )
+                    )
+                    self.console.info(
+                        f"Updating {click.style(destination, fg='yellow')}"
+                    )
+
                 else:
                     # Content is the same, no need to update
                     self.console.info(f"File '{destination}' is up to date")

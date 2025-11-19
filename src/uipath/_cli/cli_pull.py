@@ -8,12 +8,13 @@ from pathlib import Path
 import click
 
 from .._config import UiPathConfig
+from ._utils._common import may_override_files
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
-    InteractiveConflictHandler,
     ProjectPullError,
     pull_project,
 )
+from ._utils._studio_project import StudioClient
 
 console = ConsoleLogger()
 
@@ -43,19 +44,22 @@ def pull(root: Path) -> None:
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
+    studio_client = StudioClient(project_id=project_id)
+    may_override = asyncio.run(may_override_files(studio_client, "local"))
+    if not may_override:
+        console.info("Operation aborted.")
+        return
     download_configuration = {
         None: root,
     }
 
-    # Create interactive conflict handler for user confirmation
-    conflict_handler = InteractiveConflictHandler(operation="pull")
     console.log("Pulling UiPath project from Studio Web...")
 
     try:
 
         async def run_pull():
             async for update in pull_project(
-                project_id, download_configuration, conflict_handler
+                project_id, download_configuration, studio_client
             ):
                 console.info(f"Processing: {update.file_path}")
                 console.info(update.message)

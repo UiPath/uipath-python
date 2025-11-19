@@ -6,7 +6,7 @@ import os
 import re
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Literal, Optional, Protocol, Tuple
+from typing import Any, AsyncIterator, Dict, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, TypeAdapter
 
@@ -59,104 +59,6 @@ class ProjectPullError(Exception):
         self.project_id = project_id
         self.message = message
         super().__init__(self.message)
-
-
-class FileConflictHandler(Protocol):
-    """Protocol for handling file conflicts."""
-
-    def should_overwrite(
-        self,
-        file_path: str,
-        local_hash: str,
-        remote_hash: str,
-        local_full_path: Optional[Path] = None,
-    ) -> bool:
-        """Return True to overwrite, False to skip."""
-        ...
-
-
-class AlwaysOverwriteHandler:
-    """Handler that always overwrites files."""
-
-    def should_overwrite(
-        self,
-        file_path: str,
-        local_hash: str,
-        remote_hash: str,
-        local_full_path: Optional[Path] = None,
-    ) -> bool:
-        return True
-
-
-class AlwaysSkipHandler:
-    """Handler that always skips conflicts."""
-
-    def should_overwrite(
-        self,
-        file_path: str,
-        local_hash: str,
-        remote_hash: str,
-        local_full_path: Optional[Path] = None,
-    ) -> bool:
-        return False
-
-
-class InteractiveConflictHandler:
-    """Handler that prompts the user for each conflict during pull or push operations.
-
-    Attributes:
-        operation: The operation type - either "pull" or "push"
-    """
-
-    def __init__(self, operation: Literal["pull", "push"]) -> None:
-        """Initialize the handler with an operation type.
-
-        Args:
-            operation: Either "pull" or "push" to determine the prompt message
-        """
-        self.operation = operation
-
-    def should_overwrite(
-        self,
-        file_path: str,
-        local_hash: str,
-        remote_hash: str,
-        local_full_path: Optional[Path] = None,
-    ) -> bool:
-        """Ask the user if they want to overwrite based on the operation.
-
-        Args:
-            file_path: Relative path to the file (for display)
-            local_hash: Hash of the local file content
-            remote_hash: Hash of the remote file content
-            local_full_path: Full path to the local file (unused, kept for protocol compatibility)
-
-        Returns:
-            True if the user wants to overwrite, False otherwise
-        """
-        import sys
-
-        import click
-
-        click.echo(
-            click.style(
-                f"\nFile '{file_path}' has different content on remote.",
-                fg="yellow",
-            )
-        )
-
-        # Prompt user for confirmation with operation-specific message
-        sys.stdout.flush()
-        if self.operation == "pull":
-            return click.confirm(
-                "Do you want to overwrite the local file with the remote version?",
-                default=False,
-            )
-        else:  # push
-            return click.confirm(
-                "Do you want to push and overwrite the remote file with your local version?",
-                default=False,
-            )
 
 
 class FileInfo(BaseModel):
@@ -638,25 +540,20 @@ def collect_files_from_folder(
 async def pull_project(
     project_id: str,
     download_configuration: dict[str | None, Path],
-    conflict_handler: Optional[FileConflictHandler] = None,
+    studio_client: StudioClient,
 ) -> AsyncIterator[UpdateEvent]:
     """Pull project with configurable conflict handling.
 
     Yields:
         FileOperationUpdate: Progress updates for each file operation
     """
-    if conflict_handler is None:
-        conflict_handler = AlwaysOverwriteHandler()
-
-    studio_client = StudioClient(project_id)
-
     try:
         structure = await studio_client.get_project_structure_async()
         for source_key, destination in download_configuration.items():
             source_folder = get_folder_by_name(structure, source_key)
             if source_folder:
                 async for update in download_folder_files(
-                    studio_client, source_folder, destination, conflict_handler
+                    studio_client, source_folder, destination
                 ):
                     yield update
             else:
@@ -669,7 +566,6 @@ async def download_folder_files(
     studio_client: StudioClient,
     folder: ProjectFolder,
     base_path: Path,
-    conflict_handler: FileConflictHandler,
 ) -> AsyncIterator[UpdateEvent]:
     """Download files from a folder recursively, yielding progress updates.
 
@@ -677,7 +573,6 @@ async def download_folder_files(
         studio_client: Studio client
         folder: The folder to download files from
         base_path: Base path for local file storage
-        conflict_handler: Handler for file conflicts
 
     Yields:
         FileOperationUpdate: Progress updates for each file operation
@@ -699,23 +594,14 @@ async def download_folder_files(
                 local_hash = compute_normalized_hash(local_content)
 
             if local_hash != remote_hash:
-                if conflict_handler.should_overwrite(
-                    file_path, local_hash, remote_hash, local_path
-                ):
-                    with open(local_path, "w", encoding="utf-8", newline="\n") as f:
-                        f.write(remote_content)
+                with open(local_path, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(remote_content)
 
-                    yield UpdateEvent(
-                        file_path=file_path,
-                        status="updated",
-                        message=f"Updated '{file_path}'",
-                    )
-                else:
-                    yield UpdateEvent(
-                        file_path=file_path,
-                        status="skipped",
-                        message=f"Skipped '{file_path}'",
-                    )
+                yield UpdateEvent(
+                    file_path=file_path,
+                    status="updated",
+                    message=f"Updated '{file_path}'",
+                )
             else:
                 yield UpdateEvent(
                     file_path=file_path,

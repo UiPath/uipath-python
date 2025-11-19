@@ -170,6 +170,25 @@ class ConsoleLogger:
 
         return click.prompt(click.style(f"{message}", fg="yellow", bold=True), **kwargs)
 
+    def confirm(
+        self, message: str, default: bool = False, fg: str = "cyan", **kwargs: Any
+    ) -> bool:
+        """Wrapper for click.confirm with styled text.
+
+        Args:
+            message: The confirmation message
+            default: Default value if user just presses Enter
+            fg: Foreground color for the message (default: cyan)
+            **kwargs: Additional arguments to pass to click.confirm
+
+        Returns:
+            True if user confirms, False otherwise
+        """
+        # Stop any active spinner before prompting
+        self._stop_spinner_if_active()
+
+        return click.confirm(click.style(message, fg=fg), default=default, **kwargs)
+
     def display_options(
         self, options: List[Any], message: str = "Select an option:"
     ) -> None:

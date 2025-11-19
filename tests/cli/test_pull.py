@@ -2,7 +2,9 @@
 import json
 import os
 from typing import Any, Dict
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from click.testing import CliRunner
 from pytest_httpx import HTTPXMock
 from utils.project_details import ProjectDetails
@@ -10,6 +12,9 @@ from utils.uipath_json import UiPathJson
 
 from tests.cli.utils.common import configure_env_vars
 from uipath._cli import cli
+from uipath._cli._utils._common import may_override_files
+from uipath._cli._utils._studio_project import StudioProjectMetadata
+from uipath.models.exceptions import EnrichedException
 
 
 class TestPull:
@@ -112,6 +117,11 @@ class TestPull:
             ],
             "folderType": "0",
         }
+        # mock first structure get for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -246,6 +256,11 @@ class TestPull:
             ],
             "folderType": "0",
         }
+        # mock first structure get for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -283,74 +298,6 @@ class TestPull:
             with open("main.py", "r") as f:
                 assert f.read() == remote_content
 
-    def test_pull_skip_override(
-        self,
-        runner: CliRunner,
-        temp_dir: str,
-        project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
-        mock_env_vars: Dict[str, str],
-        httpx_mock: HTTPXMock,
-        monkeypatch: Any,
-    ) -> None:
-        """Test pull when user chooses not to override local files."""
-        base_url = "https://cloud.uipath.com/organization"
-        project_id = "test-project-id"
-
-        # Mock the project structure response
-        mock_structure = {
-            "id": "root",
-            "name": "root",
-            "folders": [],
-            "files": [
-                {
-                    "id": "123",
-                    "name": "main.py",
-                    "isMain": True,
-                    "fileType": "1",
-                    "isEntryPoint": True,
-                    "ignoredFromPublish": False,
-                }
-            ],
-            "folderType": "0",
-        }
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
-
-        # Mock file download response
-        remote_content = "print('Remote version')"
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
-            content=remote_content.encode(),
-        )
-
-        with runner.isolated_filesystem(temp_dir=temp_dir):
-            # Create local file with different content
-            local_content = "print('Local version')"
-            with open("main.py", "w") as f:
-                f.write(local_content)
-
-            # Set environment variables
-            configure_env_vars(mock_env_vars)
-            os.environ["UIPATH_PROJECT_ID"] = project_id
-
-            # Mock user input to reject override
-            monkeypatch.setattr("click.confirm", lambda *args, **kwargs: False)
-
-            # Run pull
-            result = runner.invoke(cli, ["pull", "./"])
-            assert result.exit_code == 0
-            # assert "differs from remote version" in result.output
-            assert "Skipped 'main.py'" in result.output
-
-            # Verify file was NOT updated (kept local version)
-            with open("main.py", "r") as f:
-                assert f.read() == local_content
-
     def test_pull_with_api_error(
         self,
         runner: CliRunner,
@@ -378,7 +325,8 @@ class TestPull:
 
             result = runner.invoke(cli, ["pull", "./"])
             assert result.exit_code == 1
-            assert "Failed to pull UiPath project" in result.output
+            assert isinstance(result.exception, EnrichedException)
+            assert result.exception.status_code == 401
 
     def test_pull_multiple_eval_folders(
         self,
@@ -485,6 +433,11 @@ class TestPull:
             ],
             "folderType": "0",
         }
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -555,3 +508,176 @@ class TestPull:
                 assert json.load(f) == evaluator_content_legacy
             with open("evals/eval-sets/default.json", "r") as f:
                 assert json.load(f) == eval_set_content_legacy
+
+
+class TestMayOverrideFiles:
+    """Test may_override_files function for pull scenarios."""
+
+    @pytest.mark.asyncio
+    async def test_no_remote_metadata_returns_true(self):
+        """Test that when remote metadata doesn't exist, returns True without prompting."""
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = None
+
+        result = await may_override_files(mock_studio_client, "local")
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_no_local_metadata_prompts_user_confirms(self, tmp_path, monkeypatch):
+        """Test that when local metadata doesn't exist, prompts user and returns True on confirm."""
+        # Create mock remote metadata
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="1.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        # Mock UiPathConfig to return non-existent path
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = (
+                tmp_path / ".uipath" / "metadata.json"
+            )
+
+            # Mock console.confirm to return True
+            with patch(
+                "uipath._cli._utils._common.ConsoleLogger"
+            ) as mock_console_class:
+                mock_console = mock_console_class.return_value
+                mock_console.confirm.return_value = True
+
+                result = await may_override_files(mock_studio_client, "local")
+                assert result is True
+                mock_console.warning.assert_called_once()
+                mock_console.confirm.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_local_metadata_prompts_user_denies(self, tmp_path):
+        """Test that when local metadata doesn't exist, prompts user and returns False on deny."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="1.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = (
+                tmp_path / ".uipath" / "metadata.json"
+            )
+
+            with patch(
+                "uipath._cli._utils._common.ConsoleLogger"
+            ) as mock_console_class:
+                mock_console = mock_console_class.return_value
+                mock_console.confirm.return_value = False
+
+                result = await may_override_files(mock_studio_client, "local")
+                assert result is False
+
+    @pytest.mark.asyncio
+    async def test_local_version_greater_than_remote_returns_true(self, tmp_path):
+        """Test that when local version >= remote version, returns True without prompting."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="1.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        # Create local metadata file with higher version
+        metadata_dir = tmp_path / ".uipath"
+        metadata_dir.mkdir(parents=True)
+        metadata_file = metadata_dir / "metadata.json"
+        local_metadata = {
+            "schemaVersion": "1.0",
+            "lastPushDate": "2025-11-19T10:00:00.000000+00:00",
+            "lastPushAuthor": "local-user",
+            "codeVersion": "2.0.0",
+        }
+        metadata_file.write_text(json.dumps(local_metadata))
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = metadata_file
+
+            result = await may_override_files(mock_studio_client, "local")
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_local_version_less_than_remote_prompts_user(self, tmp_path):
+        """Test that when local version < remote version, prompts user."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="2.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        # Create local metadata file with lower version
+        metadata_dir = tmp_path / ".uipath"
+        metadata_dir.mkdir(parents=True)
+        metadata_file = metadata_dir / "metadata.json"
+        local_metadata = {
+            "schemaVersion": "1.0",
+            "lastPushDate": "2025-11-17T10:00:00.000000+00:00",
+            "lastPushAuthor": "local-user",
+            "codeVersion": "1.0.0",
+        }
+        metadata_file.write_text(json.dumps(local_metadata))
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = metadata_file
+
+            with patch(
+                "uipath._cli._utils._common.ConsoleLogger"
+            ) as mock_console_class:
+                mock_console = mock_console_class.return_value
+                mock_console.confirm.return_value = True
+
+                result = await may_override_files(mock_studio_client, "local")
+                assert result is True
+                mock_console.warning.assert_called_once()
+                mock_console.confirm.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_local_version_equal_to_remote_returns_true(self, tmp_path):
+        """Test that when local version == remote version, returns True without prompting."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="1.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        # Create local metadata file with same version
+        metadata_dir = tmp_path / ".uipath"
+        metadata_dir.mkdir(parents=True)
+        metadata_file = metadata_dir / "metadata.json"
+        local_metadata = {
+            "schemaVersion": "1.0",
+            "lastPushDate": "2025-11-18T17:18:06.809284+00:00",
+            "lastPushAuthor": "local-user",
+            "codeVersion": "1.0.0",
+        }
+        metadata_file.write_text(json.dumps(local_metadata))
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = metadata_file
+
+            result = await may_override_files(mock_studio_client, "local")
+            assert result is True
