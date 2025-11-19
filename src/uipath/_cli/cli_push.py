@@ -47,6 +47,12 @@ async def upload_source_files_to_project(
     - Deletes remote files that no longer exist locally
     - Optionally includes the UV lock file
 
+    Args:
+        project_id: The ID of the UiPath project
+        settings: Optional settings dictionary for file handling
+        directory: The local directory to push
+        include_uv_lock: Whether to include the uv.lock file
+
     Yields:
         FileOperationUpdate: Progress updates for each file operation
 
@@ -73,7 +79,12 @@ async def upload_source_files_to_project(
     is_flag=True,
     help="Skip running uv lock and exclude uv.lock from the package",
 )
-def push(root: str, nolock: bool) -> None:
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Automatically overwrite remote files without prompts",
+)
+def push(root: str, nolock: bool, overwrite: bool) -> None:
     """Push local project files to Studio Web Project.
 
     This command pushes the local project files to a UiPath Studio Web project.
@@ -86,6 +97,7 @@ def push(root: str, nolock: bool) -> None:
     Args:
         root: The root directory of the project
         nolock: Whether to skip UV lock operations and exclude uv.lock from push
+        overwrite: Whether to automatically overwrite remote files without prompts
 
     Environment Variables:
         UIPATH_PROJECT_ID: Required. The ID of the UiPath Cloud project
@@ -93,6 +105,7 @@ def push(root: str, nolock: bool) -> None:
     Example:
         $ uipath push
         $ uipath push --nolock
+        $ uipath push --overwrite
     """
     ensure_config_file(root)
     config = get_project_config(root)
@@ -104,10 +117,12 @@ def push(root: str, nolock: bool) -> None:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
     studio_client = StudioClient(project_id=project_id)
-    may_override = asyncio.run(may_override_files(studio_client, "remote"))
-    if not may_override:
-        console.info("Operation aborted.")
-        return
+
+    if not overwrite:
+        may_override = asyncio.run(may_override_files(studio_client, "remote"))
+        if not may_override:
+            console.info("Operation aborted.")
+            return
 
     async def push_with_updates():
         """Wrapper to handle async iteration and display updates."""
