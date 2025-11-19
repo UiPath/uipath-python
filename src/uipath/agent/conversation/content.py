@@ -42,8 +42,8 @@ class UiPathConversationContentPartEvent(BaseModel):
     """Encapsulates events related to message content parts."""
 
     content_part_id: str = Field(..., alias="contentPartId")
-    start: Optional[UiPathConversationContentPartStartEvent] = None
-    end: Optional[UiPathConversationContentPartEndEvent] = None
+    start: Optional[UiPathConversationContentPartStartEvent] = Field(alias="startContentPart", default=None)
+    end: Optional[UiPathConversationContentPartEndEvent] = Field(alias="endContentPart", default=None)
     chunk: Optional[UiPathConversationContentPartChunkEvent] = None
     meta_event: Optional[Dict[str, Any]] = Field(None, alias="metaEvent")
 

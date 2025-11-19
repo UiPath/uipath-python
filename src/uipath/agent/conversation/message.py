@@ -23,6 +23,7 @@ class UiPathConversationMessageEndEvent(BaseModel):
     """Signals the end of a message."""
 
     meta_data: Optional[Dict[str, Any]] = Field(None, alias="metaData")
+    content_part: Optional[UiPathConversationContentPartEvent] = Field(None, alias="contentPart")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -31,8 +32,8 @@ class UiPathConversationMessageEvent(BaseModel):
     """Encapsulates sub-events related to a message."""
 
     message_id: str = Field(..., alias="messageId")
-    start: Optional[UiPathConversationMessageStartEvent] = None
-    end: Optional[UiPathConversationMessageEndEvent] = None
+    start: Optional[UiPathConversationMessageStartEvent] = Field(alias="startMessage", default=None)
+    end: Optional[UiPathConversationMessageEndEvent] = Field(alias="endMessage", default=None)
     content_part: Optional[UiPathConversationContentPartEvent] = Field(
         None, alias="contentPart"
     )
