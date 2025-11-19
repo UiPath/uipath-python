@@ -11,7 +11,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from uipath import UiPath
 from uipath._config import UiPathConfig
 from uipath._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
-from uipath._utils.constants import ENV_TENANT_ID, HEADER_SW_LOCK_KEY, HEADER_TENANT_ID
+from uipath._utils.constants import (
+    ENV_TENANT_ID,
+    HEADER_SW_LOCK_KEY,
+    HEADER_TENANT_ID,
+    STUDIO_METADATA_FILE,
+)
 from uipath.models.exceptions import EnrichedException
 from uipath.tracing import traced
 
@@ -120,8 +125,6 @@ class ProjectStructure(ProjectFolder):
         files: List of files at the root level
         folder_type: The type of the root folder (optional)
     """
-
-    pass
 
 
 class LockInfo(BaseModel):
@@ -340,6 +343,21 @@ class StudioSolutionsClient:
         return response.json()
 
 
+class StudioProjectMetadata(BaseModel):
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    schema_version: str = Field(alias="schemaVersion")
+    last_push_date: str = Field(alias="lastPushDate")
+    last_push_author: str = Field(alias="lastPushAuthor")
+    code_version: str = Field(alias="codeVersion")
+
+
 class StudioClient:
     def __init__(self, project_id: str, uipath: Optional[UiPath] = None):
         self.uipath: UiPath = uipath or UiPath()
@@ -364,6 +382,22 @@ class StudioClient:
         )
         self._solution_id_cache = response.json()["solutionId"]
         return self._solution_id_cache
+
+    async def get_project_metadata_async(self) -> Optional[StudioProjectMetadata]:
+        structure = await self.get_project_structure_async()
+        folder = get_folder_by_name(structure, ".uipath")
+        if not folder:
+            return None
+        try:
+            file = next(
+                file for file in folder.files if file.name == STUDIO_METADATA_FILE
+            )
+        except StopIteration:
+            return None
+        response = await self.download_project_file_async(file)
+        return StudioProjectMetadata.model_validate_json(
+            response.read().decode("utf-8")
+        )
 
     async def _get_existing_resources(self) -> List[dict[str, Any]]:
         if self._resources_cache is not None:

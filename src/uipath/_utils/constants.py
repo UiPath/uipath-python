@@ -65,6 +65,7 @@ COMMUNITY_agents_SUFFIX = "-community-agents"
 UIPATH_CONFIG_FILE = "uipath.json"
 UIPATH_BINDINGS_FILE = "bindings.json"
 ENTRY_POINTS_FILE = "entry-points.json"
+STUDIO_METADATA_FILE = "studio_metadata.json"
 
 
 # Folder names

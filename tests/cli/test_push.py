@@ -3,7 +3,9 @@ import json
 import os
 import re
 from typing import Any, Dict
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from click.testing import CliRunner
 from httpx import Request
 from pytest_httpx import HTTPXMock
@@ -12,6 +14,9 @@ from utils.uipath_json import UiPathJson
 
 from tests.cli.utils.common import configure_env_vars
 from uipath._cli import cli
+from uipath._cli._utils._common import may_override_files
+from uipath._cli._utils._studio_project import StudioProjectMetadata
+from uipath.models.exceptions import EnrichedException
 
 
 def extract_agent_json_from_modified_resources(
@@ -252,6 +257,11 @@ class TestPush:
             ],
             "folderType": "0",
         }
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -260,8 +270,6 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
-        # Mock file downloads for conflict detection
-        # Mock main.py download - return different content to trigger update
         httpx_mock.add_response(
             method="GET",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
@@ -269,7 +277,6 @@ class TestPush:
             text="print('Old version')",
         )
 
-        # Mock pyproject.toml download - return different content to trigger update
         httpx_mock.add_response(
             method="GET",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
@@ -277,7 +284,6 @@ class TestPush:
             text="[project]\nname = 'old-version'\n",
         )
 
-        # Mock uipath.json download - return different content to trigger update
         httpx_mock.add_response(
             method="GET",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
@@ -389,6 +395,12 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
         httpx_mock.add_response(
             method="POST",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
@@ -495,8 +507,9 @@ class TestPush:
 
             result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 1
-            assert "Failed to push UiPath project" in result.output
-            assert "Status Code: 401" in result.output
+
+            assert isinstance(result.exception, EnrichedException)
+            assert result.exception.status_code == 401
 
     def test_push_with_nolock_flag(
         self,
@@ -537,6 +550,12 @@ class TestPush:
             "folderType": "0",
         }
 
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -544,8 +563,6 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
-        # Mock file downloads for conflict detection
-        # Mock main.py download - return different content to trigger update
         httpx_mock.add_response(
             method="GET",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
@@ -553,7 +570,6 @@ class TestPush:
             text="print('Old version')",
         )
 
-        # Mock uipath.json download - return different content to trigger update
         httpx_mock.add_response(
             method="GET",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
@@ -635,6 +651,12 @@ class TestPush:
             "folderType": "0",
         }
 
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -708,6 +730,11 @@ class TestPush:
             "files": [],
             "folderType": "0",
         }
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -781,6 +808,12 @@ class TestPush:
             "files": [],
             "folderType": "0",
         }
+
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -876,6 +909,12 @@ class TestPush:
             "files": [],
             "folderType": "0",
         }
+
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -981,6 +1020,12 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
         httpx_mock.add_response(
             method="POST",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
@@ -1077,6 +1122,12 @@ class TestPush:
             "folderType": "0",
         }
 
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -1123,181 +1174,6 @@ class TestPush:
             # Should detect conflict and update after user confirmation
             assert "Updating 'main.py'" in result.output
 
-    def test_push_skips_file_when_user_rejects(
-        self,
-        runner: CliRunner,
-        temp_dir: str,
-        project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
-        mock_env_vars: Dict[str, str],
-        httpx_mock: HTTPXMock,
-        monkeypatch: Any,
-    ) -> None:
-        """Test that push skips files when user rejects overwrite."""
-        base_url = "https://cloud.uipath.com/organization"
-        project_id = "test-project-id"
-
-        # Mock the project structure with existing files
-        mock_structure = {
-            "id": "root",
-            "name": "root",
-            "folders": [],
-            "files": [
-                {
-                    "id": "456",
-                    "name": "main.py",
-                    "isMain": True,
-                    "fileType": "1",
-                    "isEntryPoint": True,
-                    "ignoredFromPublish": False,
-                },
-            ],
-            "folderType": "0",
-        }
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
-
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
-
-        # Mock file download - return different content to detect conflict
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
-            status_code=200,
-            text="print('Remote version')",
-        )
-
-        # Mock user confirmation - user rejects the overwrite
-        monkeypatch.setattr("click.confirm", lambda *args, **kwargs: False)
-
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
-            status_code=200,
-            json={"success": True},
-        )
-
-        with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._create_required_files()
-
-            with open("pyproject.toml", "w") as f:
-                f.write(project_details.to_toml())
-            with open("main.py", "w") as f:
-                f.write("print('Local version')")
-
-            configure_env_vars(mock_env_vars)
-            os.environ["UIPATH_PROJECT_ID"] = project_id
-
-            result = runner.invoke(cli, ["push", "./"])
-            assert result.exit_code == 0
-            # Should skip the file after user rejection
-            assert "Skipped 'main.py'" in result.output
-            assert "Updating 'main.py'" not in result.output
-
-    def test_push_updates_file_when_user_confirms(
-        self,
-        runner: CliRunner,
-        temp_dir: str,
-        project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
-        mock_env_vars: Dict[str, str],
-        httpx_mock: HTTPXMock,
-        monkeypatch: Any,
-    ) -> None:
-        """Test that push updates file when user confirms overwrite."""
-        base_url = "https://cloud.uipath.com/organization"
-        project_id = "test-project-id"
-
-        # Mock the project structure with existing files
-        mock_structure = {
-            "id": "root",
-            "name": "root",
-            "folders": [],
-            "files": [
-                {
-                    "id": "456",
-                    "name": "main.py",
-                    "isMain": True,
-                    "fileType": "1",
-                    "isEntryPoint": True,
-                    "ignoredFromPublish": False,
-                },
-                {
-                    "id": "789",
-                    "name": "helper.py",
-                    "isMain": False,
-                    "fileType": "1",
-                    "isEntryPoint": False,
-                    "ignoredFromPublish": False,
-                },
-            ],
-            "folderType": "0",
-        }
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
-
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
-
-        # Mock file downloads - return different content to detect conflicts
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
-            status_code=200,
-            text="print('Old main')",
-        )
-
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
-            status_code=200,
-            text="def old_helper(): pass",
-        )
-
-        # Mock user confirmation - user confirms all overwrites
-        monkeypatch.setattr("click.confirm", lambda *args, **kwargs: True)
-
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
-            status_code=200,
-            json={"success": True},
-        )
-
-        with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._create_required_files()
-
-            with open("pyproject.toml", "w") as f:
-                f.write(project_details.to_toml())
-            with open("main.py", "w") as f:
-                f.write("print('New main')")
-            with open("helper.py", "w") as f:
-                f.write("def new_helper(): pass")
-
-            configure_env_vars(mock_env_vars)
-            os.environ["UIPATH_PROJECT_ID"] = project_id
-
-            result = runner.invoke(cli, ["push", "./"])
-            assert result.exit_code == 0
-            # Both files should be updated after user confirmation
-            assert "Updating 'main.py'" in result.output
-            assert "Updating 'helper.py'" in result.output
-
     def test_push_shows_up_to_date_for_unchanged_files(
         self,
         runner: CliRunner,
@@ -1339,6 +1215,12 @@ class TestPush:
             ],
             "folderType": "0",
         }
+
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1465,6 +1347,12 @@ class TestPush:
             "folderType": "0",
         }
 
+        # mock structure request for metadata
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -1528,3 +1416,208 @@ class TestPush:
             # Check that the deleted resource IDs are not present in the request
             assert b"evaluator-file-1" not in content
             assert b"eval-set-file-1" not in content
+
+
+class TestMayOverrideFilesForPush:
+    """Test may_override_files function for push scenarios."""
+
+    @pytest.mark.asyncio
+    async def test_no_remote_metadata_returns_true(self):
+        """Test that when remote metadata doesn't exist, returns True without prompting."""
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = None
+
+        result = await may_override_files(mock_studio_client, "remote")
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_no_local_metadata_prompts_user_confirms(self, tmp_path):
+        """Test that when local metadata doesn't exist, prompts user and returns True on confirm."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="1.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = (
+                tmp_path / ".uipath" / "metadata.json"
+            )
+
+            with patch(
+                "uipath._cli._utils._common.ConsoleLogger"
+            ) as mock_console_class:
+                mock_console = mock_console_class.return_value
+                mock_console.confirm.return_value = True
+
+                result = await may_override_files(mock_studio_client, "remote")
+                assert result is True
+                mock_console.warning.assert_called_once()
+                mock_console.confirm.assert_called_once()
+                # Verify the confirm message mentions "remote"
+                confirm_call_args = mock_console.confirm.call_args[0][0]
+                assert "remote" in confirm_call_args
+
+    @pytest.mark.asyncio
+    async def test_no_local_metadata_prompts_user_denies(self, tmp_path):
+        """Test that when local metadata doesn't exist, prompts user and returns False on deny."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="1.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = (
+                tmp_path / ".uipath" / "metadata.json"
+            )
+
+            with patch(
+                "uipath._cli._utils._common.ConsoleLogger"
+            ) as mock_console_class:
+                mock_console = mock_console_class.return_value
+                mock_console.confirm.return_value = False
+
+                result = await may_override_files(mock_studio_client, "remote")
+                assert result is False
+
+    @pytest.mark.asyncio
+    async def test_local_version_greater_than_remote_returns_true(self, tmp_path):
+        """Test that when local version >= remote version, returns True without prompting."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="1.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        # Create local metadata file with higher version
+        metadata_dir = tmp_path / ".uipath"
+        metadata_dir.mkdir(parents=True)
+        metadata_file = metadata_dir / "metadata.json"
+        local_metadata = {
+            "schemaVersion": "1.0",
+            "lastPushDate": "2025-11-19T10:00:00.000000+00:00",
+            "lastPushAuthor": "local-user",
+            "codeVersion": "2.0.0",
+        }
+        metadata_file.write_text(json.dumps(local_metadata))
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = metadata_file
+
+            result = await may_override_files(mock_studio_client, "remote")
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_local_version_less_than_remote_prompts_user(self, tmp_path):
+        """Test that when local version < remote version, prompts user."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="2.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        # Create local metadata file with lower version
+        metadata_dir = tmp_path / ".uipath"
+        metadata_dir.mkdir(parents=True)
+        metadata_file = metadata_dir / "metadata.json"
+        local_metadata = {
+            "schemaVersion": "1.0",
+            "lastPushDate": "2025-11-17T10:00:00.000000+00:00",
+            "lastPushAuthor": "local-user",
+            "codeVersion": "1.0.0",
+        }
+        metadata_file.write_text(json.dumps(local_metadata))
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = metadata_file
+
+            with patch(
+                "uipath._cli._utils._common.ConsoleLogger"
+            ) as mock_console_class:
+                mock_console = mock_console_class.return_value
+                mock_console.confirm.return_value = True
+
+                result = await may_override_files(mock_studio_client, "remote")
+                assert result is True
+                mock_console.warning.assert_called_once()
+                mock_console.confirm.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_local_version_equal_to_remote_returns_true(self, tmp_path):
+        """Test that when local version == remote version, returns True without prompting."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="1.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        # Create local metadata file with same version
+        metadata_dir = tmp_path / ".uipath"
+        metadata_dir.mkdir(parents=True)
+        metadata_file = metadata_dir / "metadata.json"
+        local_metadata = {
+            "schemaVersion": "1.0",
+            "lastPushDate": "2025-11-18T17:18:06.809284+00:00",
+            "lastPushAuthor": "local-user",
+            "codeVersion": "1.0.0",
+        }
+        metadata_file.write_text(json.dumps(local_metadata))
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = metadata_file
+
+            result = await may_override_files(mock_studio_client, "remote")
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_date_formatting_in_warning(self, tmp_path):
+        """Test that the push date is formatted nicely in the warning message."""
+        remote_metadata = StudioProjectMetadata(
+            schema_version="1.0",
+            last_push_date="2025-11-18T17:18:06.809284+00:00",
+            last_push_author="test-user",
+            code_version="2.0.0",
+        )
+
+        mock_studio_client = AsyncMock()
+        mock_studio_client.get_project_metadata_async.return_value = remote_metadata
+
+        with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
+            mock_config.studio_metadata_file_path = (
+                tmp_path / ".uipath" / "metadata.json"
+            )
+
+            with patch(
+                "uipath._cli._utils._common.ConsoleLogger"
+            ) as mock_console_class:
+                mock_console = mock_console_class.return_value
+                mock_console.confirm.return_value = True
+
+                await may_override_files(mock_studio_client, "remote")
+
+                # Check that info was called with formatted date
+                info_calls = [str(call) for call in mock_console.info.call_args_list]
+                # Should contain formatted date like "Nov 18, 2025 at 05:18 PM UTC"
+                date_call = [c for c in info_calls if "Last push date" in c]
+                assert len(date_call) > 0
