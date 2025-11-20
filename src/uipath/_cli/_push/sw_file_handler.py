@@ -14,9 +14,7 @@ from .._utils._common import get_claim_from_token
 from .._utils._console import ConsoleLogger
 from .._utils._constants import (
     AGENT_INITIAL_CODE_VERSION,
-    AGENT_STORAGE_VERSION,
-    AGENT_TARGET_RUNTIME,
-    AGENT_VERSION,
+    SCHEMA_VERSION,
 )
 from .._utils._project_files import (
     FileInfo,
@@ -245,7 +243,7 @@ class SwFileHandler:
         deleted_files = self._collect_deleted_files(
             remote_files,
             processed_source_files,
-            files_to_ignore=["agent.json"],
+            files_to_ignore=["studio_metadata.json"],
             directories_to_ignore=[
                 name
                 for name, condition in [
@@ -271,16 +269,12 @@ class SwFileHandler:
                 )
             )
 
-        # Load uipath.json configuration
-        with open(os.path.join(self.directory, "uipath.json"), "r") as f:
-            uipath_config = json.load(f)
-
-        # Prepare agent.json migration (may download existing file to increment version)
-        agent_update = await self._prepare_agent_json_migration(
-            structural_migration, remote_files, uipath_config
+        # Prepare metadata file
+        update_metadata_event = await self._prepare_metadata_file(
+            structural_migration, remote_files
         )
-        if agent_update:
-            updates.append(agent_update)
+        if update_metadata_event:
+            updates.append(update_metadata_event)
 
         # Perform the structural migration (uploads/updates/deletes all files)
         await self._studio_client.perform_structural_migration_async(
@@ -393,24 +387,21 @@ class SwFileHandler:
 
         return True
 
-    async def _prepare_agent_json_migration(
+    async def _prepare_metadata_file(
         self,
         structural_migration: StructuralMigration,
         remote_files: Dict[str, ProjectFile],
-        uipath_config: Dict[str, Any],
-    ) -> Optional[UpdateEvent]:
-        """Prepare agent.json to be included in the same structural migration.
+    ) -> UpdateEvent:
+        """Prepare .uipath/studio_metadata.json file.
 
         This method:
-        1. Extracts author from JWT token or pyproject.toml
-        2. Downloads existing agent.json if it exists to increment code version
-        3. Builds complete agent.json structure
-        4. Adds to structural migration as modified or added resource
+        1. Checks if file exists locally, initializes with defaults if not
+        2. Extracts author from JWT token or pyproject.toml
+        3. Downloads existing studio_metadata.json from remote if it exists to increment code version
 
         Args:
             structural_migration: The structural migration to add resources to
             remote_files: Dictionary of remote files
-            uipath_config: Configuration from uipath.json
 
         Returns:
             FileOperationUpdate describing the operation, or None if error occurred
@@ -433,77 +424,68 @@ class SwFileHandler:
 
         author = get_author_from_token_or_toml()
 
-        # Initialize agent.json structure with metadata
-        agent_json = {
-            "version": AGENT_VERSION,
-            "metadata": {
-                "storageVersion": AGENT_STORAGE_VERSION,
-                "targetRuntime": AGENT_TARGET_RUNTIME,
-                "isConversational": False,
+        local_metadata_file = os.path.join(
+            self.directory, str(UiPathConfig.studio_metadata_file_path)
+        )
+        if not os.path.exists(local_metadata_file):
+            metadata = {
+                "schemaVersion": SCHEMA_VERSION,
+                "lastPushDate": datetime.now(timezone.utc).isoformat(),
+                "lastPushAuthor": author,
                 "codeVersion": AGENT_INITIAL_CODE_VERSION,
-                "author": author,
-                "pushDate": datetime.now(timezone.utc).isoformat(),
-            },
-            "bindings": uipath_config.get(
-                "bindings", {"version": "2.0", "resources": []}
-            ),
-            "inputSchema": {},
-            "outputSchema": {},
-            "settings": {},
-            # TODO: remove this after validation check gets removed on SW side
-            "entryPoints": [{}],
-        }
+            }
+            os.makedirs(os.path.dirname(local_metadata_file), exist_ok=True)
+            with open(local_metadata_file, "w") as f:
+                json.dump(metadata, f, indent=2)
+        else:
+            with open(local_metadata_file, "r") as f:
+                metadata = json.load(f)
 
-        existing = remote_files.get("agent.json")
+        existing = remote_files.get(".uipath/studio_metadata.json")
         if existing:
-            # Agent.json exists - download and increment version
             try:
-                existing_agent_json = (
+                existing_metadata = (
                     await self._studio_client.download_project_file_async(existing)
                 ).json()
-                version_parts = existing_agent_json["metadata"]["codeVersion"].split(
-                    "."
-                )
+                version_parts = existing_metadata["codeVersion"].split(".")
                 if len(version_parts) >= 3:
                     # Increment patch version (0.1.0 -> 0.1.1)
                     version_parts[-1] = str(int(version_parts[-1]) + 1)
-                    agent_json["metadata"]["codeVersion"] = ".".join(version_parts)
+                    metadata["codeVersion"] = ".".join(version_parts)
                 else:
                     # Invalid version format, use default with patch = 1
-                    agent_json["metadata"]["codeVersion"] = (
-                        AGENT_INITIAL_CODE_VERSION[:-1] + "1"
-                    )
+                    metadata["codeVersion"] = AGENT_INITIAL_CODE_VERSION[:-1] + "1"
             except Exception:
                 logger.info(
-                    "Could not parse existing 'agent.json' file, using default version"
+                    "Could not parse existing metadata file, using default version"
                 )
+
+            with open(local_metadata_file, "w") as f:
+                f.write(json.dumps(metadata))
 
             structural_migration.modified_resources.append(
                 ModifiedResource(
                     id=existing.id,
-                    content_string=json.dumps(agent_json),
+                    content_string=json.dumps(metadata),
                 )
             )
             return UpdateEvent(
-                file_path="agent.json",
+                file_path=".uipath/studio_metadata.json",
                 status="updating",
-                message="Updating 'agent.json'",
+                message="Updating '.uipath/studio_metadata.json'",
             )
         else:
-            # Agent.json doesn't exist - create new one
-            logger.info(
-                "'agent.json' file does not exist in Studio Web project, initializing using default version"
-            )
             structural_migration.added_resources.append(
                 AddedResource(
-                    file_name="agent.json",
-                    content_string=json.dumps(agent_json),
+                    file_name="studio_metadata.json",
+                    content_string=json.dumps(metadata),
+                    parent_path=".uipath",
                 )
             )
             return UpdateEvent(
-                file_path="agent.json",
+                file_path=".uipath/studio_metadata.json",
                 status="uploading",
-                message="Uploading 'agent.json'",
+                message="Uploading '.uipath/studio_metadata.json'",
             )
 
     async def upload_source_files(

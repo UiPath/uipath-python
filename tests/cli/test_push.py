@@ -19,23 +19,21 @@ from uipath._cli._utils._studio_project import StudioProjectMetadata
 from uipath.models.exceptions import EnrichedException
 
 
-def extract_agent_json_from_modified_resources(
-    request: Request, *, agent_file_id: str | None = None
+def extract_metadata_json_from_modified_resources(
+    request: Request, *, metadata_file_id: str | None = None
 ) -> dict[str, Any]:
-    """Extract agent.json content from ModifiedResources in StructuralMigration payload."""
+    """Extract studio_metadata.json content from ModifiedResources in StructuralMigration payload."""
     match = re.search(
         rb"boundary=([-._0-9A-Za-z]+)", request.headers.get("Content-Type", "").encode()
     )
     if match is None:
-        # Fallback to body sniffing like older helper
         match = re.search(rb"--([-._0-9A-Za-z]+)", request.content)
     assert match is not None, "Could not detect multipart boundary"
     boundary = match.group(1)
     parts = request.content.split(b"--" + boundary)
 
-    # Require agent_file_id and search only ModifiedResources
-    assert agent_file_id is not None, (
-        "agent_file_id is required to extract agent.json from ModifiedResources"
+    assert metadata_file_id is not None, (
+        "metadata_file_id is required to extract studio_metadata.json from ModifiedResources"
     )
     target_index: str | None = None
     for part in parts:
@@ -47,7 +45,7 @@ def extract_agent_json_from_modified_resources(
             body = part.split(b"\r\n\r\n", 1)
             if len(body) == 2:
                 value = body[1].strip().strip(b"\r\n")
-                if value.decode(errors="ignore") == agent_file_id:
+                if value.decode(errors="ignore") == metadata_file_id:
                     m = re.search(rb"ModifiedResources\[(\d+)\]\.Id", part)
                     if m:
                         target_index = m.group(1).decode()
@@ -63,12 +61,12 @@ def extract_agent_json_from_modified_resources(
                 return json.loads(content_bytes.decode())
 
     raise AssertionError(
-        "agent.json content not found in ModifiedResources of StructuralMigration payload"
+        "studio_metadata.json content not found in ModifiedResources of StructuralMigration payload"
     )
 
 
-def extract_agent_json_from_added_resources(request: Request) -> dict[str, Any]:
-    """Extract agent.json content from AddedResources in StructuralMigration payload."""
+def extract_metadata_json_from_added_resources(request: Request) -> dict[str, Any]:
+    """Extract studio_metadata.json content from AddedResources in StructuralMigration payload."""
     match = re.search(
         rb"boundary=([-._0-9A-Za-z]+)", request.headers.get("Content-Type", "").encode()
     )
@@ -83,13 +81,13 @@ def extract_agent_json_from_added_resources(request: Request) -> dict[str, Any]:
             b"Content-Disposition: form-data;" in part
             and b"AddedResources[" in part
             and b"].Content" in part
-            and b'filename="agent.json"' in part
+            and b'filename="studio_metadata.json"' in part
         ):
             content_bytes = part.split(b"\r\n\r\n", 1)[1].split(b"\r\n")[0]
             return json.loads(content_bytes.decode())
 
     raise AssertionError(
-        "agent.json content not found in AddedResources of StructuralMigration payload"
+        "studio_metadata.json content not found in AddedResources of StructuralMigration payload"
     )
 
 
@@ -208,11 +206,26 @@ class TestPush:
         base_url = "https://cloud.uipath.com/organization"
         project_id = "test-project-id"
 
-        # Mock the project structure response
         mock_structure = {
             "id": "root",
             "name": "root",
-            "folders": [],
+            "folders": [
+                {
+                    "id": "uipath-folder",
+                    "name": ".uipath",
+                    "folders": [],
+                    "files": [
+                        {
+                            "id": "246",
+                            "name": "studio_metadata.json",
+                            "isMain": False,
+                            "fileType": "1",
+                            "isEntryPoint": False,
+                            "ignoredFromPublish": False,
+                        },
+                    ],
+                },
+            ],
             "files": [
                 {
                     "id": "123",
@@ -233,14 +246,6 @@ class TestPush:
                 {
                     "id": "789",
                     "name": "uipath.json",
-                    "isMain": False,
-                    "fileType": "1",
-                    "isEntryPoint": False,
-                    "ignoredFromPublish": False,
-                },
-                {
-                    "id": "246",
-                    "name": "agent.json",
                     "isMain": False,
                     "fileType": "1",
                     "isEntryPoint": False,
@@ -291,12 +296,30 @@ class TestPush:
             text='{"version": "old"}',
         )
 
-        # Mock agent.json download
+        # mock metadata file retrieval twice
+
         httpx_mock.add_response(
             method="GET",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/246",
             status_code=200,
-            json={"metadata": {"codeVersion": "0.1.0"}},
+            json={
+                "schemaVersion": 1,
+                "lastPushDate": "2025-11-20T13:07:31.515084+00:00",
+                "lastPushAuthor": "john.doe@mail.com",
+                "codeVersion": "1.0.3",
+            },
+        )
+
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/246",
+            status_code=200,
+            json={
+                "schemaVersion": 1,
+                "lastPushDate": "2025-11-20T13:07:31.515084+00:00",
+                "lastPushAuthor": "john.doe@mail.com",
+                "codeVersion": "1.0.3",
+            },
         )
 
         # Mock entry-points.json download
@@ -321,7 +344,6 @@ class TestPush:
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            # Create necessary files
             self._create_required_files()
 
             with open("pyproject.toml", "w") as f:
@@ -333,37 +355,44 @@ class TestPush:
             with open("uv.lock", "w") as f:
                 f.write('version = 1 \n requires-python = ">=3.11"')
 
+            os.mkdir(".uipath")
+            with open(os.path.join(".uipath", "studio_metadata.json"), "w") as f:
+                json.dump(
+                    {
+                        "schemaVersion": 1,
+                        "lastPushDate": "2025-11-20T13:07:31.515084+00:00",
+                        "lastPushAuthor": "john.doe@mail.com",
+                        "codeVersion": "1.0.3",
+                    },
+                    f,
+                )
+
             # Set environment variables
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            # Run push
             result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 0
             assert "Updating 'main.py'" in result.output
             assert "Updating 'pyproject.toml'" in result.output
             assert "Updating 'uipath.json'" in result.output
             assert "Uploading 'uv.lock'" in result.output
-            assert "Updating 'agent.json'" in result.output
+            assert "Updating '.uipath/studio_metadata.json'" in result.output
             assert "Updating 'entry-points.json'" in result.output
 
-            # check incremented code version via StructuralMigration payload
             structural_migration_request = httpx_mock.get_request(
                 method="POST",
                 url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             )
             assert structural_migration_request is not None
-            agent_json_content = extract_agent_json_from_modified_resources(
-                structural_migration_request, agent_file_id="246"
+            metadata_json_content = extract_metadata_json_from_modified_resources(
+                structural_migration_request, metadata_file_id="246"
             )
 
-            # Validate `metadata["codeVersion"]`
-            expected_code_version = "0.1.1"
-            actual_code_version = agent_json_content.get("metadata", {}).get(
-                "codeVersion"
-            )
+            expected_code_version = "1.0.4"
+            actual_code_version = metadata_json_content.get("codeVersion")
             assert actual_code_version == expected_code_version, (
-                f"Unexpected codeVersion in metadata. Expected: {expected_code_version}, Got: {actual_code_version}"
+                f"Unexpected codeVersion. Expected: {expected_code_version}, Got: {actual_code_version}"
             )
 
     def test_successful_push_new_project(
@@ -441,35 +470,29 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            # Run push
             result = runner.invoke(cli, ["push", "./"])
             assert result.exit_code == 0
             assert "Uploading 'main.py'" in result.output
             assert "Uploading 'pyproject.toml'" in result.output
             assert "Uploading 'uipath.json'" in result.output
             assert "Uploading 'uv.lock'" in result.output
-            assert "Uploading 'agent.json'" in result.output
+            assert "Uploading '.uipath/studio_metadata.json'" in result.output
             assert "Uploading 'entry-points.json'" in result.output
 
-            # check expected agent.json fields
             structural_migration_request = httpx_mock.get_request(
                 method="POST",
                 url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             )
             assert structural_migration_request is not None
-            agent_json_content = extract_agent_json_from_added_resources(
+            metadata_json_content = extract_metadata_json_from_added_resources(
                 structural_migration_request
             )
 
             expected_code_version = "1.0.0"
-            actual_code_version = agent_json_content.get("metadata", {}).get(
-                "codeVersion"
-            )
+            actual_code_version = metadata_json_content.get("codeVersion")
             assert actual_code_version == expected_code_version, (
-                f"Unexpected codeVersion in metadata. Expected: {expected_code_version}, Got: {actual_code_version}"
+                f"Unexpected codeVersion. Expected: {expected_code_version}, Got: {actual_code_version}"
             )
-            assert "targetRuntime" in agent_json_content["metadata"]
-            assert agent_json_content["metadata"]["targetRuntime"] == "python"
 
     def test_push_with_api_error(
         self,
