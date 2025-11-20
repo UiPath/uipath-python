@@ -251,13 +251,13 @@ class TestResourceCatalogService:
             assert len(resources) == 2
             assert resources[0].name == "test-asset"
             assert resources[1].name == "test-queue"
-            mock_folder_service.retrieve_folder_key.assert_called_once_with(None)
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
                 raise Exception("No request was sent")
 
             assert sent_request.method == "GET"
+            assert sent_request.headers["X-UIPATH-FolderKey"] == "test-folder-key"
             assert str(sent_request.url).endswith("/Entities?skip=0&take=20")
             assert HEADER_USER_AGENT in sent_request.headers
             assert (
@@ -297,15 +297,13 @@ class TestResourceCatalogService:
 
             assert len(resources) == 1
             assert resources[0].name == "finance-asset"
-            mock_folder_service.retrieve_folder_key.assert_called_once_with(
-                "/Shared/Finance"
-            )
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
                 raise Exception("No request was sent")
 
             assert "X-UIPATH-FolderKey" in sent_request.headers
+            assert sent_request.headers["X-UIPATH-FolderKey"] == "test-folder-key"
 
         def test_list_resources_with_resource_filters(
             self,
@@ -437,13 +435,13 @@ class TestResourceCatalogService:
             assert resources[0].resource_type == "asset"
             assert resources[1].name == "number-asset"
             assert resources[1].resource_type == "asset"
-            mock_folder_service.retrieve_folder_key.assert_called_once_with(None)
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
                 raise Exception("No request was sent")
 
             assert sent_request.method == "GET"
+            assert sent_request.headers["X-UIPATH-FolderKey"] == "test-folder-key"
             assert str(sent_request.url).endswith("/Entities/asset?skip=0&take=20")
             assert HEADER_USER_AGENT in sent_request.headers
             assert (
@@ -523,9 +521,7 @@ class TestResourceCatalogService:
 
             assert len(resources) == 1
             assert resources[0].resource_sub_type == "number"
-            mock_folder_service.retrieve_folder_key.assert_called_once_with(
-                "/Shared/Finance"
-            )
+            assert resources[0].folder_key == "test-folder-key"
 
             sent_request = httpx_mock.get_request()
             if sent_request is None:
@@ -533,6 +529,7 @@ class TestResourceCatalogService:
 
             assert "entitySubType=number" in str(sent_request.url)
             assert "X-UIPATH-FolderKey" in sent_request.headers
+            assert sent_request.headers["X-UIPATH-FolderKey"] == "test-folder-key"
 
         def test_list_by_type_pagination(
             self,
@@ -653,7 +650,6 @@ class TestResourceCatalogService:
 
             assert len(resources) == 1
             assert resources[0].name == "async-resource"
-            mock_folder_service.retrieve_folder_key_async.assert_called_once_with(None)
 
         @pytest.mark.asyncio
         async def test_list_resources_async_with_filters(
@@ -690,9 +686,7 @@ class TestResourceCatalogService:
 
             assert len(resources) == 1
             assert resources[0].resource_sub_type == "text"
-            mock_folder_service.retrieve_folder_key_async.assert_called_once_with(
-                "/Test/Folder"
-            )
+            assert resources[0].folder_key == "test-folder-key"
 
         @pytest.mark.asyncio
         async def test_list_by_type_async_basic(
@@ -736,7 +730,6 @@ class TestResourceCatalogService:
             assert resources[0].resource_type == "asset"
             assert resources[1].name == "async-asset-2"
             assert resources[1].resource_type == "asset"
-            mock_folder_service.retrieve_folder_key_async.assert_called_once_with(None)
 
         @pytest.mark.asyncio
         async def test_list_by_type_async_with_name_filter(
@@ -808,9 +801,7 @@ class TestResourceCatalogService:
 
             assert len(resources) == 1
             assert resources[0].resource_sub_type == "transactional"
-            mock_folder_service.retrieve_folder_key_async.assert_called_once_with(
-                "/Production"
-            )
+            assert resources[0].folder_key == "test-folder-key"
 
         @pytest.mark.asyncio
         async def test_list_by_type_async_pagination(
