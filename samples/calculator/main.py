@@ -43,7 +43,7 @@ GET_RANDOM_OPERATOR_EXAMPLES = [
 
 @traced()
 @mockable(example_calls=GET_RANDOM_OPERATOR_EXAMPLES)
-async def get_random_operator() -> Wrapper:
+async def get_random_operator() -> Wrapper: # pragma: no cover (since eval mocks this function, ignore it from coverage!)
     """Get a random operator."""
     return Wrapper(
         result=random.choice(
