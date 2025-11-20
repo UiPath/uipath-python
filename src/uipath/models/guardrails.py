@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Annotated, Dict, List, Literal, Optional, Union
+from typing import Annotated, Callable, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -81,6 +81,7 @@ class WordOperator(str, Enum):
     IS_NOT_EMPTY = "isNotEmpty"
     MATCHES_REGEX = "matchesRegex"
     STARTS_WITH = "startsWith"
+    FUNC = "func"
 
 
 class WordRule(BaseModel):
@@ -90,6 +91,7 @@ class WordRule(BaseModel):
     field_selector: FieldSelector = Field(alias="fieldSelector")
     operator: WordOperator
     value: Optional[str] = None
+    func: Optional[Callable[[str], bool]] = Field(default=None, exclude=True)
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
@@ -108,6 +110,7 @@ class NumberOperator(str, Enum):
 
     DOES_NOT_EQUAL = "doesNotEqual"
     EQUALS = "equals"
+    FUNC = "func"
     GREATER_THAN = "greaterThan"
     GREATER_THAN_OR_EQUAL = "greaterThanOrEqual"
     LESS_THAN = "lessThan"
@@ -121,6 +124,7 @@ class NumberRule(BaseModel):
     field_selector: FieldSelector = Field(alias="fieldSelector")
     operator: NumberOperator
     value: float
+    func: Optional[Callable[[float], bool]] = Field(default=None, exclude=True)
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

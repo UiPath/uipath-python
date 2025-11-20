@@ -190,7 +190,14 @@ def evaluate_word_rule(
 
         field_str = field_value
 
-        if rule.operator == WordOperator.EQUALS:
+        # If a custom function is provided, use it instead of operator-based logic
+        if rule.operator == WordOperator.FUNC and rule.func is not None:
+            try:
+                passed = rule.func(field_str)
+            except Exception:
+                # If function raises an exception, treat as failure
+                passed = False
+        elif rule.operator == WordOperator.EQUALS:
             passed = field_str == (rule.value or "")
         elif rule.operator == WordOperator.DOES_NOT_EQUAL:
             passed = field_str != (rule.value or "")
@@ -249,7 +256,14 @@ def evaluate_number_rule(
 
         field_num = float(field_value)
 
-        if rule.operator == NumberOperator.EQUALS:
+        # If a custom function is provided, use it instead of operator-based logic
+        if rule.operator == NumberOperator.FUNC and rule.func is not None:
+            try:
+                passed = rule.func(field_num)
+            except Exception:
+                # If function raises an exception, treat as failure
+                passed = False
+        elif rule.operator == NumberOperator.EQUALS:
             passed = field_num == rule.value
         elif rule.operator == NumberOperator.DOES_NOT_EQUAL:
             passed = field_num != rule.value

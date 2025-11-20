@@ -410,6 +410,188 @@ class TestGuardrailsService:
             assert "userName" in result.reason
             assert "matchesregex" in result.reason.lower()
 
+        def test_evaluate_post_custom_guardrails_word_func_positive(
+            self,
+            service: GuardrailsService,
+        ) -> None:
+            """Test custom guardrail validation passes when word func returns True."""
+            custom_guardrail = CustomGuardrail(
+                id="test-custom-id",
+                name="Word Func Guardrail",
+                description="Test word func guardrail",
+                enabled_for_evals=True,
+                guardrail_type="custom",
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["test"]
+                ),
+                rules=[
+                    WordRule(
+                        rule_type="word",
+                        field_selector=SpecificFieldsSelector(
+                            selector_type="specific",
+                            fields=[
+                                FieldReference(
+                                    path="userName", source=FieldSource.INPUT
+                                )
+                            ],
+                        ),
+                        operator=WordOperator.FUNC,
+                        value=None,
+                        func=lambda s: len(s) > 5,
+                    ),
+                ],
+            )
+
+            # Input data with userName that passes the function check
+            input_data = {
+                "userName": "testuser",
+            }
+            output_data: Dict[str, Any] = {}
+
+            result = service.evaluate_post_custom_guardrails(
+                input_data=input_data,
+                output_data=output_data,
+                guardrail=custom_guardrail,
+            )
+
+            assert result.validation_passed is True
+            assert "All custom guardrail rules passed" in result.reason
+
+        def test_evaluate_post_custom_guardrails_word_func_negative(
+            self,
+            service: GuardrailsService,
+        ) -> None:
+            """Test custom guardrail validation fails when word func returns False."""
+            custom_guardrail = CustomGuardrail(
+                id="test-custom-id",
+                name="Word Func Guardrail",
+                description="Test word func guardrail",
+                enabled_for_evals=True,
+                guardrail_type="custom",
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["test"]
+                ),
+                rules=[
+                    WordRule(
+                        rule_type="word",
+                        field_selector=SpecificFieldsSelector(
+                            selector_type="specific",
+                            fields=[
+                                FieldReference(
+                                    path="userName", source=FieldSource.INPUT
+                                )
+                            ],
+                        ),
+                        operator=WordOperator.FUNC,
+                        value=None,
+                        func=lambda s: len(s) > 5,
+                    ),
+                ],
+            )
+
+            # Input data with userName that fails the function check
+            input_data = {
+                "userName": "test",
+            }
+            output_data: Dict[str, Any] = {}
+
+            result = service.evaluate_post_custom_guardrails(
+                input_data=input_data,
+                output_data=output_data,
+                guardrail=custom_guardrail,
+            )
+
+            assert result.validation_passed is False
+
+        def test_evaluate_post_custom_guardrails_number_func_positive(
+            self,
+            service: GuardrailsService,
+        ) -> None:
+            """Test custom guardrail validation passes when number func returns True."""
+            custom_guardrail = CustomGuardrail(
+                id="test-custom-id",
+                name="Number Func Guardrail",
+                description="Test number func guardrail",
+                enabled_for_evals=True,
+                guardrail_type="custom",
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["test"]
+                ),
+                rules=[
+                    NumberRule(
+                        rule_type="number",
+                        field_selector=SpecificFieldsSelector(
+                            selector_type="specific",
+                            fields=[
+                                FieldReference(path="age", source=FieldSource.INPUT)
+                            ],
+                        ),
+                        operator=NumberOperator.FUNC,
+                        value=0.0,
+                        func=lambda n: n >= 18 and n <= 65,
+                    ),
+                ],
+            )
+
+            # Input data with age that passes the function check
+            input_data = {
+                "age": 25,
+            }
+            output_data: Dict[str, Any] = {}
+
+            result = service.evaluate_post_custom_guardrails(
+                input_data=input_data,
+                output_data=output_data,
+                guardrail=custom_guardrail,
+            )
+
+            assert result.validation_passed is True
+            assert "All custom guardrail rules passed" in result.reason
+
+        def test_evaluate_post_custom_guardrails_number_func_negative(
+            self,
+            service: GuardrailsService,
+        ) -> None:
+            """Test custom guardrail validation fails when number func returns False."""
+            custom_guardrail = CustomGuardrail(
+                id="test-custom-id",
+                name="Number Func Guardrail",
+                description="Test number func guardrail",
+                enabled_for_evals=True,
+                guardrail_type="custom",
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["test"]
+                ),
+                rules=[
+                    NumberRule(
+                        rule_type="number",
+                        field_selector=SpecificFieldsSelector(
+                            selector_type="specific",
+                            fields=[
+                                FieldReference(path="age", source=FieldSource.INPUT)
+                            ],
+                        ),
+                        operator=NumberOperator.FUNC,
+                        value=0.0,
+                        func=lambda n: n >= 18 and n <= 65,
+                    ),
+                ],
+            )
+
+            # Input data with age that fails the function check
+            input_data = {
+                "age": 70,
+            }
+            output_data: Dict[str, Any] = {}
+
+            result = service.evaluate_post_custom_guardrails(
+                input_data=input_data,
+                output_data=output_data,
+                guardrail=custom_guardrail,
+            )
+
+            assert result.validation_passed is False
+
         def test_should_trigger_policy_pre_execution_only_some_rules_not_met_returns_false(
             self,
             service: GuardrailsService,
