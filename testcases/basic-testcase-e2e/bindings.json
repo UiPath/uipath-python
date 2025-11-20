@@ -1,0 +1,21 @@
+{
+    "version": "2.0",
+    "resources": [
+        {
+            "resource": "bucket",
+            "key": "test-bucket",
+            "value": {
+                "name": {
+                    "defaultValue": "test-bucket",
+                    "isExpression": false,
+                    "displayName": "Name"
+                }
+            },
+            "metadata": {
+                "ActivityName": "upload",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
+        }
+    ]
+}

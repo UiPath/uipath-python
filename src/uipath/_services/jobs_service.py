@@ -641,6 +641,230 @@ class JobsService(FolderContext, BaseService):
             },
         )
 
+    @traced(name="jobs_list", run_type="uipath")
+    def list(
+        self,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        release_id: Optional[int] = None,
+        creation_time_start: Optional[str] = None,
+        creation_time_end: Optional[str] = None,
+        top: int = 25,
+        skip: int = 0,
+        expand: Optional[List[str]] = None,
+        include_test_automation: bool = False,
+    ) -> List[Job]:
+        """List jobs from a folder with optional filters and pagination.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to query jobs from. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to query jobs from. Override the default one set in the SDK config.
+            release_id (Optional[int]): Filter by release ID. If not provided, all releases are included. To filter by release name, use processes.get_by_name() first to get the ID.
+            creation_time_start (Optional[str]): Filter jobs created on or after this time (ISO 8601 format, e.g., "2025-11-12T23:30:00.000Z").
+            creation_time_end (Optional[str]): Filter jobs created on or before this time (ISO 8601 format, e.g., "2025-11-14T00:00:00.000Z").
+            top (int): Maximum number of jobs to return (OData $top). Defaults to 25.
+            skip (int): Number of jobs to skip (OData $skip). Defaults to 0.
+            expand (Optional[List[str]]): List of entities to expand (e.g., ["Robot", "Machine", "Release"]). Defaults to None (no expansion).
+            include_test_automation (bool): Whether to include test automation processes. Defaults to False.
+
+        Returns:
+            List[Job]: List of jobs matching the filters.
+
+        Examples:
+            ```python
+            from uipath import UiPath
+
+            sdk = UiPath()
+
+            # List first 25 jobs from a folder
+            jobs = sdk.jobs.list(folder_path="Shared")
+
+            # List jobs filtered by release ID with pagination
+            jobs = sdk.jobs.list(folder_path="Shared", release_id=619188, top=10, skip=0)
+
+            # List jobs filtered by release name (get the release first)
+            release = sdk.processes.get_by_name("llamaindex-agent-no-llm")
+            jobs = sdk.jobs.list(folder_path="Shared", release_id=release.id)
+
+            # List jobs with custom expand options
+            jobs = sdk.jobs.list(folder_path="Shared", expand=["Release"], top=50)
+
+            # List jobs within a time range
+            jobs = sdk.jobs.list(
+                folder_path="Shared",
+                creation_time_start="2025-11-12T23:30:00.000Z",
+                creation_time_end="2025-11-14T00:00:00.000Z"
+            )
+            ```
+        """
+        spec = self._list_spec(
+            folder_key=folder_key,
+            folder_path=folder_path,
+            release_id=release_id,
+            creation_time_start=creation_time_start,
+            creation_time_end=creation_time_end,
+            top=top,
+            skip=skip,
+            expand=expand,
+            include_test_automation=include_test_automation,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
+
+        data = response.json()
+        jobs = [Job.model_validate(item) for item in data.get("value", [])]
+        return jobs
+
+    @traced(name="jobs_list", run_type="uipath")
+    async def list_async(
+        self,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        release_id: Optional[int] = None,
+        creation_time_start: Optional[str] = None,
+        creation_time_end: Optional[str] = None,
+        top: int = 25,
+        skip: int = 0,
+        expand: Optional[List[str]] = None,
+        include_test_automation: bool = False,
+    ) -> List[Job]:
+        """Asynchronously list jobs from a folder with optional filters and pagination.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to query jobs from. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to query jobs from. Override the default one set in the SDK config.
+            release_id (Optional[int]): Filter by release ID. If not provided, all releases are included. To filter by release name, use processes.get_by_name_async() first to get the ID.
+            creation_time_start (Optional[str]): Filter jobs created on or after this time (ISO 8601 format, e.g., "2025-11-12T23:30:00.000Z").
+            creation_time_end (Optional[str]): Filter jobs created on or before this time (ISO 8601 format, e.g., "2025-11-14T00:00:00.000Z").
+            top (int): Maximum number of jobs to return (OData $top). Defaults to 25.
+            skip (int): Number of jobs to skip (OData $skip). Defaults to 0.
+            expand (Optional[List[str]]): List of entities to expand (e.g., ["Robot", "Machine", "Release"]). Defaults to None (no expansion).
+            include_test_automation (bool): Whether to include test automation processes. Defaults to False.
+
+        Returns:
+            List[Job]: List of jobs matching the filters.
+
+        Examples:
+            ```python
+            import asyncio
+            from uipath import UiPath
+
+            sdk = UiPath()
+
+            async def main():
+                # List first 25 jobs from a folder
+                jobs = await sdk.jobs.list_async(folder_path="Shared")
+
+                # List jobs filtered by release ID with pagination
+                jobs = await sdk.jobs.list_async(folder_path="Shared", release_id=619188, top=10, skip=0)
+
+                # List jobs filtered by release name (get the release first)
+                release = await sdk.processes.get_by_name_async("llamaindex-agent-no-llm")
+                jobs = await sdk.jobs.list_async(folder_path="Shared", release_id=release.id)
+
+                # List jobs within a time range
+                jobs = await sdk.jobs.list_async(
+                    folder_path="Shared",
+                    creation_time_start="2025-11-12T23:30:00.000Z",
+                    creation_time_end="2025-11-14T00:00:00.000Z"
+                )
+
+            asyncio.run(main())
+            ```
+        """
+        spec = self._list_spec(
+            folder_key=folder_key,
+            folder_path=folder_path,
+            release_id=release_id,
+            creation_time_start=creation_time_start,
+            creation_time_end=creation_time_end,
+            top=top,
+            skip=skip,
+            expand=expand,
+            include_test_automation=include_test_automation,
+        )
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
+
+        data = response.json()
+        jobs = [Job.model_validate(item) for item in data.get("value", [])]
+        return jobs
+
+    def _list_spec(
+        self,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        release_id: Optional[int] = None,
+        creation_time_start: Optional[str] = None,
+        creation_time_end: Optional[str] = None,
+        top: int = 25,
+        skip: int = 0,
+        expand: Optional[List[str]] = None,
+        include_test_automation: bool = False,
+    ) -> RequestSpec:
+        # Build the filter expression
+        filter_parts = []
+
+        # Add time range filters if provided
+        if creation_time_start is not None:
+            filter_parts.append(f"CreationTime ge {creation_time_start}")
+
+        if creation_time_end is not None:
+            filter_parts.append(f"CreationTime le {creation_time_end}")
+
+        # Add release filter if provided
+        if release_id is not None:
+            filter_parts.append(f"Release/Id eq {release_id}")
+
+
+        # Exclude test automation processes by default
+        if not include_test_automation:
+            filter_parts.append("ProcessType ne 'TestAutomationProcess'")
+
+        # Build the full filter string with proper OData syntax
+        if filter_parts:
+            filter_expr = "(" + " and ".join(f"({part})" for part in filter_parts) + ")"
+        else:
+            filter_expr = None
+
+        # Build expand parameter
+        expand_expr = ",".join(expand) if expand else None
+
+        # Build params dictionary
+        params = {
+            "$top": top,
+            "$orderby": "CreationTime desc",
+        }
+
+        if skip > 0:
+            params["$skip"] = skip
+
+        if filter_expr:
+            params["$filter"] = filter_expr
+
+        if expand_expr:
+            params["$expand"] = expand_expr
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/odata/Jobs"),
+            params=params,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
     @traced(name="jobs_create_attachment", run_type="uipath")
     def create_attachment(
         self,

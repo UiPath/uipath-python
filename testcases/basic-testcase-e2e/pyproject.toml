@@ -1,0 +1,18 @@
+[project]
+name = "python-script-basic-e2e"
+version = "0.0.1"
+description = "agent"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+     "uipath>=2.1.169.dev1009000000,<2.1.169.dev1009010000",
+]
+requires-python = ">=3.11"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
+
+[tool.uv.sources]
+uipath = { index = "testpypi" }
