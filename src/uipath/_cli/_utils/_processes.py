@@ -17,7 +17,7 @@ def get_release_info(
     package_name: str,
     package_version: str,
     folder_id: str,
-) -> None | tuple[Any, Any] | tuple[None, None]:
+) -> tuple[Any, Any] | tuple[None, None]:
     headers = {
         "Authorization": f"Bearer {token}",
         "x-uipath-organizationunitid": str(folder_id),

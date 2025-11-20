@@ -1,4 +1,3 @@
-# type: ignore
 import asyncio
 import logging
 import os
@@ -10,7 +9,7 @@ import httpx
 from ._utils._console import ConsoleLogger
 
 try:
-    import tomllib
+    import tomllib  # type: ignore[import-not-found]
 except ImportError:
     import tomli as tomllib
 
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 console = ConsoleLogger()
 
 
-def _read_project_details() -> [str, str]:
+def _read_project_details() -> tuple[str, str]:
     current_path = os.getcwd()
     toml_path = os.path.join(current_path, "pyproject.toml")
     if not os.path.isfile(toml_path):
@@ -72,6 +71,7 @@ def invoke(
             console.error(
                 "No personal workspace found for user. Please try reauthenticating."
             )
+            return
 
         _, release_key = get_release_info(
             base_url, token, project_name, project_version, personal_workspace_folder_id

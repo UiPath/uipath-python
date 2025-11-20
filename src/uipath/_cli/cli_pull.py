@@ -1,7 +1,5 @@
-# type: ignore
 """CLI command for pulling remote project files from UiPath StudioWeb solution."""
 
-# type: ignore
 import asyncio
 from pathlib import Path
 
@@ -50,6 +48,7 @@ def pull(root: Path, overwrite: bool) -> None:
     project_id = UiPathConfig.project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
+        return
 
     studio_client = StudioClient(project_id=project_id)
 
@@ -59,7 +58,7 @@ def pull(root: Path, overwrite: bool) -> None:
             console.info("Operation aborted.")
             return
 
-    download_configuration = {
+    download_configuration: dict[str | None, Path] = {
         None: root,
     }
 
