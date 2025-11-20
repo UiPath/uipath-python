@@ -7,7 +7,6 @@ import click
 import httpx
 
 from .._utils._ssl_context import get_httpx_client_kwargs
-from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info_async
@@ -67,7 +66,6 @@ def get_available_feeds(
     flag_value="personal",
     help="Whether to publish to the personal workspace",
 )
-@track
 def publish(feed):
     """Publish the package."""
     [base_url, token] = get_env_vars()

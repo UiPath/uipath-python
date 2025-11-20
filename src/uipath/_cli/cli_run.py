@@ -4,7 +4,6 @@ import json
 import os
 import uuid
 from datetime import datetime
-from os import environ as env
 from typing import Optional, Sequence
 
 import click
@@ -18,8 +17,6 @@ from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 from uipath.tracing._utils import _SpanUtils
 
-from .._utils.constants import ENV_JOB_ID
-from ..telemetry import track
 from ._runtime._contracts import UiPathRuntimeError
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -493,7 +490,6 @@ def _generate_evaluation_set(
     default=["json_similarity"],
     help="Evaluators to use for generated eval set (can be specified multiple times). Available: json_similarity, exact_match, contains, llm_judge, llm_judge_strict_json, llm_judge_trajectory, llm_judge_trajectory_simulation, tool_call_args, tool_call_count, tool_call_order, tool_call_output. You can also use full type IDs like 'uipath-json-similarity'.",
 )
-@track(when=lambda *_a, **_kw: env.get(ENV_JOB_ID) is None)
 def run(
     entrypoint: Optional[str],
     input: Optional[str],

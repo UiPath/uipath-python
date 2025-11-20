@@ -19,8 +19,6 @@ from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.tracing import LlmOpsHttpExporter
 
-from .._utils.constants import ENV_JOB_ID
-from ..telemetry import track
 from ._utils._console import ConsoleLogger
 from ._utils._eval_set import EvalHelpers
 
@@ -86,7 +84,6 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     help="Enable verbose debug output for evaluators",
     default=False,
 )
-@track(when=lambda *_a, **_kw: os.getenv(ENV_JOB_ID) is None)
 def eval(
     entrypoint: Optional[str],
     eval_set: Optional[str],
@@ -198,4 +195,5 @@ def eval(
 
 
 if __name__ == "__main__":
+    eval()
     eval()

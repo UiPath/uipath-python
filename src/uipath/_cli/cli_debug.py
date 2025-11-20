@@ -1,7 +1,6 @@
 # type: ignore
 import asyncio
 import os
-from os import environ as env
 from typing import Optional
 
 import click
@@ -12,16 +11,9 @@ from uipath._config import UiPathConfig
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.tracing import LlmOpsHttpExporter
 
-from .._utils.constants import (
-    ENV_JOB_ID,
-)
-from ..telemetry import track
 from ._debug._bridge import UiPathDebugBridge, get_debug_bridge
 from ._debug._runtime import UiPathDebugRuntime
-from ._runtime._contracts import (
-    UiPathRuntimeContext,
-    UiPathRuntimeFactory,
-)
+from ._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
 from ._runtime._runtime import UiPathScriptRuntime
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -63,7 +55,6 @@ console = ConsoleLogger()
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
-@track(when=lambda *_a, **_kw: env.get(ENV_JOB_ID) is None)
 def debug(
     entrypoint: Optional[str],
     input: Optional[str],

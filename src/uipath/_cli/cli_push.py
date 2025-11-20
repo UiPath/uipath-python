@@ -8,7 +8,6 @@ import click
 from uipath.models.exceptions import EnrichedException
 
 from .._config import UiPathConfig
-from ..telemetry import track
 from ._push.sw_file_handler import FileOperationUpdate, SwFileHandler
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
@@ -71,7 +70,6 @@ async def upload_source_files_to_project(
     is_flag=True,
     help="Skip running uv lock and exclude uv.lock from the package",
 )
-@track
 def push(root: str, nolock: bool) -> None:
     """Push local project files to Studio Web Project.
 

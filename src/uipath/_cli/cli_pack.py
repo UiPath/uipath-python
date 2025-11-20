@@ -11,7 +11,6 @@ from pydantic import TypeAdapter
 from uipath._cli.models.runtime_schema import Bindings, RuntimeSchema
 from uipath._config import UiPathConfig
 
-from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
@@ -311,7 +310,6 @@ def display_project_info(config):
     is_flag=True,
     help="Skip running uv lock and exclude uv.lock from the package",
 )
-@track
 def pack(root, nolock):
     """Pack the project."""
     version = get_project_version(root)
