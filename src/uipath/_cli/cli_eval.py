@@ -125,6 +125,7 @@ def eval(
         entrypoint,
         eval_set,
         eval_ids,
+        eval_set_run_id=eval_set_run_id,
         no_report=no_report,
         workers=workers,
         execution_output_file=output_file,
