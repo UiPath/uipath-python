@@ -4,7 +4,6 @@ import shutil
 
 import click
 
-from ..telemetry import track
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -28,9 +27,9 @@ version = "0.0.1"
 description = "{project_name}"
 authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
-    "uipath>=2.0.26"
+    "uipath>=2.1.174"
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 """
 
     with open(project_toml_path, "w") as f:
@@ -39,7 +38,6 @@ requires-python = ">=3.10"
 
 @click.command()
 @click.argument("name", type=str, default="")
-@track
 def new(name: str):
     """Generate a quick-start project."""
     directory = os.getcwd()

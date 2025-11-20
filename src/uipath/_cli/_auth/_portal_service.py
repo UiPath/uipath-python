@@ -66,7 +66,6 @@ class PortalService:
     def update_token_data(self, token_data: TokenData):
         self.access_token = token_data.access_token
         self.prt_id = get_parsed_token_data(token_data).get("prt_id")
-        update_auth_file(token_data)
 
     def get_tenants_and_organizations(
         self,
@@ -129,6 +128,7 @@ class PortalService:
 
         def finalize(token_data: TokenData):
             self.update_token_data(token_data)
+            update_auth_file(token_data)
             update_env_file({"UIPATH_ACCESS_TOKEN": token_data.access_token})
 
         if exp is not None and float(exp) > time.time():

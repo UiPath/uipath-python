@@ -8,8 +8,8 @@ import click
 from uipath.models.exceptions import EnrichedException
 
 from .._config import UiPathConfig
-from ..telemetry import track
 from ._push.sw_file_handler import SwFileHandler, UpdateEvent
+from ._utils._common import may_override_files
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     Severity,
@@ -18,7 +18,7 @@ from ._utils._project_files import (
     validate_config,
     validate_project_files,
 )
-from ._utils._studio_project import ProjectLockUnavailableError
+from ._utils._studio_project import ProjectLockUnavailableError, StudioClient
 from ._utils._uv_helpers import handle_uv_operations
 
 console = ConsoleLogger()
@@ -36,6 +36,7 @@ async def upload_source_files_to_project(
     project_id: str,
     settings: Optional[dict[str, Any]],
     directory: str,
+    studio_client: Optional[StudioClient] = None,
     include_uv_lock: bool = True,
 ) -> AsyncIterator[UpdateEvent]:
     """Upload source files to UiPath project, yielding progress updates.
@@ -55,6 +56,7 @@ async def upload_source_files_to_project(
     sw_file_handler = SwFileHandler(
         project_id=project_id,
         directory=directory,
+        studio_client=studio_client,
         include_uv_lock=include_uv_lock,
     )
 
@@ -71,7 +73,6 @@ async def upload_source_files_to_project(
     is_flag=True,
     help="Skip running uv lock and exclude uv.lock from the package",
 )
-@track
 def push(root: str, nolock: bool) -> None:
     """Push local project files to Studio Web Project.
 
@@ -102,12 +103,19 @@ def push(root: str, nolock: bool) -> None:
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
+    studio_client = StudioClient(project_id=project_id)
+    may_override = asyncio.run(may_override_files(studio_client, "remote"))
+    if not may_override:
+        console.info("Operation aborted.")
+        return
+
     async def push_with_updates():
         """Wrapper to handle async iteration and display updates."""
         async for update in upload_source_files_to_project(
             project_id,
             config.get("settings", {}),
             root,
+            studio_client,
             include_uv_lock=not nolock,
         ):
             match update.severity:

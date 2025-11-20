@@ -42,7 +42,7 @@ class NewRunPanel(Container):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        json_path = os.path.join(os.getcwd(), "uipath.json")
+        json_path = os.path.join(os.getcwd(), "entry-points.json")
         with open(json_path, "r") as f:
             data = json.load(f)
 

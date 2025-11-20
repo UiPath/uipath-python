@@ -3,9 +3,27 @@ from .actions import Action
 from .assets import Asset, UserAsset
 from .attachment import Attachment
 from .buckets import Bucket, BucketFile
-from .connections import Connection, ConnectionMetadata, ConnectionToken, EventArguments
+from .connections import (
+    ActivityMetadata,
+    ActivityParameterLocationInfo,
+    Connection,
+    ConnectionMetadata,
+    ConnectionToken,
+    EventArguments,
+)
 from .context_grounding import ContextGroundingQueryResponse
 from .context_grounding_index import ContextGroundingIndex
+from .context_grounding_payloads import (
+    BaseSourceConfig,
+    BucketSourceConfig,
+    ConfluenceSourceConfig,
+    ConnectionSourceConfig,
+    DropboxSourceConfig,
+    GoogleDriveSourceConfig,
+    Indexer,
+    OneDriveSourceConfig,
+    SourceConfig,
+)
 from .errors import BaseUrlMissingError, SecretMissingError
 from .exceptions import IngestionInProgressException
 from .interrupt_models import (
@@ -59,4 +77,15 @@ __all__ = [
     "Tag",
     "Folder",
     "ResourceType",
+    "BaseSourceConfig",
+    "BucketSourceConfig",
+    "ConfluenceSourceConfig",
+    "ConnectionSourceConfig",
+    "DropboxSourceConfig",
+    "GoogleDriveSourceConfig",
+    "OneDriveSourceConfig",
+    "SourceConfig",
+    "Indexer",
+    "ActivityMetadata",
+    "ActivityParameterLocationInfo",
 ]

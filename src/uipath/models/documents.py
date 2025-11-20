@@ -39,6 +39,8 @@ class ProjectType(str, Enum):
     """Represents an [IXP](https://docs.uipath.com/ixp/automation-cloud/latest/overview/managing-projects#creating-a-new-project) project type."""
     MODERN = "Modern"
     """Represents a [DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project type."""
+    PRETRAINED = "Pretrained"
+    """Represents a [Pretrained](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/out-of-the-box-pre-trained-ml-packages) project type."""
 
 
 class FieldValueProjection(BaseModel):
@@ -101,7 +103,7 @@ class ExtractionResponse(BaseModel):
     extraction_result: ExtractionResult = Field(alias="extractionResult")
     project_id: str = Field(alias="projectId")
     project_type: ProjectType = Field(alias="projectType")
-    tag: str
+    tag: Optional[str]
     document_type_id: str = Field(alias="documentTypeId")
 
 
@@ -135,7 +137,7 @@ class ValidationAction(BaseModel):
     action_status: str = Field(alias="actionStatus")
     project_id: str = Field(alias="projectId")
     project_type: ProjectType = Field(alias="projectType")
-    tag: str
+    tag: Optional[str]
     operation_id: str = Field(alias="operationId")
 
 
@@ -198,7 +200,8 @@ class ClassificationResult(BaseModel):
     document_bounds: DocumentBounds = Field(alias="DocumentBounds")
     classifier_name: str = Field(alias="ClassifierName")
     project_id: str = Field(alias="ProjectId")
-    tag: str = Field(alias="Tag")
+    project_type: ProjectType = Field(alias="ProjectType")
+    tag: Optional[str] = Field(alias="Tag")
 
 
 class ClassificationResponse(BaseModel):

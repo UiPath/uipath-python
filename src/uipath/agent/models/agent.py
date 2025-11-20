@@ -338,6 +338,8 @@ class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
     settings: Optional[AgentToolSettings] = Field(None)
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
     is_enabled: Optional[bool] = Field(None, alias="isEnabled")
+    # is output schemas were only recently added so they will be missing in some resources
+    output_schema: Optional[Dict[str, Any]] = Field(None, alias="outputSchema")
 
 
 class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):

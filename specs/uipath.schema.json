@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cloud.uipath.com/draft/2024-12/uipath",
+  "title": "UiPath Configuration",
+  "description": "Configuration file for UiPath projects",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON schema for editor support"
+    },
+    "runtimeOptions": {
+      "type": "object",
+      "description": "Runtime behavior configuration",
+      "properties": {
+        "isConversational": {
+          "type": "boolean",
+          "description": "Enable conversational mode for the runtime",
+          "default": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "designOptions": {
+      "type": "object",
+      "description": "Design-time configuration and preferences",
+      "additionalProperties": true
+    },
+    "packOptions": {
+      "type": "object",
+      "description": "File inclusion and exclusion settings for packaging",
+      "properties": {
+        "fileExtensionsIncluded": {
+          "type": "array",
+          "description": "File extensions to include in the package",
+          "items": {
+            "type": "string",
+            "pattern": "^\\."
+          },
+          "default": [
+            ".py",
+            ".mermaid",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".md"
+          ]
+        },
+        "filesIncluded": {
+          "type": "array",
+          "description": "Specific files to include in the package",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "pyproject.toml"
+          ]
+        },
+        "filesExcluded": {
+          "type": "array",
+          "description": "Specific files to exclude from the package",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "directoriesExcluded": {
+          "type": "array",
+          "description": "Directories to exclude from the package",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "includeUvLock": {
+          "type": "boolean",
+          "description": "Whether to include uv.lock file in the package",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "functions": {
+      "type": "object",
+      "description": "Entrypoint definitions for pure Python scripts. Each key is an entrypoint name, and each value is a path in format 'file_path:function_name'",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

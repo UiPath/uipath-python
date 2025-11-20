@@ -7,7 +7,6 @@ import click
 import httpx
 
 from .._utils._ssl_context import get_httpx_client_kwargs
-from ..telemetry import track
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info_async
@@ -118,7 +117,6 @@ def find_feed_by_folder_name(
     type=str,
     help="Folder name to publish to (skips interactive selection)",
 )
-@track
 def publish(feed, folder):
     """Publish the package."""
     [base_url, token] = get_env_vars()

@@ -23,21 +23,36 @@ HEADER_INTERNAL_TENANT_ID = "x-uipath-internal-tenantid"
 HEADER_JOB_KEY = "x-uipath-jobkey"
 HEADER_SW_LOCK_KEY = "x-uipath-sw-lockkey"
 
-# Data sources
-ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (
+# Data sources (request types)
+ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE_REQUEST = (
     "#UiPath.Vdbs.Domain.Api.V20Models.StorageBucketDataSourceRequest"
 )
-CONFLUENCE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.ConfluenceDataSourceRequest"
-DROPBOX_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.DropboxDataSourceRequest"
-GOOGLE_DRIVE_DATA_SOURCE = (
+CONFLUENCE_DATA_SOURCE_REQUEST = (
+    "#UiPath.Vdbs.Domain.Api.V20Models.ConfluenceDataSourceRequest"
+)
+DROPBOX_DATA_SOURCE_REQUEST = (
+    "#UiPath.Vdbs.Domain.Api.V20Models.DropboxDataSourceRequest"
+)
+GOOGLE_DRIVE_DATA_SOURCE_REQUEST = (
     "#UiPath.Vdbs.Domain.Api.V20Models.GoogleDriveDataSourceRequest"
 )
-ONEDRIVE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.OneDriveDataSourceRequest"
+ONEDRIVE_DATA_SOURCE_REQUEST = (
+    "#UiPath.Vdbs.Domain.Api.V20Models.OneDriveDataSourceRequest"
+)
+
+# Data sources
+ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE = (
+    "#UiPath.Vdbs.Domain.Api.V20Models.StorageBucketDataSource"
+)
+CONFLUENCE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.ConfluenceDataSource"
+DROPBOX_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.DropboxDataSource"
+GOOGLE_DRIVE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.GoogleDriveDataSource"
+ONEDRIVE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.OneDriveDataSource"
 
 # Preprocessing request types
-LLMV3Mini = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV3MiniPreProcessingRequest"
-LLMV4 = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest"
-NativeV1 = "#UiPath.Vdbs.Domain.Api.V20Models.NativeV1PreProcessingRequest"
+LLMV3Mini_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV3MiniPreProcessingRequest"
+LLMV4_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest"
+NativeV1_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.NativeV1PreProcessingRequest"
 
 
 # Local storage
@@ -50,6 +65,7 @@ COMMUNITY_agents_SUFFIX = "-community-agents"
 UIPATH_CONFIG_FILE = "uipath.json"
 UIPATH_BINDINGS_FILE = "bindings.json"
 ENTRY_POINTS_FILE = "entry-points.json"
+STUDIO_METADATA_FILE = "studio_metadata.json"
 
 
 # Folder names

@@ -96,7 +96,7 @@ jobs:
         testcase: ${{ fromJson(needs.discover-testcases.outputs.testcases) }}
         environment: [alpha, staging] # temporary disable [cloud]
 
-    name: "${{ matrix.testcase }} / ${{ matrix.environment }}
+    name: "${{ matrix.testcase }} / ${{ matrix.environment }}"
 
     steps:
       - name: Checkout uipath-python

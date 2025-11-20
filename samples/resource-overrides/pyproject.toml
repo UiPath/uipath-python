@@ -6,5 +6,5 @@ authors = [{ name = "John Doe" }]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "uipath>=2.1.164,<2.2.0",
+  "uipath>=2.1.169,<2.2.0",
 ]

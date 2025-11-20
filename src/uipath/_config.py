@@ -72,5 +72,11 @@ class ConfigurationManager:
 
         return Path(ENTRY_POINTS_FILE)
 
+    @property
+    def studio_metadata_file_path(self) -> Path:
+        from uipath._utils.constants import STUDIO_METADATA_FILE
+
+        return Path(".uipath", STUDIO_METADATA_FILE)
+
 
 UiPathConfig = ConfigurationManager()
