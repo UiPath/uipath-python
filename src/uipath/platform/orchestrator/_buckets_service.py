@@ -8,6 +8,7 @@ import httpx
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils.validation import validate_pagination_params
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ..common.paging import PagedResult
@@ -94,21 +95,13 @@ class BucketsService(FolderContext, BaseService):
             >>> for bucket in iter_all_buckets(sdk, name="invoice"):
             ...     process_bucket(bucket)
         """
-        # Validate parameters
-        if skip < 0:
-            raise ValueError("skip must be >= 0")
-        if skip > MAX_SKIP_OFFSET:
-            raise ValueError(
-                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
-                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
-            )
-        if top < 1:
-            raise ValueError("top must be >= 1")
-        if top > MAX_PAGE_SIZE:
-            raise ValueError(
-                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
-                f"Use pagination with skip and top parameters to retrieve larger datasets."
-            )
+        # Validate parameters using shared utility
+        validate_pagination_params(
+            skip=skip,
+            top=top,
+            max_skip=MAX_SKIP_OFFSET,
+            max_top=MAX_PAGE_SIZE,
+        )
 
         spec = self._list_spec(
             folder_path=folder_path,
@@ -178,21 +171,13 @@ class BucketsService(FolderContext, BaseService):
             ...         break
             ...     skip += top
         """
-        # Validate parameters
-        if skip < 0:
-            raise ValueError("skip must be >= 0")
-        if skip > MAX_SKIP_OFFSET:
-            raise ValueError(
-                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
-                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
-            )
-        if top < 1:
-            raise ValueError("top must be >= 1")
-        if top > MAX_PAGE_SIZE:
-            raise ValueError(
-                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
-                f"Use pagination with skip and top parameters to retrieve larger datasets."
-            )
+        # Validate parameters using shared utility
+        validate_pagination_params(
+            skip=skip,
+            top=top,
+            max_skip=MAX_SKIP_OFFSET,
+            max_top=MAX_PAGE_SIZE,
+        )
 
         spec = self._list_spec(
             folder_path=folder_path,
