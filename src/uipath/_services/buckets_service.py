@@ -2,7 +2,7 @@ import asyncio
 import mimetypes
 import uuid
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Iterator, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import httpx
 
@@ -12,8 +12,13 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils._ssl_context import get_httpx_client_kwargs
 from ..models import Bucket, BucketFile
-from ..tracing import traced
+from ..models.paging import PagedResult
+from ..tracing._traced import traced
 from ._base_service import BaseService
+
+# Pagination limits
+MAX_PAGE_SIZE = 1000  # Maximum items per page (top parameter)
+MAX_SKIP_OFFSET = 10000  # Maximum skip offset for offset-based pagination
 
 
 class BucketsService(FolderContext, BaseService):
@@ -22,8 +27,6 @@ class BucketsService(FolderContext, BaseService):
     Buckets are cloud storage containers that can be used to store and manage files
     used by automation processes.
     """
-
-    _GET_FILES_PAGE_SIZE = 500  # OData GetFiles pagination page size
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
@@ -37,60 +40,100 @@ class BucketsService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         name: Optional[str] = None,
-    ) -> Iterator[Bucket]:
-        """List buckets with auto-pagination.
+        skip: int = 0,
+        top: int = 100,
+    ) -> PagedResult[Bucket]:
+        """List buckets using OData API with offset-based pagination.
+
+        Returns a single page of results with pagination metadata.
 
         Args:
             folder_path: Folder path to filter buckets
             folder_key: Folder key (mutually exclusive with folder_path)
             name: Filter by bucket name (contains match)
+            skip: Number of buckets to skip (default 0, max 10000)
+            top: Maximum number of buckets to return (default 100, max 1000)
 
-        Yields:
-            Bucket: Bucket resource instances
+        Returns:
+            PagedResult[Bucket]: Page containing buckets and pagination metadata
+
+        Raises:
+            ValueError: If skip < 0, skip > 10000, top < 1, or top > 1000
 
         Examples:
-            >>> # List all buckets
-            >>> for bucket in sdk.buckets.list():
+            >>> # Get first page
+            >>> result = sdk.buckets.list(top=100)
+            >>> for bucket in result.items:
             ...     print(bucket.name)
             >>>
-            >>> # Filter by folder
-            >>> for bucket in sdk.buckets.list(folder_path="Production"):
-            ...     print(bucket.name)
+            >>> # Check pagination metadata
+            >>> if result.has_more:
+            ...     print(f"More results available. Current: skip={result.skip}, top={result.top}")
             >>>
-            >>> # Filter by name
-            >>> for bucket in sdk.buckets.list(name="invoice"):
-            ...     print(bucket.name)
+            >>> # Manual pagination to get all buckets
+            >>> skip = 0
+            >>> top = 100
+            >>> all_buckets = []
+            >>> while True:
+            ...     result = sdk.buckets.list(skip=skip, top=top, name="invoice")
+            ...     all_buckets.extend(result.items)
+            ...     if not result.has_more:
+            ...         break
+            ...     skip += top
+            >>>
+            >>> # Helper function for complete iteration
+            >>> def iter_all_buckets(sdk, top=100, **filters):
+            ...     skip = 0
+            ...     while True:
+            ...         result = sdk.buckets.list(skip=skip, top=top, **filters)
+            ...         yield from result.items
+            ...         if not result.has_more:
+            ...             break
+            ...         skip += top
+            >>>
+            >>> # Usage
+            >>> for bucket in iter_all_buckets(sdk, name="invoice"):
+            ...     process_bucket(bucket)
         """
-        skip = 0
-        top = 100
-
-        while True:
-            spec = self._list_spec(
-                folder_path=folder_path,
-                folder_key=folder_key,
-                name=name,
-                skip=skip,
-                top=top,
+        # Validate parameters
+        if skip < 0:
+            raise ValueError("skip must be >= 0")
+        if skip > MAX_SKIP_OFFSET:
+            raise ValueError(
+                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
+                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
             )
-            response = self.request(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-                headers=spec.headers,
-            ).json()
+        if top < 1:
+            raise ValueError("top must be >= 1")
+        if top > MAX_PAGE_SIZE:
+            raise ValueError(
+                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
+                f"Use pagination with skip and top parameters to retrieve larger datasets."
+            )
 
-            items = response.get("value", [])
-            if not items:
-                break
+        spec = self._list_spec(
+            folder_path=folder_path,
+            folder_key=folder_key,
+            name=name,
+            skip=skip,
+            top=top,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
 
-            for item in items:
-                bucket = Bucket.model_validate(item)
-                yield bucket
+        items = response.get("value", [])
+        buckets = [Bucket.model_validate(item) for item in items]
 
-            if len(items) < top:
-                break
-
-            skip += top
+        return PagedResult(
+            items=buckets,
+            has_more=len(items) == top,
+            skip=skip,
+            top=top,
+        )
 
     @traced(name="buckets_list", run_type="uipath")
     async def list_async(
@@ -99,40 +142,84 @@ class BucketsService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         name: Optional[str] = None,
-    ) -> AsyncIterator[Bucket]:
-        """Async version of list() with auto-pagination."""
-        skip = 0
-        top = 50
+        skip: int = 0,
+        top: int = 100,
+    ) -> PagedResult[Bucket]:
+        """Async version of list() with offset-based pagination.
 
-        while True:
-            spec = self._list_spec(
-                folder_path=folder_path,
-                folder_key=folder_key,
-                name=name,
-                skip=skip,
-                top=top,
+        Returns a single page of results with pagination metadata.
+
+        Args:
+            folder_path: Folder path to filter buckets
+            folder_key: Folder key (mutually exclusive with folder_path)
+            name: Filter by bucket name (contains match)
+            skip: Number of buckets to skip (default 0, max 10000)
+            top: Maximum number of buckets to return (default 100, max 1000)
+
+        Returns:
+            PagedResult[Bucket]: Page containing buckets and pagination metadata
+
+        Raises:
+            ValueError: If skip < 0, skip > 10000, top < 1, or top > 1000
+
+        Examples:
+            >>> # Get first page
+            >>> result = await sdk.buckets.list_async(top=100)
+            >>> for bucket in result.items:
+            ...     print(bucket.name)
+            >>>
+            >>> # Manual pagination
+            >>> skip = 0
+            >>> top = 100
+            >>> all_buckets = []
+            >>> while True:
+            ...     result = await sdk.buckets.list_async(skip=skip, top=top)
+            ...     all_buckets.extend(result.items)
+            ...     if not result.has_more:
+            ...         break
+            ...     skip += top
+        """
+        # Validate parameters
+        if skip < 0:
+            raise ValueError("skip must be >= 0")
+        if skip > MAX_SKIP_OFFSET:
+            raise ValueError(
+                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
+                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
             )
-            response = (
-                await self.request_async(
-                    spec.method,
-                    url=spec.endpoint,
-                    params=spec.params,
-                    headers=spec.headers,
-                )
-            ).json()
+        if top < 1:
+            raise ValueError("top must be >= 1")
+        if top > MAX_PAGE_SIZE:
+            raise ValueError(
+                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
+                f"Use pagination with skip and top parameters to retrieve larger datasets."
+            )
 
-            items = response.get("value", [])
-            if not items:
-                break
+        spec = self._list_spec(
+            folder_path=folder_path,
+            folder_key=folder_key,
+            name=name,
+            skip=skip,
+            top=top,
+        )
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
 
-            for item in items:
-                bucket = Bucket.model_validate(item)
-                yield bucket
+        items = response.get("value", [])
+        buckets = [Bucket.model_validate(item) for item in items]
 
-            if len(items) < top:
-                break
-
-            skip += top
+        return PagedResult(
+            items=buckets,
+            has_more=len(items) == top,
+            skip=skip,
+            top=top,
+        )
 
     @traced(name="buckets_exists", run_type="uipath")
     def exists(
@@ -781,60 +868,110 @@ class BucketsService(FolderContext, BaseService):
         name: Optional[str] = None,
         key: Optional[str] = None,
         prefix: str = "",
+        take_hint: int = 500,
+        continuation_token: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> Iterator[BucketFile]:
-        """List files in a bucket.
+    ) -> PagedResult[BucketFile]:
+        """List files in a bucket using cursor-based pagination.
+
+        Returns a single page of results with continuation token for manual pagination.
+        This method uses the REST API with continuation tokens for efficient pagination
+        of large file sets. Recommended for sequential iteration over millions of files.
 
         Args:
             name: Bucket name
             key: Bucket identifier
             prefix: Filter files by prefix
+            take_hint: Minimum number of files to return (default 500, max 1000).
+                      The API may return up to 2x this value in some cases.
+            continuation_token: Token from previous response. Pass None for first page.
             folder_key: Folder key
             folder_path: Folder path
 
         Returns:
-            Iterator[BucketFile]: Iterator of files in the bucket
+            PagedResult[BucketFile]: Page containing files and continuation token metadata
 
-        Note:
-            Returns an iterator for memory efficiency. Use list() to materialize all results:
-            files = list(sdk.buckets.list_files(name="my-storage"))
-
-            This method automatically handles pagination, fetching up to 500 files per request.
+        Raises:
+            ValueError: If take_hint is not between 1 and 1000
 
         Examples:
-            >>> for file in sdk.buckets.list_files(name="my-storage"):
+            >>> # Get first page
+            >>> result = sdk.buckets.list_files(name="my-storage")
+            >>> print(f"Got {len(result.items)} files")
+            >>>
+            >>> # Manual pagination to get all files
+            >>> all_files = []
+            >>> token = None
+            >>> while True:
+            ...     result = sdk.buckets.list_files(
+            ...         name="my-storage",
+            ...         prefix="reports/2024/",
+            ...         continuation_token=token
+            ...     )
+            ...     all_files.extend(result.items)
+            ...     if not result.continuation_token:
+            ...         break
+            ...     token = result.continuation_token
+            >>>
+            >>> # Helper function for iteration
+            >>> def iter_all_files(sdk, bucket_name, prefix=""):
+            ...     token = None
+            ...     while True:
+            ...         result = sdk.buckets.list_files(
+            ...             name=bucket_name,
+            ...             prefix=prefix,
+            ...             continuation_token=token
+            ...         )
+            ...         yield from result.items
+            ...         if not result.continuation_token:
+            ...             break
+            ...         token = result.continuation_token
+            >>>
+            >>> # Usage
+            >>> for file in iter_all_files(sdk, "my-storage", "reports/"):
             ...     print(file.path)
-            >>> files = list(sdk.buckets.list_files(name="my-storage", prefix="data/"))
+
+        Performance:
+            Cursor-based pagination scales efficiently to millions of files.
+            Each page requires one API call regardless of dataset size.
+
+            For sequential processing, this is the most efficient method.
+            For filtered queries, consider get_files() with OData filters.
         """
+        # Validate parameters
+        if take_hint < 1 or take_hint > 1000:
+            raise ValueError("take_hint must be between 1 and 1000")
+
         bucket = self.retrieve(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
-        continuation_token: Optional[str] = None
+        spec = self._list_files_spec(
+            bucket.id,
+            prefix,
+            continuation_token=continuation_token,
+            take_hint=take_hint,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
-        while True:
-            spec = self._list_files_spec(
-                bucket.id,
-                prefix,
-                continuation_token=continuation_token,
-                folder_key=folder_key,
-                folder_path=folder_path,
-            )
-            response = self.request(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-                headers=spec.headers,
-            ).json()
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
 
-            items = response.get("items", [])
-            for item in items:
-                yield BucketFile.model_validate(item)
+        items = response.get("items", [])
+        files = [BucketFile.model_validate(item) for item in items]
+        next_token = response.get("continuationToken")
 
-            continuation_token = response.get("continuationToken")
-            if not continuation_token:
-                break
+        return PagedResult(
+            items=files,
+            continuation_token=next_token,
+            has_more=next_token is not None,
+        )
 
     @traced(name="buckets_list_files", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -844,62 +981,84 @@ class BucketsService(FolderContext, BaseService):
         name: Optional[str] = None,
         key: Optional[str] = None,
         prefix: str = "",
+        take_hint: int = 500,
+        continuation_token: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> AsyncIterator[BucketFile]:
-        """List files in a bucket asynchronously.
+    ) -> PagedResult[BucketFile]:
+        """Async version of list_files() with cursor-based pagination.
+
+        Returns a single page of results with continuation token for manual pagination.
 
         Args:
             name: Bucket name
             key: Bucket identifier
             prefix: Filter files by prefix
+            take_hint: Minimum number of files to return (default 500, max 1000).
+                      The API may return up to 2x this value in some cases.
+            continuation_token: Token from previous response. Pass None for first page.
             folder_key: Folder key
             folder_path: Folder path
 
         Returns:
-            AsyncIterator[BucketFile]: Async iterator of files in the bucket
+            PagedResult[BucketFile]: Page containing files and continuation token metadata
 
-        Note:
-            Returns an async iterator for memory efficiency. Use list comprehension to materialize:
-            files = [f async for f in sdk.buckets.list_files_async(name="my-storage")]
-
-            This method automatically handles pagination, fetching up to 500 files per request.
+        Raises:
+            ValueError: If take_hint is not between 1 and 1000
 
         Examples:
-            >>> async for file in sdk.buckets.list_files_async(name="my-storage"):
-            ...     print(file.path)
-            >>> files = [f async for f in sdk.buckets.list_files_async(name="my-storage", prefix="data/")]
+            >>> # Get first page
+            >>> result = await sdk.buckets.list_files_async(name="my-storage")
+            >>> print(f"Got {len(result.items)} files")
+            >>>
+            >>> # Manual pagination
+            >>> all_files = []
+            >>> token = None
+            >>> while True:
+            ...     result = await sdk.buckets.list_files_async(
+            ...         name="my-storage",
+            ...         continuation_token=token
+            ...     )
+            ...     all_files.extend(result.items)
+            ...     if not result.continuation_token:
+            ...         break
+            ...     token = result.continuation_token
         """
+        # Validate parameters
+        if take_hint < 1 or take_hint > 1000:
+            raise ValueError("take_hint must be between 1 and 1000")
+
         bucket = await self.retrieve_async(
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
-        continuation_token: Optional[str] = None
+        spec = self._list_files_spec(
+            bucket.id,
+            prefix,
+            continuation_token=continuation_token,
+            take_hint=take_hint,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
-        while True:
-            spec = self._list_files_spec(
-                bucket.id,
-                prefix,
-                continuation_token=continuation_token,
-                folder_key=folder_key,
-                folder_path=folder_path,
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
             )
-            response = (
-                await self.request_async(
-                    spec.method,
-                    url=spec.endpoint,
-                    params=spec.params,
-                    headers=spec.headers,
-                )
-            ).json()
+        ).json()
 
-            items = response.get("items", [])
-            for item in items:
-                yield BucketFile.model_validate(item)
+        items = response.get("items", [])
+        files = [BucketFile.model_validate(item) for item in items]
+        next_token = response.get("continuationToken")
 
-            continuation_token = response.get("continuationToken")
-            if not continuation_token:
-                break
+        return PagedResult(
+            items=files,
+            continuation_token=next_token,
+            has_more=next_token is not None,
+        )
 
     @traced(name="buckets_exists_file", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -949,15 +1108,39 @@ class BucketsService(FolderContext, BaseService):
         normalized_target = (
             blob_file_path if blob_file_path.startswith("/") else f"/{blob_file_path}"
         )
-        for file in self.list_files(
-            name=name,
-            key=key,
-            prefix=blob_file_path,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        ):
-            if file.path == normalized_target:
-                return True
+
+        bucket = self.retrieve(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+
+        token = None
+        while True:
+            spec = self._list_files_spec(
+                bucket.id,
+                normalized_target,  # Use normalized path for prefix
+                continuation_token=token,
+                take_hint=1,  # Performance optimization: only need first match
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            ).json()
+
+            items = response.get("items", [])
+            for item in items:
+                file = BucketFile.model_validate(item)
+                if file.path == normalized_target:
+                    return True
+
+            token = response.get("continuationToken")
+            if not token:
+                break
+
         return False
 
     @traced(name="buckets_exists_file", run_type="uipath")
@@ -997,15 +1180,41 @@ class BucketsService(FolderContext, BaseService):
         normalized_target = (
             blob_file_path if blob_file_path.startswith("/") else f"/{blob_file_path}"
         )
-        async for file in self.list_files_async(
-            name=name,
-            key=key,
-            prefix=blob_file_path,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        ):
-            if file.path == normalized_target:
-                return True
+
+        bucket = await self.retrieve_async(
+            name=name, key=key, folder_key=folder_key, folder_path=folder_path
+        )
+
+        token = None
+        while True:
+            spec = self._list_files_spec(
+                bucket.id,
+                normalized_target,  # Use normalized path for prefix
+                continuation_token=token,
+                take_hint=1,  # Performance optimization: only need first match
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+
+            response = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                )
+            ).json()
+
+            items = response.get("items", [])
+            for item in items:
+                file = BucketFile.model_validate(item)
+                if file.path == normalized_target:
+                    return True
+
+            token = response.get("continuationToken")
+            if not token:
+                break
+
         return False
 
     @traced(name="buckets_delete_file", run_type="uipath")
@@ -1090,16 +1299,20 @@ class BucketsService(FolderContext, BaseService):
         prefix: str = "",
         recursive: bool = False,
         file_name_glob: Optional[str] = None,
+        skip: int = 0,
+        top: int = 500,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> Iterator[BucketFile]:
-        """Get files using OData GetFiles API (Studio-compatible).
+    ) -> PagedResult[BucketFile]:
+        """Get files using OData GetFiles API with offset-based pagination.
 
-        This method uses the GetFiles API which is used by UiPath Studio activities.
-        Use this when you need:
-        - Recursive directory traversal
-        - Glob pattern filtering (e.g., "*.pdf")
-        - Compatibility with Studio activity behavior
+        This method uses the OData API with $skip/$top for pagination.
+        Supports recursive traversal, glob filtering, and OData features.
+        Automatically excludes directories from results.
+
+        Note: Offset-based pagination can degrade performance with very
+        large skip values (e.g., skip > 10000). For sequential iteration
+        over large datasets, consider list_files() instead.
 
         Args:
             name: Bucket name
@@ -1107,36 +1320,93 @@ class BucketsService(FolderContext, BaseService):
             prefix: Directory path to filter files (default: root)
             recursive: Recurse subdirectories for flat view (default: False)
             file_name_glob: File filter pattern (e.g., "*.pdf", "data_*.csv")
+            skip: Number of files to skip (default 0, max 10000). Used for pagination.
+            top: Maximum number of files to return (default 500, max 1000).
             folder_key: Folder key
             folder_path: Folder path
 
         Returns:
-            Iterator[BucketFile]: Iterator of files matching criteria
+            PagedResult[BucketFile]: Page containing files (directories excluded) and pagination metadata
 
         Raises:
-            ValueError: If neither name nor key is provided
+            ValueError: If skip < 0, skip > 10000, top < 1, top > 1000, neither name nor key is provided, or file_name_glob is empty
             LookupError: If bucket not found
-            Exception: For API errors or invalid responses
-
-        Note:
-            For large buckets with 10,000+ files, consider using list_files()
-            which uses more efficient cursor-based pagination.
 
         Examples:
-            >>> # Get all PDF files recursively
-            >>> for file in sdk.buckets.get_files(
+            >>> # Get first page
+            >>> result = sdk.buckets.get_files(name="my-storage")
+            >>> for file in result.items:
+            ...     print(file.name)
+            >>>
+            >>> # Filter with glob pattern
+            >>> result = sdk.buckets.get_files(
             ...     name="my-storage",
             ...     recursive=True,
             ...     file_name_glob="*.pdf"
-            ... ):
-            ...     print(f"{file.path} - {file.size} bytes")
+            ... )
             >>>
-            >>> # Get files in specific directory
-            >>> files = list(sdk.buckets.get_files(
-            ...     name="my-storage",
-            ...     prefix="reports/"
-            ... ))
+            >>> # Manual offset-based pagination
+            >>> skip = 0
+            >>> top = 500
+            >>> all_files = []
+            >>> while True:
+            ...     result = sdk.buckets.get_files(
+            ...         name="my-storage",
+            ...         prefix="reports/",
+            ...         skip=skip,
+            ...         top=top
+            ...     )
+            ...     all_files.extend(result.items)
+            ...     if not result.has_more:
+            ...         break
+            ...     skip += top
+            >>>
+            >>> # Helper function
+            >>> def iter_all_files_odata(sdk, bucket_name, **filters):
+            ...     skip = 0
+            ...     top = 500
+            ...     while True:
+            ...         result = sdk.buckets.get_files(
+            ...             name=bucket_name,
+            ...             skip=skip,
+            ...             top=top,
+            ...             **filters
+            ...         )
+            ...         yield from result.items
+            ...         if not result.has_more:
+            ...             break
+            ...         skip += top
+            >>>
+            >>> # Usage with filters
+            >>> for file in iter_all_files_odata(
+            ...     sdk,
+            ...     "my-storage",
+            ...     recursive=True,
+            ...     file_name_glob="*.pdf"
+            ... ):
+            ...     process_file(file)
+
+        Performance:
+            Best for: Filtered queries, random access, sorted results.
+            Consider list_files() for: Sequential iteration over large datasets.
+
+            Performance degrades with large skip values due to database offset costs.
         """
+        if skip < 0:
+            raise ValueError("skip must be >= 0")
+        if skip > MAX_SKIP_OFFSET:
+            raise ValueError(
+                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
+                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
+            )
+        if top < 1:
+            raise ValueError("top must be >= 1")
+        if top > MAX_PAGE_SIZE:
+            raise ValueError(
+                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
+                f"Use pagination with skip and top parameters to retrieve larger datasets."
+            )
+
         if not (name or key):
             raise ValueError("Must specify either bucket name or key")
 
@@ -1147,46 +1417,42 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
-        skip = 0
-        top = self._GET_FILES_PAGE_SIZE
+        spec = self._get_files_spec(
+            bucket.id,
+            prefix=prefix,
+            recursive=recursive,
+            file_name_glob=file_name_glob,
+            skip=skip,
+            top=top,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
-        while True:
-            spec = self._get_files_spec(
-                bucket.id,
-                prefix=prefix,
-                recursive=recursive,
-                file_name_glob=file_name_glob,
-                skip=skip,
-                top=top,
-                folder_key=folder_key,
-                folder_path=folder_path,
-            )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
 
-            response = self.request(
-                spec.method,
-                url=spec.endpoint,
-                params=spec.params,
-                headers=spec.headers,
-            ).json()
+        items = response.get("value", [])
 
-            items = response.get("value", [])
+        files = []
+        for item in items:
+            if not item.get("IsDirectory", False):
+                try:
+                    files.append(BucketFile.model_validate(item))
+                except Exception as e:
+                    raise ValueError(
+                        f"Failed to parse file entry: {e}. Item: {item}"
+                    ) from e
 
-            if not items:
-                break
-
-            for item in items:
-                if not item.get("IsDirectory", False):
-                    try:
-                        yield BucketFile.model_validate(item)
-                    except Exception as e:
-                        raise ValueError(
-                            f"Failed to parse file entry: {e}. Item: {item}"
-                        ) from e
-
-            if len(items) < top:
-                break
-
-            skip += top
+        return PagedResult(
+            items=files,
+            has_more=len(items) == top,  # Raw count, not len(files)
+            skip=skip,
+            top=top,
+        )
 
     @traced(name="buckets_get_files", run_type="uipath")
     @resource_override(resource_type="bucket")
@@ -1198,21 +1464,74 @@ class BucketsService(FolderContext, BaseService):
         prefix: str = "",
         recursive: bool = False,
         file_name_glob: Optional[str] = None,
+        skip: int = 0,
+        top: int = 500,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> AsyncIterator[BucketFile]:
-        """Async version of get_files().
+    ) -> PagedResult[BucketFile]:
+        """Async version of get_files() with offset-based pagination.
 
-        See get_files() for detailed documentation.
+        Returns a single page of results with pagination metadata.
+        Automatically excludes directories from results.
+
+        Args:
+            name: Bucket name
+            key: Bucket identifier
+            prefix: Directory path to filter files
+            recursive: Recurse subdirectories for flat view
+            file_name_glob: File filter pattern (e.g., "*.pdf")
+            skip: Number of files to skip (default 0, max 10000)
+            top: Maximum number of files to return (default 500, max 1000)
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            PagedResult[BucketFile]: Page containing files (directories excluded) and pagination metadata
+
+        Raises:
+            ValueError: If skip < 0, skip > 10000, top < 1, top > 1000, neither name nor key is provided, or file_name_glob is empty
+            LookupError: If bucket not found
 
         Examples:
-            >>> async for file in sdk.buckets.get_files_async(
+            >>> # Get first page
+            >>> result = await sdk.buckets.get_files_async(
             ...     name="my-storage",
             ...     recursive=True,
             ...     file_name_glob="*.pdf"
-            ... ):
-            ...     print(file.path)
+            ... )
+            >>> for file in result.items:
+            ...     print(file.name)
+            >>>
+            >>> # Manual pagination
+            >>> skip = 0
+            >>> top = 500
+            >>> all_files = []
+            >>> while True:
+            ...     result = await sdk.buckets.get_files_async(
+            ...         name="my-storage",
+            ...         skip=skip,
+            ...         top=top
+            ...     )
+            ...     all_files.extend(result.items)
+            ...     if not result.has_more:
+            ...         break
+            ...     skip += top
         """
+        if skip < 0:
+            raise ValueError("skip must be >= 0")
+        if skip > MAX_SKIP_OFFSET:
+            raise ValueError(
+                f"skip must be <= {MAX_SKIP_OFFSET} (requested: {skip}). "
+                f"For large datasets, use list_files() with continuation tokens instead of offset-based pagination."
+            )
+        if top < 1:
+            raise ValueError("top must be >= 1")
+        if top > MAX_PAGE_SIZE:
+            raise ValueError(
+                f"top must be <= {MAX_PAGE_SIZE} (requested: {top}). "
+                f"Use pagination with skip and top parameters to retrieve larger datasets."
+            )
+
         if not (name or key):
             raise ValueError("Must specify either bucket name or key")
 
@@ -1223,48 +1542,44 @@ class BucketsService(FolderContext, BaseService):
             name=name, key=key, folder_key=folder_key, folder_path=folder_path
         )
 
-        skip = 0
-        top = self._GET_FILES_PAGE_SIZE
+        spec = self._get_files_spec(
+            bucket.id,
+            prefix=prefix,
+            recursive=recursive,
+            file_name_glob=file_name_glob,
+            skip=skip,
+            top=top,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
-        while True:
-            spec = self._get_files_spec(
-                bucket.id,
-                prefix=prefix,
-                recursive=recursive,
-                file_name_glob=file_name_glob,
-                skip=skip,
-                top=top,
-                folder_key=folder_key,
-                folder_path=folder_path,
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
             )
+        ).json()
 
-            response = (
-                await self.request_async(
-                    spec.method,
-                    url=spec.endpoint,
-                    params=spec.params,
-                    headers=spec.headers,
-                )
-            ).json()
+        items = response.get("value", [])
 
-            items = response.get("value", [])
+        files = []
+        for item in items:
+            if not item.get("IsDirectory", False):
+                try:
+                    files.append(BucketFile.model_validate(item))
+                except Exception as e:
+                    raise ValueError(
+                        f"Failed to parse file entry: {e}. Item: {item}"
+                    ) from e
 
-            if not items:
-                break
-
-            for item in items:
-                if not item.get("IsDirectory", False):
-                    try:
-                        yield BucketFile.model_validate(item)
-                    except Exception as e:
-                        raise ValueError(
-                            f"Failed to parse file entry: {e}. Item: {item}"
-                        ) from e
-
-            if len(items) < top:
-                break
-
-            skip += top
+        return PagedResult(
+            items=files,
+            has_more=len(items) == top,  # Raw count, not len(files)
+            skip=skip,
+            top=top,
+        )
 
     @property
     def custom_headers(self) -> Dict[str, str]:
@@ -1405,7 +1720,7 @@ class BucketsService(FolderContext, BaseService):
     ) -> RequestSpec:
         """Build REST API request for listing files in a bucket.
 
-        Uses the /api/Buckets/{id}/ListFiles endpoint which supports pagination.
+        Uses the /api/Buckets/{id}/ListFiles endpoint which supports cursor-based pagination.
 
         Args:
             bucket_id: The bucket ID
@@ -1418,10 +1733,9 @@ class BucketsService(FolderContext, BaseService):
         params: Dict[str, Any] = {}
         if prefix:
             params["prefix"] = prefix
-        if continuation_token:
+        if continuation_token is not None:
             params["continuationToken"] = continuation_token
-        if take_hint:
-            params["takeHint"] = take_hint
+        params["takeHint"] = take_hint
 
         return RequestSpec(
             method="GET",
