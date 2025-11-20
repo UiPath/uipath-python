@@ -25,13 +25,19 @@ console = ConsoleLogger()
     type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=Path),
     default=Path("."),
 )
-def pull(root: Path) -> None:
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Automatically overwrite local files without prompts",
+)
+def pull(root: Path, overwrite: bool) -> None:
     """Pull remote project files from Studio Web Project.
 
     This command pulls the remote project files from a UiPath Studio Web project.
 
     Args:
         root: The root directory to pull files into
+        overwrite: Whether to automatically overwrite local files without prompts
 
     Environment Variables:
         UIPATH_PROJECT_ID: Required. The ID of the UiPath Studio Web project
@@ -39,16 +45,20 @@ def pull(root: Path) -> None:
     Example:
         $ uipath pull
         $ uipath pull /path/to/project
+        $ uipath pull --overwrite
     """
     project_id = UiPathConfig.project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
 
     studio_client = StudioClient(project_id=project_id)
-    may_override = asyncio.run(may_override_files(studio_client, "local"))
-    if not may_override:
-        console.info("Operation aborted.")
-        return
+
+    if not overwrite:
+        may_override = asyncio.run(may_override_files(studio_client, "local"))
+        if not may_override:
+            console.info("Operation aborted.")
+            return
+
     download_configuration = {
         None: root,
     }
