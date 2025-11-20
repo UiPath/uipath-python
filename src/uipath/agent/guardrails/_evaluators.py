@@ -4,6 +4,7 @@ This module provides functions for evaluating different types of guardrail rules
 against input and output data.
 """
 
+import re
 from enum import IntEnum
 from typing import Any, Dict, Optional, Union
 
@@ -209,6 +210,15 @@ def evaluate_word_rule(
             passed = len(field_str) == 0
         elif rule.operator == WordOperator.IS_NOT_EMPTY:
             passed = len(field_str) > 0
+        elif rule.operator == WordOperator.MATCHES_REGEX:
+            if rule.value:
+                try:
+                    passed = bool(re.search(rule.value, field_str))
+                except re.error:
+                    # Invalid regex pattern - treat as failure
+                    passed = False
+            else:
+                passed = False
         else:
             passed = False
 

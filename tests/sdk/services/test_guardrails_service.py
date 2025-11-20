@@ -23,6 +23,8 @@ from uipath.models.guardrails import (
     NumberRule,
     SpecificFieldsSelector,
     UniversalRule,
+    WordOperator,
+    WordRule,
 )
 
 
@@ -314,6 +316,99 @@ class TestGuardrailsService:
                 "does not equal" in result.reason.lower()
                 or "equals" in result.reason.lower()
             )
+
+        def test_evaluate_post_custom_guardrails_matches_regex_positive(
+            self,
+            service: GuardrailsService,
+        ) -> None:
+            """Test custom guardrail validation passes when regex matches."""
+            custom_guardrail = CustomGuardrail(
+                id="test-custom-id",
+                name="Regex Guardrail",
+                description="Test regex guardrail",
+                enabled_for_evals=True,
+                guardrail_type="custom",
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["test"]
+                ),
+                rules=[
+                    WordRule(
+                        rule_type="word",
+                        field_selector=SpecificFieldsSelector(
+                            selector_type="specific",
+                            fields=[
+                                FieldReference(
+                                    path="userName", source=FieldSource.INPUT
+                                )
+                            ],
+                        ),
+                        operator=WordOperator.MATCHES_REGEX,
+                        value=".*te.*3.*",
+                    ),
+                ],
+            )
+
+            # Input data with userName that matches the regex pattern
+            input_data = {
+                "userName": "test123",
+            }
+            output_data: Dict[str, Any] = {}
+
+            result = service.evaluate_post_custom_guardrails(
+                input_data=input_data,
+                output_data=output_data,
+                guardrail=custom_guardrail,
+            )
+
+            assert result.validation_passed is True
+            assert "All custom guardrail rules passed" in result.reason
+
+        def test_evaluate_post_custom_guardrails_matches_regex_negative(
+            self,
+            service: GuardrailsService,
+        ) -> None:
+            """Test custom guardrail validation fails when regex doesn't match."""
+            custom_guardrail = CustomGuardrail(
+                id="test-custom-id",
+                name="Regex Guardrail",
+                description="Test regex guardrail",
+                enabled_for_evals=True,
+                guardrail_type="custom",
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["test"]
+                ),
+                rules=[
+                    WordRule(
+                        rule_type="word",
+                        field_selector=SpecificFieldsSelector(
+                            selector_type="specific",
+                            fields=[
+                                FieldReference(
+                                    path="userName", source=FieldSource.INPUT
+                                )
+                            ],
+                        ),
+                        operator=WordOperator.MATCHES_REGEX,
+                        value=".*te.*3.*",
+                    ),
+                ],
+            )
+
+            # Input data with userName that doesn't match the regex pattern
+            input_data = {
+                "userName": "test",
+            }
+            output_data: Dict[str, Any] = {}
+
+            result = service.evaluate_post_custom_guardrails(
+                input_data=input_data,
+                output_data=output_data,
+                guardrail=custom_guardrail,
+            )
+
+            assert result.validation_passed is False
+            assert "userName" in result.reason
+            assert "matchesregex" in result.reason.lower()
 
         def test_should_trigger_policy_pre_execution_only_some_rules_not_met_returns_false(
             self,

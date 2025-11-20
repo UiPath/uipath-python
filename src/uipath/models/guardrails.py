@@ -79,6 +79,7 @@ class WordOperator(str, Enum):
     EQUALS = "equals"
     IS_EMPTY = "isEmpty"
     IS_NOT_EMPTY = "isNotEmpty"
+    MATCHES_REGEX = "matchesRegex"
     STARTS_WITH = "startsWith"
 
 
