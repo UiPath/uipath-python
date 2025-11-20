@@ -86,6 +86,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     default=False,
     help="Enable caching for LLM mocker responses",
 )
+@click.option(
+    "--report-coverage",
+    is_flag=True,
+    default=False,
+    help="Report evaluation coverage",
+)
 def eval(
     entrypoint: Optional[str],
     eval_set: Optional[str],
@@ -95,6 +101,7 @@ def eval(
     workers: int,
     output_file: Optional[str],
     enable_mocker_cache: bool,
+    report_coverage: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -116,6 +123,7 @@ def eval(
         "no_report": no_report,
         "output_file": output_file,
         "enable_mocker_cache": enable_mocker_cache,
+        "report_coverage": report_coverage,
     }
 
     should_register_progress_reporter = setup_reporting_prereq(no_report)
@@ -157,6 +165,7 @@ def eval(
         _, resolved_eval_set_path = EvalHelpers.load_eval_set(eval_set_path, eval_ids)
         eval_context.eval_set = resolved_eval_set_path
         eval_context.eval_ids = eval_ids
+        eval_context.report_coverage = report_coverage
 
         console_reporter = ConsoleProgressReporter()
         asyncio.run(console_reporter.subscribe_to_eval_runtime_events(event_bus))

@@ -8,9 +8,11 @@ from pathlib import Path
 from time import time
 from typing import Any, Dict, Generic, List, Optional, Sequence, TypeVar
 
+import coverage
 from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+from typing_extensions import override
 
 from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.input_mocker import (
@@ -153,6 +155,7 @@ class UiPathEvalContext(UiPathRuntimeContext):
     eval_set_run_id: Optional[str] = None
     verbose: bool = False
     enable_mocker_cache: bool = False
+    report_coverage: bool = False
 
 
 class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
@@ -180,6 +183,20 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
         self.entrypoint: Optional[Entrypoint] = None
+        self.coverage = coverage.Coverage(branch=True)
+
+    @override
+    async def __aenter__(self) -> "UiPathEvalRuntime[T, C]":
+        if self.context.report_coverage:
+            self.coverage.start()
+        return await super().__aenter__()
+
+    @override
+    async def __aexit__(self, *args: Any) -> None:
+        await super().__aexit__(*args)
+        if self.context.report_coverage:
+            self.coverage.stop()
+            self.coverage.report(include=["./*"], show_missing=True)
 
     async def get_entrypoint(self):
         if not self.entrypoint:
