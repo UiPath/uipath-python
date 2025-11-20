@@ -5,6 +5,7 @@ from ._request_override import header_folder
 from ._request_spec import RequestSpec
 from ._url import UiPathUrl
 from ._user_agent import header_user_agent, user_agent_value
+from .validation import validate_pagination_params
 
 __all__ = [
     "Endpoint",
@@ -16,4 +17,5 @@ __all__ = [
     "header_user_agent",
     "user_agent_value",
     "UiPathUrl",
+    "validate_pagination_params",
 ]
