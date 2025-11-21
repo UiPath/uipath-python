@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path, PurePath
-from typing import Any
+from typing import Any, Optional
 
 from httpx import Response
 from pydantic import TypeAdapter
@@ -34,9 +34,13 @@ async def get_file(
     return await studio_client.download_project_file_async(resolved)
 
 
-async def create_agent_project(solution_id: str, project_name: str) -> str:
+async def create_agent_project(
+    solution_id: str, project_name: str, description: Optional[str] = None
+) -> str:
     studio_client = StudioSolutionsClient(solution_id=solution_id)
-    project = await studio_client.create_project_async(project_name=project_name)
+    project = await studio_client.create_project_async(
+        project_name=project_name, description=description
+    )
     return project["id"]
 
 

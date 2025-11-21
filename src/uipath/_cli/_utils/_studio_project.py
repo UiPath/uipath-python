@@ -424,6 +424,7 @@ class StudioSolutionsClient:
         project_name: str,
         project_type: str = "Agent",
         trigger_type: str = "Manual",
+        description: Optional[str] = None,
     ):
         """Create a new project in the specified solution.
 
@@ -439,6 +440,7 @@ class StudioSolutionsClient:
             "createDefaultProjectCommand[projectType]": project_type,
             "createDefaultProjectCommand[triggerType]": trigger_type,
             "createDefaultProjectCommand[name]": project_name,
+            "createDefaultProjectCommand[description]": description,
         }
 
         response = await self.uipath.api_client.request_async(
