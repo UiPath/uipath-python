@@ -19,15 +19,16 @@ from rich.text import Text
 class LogLevel(Enum):
     """Enum for log levels with corresponding emojis."""
 
-    INFO = ""
-    SUCCESS = click.style("✓ ", fg="green", bold=True)
-    WARNING = "⚠️"
-    ERROR = "❌"
-    HINT = "💡"
-    CONFIG = "🔧"
-    SELECT = "👇"
-    LINK = "🔗"
-    MAGIC = "✨"
+    INFO    = ""        
+    SUCCESS = "\u2713"        # ✓   (CHECK MARK)
+    WARNING = "\u26A0"        # ⚠   (WARNING SIGN)
+    ERROR   = "\u274C"        # ❌   (CROSS MARK)
+    HINT    = "\U0001F4A1"    # 💡   (ELECTRIC LIGHT BULB)
+    CONFIG  = "\U0001F527"    # 🔧   (WRENCH)
+    SELECT  = "\U0001F447"    # 👇   (BACKHAND INDEX POINTING DOWN)
+    LINK    = "\U0001F517"    # 🔗   (LINK SYMBOL)
+    MAGIC   = "\u2728"        # ✨   (SPARKLES)
+
 
 
 T = TypeVar("T", bound="ConsoleLogger")
@@ -86,17 +87,12 @@ class ConsoleLogger:
         """
         # Stop any active spinner before logging
         self._stop_spinner_if_active()
+        
+        formatted_message = f"{level.value} " if level.value else ""
+        formatted_message += click.style(message, fg=fg) if fg else message
 
-        if not level == LogLevel.INFO:
-            emoji = level.value
-            if fg:
-                formatted_message = f"{emoji} {click.style(message, fg=fg)}"
-            else:
-                formatted_message = f"{emoji} {message}"
-        else:
-            formatted_message = message
+        click.echo(formatted_message, err=(level == LogLevel.ERROR))
 
-        click.echo(formatted_message, err=LogLevel.ERROR in (level,))
 
     def success(self, message: str) -> None:
         """Log a success message."""
@@ -314,7 +310,7 @@ class EvaluationProgressManager:
             self.progress.update(
                 task_id,
                 completed=1,
-                description=f"[green]✅ {current_desc}[/green]",
+                description=f"[green]{LogLevel.SUCCESS.value} {current_desc}[/green]",
             )
 
     def fail_evaluation(self, eval_id: str, error_message: str) -> None:
@@ -334,5 +330,5 @@ class EvaluationProgressManager:
             current_desc = self.progress.tasks[task_id].description
             self.progress.update(
                 task_id,
-                description=f"[red]❌ {current_desc} - {short_error}[/red]",
+                description=f"[red]{LogLevel.ERROR.value} {current_desc} - {short_error}[/red]",
             )
