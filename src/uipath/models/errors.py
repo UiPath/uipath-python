@@ -14,3 +14,12 @@ class SecretMissingError(Exception):
     ):
         self.message = message
         super().__init__(self.message)
+
+
+class FolderNotFoundException(Exception):
+    def __init__(
+        self,
+        folder_name,
+    ):
+        self.message = f"Folder {folder_name} not found."
+        super().__init__(self.message)

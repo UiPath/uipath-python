@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ResourceType(str, Enum):
@@ -23,9 +23,37 @@ class ResourceType(str, Enum):
     MCP_SERVER = "mcpserver"
     QUEUE = "queue"
 
+    @classmethod
+    def from_string(cls, value: str) -> "ResourceType":
+        """Create a ResourceType instance from a string value.
+
+        Args:
+            value: String value to convert to ResourceType
+
+        Returns:
+            ResourceType: The matching ResourceType enum member
+
+        Raises:
+            ValueError: If the value doesn't match any ResourceType
+        """
+        lower_value = value.lower()
+        for member in cls:
+            if member.value == lower_value:
+                return member
+
+        available = ", ".join([f"'{member.value}'" for member in cls])
+        raise ValueError(
+            f"'{value}' is not a valid ResourceType. Available options: {available}"
+        )
+
 
 class Tag(BaseModel):
     """Tag model for resources."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
     key: str
     display_name: str = Field(alias="displayName")
@@ -40,6 +68,11 @@ class Tag(BaseModel):
 
 class Folder(BaseModel):
     """Folder model for resources."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
     id: int
     key: str
@@ -57,6 +90,11 @@ class Folder(BaseModel):
 
 class Resource(BaseModel):
     """Resource model from Resource Catalog."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
     resource_key: str = Field(alias="entityKey")
     name: str

@@ -8,6 +8,8 @@ import click
 from uipath.models.exceptions import EnrichedException
 
 from .._config import UiPathConfig
+from ..models import ResourceType
+from ..models.errors import FolderNotFoundException
 from ._push.sw_file_handler import SwFileHandler, UpdateEvent
 from ._utils._common import may_override_files
 from ._utils._console import ConsoleLogger
@@ -18,8 +20,15 @@ from ._utils._project_files import (
     validate_config,
     validate_project_files,
 )
-from ._utils._studio_project import ProjectLockUnavailableError, StudioClient
+from ._utils._studio_project import (
+    ProjectLockUnavailableError,
+    ReferencedResourceFolder,
+    ReferencedResourceRequest,
+    Status,
+    StudioClient,
+)
 from ._utils._uv_helpers import handle_uv_operations
+from .models.runtime_schema import Bindings
 
 console = ConsoleLogger()
 
@@ -30,6 +39,124 @@ def get_org_scoped_url(base_url: str) -> str:
 
     org_scoped_url = f"{parsed.scheme}://{parsed.netloc}/{org_name}"
     return org_scoped_url
+
+
+async def create_resources(studio_client: StudioClient):
+    console.info("\nImporting referenced resources to Studio Web project...")
+
+    from uipath import UiPath
+
+    uipath = UiPath()
+    resource_catalog = uipath.resource_catalog
+    connections = uipath.connections
+
+    with open(UiPathConfig.bindings_file_path, "r") as f:
+        bindings_file_content = f.read()
+
+    bindings = Bindings.model_validate_json(bindings_file_content)
+
+    resources_not_found = 0
+    resources_unchanged = 0
+    resources_created = 0
+    resource_updated = 0
+
+    for bindings_resource in bindings.resources:
+        not_found_warning = "was not found and will not be added to the solution."
+        found_resource = None
+        resource_type = bindings_resource.resource
+        if resource_type == "connection":
+            connection_key = bindings_resource.value.get("ConnectionId").default_value
+            try:
+                connection = await connections.retrieve_async(connection_key)
+            except EnrichedException:
+                resources_not_found += 1
+                connector_name = bindings_resource.metadata.get("Connector")
+                console.warning(
+                    f"Connection with key '{connection_key}' of type '{connector_name}' "
+                    f"{not_found_warning}"
+                )
+                continue
+            resource_name = connection.name
+            folder_path = connection.folder.get("path")
+        else:
+            resource_name = bindings_resource.value.get("name").default_value
+            folder_path = bindings_resource.value.get("folderPath").default_value
+
+        resources = resource_catalog.list_by_type_async(
+            resource_type=ResourceType.from_string(resource_type),
+            name=resource_name,
+            folder_path=folder_path,
+        )
+
+        try:
+            async for resource in resources:
+                found_resource = resource
+                break
+            await resources.aclose()
+
+        except FolderNotFoundException:
+            pass
+
+        if not found_resource:
+            console.warning(
+                f"Resource '{resource_name}' of type '{resource_type}' at folder path '{folder_path}' "
+                f"{not_found_warning}"
+            )
+            resources_not_found += 1
+            continue
+
+        referenced_resource_request = ReferencedResourceRequest(
+            key=found_resource.resource_key,
+            kind=found_resource.resource_type,
+            type=found_resource.resource_sub_type,
+            folder=next(
+                ReferencedResourceFolder(
+                    folder_key=folder.key,
+                    fully_qualified_name=folder.fully_qualified_name,
+                    path=folder.path,
+                )
+                for folder in found_resource.folders
+            ),
+        )
+        response = await studio_client.create_referenced_resource(
+            referenced_resource_request
+        )
+
+        resource_details = (
+            f"(kind = {click.style(found_resource.resource_type, fg='cyan')}, "
+            f"type = {click.style(found_resource.resource_sub_type, fg='cyan')})"
+        )
+
+        match response.status:
+            case Status.ADDED:
+                console.success(
+                    f"Created reference for resource: {click.style(resource_name, fg='cyan')} "
+                    f"{resource_details}"
+                )
+                resources_created += 1
+            case Status.UNCHANGED:
+                console.info(
+                    f"Resource reference already exists ({click.style('unchanged', fg='yellow')}): {click.style(resource_name, fg='cyan')} "
+                    f"{resource_details}"
+                )
+                resources_unchanged += 1
+            case Status.UPDATED:
+                console.info(
+                    f"Resource reference already exists ({click.style('updated', fg='blue')}): {click.style(resource_name, fg='cyan')} "
+                    f"{resource_details}"
+                )
+                resource_updated += 1
+
+    total_resources = (
+        resources_created + resources_unchanged + resources_not_found + resource_updated
+    )
+    console.info(
+        f"\n \U0001f535 Resource import summary: {total_resources} total resources - "
+        f"{click.style(str(resources_created), fg='green')} created, "
+        f"{click.style(str(resource_updated), fg='blue')} updated, "
+        f"{click.style(str(resources_unchanged), fg='yellow')} unchanged, "
+        f"{click.style(str(resources_not_found), fg='red')} not found"
+    )
 
 
 async def upload_source_files_to_project(
@@ -75,6 +202,11 @@ async def upload_source_files_to_project(
     "root", type=click.Path(exists=True, file_okay=False, dir_okay=True), default="."
 )
 @click.option(
+    "--ignore-resources",
+    is_flag=True,
+    help="Skip importing the referenced resources to Studio Web solution",
+)
+@click.option(
     "--nolock",
     is_flag=True,
     help="Skip running uv lock and exclude uv.lock from the package",
@@ -84,7 +216,7 @@ async def upload_source_files_to_project(
     is_flag=True,
     help="Automatically overwrite remote files without prompts",
 )
-def push(root: str, nolock: bool, overwrite: bool) -> None:
+def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> None:
     """Push local project files to Studio Web Project.
 
     This command pushes the local project files to a UiPath Studio Web project.
@@ -96,6 +228,7 @@ def push(root: str, nolock: bool, overwrite: bool) -> None:
 
     Args:
         root: The root directory of the project
+        ignore_resources: Whether to skip importing the referenced resources
         nolock: Whether to skip UV lock operations and exclude uv.lock from push
         overwrite: Whether to automatically overwrite remote files without prompts
 
@@ -106,6 +239,7 @@ def push(root: str, nolock: bool, overwrite: bool) -> None:
         $ uipath push
         $ uipath push --nolock
         $ uipath push --overwrite
+        $ uipath push --ignore-resources
     """
     ensure_config_file(root)
     config = get_project_config(root)
@@ -138,6 +272,9 @@ def push(root: str, nolock: bool, overwrite: bool) -> None:
                     console.warning(update.message)
                 case _:
                     console.info(update.message)
+
+        if not ignore_resources:
+            await create_resources(studio_client)
 
     console.log("Pushing UiPath project to Studio Web...")
     try:

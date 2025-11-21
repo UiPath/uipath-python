@@ -149,7 +149,8 @@ class Severity(str, Enum):
 
 class VirtualResourceRequest(BaseModel):
     model_config = ConfigDict(
-        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
     )
 
     kind: str = Field(alias="kind")
@@ -171,6 +172,71 @@ class VirtualResourceResult(BaseModel):
     message: str
 
 
+class ReferencedResourceFolder(BaseModel):
+    """Folder reference for a referenced resource.
+
+    Attributes:
+        fully_qualified_name: The fully qualified name of the folder
+        path: The path to the folder
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    folder_key: str = Field(alias="folderKey")
+    fully_qualified_name: str = Field(alias="fullyQualifiedName")
+    path: str = Field(alias="path")
+
+
+type_mappings = {
+    "text": "stringAsset",
+    "integer": "integerAsset",
+    "bool": "booleanAsset",
+    "credential": "credentialAsset",
+    "secret": "secretAsset",
+    "orchestrator": "orchestratorBucket",
+    "amazon": "amazonBucket",
+    "azure": "azureBucket",
+}
+
+
+class ReferencedResourceRequest(BaseModel):
+    """Request payload for creating a referenced resource.
+
+    Attributes:
+        key: The resource key
+        kind: The kind of resource
+        type: The type of resource
+        folder: Folder of the referenced resource
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    key: str = Field(alias="key")
+    kind: str = Field(alias="kind")
+    type: Optional[str] = Field(alias="type")
+    folder: ReferencedResourceFolder = Field(alias="folder")
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def lowercase_kind(cls, v: str) -> str:
+        return v[0].lower() + v[1:] if v else v
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def type_mapping(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        if v.lower() in type_mappings:
+            return type_mappings[v.lower()]
+        return v[0].lower() + v[1:]
+
+
 class ResourceOverwriteData(BaseModel):
     """Represents the overwrite details from the API response.
 
@@ -180,7 +246,8 @@ class ResourceOverwriteData(BaseModel):
     """
 
     model_config = ConfigDict(
-        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
     )
 
     name: str = Field(alias="name")
@@ -280,6 +347,47 @@ class ProjectLockUnavailableError(RuntimeError):
     """Raised when a project lock prevents execution."""
 
     pass
+
+
+class Status(str, Enum):
+    ADDED = "ADDED"
+    UNCHANGED = "UNCHANGED"
+    UPDATED = "UPDATED"
+
+
+class ReferencedResourceResponse(BaseModel):
+    """Response from creating a referenced resource.
+
+    Attributes:
+        status: The status of the operation
+        resource: The resource details
+        saved: Whether the resource was saved
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    status: Status
+    resource: dict[str, Any]
+    saved: bool
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def parse_status(cls, v: str | Status) -> Status:
+        """Parse status string to Status enum."""
+        if isinstance(v, Status):
+            return v
+        if isinstance(v, str):
+            upper_v = v.upper()
+            for status in Status:
+                if status.value == upper_v:
+                    return status
+            raise ValueError(f"Invalid status value: {v}")
+        raise ValueError(
+            f"Status must be a string or Status enum, got {type(v).__name__}"
+        )
 
 
 def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -544,6 +652,32 @@ class StudioClient:
 
         message = f"{base_message} created successfully."
         return VirtualResourceResult(severity=Severity.SUCCESS, message=message)
+
+    async def create_referenced_resource(
+        self, referenced_resource_request: ReferencedResourceRequest
+    ) -> ReferencedResourceResponse:
+        """Create a referenced resource.
+
+        Args:
+            referenced_resource_request: The referenced resource request details
+
+        Returns:
+            ReferencedResourceResponse: Serialized response with status, resource details, and saved flag
+        """
+        tenant_id = os.getenv(ENV_TENANT_ID, None)
+
+        solution_id = await self._get_solution_id()
+        response = await self.uipath.api_client.request_async(
+            "POST",
+            url=f"/studio_/backend/api/resourcebuilder/solutions/{solution_id}/resources/reference",
+            scoped="org",
+            json=referenced_resource_request.model_dump(
+                by_alias=True, exclude_none=True
+            ),
+            headers={HEADER_TENANT_ID: tenant_id},
+        )
+
+        return ReferencedResourceResponse.model_validate(response.json())
 
     async def _update_resource_specs(
         self, resource_key: str, new_specs: dict[str, Any]

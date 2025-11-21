@@ -116,7 +116,7 @@ class TestPush:
             os.environ["UIPATH_PROJECT_ID"] = "123"
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 1
             assert (
                 "uipath.json not found. Please run `uipath init` in the project directory."
@@ -141,7 +141,7 @@ class TestPush:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 1
             # Should show exactly which file is missing
             assert (
@@ -167,7 +167,7 @@ class TestPush:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 1
             # Should show exactly which file is missing
             assert "Missing required files: 'entry-points.json'" in result.output
@@ -189,7 +189,7 @@ class TestPush:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 1
             assert "UIPATH_PROJECT_ID environment variable not found." in result.output
 
@@ -371,7 +371,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
             assert "Updating 'main.py'" in result.output
             assert "Updating 'pyproject.toml'" in result.output
@@ -470,7 +470,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
             assert "Uploading 'main.py'" in result.output
             assert "Uploading 'pyproject.toml'" in result.output
@@ -528,7 +528,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 1
 
             assert isinstance(result.exception, EnrichedException)
@@ -630,7 +630,9 @@ class TestPush:
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             # Run push with --nolock flag
-            result = runner.invoke(cli, ["push", "./", "--nolock"])
+            result = runner.invoke(
+                cli, ["push", "./", "--ignore-resources", "--nolock"]
+            )
             assert result.exit_code == 0
             assert "Updating 'main.py'" in result.output
             assert "Uploading 'pyproject.toml'" in result.output
@@ -719,7 +721,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
 
             # Verify that excluded file was not mentioned in output
@@ -796,7 +798,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
 
             # File should be excluded (exclusion takes precedence)
@@ -892,7 +894,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
 
             # Filename exclusion should only affect root directory
@@ -997,7 +999,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
 
             # Filename inclusion should only affect root directory
@@ -1094,7 +1096,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
 
             # Directory name exclusion should only affect root level
@@ -1192,7 +1194,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
             # Should detect conflict and update after user confirmation
             assert "Updating 'main.py'" in result.output
@@ -1292,7 +1294,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
             # Files should show as up to date since content matches
             assert "File 'main.py' is up to date" in result.output
@@ -1416,7 +1418,7 @@ class TestPush:
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
-            result = runner.invoke(cli, ["push", "./"])
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
 
             # Verify that no deletion messages appear for evaluations files
@@ -1439,6 +1441,620 @@ class TestPush:
             # Check that the deleted resource IDs are not present in the request
             assert b"evaluator-file-1" not in content
             assert b"eval-set-file-1" not in content
+
+
+class TestResourceCreation:
+    """Test resource creation and import functionality during push."""
+
+    def test_push_with_resources_imports_referenced_resources(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json_legacy: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that push without --ignore-resources flag imports referenced resources to the solution."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+        solution_id = "test-solution-id"
+        tenant_id = "test-tenant-id"
+
+        # Mock the project structure
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
+            json={
+                "projectLockKey": "test-lock-key",
+                "solutionLockKey": "test-solution-lock-key",
+            },
+        )
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        # Mock getting the solution ID
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}",
+            json={"solutionId": solution_id},
+        )
+
+        # Mock creating referenced resource (status: ADDED)
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/resourcebuilder/solutions/{solution_id}/resources/reference",
+            json={
+                "status": "Added",
+                "resource": {
+                    "folders": [
+                        {"fullyQualifiedName": "Default", "path": "folder-path-123"}
+                    ],
+                    "key": "resource-key-123",
+                    "name": "test.asset",
+                    "description": "Test asset description",
+                    "kind": "asset",
+                    "type": "stringAsset",
+                    "apiVersion": "orchestrator.uipath.com/v1",
+                },
+                "saved": True,
+            },
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create required files
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json_legacy.to_json())
+
+            with open("bindings.json", "w") as f:
+                json.dump(
+                    {
+                        "version": "2.0",
+                        "resources": [
+                            {
+                                "resource": "asset",
+                                "key": "asset_name.folder_key",
+                                "value": {
+                                    "name": {
+                                        "defaultValue": "test.asset",
+                                        "isExpression": False,
+                                        "displayName": "Name",
+                                    },
+                                    "folderPath": {
+                                        "defaultValue": "Default",
+                                        "isExpression": False,
+                                        "displayName": "Folder Path",
+                                    },
+                                },
+                                "metadata": {
+                                    "ActivityName": "retrieve_async",
+                                    "BindingsVersion": "2.2",
+                                    "DisplayLabel": "FullName",
+                                },
+                            }
+                        ],
+                    },
+                    f,
+                )
+
+            with open("entry-points.json", "w") as f:
+                f.write("{}")
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+            os.environ["UIPATH_TENANT_ID"] = tenant_id
+
+            # Mock resource catalog list_by_type_async
+            from uipath.models.resource_catalog import Folder, Resource
+
+            mock_resource = Resource(
+                resource_key="resource-key-123",
+                name="test.asset",
+                description="Test asset description",
+                resource_type="asset",
+                resource_sub_type="stringAsset",
+                folders=[
+                    Folder(
+                        id=1,
+                        key="folder-key-123",
+                        display_name="Default",
+                        code="DEFAULT",
+                        fully_qualified_name="Default",
+                        timestamp="2025-11-20T12:00:00Z",
+                        tenant_key="tenant-key",
+                        account_key="account-key",
+                        type="Standard",
+                        path="folder-path-123",
+                        permissions=[],
+                    )
+                ],
+                scope="Folder",
+                search_state="Indexed",
+                timestamp="2025-11-20T12:00:00Z",
+                account_key="account-key",
+                linked_folders_count=1,
+                folder_keys=["folder-key-123"],
+            )
+
+            async def mock_list_by_type_async(*args, **kwargs):
+                yield mock_resource
+
+            with patch("uipath.UiPath") as MockUiPath:
+                mock_uipath_instance = MockUiPath.return_value
+                mock_resource_catalog = AsyncMock()
+                mock_resource_catalog.list_by_type_async = mock_list_by_type_async
+                mock_uipath_instance.resource_catalog = mock_resource_catalog
+                mock_uipath_instance.connections = AsyncMock()
+
+                # Run push without --ignore-resources to trigger resource import
+                result = runner.invoke(cli, ["push", "./"])
+                assert result.exit_code == 0
+
+            # Check that resource import was attempted
+            assert (
+                "Importing referenced resources to Studio Web project" in result.output
+            )
+            assert "Created reference for resource: test.asset" in result.output
+            assert "Resource import summary:" in result.output
+            assert "1 created" in result.output
+
+    def test_push_with_ignore_resources_flag_skips_resource_import(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json_legacy: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that push with --ignore-resources flag skips resource import."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock the project structure
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
+            json={
+                "projectLockKey": "test-lock-key",
+                "solutionLockKey": "test-solution-lock-key",
+            },
+        )
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create required files
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json_legacy.to_json())
+
+            with open("bindings.json", "w") as f:
+                json.dump(
+                    {
+                        "version": "2.0",
+                        "resources": [
+                            {
+                                "resource": "asset",
+                                "key": "asset_name.folder_key",
+                                "value": {
+                                    "name": {
+                                        "defaultValue": "test.asset",
+                                        "isExpression": False,
+                                        "displayName": "Name",
+                                    },
+                                    "folderPath": {
+                                        "defaultValue": "Default",
+                                        "isExpression": False,
+                                        "displayName": "Folder Path",
+                                    },
+                                },
+                                "metadata": {
+                                    "ActivityName": "retrieve_async",
+                                    "BindingsVersion": "2.2",
+                                    "DisplayLabel": "FullName",
+                                },
+                            }
+                        ],
+                    },
+                    f,
+                )
+
+            with open("entry-points.json", "w") as f:
+                f.write("{}")
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            # Run push with --ignore-resources flag
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0
+
+            # Check that resource import was NOT attempted
+            assert "Importing referenced resources" not in result.output
+            assert "Created reference for resource" not in result.output
+            assert "Resource import summary" not in result.output
+
+    def test_push_with_resource_not_found_shows_warning(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json_legacy: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that push shows warning when referenced resource is not found in catalog."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock the project structure
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
+            json={
+                "projectLockKey": "test-lock-key",
+                "solutionLockKey": "test-solution-lock-key",
+            },
+        )
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create required files
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json_legacy.to_json())
+
+            with open("bindings.json", "w") as f:
+                json.dump(
+                    {
+                        "version": "2.0",
+                        "resources": [
+                            {
+                                "resource": "asset",
+                                "key": "missing.asset.Default",
+                                "value": {
+                                    "name": {
+                                        "defaultValue": "missing.asset",
+                                        "isExpression": False,
+                                        "displayName": "Name",
+                                    },
+                                    "folderPath": {
+                                        "defaultValue": "Default",
+                                        "isExpression": False,
+                                        "displayName": "Folder Path",
+                                    },
+                                },
+                                "metadata": {
+                                    "ActivityName": "retrieve_async",
+                                    "BindingsVersion": "2.2",
+                                    "DisplayLabel": "FullName",
+                                },
+                            }
+                        ],
+                    },
+                    f,
+                )
+
+            with open("entry-points.json", "w") as f:
+                f.write("{}")
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            # Mock resource catalog list_by_type_async to return no resources
+            async def mock_list_by_type_async_empty(*args, **kwargs):
+                # Return empty generator (no resources found)
+                return
+                yield  # This makes it a generator but never yields anything
+
+            with patch("uipath.UiPath") as MockUiPath:
+                mock_uipath_instance = MockUiPath.return_value
+                mock_resource_catalog = AsyncMock()
+                mock_resource_catalog.list_by_type_async = mock_list_by_type_async_empty
+                mock_uipath_instance.resource_catalog = mock_resource_catalog
+                mock_uipath_instance.connections = AsyncMock()
+
+                # Run push without --ignore-resources
+                result = runner.invoke(cli, ["push", "./"])
+                assert result.exit_code == 0
+
+            # Check that warning was shown for missing resource
+            assert (
+                "Importing referenced resources to Studio Web project" in result.output
+            )
+            assert (
+                "Resource 'missing.asset' of type 'asset' at folder path 'Default' was not found"
+                in result.output
+            )
+            assert "Resource import summary:" in result.output
+            assert "1 not found" in result.output
+
+    def test_push_with_resource_already_exists_shows_unchanged(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json_legacy: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that push shows unchanged message when referenced resource already exists."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+        solution_id = "test-solution-id"
+        tenant_id = "test-tenant-id"
+
+        # Mock the project structure
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
+            json={
+                "projectLockKey": "test-lock-key",
+                "solutionLockKey": "test-solution-lock-key",
+            },
+        )
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        # Mock getting the solution ID
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}",
+            json={"solutionId": solution_id},
+        )
+
+        # Mock creating referenced resource (status: UNCHANGED)
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/resourcebuilder/solutions/{solution_id}/resources/reference",
+            json={
+                "status": "Unchanged",
+                "resource": {
+                    "folders": [
+                        {"fullyQualifiedName": "Default", "path": "folder-path-123"}
+                    ],
+                    "key": "resource-key-123",
+                    "name": "existing.asset",
+                    "description": "Existing asset",
+                    "kind": "asset",
+                    "type": "stringAsset",
+                    "apiVersion": "orchestrator.uipath.com/v1",
+                },
+                "saved": False,
+            },
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create required files
+            with open("uipath.json", "w") as f:
+                f.write(uipath_json_legacy.to_json())
+
+            with open("bindings.json", "w") as f:
+                json.dump(
+                    {
+                        "version": "2.0",
+                        "resources": [
+                            {
+                                "resource": "asset",
+                                "key": "existing.asset.Default",
+                                "value": {
+                                    "name": {
+                                        "defaultValue": "existing.asset",
+                                        "isExpression": False,
+                                        "displayName": "Name",
+                                    },
+                                    "folderPath": {
+                                        "defaultValue": "Default",
+                                        "isExpression": False,
+                                        "displayName": "Folder Path",
+                                    },
+                                },
+                                "metadata": {
+                                    "ActivityName": "retrieve_async",
+                                    "BindingsVersion": "2.2",
+                                    "DisplayLabel": "FullName",
+                                },
+                            }
+                        ],
+                    },
+                    f,
+                )
+
+            with open("entry-points.json", "w") as f:
+                f.write("{}")
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+            os.environ["UIPATH_TENANT_ID"] = tenant_id
+
+            # Mock resource catalog list_by_type_async
+            from uipath.models.resource_catalog import Folder, Resource
+
+            mock_resource = Resource(
+                resource_key="resource-key-123",
+                name="existing.asset",
+                description="Existing asset",
+                resource_type="asset",
+                resource_sub_type="stringAsset",
+                folders=[
+                    Folder(
+                        id=1,
+                        key="folder-key-123",
+                        display_name="Default",
+                        code="DEFAULT",
+                        fully_qualified_name="Default",
+                        timestamp="2025-11-20T12:00:00Z",
+                        tenant_key="tenant-key",
+                        account_key="account-key",
+                        type="Standard",
+                        path="folder-path-123",
+                        permissions=[],
+                    )
+                ],
+                scope="Folder",
+                search_state="Indexed",
+                timestamp="2025-11-20T12:00:00Z",
+                account_key="account-key",
+                linked_folders_count=1,
+                folder_keys=["folder-key-123"],
+            )
+
+            async def mock_list_by_type_async(*args, **kwargs):
+                yield mock_resource
+
+            with patch("uipath.UiPath") as MockUiPath:
+                mock_uipath_instance = MockUiPath.return_value
+                mock_resource_catalog = AsyncMock()
+                mock_resource_catalog.list_by_type_async = mock_list_by_type_async
+                mock_uipath_instance.resource_catalog = mock_resource_catalog
+                mock_uipath_instance.connections = AsyncMock()
+
+                # Run push without --ignore-resources
+                result = runner.invoke(cli, ["push", "./"])
+                assert result.exit_code == 0
+
+            # Check that unchanged message was shown
+            assert (
+                "Importing referenced resources to Studio Web project" in result.output
+            )
+            assert (
+                "Resource reference already exists (unchanged): existing.asset"
+                in result.output
+            )
+            assert "Resource import summary:" in result.output
+            assert "1 unchanged" in result.output
 
 
 class TestMayOverrideFilesForPush:
