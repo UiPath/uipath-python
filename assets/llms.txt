@@ -1,0 +1,56 @@
+# UiPath Python SDK Documentation
+> https://uipath.github.io/uipath-python/
+
+A Python SDK for programmatic interaction with UiPath Cloud Platform services, featuring CLI tools for automation creation, packaging, and deployment. Includes support for LangChain, LlamaIndex, and Model Context Protocol (MCP) agent frameworks.
+
+## Core Documentation
+
+### Getting Started
+- https://uipath.github.io/uipath-python/ - Main landing page
+- https://uipath.github.io/uipath-python/core/getting_started - SDK quickstart guide
+- https://uipath.github.io/uipath-python/FAQ - Frequently Asked Questions
+- https://uipath.github.io/uipath-python/CONTRIBUTING - Contribution guidelines
+- https://uipath.github.io/uipath-python/release_policy - Release policy
+
+### SDK Features
+- https://uipath.github.io/uipath-python/core/processes - Process automation
+- https://uipath.github.io/uipath-python/core/jobs - Job management
+- https://uipath.github.io/uipath-python/core/assets - Asset storage and retrieval
+- https://uipath.github.io/uipath-python/core/queues - Queue operations
+- https://uipath.github.io/uipath-python/core/resource_catalog - Resources search
+- https://uipath.github.io/uipath-python/core/buckets - Cloud storage buckets
+- https://uipath.github.io/uipath-python/core/attachments - File attachments
+- https://uipath.github.io/uipath-python/core/actions - Action Center integration
+- https://uipath.github.io/uipath-python/core/connections - External connections
+- https://uipath.github.io/uipath-python/core/documents - Document handling
+- https://uipath.github.io/uipath-python/core/documents_models - Document data models
+- https://uipath.github.io/uipath-python/core/environment_variables - Environment configuration
+- https://uipath.github.io/uipath-python/core/traced - Tracing and observability
+
+### LLM & AI Features
+- https://uipath.github.io/uipath-python/core/llm_gateway - LLM Gateway for model access
+- https://uipath.github.io/uipath-python/core/context_grounding - RAG and semantic search
+
+### Agent Frameworks
+- https://uipath.github.io/uipath-python/mcp/quick_start - Model Context Protocol (MCP) SDK
+- https://uipath.github.io/uipath-python/langchain/quick_start - LangChain integration
+- https://uipath.github.io/uipath-python/llamaindex/quick_start - LlamaIndex integration
+
+### CLI Tools
+- https://uipath.github.io/uipath-python/cli/ - Command-line interface reference
+
+## Supported LLM Models
+
+The following LLM models are referenced in examples and evaluations throughout the repository:
+
+### OpenAI Models
+- gpt-4o-mini-2024-07-18 - Used in samples and evaluations
+- gpt-4o-2024-08-06 - Primary model for agent examples
+- gpt-4 - General purpose examples
+- gpt-4.1-2025-04-14 - LLM-as-judge evaluator
+
+### Google Models
+- gemini-1.5-flash - Used in Google ADK agent sample
+
+### Embedding Models
+- text-embedding-3-large - Azure OpenAI embeddings for RAG
