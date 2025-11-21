@@ -7,6 +7,7 @@ from uipath.tracing import traced
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec
+from ..models.errors import FolderNotFoundException
 from ._base_service import BaseService
 
 
@@ -38,7 +39,7 @@ class FolderService(BaseService):
 
         resolved_folder_key = self.retrieve_key(folder_path=folder_path)
         if not resolved_folder_key:
-            raise ValueError(f"Folder with path '{folder_path}' not found")
+            raise FolderNotFoundException(folder_path)
         return resolved_folder_key
 
     async def retrieve_folder_key_async(self, folder_path: str | None) -> str | None:
@@ -58,7 +59,7 @@ class FolderService(BaseService):
 
         resolved_folder_key = await self.retrieve_key_async(folder_path=folder_path)
         if not resolved_folder_key:
-            raise ValueError(f"Folder with path '{folder_path}' not found")
+            raise FolderNotFoundException(folder_path)
         return resolved_folder_key
 
     @traced(name="folder_retrieve_key_by_folder_path", run_type="uipath")

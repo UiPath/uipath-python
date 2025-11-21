@@ -2614,10 +2614,11 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.1.181"
+version = "2.1.182"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "coverage" },
     { name = "httpx" },
     { name = "hydra-core" },
     { name = "mockito" },
@@ -2666,6 +2667,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.8" },
+    { name = "coverage", specifier = ">=7.8.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "hydra-core", specifier = ">=1.3.2" },
     { name = "mockito", specifier = ">=1.5.4" },

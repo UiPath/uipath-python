@@ -5,6 +5,7 @@ from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._services.folder_service import FolderService
 from uipath._utils.constants import HEADER_USER_AGENT
+from uipath.models.errors import FolderNotFoundException
 
 
 @pytest.fixture
@@ -427,10 +428,10 @@ class TestFolderService:
             json={"PageItems": []},
         )
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(FolderNotFoundException) as exc_info:
             service.retrieve_folder_key(folder_path="NonExistent/Folder")
 
-        assert "Folder with path 'NonExistent/Folder' not found" in str(exc_info.value)
+        assert "Folder NonExistent/Folder not found" in str(exc_info.value)
 
     @pytest.mark.anyio
     async def test_retrieve_folder_key_async_with_folder_path(
@@ -495,7 +496,7 @@ class TestFolderService:
             json={"PageItems": []},
         )
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(FolderNotFoundException) as exc_info:
             await service.retrieve_folder_key_async(folder_path="NonExistent/Folder")
 
-        assert "Folder with path 'NonExistent/Folder' not found" in str(exc_info.value)
+        assert "Folder NonExistent/Folder not found" in str(exc_info.value)
