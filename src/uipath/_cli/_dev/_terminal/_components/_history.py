@@ -57,7 +57,7 @@ class RunHistoryPanel(Container):
                 Static(run.display_name), classes=f"run-item run-{run.status}"
             )
             # Store run id directly on the ListItem
-            item.run_id = run.id  # type: ignore[attr-defined]
+            item.__setattr__("run_id", run.id)
             run_list.append(item)
 
     def get_run_by_id(self, run_id: str) -> Optional[ExecutionRun]:

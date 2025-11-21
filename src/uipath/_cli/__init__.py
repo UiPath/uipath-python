@@ -11,14 +11,14 @@ from .cli_debug import debug as debug
 from .cli_deploy import deploy as deploy
 from .cli_dev import dev as dev
 from .cli_eval import eval as eval
-from .cli_init import init as init  # type: ignore
+from .cli_init import init as init
 from .cli_invoke import invoke as invoke
 from .cli_new import new as new
 from .cli_pack import pack as pack
 from .cli_publish import publish as publish
 from .cli_pull import pull as pull
-from .cli_push import push as push  # type: ignore
-from .cli_register import register as register  # type: ignore
+from .cli_push import push as push
+from .cli_register import register as register
 from .cli_run import run as run
 
 load_environment_variables()

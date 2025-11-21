@@ -23,7 +23,7 @@ async def test_evaluate():
     class TestRuntime(UiPathRuntime):
         async def get_entrypoint(self) -> Entrypoint:
             return Entrypoint(
-                file_path="test.py",  # type: ignore[call-arg]
+                file_path="test.py",
                 unique_id="test",
                 type="workflow",
                 input={"type": "object", "properties": {}},
@@ -76,7 +76,7 @@ async def test_evaluate_with_custom_eval_set_run_id():
     class TestRuntime(UiPathRuntime):
         async def get_entrypoint(self) -> Entrypoint:
             return Entrypoint(
-                file_path="test.py",  # type: ignore[call-arg]
+                file_path="test.py",
                 unique_id="test",
                 type="workflow",
                 input={"type": "object", "properties": {}},
@@ -127,7 +127,7 @@ async def test_eval_runtime_uses_custom_eval_set_run_id():
     class TestRuntime(UiPathRuntime):
         async def get_entrypoint(self) -> Entrypoint:
             return Entrypoint(
-                file_path="test.py",  # type: ignore[call-arg]
+                file_path="test.py",
                 unique_id="test",
                 type="workflow",
                 input={"type": "object", "properties": {}},
@@ -173,7 +173,7 @@ async def test_eval_runtime_generates_uuid_when_no_custom_id():
     class TestRuntime(UiPathRuntime):
         async def get_entrypoint(self) -> Entrypoint:
             return Entrypoint(
-                file_path="test.py",  # type: ignore[call-arg]
+                file_path="test.py",
                 unique_id="test",
                 type="workflow",
                 input={"type": "object", "properties": {}},

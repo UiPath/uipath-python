@@ -166,7 +166,10 @@ def _default_output_processor(outputs):
 
 def wait_for_tracers():
     """Wait for all tracers to finish."""
-    trace.get_tracer_provider().shutdown()  # type: ignore
+    trace_provider = trace.get_tracer_provider()
+    shutdown_method = trace_provider.__getattribute__("shutdown")
+    if shutdown_method:
+        shutdown_method()
 
 
 def _opentelemetry_traced(

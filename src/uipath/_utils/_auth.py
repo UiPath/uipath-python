@@ -54,10 +54,11 @@ def resolve_config(
     scope: Optional[str],
 ):
     if _has_valid_client_credentials(client_id, client_secret):
+        assert client_id and client_secret
         external_app_service = ExternalApplicationService(base_url)
         token_data = external_app_service.get_token_data(
-            client_id,  # type: ignore
-            client_secret,  # type: ignore
+            client_id,
+            client_secret,
             scope,
         )
 

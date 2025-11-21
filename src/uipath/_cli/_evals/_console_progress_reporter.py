@@ -76,7 +76,11 @@ class ConsoleProgressReporter:
             self.console.print(result)
 
     def _extract_error_message(self, payload: EvalRunUpdatedEvent) -> str:
-        return str(payload.exception_details.exception) or "Execution failed"  # type: ignore
+        return (
+            payload.exception_details
+            and str(payload.exception_details.exception)
+            or "Execution failed"
+        )
 
     def _display_failed_evaluation(self, eval_name: str) -> None:
         """Display results for a failed evaluation."""
