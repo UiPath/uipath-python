@@ -75,6 +75,7 @@ def find_base_evaluator_class(file_path: Path) -> Optional[str]:
 
 def load_evaluator_class(file_path: Path, class_name: str) -> Optional[type]:
     """Dynamically load the evaluator class from the file."""
+    parent_dir: Optional[str] = None
     try:
         parent_dir = str(file_path.parent)
         if parent_dir not in sys.path:
@@ -96,20 +97,21 @@ def load_evaluator_class(file_path: Path, class_name: str) -> Optional[type]:
         return None
     finally:
         # Remove from sys.path
-        if parent_dir in sys.path:
+        if parent_dir is not None and parent_dir in sys.path:
             sys.path.remove(parent_dir)
 
 
 def generate_evaluator_config(evaluator_class: type, class_name: str) -> dict[str, Any]:
     """Generate the evaluator config from the class."""
     try:
-        config_type = evaluator_class._extract_config_type()
+        config_type = evaluator_class._extract_config_type()  # pyright: ignore[reportAttributeAccessIssue]
         config_instance = config_type()
         config_dict = config_instance.model_dump(by_alias=True, exclude_none=False)
 
         return config_dict
     except Exception as e:
         console.error(f"Error inferring evaluator config: {e}")
+        return {}
 
 
 def register_evaluator(filename: str) -> tuple[str, str]:
@@ -125,6 +127,7 @@ def register_evaluator(filename: str) -> tuple[str, str]:
     file_path = find_evaluator_file(filename)
     if file_path is None:
         console.error(f"Could not find '{filename}' in evals/evaluators/custom folder")
+        raise ValueError(f"Could not find evaluator file: {filename}")
 
     relative_path = f"evals/evaluators/custom/{filename}"
     console.info(
@@ -136,17 +139,20 @@ def register_evaluator(filename: str) -> tuple[str, str]:
         console.error(
             f"Could not find a class inheriting from BaseEvaluator in {filename}"
         )
+        raise ValueError(f"Could not find BaseEvaluator class in: {filename}")
 
     console.info(f"Found custom evaluator class: {click.style(class_name, fg='cyan')}")
 
     evaluator_class = load_evaluator_class(file_path, class_name)
     if evaluator_class is None:
         console.error(f"Could not load class {class_name} from {filename}")
+        raise ValueError(f"Could not load class {class_name} from {filename}")
 
     try:
-        evaluator_id = evaluator_class.get_evaluator_id()
+        evaluator_id = evaluator_class.get_evaluator_id()  # pyright: ignore[reportAttributeAccessIssue]
     except Exception as e:
         console.error(f"Error getting evaluator ID: {e}")
+        raise
 
     evaluator_config = generate_evaluator_config(evaluator_class, class_name)
     evaluator_json_type = evaluator_class.generate_json_type()

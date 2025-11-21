@@ -51,8 +51,8 @@ class BaseService:
             "headers": Headers(self.default_headers),
         }
 
-        self._client = Client(**client_kwargs)
-        self._client_async = AsyncClient(**client_kwargs)
+        self._client = Client(**client_kwargs)  # pyright: ignore[reportArgumentType]
+        self._client_async = AsyncClient(**client_kwargs)  # pyright: ignore[reportArgumentType]
 
         self._logger.debug(f"HEADERS: {self.default_headers}")
 

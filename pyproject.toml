@@ -54,6 +54,7 @@ build-backend = "hatchling.build"
 dev = [
   "bandit>=1.8.2",
   "mypy>=1.14.1",
+  "pyrefly>=0.42.2",
   "ruff>=0.9.4",
   "rust-just>=1.39.0",
   "pytest>=7.4.0",
@@ -133,6 +134,14 @@ python_files = "test_*.py"
 addopts = "-ra -q --cov"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
+
+[tool.pyrefly]
+project-excludes = [
+    "**/samples/**/*",
+    "**/testcases/**/*",
+    "**/tests/**/*",
+    "**/scripts/**/*",
+]
 
 [tool.coverage.report]
 show_missing = true

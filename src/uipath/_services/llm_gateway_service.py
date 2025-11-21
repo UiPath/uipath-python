@@ -124,13 +124,13 @@ def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
             cleaned_type["properties"] = properties
 
         if type_def.get("type") == "object":
-            cleaned_type["required"] = list(cleaned_type.get("properties", {}).keys())
+            cleaned_type["required"] = list(cleaned_type.get("properties", {}).keys())  # pyright: ignore[reportArgumentType,reportAttributeAccessIssue]
 
         if "$defs" in type_def:
             cleaned_defs = {}
             for key, value in type_def["$defs"].items():
                 cleaned_defs[key] = clean_type(value)
-            cleaned_type["$defs"] = cleaned_defs
+            cleaned_type["$defs"] = cleaned_defs  # pyright: ignore[reportArgumentType]
         return cleaned_type
 
     # Create clean schema
@@ -306,7 +306,7 @@ class UiPathOpenAIService(BaseService):
             ):
                 # Convert Pydantic model to JSON schema format
                 cleaned_schema = _cleanup_schema(response_format)
-                request_body["response_format"] = {
+                request_body["response_format"] = {  # pyright: ignore[reportArgumentType]
                     "type": "json_schema",
                     "json_schema": {
                         "name": response_format.__name__.lower(),
@@ -316,7 +316,7 @@ class UiPathOpenAIService(BaseService):
                 }
             else:
                 # Use provided dictionary format directly
-                request_body["response_format"] = response_format
+                request_body["response_format"] = response_format  # pyright: ignore[reportArgumentType]
 
         response = await self.request_async(
             "POST",
@@ -515,7 +515,7 @@ class UiPathLlmChatService(BaseService):
             ):
                 # Convert Pydantic model to JSON schema format
                 cleaned_schema = _cleanup_schema(response_format)
-                request_body["response_format"] = {
+                request_body["response_format"] = {  # pyright: ignore[reportArgumentType]
                     "type": "json_schema",
                     "json_schema": {
                         "name": response_format.__name__.lower(),
@@ -525,7 +525,7 @@ class UiPathLlmChatService(BaseService):
                 }
             else:
                 # Use provided dictionary format directly
-                request_body["response_format"] = response_format
+                request_body["response_format"] = response_format  # pyright: ignore[reportArgumentType]
 
         # Add tools if provided - convert to UiPath format
         if tools:
@@ -536,11 +536,11 @@ class UiPathLlmChatService(BaseService):
         # Handle tool_choice
         if tool_choice:
             if isinstance(tool_choice, str):
-                request_body["tool_choice"] = tool_choice
+                request_body["tool_choice"] = tool_choice  # pyright: ignore[reportArgumentType]
             elif isinstance(tool_choice, SpecificToolChoice):
-                request_body["tool_choice"] = {"type": "tool", "name": tool_choice.name}
+                request_body["tool_choice"] = {"type": "tool", "name": tool_choice.name}  # pyright: ignore[reportArgumentType]
             else:
-                request_body["tool_choice"] = tool_choice.model_dump()
+                request_body["tool_choice"] = tool_choice.model_dump()  # pyright: ignore[reportArgumentType]
 
         # Use default headers but update with normalized API specific headers
         headers = {
@@ -585,7 +585,7 @@ class UiPathLlmChatService(BaseService):
         }
 
         if tool.function.parameters.required:
-            parameters["required"] = tool.function.parameters.required
+            parameters["required"] = tool.function.parameters.required  # pyright: ignore[reportArgumentType]
 
         return {
             "name": tool.function.name,
