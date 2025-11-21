@@ -1,4 +1,3 @@
-# type: ignore
 import asyncio
 import os
 from typing import Optional
@@ -103,10 +102,12 @@ def run(
         if not entrypoint:
             console.error("""No entrypoint specified. Please provide a path to a Python script.
     Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
+            return
 
         if not os.path.exists(entrypoint):
             console.error(f"""Script not found at path {entrypoint}.
     Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
+            return
 
         try:
 
@@ -131,8 +132,8 @@ def run(
                 else:
                     result = await runtime_factory.execute(context)
 
-                if not context.job_id:
-                    console.info(result.output)
+                if not context.job_id and result:
+                    console.info(f"{result.output}")
 
             asyncio.run(execute())
 

@@ -1,4 +1,3 @@
-# type: ignore
 import click
 
 from .cli_pack import pack

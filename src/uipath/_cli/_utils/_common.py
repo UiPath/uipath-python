@@ -179,7 +179,7 @@ async def may_override_files(
 
 
 async def read_resource_overwrites_from_file(
-    directory_path: Optional[Path] = None,
+    directory_path: Optional[str] = None,
 ) -> dict[str, ResourceOverwrite]:
     """Read resource overwrites from a JSON file."""
     config_file_name = UiPathConfig.config_file_name

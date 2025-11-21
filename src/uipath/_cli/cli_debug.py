@@ -1,4 +1,3 @@
-# type: ignore
 import asyncio
 import os
 from typing import Optional
@@ -93,7 +92,7 @@ def debug(
             console.error("""No entrypoint specified. Please provide a path to a Python script.
     Usage: `uipath debug <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
 
-        if not os.path.exists(entrypoint):
+        if not (entrypoint and os.path.exists(entrypoint)):
             console.error(f"""Script not found at path {entrypoint}.
     Usage: `uipath debug <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
 

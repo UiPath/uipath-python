@@ -1,4 +1,3 @@
-# type: ignore
 import asyncio
 import json
 import os
@@ -42,6 +41,7 @@ def get_available_feeds(
         console.error(
             f"Failed to fetch available feeds. Please check your connection. Status code: {response.status_code} {response.text}"
         )
+        return []
     try:
         available_feeds = [
             feed for feed in response.json() if feed["purpose"] == "Processes"
@@ -49,6 +49,7 @@ def get_available_feeds(
         return [(feed["name"], feed["id"]) for feed in available_feeds]
     except Exception as e:
         console.error(f"Failed to deserialize available feeds: {str(e)}")
+        return []
 
 
 def find_feed_by_folder_name(
@@ -160,8 +161,7 @@ def publish(feed, folder):
     if not most_recent:
         console.error("No .nupkg files found. Please run `uipath pack` first.")
 
-    is_personal_workspace = False
-
+    personal_workspace_feed_id, personal_workspace_folder_id = None, None
     with console.spinner(f"Publishing most recent package: {most_recent} ..."):
         package_to_publish_path = os.path.join(".uipath", most_recent)
         url = f"{base_url}/orchestrator_/odata/Processes/UiPath.Server.Configuration.OData.UploadPackage()"
@@ -172,7 +172,6 @@ def publish(feed, folder):
                 get_personal_workspace_info_async()
             )
             if feed == "personal" or feed == personal_workspace_feed_id:
-                is_personal_workspace = True
                 if (
                     personal_workspace_feed_id is None
                     or personal_workspace_folder_id is None
@@ -180,6 +179,7 @@ def publish(feed, folder):
                     console.error(
                         "No personal workspace found for user. Please try reauthenticating."
                     )
+                    return
                 url = url + "?feedId=" + personal_workspace_feed_id
             else:
                 url = url + "?feedId=" + feed
@@ -194,32 +194,34 @@ def publish(feed, folder):
                 if response.status_code == 200:
                     console.success("Package published successfully!")
 
-                    if is_personal_workspace:
-                        package_name = None
-                        package_version = None
+                    if personal_workspace_feed_id and (
+                        feed == "personal" or feed == personal_workspace_feed_id
+                    ):
                         try:
                             data = json.loads(response.text)["value"][0]["Body"]
                             package_name = json.loads(data)["Id"]
                             package_version = json.loads(data)["Version"]
+                            if isinstance(package_name, str):
+                                with console.spinner("Getting process information ..."):
+                                    release_id, _ = get_release_info(
+                                        base_url,
+                                        token,
+                                        package_name,
+                                        package_version,
+                                        personal_workspace_feed_id,
+                                    )
+                                if release_id:
+                                    process_url = f"{base_url}/orchestrator_/processes/{release_id}/edit?fid={personal_workspace_folder_id}"
+                                    console.link(
+                                        "Process configuration link:", process_url
+                                    )
+                                    console.hint(
+                                        "Use the link above to configure any environment variables"
+                                    )
+                                else:
+                                    console.warning("Failed to compose process url")
                         except json.decoder.JSONDecodeError:
                             console.warning("Failed to deserialize package name")
-                        if package_name is not None:
-                            with console.spinner("Getting process information ..."):
-                                release_id, _ = get_release_info(
-                                    base_url,
-                                    token,
-                                    package_name,
-                                    package_version,
-                                    personal_workspace_feed_id,
-                                )
-                            if release_id:
-                                process_url = f"{base_url}/orchestrator_/processes/{release_id}/edit?fid={personal_workspace_folder_id}"
-                                console.link("Process configuration link:", process_url)
-                                console.hint(
-                                    "Use the link above to configure any environment variables"
-                                )
-                            else:
-                                console.warning("Failed to compose process url")
                 else:
                     console.error(
                         f"Failed to publish package. Status code: {response.status_code} {response.text}"

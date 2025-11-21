@@ -1,4 +1,3 @@
-# type: ignore
 import json
 import os
 import uuid
@@ -232,7 +231,7 @@ def pack_fn(
         config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(f))
 
     # for backwards compatibility. should be removed
-    if not len(config_data.bindings.resources):
+    if not (config_data.bindings and config_data.bindings.resources):
         # try to read bindings from bindings.json
         bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
         if os.path.exists(bindings_path):
@@ -275,10 +274,11 @@ def pack_fn(
                 "content/entry-points.json",
                 json.dumps(entrypoints_file_content, indent=4),
             )
-        z.writestr(
-            "content/bindings_v2.json",
-            json.dumps(config_data.bindings.model_dump(by_alias=True), indent=4),
-        )
+        if config_data.bindings:
+            z.writestr(
+                "content/bindings_v2.json",
+                json.dumps(config_data.bindings.model_dump(by_alias=True), indent=4),
+            )
         z.writestr(f"{project_name}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
