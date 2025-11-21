@@ -19,16 +19,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Discover testcases
       id: discover
       run: |
         # Find all testcase folders (excluding common folders like README, etc.)
         testcase_dirs=$(find testcases -maxdepth 1 -type d -name "*-*" | sed 's|testcases/||' | sort)
-        
+
         echo "Found testcase directories:"
         echo "$testcase_dirs"
-        
+
         # Convert to JSON array for matrix
         testcases_json=$(echo "$testcase_dirs" | jq -R -s -c 'split("\n")[:-1]')
         echo "testcases=$testcases_json" >> $GITHUB_OUTPUT
@@ -44,10 +44,10 @@ jobs:
       fail-fast: false
       matrix:
         testcase: ${{ fromJson(needs.discover-testcases.outputs.testcases) }}
-        environment: [alpha, cloud]
-    
+        environment: [alpha, cloud, staging]
+
     name: "${{ matrix.testcase }} / ${{ matrix.environment }}"
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -57,23 +57,24 @@ jobs:
 
     - name: Run testcase
       env:
-        CLIENT_ID:      ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_ID || secrets.CLOUD_TEST_CLIENT_ID }}
-        CLIENT_SECRET:  ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_SECRET || secrets.CLOUD_TEST_CLIENT_SECRET }}
-        BASE_URL:       ${{ matrix.environment == 'alpha' && secrets.ALPHA_BASE_URL || secrets.CLOUD_BASE_URL }}
+        CLIENT_ID:      ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_ID || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_ID || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_ID }}
+        CLIENT_SECRET:  ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_SECRET || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_SECRET || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_SECRET }}
+        BASE_URL:       ${{ matrix.environment == 'alpha' && secrets.ALPHA_BASE_URL || matrix.environment == 'staging' && secrets.STAGING_BASE_URL || matrix.environment == 'cloud' && secrets.CLOUD_BASE_URL }}
+
         USE_AZURE_CHAT: ${{ matrix.use_azure_chat }}
       working-directory: testcases/${{ matrix.testcase }}
       run: |
         # If any errors occur execution will stop with exit code
         set -e
-      
+
         echo "Running testcase: ${{ matrix.testcase }}"
         echo "Environment: ${{ matrix.environment }}"
         echo "Working directory: $(pwd)"
-        
+
         # Execute the testcase run script directly
         bash run.sh
         bash ../common/validate_output.sh
-    
+
   summarize-results:
     needs: [integration-tests]
     runs-on: ubuntu-latest
