@@ -10,7 +10,7 @@ from typing_extensions import override
 
 from .._utils._console import ConsoleLogger
 from .._utils._input_args import generate_args
-from .._utils._parse_ast import generate_bindings  # type: ignore[attr-defined]
+from .._utils._parse_ast import generate_bindings
 from ..models.runtime_schema import Bindings, Entrypoint
 from ._contracts import (
     UiPathBaseRuntime,
@@ -123,7 +123,11 @@ class UiPathScriptRuntime(UiPathRuntime):
         """
         working_dir = self.context.runtime_dir or os.getcwd()
         script_path = get_user_script(working_dir, entrypoint=self.context.entrypoint)
-        bindings = generate_bindings(script_path)
+        bindings = (
+            generate_bindings(script_path)
+            if script_path
+            else Bindings(version="2.0", resources=[])
+        )
         return bindings
 
     @override
@@ -135,7 +139,7 @@ class UiPathScriptRuntime(UiPathRuntime):
         relative_path = Path(script_path).relative_to(working_dir).as_posix()
         args = generate_args(script_path)
         return Entrypoint(
-            file_path=relative_path,  # type: ignore[call-arg] # This exists
+            file_path=relative_path,
             unique_id=str(uuid.uuid4()),
             type="agent",
             input=args["input"],

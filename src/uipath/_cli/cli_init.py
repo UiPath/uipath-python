@@ -1,4 +1,3 @@
-# type: ignore
 import asyncio
 import importlib.resources
 import json
@@ -147,10 +146,13 @@ def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> None:
+def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> str:
     existing_settings = get_existing_settings(CONFIG_PATH)
     if existing_settings is not None:
-        config_data.settings = existing_settings
+        if isinstance(config_data, RuntimeSchema):
+            config_data.settings = existing_settings
+        else:
+            config_data["settings"] = config_data
     with open(CONFIG_PATH, "w") as config_file:
         if isinstance(config_data, RuntimeSchema):
             json_object = config_data.model_dump(by_alias=True, exclude_unset=True)

@@ -735,9 +735,6 @@ class BucketsService(FolderContext, BaseService):
             >>> bucket = sdk.buckets.retrieve(name="my-storage")
             >>> print(bucket.name, bucket.identifier)
         """
-        if not (key or name):
-            raise ValueError("Must specify a bucket name or bucket key")
-
         if key:
             spec = self._retrieve_by_key_spec(
                 key, folder_key=folder_key, folder_path=folder_path
@@ -759,8 +756,10 @@ class BucketsService(FolderContext, BaseService):
             except (KeyError, IndexError) as e:
                 raise LookupError(f"Bucket with key '{key}' not found") from e
         else:
+            if not name:
+                raise ValueError("Must specify a bucket name or bucket key")
             spec = self._retrieve_spec(
-                name,  # type: ignore
+                name,
                 folder_key=folder_key,
                 folder_path=folder_path,
             )
@@ -810,9 +809,6 @@ class BucketsService(FolderContext, BaseService):
             >>> bucket = await sdk.buckets.retrieve_async(name="my-storage")
             >>> print(bucket.name, bucket.identifier)
         """
-        if not (key or name):
-            raise ValueError("Must specify a bucket name or bucket key")
-
         if key:
             spec = self._retrieve_by_key_spec(
                 key, folder_key=folder_key, folder_path=folder_path
@@ -836,8 +832,10 @@ class BucketsService(FolderContext, BaseService):
             except (KeyError, IndexError) as e:
                 raise LookupError(f"Bucket with key '{key}' not found") from e
         else:
+            if not name:
+                raise ValueError("Must specify a bucket name or bucket key")
             spec = self._retrieve_spec(
-                name,  # type: ignore
+                name,
                 folder_key=folder_key,
                 folder_path=folder_path,
             )

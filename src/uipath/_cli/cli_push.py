@@ -1,4 +1,3 @@
-# type: ignore
 import asyncio
 from typing import Any, AsyncIterator, Optional
 from urllib.parse import urlparse
@@ -10,11 +9,12 @@ from uipath.models.exceptions import EnrichedException
 from .._config import UiPathConfig
 from ..models import ResourceType
 from ..models.errors import FolderNotFoundException
-from ._push.sw_file_handler import SwFileHandler, UpdateEvent
+from ._push.sw_file_handler import SwFileHandler
 from ._utils._common import may_override_files
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     Severity,
+    UpdateEvent,
     ensure_config_file,
     get_project_config,
     validate_config,
@@ -65,7 +65,9 @@ async def create_resources(studio_client: StudioClient):
         found_resource = None
         resource_type = bindings_resource.resource
         if resource_type == "connection":
-            connection_key = bindings_resource.value.get("ConnectionId").default_value
+            connection_key_resource_value = bindings_resource.value.get("ConnectionId")
+            assert connection_key_resource_value
+            connection_key = connection_key_resource_value.default_value
             try:
                 connection = await connections.retrieve_async(connection_key)
             except EnrichedException:
@@ -79,8 +81,11 @@ async def create_resources(studio_client: StudioClient):
             resource_name = connection.name
             folder_path = connection.folder.get("path")
         else:
-            resource_name = bindings_resource.value.get("name").default_value
-            folder_path = bindings_resource.value.get("folderPath").default_value
+            name_resource_value = bindings_resource.value.get("name")
+            folder_path_resource_value = bindings_resource.value.get("folderPath")
+            assert name_resource_value and folder_path_resource_value
+            resource_name = name_resource_value.default_value
+            folder_path = folder_path_resource_value.default_value
 
         resources = resource_catalog.list_by_type_async(
             resource_type=ResourceType.from_string(resource_type),
@@ -249,6 +254,7 @@ def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> No
     project_id = UiPathConfig.project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
+        return
 
     studio_client = StudioClient(project_id=project_id)
 

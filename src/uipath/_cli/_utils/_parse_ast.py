@@ -1,9 +1,8 @@
-# type: ignore
-
 import ast
 import json
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..._config import UiPathConfig
@@ -308,7 +307,7 @@ class UiPathTracker:
 
                         if service_name in self.service_usage:
                             # Extract arguments
-                            args = []
+                            args: list[Any] = []
                             for arg in node.args:
                                 if isinstance(arg, ast.Constant) and isinstance(
                                     arg.value, str
@@ -567,7 +566,7 @@ def generate_bindings(file_path: str) -> Bindings:
         raise Exception(f"Error generating bindings JSON: {e}") from e
 
 
-def write_bindings_file(bindings: Bindings) -> str:
+def write_bindings_file(bindings: Bindings) -> Path:
     """Write bindings to a JSON file.
 
     Args:
@@ -584,7 +583,7 @@ def write_bindings_file(bindings: Bindings) -> str:
     return bindings_file_path
 
 
-def write_entry_points_file(entry_points: Entrypoints) -> str:
+def write_entry_points_file(entry_points: Entrypoints) -> Path:
     """Write entrypoints to a JSON file.
 
     Args:

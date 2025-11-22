@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from uipath._cli import cli
-from uipath._cli.cli_init import (  # type: ignore[attr-defined]
+from uipath._cli.cli_init import (
     generate_agent_md_file,
     generate_agent_md_files,
 )

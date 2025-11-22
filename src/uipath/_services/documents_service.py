@@ -1,3 +1,4 @@
+# type: ignore # this is riddled with typing issues -- fix this later.
 import asyncio
 import time
 from contextlib import nullcontext
@@ -105,9 +106,9 @@ def _validate_extract_params_and_get_project_type(
             file_path=file_path,
             document_type_name=document_type_name,
         )
-        project_type = classification_result.project_type  # type: ignore
+        project_type = classification_result.project_type
 
-    return project_type  # type: ignore
+    return project_type
 
 
 class DocumentsService(FolderContext, BaseService):
@@ -195,12 +196,12 @@ class DocumentsService(FolderContext, BaseService):
             return classification_result.document_id
 
         document_id = self._start_digitization(
-            project_id=project_id,  # type: ignore
+            project_id=project_id,
             file=file,
             file_path=file_path,
         )
         self._wait_for_digitization(
-            project_id=project_id,  # type: ignore
+            project_id=project_id,
             document_id=document_id,
         )
 
@@ -217,12 +218,12 @@ class DocumentsService(FolderContext, BaseService):
             return classification_result.document_id
 
         document_id = await self._start_digitization_async(
-            project_id=project_id,  # type: ignore
+            project_id=project_id,
             file=file,
             file_path=file_path,
         )
         await self._wait_for_digitization_async(
-            project_id=project_id,  # type: ignore
+            project_id=project_id,
             document_id=document_id,
         )
 
@@ -238,13 +239,13 @@ class DocumentsService(FolderContext, BaseService):
         if project_name is not None:
             project_id = self._get_project_id_by_name(
                 project_name,
-                project_type,  # type: ignore
+                project_type,
             )
         elif project_type == ProjectType.PRETRAINED:
             return str(UUID(int=0)), None
         else:
-            project_id = classification_result.project_id  # type: ignore
-            tag = classification_result.tag  # type: ignore
+            project_id = classification_result.project_id
+            tag = classification_result.tag
 
         tags = self._get_project_tags(project_id)
         if tag not in tags:
@@ -264,13 +265,13 @@ class DocumentsService(FolderContext, BaseService):
         if project_name is not None:
             project_id = await self._get_project_id_by_name_async(
                 project_name,
-                project_type,  # type: ignore
+                project_type,
             )
         elif project_type == ProjectType.PRETRAINED:
             return str(UUID(int=0)), None
         else:
-            project_id = classification_result.project_id  # type: ignore
-            tag = classification_result.tag  # type: ignore
+            project_id = classification_result.project_id
+            tag = classification_result.tag
 
         tags = await self._get_project_tags_async(project_id)
         if tag not in tags:
@@ -388,7 +389,7 @@ class DocumentsService(FolderContext, BaseService):
             return next(
                 extractor["id"]
                 for extractor in response.json().get("documentTypes", [])
-                if extractor["name"].lower() == document_type_name.lower()  # type: ignore
+                if extractor["name"].lower() == document_type_name.lower()
             )
         except StopIteration:
             raise ValueError(
@@ -419,7 +420,7 @@ class DocumentsService(FolderContext, BaseService):
             return next(
                 extractor["id"]
                 for extractor in response.json().get("documentTypes", [])
-                if extractor["name"].lower() == document_type_name.lower()  # type: ignore
+                if extractor["name"].lower() == document_type_name.lower()
             )
         except StopIteration:
             raise ValueError(
@@ -1233,7 +1234,7 @@ class DocumentsService(FolderContext, BaseService):
         project_type: ProjectType,
         tag: Optional[str],
         operation_id: str,
-    ) -> Dict:  # type: ignore
+    ) -> Dict:
         if project_type == ProjectType.PRETRAINED:
             url = Endpoint(
                 f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}"
@@ -1256,7 +1257,7 @@ class DocumentsService(FolderContext, BaseService):
         project_type: ProjectType,
         tag: Optional[str],
         operation_id: str,
-    ) -> Dict:  # type: ignore
+    ) -> Dict:
         if project_type == ProjectType.PRETRAINED:
             url = Endpoint(
                 f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}"
@@ -1282,7 +1283,7 @@ class DocumentsService(FolderContext, BaseService):
         tag: Optional[str],
         document_type_id: str,
         operation_id: str,
-    ) -> Dict:  # type: ignore
+    ) -> Dict:
         if project_type == ProjectType.PRETRAINED:
             url = Endpoint(
                 f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}"
@@ -1306,7 +1307,7 @@ class DocumentsService(FolderContext, BaseService):
         tag: Optional[str],
         document_type_id: str,
         operation_id: str,
-    ) -> Dict:  # type: ignore
+    ) -> Dict:
         if project_type == ProjectType.PRETRAINED:
             url = Endpoint(
                 f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}"

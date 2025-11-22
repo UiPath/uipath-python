@@ -6,7 +6,7 @@ from .buckets_service import BucketsService
 from .connections_service import ConnectionsService
 from .context_grounding_service import ContextGroundingService
 from .conversations_service import ConversationsService
-from .documents_service import DocumentsService
+from .documents_service import DocumentsService  # type: ignore[attr-defined]
 from .entities_service import EntitiesService
 from .external_application_service import ExternalApplicationService
 from .folder_service import FolderService

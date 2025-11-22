@@ -47,10 +47,13 @@ class AuthService:
         self._authenticate_authorization_code()
 
     def _authenticate_client_credentials(self):
+        assert self._client_id and self._client_secret, (
+            "Client ID and Client Secret must be provided."
+        )
         external_app_service = ExternalApplicationService(self._base_url)
         token_data = external_app_service.get_token_data(
-            self._client_id,  # type: ignore
-            self._client_secret,  # type: ignore
+            self._client_id,
+            self._client_secret,
             self._scope,
         )
 

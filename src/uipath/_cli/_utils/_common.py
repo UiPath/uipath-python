@@ -68,8 +68,8 @@ def get_env_vars(spinner: Optional[Spinner] = None) -> list[str]:
         click.echo("UIPATH_URL, UIPATH_ACCESS_TOKEN")
         click.get_current_context().exit(1)
 
-    # at this step we know for sure that both base_url and token exist. type checking can be disabled
-    return [base_url, token]  # type: ignore
+    assert base_url and token
+    return [base_url, token]
 
 
 def serialize_object(obj):

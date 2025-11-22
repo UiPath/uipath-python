@@ -8,7 +8,9 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.documents_service import DocumentsService
+from uipath._services.documents_service import (  # type: ignore[attr-defined]
+    DocumentsService,
+)
 from uipath.models.documents import (
     ActionPriority,
     ClassificationResult,

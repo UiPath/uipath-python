@@ -9,7 +9,7 @@ from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeF
 from uipath._cli._runtime._runtime import UiPathScriptRuntime
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
-from uipath._cli.cli_init import init  # type: ignore[attr-defined]
+from uipath._cli.cli_init import init
 from uipath._cli.middlewares import Middlewares
 
 console = ConsoleLogger()
