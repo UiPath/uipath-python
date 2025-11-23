@@ -143,5 +143,6 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorC
             },
         }
 
-        response = await self.llm.chat_completions(**request_data)  # type: ignore
+        assert self.llm, "LLM should be initialized before calling this method."
+        response = await self.llm.chat_completions(**request_data)
         return LLMResponse(**json.loads(response.choices[-1].message.content or "{}"))

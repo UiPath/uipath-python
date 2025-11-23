@@ -8,7 +8,7 @@ from ..models import (
 )
 from .base_evaluator import BaseEvaluationCriteria
 from .output_evaluator import (
-    OutputEvaluator,
+    BaseOutputEvaluator,
     OutputEvaluatorConfig,
 )
 
@@ -28,7 +28,7 @@ class ContainsEvaluatorConfig(OutputEvaluatorConfig[ContainsEvaluationCriteria])
 
 
 class ContainsEvaluator(
-    OutputEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, type(None)]  # type: ignore
+    BaseOutputEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, None]
 ):
     """Evaluator that checks if the actual output contains the expected output.
 

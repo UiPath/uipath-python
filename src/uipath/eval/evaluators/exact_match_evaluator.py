@@ -22,7 +22,7 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
 
 
 class ExactMatchEvaluator(
-    OutputEvaluator[OutputEvaluationCriteria, ExactMatchEvaluatorConfig, type(None)]  # type: ignore
+    OutputEvaluator[OutputEvaluationCriteria, ExactMatchEvaluatorConfig, None]
 ):
     """Evaluator that performs exact structural matching between expected and actual outputs.
 
