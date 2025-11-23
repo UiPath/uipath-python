@@ -180,8 +180,8 @@ def resource_override(
 
             return func(**all_args)
 
-        wrapper._should_infer_bindings = True  # type: ignore
-        wrapper._infer_bindings_mappings = {  # type: ignore
+        wrapper._should_infer_bindings = True  # type: ignore[attr-defined]
+        wrapper._infer_bindings_mappings = {  # type: ignore[attr-defined]
             "name": resource_identifier,
             "folder_path": folder_identifier,
         }

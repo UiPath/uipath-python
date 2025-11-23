@@ -78,9 +78,9 @@ def service_command(f: Callable[..., Any]) -> Callable[..., Any]:
         try:
             result = f(ctx, *args, **kwargs)
 
-            if inspect.isawaitable(result):
+            if inspect.iscoroutine(result):
                 try:
-                    result = asyncio.run(result)  # type: ignore[arg-type]
+                    result = asyncio.run(result)
                 except RuntimeError as e:
                     if "cannot be called from a running event loop" in str(e).lower():
                         prev_loop = asyncio.get_event_loop()

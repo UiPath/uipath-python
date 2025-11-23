@@ -11,7 +11,7 @@ class Resources(str, enum.Enum):
     EVALUATOR = "evaluator"
 
     @classmethod
-    def from_string(cls, resource: str) -> "Resources":  # type: ignore
+    def from_string(cls, resource: str) -> "Resources":
         try:
             return Resources(resource)
         except ValueError:
@@ -19,3 +19,4 @@ class Resources(str, enum.Enum):
             console.error(
                 f"Invalid resource type: '{resource}'. Valid types are: {valid_resources}"
             )
+            raise

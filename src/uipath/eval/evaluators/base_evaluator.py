@@ -95,8 +95,9 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         if hasattr(cls, "evaluate") and not getattr(
             cls.evaluate, "_has_metrics_decorator", False
         ):
-            cls.evaluate = track_evaluation_metrics(cls.evaluate)  # type: ignore[method-assign]
-            cls.evaluate._has_metrics_decorator = True  # type: ignore[attr-defined]
+            new_evaluation_method = track_evaluation_metrics(cls.evaluate)
+            new_evaluation_method._has_metrics_decorator = True  # type: ignore[attr-defined]
+            cls.evaluate = new_evaluation_method  # type: ignore[method-assign]
 
     @property
     def name(self) -> str:

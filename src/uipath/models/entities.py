@@ -1,4 +1,5 @@
 from enum import Enum
+from types import EllipsisType
 from typing import Any, Dict, List, Optional, Type, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
@@ -216,7 +217,7 @@ class EntityRecord(BaseModel):
 
         # Dynamically define a Pydantic model based on the user's class annotations
         # Fields must be valid type annotations directly
-        pydantic_fields = {}
+        pydantic_fields: dict[str, tuple[Any, EllipsisType | None]] = {}
 
         for name, annotation in user_class_annotations.items():
             is_optional = False
@@ -232,7 +233,7 @@ class EntityRecord(BaseModel):
             if is_optional:
                 pydantic_fields[name] = (annotation, None)  # Not required
             else:
-                pydantic_fields[name] = (annotation, ...)  # type: ignore
+                pydantic_fields[name] = (annotation, ...)
 
         # Dynamically create the Pydantic model class
         dynamic_model = create_model(

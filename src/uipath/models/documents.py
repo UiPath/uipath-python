@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import IO, List, Optional, Union
+from typing import IO, Any, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -76,11 +76,11 @@ class ExtractionResult(BaseModel):
 
     document_id: str = Field(alias="DocumentId")
     results_version: int = Field(alias="ResultsVersion")
-    results_document: dict = Field(alias="ResultsDocument")  # type: ignore
-    extractor_payloads: Optional[List[dict]] = Field(  # type: ignore
+    results_document: dict[str, Any] = Field(alias="ResultsDocument")
+    extractor_payloads: Optional[List[dict[str, Any]]] = Field(
         default=None, alias="ExtractorPayloads"
     )
-    business_rules_results: Optional[List[dict]] = Field(  # type: ignore
+    business_rules_results: Optional[List[dict[str, Any]]] = Field(
         default=None, alias="BusinessRulesResults"
     )
 
@@ -133,7 +133,7 @@ class ValidationAction(BaseModel):
         validate_by_alias=True,
     )
 
-    action_data: dict = Field(alias="actionData")  # type: ignore
+    action_data: dict[str, Any] = Field(alias="actionData")
     action_status: str = Field(alias="actionStatus")
     project_id: str = Field(alias="projectId")
     project_type: ProjectType = Field(alias="projectType")

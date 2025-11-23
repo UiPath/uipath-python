@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Dict, Iterator, List, Optional, Type, TypeVar
+from typing import Any, Dict, Iterator, List, Optional, Type
 
 import click
 from rich.console import Console
@@ -30,16 +30,13 @@ class LogLevel(Enum):
     MAGIC = "✨"
 
 
-T = TypeVar("T", bound="ConsoleLogger")
-
-
 class ConsoleLogger:
     """A singleton wrapper class for terminal output with emoji support and spinners."""
 
     # Class variable to hold the singleton instance
     _instance: Optional["ConsoleLogger"] = None
 
-    def __new__(cls: Type[T]) -> T:
+    def __new__(cls: Type["ConsoleLogger"]) -> "ConsoleLogger":
         """Ensure only one instance of ConsoleLogger is created.
 
         Returns:
@@ -48,7 +45,7 @@ class ConsoleLogger:
         if cls._instance is None:
             cls._instance = super(ConsoleLogger, cls).__new__(cls)
             cls._instance._initialized = False
-        return cls._instance  # type: ignore
+        return cls._instance
 
     def __init__(self):
         """Initialize the ConsoleLogger (only once)."""

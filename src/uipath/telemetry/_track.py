@@ -3,10 +3,10 @@ import os
 from functools import wraps
 from importlib.metadata import version
 from logging import INFO, WARNING, LogRecord, getLogger
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Union
 
 from opentelemetry.sdk._logs import LoggingHandler
-from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import AnyValue
 
 from .._cli._utils._common import get_claim_from_token
 from .._utils.constants import (
@@ -58,7 +58,7 @@ def _get_project_key() -> str:
 
 class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
     @staticmethod
-    def _get_attributes(record: LogRecord) -> Attributes:  # type: ignore[override]
+    def _get_attributes(record: LogRecord) -> Mapping[str, AnyValue]:
         attributes = dict(LoggingHandler._get_attributes(record) or {})
         attributes[_APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE] = True
         attributes[_CLOUD_TENANT_ID] = os.getenv(ENV_TENANT_ID, _UNKNOWN)
@@ -80,7 +80,7 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
         if _CODE_LINENO in attributes:
             del attributes[_CODE_LINENO]
 
-        return attributes  # type: ignore[return-value]
+        return attributes
 
 
 class _TelemetryClient:
