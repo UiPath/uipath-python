@@ -1,0 +1,101 @@
+{
+    "description": "Langchain cross and traced - checks key spans exist with parent relationships",
+    "required_spans": [
+        {
+            "name": "LangGraph",
+            "parent": null,
+            "attributes": {
+                "openinference.span.kind": "CHAIN"
+            }
+        },
+        {
+            "name": "generate_report",
+            "parent": "LangGraph",
+            "attributes": {
+                "openinference.span.kind": "CHAIN"
+            }
+        },
+        {
+            "name": "my_custom_traceable_function",
+            "parent": "generate_report",
+            "span_type": "function_call_sync",
+            "attributes": {
+                "input.mime_type": "application/json",
+                "output.mime_type": "application/json"
+            }
+        },
+        {
+            "name": "my_custom_traced_function",
+            "parent": "generate_report",
+            "span_type": "function_call_sync",
+            "attributes": {
+                "input.mime_type": "application/json",
+                "output.mime_type": "application/json"
+            }
+        },
+        {
+            "name": "my_custom_nested_traced_function",
+            "parent": "my_custom_traced_function",
+            "span_type": "function_call_sync",
+            "attributes": {
+                "input.mime_type": "application/json",
+                "output.mime_type": "application/json"
+            }
+        },
+        {
+            "name": "factorial",
+            "parent": "generate_report",
+            "span_type": "function_call_async",
+            "attributes": {
+                "input.mime_type": "application/json",
+                "output.mime_type": "application/json",
+                "input.value": "{\"i\": 5}",
+                "output.value": "120"
+            }
+        },
+        {
+            "name": "factorial",
+            "parent": "factorial",
+            "span_type": "function_call_async",
+            "attributes": {
+                "input.mime_type": "application/json",
+                "output.mime_type": "application/json",
+                "input.value": "{\"i\": 4}",
+                "output.value": "24"
+            }
+        },
+        {
+            "name": "factorial",
+            "parent": "factorial",
+            "span_type": "function_call_async",
+            "attributes": {
+                "input.mime_type": "application/json",
+                "output.mime_type": "application/json",
+                "input.value": "{\"i\": 3}",
+                "output.value": "6"
+            }
+        },
+        {
+            "name": "factorial",
+            "parent": "factorial",
+            "span_type": "function_call_async",
+            "attributes": {
+                "input.mime_type": "application/json",
+                "output.mime_type": "application/json",
+                "input.value": "{\"i\": 2}",
+                "output.value": "2"
+            }
+        },
+        {
+            "name": "factorial",
+            "parent": "factorial",
+            "span_type": "function_call_async",
+            "attributes": {
+                "input.mime_type": "application/json",
+                "output.mime_type": "application/json",
+                "input.value": "{\"i\": 1}",
+                "output.value": "1"
+            }
+        }
+    ]
+}
