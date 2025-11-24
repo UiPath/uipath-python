@@ -6,7 +6,10 @@ https://mockito-python.readthedocs.io/en/latest/
 from typing import Any, Callable
 
 from hydra.utils import instantiate
-from mockito import invocation, mocking  # type: ignore[import-untyped]
+from mockito import (  # type: ignore[import-untyped] # explicit ignore
+    invocation,
+    mocking,
+)
 
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,

@@ -64,7 +64,7 @@ def patch_textual_stderr(dispatch_log: DispatchLog) -> int:
     read_fd, write_fd = os.pipe()
 
     # Patch fileno() so subprocesses can write to our pipe
-    _PrintCapture.fileno = lambda self: write_fd  # type: ignore[method-assign]
+    _PrintCapture.fileno = lambda self: write_fd  # type: ignore[method-assign] # explicit ignore
 
     def read_stderr_pipe() -> None:
         with os.fdopen(read_fd, "r", buffering=1) as pipe_reader:

@@ -906,13 +906,13 @@ class StudioWebProgressReporter:
             headers=self._tenant_header(),
         )
 
-    def _tenant_header(self) -> dict[str, str]:
+    def _tenant_header(self) -> dict[str, str | None]:
         tenant_id = os.getenv(ENV_TENANT_ID, None)
         if not tenant_id:
             self._console.error(
                 f"{ENV_TENANT_ID} env var is not set. Please run 'uipath auth'."
             )
-        return {HEADER_INTERNAL_TENANT_ID: tenant_id}  # type: ignore
+        return {HEADER_INTERNAL_TENANT_ID: tenant_id}
 
     async def _send_parent_trace(
         self, eval_set_run_id: str, eval_set_name: str

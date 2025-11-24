@@ -2,7 +2,9 @@ import logging
 
 import click
 
-from ._evals._helpers import register_evaluator  # type: ignore[attr-defined]
+from ._evals._helpers import (  # type: ignore[attr-defined] # Remove after gnarly fix
+    register_evaluator,
+)
 from ._utils._console import ConsoleLogger
 from ._utils._resources import Resources
 

@@ -16,7 +16,7 @@ class CorrectOperatorEvaluatorConfig(BaseEvaluatorConfig[CorrectOperatorEvaluati
     negated: bool = False
     default_evaluation_criteria: CorrectOperatorEvaluationCriteria = CorrectOperatorEvaluationCriteria(operator="+")
 
-class CorrectOperatorEvaluator(BaseEvaluator[CorrectOperatorEvaluationCriteria, CorrectOperatorEvaluatorConfig, type(None)]):
+class CorrectOperatorEvaluator(BaseEvaluator[CorrectOperatorEvaluationCriteria, CorrectOperatorEvaluatorConfig, None]):
     """A custom evaluator that checks if the correct operator is being used by the agent """
 
     def extract_operator_from_spans(self, agent_trace: list[ReadableSpan]) -> str:

@@ -5,7 +5,9 @@ from typing import Any, Dict
 
 from pydantic import TypeAdapter
 
-from uipath._cli._evals._helpers import try_extract_file_and_class_name  # type: ignore
+from uipath._cli._evals._helpers import (  # type: ignore # Remove after gnarly fix
+    try_extract_file_and_class_name,
+)
 from uipath._cli._evals._models._evaluator import (
     EqualsEvaluatorParams,
     EvaluatorConfig,
@@ -167,10 +169,12 @@ class EvaluatorFactory:
         evaluator_id = data.get("id")
         if not evaluator_id or not isinstance(evaluator_id, str):
             raise ValueError("Evaluator 'id' must be a non-empty string")
-        return ContainsEvaluator(
-            id=evaluator_id,
-            config=EvaluatorFactory._prepare_evaluator_config(data),
-        )  # type: ignore
+        return TypeAdapter(ContainsEvaluator).validate_python(
+            {
+                "id": evaluator_id,
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
+            }
+        )
 
     @staticmethod
     def _create_coded_evaluator_internal(
@@ -247,10 +251,12 @@ class EvaluatorFactory:
         evaluator_id = data.get("id")
         if not evaluator_id or not isinstance(evaluator_id, str):
             raise ValueError("Evaluator 'id' must be a non-empty string")
-        return evaluator_class(
-            id=evaluator_id,
-            config=EvaluatorFactory._prepare_evaluator_config(data),
-        )  # type: ignore
+        return TypeAdapter(evaluator_class).validate_python(
+            {
+                "id": evaluator_id,
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
+            }
+        )
 
     @staticmethod
     def _create_exact_match_evaluator(

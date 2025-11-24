@@ -321,7 +321,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
         workers: int,
     ) -> List[EvaluationRunResult]:
         # Create a queue with max concurrency
-        queue: asyncio.Queue[tuple[int, EvaluationItem]] = asyncio.Queue(
+        queue: asyncio.Queue[tuple[int, EvaluationItem] | None] = asyncio.Queue(
             maxsize=workers
         )
 
@@ -334,7 +334,7 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
                 await queue.put((index, eval_item))
             # Signal completion by putting None markers
             for _ in range(workers):
-                await queue.put(None)  # type: ignore
+                await queue.put(None)
 
         # Worker function to process items from the queue
         async def worker(worker_id: int) -> None:
@@ -521,10 +521,11 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
             if isinstance(e, EvaluationRuntimeException):
                 eval_run_updated_event.spans = e.spans
                 eval_run_updated_event.logs = e.logs
-                eval_run_updated_event.exception_details.exception = (  # type: ignore
-                    e.root_exception
-                )
-                eval_run_updated_event.exception_details.runtime_exception = True  # type: ignore
+                if eval_run_updated_event.exception_details:
+                    eval_run_updated_event.exception_details.exception = (
+                        e.root_exception
+                    )
+                    eval_run_updated_event.exception_details.runtime_exception = True
 
             await event_bus.publish(
                 EvaluationEvents.UPDATE_EVAL_RUN,
@@ -637,7 +638,10 @@ class UiPathEvalRuntime(UiPathBaseRuntime, Generic[T, C]):
     ) -> list[BaseEvaluator[Any, Any, Any]]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
-        evaluators_dir = Path(self.context.eval_set).parent.parent / "evaluators"  # type: ignore
+        eval_set = self.context.eval_set
+        if eval_set is None:
+            raise ValueError("eval_set cannot be None")
+        evaluators_dir = Path(eval_set).parent.parent / "evaluators"
 
         # If evaluatorConfigs is specified, use that (new field with weights)
         # Otherwise, fall back to evaluatorRefs (old field without weights)

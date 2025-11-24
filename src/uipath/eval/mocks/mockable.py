@@ -8,7 +8,9 @@ import threading
 from typing import Any, List, Optional
 
 from pydantic import TypeAdapter
-from pydantic_function_models import ValidatedFunction  # type: ignore[import-untyped]
+from pydantic_function_models import (  # type: ignore[import-untyped] # explicit ignore
+    ValidatedFunction,
+)
 
 from uipath._cli._evals._models._mocks import ExampleCall
 from uipath._cli._evals.mocks.mocker import UiPathNoMockFoundError

@@ -3,6 +3,7 @@
 import json
 import warnings
 from abc import ABC, abstractmethod
+from types import NoneType
 from typing import Any, Generic, TypeVar, Union, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -96,8 +97,8 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             cls.evaluate, "_has_metrics_decorator", False
         ):
             new_evaluation_method = track_evaluation_metrics(cls.evaluate)
-            new_evaluation_method._has_metrics_decorator = True  # type: ignore[attr-defined]
-            cls.evaluate = new_evaluation_method  # type: ignore[method-assign]
+            new_evaluation_method._has_metrics_decorator = True  # type: ignore[attr-defined] # probably a better way to do this
+            cls.evaluate = new_evaluation_method  # type: ignore[method-assign] # probably a better way to do this
 
     @property
     def name(self) -> str:
@@ -377,8 +378,10 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             justification_type = args[0]
 
             # Validate the justification type - must be str, type(None), or BaseEvaluatorJustification subclass
-            if justification_type is str or justification_type is type(None):
+            if justification_type is str:
                 return cast(type[J], justification_type)
+            elif justification_type is None:
+                return cast(type[J], NoneType)
             elif isinstance(justification_type, type) and issubclass(
                 justification_type, BaseEvaluatorJustification
             ):

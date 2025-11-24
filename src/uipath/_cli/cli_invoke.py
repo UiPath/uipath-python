@@ -9,7 +9,7 @@ import httpx
 from ._utils._console import ConsoleLogger
 
 try:
-    import tomllib  # type: ignore[import-not-found]
+    import tomllib  # type: ignore[import-not-found] # explicit ignore
 except ImportError:
     import tomli as tomllib
 

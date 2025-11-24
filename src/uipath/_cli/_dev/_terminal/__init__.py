@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, cast
 from uuid import uuid4
 
-import pyperclip  # type: ignore[import-untyped]
+import pyperclip  # type: ignore[import-untyped] # explicit ignore
 from rich.traceback import Traceback
 from textual import on
 from textual.app import App, ComposeResult

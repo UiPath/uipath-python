@@ -768,7 +768,7 @@ class StudioClient:
         self,
         *,
         local_file_path: Optional[str] = None,
-        file_content: Optional[str] = None,
+        file_content: Optional[str | bytes] = None,
         file_name: str,
         folder: Optional[ProjectFolder] = None,
         remote_file: Optional[ProjectFile] = None,
@@ -776,7 +776,7 @@ class StudioClient:
     ) -> tuple[str, str]:
         if local_file_path:
             with open(local_file_path, "rb") as f:
-                file_content = f.read()  # type: ignore
+                file_content = f.read()
         files_data = {"file": (file_name, file_content, "application/octet-stream")}
 
         if remote_file:
