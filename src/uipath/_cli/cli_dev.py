@@ -1,16 +1,13 @@
 import asyncio
-import os
-from typing import Optional
 
 import click
+from uipath.core.tracing import UiPathTraceManager
+from uipath.dev import UiPathDeveloperConsole
 
-from uipath._cli._dev._terminal import UiPathDevTerminal
-from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
-from uipath._cli._runtime._runtime import UiPathScriptRuntime
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
-from uipath._cli.cli_init import init
 from uipath._cli.middlewares import Middlewares
+from uipath.functions import UiPathFunctionsRuntimeFactory
 
 console = ConsoleLogger()
 
@@ -28,15 +25,8 @@ console = ConsoleLogger()
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
-def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
+def dev(interface: str | None, debug: bool, debug_port: int) -> None:
     """Launch interactive debugging interface."""
-    project_file = os.path.join(os.getcwd(), "entry-points.json")
-
-    if not os.path.exists(project_file):
-        console.warning("Project not initialized. Running `uipath init`...")
-        ctx = click.get_current_context()
-        ctx.invoke(init)
-
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
 
@@ -51,10 +41,11 @@ def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
 
     try:
         if interface == "terminal":
-            runtime_factory = UiPathRuntimeFactory(
-                UiPathScriptRuntime, UiPathRuntimeContext
+            trace_manager = UiPathTraceManager()
+            factory = UiPathFunctionsRuntimeFactory()
+            app = UiPathDeveloperConsole(
+                runtime_factory=factory, trace_manager=trace_manager
             )
-            app = UiPathDevTerminal(runtime_factory)
             asyncio.run(app.run_async())
         else:
             console.error(f"Unknown interface: {interface}")

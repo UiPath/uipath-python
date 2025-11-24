@@ -5,19 +5,23 @@ import logging
 import os
 import shutil
 import uuid
-from typing import Any, Dict, Optional
+from pathlib import Path
 
 import click
+from uipath.runtime import (
+    UiPathRuntimeFactoryProtocol,
+    UiPathRuntimeFactoryRegistry,
+    UiPathRuntimeProtocol,
+)
+from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._config import UiPathConfig
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
-from ._runtime._runtime import get_user_script
-from ._runtime._runtime_factory import generate_runtime_factory
 from ._utils._console import ConsoleLogger
-from ._utils._parse_ast import write_bindings_file, write_entry_points_file
 from .middlewares import Middlewares
-from .models.runtime_schema import Entrypoints, RuntimeSchema
+from .models.runtime_schema import Bindings
+from .models.uipath_json_schema import UiPathJsonConfig
 
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
@@ -127,51 +131,48 @@ def generate_agent_md_files(target_directory: str, no_agents_md_override: bool) 
     console.success(f"Created {click.style('AGENTS.md', fg='cyan')} related files.")
 
 
-def get_existing_settings(config_path: str) -> Optional[Dict[str, Any]]:
-    """Read existing settings from uipath.json if it exists.
+def write_bindings_file(bindings: Bindings) -> Path:
+    """Write bindings to a JSON file.
 
     Args:
-        config_path: Path to the uipath.json file.
+        bindings: The Bindings object to write to file
 
     Returns:
-        The settings dictionary if it exists, None otherwise.
+        str: The path to the written bindings file
     """
-    if not os.path.exists(config_path):
-        return None
-    try:
-        with open(config_path, "r") as config_file:
-            existing_config = json.load(config_file)
-            return existing_config.get("settings")
-    except (json.JSONDecodeError, IOError):
-        return None
+    bindings_file_path = UiPathConfig.bindings_file_path
+    with open(bindings_file_path, "w") as bindings_file:
+        json_object = bindings.model_dump(by_alias=True, exclude_unset=True)
+        json.dump(json_object, bindings_file, indent=4)
+
+    return bindings_file_path
 
 
-def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> str:
-    existing_settings = get_existing_settings(CONFIG_PATH)
-    if existing_settings is not None:
-        if isinstance(config_data, RuntimeSchema):
-            config_data.settings = existing_settings
-        else:
-            config_data["settings"] = config_data
-    with open(CONFIG_PATH, "w") as config_file:
-        if isinstance(config_data, RuntimeSchema):
-            json_object = config_data.model_dump(by_alias=True, exclude_unset=True)
-        else:
-            json_object = config_data
-        json.dump(json_object, config_file, indent=4)
+def write_entry_points_file(entry_points: list[UiPathRuntimeSchema]) -> Path:
+    """Write entrypoints to a JSON file.
 
-    return CONFIG_PATH
+    Args:
+        entry_points: The entrypoints list
+
+    Returns:
+        str: The path to the written entry_points file
+    """
+    json_object = {
+        "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+        "$id": "entry-points.json",
+        "entryPoints": [
+            ep.model_dump(by_alias=True, exclude_unset=True) for ep in entry_points
+        ],
+    }
+
+    entry_points_file_path = UiPathConfig.entry_points_file_path
+    with open(entry_points_file_path, "w") as entry_points_file:
+        json.dump(json_object, entry_points_file, indent=4)
+
+    return entry_points_file_path
 
 
 @click.command()
-@click.argument("entrypoint", required=False, default=None)
-@click.option(
-    "--infer-bindings/--no-infer-bindings",
-    is_flag=True,
-    required=False,
-    default=True,
-    help="Infer bindings from the script.",
-)
 @click.option(
     "--no-agents-md-override",
     is_flag=True,
@@ -179,21 +180,81 @@ def write_config_file(config_data: Dict[str, Any] | RuntimeSchema) -> str:
     default=False,
     help="Won't override existing .agent files and AGENTS.md file.",
 )
-def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> None:
+def init(no_agents_md_override: bool) -> None:
     """Create uipath.json with input/output schemas and bindings."""
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
         generate_env_file(current_directory)
         create_telemetry_config_file(current_directory)
 
+        async def initialize() -> None:
+            try:
+                # Create uipath.json if it doesn't exist
+                config_path = UiPathConfig.config_file_path
+                if not config_path.exists():
+                    config = UiPathJsonConfig.create_default()
+                    config.save_to_file(config_path)
+                    console.success(f"Created '{config_path}' file.")
+                else:
+                    console.info(f"'{config_path}' already exists, skipping.")
+
+                # Create bindings.json if it doesn't exist
+                bindings_path = UiPathConfig.bindings_file_path
+                if not bindings_path.exists():
+                    bindings_path = write_bindings_file(
+                        Bindings(version="2.0", resources=[])
+                    )
+                    console.success(f"Created '{bindings_path}' file.")
+                else:
+                    console.info(f"'{bindings_path}' already exists, skipping.")
+
+                # Always create/update entry-points.json from runtime schemas
+                factory: UiPathRuntimeFactoryProtocol = (
+                    UiPathRuntimeFactoryRegistry.get()
+                )
+                entry_point_schemas: list[UiPathRuntimeSchema] = []
+
+                try:
+                    entrypoints = factory.discover_entrypoints()
+
+                    if not entrypoints:
+                        console.warning(
+                            'No function entrypoints found. Add them to `uipath.json` under "functions": {"my_function": "src/main.py:main"}'
+                        )
+
+                    # Gather schemas from all discovered runtimes
+                    for entrypoint_name in entrypoints:
+                        runtime: UiPathRuntimeProtocol | None = None
+                        try:
+                            runtime = await factory.new_runtime(
+                                entrypoint_name, runtime_id="default"
+                            )
+                            schema = await runtime.get_schema()
+                            entry_point_schemas.append(schema)
+                        finally:
+                            if runtime:
+                                await runtime.dispose()
+                finally:
+                    await factory.dispose()
+
+                # Write entry-points.json with all schemas
+                entry_points_path = write_entry_points_file(entry_point_schemas)
+                console.success(
+                    f"Created '{entry_points_path}' file with {len(entry_point_schemas)} entrypoint(s)."
+                )
+
+            except Exception as e:
+                console.error(
+                    f"Error during initialization:\n{str(e)}", include_traceback=True
+                )
+
+        asyncio.run(initialize())
+
         result = Middlewares.next(
             "init",
-            entrypoint,
             options={
-                "infer_bindings": infer_bindings,
                 "no_agents_md_override": no_agents_md_override,
             },
-            write_config=write_config_file,
         )
 
         if result.error_message:
@@ -208,35 +269,3 @@ def init(entrypoint: str, infer_bindings: bool, no_agents_md_override: bool) -> 
             return
 
         generate_agent_md_files(current_directory, no_agents_md_override)
-        script_path = get_user_script(current_directory, entrypoint=entrypoint)
-        if not script_path:
-            return
-
-        context_args = {
-            "runtime_dir": os.getcwd(),
-            "entrypoint": script_path,
-        }
-
-        async def initialize() -> None:
-            try:
-                runtime = generate_runtime_factory().new_runtime(**context_args)
-
-                config_path = write_config_file(
-                    RuntimeSchema(
-                        # settings={"isConversational": False}
-                    )
-                )
-                console.success(f"Created '{config_path}' file.")
-
-                bindings_path = write_bindings_file(await runtime.get_bindings())
-                console.success(f"Created '{bindings_path}' file.")
-                entry_point = await runtime.get_entrypoint()
-                entry_points_path = write_entry_points_file(
-                    Entrypoints(entry_points=[entry_point])
-                )
-                console.success(f"Created '{entry_points_path}' file.")
-
-            except Exception as e:
-                console.error(f"Error creating configuration file:\n {str(e)}")
-
-        asyncio.run(initialize())

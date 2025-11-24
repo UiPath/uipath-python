@@ -4,20 +4,22 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Optional
 
+from uipath.runtime import (
+    UiPathApiTrigger,
+    UiPathResumeTrigger,
+    UiPathResumeTriggerType,
+    UiPathRuntimeStatus,
+)
+from uipath.runtime.errors import (
+    UiPathErrorCategory,
+    UiPathErrorCode,
+    UiPathRuntimeError,
+)
+
 from uipath.platform import UiPath
 from uipath.platform.common import CreateAction, InvokeProcess, WaitAction, WaitJob
 
-from .._runtime._contracts import (
-    UiPathApiTrigger,
-    UiPathErrorCategory,
-    UiPathErrorCode,
-    UiPathResumeTrigger,
-    UiPathResumeTriggerType,
-    UiPathRuntimeError,
-    UiPathRuntimeStatus,
-)
 from .._utils._common import serialize_object
-from ._escalation import Escalation
 
 
 def _try_convert_to_json_format(value: str | None) -> str | None:
@@ -60,7 +62,6 @@ class HitlReader:
                 or HITL feedback retrieval failed.
         """
         uipath = UiPath()
-        default_escalation = Escalation()
         match resume_trigger.trigger_type:
             case UiPathResumeTriggerType.ACTION:
                 if resume_trigger.item_key:
@@ -69,9 +70,6 @@ class HitlReader:
                         app_folder_key=resume_trigger.folder_key,
                         app_folder_path=resume_trigger.folder_path,
                     )
-
-                    if default_escalation.enabled:
-                        return default_escalation.extract_response_value(action.data)
 
                     return action.data
 
@@ -104,7 +102,7 @@ class HitlReader:
                         )
                     except Exception as e:
                         raise UiPathRuntimeError(
-                            UiPathErrorCode.API_CONNECTION_ERROR,
+                            UiPathErrorCode.RETRIEVE_RESUME_TRIGGER_ERROR,
                             "Failed to get trigger payload",
                             f"Error fetching API trigger payload for inbox {resume_trigger.api_resume.inbox_id}: {str(e)}",
                             UiPathErrorCategory.SYSTEM,
@@ -118,7 +116,7 @@ class HitlReader:
                 )
 
         raise UiPathRuntimeError(
-            UiPathErrorCode.HITL_FEEDBACK_FAILURE,
+            UiPathErrorCode.RETRIEVE_RESUME_TRIGGER_ERROR,
             "Failed to receive payload from HITL action",
             detail="Failed to receive payload from HITL action",
             category=UiPathErrorCategory.SYSTEM,
@@ -177,22 +175,12 @@ class HitlProcessor:
             Exception: If any underlying UiPath service calls fail.
         """
         uipath = UiPath()
-        default_escalation = Escalation()
 
         try:
             hitl_input = self.value
             resume_trigger = UiPathResumeTrigger(
                 trigger_type=self.type, payload=serialize_object(hitl_input)
             )
-
-            # check for default escalation config
-            if default_escalation.enabled and isinstance(hitl_input, str):
-                resume_trigger.trigger_type = UiPathResumeTriggerType.ACTION
-                action = await default_escalation.create(hitl_input)
-                if not action:
-                    raise Exception("Failed to create default escalation")
-                resume_trigger.item_key = action.key
-                return resume_trigger
 
             match self.type:
                 case UiPathResumeTriggerType.ACTION:
@@ -250,7 +238,7 @@ class HitlProcessor:
                     )
         except Exception as e:
             raise UiPathRuntimeError(
-                UiPathErrorCode.HITL_ACTION_CREATION_FAILED,
+                UiPathErrorCode.CREATE_RESUME_TRIGGER_ERROR,
                 "Failed to create HITL action",
                 f"{str(e)}",
                 UiPathErrorCategory.SYSTEM,

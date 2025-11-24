@@ -25,6 +25,12 @@ class ConfigurationManager:
         return Path(UIPATH_BINDINGS_FILE)
 
     @property
+    def config_file_path(self) -> Path:
+        from uipath._utils.constants import UIPATH_CONFIG_FILE
+
+        return Path(UIPATH_CONFIG_FILE)
+
+    @property
     def config_file_name(self) -> str:
         from uipath._utils.constants import UIPATH_CONFIG_FILE
 

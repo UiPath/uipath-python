@@ -4,9 +4,11 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Optional, Set
+from typing import AsyncIterator, Optional, Set
 
 import click
+
+from uipath._cli.models.uipath_json_schema import PackOptions
 
 from ..._config import UiPathConfig
 from ...platform.errors import EnrichedException
@@ -88,7 +90,7 @@ class SwFileHandler:
     def collect_all_files(
         self,
         folder: ProjectFolder,
-        files_dict: Dict[str, ProjectFile],
+        files_dict: dict[str, ProjectFile],
         current_path: str = "",
     ) -> None:
         """Recursively collect all files from a folder with computed paths.
@@ -130,7 +132,7 @@ class SwFileHandler:
     async def _process_file_uploads(
         self,
         local_files: list[FileInfo],
-        remote_files: Dict[str, ProjectFile],
+        remote_files: dict[str, ProjectFile],
     ) -> list[UpdateEvent]:
         """Process all file uploads.
 
@@ -288,7 +290,7 @@ class SwFileHandler:
 
     def _collect_deleted_files(
         self,
-        remote_files: Dict[str, ProjectFile],
+        remote_files: dict[str, ProjectFile],
         processed_source_file_ids: Set[str],
         files_to_ignore: list[str] | None = None,
         directories_to_ignore: list[str] | None = None,
@@ -390,7 +392,7 @@ class SwFileHandler:
     async def _prepare_metadata_file(
         self,
         structural_migration: StructuralMigration,
-        remote_files: Dict[str, ProjectFile],
+        remote_files: dict[str, ProjectFile],
     ) -> UpdateEvent:
         """Prepare .uipath/studio_metadata.json file.
 
@@ -489,7 +491,7 @@ class SwFileHandler:
             )
 
     async def upload_source_files(
-        self, settings: Optional[dict[str, Any]]
+        self, pack_options: PackOptions | None = None
     ) -> AsyncIterator[UpdateEvent]:
         """Main method to upload source files to the UiPath project.
 
@@ -524,7 +526,7 @@ class SwFileHandler:
 
         # Get files to upload and process them
         local_files = files_to_include(
-            settings,
+            pack_options,
             self.directory,
             self.include_uv_lock,
         )
@@ -538,7 +540,7 @@ class SwFileHandler:
     async def _process_file_sync(
         self,
         local_file_path: str,
-        remote_files: Dict[str, ProjectFile],
+        remote_files: dict[str, ProjectFile],
         parent_path: str,
         destination_prefix: str,
         structural_migration: StructuralMigration,
@@ -606,7 +608,7 @@ class SwFileHandler:
 
     def _collect_deleted_remote_files(
         self,
-        remote_files: Dict[str, ProjectFile],
+        remote_files: dict[str, ProjectFile],
         processed_ids: Set[str],
         destination_prefix: str,
         structural_migration: StructuralMigration,

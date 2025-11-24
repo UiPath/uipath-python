@@ -3,15 +3,15 @@ from typing import Optional
 
 import click
 import httpx
-
-from ..._utils._auth import update_env_file
-from ..._utils._ssl_context import get_httpx_client_kwargs
-from ...platform.common import TokenData
-from .._runtime._contracts import (
+from uipath.runtime.errors import (
     UiPathErrorCategory,
     UiPathErrorCode,
     UiPathRuntimeError,
 )
+
+from ..._utils._auth import update_env_file
+from ..._utils._ssl_context import get_httpx_client_kwargs
+from ...platform.common import TokenData
 from .._utils._console import ConsoleLogger
 from ._models import OrganizationInfo, TenantInfo, TenantsAndOrganizationInfoResponse
 from ._oidc_utils import OidcUtils
@@ -139,7 +139,7 @@ class PortalService:
         refresh_token = auth_data.refresh_token
         if not refresh_token:
             raise UiPathRuntimeError(
-                UiPathErrorCode.REFRESH_TOKEN_MISSING,
+                UiPathErrorCode.EXECUTION_ERROR,
                 "No refresh token found",
                 "The refresh token could not be retrieved. Please retry authenticating.",
                 UiPathErrorCategory.SYSTEM,
