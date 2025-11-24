@@ -238,7 +238,7 @@ class EntityRecord(BaseModel):
         # Dynamically create the Pydantic model class
         dynamic_model = create_model(
             f"Dynamic_{user_class.__name__}",
-            **pydantic_fields,  # type: ignore
+            **pydantic_fields,  # type: ignore[call-overload] # __base__ causes an issue. type checker cannot know that the key does not contain "__base__"
         )
 
         # Validate input data

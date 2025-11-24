@@ -180,8 +180,8 @@ def resource_override(
 
             return func(**all_args)
 
-        wrapper._should_infer_bindings = True  # type: ignore[attr-defined]
-        wrapper._infer_bindings_mappings = {  # type: ignore[attr-defined]
+        wrapper._should_infer_bindings = True  # type: ignore[attr-defined] # probably a better way to do this
+        wrapper._infer_bindings_mappings = {  # type: ignore[attr-defined] # probably a better way to do this
             "name": resource_identifier,
             "folder_path": folder_identifier,
         }
@@ -194,6 +194,6 @@ def get_inferred_bindings_names(cls: T):
     inferred_bindings = {}
     for name, method in inspect.getmembers(cls, inspect.isfunction):
         if hasattr(method, "_should_infer_bindings") and method._should_infer_bindings:
-            inferred_bindings[name] = method._infer_bindings_mappings  # type: ignore
+            inferred_bindings[name] = method._infer_bindings_mappings  # type: ignore # probably a better way to do this
 
     return inferred_bindings

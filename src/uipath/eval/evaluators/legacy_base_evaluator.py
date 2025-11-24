@@ -110,10 +110,5 @@ class LegacyBaseEvaluator(
 
         Returns:
             EvaluationResult containing the score and details
-
-        Note:
-            The type: ignore[override] is necessary because legacy evaluators accept
-            evaluation_criteria of any type T, while the base class expects BaseEvaluationCriteria.
-            This is intentional to maintain backward compatibility with legacy evaluators.
         """
         pass

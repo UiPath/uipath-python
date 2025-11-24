@@ -91,7 +91,7 @@ class PortalService:
             f"Failed to get tenants and organizations: {response.status_code} {response.text}"
         )
 
-    def refresh_access_token(self, refresh_token: str) -> TokenData:  # type: ignore
+    def refresh_access_token(self, refresh_token: str) -> TokenData:
         url = build_service_url(self.domain, "/identity_/connect/token")
         client_id = OidcUtils.get_auth_config(self.domain).get("client_id")
 
@@ -110,6 +110,7 @@ class PortalService:
             self._console.error("Unauthorized")
 
         self._console.error(f"Failed to refresh token: {response.status_code}")
+        raise Exception(f"Failed to refresh token: {response.status_code}")
 
     def ensure_valid_token(self):
         """Ensure the access token is valid and refresh it if necessary.
@@ -201,8 +202,9 @@ class PortalService:
         tenant = next((t for t in tenants if t["name"] == tenant_name), None)
         if not tenant:
             self._console.error(f"Tenant '{tenant_name}' not found.")
+            raise Exception(f"Tenant '{tenant_name}' not found.")
 
-        return self._set_tenant(tenant, organization)  # type: ignore
+        return self._set_tenant(tenant, organization)
 
     def resolve_tenant_info(self, tenant: Optional[str] = None):
         if tenant:

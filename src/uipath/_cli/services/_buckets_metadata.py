@@ -45,7 +45,7 @@ BUCKETS_METADATA = ServiceMetadata(
 BUCKETS_METADATA.validate_types()
 
 try:
-    from uipath.sdk import SDK  # type: ignore[import-not-found]
+    from uipath.sdk import SDK  # type: ignore[import-not-found] # explicit ignore
 
     sdk = SDK()
     validate_service_protocol(sdk.client.buckets, "buckets")

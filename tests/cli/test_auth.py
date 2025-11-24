@@ -184,12 +184,12 @@ class TestAuth:
                 "organization_id": "org-id",
             }
             portal.selected_tenant = "MyTenantName"
+            with runner.isolated_filesystem():
+                result = runner.invoke(
+                    cli, ["auth", "--alpha", "--tenant", "MyTenantName", "--force"]
+                )
 
-            result = runner.invoke(
-                cli, ["auth", "--alpha", "--tenant", "MyTenantName", "--force"]
-            )
+                assert result.exit_code == 0, result.output
+                mock_open.assert_called_once()
 
-            assert result.exit_code == 0, result.output
-            mock_open.assert_called_once()
-
-            portal.resolve_tenant_info.assert_called_once_with("MyTenantName")
+                portal.resolve_tenant_info.assert_called_once_with("MyTenantName")

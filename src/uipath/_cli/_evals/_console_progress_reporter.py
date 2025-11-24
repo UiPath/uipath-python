@@ -150,7 +150,10 @@ class ConsoleProgressReporter:
                 error_msg = self._extract_error_message(payload)
                 self._display_failed_evaluation(payload.eval_item.name)
 
-                if payload.exception_details.runtime_exception:  # type: ignore
+                if (
+                    payload.exception_details
+                    and payload.exception_details.runtime_exception
+                ):
                     self._display_logs_panel(
                         payload.eval_item.name, payload.logs, error_msg
                     )

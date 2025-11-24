@@ -25,8 +25,10 @@ from uuid import uuid4
 
 from opentelemetry import context as context_api
 from opentelemetry import trace
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.sdk.trace import Span, SpanProcessor, TracerProvider
+from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined] # explicit ignore
+    BaseInstrumentor,
+)
+from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
     SimpleSpanProcessor,
@@ -1003,12 +1005,15 @@ class UiPathExecutionTraceProcessorMixin:
             parent_span = trace.get_current_span()
 
         if parent_span and parent_span.is_recording():
-            execution_id = parent_span.attributes.get("execution.id")  # type: ignore[attr-defined]
-            if execution_id:
-                span.set_attribute("execution.id", execution_id)
-            evaluation_id = parent_span.attributes.get("evaluation.id")  # type: ignore[attr-defined]
-            if evaluation_id:
-                span.set_attribute("evaluation.id", evaluation_id)
+            if isinstance(parent_span, ReadableSpan):
+                attributes = parent_span.attributes
+                if attributes:
+                    execution_id = attributes.get("execution.id")
+                    if execution_id:
+                        span.set_attribute("execution.id", execution_id)
+                    evaluation_id = attributes.get("evaluation.id")
+                    if evaluation_id:
+                        span.set_attribute("evaluation.id", evaluation_id)
 
 
 class UiPathExecutionBatchTraceProcessor(
