@@ -7,8 +7,8 @@ from httpx import HTTPStatusError, Request
 
 from .._utils._ssl_context import get_httpx_client_kwargs
 from .._utils.constants import ENV_BASE_URL
-from ..models.auth import TokenData
-from ..models.exceptions import EnrichedException
+from ..platform.common import TokenData
+from ..platform.errors import EnrichedException
 
 
 class ExternalApplicationService:

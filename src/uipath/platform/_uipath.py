@@ -26,7 +26,7 @@ from .._services import (
 )
 from .._utils._auth import resolve_config
 from .._utils._logs import setup_logging
-from ..models.errors import BaseUrlMissingError, SecretMissingError
+from .errors import BaseUrlMissingError, SecretMissingError
 
 
 class UiPath:

@@ -12,8 +12,12 @@ from uipath._cli._runtime._contracts import (
     UiPathRuntimeStatus,
 )
 from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
-from uipath.models import Action, CreateAction, InvokeProcess, Job, WaitAction, WaitJob
-from uipath.models.job import JobErrorInfo
+from uipath.platform.actions import Action
+from uipath.platform.common import CreateAction, InvokeProcess, WaitAction, WaitJob
+from uipath.platform.orchestrator import (
+    Job,
+    JobErrorInfo,
+)
 
 
 @pytest.fixture

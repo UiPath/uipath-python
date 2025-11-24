@@ -5,7 +5,7 @@ from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._services.actions_service import ActionsService
 from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models import Action
+from uipath.platform.actions import Action
 
 
 @pytest.fixture

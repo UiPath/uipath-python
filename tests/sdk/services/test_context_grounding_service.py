@@ -11,10 +11,11 @@ from uipath._services.buckets_service import BucketsService
 from uipath._services.context_grounding_service import ContextGroundingService
 from uipath._services.folder_service import FolderService
 from uipath._utils.constants import HEADER_USER_AGENT, LLMV3Mini_REQUEST
-from uipath.models import ContextGroundingIndex, ContextGroundingQueryResponse
-from uipath.models.context_grounding_payloads import (
+from uipath.platform.context_grounding import (
     BucketSourceConfig,
     ConfluenceSourceConfig,
+    ContextGroundingIndex,
+    ContextGroundingQueryResponse,
     DropboxSourceConfig,
     GoogleDriveSourceConfig,
     Indexer,

@@ -9,7 +9,7 @@ from typing import Any, AsyncIterator, Dict, Optional, Set
 import click
 
 from ..._config import UiPathConfig
-from ...models.exceptions import EnrichedException
+from ...platform.errors import EnrichedException
 from .._utils._common import get_claim_from_token
 from .._utils._console import ConsoleLogger
 from .._utils._constants import (

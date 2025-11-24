@@ -12,7 +12,7 @@ from .._utils.constants import (
     HEADER_FOLDER_PATH,
     HEADER_TENANT_ID,
 )
-from ..models import Action, ActionSchema
+from ..platform.actions import Action, ActionSchema
 from ..tracing import traced
 from ._base_service import BaseService
 

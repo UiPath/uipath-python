@@ -7,8 +7,8 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from uipath.models import Connection
-from uipath.models.guardrails import (
+from uipath.platform.connections import Connection
+from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     CustomGuardrail,
     FieldReference,

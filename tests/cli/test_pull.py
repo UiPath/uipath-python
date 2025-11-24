@@ -14,7 +14,7 @@ from tests.cli.utils.common import configure_env_vars
 from uipath._cli import cli
 from uipath._cli._utils._common import may_override_files
 from uipath._cli._utils._studio_project import StudioProjectMetadata
-from uipath.models.exceptions import EnrichedException
+from uipath.platform.errors import EnrichedException
 
 
 class TestPull:

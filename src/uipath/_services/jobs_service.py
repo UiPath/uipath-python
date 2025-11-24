@@ -10,7 +10,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
-from ..models.job import Job
+from ..platform.orchestrator import Job
 from ..tracing import traced
 from ._base_service import BaseService
 from .attachments_service import AttachmentsService

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..._utils._auth import parse_access_token
-from ...models.auth import TokenData
+from ...platform.common import TokenData
 from ._models import AccessTokenData
 
 

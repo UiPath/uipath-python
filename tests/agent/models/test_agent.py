@@ -21,7 +21,7 @@ from uipath.agent.models.agent import (
     AgentUnknownResourceConfig,
     AgentUnknownToolResourceConfig,
 )
-from uipath.models.guardrails import (
+from uipath.platform.guardrails import (
     EnumListParameterValue,
     MapEnumParameterValue,
     WordRule,
