@@ -1,5 +1,5 @@
 [project]
-name = "event-agent"
+name = "calculator-agent"
 version = "0.0.1"
 description = "calculator-agent"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
