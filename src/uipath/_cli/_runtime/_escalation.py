@@ -3,8 +3,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from uipath.models.actions import Action
 from uipath.platform import UiPath
+from uipath.platform.actions import Action
 
 logger = logging.getLogger(__name__)
 

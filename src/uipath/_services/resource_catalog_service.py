@@ -6,7 +6,7 @@ from uipath._folder_context import FolderContext
 from uipath._services import FolderService
 from uipath._services._base_service import BaseService
 from uipath._utils import Endpoint, RequestSpec, header_folder
-from uipath.models.resource_catalog import Resource, ResourceType
+from uipath.platform.resource_catalog import Resource, ResourceType
 from uipath.tracing import traced
 
 

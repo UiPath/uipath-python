@@ -12,7 +12,7 @@ from uipath._services.llm_gateway_service import (
     EmbeddingModels,
     UiPathOpenAIService,
 )
-from uipath.models.llm_gateway import TextEmbedding
+from uipath.platform.llm_gateway import TextEmbedding
 
 
 class TestOpenAIService:

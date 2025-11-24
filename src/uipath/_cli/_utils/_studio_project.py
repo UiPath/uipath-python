@@ -17,8 +17,8 @@ from uipath._utils.constants import (
     PYTHON_CONFIGURATION_FILE,
     STUDIO_METADATA_FILE,
 )
-from uipath.models.exceptions import EnrichedException
 from uipath.platform import UiPath
+from uipath.platform.errors import EnrichedException
 from uipath.tracing import traced
 
 

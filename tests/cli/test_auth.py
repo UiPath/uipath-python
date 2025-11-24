@@ -39,14 +39,14 @@ class TestAuth:
         [
             (
                 "auth_with_uipath_url_env_variable",
-                [],
+                ["--force"],
                 {"UIPATH_URL": "https://custom.automationsuite.org/org/tenant"},
                 "https://custom.automationsuite.org/identity_/connect/authorize",
                 "https://custom.automationsuite.org/DefaultOrg/DefaultTenant",
             ),
             (
                 "auth_with_uipath_url_env_variable_with_trailing_slash",
-                [],
+                ["--force"],
                 {"UIPATH_URL": "https://custom.uipath.com/org/tenant/"},
                 "https://custom.uipath.com/identity_/connect/authorize",
                 "https://custom.uipath.com/DefaultOrg/DefaultTenant",
@@ -82,11 +82,11 @@ class TestAuth:
         ],
         ids=[
             "uipath_url_env",
+            "uipath_url_env_with_trailing_slash",
             "alpha_flag_overrides_env",
             "staging_flag_overrides_env",
             "cloud_flag",
             "default_to_cloud",
-            "uipath_url_env_with_trailing_slash",
         ],
     )
     def test_auth_scenarios(

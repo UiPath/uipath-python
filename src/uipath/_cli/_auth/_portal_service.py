@@ -6,7 +6,7 @@ import httpx
 
 from ..._utils._auth import update_env_file
 from ..._utils._ssl_context import get_httpx_client_kwargs
-from ...models.auth import TokenData
+from ...platform.common import TokenData
 from .._runtime._contracts import (
     UiPathErrorCategory,
     UiPathErrorCode,

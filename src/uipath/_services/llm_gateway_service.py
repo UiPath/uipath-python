@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint
-from ..models.llm_gateway import (
+from ..platform.llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
     TextEmbedding,

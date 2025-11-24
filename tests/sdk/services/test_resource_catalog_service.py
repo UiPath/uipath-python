@@ -9,7 +9,7 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.folder_service import FolderService
 from uipath._services.resource_catalog_service import ResourceCatalogService
 from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models.resource_catalog import ResourceType
+from uipath.platform.resource_catalog import ResourceType
 
 
 @pytest.fixture

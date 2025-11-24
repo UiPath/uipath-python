@@ -17,6 +17,21 @@ Example:
     # Invoke a process by name
     sdk.processes.invoke("MyProcess")
 ```
+
+## Error Handling
+
+Exception classes are available in the `errors` module and should be imported explicitly:
+
+```python
+    from uipath.platform.errors import (
+        BaseUrlMissingError,
+        SecretMissingError,
+        EnrichedException,
+        IngestionInProgressException,
+        FolderNotFoundException,
+        UnsupportedDataSourceException,
+    )
+```
 """
 
 from ._uipath import UiPath

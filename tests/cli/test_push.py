@@ -16,7 +16,7 @@ from tests.cli.utils.common import configure_env_vars
 from uipath._cli import cli
 from uipath._cli._utils._common import may_override_files
 from uipath._cli._utils._studio_project import StudioProjectMetadata
-from uipath.models.exceptions import EnrichedException
+from uipath.platform.errors import EnrichedException
 
 
 def extract_metadata_json_from_modified_resources(
@@ -1640,7 +1640,7 @@ class TestResourceCreation:
             os.environ["UIPATH_TENANT_ID"] = tenant_id
 
             # Mock resource catalog list_by_type_async
-            from uipath.models.resource_catalog import Folder, Resource
+            from uipath.platform.resource_catalog import Folder, Resource
 
             mock_resource = Resource(
                 resource_key="resource-key-123",
@@ -2074,7 +2074,7 @@ class TestResourceCreation:
             os.environ["UIPATH_TENANT_ID"] = tenant_id
 
             # Mock resource catalog list_by_type_async
-            from uipath.models.resource_catalog import Folder, Resource
+            from uipath.platform.resource_catalog import Folder, Resource
 
             mock_resource = Resource(
                 resource_key="resource-key-123",

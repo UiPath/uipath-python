@@ -4,8 +4,8 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 from pydantic.dataclasses import dataclass
 
-from uipath import UiPath
-from uipath.models.mcp import McpServer
+from uipath.platform import UiPath
+from uipath.platform.orchestrator import McpServer
 from uipath.tracing import traced
 
 uipath = UiPath()

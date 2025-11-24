@@ -8,7 +8,7 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
-from ..models.job import Job
+from ..platform.orchestrator import Job
 from ..tracing import traced
 from . import AttachmentsService
 from ._base_service import BaseService

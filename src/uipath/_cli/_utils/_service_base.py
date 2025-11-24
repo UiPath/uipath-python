@@ -19,8 +19,11 @@ from typing import Any, Callable
 import click
 from httpx import HTTPError
 
-from ...models.errors import BaseUrlMissingError, SecretMissingError
-from ...models.exceptions import EnrichedException
+from ...platform.errors import (
+    BaseUrlMissingError,
+    EnrichedException,
+    SecretMissingError,
+)
 from ._context import get_cli_context
 
 

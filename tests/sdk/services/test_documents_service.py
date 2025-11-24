@@ -11,7 +11,7 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.documents_service import (  # type: ignore[attr-defined]
     DocumentsService,
 )
-from uipath.models.documents import (
+from uipath.platform.documents import (
     ActionPriority,
     ClassificationResult,
     ExtractionResponse,

@@ -8,8 +8,14 @@ from httpx import Response
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
-from ..models import Connection, ConnectionMetadata, ConnectionToken, EventArguments
-from ..models.connections import ActivityMetadata, ConnectionTokenType
+from ..platform.connections import (
+    ActivityMetadata,
+    Connection,
+    ConnectionMetadata,
+    ConnectionToken,
+    ConnectionTokenType,
+    EventArguments,
+)
 from ..tracing import traced
 from ._base_service import BaseService
 from .folder_service import FolderService

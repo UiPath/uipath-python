@@ -11,8 +11,8 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils._ssl_context import get_httpx_client_kwargs
-from ..models import Bucket, BucketFile
-from ..models.paging import PagedResult
+from ..platform.common import PagedResult
+from ..platform.orchestrator import Bucket, BucketFile
 from ..tracing import traced
 from ._base_service import BaseService
 

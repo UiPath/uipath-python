@@ -148,7 +148,7 @@ result = await llm_service.chat_completions(
 ### Tool Definition
 
 ```python
-from uipath.models.llm_gateway import (
+from uipath.platform.llm_gateway import (
     ToolDefinition,
     ToolFunctionDefinition,
     ToolParametersDefinition,

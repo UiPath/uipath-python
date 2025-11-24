@@ -6,7 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
-from ..models.guardrails import BuiltInValidatorGuardrail, Guardrail
+from ..platform.guardrails import BuiltInValidatorGuardrail, Guardrail
 from ..tracing import traced
 from ._base_service import BaseService
 

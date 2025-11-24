@@ -14,7 +14,7 @@ import pytest
 
 from uipath._cli._auth._portal_service import PortalService
 from uipath._cli._runtime._contracts import UiPathRuntimeError
-from uipath.models.auth import TokenData
+from uipath.platform.common import TokenData
 
 
 @pytest.fixture

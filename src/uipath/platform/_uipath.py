@@ -25,9 +25,9 @@ from .._services import (
     UiPathLlmChatService,
     UiPathOpenAIService,
 )
-from ._utils._auth import resolve_config
-from ._utils._logs import setup_logging
-from .models.errors import BaseUrlMissingError, SecretMissingError
+from .._utils._auth import resolve_config
+from .._utils._logs import setup_logging
+from .errors import BaseUrlMissingError, SecretMissingError
 
 
 class UiPath:
