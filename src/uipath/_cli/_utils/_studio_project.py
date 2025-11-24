@@ -15,10 +15,17 @@ from uipath._utils.constants import (
     ENV_TENANT_ID,
     HEADER_SW_LOCK_KEY,
     HEADER_TENANT_ID,
+    PYTHON_CONFIGURATION_FILE,
     STUDIO_METADATA_FILE,
 )
 from uipath.models.exceptions import EnrichedException
 from uipath.tracing import traced
+
+
+class NonCodedAgentProjectException(Exception):
+    """Raised when the targeted project is not a coded agent one."""
+
+    pass
 
 
 class ProjectFile(BaseModel):
@@ -480,6 +487,7 @@ class StudioClient:
         self._project_id = project_id
         self._solution_id_cache: Optional[str] = None
         self._resources_cache: Optional[List[dict[str, Any]]] = None
+        self._project_structure_cache: Optional[ProjectStructure] = None
 
     async def _get_solution_id(self) -> str:
         # implement property cache logic as coroutines are not supported
@@ -493,8 +501,14 @@ class StudioClient:
         self._solution_id_cache = response.json()["solutionId"]
         return self._solution_id_cache
 
+    async def ensure_coded_agent_project_async(self):
+        structure = await self.get_project_structure_async()
+        if not any(file.name == PYTHON_CONFIGURATION_FILE for file in structure.files):
+            raise NonCodedAgentProjectException()
+
     async def get_project_metadata_async(self) -> Optional[StudioProjectMetadata]:
         structure = await self.get_project_structure_async()
+
         folder = get_folder_by_name(structure, ".uipath")
         if not folder:
             return None
@@ -696,23 +710,32 @@ class StudioClient:
         )
 
     @traced(name="get_project_structure", run_type="uipath")
-    async def get_project_structure_async(self) -> ProjectStructure:
+    async def get_project_structure_async(
+        self, force: bool = False
+    ) -> ProjectStructure:
         """Retrieve the project's file structure from UiPath Cloud.
 
         Makes an API call to fetch the complete file structure of a project,
         including all files and folders. The response is validated against
-        the ProjectStructure model.
+        the ProjectStructure model. Results are cached unless force is True.
+
+        Args:
+            force: If True, bypass cache and fetch fresh data from the API
 
         Returns:
             ProjectStructure: The complete project structure
         """
+        if not force and self._project_structure_cache is not None:
+            return self._project_structure_cache
+
         response = await self.uipath.api_client.request_async(
             "GET",
             url=f"{self.file_operations_base_url}/Structure",
             scoped="org",
         )
 
-        return ProjectStructure.model_validate(response.json())
+        self._project_structure_cache = ProjectStructure.model_validate(response.json())
+        return self._project_structure_cache
 
     @traced(name="create_folder", run_type="uipath")
     @with_lock_retry

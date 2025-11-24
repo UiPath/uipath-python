@@ -12,7 +12,11 @@ from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from ..._utils.constants import DOTENV_FILE, ENV_UIPATH_ACCESS_TOKEN
 from ..spinner import Spinner
 from ._console import ConsoleLogger
-from ._studio_project import StudioClient, StudioProjectMetadata
+from ._studio_project import (
+    NonCodedAgentProjectException,
+    StudioClient,
+    StudioProjectMetadata,
+)
 
 
 def get_claim_from_token(claim_name: str) -> Optional[str]:
@@ -131,6 +135,16 @@ def clean_directory(directory: str) -> None:
 
 def load_environment_variables():
     load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
+
+
+async def ensure_coded_agent_project(studio_client: StudioClient):
+    try:
+        await studio_client.ensure_coded_agent_project_async()
+    except NonCodedAgentProjectException:
+        console = ConsoleLogger()
+        console.error(
+            "The targeted Studio Web project is not of type coded agent. Please check the UIPATH_PROJECT_ID environment variable."
+        )
 
 
 async def may_override_files(
