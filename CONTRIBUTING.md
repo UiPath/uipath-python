@@ -71,6 +71,9 @@ For additional commands related to linting, formatting, and building, run `just 
 
 ### General Rule
 - Use `key` instead of `id` for resource identifiers
+- Write well-typed, type-checker-friendly code.
+  - Do not use `# type: ignore` comments unless *absolutely* required.
+  - NEVER use `# type: ignore` at the start of a file.
 
 ### Standard Methods and Naming Conventions
 
