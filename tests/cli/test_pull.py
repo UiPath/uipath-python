@@ -117,11 +117,6 @@ class TestPull:
             ],
             "folderType": "0",
         }
-        # mock first structure get for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -252,15 +247,18 @@ class TestPull:
                     "fileType": "1",
                     "isEntryPoint": True,
                     "ignoredFromPublish": False,
-                }
+                },
+                {
+                    "id": "456",
+                    "name": "pyproject.toml",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
             ],
             "folderType": "0",
         }
-        # mock first structure get for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -275,6 +273,12 @@ class TestPull:
             content=remote_content.encode(),
         )
 
+        remote_content_toml = "toml content"
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
+            content=remote_content_toml.encode(),
+        )
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create local file with different content
             local_content = "print('Local version')"
@@ -327,6 +331,65 @@ class TestPull:
             assert result.exit_code == 1
             assert isinstance(result.exception, EnrichedException)
             assert result.exception.status_code == 401
+
+    def test_pull_non_coded_agent_project(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json_legacy: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test pull when the project is not a coded agent project (missing pyproject.toml)."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock a project structure WITHOUT pyproject.toml (not a coded agent project)
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "789",
+                    "name": "uipath.json",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "456",
+                    "name": "main.xaml",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["pull", "./"])
+            assert result.exit_code == 1
+            assert (
+                "The targeted Studio Web project is not of type coded agent"
+                in result.output
+            )
+            assert (
+                "Please check the UIPATH_PROJECT_ID environment variable"
+                in result.output
+            )
 
     def test_pull_multiple_eval_folders(
         self,
@@ -429,15 +492,18 @@ class TestPull:
                     "fileType": "1",
                     "isEntryPoint": True,
                     "ignoredFromPublish": False,
-                }
+                },
+                {
+                    "id": "456",
+                    "name": "pyproject.toml",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
             ],
             "folderType": "0",
         }
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -449,6 +515,11 @@ class TestPull:
             method="GET",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/main-py-id",
             content=b"print('test')",
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
+            content=b"toml content",
         )
 
         evaluator_content = {"version": "1.0", "name": "Contains Evaluator"}

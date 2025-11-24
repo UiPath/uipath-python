@@ -541,7 +541,7 @@ async def pull_project(
     download_configuration: dict[str | None, Path],
     studio_client: StudioClient,
 ) -> AsyncIterator[UpdateEvent]:
-    """Pull project with configurable conflict handling.
+    """Pull project files.
 
     Yields:
         FileOperationUpdate: Progress updates for each file operation

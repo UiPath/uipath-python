@@ -334,7 +334,7 @@ class SwFileHandler:
         2. Recursively finds all empty folders
         3. Deletes each empty folder
         """
-        structure = await self._studio_client.get_project_structure_async()
+        structure = await self._studio_client.get_project_structure_async(force=True)
 
         empty_folders = self._find_empty_folders(structure)
 

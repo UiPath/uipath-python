@@ -6,7 +6,7 @@ from pathlib import Path
 import click
 
 from .._config import UiPathConfig
-from ._utils._common import may_override_files
+from ._utils._common import ensure_coded_agent_project, may_override_files
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     ProjectPullError,
@@ -51,6 +51,8 @@ def pull(root: Path, overwrite: bool) -> None:
         return
 
     studio_client = StudioClient(project_id=project_id)
+
+    asyncio.run(ensure_coded_agent_project(studio_client))
 
     if not overwrite:
         may_override = asyncio.run(may_override_files(studio_client, "local"))

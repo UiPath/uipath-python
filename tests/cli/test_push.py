@@ -2,7 +2,7 @@
 import json
 import os
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -93,6 +93,25 @@ def extract_metadata_json_from_added_resources(request: Request) -> dict[str, An
 
 class TestPush:
     """Test push command."""
+
+    base_url = "https://cloud.uipath.com/organization"
+    project_id = "test-project-id"
+
+    def _mock_file_download(
+        self,
+        httpx_mock,
+        file_id: str,
+        *,
+        file_content: Optional[str] = None,
+        times: int = 1,
+    ):
+        for _ in range(times):
+            httpx_mock.add_response(
+                method="GET",
+                url=f"{TestPush.base_url}/studio_/backend/api/Project/{TestPush.project_id}/FileOperations/File/{file_id}",
+                status_code=200,
+                text="Remote file content" if not file_content else file_content,
+            )
 
     def _create_required_files(self, exclude: list[str] | None = None):
         required_files = ["uipath.json", "bindings.json", "entry-points.json"]
@@ -262,12 +281,6 @@ class TestPush:
             ],
             "folderType": "0",
         }
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
-
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -275,60 +288,26 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
-            status_code=200,
-            text="print('Old version')",
+        self._mock_file_download(httpx_mock, "123")
+        self._mock_file_download(httpx_mock, "456")
+        self._mock_file_download(httpx_mock, "789")
+
+        # metadata file should be retrieved twice
+        self._mock_file_download(
+            httpx_mock,
+            "246",
+            file_content=json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "lastPushDate": "2025-11-20T13:07:31.515084+00:00",
+                    "lastPushAuthor": "john.doe@mail.com",
+                    "codeVersion": "1.0.3",
+                }
+            ),
+            times=2,
         )
 
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
-            status_code=200,
-            text="[project]\nname = 'old-version'\n",
-        )
-
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
-            status_code=200,
-            text='{"version": "old"}',
-        )
-
-        # mock metadata file retrieval twice
-
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/246",
-            status_code=200,
-            json={
-                "schemaVersion": 1,
-                "lastPushDate": "2025-11-20T13:07:31.515084+00:00",
-                "lastPushAuthor": "john.doe@mail.com",
-                "codeVersion": "1.0.3",
-            },
-        )
-
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/246",
-            status_code=200,
-            json={
-                "schemaVersion": 1,
-                "lastPushDate": "2025-11-20T13:07:31.515084+00:00",
-                "lastPushAuthor": "john.doe@mail.com",
-                "codeVersion": "1.0.3",
-            },
-        )
-
-        # Mock entry-points.json download
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/898",
-            status_code=200,
-            json={"entryPoints": {}},
-        )
+        self._mock_file_download(httpx_mock, "898")
 
         httpx_mock.add_response(
             method="POST",
@@ -413,7 +392,16 @@ class TestPush:
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
 
@@ -424,11 +412,7 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
+        self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
             method="POST",
@@ -473,7 +457,7 @@ class TestPush:
             result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
             assert "Uploading 'main.py'" in result.output
-            assert "Uploading 'pyproject.toml'" in result.output
+            assert "Updating 'pyproject.toml'" in result.output
             assert "Uploading 'uipath.json'" in result.output
             assert "Uploading 'uv.lock'" in result.output
             assert "Uploading '.uipath/studio_metadata.json'" in result.output
@@ -534,6 +518,70 @@ class TestPush:
             assert isinstance(result.exception, EnrichedException)
             assert result.exception.status_code == 401
 
+    def test_push_non_coded_agent_project(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        uipath_json_legacy: UiPathJson,
+        mock_env_vars: Dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test push when the project is not a coded agent project (missing pyproject.toml)."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Mock a project structure WITHOUT pyproject.toml (not a coded agent project)
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "789",
+                    "name": "uipath.json",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "456",
+                    "name": "main.xaml",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 1
+            assert (
+                "The targeted Studio Web project is not of type coded agent"
+                in result.output
+            )
+            assert (
+                "Please check the UIPATH_PROJECT_ID environment variable"
+                in result.output
+            )
+
     def test_push_with_nolock_flag(
         self,
         runner: CliRunner,
@@ -562,6 +610,14 @@ class TestPush:
                     "ignoredFromPublish": False,
                 },
                 {
+                    "id": "456",
+                    "name": "pyproject.toml",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+                {
                     "id": "789",
                     "name": "uipath.json",
                     "isMain": False,
@@ -573,32 +629,15 @@ class TestPush:
             "folderType": "0",
         }
 
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
-
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
-
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/123",
-            status_code=200,
-            text="print('Old version')",
-        )
-
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
-            status_code=200,
-            text='{"version": "old"}',
-        )
+        self._mock_file_download(httpx_mock, "123")
+        self._mock_file_download(httpx_mock, "789")
+        self._mock_file_download(httpx_mock, "456")
 
         httpx_mock.add_response(
             method="POST",
@@ -635,7 +674,7 @@ class TestPush:
             )
             assert result.exit_code == 0
             assert "Updating 'main.py'" in result.output
-            assert "Uploading 'pyproject.toml'" in result.output
+            assert "Updating 'pyproject.toml'" in result.output
             assert "Updating 'uipath.json'" in result.output
             assert "uv.lock" not in result.output
 
@@ -667,20 +706,23 @@ class TestPush:
         # Set up exclusions - exclude a JSON file that would normally be included
         uipath_json_legacy.settings.files_excluded = ["config.json"]
 
-        # Mock the project structure response (empty project)
+        # Mock the project structure response
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
-
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -689,6 +731,7 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
+        self._mock_file_download(httpx_mock, "123")
         httpx_mock.add_response(
             method="POST",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
@@ -747,19 +790,22 @@ class TestPush:
         uipath_json_legacy.settings.files_included = ["conflicting.txt"]
         uipath_json_legacy.settings.files_excluded = ["conflicting.txt"]
 
-        # Mock the project structure response (empty project)
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -767,6 +813,7 @@ class TestPush:
         )
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
             method="POST",
@@ -825,20 +872,22 @@ class TestPush:
             "subdir2/settings.json",
         ]
 
-        # Mock empty project structure
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
-
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -846,6 +895,7 @@ class TestPush:
         )
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
             method="POST",
@@ -926,20 +976,22 @@ class TestPush:
         # Include root data.txt and specific path subdir1/config.txt
         uipath_json_legacy.settings.files_included = ["data.txt", "subdir1/config.txt"]
 
-        # Mock empty project structure
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
-
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -947,6 +999,7 @@ class TestPush:
         )
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
             method="POST",
@@ -1029,12 +1082,20 @@ class TestPush:
         # Exclude root-level "temp" directory and specific path "tests/old"
         uipath_json_legacy.settings.directories_excluded = ["temp", "tests/old"]
 
-        # Mock empty project structure
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
 
@@ -1044,12 +1105,6 @@ class TestPush:
         )
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
-
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             method="POST",
@@ -1062,6 +1117,7 @@ class TestPush:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
+        self._mock_file_download(httpx_mock, "123")
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             self._create_required_files(exclude=["uipath.json"])
@@ -1136,22 +1192,24 @@ class TestPush:
             "folders": [],
             "files": [
                 {
-                    "id": "456",
+                    "id": "123",
                     "name": "main.py",
                     "isMain": True,
                     "fileType": "1",
                     "isEntryPoint": True,
                     "ignoredFromPublish": False,
                 },
+                {
+                    "id": "456",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
             ],
             "folderType": "0",
         }
-
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1165,16 +1223,8 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
-        # Mock file download - return different content to detect conflict
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
-            status_code=200,
-            text="print('Remote version')",
-        )
-
-        # Mock user confirmation - user confirms the overwrite
-        monkeypatch.setattr("click.confirm", lambda *args, **kwargs: True)
+        self._mock_file_download(httpx_mock, "123")
+        self._mock_file_download(httpx_mock, "456")
 
         httpx_mock.add_response(
             method="POST",
@@ -1196,7 +1246,7 @@ class TestPush:
 
             result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
             assert result.exit_code == 0
-            # Should detect conflict and update after user confirmation
+            # Should detect conflict
             assert "Updating 'main.py'" in result.output
 
     def test_push_shows_up_to_date_for_unchanged_files(
@@ -1222,6 +1272,14 @@ class TestPush:
             "folders": [],
             "files": [
                 {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+                {
                     "id": "456",
                     "name": "main.py",
                     "isMain": True,
@@ -1241,12 +1299,6 @@ class TestPush:
             "folderType": "0",
         }
 
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
-
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
@@ -1259,20 +1311,10 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
+        self._mock_file_download(httpx_mock, "123")
         # Mock file downloads - return same content as local files
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/456",
-            status_code=200,
-            text=local_main_content,
-        )
-
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/789",
-            status_code=200,
-            text=local_helper_content,
-        )
+        self._mock_file_download(httpx_mock, "456", file_content=local_main_content)
+        self._mock_file_download(httpx_mock, "789", file_content=local_helper_content)
 
         httpx_mock.add_response(
             method="POST",
@@ -1361,6 +1403,14 @@ class TestPush:
             ],
             "files": [
                 {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+                {
                     "id": "main-456",
                     "name": "main.py",
                     "isMain": True,
@@ -1371,12 +1421,6 @@ class TestPush:
             ],
             "folderType": "0",
         }
-
-        # mock structure request for metadata
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1390,13 +1434,8 @@ class TestPush:
 
         self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
 
-        # Mock file download for main.py - return same content to avoid conflict
-        httpx_mock.add_response(
-            method="GET",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/File/main-456",
-            status_code=200,
-            text="print('Hello World')",
-        )
+        self._mock_file_download(httpx_mock, "main-456")
+        self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
             method="POST",
@@ -1446,6 +1485,25 @@ class TestPush:
 class TestResourceCreation:
     """Test resource creation and import functionality during push."""
 
+    base_url = "https://cloud.uipath.com/organization"
+    project_id = "test-project-id"
+
+    def _mock_file_download(
+        self,
+        httpx_mock,
+        file_id: str,
+        *,
+        file_content: Optional[str] = None,
+        times: int = 1,
+    ):
+        for _ in range(times):
+            httpx_mock.add_response(
+                method="GET",
+                url=f"{TestResourceCreation.base_url}/studio_/backend/api/Project/{TestResourceCreation.project_id}/FileOperations/File/{file_id}",
+                status_code=200,
+                text="Remote file content" if not file_content else file_content,
+            )
+
     def test_push_with_resources_imports_referenced_resources(
         self,
         runner: CliRunner,
@@ -1461,12 +1519,20 @@ class TestResourceCreation:
         solution_id = "test-solution-id"
         tenant_id = "test-tenant-id"
 
-        # Mock the project structure
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
 
@@ -1474,11 +1540,7 @@ class TestResourceCreation:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
+        self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
@@ -1644,12 +1706,20 @@ class TestResourceCreation:
         base_url = "https://cloud.uipath.com/organization"
         project_id = "test-project-id"
 
-        # Mock the project structure
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
 
@@ -1657,11 +1727,7 @@ class TestResourceCreation:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
+        self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
@@ -1753,12 +1819,20 @@ class TestResourceCreation:
         base_url = "https://cloud.uipath.com/organization"
         project_id = "test-project-id"
 
-        # Mock the project structure
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
 
@@ -1766,11 +1840,7 @@ class TestResourceCreation:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
         )
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
+        self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/Lock",
@@ -1883,19 +1953,22 @@ class TestResourceCreation:
         solution_id = "test-solution-id"
         tenant_id = "test-tenant-id"
 
-        # Mock the project structure
         mock_structure = {
             "id": "root",
             "name": "root",
             "folders": [],
-            "files": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
             "folderType": "0",
         }
-
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json=mock_structure,
-        )
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1910,6 +1983,7 @@ class TestResourceCreation:
             },
         )
 
+        self._mock_file_download(httpx_mock, "123")
         httpx_mock.add_response(
             method="POST",
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",

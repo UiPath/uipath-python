@@ -62,6 +62,7 @@ TEMP_ATTACHMENTS_FOLDER = "uipath_attachments"
 COMMUNITY_agents_SUFFIX = "-community-agents"
 
 # File names
+PYTHON_CONFIGURATION_FILE = "pyproject.toml"
 UIPATH_CONFIG_FILE = "uipath.json"
 UIPATH_BINDINGS_FILE = "bindings.json"
 ENTRY_POINTS_FILE = "entry-points.json"
