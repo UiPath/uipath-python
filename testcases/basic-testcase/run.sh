@@ -14,4 +14,4 @@ echo "Packing agent..."
 uv run uipath pack
 
 echo "Run agent with input from cli"
-uv run uipath run main.py '{"message": "abc", "repeat": 2, "prefix": "xyz"}'
+uv run uipath run main '{"message": "abc", "repeat": 2, "prefix": "xyz"}'
