@@ -13,7 +13,7 @@ from uipath.runtime.errors import UiPathRuntimeError
 
 from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
 from uipath.platform.actions import Action
-from uipath.platform.common import CreateAction, InvokeProcess, WaitAction, WaitJob
+from uipath.platform.common import CreateTask, InvokeProcess, WaitJob, WaitTask
 from uipath.platform.orchestrator import (
     Job,
     JobErrorInfo,
@@ -54,7 +54,7 @@ class TestHitlReader:
             new=mock_retrieve_async,
         ):
             resume_trigger = UiPathResumeTrigger(
-                trigger_type=UiPathResumeTriggerType.ACTION,
+                trigger_type=UiPathResumeTriggerType.TASK,
                 item_key=action_key,
                 folder_key="test-folder",
                 folder_path="test-path",
@@ -198,7 +198,7 @@ class TestHitlProcessor:
     ) -> None:
         """Test creating a resume trigger for CreateAction."""
         action_key = "test-action-key"
-        create_action = CreateAction(
+        create_action = CreateTask(
             title="Test Action",
             app_name="TestApp",
             app_folder_path="/test/path",
@@ -216,7 +216,7 @@ class TestHitlProcessor:
             resume_trigger = await processor.create_resume_trigger()
 
             assert resume_trigger is not None
-            assert resume_trigger.trigger_type == UiPathResumeTriggerType.ACTION
+            assert resume_trigger.trigger_type == UiPathResumeTriggerType.TASK
             assert resume_trigger.item_key == action_key
             assert resume_trigger.folder_path == create_action.app_folder_path
             mock_create_async.assert_called_once_with(
@@ -238,13 +238,13 @@ class TestHitlProcessor:
         """Test creating a resume trigger for WaitAction."""
         action_key = "test-action-key"
         action = Action(key=action_key)
-        wait_action = WaitAction(action=action, app_folder_path="/test/path")
+        wait_action = WaitTask(action=action, app_folder_path="/test/path")
 
         processor = HitlProcessor(wait_action)
         resume_trigger = await processor.create_resume_trigger()
 
         assert resume_trigger is not None
-        assert resume_trigger.trigger_type == UiPathResumeTriggerType.ACTION
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.TASK
         assert resume_trigger.item_key == action_key
         assert resume_trigger.folder_path == wait_action.app_folder_path
 

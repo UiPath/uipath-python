@@ -4,14 +4,23 @@ This module contains common models used across multiple services.
 """
 
 from .auth import TokenData
-from .interrupt_models import CreateAction, InvokeProcess, WaitAction, WaitJob
+from .interrupt_models import (
+    CreateEscalation,
+    CreateTask,
+    InvokeProcess,
+    WaitEscalation,
+    WaitJob,
+    WaitTask,
+)
 from .paging import PagedResult
 
 __all__ = [
     "TokenData",
-    "CreateAction",
+    "CreateTask",
+    "CreateEscalation",
+    "WaitEscalation",
     "InvokeProcess",
-    "WaitAction",
+    "WaitTask",
     "WaitJob",
     "PagedResult",
 ]
