@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -37,13 +36,13 @@ class ConfigurationManager:
         return UIPATH_CONFIG_FILE
 
     @property
-    def project_id(self) -> Optional[str]:
+    def project_id(self) -> str | None:
         from uipath._utils.constants import ENV_UIPATH_PROJECT_ID
 
         return os.getenv(ENV_UIPATH_PROJECT_ID, None)
 
     @property
-    def folder_key(self) -> Optional[str]:
+    def folder_key(self) -> str | None:
         from uipath._utils.constants import ENV_FOLDER_KEY
 
         return os.getenv(ENV_FOLDER_KEY, None)
@@ -53,7 +52,7 @@ class ConfigurationManager:
         return self.project_id is not None
 
     @property
-    def job_key(self) -> Optional[str]:
+    def job_key(self) -> str | None:
         from uipath._utils.constants import ENV_JOB_KEY
 
         return os.getenv(ENV_JOB_KEY, None)

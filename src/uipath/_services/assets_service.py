@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+
 
 from httpx import Response
 
@@ -9,7 +9,6 @@ from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..platform.orchestrator import Asset, UserAsset
 from ..tracing import traced
 from ._base_service import BaseService
-
 
 class AssetsService(FolderContext, BaseService):
     """Service for managing UiPath assets.
@@ -30,8 +29,8 @@ class AssetsService(FolderContext, BaseService):
         self,
         name: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> UserAsset | Asset:
         """Retrieve an asset by its name.
 
@@ -39,8 +38,8 @@ class AssetsService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the asset.
-            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
            UserAsset: The asset data.
@@ -86,8 +85,8 @@ class AssetsService(FolderContext, BaseService):
         self,
         name: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> UserAsset | Asset:
         """Asynchronously retrieve an asset by its name.
 
@@ -95,8 +94,8 @@ class AssetsService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the asset.
-            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
             UserAsset: The asset data.
@@ -133,9 +132,9 @@ class AssetsService(FolderContext, BaseService):
         self,
         name: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> Optional[str]:
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> str | None:
         """Gets a specified Orchestrator credential.
 
         The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable)
@@ -144,11 +143,11 @@ class AssetsService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the credential asset.
-            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
-            Optional[str]: The decrypted credential password.
+            str | None: The decrypted credential password.
 
         Raises:
             ValueError: If the method is called for a user asset.
@@ -188,9 +187,9 @@ class AssetsService(FolderContext, BaseService):
         self,
         name: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> Optional[str]:
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> str | None:
         """Asynchronously gets a specified Orchestrator credential.
 
         The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable)
@@ -199,11 +198,11 @@ class AssetsService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the credential asset.
-            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
-            Optional[str]: The decrypted credential password.
+            str | None: The decrypted credential password.
 
         Raises:
             ValueError: If the method is called for a user asset.
@@ -240,8 +239,8 @@ class AssetsService(FolderContext, BaseService):
         self,
         robot_asset: UserAsset,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Response:
         """Update an asset's value.
 
@@ -284,8 +283,8 @@ class AssetsService(FolderContext, BaseService):
         self,
         robot_asset: UserAsset,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Response:
         """Asynchronously update an asset's value.
 
@@ -313,15 +312,15 @@ class AssetsService(FolderContext, BaseService):
         return response.json()
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
     def _retrieve_spec(
         self,
         name: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         try:
             robot_key = self._execution_context.robot_key
@@ -355,8 +354,8 @@ class AssetsService(FolderContext, BaseService):
         self,
         robot_asset: UserAsset,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="POST",

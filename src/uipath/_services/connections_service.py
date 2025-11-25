@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import parse_qsl, quote, urlsplit
 
 from httpx import Response
@@ -21,7 +21,6 @@ from ._base_service import BaseService
 from .folder_service import FolderService
 
 logger: logging.Logger = logging.getLogger("uipath")
-
 
 class ConnectionsService(BaseService):
     """Service for managing UiPath external service connections.
@@ -72,7 +71,7 @@ class ConnectionsService(BaseService):
         element_instance_id: int,
         connector_key: str,
         tool_path: str,
-        parameters: Optional[Dict[str, str]] = None,
+        parameters: dict[str, str] | None = None,
         schema_mode: bool = True,
         max_jit_depth: int = 5,
     ) -> ConnectionMetadata:
@@ -86,7 +85,7 @@ class ConnectionsService(BaseService):
             element_instance_id (int): The element instance ID of the connection.
             connector_key (str): The connector key (e.g., 'uipath-atlassian-jira', 'uipath-slack').
             tool_path (str): The tool path to retrieve metadata for.
-            parameters (Optional[Dict[str, str]]): Parameter values. When provided, triggers
+            parameters (dict[str, str] | None): Parameter values. When provided, triggers
                 automatic JIT fetching for cascading fields.
             schema_mode (bool): Whether or not to represent the output schema in the response fields.
             max_jit_depth (int): The maximum depth of the JIT resolution loop.
@@ -144,13 +143,13 @@ class ConnectionsService(BaseService):
     def list(
         self,
         *,
-        name: Optional[str] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        connector_key: Optional[str] = None,
-        skip: Optional[int] = None,
-        top: Optional[int] = None,
-    ) -> List[Connection]:
+        name: str | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
+        connector_key: str | None = None,
+        skip: int | None = None,
+        top: int | None = None,
+    ) -> list[Connection]:
         """Lists all connections with optional filtering.
 
         Args:
@@ -162,7 +161,7 @@ class ConnectionsService(BaseService):
             top: Maximum number of records to return
 
         Returns:
-            List[Connection]: List of connection instances
+            list[Connection]: List of connection instances
 
         Raises:
             ValueError: If both folder_path and folder_key are provided together, or if
@@ -198,13 +197,13 @@ class ConnectionsService(BaseService):
     async def list_async(
         self,
         *,
-        name: Optional[str] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        connector_key: Optional[str] = None,
-        skip: Optional[int] = None,
-        top: Optional[int] = None,
-    ) -> List[Connection]:
+        name: str | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
+        connector_key: str | None = None,
+        skip: int | None = None,
+        top: int | None = None,
+    ) -> list[Connection]:
         """Asynchronously lists all connections with optional filtering.
 
         Args:
@@ -216,7 +215,7 @@ class ConnectionsService(BaseService):
             top: Maximum number of records to return
 
         Returns:
-            List[Connection]: List of connection instances
+            list[Connection]: List of connection instances
 
         Raises:
             ValueError: If both folder_path and folder_key are provided together, or if
@@ -283,7 +282,7 @@ class ConnectionsService(BaseService):
         element_instance_id: int,
         connector_key: str,
         tool_path: str,
-        parameters: Optional[Dict[str, str]] = None,
+        parameters: dict[str, str] | None = None,
         schema_mode: bool = True,
         max_jit_depth: int = 5,
     ) -> ConnectionMetadata:
@@ -297,7 +296,7 @@ class ConnectionsService(BaseService):
             element_instance_id (int): The element instance ID of the connection.
             connector_key (str): The connector key (e.g., 'uipath-atlassian-jira', 'uipath-slack').
             tool_path (str): The tool path to retrieve metadata for.
-            parameters (Optional[Dict[str, str]]): Parameter values. When provided, triggers
+            parameters (dict[str, str] | None): Parameter values. When provided, triggers
                 automatic JIT fetching for cascading fields.
             schema_mode (bool): Whether or not to represent the output schema in the response fields.
             max_jit_depth (int): The maximum depth of the JIT resolution loop.
@@ -409,14 +408,14 @@ class ConnectionsService(BaseService):
         name="connections_retrieve_event_payload",
         run_type="uipath",
     )
-    def retrieve_event_payload(self, event_args: EventArguments) -> Dict[str, Any]:
+    def retrieve_event_payload(self, event_args: EventArguments) -> dict[str, Any]:
         """Retrieve event payload from UiPath Integration Service.
 
         Args:
             event_args (EventArguments): The event arguments. Should be passed along from the job's input.
 
         Returns:
-            Dict[str, Any]: The event payload data
+            dict[str, Any]: The event payload data
         """
         if not event_args.additional_event_data:
             raise ValueError("additional_event_data is required")
@@ -445,14 +444,14 @@ class ConnectionsService(BaseService):
     )
     async def retrieve_event_payload_async(
         self, event_args: EventArguments
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Retrieve event payload from UiPath Integration Service.
 
         Args:
             event_args (EventArguments): The event arguments. Should be passed along from the job's input.
 
         Returns:
-            Dict[str, Any]: The event payload data
+            dict[str, Any]: The event payload data
         """
         if not event_args.additional_event_data:
             raise ValueError("additional_event_data is required")
@@ -509,7 +508,7 @@ class ConnectionsService(BaseService):
         self,
         element_instance_id: int,
         dynamic_path: str,
-        parameters: Dict[str, str],
+        parameters: dict[str, str],
         schema_mode: bool,
     ) -> RequestSpec:
         """Build request spec for JIT metadata with dynamic path parameter substitution.
@@ -539,7 +538,7 @@ class ConnectionsService(BaseService):
 
     def _get_jit_action_url(
         self, connection_metadata: ConnectionMetadata
-    ) -> Optional[str]:
+    ) -> str | None:
         """Return the URL of the JIT action that should be triggered dynamically."""
         if "method" not in connection_metadata.metadata:
             return None
@@ -562,7 +561,7 @@ class ConnectionsService(BaseService):
             params={"tokenType": token_type.value},
         )
 
-    def _parse_and_validate_list_response(self, response: Response) -> List[Connection]:
+    def _parse_and_validate_list_response(self, response: Response) -> list[Connection]:
         """Parse and validate the list response from the API.
 
         Handles both OData response format (with 'value' field) and raw list responses.
@@ -587,11 +586,11 @@ class ConnectionsService(BaseService):
 
     def _list_spec(
         self,
-        name: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        connector_key: Optional[str] = None,
-        skip: Optional[int] = None,
-        top: Optional[int] = None,
+        name: str | None = None,
+        folder_key: str | None = None,
+        connector_key: str | None = None,
+        skip: int | None = None,
+        top: int | None = None,
     ) -> RequestSpec:
         """Build the request specification for listing connections.
 
@@ -647,7 +646,7 @@ class ConnectionsService(BaseService):
         self,
         activity_metadata: ActivityMetadata,
         connection_id: str,
-        activity_input: Dict[str, Any],
+        activity_input: dict[str, Any],
     ) -> Any:
         """Invoke an activity synchronously.
 
@@ -686,7 +685,7 @@ class ConnectionsService(BaseService):
         self,
         activity_metadata: ActivityMetadata,
         connection_id: str,
-        activity_input: Dict[str, Any],
+        activity_input: dict[str, Any],
     ) -> Any:
         """Invoke an activity asynchronously.
 
@@ -721,16 +720,16 @@ class ConnectionsService(BaseService):
         self,
         activity_metadata: ActivityMetadata,
         connection_id: str,
-        activity_input: Dict[str, Any],
+        activity_input: dict[str, Any],
     ) -> tuple[RequestSpec, dict[str, Any] | None]:
         """Build the request specification for invoking an activity."""
         url = f"/elements_/v3/element/instances/{connection_id}{activity_metadata.object_path}"
 
-        query_params: Dict[str, str] = {}
-        path_params: Dict[str, str] = {}
-        header_params: Dict[str, str] = {}
-        multipart_params: Dict[str, Any] = {}
-        body_fields: Dict[str, Any] = {}
+        query_params: dict[str, str] = {}
+        path_params: dict[str, str] = {}
+        header_params: dict[str, str] = {}
+        multipart_params: dict[str, Any] = {}
+        body_fields: dict[str, Any] = {}
 
         # iterating through input items instead of parameters because input will usually not contain all parameters
         # and we don't want to add unused optional parameters to the request
@@ -770,7 +769,7 @@ class ConnectionsService(BaseService):
 
         # body and files handling
         json_data = None
-        files: Dict[str, Any] | None = None
+        files: dict[str, Any] | None = None
 
         # multipart/form-data for file uploads
         if "multipart" in activity_metadata.content_type.lower():

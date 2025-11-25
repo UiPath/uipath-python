@@ -16,7 +16,7 @@ Classes:
     UiPathLlmChatService: Service using UiPath's normalized API format
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 from pydantic import BaseModel
 
@@ -47,7 +47,6 @@ DEFAULT_LLM_HEADERS = {
     "X-UiPath-LlmGateway-RequestingFeature": "langgraph-agent",
 }
 
-
 class ChatModels(object):
     """Available chat models for LLM Gateway services.
 
@@ -65,7 +64,6 @@ class ChatModels(object):
     gpt_4o_mini_2024_07_18 = "gpt-4o-mini-2024-07-18"
     o3_mini = "o3-mini-2025-01-31"
 
-
 class EmbeddingModels(object):
     """Available embedding models for LLM Gateway services.
 
@@ -76,8 +74,7 @@ class EmbeddingModels(object):
     text_embedding_3_large = "text-embedding-3-large"
     text_embedding_ada_002 = "text-embedding-ada-002"
 
-
-def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
+def _cleanup_schema(model_class: type[BaseModel]) -> dict[str, Any]:
     """Clean up a Pydantic model schema for use with LLM Gateway.
 
     This function converts a Pydantic model's JSON schema to a format that's
@@ -93,12 +90,12 @@ def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
     Examples:
         ```python
         from pydantic import BaseModel
-        from typing import List
+        
 
         class Country(BaseModel):
             name: str
             capital: str
-            languages: List[str]
+            languages: list[str]
 
         schema = _cleanup_schema(Country)
         # Returns a clean schema without titles and unnecessary metadata
@@ -136,7 +133,6 @@ def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
     # Create clean schema
     clean_schema = clean_type(schema)
     return clean_schema
-
 
 class UiPathOpenAIService(BaseService):
     """Service for calling UiPath's LLM Gateway using OpenAI-compatible API.
@@ -204,11 +200,11 @@ class UiPathOpenAIService(BaseService):
     @traced(name="llm_chat_completions", run_type="uipath")
     async def chat_completions(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 4096,
         temperature: float = 0,
-        response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
+        response_format: Union[dict[str, Any], type[BaseModel]] | None = None,
         api_version: str = API_VERSION,
     ):
         """Generate chat completions using UiPath's LLM Gateway service.
@@ -218,7 +214,7 @@ class UiPathOpenAIService(BaseService):
         conversations and various OpenAI-compatible models.
 
         Args:
-            messages (List[Dict[str, str]]): List of message dictionaries with 'role' and 'content' keys.
+            messages (list[dict[str, str]]): List of message dictionaries with 'role' and 'content' keys.
                 The supported roles are 'system', 'user', and 'assistant'. System messages set
                 the behavior/context, user messages are from the human, and assistant messages
                 are from the AI.
@@ -230,7 +226,7 @@ class UiPathOpenAIService(BaseService):
             temperature (float, optional): Temperature for sampling, between 0 and 1.
                 Lower values (closer to 0) make output more deterministic and focused,
                 higher values make it more creative and random. Defaults to 0.
-            response_format (Optional[Union[Dict[str, Any], type[BaseModel]]], optional):
+            response_format (Union[dict[str, Any], type[BaseModel]] | None, optional):
                 An object specifying the format that the model must output. Can be either:
                 - A dictionary with response format configuration (traditional format)
                 - A Pydantic BaseModel class (automatically converted to JSON schema)
@@ -265,12 +261,12 @@ class UiPathOpenAIService(BaseService):
 
             # Using Pydantic model for structured response
             from pydantic import BaseModel
-            from typing import List
+            
 
             class Country(BaseModel):
                 name: str
                 capital: str
-                languages: List[str]
+                languages: list[str]
 
             response = await service.chat_completions(
                 messages=[
@@ -328,7 +324,6 @@ class UiPathOpenAIService(BaseService):
 
         return ChatCompletion.model_validate(response.json())
 
-
 class UiPathLlmChatService(BaseService):
     """Service for calling UiPath's normalized LLM Gateway API.
 
@@ -347,18 +342,18 @@ class UiPathLlmChatService(BaseService):
     @traced(name="llm_chat_completions", run_type="uipath")
     async def chat_completions(
         self,
-        messages: Union[List[Dict[str, str]], List[tuple[str, str]]],
+        messages: Union[list[dict[str, str]], list[tuple[str, str]]],
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 4096,
         temperature: float = 0,
         n: int = 1,
         frequency_penalty: float = 0,
         presence_penalty: float = 0,
-        top_p: Optional[float] = 1,
-        top_k: Optional[int] = None,
-        tools: Optional[List[ToolDefinition]] = None,
-        tool_choice: Optional[ToolChoice] = None,
-        response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
+        top_p: float | None = 1,
+        top_k: int | None = None,
+        tools: list[ToolDefinition] | None = None,
+        tool_choice: ToolChoice | None = None,
+        response_format: Union[dict[str, Any], type[BaseModel]] | None = None,
         api_version: str = NORMALIZED_API_VERSION,
     ):
         """Generate chat completions using UiPath's normalized LLM Gateway API.
@@ -369,7 +364,7 @@ class UiPathLlmChatService(BaseService):
         model providers.
 
         Args:
-            messages (List[Dict[str, str]]): List of message dictionaries with 'role' and 'content' keys.
+            messages (list[dict[str, str]]): List of message dictionaries with 'role' and 'content' keys.
                 The supported roles are 'system', 'user', and 'assistant'. System messages set
                 the behavior/context, user messages are from the human, and assistant messages
                 are from the AI.
@@ -391,13 +386,13 @@ class UiPathLlmChatService(BaseService):
                 Controls diversity by considering only the top p probability mass. Defaults to 1.
             top_k (int, optional): Nucleus sampling parameter.
                 Controls diversity by considering only the top k most probable tokens. Defaults to None.
-            tools (Optional[List[ToolDefinition]], optional): List of tool definitions that the
+            tools (list[ToolDefinition] | None, optional): List of tool definitions that the
                 model can call. Tools enable the model to perform actions or retrieve information
                 beyond text generation. Defaults to None.
-            tool_choice (Optional[ToolChoice], optional): Controls which tools the model can call.
+            tool_choice (ToolChoice | None, optional): Controls which tools the model can call.
                 Can be "auto" (model decides), "none" (no tools), or a specific tool choice.
                 Defaults to None.
-            response_format (Optional[Union[Dict[str, Any], type[BaseModel]]], optional):
+            response_format (Union[dict[str, Any], type[BaseModel]] | None, optional):
                 An object specifying the format that the model must output. Can be either:
                 - A dictionary with response format configuration (traditional format)
                 - A Pydantic BaseModel class (automatically converted to JSON schema)
@@ -456,12 +451,12 @@ class UiPathLlmChatService(BaseService):
 
             # Using Pydantic model for structured response
             from pydantic import BaseModel
-            from typing import List
+            
 
             class Country(BaseModel):
                 name: str
                 capital: str
-                languages: List[str]
+                languages: list[str]
 
             response = await service.chat_completions(
                 messages=[
@@ -558,7 +553,7 @@ class UiPathLlmChatService(BaseService):
 
         return ChatCompletion.model_validate(response.json())
 
-    def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> Dict[str, Any]:
+    def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> dict[str, Any]:
         """Convert an OpenAI-style tool definition to UiPath API format.
 
         This internal method transforms tool definitions from the standard OpenAI format
@@ -569,7 +564,7 @@ class UiPathLlmChatService(BaseService):
                 function name, description, and parameter schema.
 
         Returns:
-            Dict[str, Any]: The tool definition converted to UiPath API format
+            dict[str, Any]: The tool definition converted to UiPath API format
                 with the appropriate structure and field mappings.
         """
         parameters = {

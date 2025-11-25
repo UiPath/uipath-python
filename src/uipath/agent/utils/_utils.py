@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path, PurePath
-from typing import Any, Optional
+from typing import Any
 
 from httpx import Response
 from pydantic import TypeAdapter
@@ -25,7 +25,6 @@ from uipath.agent.models.evals import AgentEvalsDefinition
 
 logger = logging.getLogger(__name__)
 
-
 async def get_file(
     folder: ProjectFolder, path: PurePath, studio_client: StudioClient
 ) -> Response:
@@ -33,16 +32,14 @@ async def get_file(
     assert isinstance(resolved, ProjectFile), "Path file not found."
     return await studio_client.download_project_file_async(resolved)
 
-
 async def create_agent_project(
-    solution_id: str, project_name: str, description: Optional[str] = None
+    solution_id: str, project_name: str, description: str | None = None
 ) -> str:
     studio_client = StudioSolutionsClient(solution_id=solution_id)
     project = await studio_client.create_project_async(
         project_name=project_name, description=description
     )
     return project["id"]
-
 
 async def download_agent_project(
     project_id: str,
@@ -66,7 +63,6 @@ async def download_agent_project(
         logger.info(update.message)
 
     logger.info(f"Successfully downloaded project {project_id}.")
-
 
 def load_agent_definition(
     target_project_dir: Path,

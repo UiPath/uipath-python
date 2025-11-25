@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -16,15 +16,14 @@ from ..platform.actions import Action, ActionSchema
 from ..tracing import traced
 from ._base_service import BaseService
 
-
 def _create_spec(
-    data: Optional[Dict[str, Any]],
-    action_schema: Optional[ActionSchema],
+    data: dict[str, Any] | None,
+    action_schema: ActionSchema | None,
     title: str,
-    app_key: Optional[str] = None,
-    app_version: Optional[int] = 1,
-    app_folder_key: Optional[str] = None,
-    app_folder_path: Optional[str] = None,
+    app_key: str | None = None,
+    app_version: int | None = 1,
+    app_folder_key: str | None = None,
+    app_folder_path: str | None = None,
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -105,7 +104,6 @@ def _create_spec(
         headers=folder_headers(app_folder_key, app_folder_path),
     )
 
-
 def _retrieve_action_spec(
     action_key: str, app_folder_key: str, app_folder_path: str
 ) -> RequestSpec:
@@ -116,7 +114,6 @@ def _retrieve_action_spec(
         headers=folder_headers(app_folder_key, app_folder_path),
     )
 
-
 def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
     return RequestSpec(
         method="POST",
@@ -125,7 +122,6 @@ def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
         ),
         json={"taskAssignments": [{"taskId": task_key, "UserNameOrEmail": assignee}]},
     )
-
 
 def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
     tenant_id = os.getenv(ENV_TENANT_ID, None)
@@ -138,17 +134,15 @@ def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
         headers={HEADER_TENANT_ID: tenant_id},
     )
 
-
 def folder_headers(
-    app_folder_key: Optional[str], app_folder_path: Optional[str]
-) -> Dict[str, str]:
+    app_folder_key: str | None, app_folder_path: str | None
+) -> dict[str, str]:
     headers = {}
     if app_folder_key:
         headers[HEADER_FOLDER_KEY] = app_folder_key
     elif app_folder_path:
         headers[HEADER_FOLDER_PATH] = app_folder_path
     return headers
-
 
 class ActionsService(FolderContext, BaseService):
     """Service for managing UiPath Actions.
@@ -176,14 +170,14 @@ class ActionsService(FolderContext, BaseService):
     async def create_async(
         self,
         title: str,
-        data: Optional[Dict[str, Any]] = None,
+        data: dict[str, Any] | None = None,
         *,
-        app_name: Optional[str] = None,
-        app_key: Optional[str] = None,
-        app_folder_path: Optional[str] = None,
-        app_folder_key: Optional[str] = None,
-        app_version: Optional[int] = 1,
-        assignee: Optional[str] = None,
+        app_name: str | None = None,
+        app_key: str | None = None,
+        app_folder_path: str | None = None,
+        app_folder_key: str | None = None,
+        app_version: int | None = 1,
+        assignee: str | None = None,
     ) -> Action:
         """Creates a new action asynchronously.
 
@@ -247,14 +241,14 @@ class ActionsService(FolderContext, BaseService):
     def create(
         self,
         title: str,
-        data: Optional[Dict[str, Any]] = None,
+        data: dict[str, Any] | None = None,
         *,
-        app_name: Optional[str] = None,
-        app_key: Optional[str] = None,
-        app_folder_path: Optional[str] = None,
-        app_folder_key: Optional[str] = None,
-        app_version: Optional[int] = 1,
-        assignee: Optional[str] = None,
+        app_name: str | None = None,
+        app_key: str | None = None,
+        app_folder_path: str | None = None,
+        app_folder_key: str | None = None,
+        app_version: int | None = 1,
+        assignee: str | None = None,
     ) -> Action:
         """Creates a new action synchronously.
 
@@ -360,8 +354,8 @@ class ActionsService(FolderContext, BaseService):
         return Action.model_validate(response.json())
 
     async def _get_app_key_and_schema_async(
-        self, app_name: Optional[str], app_folder_path: Optional[str]
-    ) -> Tuple[str, Optional[ActionSchema]]:
+        self, app_name: str | None, app_folder_path: str | None
+    ) -> tuple[str, ActionSchema | None]:
         if not app_name:
             raise Exception("appName or appKey is required")
         spec = _retrieve_app_key_spec(app_name=app_name)
@@ -396,8 +390,8 @@ class ActionsService(FolderContext, BaseService):
             raise Exception("Failed to deserialize action schema") from KeyError
 
     def _get_app_key_and_schema(
-        self, app_name: Optional[str], app_folder_path: Optional[str]
-    ) -> Tuple[str, Optional[ActionSchema]]:
+        self, app_name: str | None, app_folder_path: str | None
+    ) -> tuple[str, ActionSchema | None]:
         if not app_name:
             raise Exception("appName or appKey is required")
 
@@ -435,8 +429,8 @@ class ActionsService(FolderContext, BaseService):
 
     # should be removed after folder filtering support is added on apps API
     def _extract_deployed_app(
-        self, deployed_apps: List[Dict[str, Any]], app_folder_path: Optional[str]
-    ) -> Dict[str, Any]:
+        self, deployed_apps: list[dict[str, Any]], app_folder_path: str | None
+    ) -> dict[str, Any]:
         if len(deployed_apps) > 1 and not app_folder_path:
             raise Exception("Multiple app schemas found")
         try:
@@ -456,5 +450,5 @@ class ActionsService(FolderContext, BaseService):
             raise KeyError from StopIteration
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         return self.folder_headers

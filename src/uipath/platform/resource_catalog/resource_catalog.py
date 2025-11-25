@@ -1,10 +1,8 @@
 """Models for Resource Catalog service."""
 
 from enum import Enum
-from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 class ResourceType(str, Enum):
     """Resource type."""
@@ -46,7 +44,6 @@ class ResourceType(str, Enum):
             f"'{value}' is not a valid ResourceType. Available options: {available}"
         )
 
-
 class Tag(BaseModel):
     """Tag model for resources."""
 
@@ -62,9 +59,8 @@ class Tag(BaseModel):
     value: str
     type: str
     account_key: str = Field(alias="accountKey")
-    tenant_key: Optional[str] = Field(None, alias="tenantKey")
-    user_key: Optional[str] = Field(None, alias="userKey")
-
+    tenant_key: str | None = Field(None, alias="tenantKey")
+    user_key: str | None = Field(None, alias="userKey")
 
 class Folder(BaseModel):
     """Folder model for resources."""
@@ -82,11 +78,10 @@ class Folder(BaseModel):
     timestamp: str
     tenant_key: str = Field(alias="tenantKey")
     account_key: str = Field(alias="accountKey")
-    user_key: Optional[str] = Field(None, alias="userKey")
+    user_key: str | None = Field(None, alias="userKey")
     type: str
     path: str
-    permissions: Optional[List[str]] = Field(default_factory=list)
-
+    permissions: list[str] | None = Field(default_factory=list)
 
 class Resource(BaseModel):
     """Resource model from Resource Catalog."""
@@ -98,27 +93,26 @@ class Resource(BaseModel):
 
     resource_key: str = Field(alias="entityKey")
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     resource_type: str = Field(alias="entityType")
-    tags: Optional[List[Tag]] = Field(default_factory=list)
-    folders: List[Folder] = Field(default_factory=list)
+    tags: list[Tag] | None = Field(default_factory=list)
+    folders: list[Folder] = Field(default_factory=list)
     linked_folders_count: int = Field(0, alias="linkedFoldersCount")
-    source: Optional[str] = None
+    source: str | None = None
     scope: str
     search_state: str = Field(alias="searchState")
     timestamp: str
-    folder_key: Optional[str] = Field(None, alias="folderKey")
-    folder_keys: List[str] = Field(default_factory=list, alias="folderKeys")
-    tenant_key: Optional[str] = Field(None, alias="tenantKey")
+    folder_key: str | None = Field(None, alias="folderKey")
+    folder_keys: list[str] = Field(default_factory=list, alias="folderKeys")
+    tenant_key: str | None = Field(None, alias="tenantKey")
     account_key: str = Field(alias="accountKey")
-    user_key: Optional[str] = Field(None, alias="userKey")
-    dependencies: Optional[list[str]] = Field(default_factory=list)
-    custom_data: Optional[str] = Field(None, alias="customData")
-    resource_sub_type: Optional[str] = Field(None, alias="entitySubType")
-
+    user_key: str | None = Field(None, alias="userKey")
+    dependencies: list[str] | None = Field(default_factory=list)
+    custom_data: str | None = Field(None, alias="customData")
+    resource_sub_type: str | None = Field(None, alias="entitySubType")
 
 class ResourceSearchResponse(BaseModel):
     """Response model for resource search API."""
 
     count: int
-    value: List[Resource]
+    value: list[Resource]

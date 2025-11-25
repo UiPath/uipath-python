@@ -2,7 +2,6 @@ import base64
 import json
 from os import environ as env
 from pathlib import Path
-from typing import Optional
 
 from .._services import ExternalApplicationService
 from .constants import (
@@ -10,7 +9,6 @@ from .constants import (
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
 )
-
 
 def parse_access_token(access_token: str):
     token_parts = access_token.split(".")
@@ -20,7 +18,6 @@ def parse_access_token(access_token: str):
         token_parts[1] + "=" * (-len(token_parts[1]) % 4)
     )
     return json.loads(payload)
-
 
 def update_env_file(env_contents):
     env_path = Path.cwd() / ".env"
@@ -35,9 +32,8 @@ def update_env_file(env_contents):
     with open(env_path, "w") as f:
         f.writelines(lines)
 
-
 def _has_valid_client_credentials(
-    client_id: Optional[str], client_secret: Optional[str]
+    client_id: str | None, client_secret: str | None
 ) -> bool:
     if bool(client_id) != bool(client_secret):
         raise ValueError(
@@ -45,13 +41,12 @@ def _has_valid_client_credentials(
         )
     return bool(client_id and client_secret)
 
-
 def resolve_config(
-    base_url: Optional[str],
-    secret: Optional[str],
-    client_id: Optional[str],
-    client_secret: Optional[str],
-    scope: Optional[str],
+    base_url: str | None,
+    secret: str | None,
+    client_id: str | None,
+    client_secret: str | None,
+    scope: str | None,
 ):
     if _has_valid_client_credentials(client_id, client_secret):
         assert client_id and client_secret

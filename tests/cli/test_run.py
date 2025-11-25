@@ -266,20 +266,19 @@ class TestRun:
     ):
         """Test successful execution with Pydantic models."""
         pydantic_script = """
-from typing import Optional
 from pydantic import BaseModel, Field
 
 
 class PersonIn(BaseModel):
     name: str
     age: int
-    email: Optional[str] = None
+    email: str | None = None
 
 
 class PersonOut(BaseModel):
     name: str
     age: int
-    email: Optional[str] = None
+    email: str | None = None
     is_adult: bool
     greeting: str
 

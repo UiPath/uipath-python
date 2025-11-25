@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import uuid
-from typing import TYPE_CHECKING, Any, Dict, Generator, Tuple
+from typing import TYPE_CHECKING, Any, Generator
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -14,7 +14,6 @@ from uipath._utils.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
 
 if TYPE_CHECKING:
     from _pytest.monkeypatch import MonkeyPatch
-
 
 @pytest.fixture
 def service(
@@ -35,9 +34,8 @@ def service(
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
     return AttachmentsService(config=config, execution_context=execution_context)
 
-
 @pytest.fixture
-def temp_file(tmp_path: Any) -> Generator[Tuple[str, str, str], None, None]:
+def temp_file(tmp_path: Any) -> Generator[tuple[str, str, str], None, None]:
     """Creates a temporary file for testing file uploads and downloads.
 
     Args:
@@ -59,7 +57,6 @@ def temp_file(tmp_path: Any) -> Generator[Tuple[str, str, str], None, None]:
     if os.path.exists(path):
         os.remove(path)
 
-
 @pytest.fixture
 def temp_attachments_dir(tmp_path: Any) -> Generator[str, None, None]:
     """Create a temporary directory for attachments and clean it up after the test.
@@ -79,11 +76,10 @@ def temp_attachments_dir(tmp_path: Any) -> Generator[str, None, None]:
     if os.path.exists(test_temp_dir):
         shutil.rmtree(test_temp_dir)
 
-
 @pytest.fixture
 def local_attachment_file(
     temp_attachments_dir: str,
-) -> Generator[Tuple[uuid.UUID, str, str], None, None]:
+) -> Generator[tuple[uuid.UUID, str, str], None, None]:
     """Creates a local attachment file in the temporary attachments directory.
 
     Args:
@@ -105,13 +101,12 @@ def local_attachment_file(
 
     # Cleanup is handled by temp_attachments_dir fixture
 
-
 @pytest.fixture
-def blob_uri_response() -> Dict[str, Any]:
+def blob_uri_response() -> dict[str, Any]:
     """Provides a mock response for blob access requests.
 
     Returns:
-        Dict[str, Any]: A mock API response with blob storage access details.
+        dict[str, Any]: A mock API response with blob storage access details.
     """
     return {
         "Id": "12345678-1234-1234-1234-123456789012",
@@ -126,7 +121,6 @@ def blob_uri_response() -> Dict[str, Any]:
         },
     }
 
-
 class TestAttachmentsService:
     """Test suite for the AttachmentsService class."""
 
@@ -138,8 +132,8 @@ class TestAttachmentsService:
         org: str,
         tenant: str,
         version: str,
-        temp_file: Tuple[str, str, str],
-        blob_uri_response: Dict[str, Any],
+        temp_file: tuple[str, str, str],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test uploading an attachment from a file path.
 
@@ -215,7 +209,7 @@ class TestAttachmentsService:
         org: str,
         tenant: str,
         version: str,
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test uploading an attachment with in-memory content.
 
@@ -310,7 +304,7 @@ class TestAttachmentsService:
         base_url: str,
         org: str,
         tenant: str,
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test asynchronously uploading an attachment with in-memory content.
 
@@ -376,7 +370,7 @@ class TestAttachmentsService:
         tenant: str,
         version: str,
         tmp_path: Any,
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test downloading an attachment.
 
@@ -456,7 +450,7 @@ class TestAttachmentsService:
         tenant: str,
         version: str,
         tmp_path: Any,
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test asynchronously downloading an attachment.
 
@@ -606,7 +600,7 @@ class TestAttachmentsService:
         tenant: str,
         tmp_path: Any,
         temp_attachments_dir: str,
-        local_attachment_file: Tuple[uuid.UUID, str, str],
+        local_attachment_file: tuple[uuid.UUID, str, str],
     ) -> None:
         """Test downloading an attachment with local fallback.
 
@@ -661,7 +655,7 @@ class TestAttachmentsService:
         tenant: str,
         tmp_path: Any,
         temp_attachments_dir: str,
-        local_attachment_file: Tuple[uuid.UUID, str, str],
+        local_attachment_file: tuple[uuid.UUID, str, str],
     ) -> None:
         """Test asynchronously downloading an attachment with local fallback.
 
@@ -714,7 +708,7 @@ class TestAttachmentsService:
         org: str,
         tenant: str,
         temp_attachments_dir: str,
-        local_attachment_file: Tuple[uuid.UUID, str, str],
+        local_attachment_file: tuple[uuid.UUID, str, str],
     ) -> None:
         """Test deleting an attachment with local fallback.
 
@@ -765,7 +759,7 @@ class TestAttachmentsService:
         org: str,
         tenant: str,
         temp_attachments_dir: str,
-        local_attachment_file: Tuple[uuid.UUID, str, str],
+        local_attachment_file: tuple[uuid.UUID, str, str],
     ) -> None:
         """Test asynchronously deleting an attachment with local fallback.
 

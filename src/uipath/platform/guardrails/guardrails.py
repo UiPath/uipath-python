@@ -1,10 +1,9 @@
 """Guardrails models for UiPath Platform."""
 
 from enum import Enum
-from typing import Annotated, Dict, List, Literal, Optional, Union
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 class FieldSource(str, Enum):
     """Field source enumeration."""
@@ -12,14 +11,12 @@ class FieldSource(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
 
-
 class ApplyTo(str, Enum):
     """Apply to enumeration."""
 
     INPUT = "input"
     INPUT_AND_OUTPUT = "inputAndOutput"
     OUTPUT = "output"
-
 
 class FieldReference(BaseModel):
     """Field reference model."""
@@ -29,13 +26,11 @@ class FieldReference(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-
 class SelectorType(str, Enum):
     """Selector type enumeration."""
 
     ALL = "all"
     SPECIFIC = "specific"
-
 
 class AllFieldsSelector(BaseModel):
     """All fields selector."""
@@ -44,21 +39,18 @@ class AllFieldsSelector(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-
 class SpecificFieldsSelector(BaseModel):
     """Specific fields selector."""
 
     selector_type: Literal["specific"] = Field(alias="$selectorType")
-    fields: List[FieldReference]
+    fields: list[FieldReference]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
 
 FieldSelector = Annotated[
     Union[AllFieldsSelector, SpecificFieldsSelector],
     Field(discriminator="selector_type"),
 ]
-
 
 class RuleType(str, Enum):
     """Rule type enumeration."""
@@ -67,7 +59,6 @@ class RuleType(str, Enum):
     NUMBER = "number"
     UNIVERSAL = "always"
     WORD = "word"
-
 
 class WordOperator(str, Enum):
     """Word operator enumeration."""
@@ -83,17 +74,15 @@ class WordOperator(str, Enum):
     IS_NOT_EMPTY = "isNotEmpty"
     STARTS_WITH = "startsWith"
 
-
 class WordRule(BaseModel):
     """Word rule model."""
 
     rule_type: Literal["word"] = Field(alias="$ruleType")
     field_selector: FieldSelector = Field(alias="fieldSelector")
     operator: WordOperator
-    value: Optional[str] = None
+    value: str | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
 
 class UniversalRule(BaseModel):
     """Universal rule model."""
@@ -102,7 +91,6 @@ class UniversalRule(BaseModel):
     apply_to: ApplyTo = Field(alias="applyTo")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
 
 class NumberOperator(str, Enum):
     """Number operator enumeration."""
@@ -114,7 +102,6 @@ class NumberOperator(str, Enum):
     LESS_THAN = "lessThan"
     LESS_THAN_OR_EQUAL = "lessThanOrEqual"
 
-
 class NumberRule(BaseModel):
     """Number rule model."""
 
@@ -125,12 +112,10 @@ class NumberRule(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-
 class BooleanOperator(str, Enum):
     """Boolean operator enumeration."""
 
     EQUALS = "equals"
-
 
 class BooleanRule(BaseModel):
     """Boolean rule model."""
@@ -142,26 +127,23 @@ class BooleanRule(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-
 class EnumListParameterValue(BaseModel):
     """Enum list parameter value."""
 
     parameter_type: Literal["enum-list"] = Field(alias="$parameterType")
     id: str
-    value: List[str]
+    value: list[str]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
 
 class MapEnumParameterValue(BaseModel):
     """Map enum parameter value."""
 
     parameter_type: Literal["map-enum"] = Field(alias="$parameterType")
     id: str
-    value: Dict[str, float]
+    value: dict[str, float]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
 
 class NumberParameterValue(BaseModel):
     """Number parameter value."""
@@ -172,18 +154,15 @@ class NumberParameterValue(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-
 ValidatorParameter = Annotated[
     Union[EnumListParameterValue, MapEnumParameterValue, NumberParameterValue],
     Field(discriminator="parameter_type"),
 ]
 
-
 Rule = Annotated[
     Union[WordRule, NumberRule, BooleanRule, UniversalRule],
     Field(discriminator="rule_type"),
 ]
-
 
 class GuardrailScope(str, Enum):
     """Guardrail scope enumeration."""
@@ -192,54 +171,48 @@ class GuardrailScope(str, Enum):
     LLM = "Llm"
     TOOL = "Tool"
 
-
 class GuardrailSelector(BaseModel):
     """Guardrail selector model."""
 
-    scopes: List[GuardrailScope] = Field(default=[GuardrailScope.TOOL])
-    match_names: Optional[List[str]] = Field(None, alias="matchNames")
+    scopes: list[GuardrailScope] = Field(default=[GuardrailScope.TOOL])
+    match_names: list[str] | None = Field(None, alias="matchNames")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
 
 class BaseGuardrail(BaseModel):
     """Base guardrail model."""
 
     id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     enabled_for_evals: bool = Field(True, alias="enabledForEvals")
     selector: GuardrailSelector
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-
 class CustomGuardrail(BaseGuardrail):
     """Custom guardrail model."""
 
     guardrail_type: Literal["custom"] = Field(alias="$guardrailType")
-    rules: List[Rule]
+    rules: list[Rule]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
 
 class BuiltInValidatorGuardrail(BaseGuardrail):
     """Built-in validator guardrail model."""
 
     guardrail_type: Literal["builtInValidator"] = Field(alias="$guardrailType")
     validator_type: str = Field(alias="validatorType")
-    validator_parameters: List[ValidatorParameter] = Field(
+    validator_parameters: list[ValidatorParameter] = Field(
         default_factory=list, alias="validatorParameters"
     )
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-
 Guardrail = Annotated[
     Union[CustomGuardrail, BuiltInValidatorGuardrail],
     Field(discriminator="guardrail_type"),
 ]
-
 
 class GuardrailType(str, Enum):
     """Guardrail type enumeration."""

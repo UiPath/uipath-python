@@ -1,7 +1,7 @@
 """Trajectory evaluator for analyzing execution paths and decision sequences."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import field_validator
@@ -22,12 +22,10 @@ from .legacy_base_evaluator import (
     LegacyEvaluatorConfig,
 )
 
-
 class LegacyTrajectoryEvaluatorConfig(LegacyEvaluatorConfig):
     """Configuration for legacy trajectory evaluators."""
 
     name: str = "LegacyTrajectoryEvaluator"
-
 
 class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorConfig]):
     """Legacy evaluator that analyzes the trajectory/path taken to reach outputs."""
@@ -36,7 +34,7 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorCon
     model: str
     expected_agent_behavior_placeholder: str = "{{ExpectedAgentBehavior}}"
     agent_run_history_placeholder: str = "{{AgentRunHistory}}"
-    llm: Optional[UiPathLlmChatService] = None
+    llm: UiPathLlmChatService | None = None
 
     @field_validator("prompt")
     @classmethod

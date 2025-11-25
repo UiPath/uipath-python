@@ -1,5 +1,4 @@
 from functools import cached_property
-from typing import Optional
 
 from pydantic import ValidationError
 
@@ -34,11 +33,11 @@ class UiPath:
     def __init__(
         self,
         *,
-        base_url: Optional[str] = None,
-        secret: Optional[str] = None,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
-        scope: Optional[str] = None,
+        base_url: str | None = None,
+        secret: str | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        scope: str | None = None,
         debug: bool = False,
     ) -> None:
         try:

@@ -1,14 +1,12 @@
 import logging
 import os
 from enum import Enum
-from typing import Optional
 
 import httpx
 
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 
 loggger = logging.getLogger(__name__)
-
 
 class UiPathEndpoints(Enum):
     AH_NORMALIZED_COMPLETION_ENDPOINT = "agenthub_/llm/api/chat/completions"
@@ -22,7 +20,6 @@ class UiPathEndpoints(Enum):
     OR_PASSTHROUGH_COMPLETION_ENDPOINT = "orchestrator_/llm/openai/deployments/{model}/chat/completions?api-version={api_version}"
     OR_EMBEDDING_ENDPOINT = "orchestrator_/llm/openai/deployments/{model}/embeddings?api-version={api_version}"
     OR_CAPABILITIES_ENDPOINT = "orchestrator_/llm/api/capabilities"
-
 
 class EndpointManager:
     """Manages and caches the UiPath endpoints.
@@ -42,8 +39,8 @@ class EndpointManager:
     Class Attributes:
         _base_url (str): The base URL for UiPath services, retrieved from the UIPATH_URL
                          environment variable.
-        _agenthub_available (Optional[bool]): Cached result of AgentHub availability check.
-        _orchestrator_available (Optional[bool]): Cached result of Orchestrator availability check.
+        _agenthub_available (bool | None): Cached result of AgentHub availability check.
+        _orchestrator_available (bool | None): Cached result of Orchestrator availability check.
 
     Methods:
         is_agenthub_available(): Checks if AgentHub is available, caching the result.
@@ -56,8 +53,8 @@ class EndpointManager:
     """  # noqa: D205
 
     _base_url = os.getenv("UIPATH_URL", "")
-    _agenthub_available: Optional[bool] = None
-    _orchestrator_available: Optional[bool] = None
+    _agenthub_available: bool | None = None
+    _orchestrator_available: bool | None = None
 
     @classmethod
     def is_agenthub_available(cls) -> bool:

@@ -4,10 +4,9 @@ Much simpler than the tree-based approach.
 """
 
 import json
-from typing import List, Dict, Any
+from typing import Any
 
-
-def load_traces(traces_file: str) -> List[Dict[str, Any]]:
+def load_traces(traces_file: str) -> list[dict[str, Any]]:
     """Load traces from a JSONL file."""
     traces = []
     with open(traces_file, 'r', encoding='utf-8') as f:
@@ -16,18 +15,15 @@ def load_traces(traces_file: str) -> List[Dict[str, Any]]:
                 traces.append(json.loads(line))
     return traces
 
-
-def load_expected_traces(expected_file: str) -> List[Dict[str, Any]]:
+def load_expected_traces(expected_file: str) -> list[dict[str, Any]]:
     """Load expected trace definitions from a JSON file."""
     with open(expected_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
     return data.get('required_spans', [])
 
-
-def get_attributes(span: Dict[str, Any]) -> Dict[str, Any]:
+def get_attributes(span: dict[str, Any]) -> dict[str, Any]:
     """Parse attributes from a span."""
     return span.get('attributes', {})
-
 
 def matches_value(expected_value: Any, actual_value: Any) -> bool:
     """
@@ -49,8 +45,7 @@ def matches_value(expected_value: Any, actual_value: Any) -> bool:
     # Exact match
     return expected_value == actual_value
 
-
-def matches_expected(span: Dict[str, Any], expected: Dict[str, Any], all_spans: List[Dict[str, Any]] = None) -> bool:
+def matches_expected(span: dict[str, Any], expected: dict[str, Any], all_spans: list[dict[str, Any]] = None) -> bool:
     """Check if a span matches the expected definition."""
     # Check name - can be a string or list of possible names
     expected_name = expected.get('name')
@@ -113,7 +108,6 @@ def matches_expected(span: Dict[str, Any], expected: Dict[str, Any], all_spans: 
 
     return True
 
-
 def assert_traces(traces_file: str, expected_file: str) -> None:
     """
     Assert that all expected traces exist in the traces file.
@@ -153,7 +147,6 @@ def assert_traces(traces_file: str, expected_file: str) -> None:
         )
 
     print(f"\n✓ All {len(expected_spans)} expected spans found!")
-
 
 if __name__ == "__main__":
     # Example usage

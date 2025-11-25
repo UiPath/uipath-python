@@ -1,4 +1,3 @@
-from typing import Optional
 
 
 class UnsupportedDataSourceException(Exception):
@@ -9,7 +8,7 @@ class UnsupportedDataSourceException(Exception):
     data source.
     """
 
-    def __init__(self, operation: str, data_source_type: Optional[str] = None):
+    def __init__(self, operation: str, data_source_type: str | None = None):
         if data_source_type:
             message = f"Operation '{operation}' is not supported for data source type: {data_source_type}. Only Orchestrator Storage Bucket data sources are supported."
         else:

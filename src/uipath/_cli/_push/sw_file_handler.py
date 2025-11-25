@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import AsyncIterator, Optional, Set
+from typing import AsyncIterator
 
 import click
 
@@ -37,7 +37,6 @@ from .._utils._studio_project import (
 
 logger = logging.getLogger(__name__)
 
-
 class SwFileHandler:
     """Handler for Studio Web file operations.
 
@@ -54,7 +53,7 @@ class SwFileHandler:
         project_id: str,
         directory: str,
         include_uv_lock: bool = True,
-        studio_client: Optional[StudioClient] = None,
+        studio_client: StudioClient | None = None,
     ) -> None:
         """Initialize the SwFileHandler.
 
@@ -68,11 +67,11 @@ class SwFileHandler:
         self.include_uv_lock = include_uv_lock
         self.console = ConsoleLogger()
         self._studio_client = studio_client or StudioClient(project_id)
-        self._project_structure: Optional[ProjectStructure] = None
+        self._project_structure: ProjectStructure | None = None
 
     def _get_folder_by_name(
         self, structure: ProjectStructure, folder_name: str
-    ) -> Optional[ProjectFolder]:
+    ) -> ProjectFolder | None:
         """Get a folder from the project structure by name.
 
         Args:
@@ -80,7 +79,7 @@ class SwFileHandler:
             folder_name: Name of the folder to find
 
         Returns:
-            Optional[ProjectFolder]: The found folder or None
+            ProjectFolder | None: The found folder or None
         """
         for folder in structure.folders:
             if folder.name == folder_name:
@@ -155,7 +154,7 @@ class SwFileHandler:
         structural_migration = StructuralMigration(
             deleted_resources=[], added_resources=[], modified_resources=[]
         )
-        processed_source_files: Set[str] = set()
+        processed_source_files: set[str] = set()
         updates: list[UpdateEvent] = []
 
         for local_file in local_files:
@@ -291,7 +290,7 @@ class SwFileHandler:
     def _collect_deleted_files(
         self,
         remote_files: dict[str, ProjectFile],
-        processed_source_file_ids: Set[str],
+        processed_source_file_ids: set[str],
         files_to_ignore: list[str] | None = None,
         directories_to_ignore: list[str] | None = None,
     ) -> set[str]:
@@ -304,7 +303,7 @@ class SwFileHandler:
         Returns:
             Set of file IDs to delete
         """
-        deleted_file_ids: Set[str] = set()
+        deleted_file_ids: set[str] = set()
 
         if not files_to_ignore:
             files_to_ignore = []
@@ -544,7 +543,7 @@ class SwFileHandler:
         parent_path: str,
         destination_prefix: str,
         structural_migration: StructuralMigration,
-        processed_ids: Set[str],
+        processed_ids: set[str],
     ) -> None:
         """Process a single local file for upload or update to remote.
 
@@ -609,7 +608,7 @@ class SwFileHandler:
     def _collect_deleted_remote_files(
         self,
         remote_files: dict[str, ProjectFile],
-        processed_ids: Set[str],
+        processed_ids: set[str],
         destination_prefix: str,
         structural_migration: StructuralMigration,
     ) -> None:

@@ -16,46 +16,42 @@ An exchange can include multiple messages (e.g. LLM streaming several outputs, o
 Exchanges are ordered within a conversation via conversation_sequence.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .message import UiPathConversationMessage, UiPathConversationMessageEvent
 
-
 class UiPathConversationExchangeStartEvent(BaseModel):
     """Signals the start of an exchange of messages within a conversation."""
 
-    conversation_sequence: Optional[int] = Field(None, alias="conversationSequence")
-    metadata: Optional[Dict[str, Any]] = None
+    conversation_sequence: int | None = Field(None, alias="conversationSequence")
+    metadata: dict[str, Any] | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
-
 
 class UiPathConversationExchangeEndEvent(BaseModel):
     """Signals the end of an exchange of messages within a conversation."""
 
-    meta_data: Optional[Dict[str, Any]] = Field(None, alias="metaData")
+    meta_data: dict[str, Any] | None = Field(None, alias="metaData")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
-
 
 class UiPathConversationExchangeEvent(BaseModel):
     """Encapsulates a single exchange in the conversation."""
 
     exchange_id: str = Field(..., alias="exchangeId")
-    start: Optional[UiPathConversationExchangeStartEvent] = None
-    end: Optional[UiPathConversationExchangeEndEvent] = None
-    message: Optional[UiPathConversationMessageEvent] = None
-    meta_event: Optional[Dict[str, Any]] = Field(None, alias="metaEvent")
+    start: UiPathConversationExchangeStartEvent | None = None
+    end: UiPathConversationExchangeEndEvent | None = None
+    message: UiPathConversationMessageEvent | None = None
+    meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
-
 
 class UiPathConversationExchange(BaseModel):
     """Represents a group of related messages (one turn of conversation)."""
 
     exchange_id: str = Field(..., alias="exchangeId")
-    messages: List[UiPathConversationMessage]
+    messages: list[UiPathConversationMessage]
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

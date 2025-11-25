@@ -1,7 +1,7 @@
 # type: ignore
 import json
 import os
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -15,13 +15,11 @@ from uipath._cli._utils._common import may_override_files
 from uipath._cli._utils._studio_project import StudioProjectMetadata
 from uipath.platform.errors import EnrichedException
 
-
 def create_uipath_json(functions: dict[str, str] | None = None):
     """Helper to create uipath.json with functions structure."""
     if functions is None:
         functions = {"main": "main.py:main"}
     return {"functions": functions}
-
 
 class TestPull:
     """Test pull command."""
@@ -42,7 +40,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test successful project pull with various file operations."""
@@ -229,7 +227,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
         monkeypatch: Any,
     ) -> None:
@@ -310,7 +308,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test pull when API request fails."""
@@ -339,7 +337,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test pull when the project is not a coded agent project (missing pyproject.toml)."""
@@ -397,7 +395,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that pull command uses evaluations folder instead of evals."""
@@ -579,7 +577,6 @@ class TestPull:
                 assert json.load(f) == evaluator_content_legacy
             with open("evals/eval-sets/default.json", "r") as f:
                 assert json.load(f) == eval_set_content_legacy
-
 
 class TestMayOverrideFiles:
     """Test may_override_files function for pull scenarios."""

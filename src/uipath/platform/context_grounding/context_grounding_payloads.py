@@ -1,7 +1,7 @@
 """Payload models for context grounding index creation and configuration."""
 
 import re
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
@@ -14,7 +14,6 @@ from uipath._utils.constants import (
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE_REQUEST,
 )
 
-
 class DataSourceBase(BaseModel):
     """Base model for data source configurations."""
 
@@ -24,7 +23,6 @@ class DataSourceBase(BaseModel):
     )
     directory_path: str = Field(alias="directoryPath", description="Directory path")
 
-
 class BucketDataSource(DataSourceBase):
     """Data source configuration for storage buckets."""
 
@@ -33,7 +31,6 @@ class BucketDataSource(DataSourceBase):
         default=ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE_REQUEST,
     )
     bucket_name: str = Field(alias="bucketName", description="Storage bucket name")
-
 
 class GoogleDriveDataSource(DataSourceBase):
     """Data source configuration for Google Drive."""
@@ -46,7 +43,6 @@ class GoogleDriveDataSource(DataSourceBase):
     connection_name: str = Field(alias="connectionName", description="Connection name")
     leaf_folder_id: str = Field(alias="leafFolderId", description="Leaf folder ID")
 
-
 class DropboxDataSource(DataSourceBase):
     """Data source configuration for Dropbox."""
 
@@ -56,7 +52,6 @@ class DropboxDataSource(DataSourceBase):
     )
     connection_id: str = Field(alias="connectionId", description="Connection ID")
     connection_name: str = Field(alias="connectionName", description="Connection name")
-
 
 class OneDriveDataSource(DataSourceBase):
     """Data source configuration for OneDrive."""
@@ -69,7 +64,6 @@ class OneDriveDataSource(DataSourceBase):
     connection_name: str = Field(alias="connectionName", description="Connection name")
     leaf_folder_id: str = Field(alias="leafFolderId", description="Leaf folder ID")
 
-
 class ConfluenceDataSource(DataSourceBase):
     """Data source configuration for Confluence."""
 
@@ -81,7 +75,6 @@ class ConfluenceDataSource(DataSourceBase):
     connection_name: str = Field(alias="connectionName", description="Connection name")
     space_id: str = Field(alias="spaceId", description="Space ID")
 
-
 class Indexer(BaseModel):
     """Configuration for periodic indexing of data sources."""
 
@@ -92,7 +85,7 @@ class Indexer(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validate_cron(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_cron(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Validate cron expression format."""
         cron_expr = values.get("cron_expression") or values.get("cronExpression")
         if not cron_expr:
@@ -106,7 +99,6 @@ class Indexer(BaseModel):
 
         return values
 
-
 class PreProcessing(BaseModel):
     """Preprocessing configuration for context grounding index."""
 
@@ -114,11 +106,10 @@ class PreProcessing(BaseModel):
         alias="@odata.type", description="OData type for preprocessing"
     )
 
-
 class CreateIndexPayload(BaseModel):
     """Payload for creating a context grounding index.
 
-    Note: data_source is Dict[str, Any] because it may contain additional
+    Note: data_source is dict[str, Any] because it may contain additional
     fields like 'indexer' that are added dynamically based on configuration.
     The data source is still validated through the _build_data_source method
     which uses typed models internally.
@@ -126,15 +117,14 @@ class CreateIndexPayload(BaseModel):
 
     name: str = Field(description="Index name")
     description: str = Field(default="", description="Index description")
-    data_source: Dict[str, Any] = Field(
+    data_source: dict[str, Any] = Field(
         alias="dataSource", description="Data source configuration"
     )
-    pre_processing: Optional[PreProcessing] = Field(
+    pre_processing: PreProcessing | None = Field(
         default=None, alias="preProcessing", description="Preprocessing configuration"
     )
 
     model_config = ConfigDict(populate_by_name=True)
-
 
 # user-facing source configuration models
 class BaseSourceConfig(BaseModel):
@@ -142,20 +132,18 @@ class BaseSourceConfig(BaseModel):
 
     folder_path: str = Field(description="Folder path in orchestrator")
     directory_path: str = Field(description="Directory path")
-    file_type: Optional[str] = Field(
+    file_type: str | None = Field(
         default=None, description="File type filter (e.g., 'pdf', 'txt')"
     )
-    indexer: Optional[Indexer] = Field(
+    indexer: Indexer | None = Field(
         default=None, description="Optional indexer configuration for periodic updates"
     )
-
 
 class ConnectionSourceConfig(BaseSourceConfig):
     """Base configuration for sources that use connections."""
 
     connection_id: str = Field(description="Connection ID")
     connection_name: str = Field(description="Connection name")
-
 
 class BucketSourceConfig(BaseSourceConfig):
     """Data source configuration for storage buckets."""
@@ -166,7 +154,6 @@ class BucketSourceConfig(BaseSourceConfig):
     bucket_name: str = Field(description="Storage bucket name")
     directory_path: str = Field(default="/", description="Directory path in bucket")
 
-
 class GoogleDriveSourceConfig(ConnectionSourceConfig):
     """Data source configuration for Google Drive."""
 
@@ -175,14 +162,12 @@ class GoogleDriveSourceConfig(ConnectionSourceConfig):
     )
     leaf_folder_id: str = Field(description="Leaf folder ID in Google Drive")
 
-
 class DropboxSourceConfig(ConnectionSourceConfig):
     """Data source configuration for Dropbox."""
 
     type: Literal["dropbox"] = Field(
         default="dropbox", description="Source type identifier"
     )
-
 
 class OneDriveSourceConfig(ConnectionSourceConfig):
     """Data source configuration for OneDrive."""
@@ -192,7 +177,6 @@ class OneDriveSourceConfig(ConnectionSourceConfig):
     )
     leaf_folder_id: str = Field(description="Leaf folder ID in OneDrive")
 
-
 class ConfluenceSourceConfig(ConnectionSourceConfig):
     """Data source configuration for Confluence."""
 
@@ -200,7 +184,6 @@ class ConfluenceSourceConfig(ConnectionSourceConfig):
         default="confluence", description="Source type identifier"
     )
     space_id: str = Field(description="Confluence space ID")
-
 
 SourceConfig = Union[
     BucketSourceConfig,

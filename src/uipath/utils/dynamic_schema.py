@@ -1,10 +1,9 @@
 """Json schema to dynamic pydantic model."""
 
 from enum import Enum
-from typing import Any, Dict, List, Type, Union
+from typing import Any, Type, Union
 
 from pydantic import BaseModel, Field, create_model
-
 
 def jsonschema_to_pydantic(
     schema: dict[str, Any],
@@ -38,7 +37,7 @@ def jsonschema_to_pydantic(
                 "integer": int,
                 "boolean": bool,
                 "array": List,
-                "object": Dict[str, Any],
+                "object": dict[str, Any],
                 "null": None,
             }
 
@@ -58,7 +57,7 @@ def jsonschema_to_pydantic(
                 return type_
             elif type_ == "array":
                 item_type: Any = convert_type(prop.get("items", {}))
-                return List[item_type]  # noqa F821
+                return list[item_type]  # noqa F821
             elif type_ == "object":
                 if "properties" in prop:
                     if "title" in prop and prop["title"]:
@@ -78,7 +77,7 @@ def jsonschema_to_pydantic(
                         if name not in required_fields:
                             # Note that we do not make this optional. This is due to a limitation in Pydantic/Python.
                             # If we convert the Optional type back to json schema, it is represented as type | None.
-                            # pydantic_type = Optional[pydantic_type]
+                            # pydantic_type = pydantic_type | None
 
                             if "default" not in field_kwargs:
                                 field_kwargs["default"] = None
@@ -94,7 +93,7 @@ def jsonschema_to_pydantic(
                         object_model.__doc__ = prop["description"]
                     return object_model
                 else:
-                    return Dict[str, Any]
+                    return dict[str, Any]
             else:
                 return type_mapping.get(type_, Any)
 

@@ -2,10 +2,8 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
-
 
 class Attachment(BaseModel):
     """Model representing an attachment in UiPath.
@@ -29,8 +27,8 @@ class Attachment(BaseModel):
         return value
 
     name: str = Field(alias="Name")
-    creation_time: Optional[datetime] = Field(default=None, alias="CreationTime")
-    last_modification_time: Optional[datetime] = Field(
+    creation_time: datetime | None = Field(default=None, alias="CreationTime")
+    last_modification_time: datetime | None = Field(
         default=None, alias="LastModificationTime"
     )
     key: uuid.UUID = Field(alias="Key")

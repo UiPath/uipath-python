@@ -2,14 +2,13 @@
 
 import json
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath.platform import UiPath
 from uipath.tracing import traced
 
 from .mocker import UiPathInputMockingError
-
 
 def get_input_mocking_prompt(
     input_schema: str,
@@ -51,12 +50,11 @@ Based on the above information, provide a realistic input to the LLM agent. Your
 
 OUTPUT: ONLY the simulated agent input in the exact format of the INPUT_SCHEMA in valid JSON. Do not include any explanations, quotation marks, or markdown."""
 
-
 @traced(name="__mocker__", recording=False)
 async def generate_llm_input(
     evaluation_item: EvaluationItem,
-    input_schema: Dict[str, Any],
-) -> Dict[str, Any]:
+    input_schema: dict[str, Any],
+) -> dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
     from .mocks import cache_manager_context
 

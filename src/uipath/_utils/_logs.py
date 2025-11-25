@@ -1,10 +1,8 @@
 import logging
-from typing import Optional
 
 logger: logging.Logger = logging.getLogger("uipath")
 
-
-def setup_logging(should_debug: Optional[bool] = None) -> None:
+def setup_logging(should_debug: bool | None = None) -> None:
     if not logging.root.handlers and not logger.handlers:
         logging.basicConfig(
             format="%(message)s",

@@ -3,7 +3,7 @@ import os
 from functools import wraps
 from importlib.metadata import version
 from logging import INFO, WARNING, LogRecord, getLogger
-from typing import Any, Callable, Dict, Mapping, Optional, Union
+from typing import Any, Callable, Mapping, Union
 
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.util.types import AnyValue
@@ -35,7 +35,6 @@ from ._constants import (
 _logger = getLogger(__name__)
 _logger.propagate = False
 
-
 def _get_project_key() -> str:
     """Get project key from telemetry file if present.
 
@@ -54,7 +53,6 @@ def _get_project_key() -> str:
         pass
 
     return _UNKNOWN
-
 
 class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
     @staticmethod
@@ -81,7 +79,6 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
             del attributes[_CODE_LINENO]
 
         return attributes
-
 
 class _TelemetryClient:
     """A class to handle telemetry."""
@@ -111,7 +108,7 @@ class _TelemetryClient:
             pass
 
     @staticmethod
-    def _track_method(name: str, attrs: Optional[Dict[str, Any]] = None):
+    def _track_method(name: str, attrs: dict[str, Any] | None = None):
         """Track function invocations."""
         if not _TelemetryClient._enabled:
             return
@@ -120,12 +117,11 @@ class _TelemetryClient:
 
         _logger.info(f"Sdk.{name.capitalize()}", extra=attrs)
 
-
 def track(
-    name_or_func: Optional[Union[str, Callable[..., Any]]] = None,
+    name_or_func: Union[str, Callable[..., Any]] | None = None,
     *,
-    when: Optional[Union[bool, Callable[..., bool]]] = True,
-    extra: Optional[Dict[str, Any]] = None,
+    when: Union[bool, Callable[..., bool]] | None = True,
+    extra: dict[str, Any] | None = None,
 ):
     """Decorator that will trace function invocations.
 

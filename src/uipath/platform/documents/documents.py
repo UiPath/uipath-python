@@ -1,12 +1,11 @@
 """Document service payload models."""
 
 from enum import Enum
-from typing import IO, Any, List, Optional, Union
+from typing import IO, Any, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 FileContent = Union[IO[bytes], bytes, str]
-
 
 class FieldType(str, Enum):
     """Field types supported by Document Understanding service."""
@@ -22,7 +21,6 @@ class FieldType(str, Enum):
     TABLE = "Table"
     INTERNAL = "Internal"
 
-
 class ActionPriority(str, Enum):
     """Priority levels for validation actions. More details can be found in the [official documentation](https://docs.uipath.com/action-center/automation-cloud/latest/user-guide/create-document-validation-action#configuration)."""
 
@@ -35,7 +33,6 @@ class ActionPriority(str, Enum):
     CRITICAL = "Critical"
     """Critical priority"""
 
-
 class ProjectType(str, Enum):
     """Project types available and supported by Documents Service."""
 
@@ -45,7 +42,6 @@ class ProjectType(str, Enum):
     """Represents a [DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project type."""
     PRETRAINED = "Pretrained"
     """Represents a [Pretrained](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/out-of-the-box-pre-trained-ml-packages) project type."""
-
 
 class FieldValueProjection(BaseModel):
     """A model representing a projection of a field value in a document extraction result."""
@@ -57,12 +53,11 @@ class FieldValueProjection(BaseModel):
 
     id: str
     name: str
-    value: Optional[str]
-    unformatted_value: Optional[str] = Field(alias="unformattedValue")
-    confidence: Optional[float]
-    ocr_confidence: Optional[float] = Field(alias="ocrConfidence")
+    value: str | None
+    unformatted_value: str | None = Field(alias="unformattedValue")
+    confidence: float | None
+    ocr_confidence: float | None = Field(alias="ocrConfidence")
     type: FieldType
-
 
 class FieldGroupValueProjection(BaseModel):
     """A model representing a projection of a field group value in a document extraction result."""
@@ -73,8 +68,7 @@ class FieldGroupValueProjection(BaseModel):
     )
 
     field_group_name: str = Field(alias="fieldGroupName")
-    field_values: List[FieldValueProjection] = Field(alias="fieldValues")
-
+    field_values: list[FieldValueProjection] = Field(alias="fieldValues")
 
 class ExtractionResult(BaseModel):
     """A model representing the result of a document extraction process."""
@@ -87,13 +81,12 @@ class ExtractionResult(BaseModel):
     document_id: str = Field(alias="DocumentId")
     results_version: int = Field(alias="ResultsVersion")
     results_document: dict[str, Any] = Field(alias="ResultsDocument")
-    extractor_payloads: Optional[List[dict[str, Any]]] = Field(
+    extractor_payloads: list[dict[str, Any]] | None = Field(
         default=None, alias="ExtractorPayloads"
     )
-    business_rules_results: Optional[List[dict[str, Any]]] = Field(
+    business_rules_results: list[dict[str, Any]] | None = Field(
         default=None, alias="BusinessRulesResults"
     )
-
 
 class ExtractionResponse(BaseModel):
     """A model representing the response from a document extraction process.
@@ -113,19 +106,17 @@ class ExtractionResponse(BaseModel):
     extraction_result: ExtractionResult = Field(alias="extractionResult")
     project_id: str = Field(alias="projectId")
     project_type: ProjectType = Field(alias="projectType")
-    tag: Optional[str]
+    tag: str | None
     document_type_id: str = Field(alias="documentTypeId")
-
 
 class ExtractionResponseIXP(ExtractionResponse):
     """A model representing the response from a document extraction process for IXP projects.
 
     Attributes:
-        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data.
+        data_projection (list[FieldGroupValueProjection]): A simplified projection of the extracted data.
     """
 
-    data_projection: List[FieldGroupValueProjection] = Field(alias="dataProjection")
-
+    data_projection: list[FieldGroupValueProjection] = Field(alias="dataProjection")
 
 class ValidationAction(BaseModel):
     """A model representing a validation action for a document.
@@ -147,21 +138,18 @@ class ValidationAction(BaseModel):
     action_status: str = Field(alias="actionStatus")
     project_id: str = Field(alias="projectId")
     project_type: ProjectType = Field(alias="projectType")
-    tag: Optional[str]
+    tag: str | None
     operation_id: str = Field(alias="operationId")
-
 
 class ValidateClassificationAction(ValidationAction):
     """A model representing a validation action for document classification."""
 
     pass
 
-
 class ValidateExtractionAction(ValidationAction):
     """A model representing a validation action for document extraction."""
 
     document_type_id: str = Field(alias="documentTypeId")
-
 
 class Reference(BaseModel):
     """A model representing a reference within a document."""
@@ -173,8 +161,7 @@ class Reference(BaseModel):
 
     text_start_index: int = Field(alias="TextStartIndex")
     text_length: int = Field(alias="TextLength")
-    tokens: List[str] = Field(alias="Tokens")
-
+    tokens: list[str] = Field(alias="Tokens")
 
 class DocumentBounds(BaseModel):
     """A model representing the bounds of a document in terms of pages and text."""
@@ -189,7 +176,6 @@ class DocumentBounds(BaseModel):
     text_start_index: int = Field(alias="TextStartIndex")
     text_length: int = Field(alias="TextLength")
     page_range: str = Field(alias="PageRange")
-
 
 class ClassificationResult(BaseModel):
     """A model representing the result of a document classification.
@@ -219,8 +205,7 @@ class ClassificationResult(BaseModel):
     classifier_name: str = Field(alias="ClassifierName")
     project_id: str = Field(alias="ProjectId")
     project_type: ProjectType = Field(alias="ProjectType")
-    tag: Optional[str] = Field(alias="Tag")
-
+    tag: str | None = Field(alias="Tag")
 
 class ClassificationResponse(BaseModel):
     """A model representing the response from a document classification process."""
@@ -230,6 +215,6 @@ class ClassificationResponse(BaseModel):
         validate_by_alias=True,
     )
 
-    classification_results: List[ClassificationResult] = Field(
+    classification_results: list[ClassificationResult] = Field(
         alias="classificationResults"
     )

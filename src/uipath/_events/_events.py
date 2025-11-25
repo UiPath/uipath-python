@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, SkipValidation, model_validator
@@ -21,7 +21,7 @@ class EvalSetRunCreatedEvent(BaseModel):
     execution_id: str
     entrypoint: str
     eval_set_id: str
-    eval_set_run_id: Optional[str] = None
+    eval_set_run_id: str | None = None
     no_of_evals: int
     # skip validation to avoid abstract class instantiation
     evaluators: SkipValidation[list[BaseEvaluator[Any, Any, Any]]]
@@ -50,7 +50,7 @@ class EvalRunUpdatedEvent(BaseModel):
     agent_execution_time: float
     spans: list[ReadableSpan]
     logs: list[logging.LogRecord]
-    exception_details: Optional[EvalItemExceptionDetails] = None
+    exception_details: EvalItemExceptionDetails | None = None
 
     @model_validator(mode="after")
     def validate_exception_details(self):

@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import tomllib
-from typing import Optional
 
 import click
 import httpx
@@ -16,7 +15,6 @@ from .middlewares import Middlewares
 
 logger = logging.getLogger(__name__)
 console = ConsoleLogger()
-
 
 def _read_project_details() -> tuple[str, str]:
     current_path = os.getcwd()
@@ -33,7 +31,6 @@ def _read_project_details() -> tuple[str, str]:
 
         return content["project"]["name"], content["project"]["version"]
 
-
 @click.command()
 @click.argument("entrypoint", required=False)
 @click.argument("input", required=False, default="{}")
@@ -45,7 +42,7 @@ def _read_project_details() -> tuple[str, str]:
     help="File path for the .json input",
 )
 def invoke(
-    entrypoint: Optional[str], input: Optional[str], file: Optional[str]
+    entrypoint: str | None, input: str | None, file: str | None
 ) -> None:
     """Invoke an agent published in my workspace."""
     if file:
@@ -121,7 +118,6 @@ def invoke(
                 console.error(
                     f"Error: Failed to start job. Status code: {response.status_code} {response.text}"
                 )
-
 
 if __name__ == "__main__":
     invoke()

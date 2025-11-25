@@ -1,6 +1,5 @@
 import uuid
 from dataclasses import make_dataclass
-from typing import Optional
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -10,7 +9,6 @@ from uipath._execution_context import ExecutionContext
 from uipath._services import EntitiesService
 from uipath.platform.entities import Entity
 
-
 @pytest.fixture
 def service(
     config: Config,
@@ -18,7 +16,6 @@ def service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> EntitiesService:
     return EntitiesService(config=config, execution_context=execution_context)
-
 
 @pytest.fixture(params=[True, False], ids=["correct_schema", "incorrect_schema"])
 def record_schema(request):
@@ -32,11 +29,10 @@ def record_schema(request):
 
     return RecordSchema, is_correct
 
-
 @pytest.fixture(params=[True, False], ids=["optional_field", "required_field"])
 def record_schema_optional(request):
     is_optional = request.param
-    field_type = Optional[int] if is_optional else int
+    field_type = int | None if is_optional else int
     schema_name = f"RecordSchema{'Optional' if is_optional else 'Required'}"
 
     RecordSchemaOptional = make_dataclass(
@@ -44,7 +40,6 @@ def record_schema_optional(request):
     )
 
     return RecordSchemaOptional, is_optional
-
 
 class TestEntitiesService:
     def test_retrieve(

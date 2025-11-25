@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 SchemaType = Literal["object", "integer", "number", "string", "boolean", "array"]
 
-TYPE_MAP: Dict[str, SchemaType] = {
+TYPE_MAP: dict[str, SchemaType] = {
     "int": "integer",
     "float": "number",
     "str": "string",
@@ -30,8 +30,7 @@ TYPE_MAP: Dict[str, SchemaType] = {
     "Dict": "object",
 }
 
-
-def get_type_schema(type_hint: Any) -> Dict[str, Any]:
+def get_type_schema(type_hint: Any) -> dict[str, Any]:
     """Convert a type hint to a JSON schema."""
     if type_hint is None or type_hint == inspect.Parameter.empty:
         return {"type": "object"}
@@ -133,7 +132,6 @@ def get_type_schema(type_hint: Any) -> Dict[str, Any]:
 
     return {"type": schema_type}
 
-
 def load_module(file_path: str) -> ModuleType:
     """Load a Python module from file path."""
     spec = importlib.util.spec_from_file_location("dynamic_module", file_path)
@@ -145,8 +143,7 @@ def load_module(file_path: str) -> ModuleType:
     spec.loader.exec_module(module)
     return module
 
-
-def generate_args(path: str) -> Dict[str, Dict[str, Any]]:
+def generate_args(path: str) -> dict[str, dict[str, Any]]:
     """Generate input/output schema from main function type hints."""
     module = load_module(path)
 

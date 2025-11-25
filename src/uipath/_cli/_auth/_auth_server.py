@@ -5,11 +5,9 @@ import os
 import socketserver
 import threading
 import time
-from typing import Optional
 
 # Server port
 PORT = 6234
-
 
 # Custom exception for token received
 class TokenReceivedSignal(Exception):
@@ -18,7 +16,6 @@ class TokenReceivedSignal(Exception):
     def __init__(self, token_data):
         self.token_data = token_data
         super().__init__("Token received successfully")
-
 
 def make_request_handler_class(
     state, code_verifier, token_callback, domain, redirect_uri, client_id
@@ -99,7 +96,6 @@ def make_request_handler_class(
 
     return SimpleHTTPSRequestHandler
 
-
 class HTTPServer:
     def __init__(self, port=6234, redirect_uri=None, client_id=None):
         """Initialize HTTP server with configurable parameters.
@@ -113,10 +109,10 @@ class HTTPServer:
         self.port = port
         self.redirect_uri = redirect_uri
         self.client_id = client_id
-        self.httpd: Optional[socketserver.TCPServer] = None
+        self.httpd: socketserver.TCPServer | None = None
         self.token_data = None
         self.should_shutdown = False
-        self.token_received_event: Optional[asyncio.Event] = None
+        self.token_received_event: asyncio.Event | None = None
         self.loop = None
 
     def token_received_callback(self, token_data):

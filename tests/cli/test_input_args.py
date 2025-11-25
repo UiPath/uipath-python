@@ -1,35 +1,31 @@
 """Test input args generation functionality."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
 from uipath._cli._utils._input_args import get_type_schema
 
-
 class EventArguments(BaseModel):
     """Test Pydantic model with aliases for testing."""
 
-    event_connector: Optional[str] = Field(default=None, alias="UiPathEventConnector")
-    event: Optional[str] = Field(default=None, alias="UiPathEvent")
-    event_object_type: Optional[str] = Field(
+    event_connector: str | None = Field(default=None, alias="UiPathEventConnector")
+    event: str | None = Field(default=None, alias="UiPathEvent")
+    event_object_type: str | None = Field(
         default=None, alias="UiPathEventObjectType"
     )
-    event_object_id: Optional[str] = Field(default=None, alias="UiPathEventObjectId")
-    additional_event_data: Optional[str] = Field(
+    event_object_id: str | None = Field(default=None, alias="UiPathEventObjectId")
+    additional_event_data: str | None = Field(
         default=None, alias="UiPathAdditionalEventData"
     )
-
 
 class RequiredFieldsModel(BaseModel):
     """Test Pydantic model with required and optional fields."""
 
     required_field: str
-    optional_field: Optional[str] = None
+    optional_field: str | None = None
     aliased_required: int = Field(alias="AliasedRequired")
-    aliased_optional: Optional[int] = Field(default=100, alias="AliasedOptional")
-
+    aliased_optional: int | None = Field(default=100, alias="AliasedOptional")
 
 @dataclass
 class SimpleDataClass:
@@ -37,7 +33,6 @@ class SimpleDataClass:
 
     name: str
     value: int = 42
-
 
 def test_pydantic_model_with_aliases():
     """Test that Pydantic model schemas use field aliases when defined."""
@@ -59,7 +54,6 @@ def test_pydantic_model_with_aliases():
 
     # All fields have defaults, so none should be required
     assert schema["required"] == []
-
 
 def test_pydantic_model_required_fields():
     """Test that required fields are correctly identified in Pydantic models."""
@@ -83,7 +77,6 @@ def test_pydantic_model_required_fields():
     actual_required = set(schema["required"])
     assert actual_required == expected_required
 
-
 def test_dataclass_still_works():
     """Test that dataclass functionality is not broken."""
     schema = get_type_schema(SimpleDataClass)
@@ -99,7 +92,6 @@ def test_dataclass_still_works():
     # Field with default should not be required
     assert schema["required"] == ["name"]
 
-
 def test_primitive_types():
     """Test that primitive type handling still works."""
     assert get_type_schema(str) == {"type": "string"}
@@ -107,8 +99,7 @@ def test_primitive_types():
     assert get_type_schema(float) == {"type": "number"}
     assert get_type_schema(bool) == {"type": "boolean"}
 
-
 def test_optional_types():
     """Test handling of Optional types."""
-    schema = get_type_schema(Optional[str])
+    schema = get_type_schema(str | None)
     assert schema == {"type": "string"}  # Should unwrap Optional

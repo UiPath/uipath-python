@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Union
 
 from httpx import Response
 
@@ -14,7 +14,6 @@ from ..platform.orchestrator import (
 )
 from ..tracing import traced
 from ._base_service import BaseService
-
 
 class QueuesService(FolderContext, BaseService):
     """Service for managing UiPath queues and queue items.
@@ -50,7 +49,7 @@ class QueuesService(FolderContext, BaseService):
         return response.json()
 
     @traced(name="queues_create_item", run_type="uipath")
-    def create_item(self, item: Union[Dict[str, Any], QueueItem]) -> Response:
+    def create_item(self, item: Union[dict[str, Any], QueueItem]) -> Response:
         """Creates a new queue item in the Orchestrator.
 
         Args:
@@ -67,7 +66,7 @@ class QueuesService(FolderContext, BaseService):
 
     @traced(name="queues_create_item", run_type="uipath")
     async def create_item_async(
-        self, item: Union[Dict[str, Any], QueueItem]
+        self, item: Union[dict[str, Any], QueueItem]
     ) -> Response:
         """Asynchronously creates a new queue item in the Orchestrator.
 
@@ -88,7 +87,7 @@ class QueuesService(FolderContext, BaseService):
     @traced(name="queues_create_items", run_type="uipath")
     def create_items(
         self,
-        items: List[Union[Dict[str, Any], QueueItem]],
+        items: list[Union[dict[str, Any], QueueItem]],
         queue_name: str,
         commit_type: CommitType,
     ) -> Response:
@@ -109,7 +108,7 @@ class QueuesService(FolderContext, BaseService):
     @traced(name="queues_create_items", run_type="uipath")
     async def create_items_async(
         self,
-        items: List[Union[Dict[str, Any], QueueItem]],
+        items: list[Union[dict[str, Any], QueueItem]],
         queue_name: str,
         commit_type: CommitType,
     ) -> Response:
@@ -131,7 +130,7 @@ class QueuesService(FolderContext, BaseService):
 
     @traced(name="queues_create_transaction_item", run_type="uipath")
     def create_transaction_item(
-        self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
+        self, item: Union[dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
         """Creates a new transaction item in a queue.
 
@@ -148,7 +147,7 @@ class QueuesService(FolderContext, BaseService):
 
     @traced(name="queues_create_transaction_item", run_type="uipath")
     async def create_transaction_item_async(
-        self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
+        self, item: Union[dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> Response:
         """Asynchronously creates a new transaction item in a queue.
 
@@ -207,7 +206,7 @@ class QueuesService(FolderContext, BaseService):
 
     @traced(name="queues_complete_transaction_item", run_type="uipath")
     def complete_transaction_item(
-        self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
+        self, transaction_key: str, result: Union[dict[str, Any], TransactionItemResult]
     ) -> Response:
         """Completes a transaction item with the specified result.
 
@@ -226,7 +225,7 @@ class QueuesService(FolderContext, BaseService):
 
     @traced(name="queues_complete_transaction_item", run_type="uipath")
     async def complete_transaction_item_async(
-        self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
+        self, transaction_key: str, result: Union[dict[str, Any], TransactionItemResult]
     ) -> Response:
         """Asynchronously completes a transaction item with the specified result.
 
@@ -246,7 +245,7 @@ class QueuesService(FolderContext, BaseService):
         return response.json()
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
     def _list_items_spec(self) -> RequestSpec:
@@ -255,7 +254,7 @@ class QueuesService(FolderContext, BaseService):
             endpoint=Endpoint("/orchestrator_/odata/QueueItems"),
         )
 
-    def _create_item_spec(self, item: Union[Dict[str, Any], QueueItem]) -> RequestSpec:
+    def _create_item_spec(self, item: Union[dict[str, Any], QueueItem]) -> RequestSpec:
         if isinstance(item, dict):
             queue_item = QueueItem(**item)
         elif isinstance(item, QueueItem):
@@ -275,7 +274,7 @@ class QueuesService(FolderContext, BaseService):
 
     def _create_items_spec(
         self,
-        items: List[Union[Dict[str, Any], QueueItem]],
+        items: list[Union[dict[str, Any], QueueItem]],
         queue_name: str,
         commit_type: CommitType,
     ) -> RequestSpec:
@@ -297,7 +296,7 @@ class QueuesService(FolderContext, BaseService):
         )
 
     def _create_transaction_item_spec(
-        self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
+        self, item: Union[dict[str, Any], TransactionItem], no_robot: bool = False
     ) -> RequestSpec:
         if isinstance(item, dict):
             transaction_item = TransactionItem(**item)
@@ -333,7 +332,7 @@ class QueuesService(FolderContext, BaseService):
         )
 
     def _complete_transaction_item_spec(
-        self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
+        self, transaction_key: str, result: Union[dict[str, Any], TransactionItemResult]
     ) -> RequestSpec:
         if isinstance(result, dict):
             transaction_result = TransactionItemResult(**result)

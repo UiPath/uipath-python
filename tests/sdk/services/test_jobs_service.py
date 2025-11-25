@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import uuid
-from typing import TYPE_CHECKING, Any, Generator, Tuple
+from typing import TYPE_CHECKING, Any, Generator
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -17,7 +17,6 @@ from uipath.platform.orchestrator import Job
 if TYPE_CHECKING:
     from _pytest.monkeypatch import MonkeyPatch
 
-
 @pytest.fixture
 def service(
     config: Config,
@@ -29,7 +28,6 @@ def service(
     # We'll leave the real AttachmentsService for HTTP tests,
     # and mock it in specific tests as needed
     return jobs_service
-
 
 @pytest.fixture
 def temp_attachments_dir(tmp_path: Any) -> Generator[str, None, None]:
@@ -50,9 +48,8 @@ def temp_attachments_dir(tmp_path: Any) -> Generator[str, None, None]:
     if os.path.exists(test_temp_dir):
         shutil.rmtree(test_temp_dir)
 
-
 @pytest.fixture
-def temp_file(tmp_path: Any) -> Generator[Tuple[str, str, str], None, None]:
+def temp_file(tmp_path: Any) -> Generator[tuple[str, str, str], None, None]:
     """Create a temporary file and clean it up after the test.
 
     Args:
@@ -74,11 +71,10 @@ def temp_file(tmp_path: Any) -> Generator[Tuple[str, str, str], None, None]:
     if os.path.exists(path):
         os.remove(path)
 
-
 @pytest.fixture
 def local_attachment_file(
     temp_attachments_dir: str,
-) -> Generator[Tuple[uuid.UUID, str, str], None, None]:
+) -> Generator[tuple[uuid.UUID, str, str], None, None]:
     """Creates a local attachment file in the temporary attachments directory.
 
     Args:
@@ -99,7 +95,6 @@ def local_attachment_file(
     yield attachment_id, file_name, file_content
 
     # Cleanup is handled by temp_attachments_dir fixture
-
 
 class TestJobsService:
     def test_retrieve(
@@ -656,7 +651,7 @@ class TestJobsService:
         self,
         service: JobsService,
         temp_attachments_dir: str,
-        temp_file: Tuple[str, str, str],
+        temp_file: tuple[str, str, str],
     ) -> None:
         """Test creating a job attachment from a file when no job is available.
 
@@ -1240,7 +1235,7 @@ class TestJobsService:
         self,
         service: JobsService,
         mocker: MockerFixture,
-        temp_file: Tuple[str, str, str],
+        temp_file: tuple[str, str, str],
     ) -> None:
         """Test creating a job attachment from a file when a job is available.
 
@@ -1293,7 +1288,7 @@ class TestJobsService:
         self,
         service: JobsService,
         mocker: MockerFixture,
-        temp_file: Tuple[str, str, str],
+        temp_file: tuple[str, str, str],
     ) -> None:
         """Test creating a job attachment asynchronously from a file when a job is available.
 
@@ -1346,7 +1341,7 @@ class TestJobsService:
         self,
         service: JobsService,
         temp_attachments_dir: str,
-        temp_file: Tuple[str, str, str],
+        temp_file: tuple[str, str, str],
     ) -> None:
         """Test creating a job attachment asynchronously from a file when no job is available.
 

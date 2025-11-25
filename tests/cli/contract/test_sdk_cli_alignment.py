@@ -7,7 +7,7 @@ These tests catch:
 """
 
 import inspect
-from typing import Any, Optional, Set
+from typing import Any
 
 import click
 import pytest
@@ -22,8 +22,7 @@ CLI_ONLY_OPTIONS = {"confirm", "dry_run"}
 # These appear in SDK methods but are handled by common_service_options decorator
 SDK_COMMON_PARAMS = {"folder_path", "folder_key"}
 
-
-def get_cli_option_names(cmd: click.Command) -> Set[str]:
+def get_cli_option_names(cmd: click.Command) -> set[str]:
     """Extract parameter names from a Click command (options AND arguments).
 
     Args:
@@ -38,8 +37,7 @@ def get_cli_option_names(cmd: click.Command) -> Set[str]:
         if isinstance(param, (click.Option, click.Argument)) and param.name is not None
     }
 
-
-def get_sdk_param_names(method) -> Set[str]:
+def get_sdk_param_names(method) -> set[str]:
     """Extract parameter names from SDK method signature.
 
     Args:
@@ -53,14 +51,13 @@ def get_sdk_param_names(method) -> Set[str]:
         name for name in sig.parameters if name not in ["self", "cls", "args", "kwargs"]
     }
 
-
 def assert_cli_sdk_alignment(
     cli_command: click.Command,
     sdk_method: Any,
     *,
-    exclude_cli: Optional[Set[str]] = None,
-    exclude_sdk: Optional[Set[str]] = None,
-    param_mappings: Optional[dict[str, str]] = None,
+    exclude_cli: set[str] | None = None,
+    exclude_sdk: set[str] | None = None,
+    param_mappings: dict[str, str] | None = None,
 ) -> None:
     """Assert that CLI command options align with SDK method parameters.
 
@@ -113,7 +110,6 @@ def assert_cli_sdk_alignment(
         f"  CLI params (normalized): {cli_params_normalized}\n"
         f"  Hint: Check for typos in CLI option names or SDK parameter removals"
     )
-
 
 # Parameter mappings: CLI param name → SDK param name
 # Used when CLI uses more user-friendly names than SDK
@@ -183,7 +179,6 @@ SDK_EXCLUSIONS = {
     },  # CLI uses name, doesn't expose pagination
 }
 
-
 # Parameterized test for all service commands
 @pytest.mark.parametrize(
     "service,command,sdk_class,sdk_method",
@@ -244,7 +239,6 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
         exclude_sdk=sdk_exclusions,
     )
 
-
 def test_contract_test_infrastructure():
     """Meta-test to verify contract test infrastructure works.
 
@@ -264,7 +258,6 @@ def test_contract_test_infrastructure():
 
     # Should not raise
     assert_cli_sdk_alignment(test_cmd, test_method)
-
 
 def test_contract_test_detects_missing_cli_option():
     """Meta-test to verify contract test detects missing CLI options."""

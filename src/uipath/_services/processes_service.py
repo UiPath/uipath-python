@@ -1,7 +1,7 @@
 import json
 import os
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -12,7 +12,6 @@ from ..platform.orchestrator import Job
 from ..tracing import traced
 from . import AttachmentsService
 from ._base_service import BaseService
-
 
 class ProcessesService(FolderContext, BaseService):
     """Service for managing and executing UiPath automation processes.
@@ -36,10 +35,10 @@ class ProcessesService(FolderContext, BaseService):
     def invoke(
         self,
         name: str,
-        input_arguments: Optional[Dict[str, Any]] = None,
+        input_arguments: dict[str, Any] | None = None,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Job:
         """Start execution of a process by its name.
 
@@ -47,9 +46,9 @@ class ProcessesService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the process to execute.
-            input_arguments (Optional[Dict[str, Any]]): The input arguments to pass to the process.
-            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            input_arguments (dict[str, Any] | None): The input arguments to pass to the process.
+            folder_key (str | None): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
             Job: The job execution details.
@@ -100,10 +99,10 @@ class ProcessesService(FolderContext, BaseService):
     async def invoke_async(
         self,
         name: str,
-        input_arguments: Optional[Dict[str, Any]] = None,
+        input_arguments: dict[str, Any] | None = None,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Job:
         """Asynchronously start execution of a process by its name.
 
@@ -111,9 +110,9 @@ class ProcessesService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the process to execute.
-            input_arguments (Optional[Dict[str, Any]]): The input arguments to pass to the process.
-            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            input_arguments (dict[str, Any] | None): The input arguments to pass to the process.
+            folder_key (str | None): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
         Returns:
             Job: The job execution details.
@@ -157,16 +156,16 @@ class ProcessesService(FolderContext, BaseService):
         return Job.model_validate(response.json()["value"][0])
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
     def _handle_input_arguments(
         self,
-        input_arguments: Optional[Dict[str, Any]] = None,
+        input_arguments: dict[str, Any] | None = None,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> Dict[str, str]:
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> dict[str, str]:
         """Handle input arguments, storing as attachment if they exceed size limit.
 
         Args:
@@ -195,11 +194,11 @@ class ProcessesService(FolderContext, BaseService):
 
     async def _handle_input_arguments_async(
         self,
-        input_arguments: Optional[Dict[str, Any]] = None,
+        input_arguments: dict[str, Any] | None = None,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> Dict[str, str]:
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> dict[str, str]:
         """Handle input arguments, storing as attachment if they exceed size limit.
 
         Args:
@@ -229,10 +228,10 @@ class ProcessesService(FolderContext, BaseService):
     def _invoke_spec(
         self,
         name: str,
-        input_data: Optional[Dict[str, Any]] = None,
+        input_data: dict[str, Any] | None = None,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         request_spec = RequestSpec(
             method="POST",

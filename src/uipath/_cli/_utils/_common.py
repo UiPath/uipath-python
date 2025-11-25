@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 from urllib.parse import urlparse
 
 import click
@@ -18,8 +18,7 @@ from ._studio_project import (
     StudioProjectMetadata,
 )
 
-
-def get_claim_from_token(claim_name: str) -> Optional[str]:
+def get_claim_from_token(claim_name: str) -> str | None:
     import jwt
 
     token = os.getenv(ENV_UIPATH_ACCESS_TOKEN)
@@ -28,14 +27,12 @@ def get_claim_from_token(claim_name: str) -> Optional[str]:
     decoded_token = jwt.decode(token, options={"verify_signature": False})
     return decoded_token.get(claim_name)
 
-
 def add_cwd_to_path():
     import sys
 
     cwd = os.getcwd()
     if cwd not in sys.path:
         sys.path.insert(0, cwd)
-
 
 def environment_options(function):
     function = click.option(
@@ -58,8 +55,7 @@ def environment_options(function):
     )(function)
     return function
 
-
-def get_env_vars(spinner: Optional[Spinner] = None) -> list[str]:
+def get_env_vars(spinner: Spinner | None = None) -> list[str]:
     base_url = os.environ.get("UIPATH_URL")
     token = os.environ.get("UIPATH_ACCESS_TOKEN")
 
@@ -74,7 +70,6 @@ def get_env_vars(spinner: Optional[Spinner] = None) -> list[str]:
 
     assert base_url and token
     return [base_url, token]
-
 
 def serialize_object(obj):
     """Recursively serializes an object and all its nested components."""
@@ -101,7 +96,6 @@ def serialize_object(obj):
     else:
         return obj
 
-
 def get_org_scoped_url(base_url: str) -> str:
     """Get organization scoped URL from base URL.
 
@@ -115,7 +109,6 @@ def get_org_scoped_url(base_url: str) -> str:
     org_name, *_ = parsed.path.strip("/").split("/")
     org_scoped_url = f"{parsed.scheme}://{parsed.netloc}/{org_name}"
     return org_scoped_url
-
 
 def clean_directory(directory: str) -> None:
     """Clean up Python files in the specified directory.
@@ -132,10 +125,8 @@ def clean_directory(directory: str) -> None:
         if os.path.isfile(file_path) and file_name.endswith(".py"):
             os.remove(file_path)
 
-
 def load_environment_variables():
     load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
-
 
 async def ensure_coded_agent_project(studio_client: StudioClient):
     try:
@@ -145,7 +136,6 @@ async def ensure_coded_agent_project(studio_client: StudioClient):
         console.error(
             "The targeted Studio Web project is not of type coded agent. Please check the UIPATH_PROJECT_ID environment variable."
         )
-
 
 async def may_override_files(
     studio_client: StudioClient, scope: Literal["remote", "local"]
@@ -191,9 +181,8 @@ async def may_override_files(
         f"Do you want to proceed with overwriting the {scope} files?"
     )
 
-
 async def read_resource_overwrites_from_file(
-    directory_path: Optional[str] = None,
+    directory_path: str | None = None,
 ) -> dict[str, ResourceOverwrite]:
     """Read resource overwrites from a JSON file."""
     config_file_name = UiPathConfig.config_file_name

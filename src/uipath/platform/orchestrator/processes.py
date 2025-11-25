@@ -1,9 +1,8 @@
 """Models for Orchestrator Processes."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 class Process(BaseModel):
     """Model representing an orchestrator process."""
@@ -22,7 +21,7 @@ class Process(BaseModel):
     is_process_deleted: bool = Field(alias="IsProcessDeleted")
     description: str = Field(alias="Description")
     name: str = Field(alias="Name")
-    environment_variables: Optional[str] = Field(
+    environment_variables: str | None = Field(
         default=None, alias="EnvironmentVariables"
     )
     process_type: str = Field(alias="ProcessType")
@@ -38,12 +37,12 @@ class Process(BaseModel):
     retention_period: int = Field(alias="RetentionPeriod")
     stale_retention_action: str = Field(alias="StaleRetentionAction")
     stale_retention_period: int = Field(alias="StaleRetentionPeriod")
-    arguments: Optional[Dict[str, Optional[Any]]] = Field(
+    arguments: dict[str, Any | None] | None = Field(
         default=None, alias="Arguments"
     )
-    tags: List[str] = Field(alias="Tags")
-    environment: Optional[str] = Field(default=None, alias="Environment")
-    current_version: Optional[Dict[str, Any]] = Field(
+    tags: list[str] = Field(alias="Tags")
+    environment: str | None = Field(default=None, alias="Environment")
+    current_version: dict[str, Any] | None = Field(
         default=None, alias="CurrentVersion"
     )
-    entry_point: Optional[Dict[str, Any]] = Field(default=None, alias="EntryPoint")
+    entry_point: dict[str, Any] | None = Field(default=None, alias="EntryPoint")

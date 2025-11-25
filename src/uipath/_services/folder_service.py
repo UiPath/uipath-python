@@ -1,4 +1,4 @@
-from typing import Optional
+
 
 from typing_extensions import deprecated
 
@@ -8,7 +8,6 @@ from .._utils import Endpoint, RequestSpec
 from ..platform.errors import FolderNotFoundException
 from ..tracing import traced
 from ._base_service import BaseService
-
 
 class FolderService(BaseService):
     """Service for managing UiPath Folders.
@@ -63,11 +62,11 @@ class FolderService(BaseService):
 
     @traced(name="folder_retrieve_key_by_folder_path", run_type="uipath")
     @deprecated("Use retrieve_key instead")
-    def retrieve_key_by_folder_path(self, folder_path: str) -> Optional[str]:
+    def retrieve_key_by_folder_path(self, folder_path: str) -> str | None:
         return self.retrieve_key(folder_path=folder_path)
 
     @traced(name="folder_retrieve_key", run_type="uipath")
-    def retrieve_key(self, *, folder_path: str) -> Optional[str]:
+    def retrieve_key(self, *, folder_path: str) -> str | None:
         """Retrieve the folder key by folder path with pagination support.
 
         Args:
@@ -109,7 +108,7 @@ class FolderService(BaseService):
         return None
 
     @traced(name="folder_retrieve_key", run_type="uipath")
-    async def retrieve_key_async(self, *, folder_path: str) -> Optional[str]:
+    async def retrieve_key_async(self, *, folder_path: str) -> str | None:
         """Retrieve the folder key by folder path with pagination support.
 
         Args:

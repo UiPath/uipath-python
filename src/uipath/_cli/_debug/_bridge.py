@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from enum import Enum
-from typing import Any, Literal, Set
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from pysignalr.client import SignalRClient
@@ -23,7 +23,6 @@ from uipath._cli._utils._common import serialize_object
 
 logger = logging.getLogger(__name__)
 
-
 class DebugCommand(str, Enum):
     """Available debug commands."""
 
@@ -35,12 +34,11 @@ class DebugCommand(str, Enum):
     HELP = "help"
     QUIT = "quit"
 
-
 class DebuggerState:
     """Maintains debugger state across execution."""
 
     def __init__(self):
-        self.breakpoints: Set[str] = set()
+        self.breakpoints: set[str] = set()
         self.step_mode: bool = False
 
     def add_breakpoint(self, node_name: str) -> None:
@@ -60,7 +58,6 @@ class DebuggerState:
         if self.step_mode:
             return True
         return node_name in self.breakpoints
-
 
 class ConsoleDebugBridge:
     """Console-based debug bridge for local development."""
@@ -361,7 +358,6 @@ class ConsoleDebugBridge:
                 self.console.print(f"[dim]{label}:")
                 self.console.print(str(data))
                 self.console.print()
-
 
 class SignalRDebugBridge:
     """SignalR-based debug bridge for remote debugging.
@@ -709,7 +705,6 @@ class SignalRDebugBridge:
         """Handle SignalR error."""
         logger.error(f"SignalR error: {error}")
 
-
 def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridgeProtocol:
     """Factory to get SignalR debug bridge for remote debugging."""
     uipath_url = os.environ.get("UIPATH_URL")
@@ -729,7 +724,6 @@ def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridgeP
             "X-UiPath-FolderKey": context.folder_key or "",
         },
     )
-
 
 def get_debug_bridge(
     context: UiPathRuntimeContext, verbose: bool = True
