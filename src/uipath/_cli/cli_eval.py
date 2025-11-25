@@ -4,7 +4,7 @@ import os
 
 import click
 from uipath.core.tracing import UiPathTraceManager
-from uipath.runtime import UiPathRuntimeContext
+from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._evaluate import evaluate
@@ -19,7 +19,6 @@ from uipath._config import UiPathConfig
 from uipath._events._event_bus import EventBus
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
-from uipath.functions import UiPathFunctionsRuntimeFactory
 from uipath.tracing import LlmOpsHttpExporter
 
 from ._utils._console import ConsoleLogger
@@ -166,30 +165,38 @@ def eval(
                     output_file=output_file,
                 ) as ctx:
                     trace_manager = UiPathTraceManager()
-                    runtime_factory = UiPathFunctionsRuntimeFactory(ctx.config_path)
 
                     if ctx.job_id:
                         trace_manager.add_span_exporter(LlmOpsHttpExporter())
 
                     project_id = UiPathConfig.project_id
 
-                    if project_id:
-                        studio_client = StudioClient(project_id)
+                    runtime_factory = UiPathRuntimeFactoryRegistry.get()
 
-                        async with ResourceOverwritesContext(
-                            lambda: studio_client.get_resource_overwrites()
-                        ) as rcs_ctx:
-                            console.info(
-                                f"Applied {rcs_ctx.overwrites_count} resource overwrite(s)"
-                            )
+                    try:
+                        if project_id:
+                            studio_client = StudioClient(project_id)
+
+                            async with ResourceOverwritesContext(
+                                lambda: studio_client.get_resource_overwrites()
+                            ) as rcs_ctx:
+                                console.info(
+                                    f"Applied {rcs_ctx.overwrites_count} resource overwrite(s)"
+                                )
+                                ctx.result = await evaluate(
+                                    runtime_factory,
+                                    trace_manager,
+                                    eval_context,
+                                    event_bus,
+                                )
+                        else:
+                            # Fall back to execution without overwrites
                             ctx.result = await evaluate(
                                 runtime_factory, trace_manager, eval_context, event_bus
                             )
-                    else:
-                        # Fall back to execution without overwrites
-                        ctx.result = await evaluate(
-                            runtime_factory, trace_manager, eval_context, event_bus
-                        )
+                    finally:
+                        if runtime_factory:
+                            await runtime_factory.dispose()
 
             asyncio.run(execute_eval())
 

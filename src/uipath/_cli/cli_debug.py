@@ -5,6 +5,8 @@ from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeContext,
+    UiPathRuntimeFactoryProtocol,
+    UiPathRuntimeFactoryRegistry,
     UiPathRuntimeProtocol,
 )
 from uipath.runtime.debug import UiPathDebugBridgeProtocol, UiPathDebugRuntime
@@ -13,7 +15,6 @@ from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._config import UiPathConfig
 from uipath._utils._bindings import ResourceOverwritesContext
-from uipath.functions import UiPathFunctionsRuntimeFactory
 from uipath.tracing import LlmOpsHttpExporter
 
 from ._debug._bridge import get_debug_bridge
@@ -102,13 +103,15 @@ def debug(
                     output_file=output_file,
                 ) as ctx:
                     runtime: UiPathRuntimeProtocol | None = None
+                    factory: UiPathRuntimeFactoryProtocol | None = None
                     try:
                         trace_manager = UiPathTraceManager()
 
                         if ctx.job_id:
                             trace_manager.add_span_exporter(LlmOpsHttpExporter())
 
-                        factory = UiPathFunctionsRuntimeFactory()
+                        factory = UiPathRuntimeFactoryRegistry.get()
+
                         runtime = await factory.new_runtime(
                             entrypoint, ctx.job_id or "default"
                         )
@@ -126,6 +129,8 @@ def debug(
                     finally:
                         if runtime:
                             await runtime.dispose()
+                        if factory:
+                            await factory.dispose()
 
             async def execute():
                 project_id = UiPathConfig.project_id

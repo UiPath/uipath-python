@@ -3,11 +3,11 @@ import asyncio
 import click
 from uipath.core.tracing import UiPathTraceManager
 from uipath.dev import UiPathDeveloperConsole
+from uipath.runtime import UiPathRuntimeFactoryRegistry
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli.middlewares import Middlewares
-from uipath.functions import UiPathFunctionsRuntimeFactory
 
 console = ConsoleLogger()
 
@@ -41,12 +41,23 @@ def dev(interface: str | None, debug: bool, debug_port: int) -> None:
 
     try:
         if interface == "terminal":
-            trace_manager = UiPathTraceManager()
-            factory = UiPathFunctionsRuntimeFactory()
-            app = UiPathDeveloperConsole(
-                runtime_factory=factory, trace_manager=trace_manager
-            )
-            asyncio.run(app.run_async())
+
+            async def run_terminal() -> None:
+                trace_manager = UiPathTraceManager()
+                factory = UiPathRuntimeFactoryRegistry.get()
+
+                try:
+                    app = UiPathDeveloperConsole(
+                        runtime_factory=factory, trace_manager=trace_manager
+                    )
+
+                    await app.run_async()
+
+                finally:
+                    if factory:
+                        await factory.dispose()
+
+            asyncio.run(run_terminal())
         else:
             console.error(f"Unknown interface: {interface}")
     except KeyboardInterrupt:
