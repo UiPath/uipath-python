@@ -17,7 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 T = TypeVar("T")
 
-
 class ResourceOverwrite(BaseModel, ABC):
     """Abstract base class for resource overwrites.
 
@@ -39,7 +38,6 @@ class ResourceOverwrite(BaseModel, ABC):
         """The folder location identifier for this resource."""
         pass
 
-
 class GenericResourceOverwrite(ResourceOverwrite):
     resource_type: Literal["process", "index", "app", "asset", "bucket"]
     name: str = Field(alias="name")
@@ -52,7 +50,6 @@ class GenericResourceOverwrite(ResourceOverwrite):
     @property
     def folder_identifier(self) -> str:
         return self.folder_path
-
 
 class ConnectionResourceOverwrite(ResourceOverwrite):
     resource_type: Literal["connection"]
@@ -73,12 +70,10 @@ class ConnectionResourceOverwrite(ResourceOverwrite):
     def folder_identifier(self) -> str:
         return self.folder_key
 
-
 ResourceOverwriteUnion = Annotated[
     Union[GenericResourceOverwrite, ConnectionResourceOverwrite],
     Field(discriminator="resource_type"),
 ]
-
 
 class ResourceOverwriteParser:
     """Parser for resource overwrite configurations.
@@ -107,11 +102,9 @@ class ResourceOverwriteParser:
         value_with_type = {"resource_type": resource_type, **value}
         return cls._adapter.validate_python(value_with_type)
 
-
-_resource_overwrites: ContextVar[Optional[dict[str, ResourceOverwrite]]] = ContextVar(
+_resource_overwrites: ContextVar[dict[str, ResourceOverwrite] | None] = ContextVar(
     "resource_overwrites", default=None
 )
-
 
 class ResourceOverwritesContext:
     def __init__(
@@ -121,7 +114,7 @@ class ResourceOverwritesContext:
         ],
     ):
         self.get_overwrites_callable = get_overwrites_callable
-        self._token: Optional[Token[Optional[dict[str, ResourceOverwrite]]]] = None
+        self._token: Token[dict[str, ResourceOverwrite] | None] | None = None
         self.overwrites_count = 0
 
     async def __aenter__(self) -> "ResourceOverwritesContext":
@@ -133,7 +126,6 @@ class ResourceOverwritesContext:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self._token:
             _resource_overwrites.reset(self._token)
-
 
 def resource_override(
     resource_type: str,
@@ -188,7 +180,6 @@ def resource_override(
         return wrapper
 
     return decorator
-
 
 def get_inferred_bindings_names(cls: T):
     inferred_bindings = {}

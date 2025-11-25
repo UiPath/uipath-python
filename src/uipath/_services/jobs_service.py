@@ -3,7 +3,7 @@ import shutil
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast, overload
+from typing import Any, Union, cast, overload
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -14,7 +14,6 @@ from ..platform.orchestrator import Job
 from ..tracing import traced
 from ._base_service import BaseService
 from .attachments_service import AttachmentsService
-
 
 class JobsService(FolderContext, BaseService):
     """Service for managing API payloads and job inbox interactions.
@@ -41,19 +40,19 @@ class JobsService(FolderContext, BaseService):
     def resume(
         self,
         *,
-        inbox_id: Optional[str] = None,
-        job_id: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        inbox_id: str | None = None,
+        job_id: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
         payload: Any,
     ) -> None:
         """Sends a payload to resume a paused job waiting for input, identified by its inbox ID.
 
         Args:
-            inbox_id (Optional[str]): The inbox ID of the job.
-            job_id (Optional[str]): The job ID of the job.
-            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            inbox_id (str | None): The inbox ID of the job.
+            job_id (str | None): The job ID of the job.
+            folder_key (str | None): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder to execute the process in. Override the default one set in the SDK config.
             payload (Any): The payload to deliver.
         """
         if job_id is None and inbox_id is None:
@@ -86,19 +85,19 @@ class JobsService(FolderContext, BaseService):
     async def resume_async(
         self,
         *,
-        inbox_id: Optional[str] = None,
-        job_id: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        inbox_id: str | None = None,
+        job_id: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
         payload: Any,
     ) -> None:
         """Asynchronously sends a payload to resume a paused job waiting for input, identified by its inbox ID.
 
         Args:
-            inbox_id (Optional[str]): The inbox ID of the job. If not provided, the execution context will be used to retrieve the inbox ID.
-            job_id (Optional[str]): The job ID of the job.
-            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            inbox_id (str | None): The inbox ID of the job. If not provided, the execution context will be used to retrieve the inbox ID.
+            job_id (str | None): The job ID of the job.
+            folder_key (str | None): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder to execute the process in. Override the default one set in the SDK config.
             payload (Any): The payload to deliver.
 
         Examples:
@@ -108,7 +107,6 @@ class JobsService(FolderContext, BaseService):
             from uipath.platform import UiPath
 
             sdk = UiPath()
-
 
             async def main():  # noqa: D103
                 payload = await sdk.jobs.resume_async(job_id="38073051", payload="The response")
@@ -145,22 +143,22 @@ class JobsService(FolderContext, BaseService):
         )
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
     def retrieve(
         self,
         job_key: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Job:
         """Retrieve a job identified by its key.
 
         Args:
             job_key (str): The job unique identifier.
-            folder_key (Optional[str]): The key of the folder in which the job was executed.
-            folder_path (Optional[str]): The path of the folder in which the job was executed.
+            folder_key (str | None): The key of the folder in which the job was executed.
+            folder_path (str | None): The path of the folder in which the job was executed.
 
         Returns:
             Job: The retrieved job.
@@ -188,15 +186,15 @@ class JobsService(FolderContext, BaseService):
         self,
         job_key: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Job:
         """Asynchronously retrieve a job identified by its key.
 
         Args:
             job_key (str): The job unique identifier.
-            folder_key (Optional[str]): The key of the folder in which the job was executed.
-            folder_path (Optional[str]): The path of the folder in which the job was executed.
+            folder_key (str | None): The key of the folder in which the job was executed.
+            folder_path (str | None): The path of the folder in which the job was executed.
 
         Returns:
             Job: The retrieved job.
@@ -208,7 +206,6 @@ class JobsService(FolderContext, BaseService):
             from uipath.platform import UiPath
 
             sdk = UiPath()
-
 
             async def main():  # noqa: D103
                 job = await sdk.jobs.retrieve_async(job_key="ee9327fd-237d-419e-86ef-9946b34461e3", folder_path="Shared")
@@ -231,8 +228,8 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         job_id: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> str:
         spec = self._retrieve_inbox_id_spec(
             job_id=job_id,
@@ -253,8 +250,8 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         job_id: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> str:
         spec = self._retrieve_inbox_id_spec(
             job_id=job_id,
@@ -334,8 +331,8 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         job_id: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="GET",
@@ -350,7 +347,7 @@ class JobsService(FolderContext, BaseService):
             },
         )
 
-    def extract_output(self, job: Job) -> Optional[str]:
+    def extract_output(self, job: Job) -> str | None:
         """Get the actual output data, downloading from attachment if necessary.
 
         Args:
@@ -374,7 +371,7 @@ class JobsService(FolderContext, BaseService):
         else:
             return None
 
-    async def extract_output_async(self, job: Job) -> Optional[str]:
+    async def extract_output_async(self, job: Job) -> str | None:
         """Asynchronously fetch the actual output data, downloading from attachment if necessary.
 
         Args:
@@ -403,8 +400,8 @@ class JobsService(FolderContext, BaseService):
         *,
         inbox_id: str,
         payload: Any = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="POST",
@@ -421,8 +418,8 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         job_key: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="GET",
@@ -439,20 +436,20 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         job_key: uuid.UUID,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> List[str]:
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> list[str]:
         """List attachments associated with a specific job.
 
         This method retrieves all attachments linked to a job by its key.
 
         Args:
             job_key (uuid.UUID): The key of the job to retrieve attachments for.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
-            List[str]: A list of attachment IDs associated with the job.
+            list[str]: A list of attachment IDs associated with the job.
 
         Raises:
             Exception: If the retrieval fails.
@@ -477,20 +474,20 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         job_key: uuid.UUID,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> List[str]:
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> list[str]:
         """List attachments associated with a specific job asynchronously.
 
         This method asynchronously retrieves all attachments linked to a job by its key.
 
         Args:
             job_key (uuid.UUID): The key of the job to retrieve attachments for.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
-            List[str]: A list of attachment IDs associated with the job.
+            list[str]: A list of attachment IDs associated with the job.
 
         Raises:
             Exception: If the retrieval fails.
@@ -533,9 +530,9 @@ class JobsService(FolderContext, BaseService):
         *,
         attachment_key: uuid.UUID,
         job_key: uuid.UUID,
-        category: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        category: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ):
         """Link an attachment to a job.
 
@@ -544,9 +541,9 @@ class JobsService(FolderContext, BaseService):
         Args:
             attachment_key (uuid.UUID): The key of the attachment to link.
             job_key (uuid.UUID): The key of the job to link the attachment to.
-            category (Optional[str]): Optional category for the attachment in the context of this job.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            category (str | None): Optional category for the attachment in the context of this job.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Raises:
             Exception: If the link operation fails.
@@ -571,9 +568,9 @@ class JobsService(FolderContext, BaseService):
         *,
         attachment_key: uuid.UUID,
         job_key: uuid.UUID,
-        category: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        category: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ):
         """Link an attachment to a job asynchronously.
 
@@ -582,9 +579,9 @@ class JobsService(FolderContext, BaseService):
         Args:
             attachment_key (uuid.UUID): The key of the attachment to link.
             job_key (uuid.UUID): The key of the job to link the attachment to.
-            category (Optional[str]): Optional category for the attachment in the context of this job.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            category (str | None): Optional category for the attachment in the context of this job.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Raises:
             Exception: If the link operation fails.
@@ -606,8 +603,8 @@ class JobsService(FolderContext, BaseService):
     def _list_job_attachments_spec(
         self,
         job_key: uuid.UUID,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="GET",
@@ -624,9 +621,9 @@ class JobsService(FolderContext, BaseService):
         self,
         attachment_key: uuid.UUID,
         job_key: uuid.UUID,
-        category: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        category: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="POST",
@@ -646,12 +643,12 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         name: str,
-        content: Optional[Union[str, bytes]] = None,
-        source_path: Optional[Union[str, Path]] = None,
-        job_key: Optional[Union[str, uuid.UUID]] = None,
-        category: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content: Union[str, bytes] | None = None,
+        source_path: Union[str, Path] | None = None,
+        job_key: Union[str, uuid.UUID] | None = None,
+        category: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> uuid.UUID:
         """Create and upload an attachment, optionally linking it to a job.
 
@@ -666,12 +663,12 @@ class JobsService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the attachment file.
-            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
-            source_path (Optional[Union[str, Path]]): The local path of the file to upload.
-            job_key (Optional[Union[str, uuid.UUID]]): The key of the job to link the attachment to.
-            category (Optional[str]): Optional category for the attachment in the context of the job.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            content (Union[str, bytes] | None): The content to upload (string or bytes).
+            source_path (Union[str, Path] | None): The local path of the file to upload.
+            job_key (Union[str, uuid.UUID] | None): The key of the job to link the attachment to.
+            category (str | None): Optional category for the attachment in the context of the job.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
             uuid.UUID: The unique identifier for the created attachment, regardless of whether it was
@@ -785,12 +782,12 @@ class JobsService(FolderContext, BaseService):
         self,
         *,
         name: str,
-        content: Optional[Union[str, bytes]] = None,
-        source_path: Optional[Union[str, Path]] = None,
-        job_key: Optional[Union[str, uuid.UUID]] = None,
-        category: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content: Union[str, bytes] | None = None,
+        source_path: Union[str, Path] | None = None,
+        job_key: Union[str, uuid.UUID] | None = None,
+        category: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> uuid.UUID:
         """Create and upload an attachment asynchronously, optionally linking it to a job.
 
@@ -805,12 +802,12 @@ class JobsService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the attachment file.
-            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
-            source_path (Optional[Union[str, Path]]): The local path of the file to upload.
-            job_key (Optional[Union[str, uuid.UUID]]): The key of the job to link the attachment to.
-            category (Optional[str]): Optional category for the attachment in the context of the job.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            content (Union[str, bytes] | None): The content to upload (string or bytes).
+            source_path (Union[str, Path] | None): The local path of the file to upload.
+            job_key (Union[str, uuid.UUID] | None): The key of the job to link the attachment to.
+            category (str | None): Optional category for the attachment in the context of the job.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
             uuid.UUID: The unique identifier for the created attachment, regardless of whether it was

@@ -1,9 +1,8 @@
 """Models for Orchestrator Buckets API responses."""
 
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
-
 
 class BucketFile(BaseModel):
     """Represents a file within a bucket.
@@ -21,7 +20,7 @@ class BucketFile(BaseModel):
         validation_alias=AliasChoices("fullPath", "FullPath"),
         description="Full path within bucket",
     )
-    content_type: Optional[str] = Field(
+    content_type: str | None = Field(
         default=None,
         validation_alias=AliasChoices("contentType", "ContentType"),
         description="MIME type",
@@ -30,7 +29,7 @@ class BucketFile(BaseModel):
         validation_alias=AliasChoices("size", "Size"),
         description="File size in bytes",
     )
-    last_modified: Optional[str] = Field(
+    last_modified: str | None = Field(
         default=None,
         validation_alias=AliasChoices("lastModified", "LastModified"),
         description="Last modification timestamp (ISO format)",
@@ -53,7 +52,6 @@ class BucketFile(BaseModel):
             self.full_path.split("/")[-1] if "/" in self.full_path else self.full_path
         )
 
-
 class Bucket(BaseModel):
     """Represents a bucket in Orchestrator."""
 
@@ -65,16 +63,16 @@ class Bucket(BaseModel):
         extra="allow",
     )
     name: str = Field(alias="Name")
-    description: Optional[str] = Field(default=None, alias="Description")
+    description: str | None = Field(default=None, alias="Description")
     identifier: str = Field(alias="Identifier")
-    storage_provider: Optional[str] = Field(default=None, alias="StorageProvider")
-    storage_parameters: Optional[str] = Field(default=None, alias="StorageParameters")
-    storage_container: Optional[str] = Field(default=None, alias="StorageContainer")
-    options: Optional[str] = Field(default=None, alias="Options")
-    credential_store_id: Optional[str] = Field(default=None, alias="CredentialStoreId")
-    external_name: Optional[str] = Field(default=None, alias="ExternalName")
-    password: Optional[str] = Field(default=None, alias="Password")
-    folders_count: Optional[int] = Field(default=None, alias="FoldersCount")
-    encrypted: Optional[bool] = Field(default=None, alias="Encrypted")
-    id: Optional[int] = Field(default=None, alias="Id")
-    tags: Optional[List[Any]] = Field(default=None, alias="Tags")
+    storage_provider: str | None = Field(default=None, alias="StorageProvider")
+    storage_parameters: str | None = Field(default=None, alias="StorageParameters")
+    storage_container: str | None = Field(default=None, alias="StorageContainer")
+    options: str | None = Field(default=None, alias="Options")
+    credential_store_id: str | None = Field(default=None, alias="CredentialStoreId")
+    external_name: str | None = Field(default=None, alias="ExternalName")
+    password: str | None = Field(default=None, alias="Password")
+    folders_count: int | None = Field(default=None, alias="FoldersCount")
+    encrypted: bool | None = Field(default=None, alias="Encrypted")
+    id: int | None = Field(default=None, alias="Id")
+    tags: list[Any] | None = Field(default=None, alias="Tags")

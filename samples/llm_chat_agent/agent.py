@@ -15,7 +15,7 @@ API Integrations:
 import asyncio
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 import httpx
 from dotenv import load_dotenv
@@ -39,7 +39,6 @@ from uipath.tracing import traced
 # This will not override existing environment variables
 load_dotenv()
 
-
 # Input/Output models
 class AgentInput(BaseModel):
     """Input model for the agent."""
@@ -49,19 +48,17 @@ class AgentInput(BaseModel):
         default=False, description="Whether to enable tool calling"
     )
 
-
 class AgentOutput(BaseModel):
     """Output model for the agent."""
 
     response: str = Field(description="Agent's response to the user")
-    tool_calls_made: List[str] = Field(
+    tool_calls_made: list[str] = Field(
         default_factory=list, description="Names of tools that were called"
     )
 
-
 # Tool implementations
 @traced()
-async def get_current_weather(city: str) -> Dict[str, Any]:
+async def get_current_weather(city: str) -> dict[str, Any]:
     """
     Get the current weather for a city using Open-Meteo API.
 
@@ -138,7 +135,6 @@ async def get_current_weather(city: str) -> Dict[str, Any]:
             "error": f"Failed to fetch weather data: {str(e)}",
         }
 
-
 def get_weather_description(code: int) -> str:
     """
     Convert Open-Meteo weather codes to human-readable descriptions.
@@ -172,9 +168,8 @@ def get_weather_description(code: int) -> str:
     }
     return weather_codes.get(code, "unknown")
 
-
 @traced()
-async def calculate(expression: str) -> Dict[str, Any]:
+async def calculate(expression: str) -> dict[str, Any]:
     """
     Perform a mathematical calculation using Newton API.
 
@@ -235,7 +230,6 @@ async def calculate(expression: str) -> Dict[str, Any]:
                 "error": f"Failed to calculate: {str(e)}, fallback error: {str(eval_error)}"
             }
 
-
 # Tool definitions for LLM
 WEATHER_TOOL = ToolDefinition(
     type="function",
@@ -272,9 +266,8 @@ CALCULATOR_TOOL = ToolDefinition(
     ),
 )
 
-
 @traced()
-async def execute_tool_call(tool_name: str, tool_arguments: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_tool_call(tool_name: str, tool_arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Execute a tool based on its name and arguments.
 
@@ -291,7 +284,6 @@ async def execute_tool_call(tool_name: str, tool_arguments: Dict[str, Any]) -> D
         return await calculate(**tool_arguments)
     else:
         return {"error": f"Unknown tool: {tool_name}"}
-
 
 @traced()
 async def main(input: AgentInput) -> AgentOutput:
@@ -431,7 +423,6 @@ async def main(input: AgentInput) -> AgentOutput:
         error_msg = f"Error making LLM call: {str(e)}"
         print(error_msg)
         return AgentOutput(response=error_msg, tool_calls_made=tool_calls_made)
-
 
 # Example usage
 if __name__ == "__main__":

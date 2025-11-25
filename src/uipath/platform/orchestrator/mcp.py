@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from enum import IntEnum
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -37,20 +36,20 @@ class McpServer(BaseModel):
         extra="allow",
     )
 
-    id: Optional[str] = None
-    name: Optional[str] = None
-    slug: Optional[str] = None
-    description: Optional[str] = None
-    version: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    is_active: Optional[bool] = None
-    type: Optional[McpServerType] = None
-    status: Optional[McpServerStatus] = None
-    command: Optional[str] = None
-    arguments: Optional[str] = None
-    environment_variables: Optional[str] = None
-    process_key: Optional[str] = None
-    folder_key: Optional[str] = None
-    runtimes_count: Optional[int] = None
-    mcp_url: Optional[str] = None
+    id: str | None = None
+    name: str | None = None
+    slug: str | None = None
+    description: str | None = None
+    version: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    is_active: bool | None = None
+    type: McpServerType | None = None
+    status: McpServerStatus | None = None
+    command: str | None = None
+    arguments: str | None = None
+    environment_variables: str | None = None
+    process_key: str | None = None
+    folder_key: str | None = None
+    runtimes_count: int | None = None
+    mcp_url: str | None = None

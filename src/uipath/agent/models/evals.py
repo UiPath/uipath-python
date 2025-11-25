@@ -3,8 +3,6 @@
 These models extend the base agent models with evaluation and simulation-specific fields.
 """
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from uipath._cli._evals._models._evaluation_set import EvaluationSet
@@ -18,39 +16,34 @@ from uipath.agent.models.agent import (
     BaseResourceProperties,
 )
 
-
 class AgentEvalResourceProperties(BaseResourceProperties):
     """Resource properties with simulation support."""
 
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
-
+    example_calls: list[ExampleCall] | None = Field(None, alias="exampleCalls")
 
 class AgentEvalProcessToolProperties(AgentProcessToolProperties):
     """Process tool properties with simulation support."""
 
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
-
+    example_calls: list[ExampleCall] | None = Field(None, alias="exampleCalls")
 
 class AgentEvalIntegrationToolProperties(AgentIntegrationToolProperties):
     """Integration tool properties with simulation support."""
 
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
-
+    example_calls: list[ExampleCall] | None = Field(None, alias="exampleCalls")
 
 class AgentEvalEscalationChannelProperties(AgentEscalationChannelProperties):
     """Escalation channel properties with simulation support."""
 
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
-
+    example_calls: list[ExampleCall] | None = Field(None, alias="exampleCalls")
 
 class AgentEvalsDefinition(AgentDefinition):
     """Agent definition with evaluation sets and evaluators support."""
 
-    evaluation_sets: Optional[List[EvaluationSet]] = Field(
+    evaluation_sets: list[EvaluationSet] | None = Field(
         None,
         alias="evaluationSets",
         description="List of agent evaluation sets",
     )
-    evaluators: Optional[List[Evaluator]] = Field(
+    evaluators: list[Evaluator] | None = Field(
         None, description="List of agent evaluators"
     )

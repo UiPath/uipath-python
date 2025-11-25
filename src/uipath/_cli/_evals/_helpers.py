@@ -6,7 +6,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import click
 
@@ -16,7 +16,6 @@ from uipath._utils.constants import CUSTOM_EVALUATOR_PREFIX
 
 logger = logging.getLogger(__name__)
 console = ConsoleLogger().get_instance()
-
 
 def try_extract_file_and_class_name(text: str) -> tuple[bool, str, str]:
     if text.startswith(CUSTOM_EVALUATOR_PREFIX):
@@ -30,12 +29,10 @@ def try_extract_file_and_class_name(text: str) -> tuple[bool, str, str]:
         return True, file_path_str, class_name
     return False, "", ""
 
-
 def to_kebab_case(text: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "-", text).lower()
 
-
-def find_evaluator_file(filename: str) -> Optional[Path]:
+def find_evaluator_file(filename: str) -> Path | None:
     """Find the evaluator file in evals/evaluators/custom folder."""
     custom_evaluators_path = Path.cwd() / EVALS_DIRECTORY_NAME / "evaluators" / "custom"
 
@@ -48,8 +45,7 @@ def find_evaluator_file(filename: str) -> Optional[Path]:
 
     return None
 
-
-def find_base_evaluator_class(file_path: Path) -> Optional[str]:
+def find_base_evaluator_class(file_path: Path) -> str | None:
     """Parse the Python file and find the class that inherits from BaseEvaluator."""
     try:
         with open(file_path, "r") as f:
@@ -72,8 +68,7 @@ def find_base_evaluator_class(file_path: Path) -> Optional[str]:
         logger.error(f"Error parsing file: {e}")
         return None
 
-
-def load_evaluator_class(file_path: Path, class_name: str) -> Optional[type]:
+def load_evaluator_class(file_path: Path, class_name: str) -> type | None:
     """Dynamically load the evaluator class from the file."""
     try:
         parent_dir = str(file_path.parent)
@@ -99,7 +94,6 @@ def load_evaluator_class(file_path: Path, class_name: str) -> Optional[type]:
         if parent_dir in sys.path:
             sys.path.remove(parent_dir)
 
-
 def generate_evaluator_config(evaluator_class: type, class_name: str) -> dict[str, Any]:
     """Generate the evaluator config from the class."""
     try:
@@ -110,7 +104,6 @@ def generate_evaluator_config(evaluator_class: type, class_name: str) -> dict[st
         return config_dict
     except Exception as e:
         console.error(f"Error inferring evaluator config: {e}")
-
 
 def register_evaluator(filename: str) -> tuple[str, str]:
     """Infers the schema and types of a custom evaluator.

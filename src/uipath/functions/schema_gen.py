@@ -18,7 +18,6 @@ TYPE_MAP: dict[str, str] = {
     "Dict": "object",
 }
 
-
 def get_type_schema(type_hint: Any) -> dict[str, Any]:
     """Convert a type hint to a JSON schema."""
     if type_hint is None or type_hint == inspect.Parameter.empty:
@@ -27,7 +26,7 @@ def get_type_schema(type_hint: Any) -> dict[str, Any]:
     origin = get_origin(type_hint)
     args = get_args(type_hint)
 
-    # Handle Optional[T] / Union[T, None]
+    # Handle T | None / Union[T, None]
     if origin is Union:
         non_none_args = [arg for arg in args if arg is not type(None)]
         if non_none_args:
@@ -69,7 +68,6 @@ def get_type_schema(type_hint: Any) -> dict[str, Any]:
     type_name = getattr(type_hint, "__name__", str(type_hint))
     return {"type": TYPE_MAP.get(type_name, "object")}
 
-
 def _get_enum_schema(enum_class: type[Enum]) -> dict[str, Any]:
     """Generate schema for Enum types."""
     enum_values = [member.value for member in enum_class]
@@ -86,7 +84,6 @@ def _get_enum_schema(enum_class: type[Enum]) -> dict[str, Any]:
 
     return {"type": enum_type, "enum": enum_values}
 
-
 def _get_pydantic_schema(model_class: type[BaseModel]) -> dict[str, Any]:
     """Generate schema for Pydantic models."""
     properties = {}
@@ -99,7 +96,6 @@ def _get_pydantic_schema(model_class: type[BaseModel]) -> dict[str, Any]:
             required.append(schema_field_name)
 
     return {"type": "object", "properties": properties, "required": required}
-
 
 def _get_dataclass_schema(dataclass_type: type) -> dict[str, Any]:
     """Generate schema for dataclass types."""
@@ -118,7 +114,6 @@ def _get_dataclass_schema(dataclass_type: type) -> dict[str, Any]:
             required.append(field.name)
 
     return {"type": "object", "properties": properties, "required": required}
-
 
 def _get_annotated_class_schema(class_type: type) -> dict[str, Any]:
     """Generate schema for regular classes with type annotations."""

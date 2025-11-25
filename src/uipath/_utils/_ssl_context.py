@@ -1,7 +1,6 @@
 import os
 import ssl
-from typing import Any, Dict
-
+from typing import Any
 
 def expand_path(path):
     """Expand environment variables and user home directory in path."""
@@ -12,7 +11,6 @@ def expand_path(path):
     # Expand user home directory ~
     path = os.path.expanduser(path)
     return path
-
 
 def create_ssl_context():
     # Try truststore first (system certificates)
@@ -33,10 +31,9 @@ def create_ssl_context():
             capath=ssl_cert_dir,
         )
 
-
-def get_httpx_client_kwargs() -> Dict[str, Any]:
+def get_httpx_client_kwargs() -> dict[str, Any]:
     """Get standardized httpx client configuration."""
-    client_kwargs: Dict[str, Any] = {"follow_redirects": True, "timeout": 30.0}
+    client_kwargs: dict[str, Any] = {"follow_redirects": True, "timeout": 30.0}
 
     # Check environment variable to disable SSL verification
     disable_ssl_env = os.environ.get("UIPATH_DISABLE_SSL_VERIFY", "").lower()

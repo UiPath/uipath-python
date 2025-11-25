@@ -1,6 +1,6 @@
 import dataclasses
 import datetime
-from typing import Dict
+
 from zoneinfo import ZoneInfo
 
 from google.adk.agents import Agent
@@ -8,15 +8,14 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 
-
-def get_weather(city: str) -> Dict[str, str]:
+def get_weather(city: str) -> dict[str, str]:
     """Retrieves the current weather report for a specified city.
 
     Args:
         city (str): The name of the city for which to retrieve the weather report.
 
     Returns:
-        Dict[str, str]: Dictionary containing status and result or error message.
+        dict[str, str]: Dictionary containing status and result or error message.
     """
     if city.lower() == "new york":
         return {
@@ -32,15 +31,14 @@ def get_weather(city: str) -> Dict[str, str]:
             "error_message": f"Weather information for '{city}' is not available.",
         }
 
-
-def get_current_time(city: str) -> Dict[str, str]:
+def get_current_time(city: str) -> dict[str, str]:
     """Returns the current time in a specified city.
 
     Args:
         city (str): The name of the city for which to retrieve the current time.
 
     Returns:
-        Dict[str, str]: Dictionary containing status and result or error message.
+        dict[str, str]: Dictionary containing status and result or error message.
     """
     if city.lower() == "new york":
         tz_identifier = "America/New_York"
@@ -55,7 +53,6 @@ def get_current_time(city: str) -> Dict[str, str]:
     report = f"The current time in {city} is {now.strftime('%Y-%m-%d %H:%M:%S %Z%z')}"
     return {"status": "success", "report": report}
 
-
 root_agent = Agent(
     name="weather_time_agent",
     model="gemini-1.5-flash",
@@ -65,7 +62,6 @@ root_agent = Agent(
     ),
     tools=[get_weather, get_current_time],
 )
-
 
 @dataclasses.dataclass
 class AgentInput:
@@ -77,7 +73,6 @@ class AgentInput:
 
     query: str
 
-
 def configure_ssl_context() -> None:
     """Configure SSL context with proper certificate paths."""
     import os
@@ -88,7 +83,6 @@ def configure_ssl_context() -> None:
         os.environ["SSL_CERT_FILE"] = default_paths.cafile
     if not os.getenv("SSL_CERT_DIR", None):
         os.environ["SSL_CERT_DIR"] = default_paths.capath or "/etc/ssl/certs"
-
 
 async def main(input: AgentInput) -> str:
     """Main entry point for the agent.

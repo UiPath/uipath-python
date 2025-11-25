@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Union
 
 import httpx
 from pydantic import TypeAdapter
@@ -38,7 +38,6 @@ from ._base_service import BaseService
 from .buckets_service import BucketsService
 from .folder_service import FolderService
 
-
 class ContextGroundingService(FolderContext, BaseService):
     """Service for managing semantic automation contexts in UiPath.
 
@@ -69,23 +68,23 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         blob_file_path: str,
-        content_type: Optional[str] = None,
-        content: Optional[Union[str, bytes]] = None,
-        source_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content_type: str | None = None,
+        content: Union[str, bytes] | None = None,
+        source_path: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
         ingest_data: bool = True,
     ) -> None:
         """Add content to the index.
 
         Args:
             name (str): The name of the index to add content to.
-            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
+            content_type (str | None): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
             blob_file_path (str): The path where the blob will be stored in the storage bucket.
-            content (Optional[Union[str, bytes]]): The content to be added, either as a string or bytes.
-            source_path (Optional[str]): The source path of the content if it is being uploaded from a file.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            content (Union[str, bytes] | None): The content to be added, either as a string or bytes.
+            source_path (str | None): The source path of the content if it is being uploaded from a file.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
             ingest_data (bool): Whether to ingest data in the index after content is uploaded. Defaults to True.
 
         Raises:
@@ -124,23 +123,23 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         blob_file_path: str,
-        content_type: Optional[str] = None,
-        content: Optional[Union[str, bytes]] = None,
-        source_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content_type: str | None = None,
+        content: Union[str, bytes] | None = None,
+        source_path: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
         ingest_data: bool = True,
     ) -> None:
         """Asynchronously add content to the index.
 
         Args:
             name (str): The name of the index to add content to.
-            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
+            content_type (str | None): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
             blob_file_path (str): The path where the blob will be stored in the storage bucket.
-            content (Optional[Union[str, bytes]]): The content to be added, either as a string or bytes.
-            source_path (Optional[str]): The source path of the content if it is being uploaded from a file.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            content (Union[str, bytes] | None): The content to be added, either as a string or bytes.
+            source_path (str | None): The source path of the content if it is being uploaded from a file.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
             ingest_data (bool): Whether to ingest data in the index after content is uploaded. Defaults to True.
 
         Raises:
@@ -182,15 +181,15 @@ class ContextGroundingService(FolderContext, BaseService):
     def retrieve(
         self,
         name: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> ContextGroundingIndex:
         """Retrieve context grounding index information by its name.
 
         Args:
             name (str): The name of the context index to retrieve.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
 
         Returns:
             ContextGroundingIndex: The index information, including its configuration and metadata if found.
@@ -224,15 +223,15 @@ class ContextGroundingService(FolderContext, BaseService):
     async def retrieve_async(
         self,
         name: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> ContextGroundingIndex:
         """Asynchronously retrieve context grounding index information by its name.
 
         Args:
             name (str): The name of the context index to retrieve.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
 
         Returns:
             ContextGroundingIndex: The index information, including its configuration and metadata if found.
@@ -268,8 +267,8 @@ class ContextGroundingService(FolderContext, BaseService):
     def retrieve_by_id(
         self,
         id: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Any:
         """Retrieve context grounding index information by its ID.
 
@@ -278,8 +277,8 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             id (str): The unique identifier of the context index.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
 
         Returns:
             Any: The index information, including its configuration and metadata.
@@ -301,8 +300,8 @@ class ContextGroundingService(FolderContext, BaseService):
     async def retrieve_by_id_async(
         self,
         id: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Any:
         """Retrieve asynchronously context grounding index information by its ID.
 
@@ -311,8 +310,8 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             id (str): The unique identifier of the context index.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
 
         Returns:
             Any: The index information, including its configuration and metadata.
@@ -337,11 +336,11 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         source: SourceConfig,
-        description: Optional[str] = None,
-        advanced_ingestion: Optional[bool] = True,
-        preprocessing_request: Optional[str] = LLMV4_REQUEST,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        description: str | None = None,
+        advanced_ingestion: bool | None = True,
+        preprocessing_request: str | None = LLMV4_REQUEST,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> ContextGroundingIndex:
         """Create a new context grounding index.
 
@@ -356,11 +355,11 @@ class ContextGroundingService(FolderContext, BaseService):
 
                 The source can include an optional indexer field for scheduled indexing:
                     source.indexer = Indexer(cron_expression="0 0 18 ? * 2", time_zone_id="UTC")
-            description (Optional[str]): Description of the index.
-            advanced_ingestion (Optional[bool]): Enable advanced ingestion with preprocessing. Defaults to True.
-            preprocessing_request (Optional[str]): The OData type for preprocessing request. Defaults to LLMV4_REQUEST.
-            folder_key (Optional[str]): The key of the folder where the index will be created.
-            folder_path (Optional[str]): The path of the folder where the index will be created.
+            description (str | None): Description of the index.
+            advanced_ingestion (bool | None): Enable advanced ingestion with preprocessing. Defaults to True.
+            preprocessing_request (str | None): The OData type for preprocessing request. Defaults to LLMV4_REQUEST.
+            folder_key (str | None): The key of the folder where the index will be created.
+            folder_path (str | None): The path of the folder where the index will be created.
 
         Returns:
             ContextGroundingIndex: The created index information.
@@ -392,11 +391,11 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         source: SourceConfig,
-        description: Optional[str] = None,
-        advanced_ingestion: Optional[bool] = True,
-        preprocessing_request: Optional[str] = LLMV4_REQUEST,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        description: str | None = None,
+        advanced_ingestion: bool | None = True,
+        preprocessing_request: str | None = LLMV4_REQUEST,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> ContextGroundingIndex:
         """Create a new context grounding index.
 
@@ -411,11 +410,11 @@ class ContextGroundingService(FolderContext, BaseService):
 
                 The source can include an optional indexer field for scheduled indexing:
                     source.indexer = Indexer(cron_expression="0 0 18 ? * 2", time_zone_id="UTC")
-            description (Optional[str]): Description of the index.
-            advanced_ingestion (Optional[bool]): Enable advanced ingestion with preprocessing. Defaults to True.
-            preprocessing_request (Optional[str]): The OData type for preprocessing request. Defaults to LLMV4_REQUEST.
-            folder_key (Optional[str]): The key of the folder where the index will be created.
-            folder_path (Optional[str]): The path of the folder where the index will be created.
+            description (str | None): Description of the index.
+            advanced_ingestion (bool | None): Enable advanced ingestion with preprocessing. Defaults to True.
+            preprocessing_request (str | None): The OData type for preprocessing request. Defaults to LLMV4_REQUEST.
+            folder_key (str | None): The key of the folder where the index will be created.
+            folder_path (str | None): The path of the folder where the index will be created.
 
         Returns:
             ContextGroundingIndex: The created index information.
@@ -448,9 +447,9 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> List[ContextGroundingQueryResponse]:
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> list[ContextGroundingQueryResponse]:
         """Search for contextual information within a specific index.
 
         This method performs a semantic search against the specified context index,
@@ -464,7 +463,7 @@ class ContextGroundingService(FolderContext, BaseService):
                 Defaults to 10.
 
         Returns:
-            List[ContextGroundingQueryResponse]: A list of search results, each containing
+            list[ContextGroundingQueryResponse]: A list of search results, each containing
                 relevant contextual information and metadata.
         """
         index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
@@ -486,7 +485,7 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-        return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
+        return TypeAdapter(list[ContextGroundingQueryResponse]).validate_python(
             response.json()
         )
 
@@ -497,9 +496,9 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-    ) -> List[ContextGroundingQueryResponse]:
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> list[ContextGroundingQueryResponse]:
         """Search asynchronously for contextual information within a specific index.
 
         This method performs a semantic search against the specified context index,
@@ -513,7 +512,7 @@ class ContextGroundingService(FolderContext, BaseService):
                 Defaults to 10.
 
         Returns:
-            List[ContextGroundingQueryResponse]: A list of search results, each containing
+            list[ContextGroundingQueryResponse]: A list of search results, each containing
                 relevant contextual information and metadata.
         """
         index = self.retrieve(
@@ -538,7 +537,7 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-        return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
+        return TypeAdapter(list[ContextGroundingQueryResponse]).validate_python(
             response.json()
         )
 
@@ -546,15 +545,15 @@ class ContextGroundingService(FolderContext, BaseService):
     def ingest_data(
         self,
         index: ContextGroundingIndex,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Ingest data into the context grounding index.
 
         Args:
             index (ContextGroundingIndex): The context grounding index to perform data ingestion.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
         """
         if not index.id:
             return
@@ -580,15 +579,15 @@ class ContextGroundingService(FolderContext, BaseService):
     async def ingest_data_async(
         self,
         index: ContextGroundingIndex,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Asynchronously ingest data into the context grounding index.
 
         Args:
             index (ContextGroundingIndex): The context grounding index to perform data ingestion.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
         """
         if not index.id:
             return
@@ -614,8 +613,8 @@ class ContextGroundingService(FolderContext, BaseService):
     def delete_index(
         self,
         index: ContextGroundingIndex,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Delete a context grounding index.
 
@@ -623,8 +622,8 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             index (ContextGroundingIndex): The context grounding index to delete.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
         """
         if not index.id:
             return
@@ -643,8 +642,8 @@ class ContextGroundingService(FolderContext, BaseService):
     async def delete_index_async(
         self,
         index: ContextGroundingIndex,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Asynchronously delete a context grounding index.
 
@@ -652,8 +651,8 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             index (ContextGroundingIndex): The context grounding index to delete.
-            folder_key (Optional[str]): The key of the folder where the index resides.
-            folder_path (Optional[str]): The path of the folder where the index resides.
+            folder_key (str | None): The key of the folder where the index resides.
+            folder_path (str | None): The path of the folder where the index resides.
         """
         if not index.id:
             return
@@ -671,8 +670,8 @@ class ContextGroundingService(FolderContext, BaseService):
     def _ingest_spec(
         self,
         key: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
 
@@ -687,8 +686,8 @@ class ContextGroundingService(FolderContext, BaseService):
     def _retrieve_spec(
         self,
         name: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
 
@@ -707,12 +706,12 @@ class ContextGroundingService(FolderContext, BaseService):
     def _create_spec(
         self,
         name: str,
-        description: Optional[str],
+        description: str | None,
         source: SourceConfig,
         advanced_ingestion: bool,
         preprocessing_request: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         """Create request spec for index creation.
 
@@ -756,7 +755,7 @@ class ContextGroundingService(FolderContext, BaseService):
             },
         )
 
-    def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:
+    def _build_data_source(self, source: SourceConfig) -> dict[str, Any]:
         """Build data source configuration from typed source config.
 
         Args:
@@ -827,8 +826,8 @@ class ContextGroundingService(FolderContext, BaseService):
     def _retrieve_by_id_spec(
         self,
         id: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
 
@@ -843,8 +842,8 @@ class ContextGroundingService(FolderContext, BaseService):
     def _delete_by_id_spec(
         self,
         id: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
 
@@ -861,8 +860,8 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
 
@@ -894,7 +893,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return folder_key
 
-    def _extract_bucket_info(self, index: ContextGroundingIndex) -> Tuple[str, str]:
+    def _extract_bucket_info(self, index: ContextGroundingIndex) -> tuple[str, str]:
         """Extract bucket information from the index, validating it's a storage bucket data source.
 
         Args:

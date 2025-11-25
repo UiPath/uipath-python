@@ -1,5 +1,4 @@
 import time
-from typing import Optional
 
 import click
 import httpx
@@ -22,19 +21,19 @@ from ._utils import get_auth_data, get_parsed_token_data, update_auth_file
 class PortalService:
     """Service for interacting with the UiPath Portal API."""
 
-    access_token: Optional[str] = None
-    prt_id: Optional[str] = None
+    access_token: str | None = None
+    prt_id: str | None = None
     domain: str
-    selected_tenant: Optional[str] = None
+    selected_tenant: str | None = None
 
-    _client: Optional[httpx.Client] = None
-    _tenants_and_organizations: Optional[TenantsAndOrganizationInfoResponse] = None
+    _client: httpx.Client | None = None
+    _tenants_and_organizations: TenantsAndOrganizationInfoResponse | None = None
 
     def __init__(
         self,
         domain: str,
-        access_token: Optional[str] = None,
-        prt_id: Optional[str] = None,
+        access_token: str | None = None,
+        prt_id: str | None = None,
     ):
         self.domain = domain
         self.access_token = access_token
@@ -206,7 +205,7 @@ class PortalService:
 
         return self._set_tenant(tenant, organization)
 
-    def resolve_tenant_info(self, tenant: Optional[str] = None):
+    def resolve_tenant_info(self, tenant: str | None = None):
         if tenant:
             return self._retrieve_tenant(tenant)
         return self._select_tenant()

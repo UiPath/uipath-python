@@ -3,7 +3,7 @@ import os
 from enum import Enum
 from functools import wraps
 from pathlib import PurePath
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, Union
 
 import click
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -21,12 +21,10 @@ from uipath.platform import UiPath
 from uipath.platform.errors import EnrichedException
 from uipath.tracing import traced
 
-
 class NonCodedAgentProjectException(Exception):
     """Raised when the targeted project is not a coded agent one."""
 
     pass
-
 
 class ProjectFile(BaseModel):
     """Model representing a file in a UiPath project.
@@ -53,33 +51,32 @@ class ProjectFile(BaseModel):
 
     id: str = Field(alias="id")
     name: str = Field(alias="name")
-    is_main: Optional[bool] = Field(default=None, alias="isMain")
-    file_type: Optional[str] = Field(default=None, alias="fileType")
-    is_entry_point: Optional[bool] = Field(default=None, alias="isEntryPoint")
-    ignored_from_publish: Optional[bool] = Field(
+    is_main: bool | None = Field(default=None, alias="isMain")
+    file_type: str | None = Field(default=None, alias="fileType")
+    is_entry_point: bool | None = Field(default=None, alias="isEntryPoint")
+    ignored_from_publish: bool | None = Field(
         default=None, alias="ignoredFromPublish"
     )
-    app_form_id: Optional[str] = Field(default=None, alias="appFormId")
-    external_automation_id: Optional[str] = Field(
+    app_form_id: str | None = Field(default=None, alias="appFormId")
+    external_automation_id: str | None = Field(
         default=None, alias="externalAutomationId"
     )
-    test_case_id: Optional[str] = Field(default=None, alias="testCaseId")
+    test_case_id: str | None = Field(default=None, alias="testCaseId")
 
     @field_validator("file_type", mode="before")
     @classmethod
-    def convert_file_type(cls, v: Union[str, int, None]) -> Optional[str]:
+    def convert_file_type(cls, v: Union[str, int, None]) -> str | None:
         """Convert numeric file type to string.
 
         Args:
             v: The value to convert
 
         Returns:
-            Optional[str]: The converted value or None
+            str | None: The converted value or None
         """
         if isinstance(v, int):
             return str(v)
         return v
-
 
 class ProjectFolder(BaseModel):
     """Model representing a folder in a UiPath project structure.
@@ -100,27 +97,26 @@ class ProjectFolder(BaseModel):
         extra="allow",
     )
 
-    id: Optional[str] = Field(default=None, alias="id")
+    id: str | None = Field(default=None, alias="id")
     name: str = Field(alias="name")
-    folders: List["ProjectFolder"] = Field(default_factory=list)
-    files: List[ProjectFile] = Field(default_factory=list)
-    folder_type: Optional[str] = Field(default=None, alias="folderType")
+    folders: list["ProjectFolder"] = Field(default_factory=list)
+    files: list[ProjectFile] = Field(default_factory=list)
+    folder_type: str | None = Field(default=None, alias="folderType")
 
     @field_validator("folder_type", mode="before")
     @classmethod
-    def convert_folder_type(cls, v: Union[str, int, None]) -> Optional[str]:
+    def convert_folder_type(cls, v: Union[str, int, None]) -> str | None:
         """Convert numeric folder type to string.
 
         Args:
             v: The value to convert
 
         Returns:
-            Optional[str]: The converted value or None
+            str | None: The converted value or None
         """
         if isinstance(v, int):
             return str(v)
         return v
-
 
 class ProjectStructure(ProjectFolder):
     """Model representing the complete file structure of a UiPath project.
@@ -133,7 +129,6 @@ class ProjectStructure(ProjectFolder):
         folder_type: The type of the root folder (optional)
     """
 
-
 class LockInfo(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True,
@@ -142,9 +137,8 @@ class LockInfo(BaseModel):
         arbitrary_types_allowed=True,
         extra="allow",
     )
-    project_lock_key: Optional[str] = Field(alias="projectLockKey")
-    solution_lock_key: Optional[str] = Field(alias="solutionLockKey")
-
+    project_lock_key: str | None = Field(alias="projectLockKey")
+    solution_lock_key: str | None = Field(alias="solutionLockKey")
 
 class Severity(str, Enum):
     """Severity level for virtual resource operation results."""
@@ -152,7 +146,6 @@ class Severity(str, Enum):
     SUCCESS = "success"
     ATTENTION = "attention"
     WARN = "warn"
-
 
 class VirtualResourceRequest(BaseModel):
     model_config = ConfigDict(
@@ -162,10 +155,9 @@ class VirtualResourceRequest(BaseModel):
 
     kind: str = Field(alias="kind")
     name: str = Field(alias="name")
-    type: Optional[str] = Field(default=None, alias="type")
-    activity_name: Optional[str] = Field(default=None, alias="activityName")
-    api_version: Optional[str] = Field(default=None, alias="apiVersion")
-
+    type: str | None = Field(default=None, alias="type")
+    activity_name: str | None = Field(default=None, alias="activityName")
+    api_version: str | None = Field(default=None, alias="apiVersion")
 
 class VirtualResourceResult(BaseModel):
     """Result of a virtual resource creation operation.
@@ -177,7 +169,6 @@ class VirtualResourceResult(BaseModel):
 
     severity: Severity
     message: str
-
 
 class ReferencedResourceFolder(BaseModel):
     """Folder reference for a referenced resource.
@@ -196,7 +187,6 @@ class ReferencedResourceFolder(BaseModel):
     fully_qualified_name: str = Field(alias="fullyQualifiedName")
     path: str = Field(alias="path")
 
-
 type_mappings = {
     "text": "stringAsset",
     "integer": "integerAsset",
@@ -207,7 +197,6 @@ type_mappings = {
     "amazon": "amazonBucket",
     "azure": "azureBucket",
 }
-
 
 class ReferencedResourceRequest(BaseModel):
     """Request payload for creating a referenced resource.
@@ -226,7 +215,7 @@ class ReferencedResourceRequest(BaseModel):
 
     key: str = Field(alias="key")
     kind: str = Field(alias="kind")
-    type: Optional[str] = Field(alias="type")
+    type: str | None = Field(alias="type")
     folder: ReferencedResourceFolder = Field(alias="folder")
 
     @field_validator("kind", mode="before")
@@ -236,13 +225,12 @@ class ReferencedResourceRequest(BaseModel):
 
     @field_validator("type", mode="before")
     @classmethod
-    def type_mapping(cls, v: Optional[str]) -> Optional[str]:
+    def type_mapping(cls, v: str | None) -> str | None:
         if not v:
             return v
         if v.lower() in type_mappings:
             return type_mappings[v.lower()]
         return v[0].lower() + v[1:]
-
 
 class ResourceOverwriteData(BaseModel):
     """Represents the overwrite details from the API response.
@@ -260,10 +248,9 @@ class ResourceOverwriteData(BaseModel):
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
 
-
 def get_folder_by_name(
     structure: ProjectStructure, folder_name: str | None
-) -> Optional[ProjectFolder]:
+) -> ProjectFolder | None:
     """Get a folder from the project structure by name.
 
     Args:
@@ -271,7 +258,7 @@ def get_folder_by_name(
         folder_name: Name of the folder to find or None for root folder
 
     Returns:
-        Optional[ProjectFolder]: The found folder or None
+        ProjectFolder | None: The found folder or None
     """
     if not folder_name:
         return structure
@@ -281,10 +268,9 @@ def get_folder_by_name(
             return folder
     return None
 
-
 def get_subfolder_by_name(
     parent_folder: ProjectFolder, subfolder_name: str
-) -> Optional[ProjectFolder]:
+) -> ProjectFolder | None:
     """Get a subfolder from within a parent folder by name.
 
     Args:
@@ -292,13 +278,12 @@ def get_subfolder_by_name(
         subfolder_name: Name of the subfolder to find
 
     Returns:
-        Optional[ProjectFolder]: The found subfolder or None
+        ProjectFolder | None: The found subfolder or None
     """
     for folder in parent_folder.folders:
         if folder.name == subfolder_name:
             return folder
     return None
-
 
 def resolve_path(
     folder: ProjectFolder,
@@ -326,41 +311,35 @@ def resolve_path(
     assert resolved, "Path not found."
     return resolved
 
-
 class AddedResource(BaseModel):
     """Represents a new file to be added during a structural migration."""
 
-    content_file_path: Optional[str] = None
-    parent_path: Optional[str] = None
-    file_name: Optional[str] = None
-    content_string: Optional[str] = None
-
+    content_file_path: str | None = None
+    parent_path: str | None = None
+    file_name: str | None = None
+    content_string: str | None = None
 
 class ModifiedResource(BaseModel):
     """Represents a file update during a structural migration."""
 
     id: str
-    content_file_path: Optional[str] = None
-    content_string: Optional[str] = None
-
+    content_file_path: str | None = None
+    content_string: str | None = None
 
 class StructuralMigration(BaseModel):
-    deleted_resources: List[str]
-    added_resources: List[AddedResource]
-    modified_resources: List[ModifiedResource]
-
+    deleted_resources: list[str]
+    added_resources: list[AddedResource]
+    modified_resources: list[ModifiedResource]
 
 class ProjectLockUnavailableError(RuntimeError):
     """Raised when a project lock prevents execution."""
 
     pass
 
-
 class Status(str, Enum):
     ADDED = "ADDED"
     UNCHANGED = "UNCHANGED"
     UPDATED = "UPDATED"
-
 
 class ReferencedResourceResponse(BaseModel):
     """Response from creating a referenced resource.
@@ -396,7 +375,6 @@ class ReferencedResourceResponse(BaseModel):
             f"Status must be a string or Status enum, got {type(v).__name__}"
         )
 
-
 def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
     async def wrapper(self: "StudioClient", *args, **kwargs):
@@ -417,7 +395,6 @@ def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
 
     return wrapper
 
-
 class StudioSolutionsClient:
     def __init__(self, solution_id: str):
         from uipath.platform import UiPath
@@ -431,7 +408,7 @@ class StudioSolutionsClient:
         project_name: str,
         project_type: str = "Agent",
         trigger_type: str = "Manual",
-        description: Optional[str] = None,
+        description: str | None = None,
     ):
         """Create a new project in the specified solution.
 
@@ -459,7 +436,6 @@ class StudioSolutionsClient:
 
         return response.json()
 
-
 class StudioProjectMetadata(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True,
@@ -474,9 +450,8 @@ class StudioProjectMetadata(BaseModel):
     last_push_author: str = Field(alias="lastPushAuthor")
     code_version: str = Field(alias="codeVersion")
 
-
 class StudioClient:
-    def __init__(self, project_id: str, uipath: Optional[UiPath] = None):
+    def __init__(self, project_id: str, uipath: UiPath | None = None):
         self.uipath: UiPath = uipath or UiPath()
         self.file_operations_base_url: str = (
             f"/studio_/backend/api/Project/{project_id}/FileOperations"
@@ -485,9 +460,9 @@ class StudioClient:
             f"/studio_/backend/api/Project/{project_id}/Lock"
         )
         self._project_id = project_id
-        self._solution_id_cache: Optional[str] = None
-        self._resources_cache: Optional[List[dict[str, Any]]] = None
-        self._project_structure_cache: Optional[ProjectStructure] = None
+        self._solution_id_cache: str | None = None
+        self._resources_cache: list[dict[str, Any]] | None = None
+        self._project_structure_cache: ProjectStructure | None = None
 
     async def _get_solution_id(self) -> str:
         # implement property cache logic as coroutines are not supported
@@ -506,7 +481,7 @@ class StudioClient:
         if not any(file.name == PYTHON_CONFIGURATION_FILE for file in structure.files):
             raise NonCodedAgentProjectException()
 
-    async def get_project_metadata_async(self) -> Optional[StudioProjectMetadata]:
+    async def get_project_metadata_async(self) -> StudioProjectMetadata | None:
         structure = await self.get_project_structure_async()
 
         folder = get_folder_by_name(structure, ".uipath")
@@ -523,7 +498,7 @@ class StudioClient:
             response.read().decode("utf-8")
         )
 
-    async def _get_existing_resources(self) -> List[dict[str, Any]]:
+    async def _get_existing_resources(self) -> list[dict[str, Any]]:
         if self._resources_cache is not None:
             return self._resources_cache
 
@@ -742,8 +717,8 @@ class StudioClient:
     async def create_folder_async(
         self,
         folder_name: str,
-        parent_id: Optional[str] = None,
-        headers: Optional[dict[str, Any]] = None,
+        parent_id: str | None = None,
+        headers: dict[str, Any] | None = None,
     ) -> str:
         """Create a folder in the project.
 
@@ -790,12 +765,12 @@ class StudioClient:
     async def upload_file_async(
         self,
         *,
-        local_file_path: Optional[str] = None,
-        file_content: Optional[str | bytes] = None,
+        local_file_path: str | None = None,
+        file_content: str | bytes | None = None,
         file_name: str,
-        folder: Optional[ProjectFolder] = None,
-        remote_file: Optional[ProjectFile] = None,
-        headers: Optional[dict[str, Any]] = None,
+        folder: ProjectFolder | None = None,
+        remote_file: ProjectFile | None = None,
+        headers: dict[str, Any] | None = None,
     ) -> tuple[str, str]:
         if local_file_path:
             with open(local_file_path, "rb") as f:
@@ -831,7 +806,7 @@ class StudioClient:
     async def delete_item_async(
         self,
         item_id: str,
-        headers: Optional[dict[str, Any]] = None,
+        headers: dict[str, Any] | None = None,
     ) -> None:
         await self.uipath.api_client.request_async(
             "DELETE",
@@ -843,11 +818,11 @@ class StudioClient:
     def _resolve_content_and_filename(
         self,
         *,
-        content_string: Optional[str],
-        content_file_path: Optional[str],
-        file_name: Optional[str] = None,
+        content_string: str | None,
+        content_file_path: str | None,
+        file_name: str | None = None,
         modified: bool = False,
-    ) -> tuple[bytes, Optional[str]]:
+    ) -> tuple[bytes, str | None]:
         """Resolve multipart content bytes and filename for a resource.
 
         Args:
@@ -863,7 +838,7 @@ class StudioClient:
             ValueError: If a filename cannot be determined.
         """
         content_bytes: bytes = b""
-        resolved_name: Optional[str] = None
+        resolved_name: str | None = None
         if content_string is not None:
             content_bytes = content_string.encode("utf-8")
         elif content_file_path:
@@ -892,7 +867,7 @@ class StudioClient:
     async def perform_structural_migration_async(
         self,
         structural_migration: StructuralMigration,
-        headers: Optional[dict[str, Any]] = None,
+        headers: dict[str, Any] | None = None,
     ) -> Any:
         """Perform structural migration of project files.
 

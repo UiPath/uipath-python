@@ -2,7 +2,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -17,7 +17,6 @@ from uipath._cli._utils._common import may_override_files
 from uipath._cli._utils._studio_project import StudioProjectMetadata
 from uipath.platform.errors import EnrichedException
 
-
 def create_uipath_json(
     functions: dict[str, str] | None = None, pack_options: dict | None = None
 ):
@@ -30,7 +29,6 @@ def create_uipath_json(
         config["packOptions"] = pack_options
 
     return config
-
 
 def extract_metadata_json_from_modified_resources(
     request: Request, *, metadata_file_id: str | None = None
@@ -77,7 +75,6 @@ def extract_metadata_json_from_modified_resources(
         "studio_metadata.json content not found in ModifiedResources of StructuralMigration payload"
     )
 
-
 def extract_metadata_json_from_added_resources(request: Request) -> dict[str, Any]:
     """Extract studio_metadata.json content from AddedResources in StructuralMigration payload."""
     match = re.search(
@@ -103,7 +100,6 @@ def extract_metadata_json_from_added_resources(request: Request) -> dict[str, An
         "studio_metadata.json content not found in AddedResources of StructuralMigration payload"
     )
 
-
 class TestPush:
     """Test push command."""
 
@@ -115,7 +111,7 @@ class TestPush:
         httpx_mock,
         file_id: str,
         *,
-        file_content: Optional[str] = None,
+        file_content: str | None = None,
         times: int = 1,
     ):
         for _ in range(times):
@@ -139,7 +135,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
     ) -> None:
         """Test push when uipath.json is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -160,7 +156,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
     ) -> None:
         """Test push shows specific missing files when uipath.json and .uipath are missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -186,7 +182,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
     ) -> None:
         """Test push when .uipath directory exists but uipath.json is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -209,7 +205,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
     ) -> None:
         """Test push when UIPATH_PROJECT_ID is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
@@ -228,7 +224,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test successful project push with various file operations."""
@@ -389,7 +385,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test successful project push with various file operations."""
@@ -502,7 +498,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test push when API request fails."""
@@ -538,7 +534,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test push when the project is not a coded agent project (missing pyproject.toml)."""
@@ -600,7 +596,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test push command with --nolock flag."""
@@ -703,7 +699,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that files mentioned in filesExcluded are excluded from push."""
@@ -782,7 +778,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that filesExcluded takes precedence over filesIncluded in push."""
@@ -860,7 +856,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that filename exclusion only affects root directory, path exclusion affects specific paths in push."""
@@ -950,7 +946,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that filename inclusion only affects root directory, path inclusion affects specific paths in push."""
@@ -1056,7 +1052,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that directory exclusion by name only affects root level, by path affects specific paths in push."""
@@ -1161,7 +1157,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
         monkeypatch: Any,
     ) -> None:
@@ -1238,7 +1234,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that push shows 'up to date' message for files that haven't changed."""
@@ -1333,7 +1329,7 @@ class TestPush:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that remote evaluations files are not deleted when no local evals folder exists."""
@@ -1463,7 +1459,6 @@ class TestPush:
             assert b"evaluator-file-1" not in content
             assert b"eval-set-file-1" not in content
 
-
 class TestResourceCreation:
     """Test resource creation and import functionality during push."""
 
@@ -1475,7 +1470,7 @@ class TestResourceCreation:
         httpx_mock,
         file_id: str,
         *,
-        file_content: Optional[str] = None,
+        file_content: str | None = None,
         times: int = 1,
     ):
         for _ in range(times):
@@ -1491,7 +1486,7 @@ class TestResourceCreation:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that push without --ignore-resources flag imports referenced resources to the solution."""
@@ -1679,7 +1674,7 @@ class TestResourceCreation:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that push with --ignore-resources flag skips resource import."""
@@ -1791,7 +1786,7 @@ class TestResourceCreation:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that push shows warning when referenced resource is not found in catalog."""
@@ -1922,7 +1917,7 @@ class TestResourceCreation:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that push shows unchanged message when referenced resource already exists."""
@@ -2107,7 +2102,6 @@ class TestResourceCreation:
             )
             assert "Resource import summary:" in result.output
             assert "1 unchanged" in result.output
-
 
 class TestMayOverrideFilesForPush:
     """Test may_override_files function for push scenarios."""

@@ -1,7 +1,7 @@
 """JSON similarity evaluator for flexible structural comparison of outputs."""
 
 import math
-from typing import Any, Tuple, TypeVar
+from typing import Any, TypeVar
 
 from uipath.eval.models import EvaluationResult, NumericEvaluationResult
 
@@ -11,12 +11,10 @@ from .legacy_deterministic_evaluator_base import DeterministicEvaluatorBase
 
 T = TypeVar("T")
 
-
 class LegacyJsonSimilarityEvaluatorConfig(LegacyEvaluatorConfig):
     """Configuration for legacy json-similarity evaluators."""
 
     name: str = "LegacyJsonSimilarityEvaluator"
-
 
 class LegacyJsonSimilarityEvaluator(
     DeterministicEvaluatorBase[LegacyJsonSimilarityEvaluatorConfig]
@@ -62,7 +60,7 @@ class LegacyJsonSimilarityEvaluator(
 
     def _compare_tokens(
         self, expected_token: Any, actual_token: Any
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         if self._is_number(expected_token) and self._is_number(actual_token):
             return self._compare_numbers(float(expected_token), float(actual_token))
 
@@ -106,7 +104,7 @@ class LegacyJsonSimilarityEvaluator(
 
     def _compare_numbers(
         self, expected_number: float, actual_number: float
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         total = 1.0
         if math.isclose(expected_number, 0.0, abs_tol=1e-12):
             matched = 1.0 if math.isclose(actual_number, 0.0, abs_tol=1e-12) else 0.0
@@ -117,7 +115,7 @@ class LegacyJsonSimilarityEvaluator(
 
     def _compare_strings(
         self, expected_string: str, actual_string: str
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         total = 1.0
         if not expected_string and not actual_string:
             return 1.0, total

@@ -1,4 +1,3 @@
-from typing import Optional
 
 
 class IngestionInProgressException(Exception):
@@ -8,7 +7,7 @@ class IngestionInProgressException(Exception):
     undergoing ingestion and is not yet available for queries.
     """
 
-    def __init__(self, index_name: Optional[str], search_operation: bool = True):
+    def __init__(self, index_name: str | None, search_operation: bool = True):
         index_name = index_name or "Unknown index name"
         if search_operation:
             self.message = f"index '{index_name}' cannot be searched during ingestion"

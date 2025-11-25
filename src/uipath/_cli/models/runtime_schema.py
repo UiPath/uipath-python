@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,6 +38,6 @@ class RuntimeInternalArguments(BaseModelWithDefaultConfig):
 
 
 class RuntimeArguments(BaseModelWithDefaultConfig):
-    internal_arguments: Optional[RuntimeInternalArguments] = Field(
+    internal_arguments: RuntimeInternalArguments | None = Field(
         default=None, alias="internalArguments"
     )

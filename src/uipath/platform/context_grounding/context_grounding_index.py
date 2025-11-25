@@ -1,22 +1,20 @@
 """Models for Context Grounding Index in the UiPath platform."""
 
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
-
 
 class ContextGroundingField(BaseModel):
     """Model representing a field in a Context Grounding Index."""
 
-    id: Optional[str] = Field(default=None, alias="id")
-    name: Optional[str] = Field(default=None, alias="name")
-    description: Optional[str] = Field(default=None, alias="description")
-    type: Optional[str] = Field(default=None, alias="type")
-    is_filterable: Optional[bool] = Field(default=None, alias="isFilterable")
-    searchable_type: Optional[str] = Field(default=None, alias="searchableType")
-    is_user_defined: Optional[bool] = Field(default=None, alias="isUserDefined")
-
+    id: str | None = Field(default=None, alias="id")
+    name: str | None = Field(default=None, alias="name")
+    description: str | None = Field(default=None, alias="description")
+    type: str | None = Field(default=None, alias="type")
+    is_filterable: bool | None = Field(default=None, alias="isFilterable")
+    searchable_type: str | None = Field(default=None, alias="searchableType")
+    is_user_defined: bool | None = Field(default=None, alias="isUserDefined")
 
 class ContextGroundingDataSource(BaseModel):
     """Model representing a data source in a Context Grounding Index."""
@@ -28,10 +26,9 @@ class ContextGroundingDataSource(BaseModel):
         arbitrary_types_allowed=True,
         extra="allow",
     )
-    id: Optional[str] = Field(default=None, alias="id")
-    folder: Optional[str] = Field(default=None, alias="folder")
-    bucketName: Optional[str] = Field(default=None, alias="bucketName")
-
+    id: str | None = Field(default=None, alias="id")
+    folder: str | None = Field(default=None, alias="folder")
+    bucketName: str | None = Field(default=None, alias="bucketName")
 
 class ContextGroundingIndex(BaseModel):
     """Model representing a Context Grounding Index in the UiPath platform."""
@@ -51,22 +48,22 @@ class ContextGroundingIndex(BaseModel):
             return value.isoformat() if value else None
         return value
 
-    id: Optional[str] = Field(default=None, alias="id")
-    name: Optional[str] = Field(default=None, alias="name")
-    description: Optional[str] = Field(default=None, alias="description")
-    memory_usage: Optional[int] = Field(default=None, alias="memoryUsage")
-    disk_usage: Optional[int] = Field(default=None, alias="diskUsage")
-    data_source: Optional[ContextGroundingDataSource] = Field(
+    id: str | None = Field(default=None, alias="id")
+    name: str | None = Field(default=None, alias="name")
+    description: str | None = Field(default=None, alias="description")
+    memory_usage: int | None = Field(default=None, alias="memoryUsage")
+    disk_usage: int | None = Field(default=None, alias="diskUsage")
+    data_source: ContextGroundingDataSource | None = Field(
         default=None, alias="dataSource"
     )
     pre_processing: Any = Field(default=None, alias="preProcessing")
-    fields: Optional[List[ContextGroundingField]] = Field(default=None, alias="fields")
-    last_ingestion_status: Optional[str] = Field(
+    fields: list[ContextGroundingField] | None = Field(default=None, alias="fields")
+    last_ingestion_status: str | None = Field(
         default=None, alias="lastIngestionStatus"
     )
-    last_ingested: Optional[datetime] = Field(default=None, alias="lastIngested")
-    last_queried: Optional[datetime] = Field(default=None, alias="lastQueried")
-    folder_key: Optional[str] = Field(default=None, alias="folderKey")
+    last_ingested: datetime | None = Field(default=None, alias="lastIngested")
+    last_queried: datetime | None = Field(default=None, alias="lastQueried")
+    folder_key: str | None = Field(default=None, alias="folderKey")
 
     def in_progress_ingestion(self):
         """Check if the last ingestion is in progress."""

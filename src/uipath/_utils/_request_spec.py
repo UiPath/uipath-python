@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from ._endpoint import Endpoint
-
 
 @dataclass
 class RequestSpec:
@@ -17,7 +16,7 @@ class RequestSpec:
     endpoint: Endpoint
     params: dict[str, Any] = field(default_factory=dict)
     headers: dict[str, Any] = field(default_factory=dict)
-    content: Optional[Any] = None
-    json: Optional[Any] = None
-    data: Optional[Any] = None
-    timeout: Optional[Union[int, float]] = None
+    content: Any | None = None
+    json: Any | None = None
+    data: Any | None = None
+    timeout: Union[int, float] | None = None

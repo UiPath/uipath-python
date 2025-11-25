@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -8,7 +8,6 @@ from ..platform.orchestrator.mcp import McpServer
 from ..tracing import traced
 from ._base_service import BaseService
 from .folder_service import FolderService
-
 
 class McpService(FolderContext, BaseService):
     """Service for managing MCP (Model Context Protocol) servers in UiPath.
@@ -30,15 +29,15 @@ class McpService(FolderContext, BaseService):
     def list(
         self,
         *,
-        folder_path: Optional[str] = None,
-    ) -> List[McpServer]:
+        folder_path: str | None = None,
+    ) -> list[McpServer]:
         """List all MCP servers.
 
         Args:
-            folder_path (Optional[str]): The path of the folder to list servers from.
+            folder_path (str | None): The path of the folder to list servers from.
 
         Returns:
-            List[McpServer]: A list of MCP servers with their configuration.
+            list[McpServer]: A list of MCP servers with their configuration.
 
         Examples:
             ```python
@@ -68,15 +67,15 @@ class McpService(FolderContext, BaseService):
     async def list_async(
         self,
         *,
-        folder_path: Optional[str] = None,
-    ) -> List[McpServer]:
+        folder_path: str | None = None,
+    ) -> list[McpServer]:
         """Asynchronously list all MCP servers.
 
         Args:
-            folder_path (Optional[str]): The path of the folder to list servers from.
+            folder_path (str | None): The path of the folder to list servers from.
 
         Returns:
-            List[McpServer]: A list of MCP servers with their configuration.
+            list[McpServer]: A list of MCP servers with their configuration.
 
         Examples:
             ```python
@@ -112,13 +111,13 @@ class McpService(FolderContext, BaseService):
         self,
         slug: str,
         *,
-        folder_path: Optional[str] = None,
+        folder_path: str | None = None,
     ) -> McpServer:
         """Retrieve a specific MCP server by its slug.
 
         Args:
             slug (str): The unique slug identifier for the server.
-            folder_path (Optional[str]): The path of the folder where the server is located.
+            folder_path (str | None): The path of the folder where the server is located.
 
         Returns:
             McpServer: The MCP server configuration.
@@ -152,13 +151,13 @@ class McpService(FolderContext, BaseService):
         self,
         slug: str,
         *,
-        folder_path: Optional[str] = None,
+        folder_path: str | None = None,
     ) -> McpServer:
         """Asynchronously retrieve a specific MCP server by its slug.
 
         Args:
             slug (str): The unique slug identifier for the server.
-            folder_path (Optional[str]): The path of the folder where the server is located.
+            folder_path (str | None): The path of the folder where the server is located.
 
         Returns:
             McpServer: The MCP server configuration.
@@ -193,13 +192,13 @@ class McpService(FolderContext, BaseService):
         return McpServer.model_validate(response.json())
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
     def _list_spec(
         self,
         *,
-        folder_path: Optional[str],
+        folder_path: str | None,
     ) -> RequestSpec:
         folder_key = self._folders_service.retrieve_folder_key(folder_path)
         return RequestSpec(
@@ -214,7 +213,7 @@ class McpService(FolderContext, BaseService):
         self,
         slug: str,
         *,
-        folder_path: Optional[str],
+        folder_path: str | None,
     ) -> RequestSpec:
         folder_key = self._folders_service.retrieve_folder_key(folder_path)
         return RequestSpec(

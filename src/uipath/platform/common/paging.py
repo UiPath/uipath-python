@@ -1,12 +1,11 @@
 """Pagination result types for UiPath SDK."""
 
 from dataclasses import dataclass
-from typing import Generic, Iterator, List, Optional, TypeVar
+from typing import Generic, Iterator, TypeVar
 
 __all__ = ["PagedResult"]
 
 T = TypeVar("T")
-
 
 @dataclass(frozen=True)
 class PagedResult(Generic[T]):
@@ -44,11 +43,11 @@ class PagedResult(Generic[T]):
             token = result.continuation_token
     """
 
-    items: List[T]
-    continuation_token: Optional[str] = None
-    has_more: Optional[bool] = None
-    skip: Optional[int] = None
-    top: Optional[int] = None
+    items: list[T]
+    continuation_token: str | None = None
+    has_more: bool | None = None
+    skip: int | None = None
+    top: int | None = None
 
     def __iter__(self) -> Iterator[T]:
         """Allow iteration over items directly."""

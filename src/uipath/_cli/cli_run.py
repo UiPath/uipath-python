@@ -1,5 +1,4 @@
 import asyncio
-from typing import Optional
 
 import click
 from uipath.core.tracing import UiPathTraceManager
@@ -65,13 +64,13 @@ console = ConsoleLogger()
     help="Port for the debug server (default: 5678)",
 )
 def run(
-    entrypoint: Optional[str],
-    input: Optional[str],
+    entrypoint: str | None,
+    input: str | None,
     resume: bool,
-    file: Optional[str],
-    input_file: Optional[str],
-    output_file: Optional[str],
-    trace_file: Optional[str],
+    file: str | None,
+    input_file: str | None,
+    output_file: str | None,
+    trace_file: str | None,
     debug: bool,
     debug_port: int,
 ) -> None:

@@ -1,11 +1,10 @@
-from typing import Any, Optional, Tuple
+from typing import Any
 
 from ._console import ConsoleLogger
 
 console = ConsoleLogger()
 
-
-async def get_personal_workspace_info_async() -> Tuple[Optional[str], Optional[str]]:
+async def get_personal_workspace_info_async() -> tuple[str | None, str | None]:
     response = await _get_personal_workspace_info_internal_async()
     feed_id = response.get("PersonalWorskpaceFeedId")
     personal_workspace = response.get("PersonalWorkspace")
@@ -16,14 +15,12 @@ async def get_personal_workspace_info_async() -> Tuple[Optional[str], Optional[s
     folder_id = personal_workspace.get("Id")
     return feed_id, folder_id
 
-
-async def get_personal_workspace_key_async() -> Optional[str]:
+async def get_personal_workspace_key_async() -> str | None:
     response = await _get_personal_workspace_info_internal_async()
     personal_workspace = response.get("PersonalWorkspace")
     if not personal_workspace or "Key" not in personal_workspace:
         return None
     return personal_workspace["Key"]
-
 
 async def _get_personal_workspace_info_internal_async() -> dict[str, Any]:
     from ...platform import UiPath

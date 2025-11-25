@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,7 +13,6 @@ from uipath._services.llm_gateway_service import (
     UiPathOpenAIService,
 )
 from uipath.platform.llm_gateway import TextEmbedding
-
 
 class TestOpenAIService:
     @pytest.fixture
@@ -104,23 +103,23 @@ class TestOpenAIService:
         class Project(BaseModel):
             project_id: int
             name: str
-            tasks: List[Task]
+            tasks: list[Task]
 
         class Team(BaseModel):
             team_id: int
             team_name: str
-            members: List[str]
-            projects: List[Project]
+            members: list[str]
+            projects: list[Project]
 
         class Department(BaseModel):
             department_id: int
             department_name: str
-            teams: List[Team]
+            teams: list[Team]
 
         class Company(BaseModel):
             company_id: int
             company_name: str
-            departments: List[Department]
+            departments: list[Department]
 
         # Mock response
         mock_response = MagicMock()
@@ -294,7 +293,7 @@ class TestOpenAIService:
         """Test using complex Company Pydantic model as response_format."""
 
         class Article(BaseModel):
-            title: Optional[str] = None
+            title: str | None = None
 
         # Mock response
         mock_response = MagicMock()

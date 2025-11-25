@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Type
+from typing import Any, Type
 
 from httpx import Response
 
@@ -12,7 +12,6 @@ from ..platform.entities import (
 )
 from ..tracing import traced
 from ._base_service import BaseService
-
 
 class EntitiesService(BaseService):
     """Service for managing UiPath Data Service entities.
@@ -56,11 +55,11 @@ class EntitiesService(BaseService):
         return Entity.model_validate(response.json())
 
     @traced(name="list_entities", run_type="uipath")
-    def list_entities(self) -> List[Entity]:
+    def list_entities(self) -> list[Entity]:
         """List all entities in the Data Service.
 
         Returns:
-            List[Entity]: A list of all entities with their metadata and field definitions.
+            list[Entity]: A list of all entities with their metadata and field definitions.
         """
         spec = self._list_entities_spec()
         response = self.request(spec.method, spec.endpoint)
@@ -69,11 +68,11 @@ class EntitiesService(BaseService):
         return [Entity.model_validate(entity) for entity in entities_data]
 
     @traced(name="list_entities", run_type="uipath")
-    async def list_entities_async(self) -> List[Entity]:
+    async def list_entities_async(self) -> list[Entity]:
         """Asynchronously list all entities in the Data Service.
 
         Returns:
-            List[Entity]: A list of all entities with their metadata and field definitions.
+            list[Entity]: A list of all entities with their metadata and field definitions.
         """
         spec = self._list_entities_spec()
         response = await self.request_async(spec.method, spec.endpoint)
@@ -85,20 +84,20 @@ class EntitiesService(BaseService):
     def list_records(
         self,
         entity_key: str,
-        schema: Optional[Type[Any]] = None,  # Optional schema
-        start: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> List[EntityRecord]:
+        schema: Type[Any] | None = None,  # Optional schema
+        start: int | None = None,
+        limit: int | None = None,
+    ) -> list[EntityRecord]:
         """List records from an entity with optional pagination and schema validation.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
-            schema (Optional[Type[Any]]): Optional schema class for additional validation of records.
-            start (Optional[int]): Starting index for pagination.
-            limit (Optional[int]): Maximum number of records to return.
+            schema (Type[Any] | None): Optional schema class for additional validation of records.
+            start (int | None): Starting index for pagination.
+            limit (int | None): Maximum number of records to return.
 
         Returns:
-            List[EntityRecord]: A list of entity records.
+            list[EntityRecord]: A list of entity records.
         """
         # Example method to generate the API request specification (mocked here)
         spec = self._list_records_spec(entity_key, start, limit)
@@ -118,20 +117,20 @@ class EntitiesService(BaseService):
     async def list_records_async(
         self,
         entity_key: str,
-        schema: Optional[Type[Any]] = None,  # Optional schema
-        start: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> List[EntityRecord]:
+        schema: Type[Any] | None = None,  # Optional schema
+        start: int | None = None,
+        limit: int | None = None,
+    ) -> list[EntityRecord]:
         """Asynchronously list records from an entity with optional pagination and schema validation.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
-            schema (Optional[Type[Any]]): Optional schema class for additional validation of records.
-            start (Optional[int]): Starting index for pagination.
-            limit (Optional[int]): Maximum number of records to return.
+            schema (Type[Any] | None): Optional schema class for additional validation of records.
+            start (int | None): Starting index for pagination.
+            limit (int | None): Maximum number of records to return.
 
         Returns:
-            List[EntityRecord]: A list of entity records.
+            list[EntityRecord]: A list of entity records.
         """
         spec = self._list_records_spec(entity_key, start, limit)
 
@@ -152,15 +151,15 @@ class EntitiesService(BaseService):
     def insert_records(
         self,
         entity_key: str,
-        records: List[Any],
-        schema: Optional[Type[Any]] = None,
+        records: list[Any],
+        schema: Type[Any] | None = None,
     ) -> EntityRecordsBatchResponse:
         """Insert multiple records into an entity in a single batch operation.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
-            records (List[Any]): List of records to insert.
-            schema (Optional[Type[Any]]): Optional schema class for validation of records.
+            records (list[Any]): List of records to insert.
+            schema (Type[Any] | None): Optional schema class for validation of records.
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
@@ -174,15 +173,15 @@ class EntitiesService(BaseService):
     async def insert_records_async(
         self,
         entity_key: str,
-        records: List[Any],
-        schema: Optional[Type[Any]] = None,
+        records: list[Any],
+        schema: Type[Any] | None = None,
     ) -> EntityRecordsBatchResponse:
         """Asynchronously insert multiple records into an entity in a single batch operation.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
-            records (List[Any]): List of records to insert.
-            schema (Optional[Type[Any]]): Optional schema class for validation of records.
+            records (list[Any]): List of records to insert.
+            schema (Type[Any] | None): Optional schema class for validation of records.
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
@@ -196,15 +195,15 @@ class EntitiesService(BaseService):
     def update_records(
         self,
         entity_key: str,
-        records: List[Any],
-        schema: Optional[Type[Any]] = None,
+        records: list[Any],
+        schema: Type[Any] | None = None,
     ) -> EntityRecordsBatchResponse:
         """Update multiple records in an entity in a single batch operation.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
-            records (List[Any]): List of records to update.
-            schema (Optional[Type[Any]]): Optional schema class for validation of records.
+            records (list[Any]): List of records to update.
+            schema (Type[Any] | None): Optional schema class for validation of records.
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
@@ -223,15 +222,15 @@ class EntitiesService(BaseService):
     async def update_records_async(
         self,
         entity_key: str,
-        records: List[Any],
-        schema: Optional[Type[Any]] = None,
+        records: list[Any],
+        schema: Type[Any] | None = None,
     ) -> EntityRecordsBatchResponse:
         """Asynchronously update multiple records in an entity in a single batch operation.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
-            records (List[Any]): List of records to update.
-            schema (Optional[Type[Any]]): Optional schema class for validation of records.
+            records (list[Any]): List of records to update.
+            schema (Type[Any] | None): Optional schema class for validation of records.
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
@@ -250,13 +249,13 @@ class EntitiesService(BaseService):
     def delete_records(
         self,
         entity_key: str,
-        record_ids: List[str],
+        record_ids: list[str],
     ) -> EntityRecordsBatchResponse:
         """Delete multiple records from an entity in a single batch operation.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
-            record_ids (List[str]): List of record IDs to delete.
+            record_ids (list[str]): List of record IDs to delete.
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
@@ -274,13 +273,13 @@ class EntitiesService(BaseService):
     async def delete_records_async(
         self,
         entity_key: str,
-        record_ids: List[str],
+        record_ids: list[str],
     ) -> EntityRecordsBatchResponse:
         """Asynchronously delete multiple records from an entity in a single batch operation.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
-            record_ids (List[str]): List of record IDs to delete.
+            record_ids (list[str]): List of record IDs to delete.
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
@@ -297,7 +296,7 @@ class EntitiesService(BaseService):
     def validate_entity_batch(
         self,
         batch_response: Response,
-        schema: Optional[Type[Any]] = None,
+        schema: Type[Any] | None = None,
     ) -> EntityRecordsBatchResponse:
         # Validate the response format
         insert_records_response = EntityRecordsBatchResponse.model_validate(
@@ -342,8 +341,8 @@ class EntitiesService(BaseService):
     def _list_records_spec(
         self,
         entity_key: str,
-        start: Optional[int] = None,
-        limit: Optional[int] = None,
+        start: int | None = None,
+        limit: int | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="GET",
@@ -353,7 +352,7 @@ class EntitiesService(BaseService):
             params=({"start": start, "limit": limit}),
         )
 
-    def _insert_batch_spec(self, entity_key: str, records: List[Any]) -> RequestSpec:
+    def _insert_batch_spec(self, entity_key: str, records: list[Any]) -> RequestSpec:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
@@ -363,7 +362,7 @@ class EntitiesService(BaseService):
         )
 
     def _update_batch_spec(
-        self, entity_key: str, records: List[EntityRecord]
+        self, entity_key: str, records: list[EntityRecord]
     ) -> RequestSpec:
         return RequestSpec(
             method="POST",
@@ -373,7 +372,7 @@ class EntitiesService(BaseService):
             json=[record.model_dump(by_alias=True) for record in records],
         )
 
-    def _delete_batch_spec(self, entity_key: str, record_ids: List[str]) -> RequestSpec:
+    def _delete_batch_spec(self, entity_key: str, record_ids: list[str]) -> RequestSpec:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(

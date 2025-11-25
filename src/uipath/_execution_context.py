@@ -1,8 +1,6 @@
 from os import environ as env
-from typing import Optional
 
 from ._utils.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
-
 
 class ExecutionContext:
     """Manages the execution context for UiPath automation processes.
@@ -14,31 +12,31 @@ class ExecutionContext:
 
     def __init__(self) -> None:
         try:
-            self._instance_key: Optional[str] = env[ENV_JOB_KEY]
+            self._instance_key: str | None = env[ENV_JOB_KEY]
         except KeyError:
             self._instance_key = None
 
         try:
-            self._instance_id: Optional[str] = env[ENV_JOB_ID]
+            self._instance_id: str | None = env[ENV_JOB_ID]
         except KeyError:
             self._instance_id = None
 
         try:
-            self._robot_key: Optional[str] = env[ENV_ROBOT_KEY]
+            self._robot_key: str | None = env[ENV_ROBOT_KEY]
         except KeyError:
             self._robot_key = None
 
         super().__init__()
 
     @property
-    def instance_id(self) -> Optional[str]:
+    def instance_id(self) -> str | None:
         """Get the current job instance ID.
 
         The instance ID uniquely identifies the current automation job execution
         in UiPath Automation Cloud.
 
         Returns:
-            Optional[str]: The job instance ID.
+            str | None: The job instance ID.
 
         Raises:
             ValueError: If the instance ID is not set in the environment.
@@ -49,7 +47,7 @@ class ExecutionContext:
         return self._instance_id
 
     @property
-    def instance_key(self) -> Optional[str]:
+    def instance_key(self) -> str | None:
         """Get the current job instance key.
 
         The instance key uniquely identifies the current automation job execution
@@ -61,14 +59,14 @@ class ExecutionContext:
         return self._instance_key
 
     @property
-    def robot_key(self) -> Optional[str]:
+    def robot_key(self) -> str | None:
         """Get the current robot key.
 
         The robot key identifies the UiPath Robot that is executing the current
         automation job.
 
         Returns:
-            Optional[str]: The robot key.
+            str | None: The robot key.
 
         Raises:
             ValueError: If the robot key is not set in the environment.

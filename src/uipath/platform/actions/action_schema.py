@@ -1,16 +1,12 @@
 """Module defining the ActionSchema model for UiPath platform actions."""
 
-from typing import List, Optional
-
 from pydantic import BaseModel, ConfigDict, Field
-
 
 class FieldDetails(BaseModel):
     """Model representing details of a field in an action schema."""
 
     name: str
     key: str
-
 
 class ActionSchema(BaseModel):
     """Model representing the schema of an action in the UiPath platform."""
@@ -24,7 +20,7 @@ class ActionSchema(BaseModel):
     )
 
     key: str
-    in_outs: Optional[List[FieldDetails]] = Field(default=None, alias="inOuts")
-    inputs: Optional[List[FieldDetails]] = None
-    outputs: Optional[List[FieldDetails]] = None
-    outcomes: Optional[List[FieldDetails]] = None
+    in_outs: list[FieldDetails] | None = Field(default=None, alias="inOuts")
+    inputs: list[FieldDetails] | None = None
+    outputs: list[FieldDetails] | None = None
+    outcomes: list[FieldDetails] | None = None

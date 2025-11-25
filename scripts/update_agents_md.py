@@ -11,14 +11,13 @@ import inspect
 import sys
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import click
 
-
-def get_command_help(command: click.Command, command_name: str) -> Dict[str, Any]:
+def get_command_help(command: click.Command, command_name: str) -> dict[str, Any]:
     """Extract help information from a Click command.
 
     Args:
@@ -53,7 +52,6 @@ def get_command_help(command: click.Command, command_name: str) -> Dict[str, Any
         "help": help_text,
         "params": params,
     }
-
 
 def extract_method_signature(method: Any, include_types: bool = True) -> str:
     """Extract a clean method signature from a method object.
@@ -103,7 +101,6 @@ def extract_method_signature(method: Any, include_types: bool = True) -> str:
     except Exception:
         return "()"
 
-
 def get_first_line(docstring: str) -> str:
     """Get the first meaningful line from a docstring.
 
@@ -126,7 +123,6 @@ def get_first_line(docstring: str) -> str:
             return stripped
     return ""
 
-
 def get_service_methods(service_class: type) -> list[tuple[str, Any]]:
     """Extract public methods from a service class.
 
@@ -144,7 +140,6 @@ def get_service_methods(service_class: type) -> list[tuple[str, Any]]:
         if callable(attr) and hasattr(attr, "__doc__") and attr.__doc__:
             methods.append((name, attr))
     return methods
-
 
 def generate_quick_api_docs() -> str:
     """Generate API Reference documentation for SDK.
@@ -254,7 +249,6 @@ def generate_quick_api_docs() -> str:
             continue
 
     return output.getvalue()
-
 
 def generate_cli_docs() -> str:
     """Generate CLI documentation markdown.
@@ -480,7 +474,6 @@ def generate_cli_docs() -> str:
 
     return output.getvalue()
 
-
 def generate_service_cli_docs() -> str:
     """Generate documentation for service CLI commands.
 
@@ -546,9 +539,8 @@ def generate_service_cli_docs() -> str:
 
     return output.getvalue()
 
-
 def _write_command_doc(
-    output: StringIO, cmd_info: Dict[str, Any], *path_parts: str
+    output: StringIO, cmd_info: dict[str, Any], *path_parts: str
 ) -> None:
     """Write command documentation to output stream.
 
@@ -589,7 +581,6 @@ def _write_command_doc(
             output.write(f"- {opts_str}: {help_text}\n")
         output.write("\n")
 
-
 def generate_agents_md_reference_files() -> None:
     """Generate separate reference files."""
     resources_dir = Path(__file__).parent.parent / "src" / "uipath" / "_resources"
@@ -609,7 +600,6 @@ def generate_agents_md_reference_files() -> None:
         if service_cli_docs:
             f.write(service_cli_docs)
 
-
 def main():
     """Main function."""
     try:
@@ -617,7 +607,6 @@ def main():
     except Exception as e:
         print(f"Error updating AGENTS.md reference files: {e}", file=sys.stderr)
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

@@ -10,15 +10,14 @@ import json
 from collections.abc import Generator, Iterator
 from io import StringIO
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import click
-
 
 def format_output(
     data: Any,
     fmt: str = "table",
-    output: Optional[str] = None,
+    output: str | None = None,
     no_color: bool = False,
 ) -> None:
     """Format and output data to stdout or file.
@@ -82,7 +81,6 @@ def format_output(
     else:
         click.echo(text)
 
-
 def _format_json(data: Any) -> str:
     """Format data as JSON.
 
@@ -93,7 +91,6 @@ def _format_json(data: Any) -> str:
         JSON string with 2-space indentation
     """
     return json.dumps(data, indent=2, default=str)
-
 
 def _format_table(data: Any, no_color: bool = False) -> str:
     """Format data as simple table (AWS/Azure CLI style).
@@ -142,7 +139,6 @@ def _format_table(data: Any, no_color: bool = False) -> str:
         rows.append("  ".join(row_parts))
 
     return "\n".join([header, separator, *rows])
-
 
 def _format_csv(data: Any) -> str:
     """Format data as CSV.

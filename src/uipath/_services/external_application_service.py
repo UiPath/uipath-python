@@ -1,5 +1,5 @@
 from os import environ as env
-from typing import Optional
+
 from urllib.parse import urlparse
 
 import httpx
@@ -10,11 +10,10 @@ from .._utils.constants import ENV_BASE_URL
 from ..platform.common import TokenData
 from ..platform.errors import EnrichedException
 
-
 class ExternalApplicationService:
     """Service for client credentials authentication flow."""
 
-    def __init__(self, base_url: Optional[str]):
+    def __init__(self, base_url: str | None):
         if not (resolved_base_url := (base_url or env.get(ENV_BASE_URL))):
             raise ValueError(
                 "Base URL must be set either via constructor or the BASE_URL environment variable."
@@ -75,7 +74,7 @@ class ExternalApplicationService:
             return "cloud"
 
     def get_token_data(
-        self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
+        self, client_id: str, client_secret: str, scope: str | None = "OR.Execution"
     ) -> TokenData:
         """Authenticate using client credentials flow.
 

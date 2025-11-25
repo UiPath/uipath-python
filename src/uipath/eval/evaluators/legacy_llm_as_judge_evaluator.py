@@ -1,7 +1,7 @@
 """LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import field_validator
 
@@ -16,12 +16,10 @@ from .legacy_base_evaluator import (
     LegacyEvaluatorConfig,
 )
 
-
 class LegacyLlmAsAJudgeEvaluatorConfig(LegacyEvaluatorConfig):
     """Configuration for legacy LLM-as-a-judge evaluators."""
 
     name: str = "LegacyLlmAsAJudgeEvaluator"
-
 
 class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorConfig]):
     """Legacy evaluator that uses an LLM to judge the quality of agent output."""
@@ -30,7 +28,7 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorC
     model: str
     actual_output_placeholder: str = "{{ActualOutput}}"
     expected_output_placeholder: str = "{{ExpectedOutput}}"
-    llm: Optional[UiPathLlmChatService] = None
+    llm: UiPathLlmChatService | None = None
 
     @field_validator("prompt")
     @classmethod

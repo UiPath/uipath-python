@@ -1,23 +1,19 @@
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from uipath.platform import UiPath
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class EchoIn:
     message: str
-    repeat: Optional[int] = 1
-    prefix: Optional[str] = None
-
+    repeat: int | None = 1
+    prefix: str | None = None
 
 @dataclass
 class EchoOut:
     message: str
-
 
 def main(input: EchoIn) -> EchoOut:
     result = []

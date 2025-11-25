@@ -5,7 +5,7 @@ import functools
 import inspect
 import logging
 import threading
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import TypeAdapter
 from pydantic_function_models import (  # type: ignore[import-untyped] # explicit ignore
@@ -19,7 +19,6 @@ from uipath._cli._evals.mocks.mocks import get_mocked_response
 _event_loop = None
 logger = logging.getLogger(__name__)
 
-
 def run_coroutine(coro):
     """Run a coroutine synchronously."""
     global _event_loop
@@ -28,7 +27,6 @@ def run_coroutine(coro):
         threading.Thread(target=_event_loop.run_forever, daemon=True).start()
     future = asyncio.run_coroutine_threadsafe(coro, _event_loop)
     return future.result()
-
 
 def mocked_response_decorator(func, params: dict[str, Any]):
     """Mocked response decorator."""
@@ -61,7 +59,6 @@ def mocked_response_decorator(func, params: dict[str, Any]):
 
     return decorated_func
 
-
 def get_output_schema(func):
     """Retrieves the JSON schema for a function's return type hint."""
     try:
@@ -71,7 +68,6 @@ def get_output_schema(func):
         logger.warning(f"Unable to extract output schema for function {func.__name__}")
         return {}
 
-
 def get_input_schema(func):
     """Retrieves the JSON schema for a function's input type."""
     try:
@@ -80,13 +76,12 @@ def get_input_schema(func):
         logger.warning(f"Unable to extract input schema for function {func.__name__}")
         return {}
 
-
 def mockable(
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    input_schema: Optional[dict[str, Any]] = None,
-    output_schema: Optional[dict[str, Any]] = None,
-    example_calls: Optional[List[ExampleCall]] = None,
+    name: str | None = None,
+    description: str | None = None,
+    input_schema: dict[str, Any] | None = None,
+    output_schema: dict[str, Any] | None = None,
+    example_calls: list[ExampleCall] | None = None,
     **kwargs,
 ):
     """Decorate a function to be a mockable."""

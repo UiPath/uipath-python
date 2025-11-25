@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from os import environ as env
-from typing import Any, Dict, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -16,7 +16,6 @@ from opentelemetry.trace import StatusCode
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
 
 def _simple_serialize_defaults(obj):
     # Handle Pydantic BaseModel instances
@@ -60,7 +59,6 @@ def _simple_serialize_defaults(obj):
 
     return str(obj)
 
-
 @dataclass
 class UiPathSpan:
     """Represents a span in the UiPath tracing system.
@@ -71,35 +69,35 @@ class UiPathSpan:
     id: uuid.UUID
     trace_id: uuid.UUID
     name: str
-    attributes: str | Dict[str, Any]  # Support both str (legacy) and dict (optimized)
-    parent_id: Optional[uuid.UUID] = None
+    attributes: str | dict[str, Any]  # Support both str (legacy) and dict (optimized)
+    parent_id: uuid.UUID | None = None
     start_time: str = field(default_factory=lambda: datetime.now().isoformat())
     end_time: str = field(default_factory=lambda: datetime.now().isoformat())
     status: int = 1
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
-    organization_id: Optional[str] = field(
+    organization_id: str | None = field(
         default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID", "")
     )
-    tenant_id: Optional[str] = field(
+    tenant_id: str | None = field(
         default_factory=lambda: env.get("UIPATH_TENANT_ID", "")
     )
-    expiry_time_utc: Optional[str] = None
-    folder_key: Optional[str] = field(
+    expiry_time_utc: str | None = None
+    folder_key: str | None = field(
         default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
     )
-    source: Optional[str] = None
+    source: str | None = None
     span_type: str = "Coded Agents"
-    process_key: Optional[str] = field(
+    process_key: str | None = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
     )
-    reference_id: Optional[str] = field(
+    reference_id: str | None = field(
         default_factory=lambda: env.get("TRACE_REFERENCE_ID")
     )
 
-    job_key: Optional[str] = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
+    job_key: str | None = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
 
-    def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
+    def to_dict(self, serialize_attributes: bool = True) -> dict[str, Any]:
         """Convert the Span to a dictionary suitable for JSON serialization.
 
         Args:
@@ -138,7 +136,6 @@ class UiPathSpan:
             "JobKey": self.job_key,
             "ReferenceId": self.reference_id,
         }
-
 
 class _SpanUtils:
     @staticmethod
@@ -188,7 +185,7 @@ class _SpanUtils:
     @staticmethod
     def otel_span_to_uipath_span(
         otel_span: ReadableSpan,
-        custom_trace_id: Optional[str] = None,
+        custom_trace_id: str | None = None,
         serialize_attributes: bool = True,
     ) -> UiPathSpan:
         """Convert an OpenTelemetry span to a UiPathSpan.
@@ -322,7 +319,7 @@ class _SpanUtils:
     @staticmethod
     def format_args_for_trace(
         signature: inspect.Signature, *args: Any, **kwargs: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         try:
             """Return a dictionary of inputs from the function signature."""
             # Create a parameter mapping by partially binding the arguments

@@ -2,7 +2,7 @@ import base64
 import hashlib
 import json
 import os
-from typing import Optional
+
 from urllib.parse import urlencode, urlparse
 
 import httpx
@@ -11,7 +11,6 @@ from ..._utils._ssl_context import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import AuthConfig
 from ._url_utils import build_service_url
-
 
 def generate_code_verifier_and_challenge():
     """Generate PKCE code verifier and challenge."""
@@ -24,12 +23,10 @@ def generate_code_verifier_and_challenge():
 
     return code_verifier, code_challenge
 
-
 def get_state_param() -> str:
     return base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
 
-
-def _get_version_from_api(domain: str) -> Optional[str]:
+def _get_version_from_api(domain: str) -> str | None:
     """Fetch the version from the UiPath orchestrator API.
 
     Args:
@@ -53,7 +50,6 @@ def _get_version_from_api(domain: str) -> Optional[str]:
         # Silently fail and return None if we can't fetch the version
         return None
 
-
 def _is_cloud_domain(domain: str) -> bool:
     """Check if the domain is a cloud domain (alpha, staging, or cloud.uipath.com).
 
@@ -70,7 +66,6 @@ def _is_cloud_domain(domain: str) -> bool:
         "staging.uipath.com",
         "cloud.uipath.com",
     ]
-
 
 def _select_config_file(domain: str) -> str:
     """Select the appropriate auth config file based on domain and version.
@@ -106,7 +101,6 @@ def _select_config_file(domain: str) -> str:
     # Default fallback to cloud config
     return "auth_config_cloud.json"
 
-
 class OidcUtils:
     _console = ConsoleLogger()
 
@@ -125,7 +119,7 @@ class OidcUtils:
         return next((p for p in candidates if is_free(p)), None)
 
     @classmethod
-    def get_auth_config(cls, domain: Optional[str] = None) -> AuthConfig:
+    def get_auth_config(cls, domain: str | None = None) -> AuthConfig:
         """Get the appropriate auth configuration based on domain.
 
         Args:

@@ -1,4 +1,4 @@
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any, AsyncIterator, Iterator
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
@@ -8,7 +8,6 @@ from uipath._services._base_service import BaseService
 from uipath._utils import Endpoint, RequestSpec, header_folder
 from uipath.platform.resource_catalog import Resource, ResourceType
 from uipath.tracing import traced
-
 
 class ResourceCatalogService(FolderContext, BaseService):
     """Service for searching and discovering UiPath resources across folders.
@@ -40,9 +39,9 @@ class ResourceCatalogService(FolderContext, BaseService):
     def search(
         self,
         *,
-        name: Optional[str] = None,
-        resource_types: Optional[List[ResourceType]] = None,
-        resource_sub_types: Optional[List[str]] = None,
+        name: str | None = None,
+        resource_types: list[ResourceType] | None = None,
+        resource_sub_types: list[str] | None = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
     ) -> Iterator[Resource]:
         """Search for tenant scoped resources and folder scoped resources (accessible to the user).
@@ -105,9 +104,9 @@ class ResourceCatalogService(FolderContext, BaseService):
     async def search_async(
         self,
         *,
-        name: Optional[str] = None,
-        resource_types: Optional[List[ResourceType]] = None,
-        resource_sub_types: Optional[List[str]] = None,
+        name: str | None = None,
+        resource_types: list[ResourceType] | None = None,
+        resource_sub_types: list[str] | None = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
     ) -> AsyncIterator[Resource]:
         """Asynchronously search for tenant scoped resources and folder scoped resources (accessible to the user).
@@ -172,10 +171,10 @@ class ResourceCatalogService(FolderContext, BaseService):
     def list(
         self,
         *,
-        resource_types: Optional[List[ResourceType]] = None,
-        resource_sub_types: Optional[List[str]] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
+        resource_types: list[ResourceType] | None = None,
+        resource_sub_types: list[str] | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
     ) -> Iterator[Resource]:
         """Get tenant scoped resources and folder scoped resources (accessible to the user).
@@ -252,10 +251,10 @@ class ResourceCatalogService(FolderContext, BaseService):
     async def list_async(
         self,
         *,
-        resource_types: Optional[List[ResourceType]] = None,
-        resource_sub_types: Optional[List[str]] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
+        resource_types: list[ResourceType] | None = None,
+        resource_sub_types: list[str] | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
     ) -> AsyncIterator[Resource]:
         """Asynchronously get tenant scoped resources and folder scoped resources (accessible to the user).
@@ -338,10 +337,10 @@ class ResourceCatalogService(FolderContext, BaseService):
         self,
         *,
         resource_type: ResourceType,
-        name: Optional[str] = None,
-        resource_sub_types: Optional[List[str]] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
+        name: str | None = None,
+        resource_sub_types: list[str] | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
     ) -> Iterator[Resource]:
         """Get resources of a specific type (tenant scoped or folder scoped).
@@ -422,10 +421,10 @@ class ResourceCatalogService(FolderContext, BaseService):
         self,
         *,
         resource_type: ResourceType,
-        name: Optional[str] = None,
-        resource_sub_types: Optional[List[str]] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
+        name: str | None = None,
+        resource_sub_types: list[str] | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
     ) -> AsyncIterator[Resource]:
         """Asynchronously get resources of a specific type (tenant scoped or folder scoped).
@@ -509,9 +508,9 @@ class ResourceCatalogService(FolderContext, BaseService):
 
     def _search_spec(
         self,
-        name: Optional[str],
-        resource_types: Optional[List[ResourceType]],
-        resource_sub_types: Optional[List[str]],
+        name: str | None,
+        resource_types: list[ResourceType] | None,
+        resource_sub_types: list[str] | None,
         skip: int,
         take: int,
     ) -> RequestSpec:
@@ -527,7 +526,7 @@ class ResourceCatalogService(FolderContext, BaseService):
         Returns:
             RequestSpec: The request specification for the API call
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "skip": skip,
             "take": take,
         }
@@ -549,9 +548,9 @@ class ResourceCatalogService(FolderContext, BaseService):
 
     def _list_spec(
         self,
-        resource_types: Optional[List[ResourceType]],
-        resource_sub_types: Optional[List[str]],
-        folder_key: Optional[str],
+        resource_types: list[ResourceType] | None,
+        resource_sub_types: list[str] | None,
+        folder_key: str | None,
         skip: int,
         take: int,
     ) -> RequestSpec:
@@ -567,7 +566,7 @@ class ResourceCatalogService(FolderContext, BaseService):
         Returns:
             RequestSpec: The request specification for the API call
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "skip": skip,
             "take": take,
         }
@@ -592,9 +591,9 @@ class ResourceCatalogService(FolderContext, BaseService):
     def _list_by_type_spec(
         self,
         resource_type: ResourceType,
-        name: Optional[str],
-        resource_sub_types: Optional[List[str]],
-        folder_key: Optional[str],
+        name: str | None,
+        resource_sub_types: list[str] | None,
+        folder_key: str | None,
         skip: int,
         take: int,
     ) -> RequestSpec:
@@ -610,7 +609,7 @@ class ResourceCatalogService(FolderContext, BaseService):
         Returns:
             RequestSpec: The request specification for the API call
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "skip": skip,
             "take": take,
         }

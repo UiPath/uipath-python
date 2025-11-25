@@ -5,12 +5,10 @@ like folder paths, UUIDs, and resource names.
 """
 
 import re
-from typing import Optional
 
 import click
 
-
-def validate_folder_path(ctx, param, value: Optional[str]) -> Optional[str]:
+def validate_folder_path(ctx, param, value: str | None) -> str | None:
     """Validate folder path format.
 
     Folder paths should be in the format: "Folder1/Subfolder2"
@@ -37,8 +35,7 @@ def validate_folder_path(ctx, param, value: Optional[str]) -> Optional[str]:
 
     return value
 
-
-def validate_uuid(ctx, param, value: Optional[str]) -> Optional[str]:
+def validate_uuid(ctx, param, value: str | None) -> str | None:
     """Validate UUID format.
 
     Args:
@@ -68,8 +65,7 @@ def validate_uuid(ctx, param, value: Optional[str]) -> Optional[str]:
 
     return value
 
-
-def validate_resource_name(ctx, param, value: Optional[str]) -> Optional[str]:
+def validate_resource_name(ctx, param, value: str | None) -> str | None:
     """Validate resource name.
 
     Resource names should:
@@ -101,7 +97,6 @@ def validate_resource_name(ctx, param, value: Optional[str]) -> Optional[str]:
             )
 
     return value
-
 
 def validate_mutually_exclusive(ctx, param, value, exclusive_with: str):
     """Validate that two options are mutually exclusive.

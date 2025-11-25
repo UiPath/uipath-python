@@ -1,4 +1,4 @@
-from typing import Optional
+
 
 import click
 
@@ -7,7 +7,6 @@ from ._utils._common import environment_options
 from ._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
-
 
 @click.command()
 @environment_options
@@ -48,11 +47,11 @@ console = ConsoleLogger()
 def auth(
     environment: str,
     force: bool = False,
-    client_id: Optional[str] = None,
-    client_secret: Optional[str] = None,
-    base_url: Optional[str] = None,
-    tenant: Optional[str] = None,
-    scope: Optional[str] = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+    base_url: str | None = None,
+    tenant: str | None = None,
+    scope: str | None = None,
 ):
     """Authenticate with UiPath Cloud Platform.
 

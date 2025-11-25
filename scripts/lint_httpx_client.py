@@ -9,8 +9,7 @@ and proxy configuration in the UiPath Python SDK.
 import ast
 import sys
 from pathlib import Path
-from typing import List, NamedTuple
-
+from typing import NamedTuple
 
 class LintViolation(NamedTuple):
     """Represents a linting violation."""
@@ -20,7 +19,6 @@ class LintViolation(NamedTuple):
     column: int
     message: str
     rule_code: str
-
 
 class HttpxClientChecker(ast.NodeVisitor):
     """AST visitor to check for httpx.Client() usage violations."""
@@ -32,7 +30,7 @@ class HttpxClientChecker(ast.NodeVisitor):
             filename: The path to the file being checked.
         """
         self.filename = filename
-        self.violations: List[LintViolation] = []
+        self.violations: list[LintViolation] = []
         self.has_httpx_import = False
         self.has_get_httpx_client_kwargs_import = False
         # Track variables that contain get_httpx_client_kwargs
@@ -182,8 +180,7 @@ class HttpxClientChecker(ast.NodeVisitor):
 
         return False
 
-
-def check_file(filepath: Path) -> List[LintViolation]:
+def check_file(filepath: Path) -> list[LintViolation]:
     """Check a single Python file for httpx.Client() violations."""
     try:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -200,7 +197,6 @@ def check_file(filepath: Path) -> List[LintViolation]:
     except Exception as e:
         print(f"Error checking {filepath}: {e}", file=sys.stderr)
         return []
-
 
 def main():
     """Main function to run the linter."""
@@ -231,7 +227,6 @@ def main():
     else:
         print("No httpx.Client() violations found.")
         sys.exit(0)
-
 
 if __name__ == "__main__":
     main()

@@ -2,16 +2,14 @@
 
 from enum import Enum
 from types import EllipsisType
-from typing import Any, Dict, List, Optional, Type, Union, get_args, get_origin
+from typing import Any, Type, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
-
 
 class ReferenceType(Enum):
     """Enum representing types of references between entities."""
 
     ManyToOne = "ManyToOne"
-
 
 class FieldDisplayType(Enum):
     """Enum representing display types of fields in entities."""
@@ -23,19 +21,16 @@ class FieldDisplayType(Enum):
     ChoiceSetMultiple = "ChoiceSetMultiple"
     AutoNumber = "AutoNumber"
 
-
 class DataDirectionType(Enum):
     """Enum representing data direction types for fields in entities."""
 
     ReadOnly = "ReadOnly"
     ReadAndWrite = "ReadAndWrite"
 
-
 class JoinType(Enum):
     """Enum representing types of joins between entities."""
 
     LeftJoin = "LeftJoin"
-
 
 class EntityType(Enum):
     """Enum representing types of entities."""
@@ -44,7 +39,6 @@ class EntityType(Enum):
     ChoiceSet = "ChoiceSet"
     InternalEntity = "InternalEntity"
     SystemEntity = "SystemEntity"
-
 
 class EntityFieldMetadata(BaseModel):
     """Model representing metadata for an entity field."""
@@ -55,7 +49,6 @@ class EntityFieldMetadata(BaseModel):
     type: str
     required: bool
     name: str
-
 
 class ExternalConnection(BaseModel):
     """Model representing an external connection."""
@@ -72,7 +65,6 @@ class ExternalConnection(BaseModel):
     connector_name: str = Field(alias="connectorName")
     connection_name: str = Field(alias="connectionName")
 
-
 class ExternalFieldMapping(BaseModel):
     """Model representing an external field mapping."""
 
@@ -88,7 +80,6 @@ class ExternalFieldMapping(BaseModel):
     internal_field_id: str = Field(alias="internalFieldId")
     direction_type: DataDirectionType = Field(alias="directionType")
 
-
 class FieldDataType(BaseModel):
     """Model representing data type information for a field."""
 
@@ -97,11 +88,10 @@ class FieldDataType(BaseModel):
         validate_by_alias=True,
     )
     name: str
-    length_limit: Optional[int] = Field(default=None, alias="LengthLimit")
-    max_value: Optional[int] = Field(default=None, alias="MaxValue")
-    min_value: Optional[int] = Field(default=None, alias="MinValue")
-    decimal_precision: Optional[int] = Field(default=None, alias="DecimalPrecision")
-
+    length_limit: int | None = Field(default=None, alias="LengthLimit")
+    max_value: int | None = Field(default=None, alias="MaxValue")
+    min_value: int | None = Field(default=None, alias="MinValue")
+    decimal_precision: int | None = Field(default=None, alias="DecimalPrecision")
 
 class FieldMetadata(BaseModel):
     """Model representing metadata for an entity field."""
@@ -110,35 +100,34 @@ class FieldMetadata(BaseModel):
         validate_by_name=True,
         validate_by_alias=True,
     )
-    id: Optional[str] = Field(default=None, alias="id")
+    id: str | None = Field(default=None, alias="id")
     name: str
     is_primary_key: bool = Field(alias="isPrimaryKey")
     is_foreign_key: bool = Field(alias="isForeignKey")
     is_external_field: bool = Field(alias="isExternalField")
     is_hidden_field: bool = Field(alias="isHiddenField")
     is_unique: bool = Field(alias="isUnique")
-    reference_name: Optional[str] = Field(default=None, alias="referenceName")
-    reference_entity: Optional["Entity"] = Field(default=None, alias="referenceEntity")
-    reference_choiceset: Optional["Entity"] = Field(
+    reference_name: str | None = Field(default=None, alias="referenceName")
+    reference_entity: "Entity" | None = Field(default=None, alias="referenceEntity")
+    reference_choiceset: "Entity" | None = Field(
         default=None, alias="referenceChoiceset"
     )
-    reference_field: Optional["EntityField"] = Field(
+    reference_field: "EntityField" | None = Field(
         default=None, alias="referenceField"
     )
     reference_type: ReferenceType = Field(alias="referenceType")
     sql_type: "FieldDataType" = Field(alias="sqlType")
     is_required: bool = Field(alias="isRequired")
     display_name: str = Field(alias="displayName")
-    description: Optional[str] = Field(default=None, alias="description")
+    description: str | None = Field(default=None, alias="description")
     is_system_field: bool = Field(alias="isSystemField")
-    field_display_type: Optional[str] = Field(
+    field_display_type: str | None = Field(
         default=None, alias="fieldDisplayType"
     )  # Should be FieldDisplayType enum
-    choiceset_id: Optional[str] = Field(default=None, alias="choicesetId")
-    default_value: Optional[str] = Field(default=None, alias="defaultValue")
+    choiceset_id: str | None = Field(default=None, alias="choicesetId")
+    default_value: str | None = Field(default=None, alias="defaultValue")
     is_attachment: bool = Field(alias="isAttachment")
     is_rbac_enabled: bool = Field(alias="isRbacEnabled")
-
 
 class ExternalField(BaseModel):
     """Model representing an external field."""
@@ -152,16 +141,14 @@ class ExternalField(BaseModel):
         alias="externalFieldMappingDetail"
     )
 
-
 class EntityField(BaseModel):
     """Model representing a field within an entity."""
 
     model_config = ConfigDict(
         validate_by_name=True,
     )
-    id: Optional[str] = Field(default=None, alias="id")
-    definition: Optional[FieldMetadata] = Field(default=None, alias="definition")
-
+    id: str | None = Field(default=None, alias="id")
+    definition: FieldMetadata | None = Field(default=None, alias="definition")
 
 class ExternalObject(BaseModel):
     """Model representing an external object."""
@@ -178,7 +165,6 @@ class ExternalObject(BaseModel):
     entity_id: str = Field(alias="entityId")
     is_primary_source: bool = Field(alias="isPrimarySource")
 
-
 class ExternalSourceFields(BaseModel):
     """Model representing external source fields."""
 
@@ -186,10 +172,9 @@ class ExternalSourceFields(BaseModel):
         validate_by_name=True,
         validate_by_alias=True,
     )
-    fields: List[ExternalField]
+    fields: list[ExternalField]
     external_object_detail: ExternalObject = Field(alias="externalObject")
     external_connection_detail: ExternalConnection = Field(alias="externalConnection")
-
 
 class SourceJoinCriteria(BaseModel):
     """Model representing source join criteria."""
@@ -206,7 +191,6 @@ class SourceJoinCriteria(BaseModel):
     related_source_object_field_name: str = Field(alias="relatedSourceObjectFieldName")
     related_source_field_name: str = Field(alias="relatedSourceFieldName")
 
-
 class EntityRecord(BaseModel):
     """Model representing a record within an entity."""
 
@@ -220,7 +204,7 @@ class EntityRecord(BaseModel):
 
     @classmethod
     def from_data(
-        cls, data: Dict[str, Any], model: Optional[Any] = None
+        cls, data: dict[str, Any], model: Any | None = None
     ) -> "EntityRecord":
         """Create an EntityRecord instance by validating raw data and optionally instantiating a custom model.
 
@@ -241,7 +225,7 @@ class EntityRecord(BaseModel):
 
     @staticmethod
     def _validate_against_user_model(
-        data: Dict[str, Any], user_class: Type[Any]
+        data: dict[str, Any], user_class: Type[Any]
     ) -> None:
         user_class_annotations = getattr(user_class, "__annotations__", None)
         if user_class_annotations is None:
@@ -259,7 +243,7 @@ class EntityRecord(BaseModel):
             origin = get_origin(annotation)
             args = get_args(annotation)
 
-            # Handle Optional[...] or X | None
+            # Handle ... | None or X | None
             if origin is Union and type(None) in args:
                 is_optional = True
 
@@ -278,7 +262,6 @@ class EntityRecord(BaseModel):
         # Validate input data
         dynamic_model.model_validate(data)
 
-
 class Entity(BaseModel):
     """Model representing an entity in the UiPath platform."""
 
@@ -290,25 +273,24 @@ class Entity(BaseModel):
     name: str
     display_name: str = Field(alias="displayName")
     entity_type: str = Field(alias="entityType")
-    description: Optional[str] = Field(default=None, alias="description")
-    fields: Optional[List[FieldMetadata]] = Field(default=None, alias="fields")
-    external_fields: Optional[List[ExternalSourceFields]] = Field(
+    description: str | None = Field(default=None, alias="description")
+    fields: list[FieldMetadata] | None = Field(default=None, alias="fields")
+    external_fields: list[ExternalSourceFields] | None = Field(
         default=None, alias="externalFields"
     )
-    source_join_criteria: Optional[List[SourceJoinCriteria]] = Field(
+    source_join_criteria: list[SourceJoinCriteria] | None = Field(
         default=None, alias="sourceJoinCriteria"
     )
-    record_count: Optional[int] = Field(default=None, alias="recordCount")
-    storage_size_in_mb: Optional[float] = Field(default=None, alias="storageSizeInMB")
-    used_storage_size_in_mb: Optional[float] = Field(
+    record_count: int | None = Field(default=None, alias="recordCount")
+    storage_size_in_mb: float | None = Field(default=None, alias="storageSizeInMB")
+    used_storage_size_in_mb: float | None = Field(
         default=None, alias="usedStorageSizeInMB"
     )
-    attachment_size_in_byte: Optional[int] = Field(
+    attachment_size_in_byte: int | None = Field(
         default=None, alias="attachmentSizeInBytes"
     )
     is_rbac_enabled: bool = Field(alias="isRbacEnabled")
     id: str
-
 
 class EntityRecordsBatchResponse(BaseModel):
     """Model representing a batch response of entity records."""
@@ -318,8 +300,7 @@ class EntityRecordsBatchResponse(BaseModel):
         validate_by_alias=True,
     )
 
-    success_records: List[EntityRecord] = Field(alias="successRecords")
-    failure_records: List[EntityRecord] = Field(alias="failureRecords")
-
+    success_records: list[EntityRecord] = Field(alias="successRecords")
+    failure_records: list[EntityRecord] = Field(alias="failureRecords")
 
 Entity.model_rebuild()

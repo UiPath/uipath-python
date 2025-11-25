@@ -2,7 +2,7 @@ import asyncio
 import mimetypes
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Union
 
 import httpx
 
@@ -20,7 +20,6 @@ from ._base_service import BaseService
 MAX_PAGE_SIZE = 1000  # Maximum items per page (top parameter)
 MAX_SKIP_OFFSET = 10000  # Maximum skip offset for offset-based pagination
 
-
 class BucketsService(FolderContext, BaseService):
     """Service for managing UiPath storage buckets.
 
@@ -37,9 +36,9 @@ class BucketsService(FolderContext, BaseService):
     def list(
         self,
         *,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        name: Optional[str] = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
+        name: str | None = None,
         skip: int = 0,
         top: int = 100,
     ) -> PagedResult[Bucket]:
@@ -139,9 +138,9 @@ class BucketsService(FolderContext, BaseService):
     async def list_async(
         self,
         *,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        name: Optional[str] = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
+        name: str | None = None,
         skip: int = 0,
         top: int = 100,
     ) -> PagedResult[Bucket]:
@@ -226,8 +225,8 @@ class BucketsService(FolderContext, BaseService):
         self,
         name: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> bool:
         """Check if bucket exists.
 
@@ -254,8 +253,8 @@ class BucketsService(FolderContext, BaseService):
         self,
         name: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> bool:
         """Async version of exists()."""
         try:
@@ -271,10 +270,10 @@ class BucketsService(FolderContext, BaseService):
         self,
         name: str,
         *,
-        description: Optional[str] = None,
-        identifier: Optional[str] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
+        description: str | None = None,
+        identifier: str | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
     ) -> Bucket:
         """Create a new bucket.
 
@@ -320,10 +319,10 @@ class BucketsService(FolderContext, BaseService):
         self,
         name: str,
         *,
-        description: Optional[str] = None,
-        identifier: Optional[str] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
+        description: str | None = None,
+        identifier: str | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
     ) -> Bucket:
         """Async version of create()."""
         spec = self._create_spec(
@@ -350,10 +349,10 @@ class BucketsService(FolderContext, BaseService):
     def delete(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
     ) -> None:
         """Delete a bucket.
 
@@ -385,10 +384,10 @@ class BucketsService(FolderContext, BaseService):
     async def delete_async(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
-        folder_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
+        folder_path: str | None = None,
+        folder_key: str | None = None,
     ) -> None:
         """Async version of delete()."""
         bucket = await self.retrieve_async(
@@ -406,22 +405,22 @@ class BucketsService(FolderContext, BaseService):
     def download(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         blob_file_path: str,
         destination_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Download a file from a bucket.
 
         Args:
-            key (Optional[str]): The key of the bucket.
-            name (Optional[str]): The name of the bucket.
+            key (str | None): The key of the bucket.
+            name (str | None): The name of the bucket.
             blob_file_path (str): The path to the file in the bucket.
             destination_path (str): The local path where the file will be saved.
-            folder_key (Optional[str]): The key of the folder where the bucket resides.
-            folder_path (Optional[str]): The path of the folder where the bucket resides.
+            folder_key (str | None): The key of the folder where the bucket resides.
+            folder_path (str | None): The path of the folder where the bucket resides.
 
         Raises:
             ValueError: If neither key nor name is provided.
@@ -461,22 +460,22 @@ class BucketsService(FolderContext, BaseService):
     async def download_async(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         blob_file_path: str,
         destination_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Download a file from a bucket asynchronously.
 
         Args:
-            key (Optional[str]): The key of the bucket.
-            name (Optional[str]): The name of the bucket.
+            key (str | None): The key of the bucket.
+            name (str | None): The name of the bucket.
             blob_file_path (str): The path to the file in the bucket.
             destination_path (str): The local path where the file will be saved.
-            folder_key (Optional[str]): The key of the folder where the bucket resides.
-            folder_path (Optional[str]): The path of the folder where the bucket resides.
+            folder_key (str | None): The key of the folder where the bucket resides.
+            folder_path (str | None): The path of the folder where the bucket resides.
 
         Raises:
             ValueError: If neither key nor name is provided.
@@ -522,26 +521,26 @@ class BucketsService(FolderContext, BaseService):
     def upload(
         self,
         *,
-        key: Optional[str] = None,
-        name: Optional[str] = None,
+        key: str | None = None,
+        name: str | None = None,
         blob_file_path: str,
-        content_type: Optional[str] = None,
-        source_path: Optional[str] = None,
-        content: Optional[Union[str, bytes]] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content_type: str | None = None,
+        source_path: str | None = None,
+        content: Union[str, bytes] | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Upload a file to a bucket.
 
         Args:
-            key (Optional[str]): The key of the bucket.
-            name (Optional[str]): The name of the bucket.
+            key (str | None): The key of the bucket.
+            name (str | None): The name of the bucket.
             blob_file_path (str): The path where the file will be stored in the bucket.
-            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
-            source_path (Optional[str]): The local path of the file to upload.
-            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
-            folder_key (Optional[str]): The key of the folder where the bucket resides.
-            folder_path (Optional[str]): The path of the folder where the bucket resides.
+            content_type (str | None): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
+            source_path (str | None): The local path of the file to upload.
+            content (Union[str, bytes] | None): The content to upload (string or bytes).
+            folder_key (str | None): The key of the folder where the bucket resides.
+            folder_path (str | None): The path of the folder where the bucket resides.
 
         Raises:
             ValueError: If neither key nor name is provided.
@@ -614,26 +613,26 @@ class BucketsService(FolderContext, BaseService):
     async def upload_async(
         self,
         *,
-        key: Optional[str] = None,
-        name: Optional[str] = None,
+        key: str | None = None,
+        name: str | None = None,
         blob_file_path: str,
-        content_type: Optional[str] = None,
-        source_path: Optional[str] = None,
-        content: Optional[Union[str, bytes]] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content_type: str | None = None,
+        source_path: str | None = None,
+        content: Union[str, bytes] | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Upload a file to a bucket asynchronously.
 
         Args:
-            key (Optional[str]): The key of the bucket.
-            name (Optional[str]): The name of the bucket.
+            key (str | None): The key of the bucket.
+            name (str | None): The name of the bucket.
             blob_file_path (str): The path where the file will be stored in the bucket.
-            content_type (Optional[str]): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
-            source_path (Optional[str]): The local path of the file to upload.
-            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
-            folder_key (Optional[str]): The key of the folder where the bucket resides.
-            folder_path (Optional[str]): The path of the folder where the bucket resides.
+            content_type (str | None): The MIME type of the file. For file inputs this is computed dynamically. Default is "application/octet-stream".
+            source_path (str | None): The local path of the file to upload.
+            content (Union[str, bytes] | None): The content to upload (string or bytes).
+            folder_key (str | None): The key of the folder where the bucket resides.
+            folder_path (str | None): The path of the folder where the bucket resides.
 
         Raises:
             ValueError: If neither key nor name is provided.
@@ -711,18 +710,18 @@ class BucketsService(FolderContext, BaseService):
     def retrieve(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Bucket:
         """Retrieve bucket information by its name.
 
         Args:
-            name (Optional[str]): The name of the bucket to retrieve.
-            key (Optional[str]): The key of the bucket.
-            folder_key (Optional[str]): The key of the folder where the bucket resides.
-            folder_path (Optional[str]): The path of the folder where the bucket resides.
+            name (str | None): The name of the bucket to retrieve.
+            key (str | None): The key of the bucket.
+            folder_key (str | None): The key of the folder where the bucket resides.
+            folder_path (str | None): The path of the folder where the bucket resides.
 
         Returns:
             Bucket: The bucket resource instance.
@@ -785,18 +784,18 @@ class BucketsService(FolderContext, BaseService):
     async def retrieve_async(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> Bucket:
         """Asynchronously retrieve bucket information by its name.
 
         Args:
-            name (Optional[str]): The name of the bucket to retrieve.
-            key (Optional[str]): The key of the bucket.
-            folder_key (Optional[str]): The key of the folder where the bucket resides.
-            folder_path (Optional[str]): The path of the folder where the bucket resides.
+            name (str | None): The name of the bucket to retrieve.
+            key (str | None): The key of the bucket.
+            folder_key (str | None): The key of the folder where the bucket resides.
+            folder_path (str | None): The path of the folder where the bucket resides.
 
         Returns:
             Bucket: The bucket resource instance.
@@ -863,13 +862,13 @@ class BucketsService(FolderContext, BaseService):
     def list_files(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         prefix: str = "",
         take_hint: int = 500,
-        continuation_token: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        continuation_token: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> PagedResult[BucketFile]:
         """List files in a bucket using cursor-based pagination.
 
@@ -976,13 +975,13 @@ class BucketsService(FolderContext, BaseService):
     async def list_files_async(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         prefix: str = "",
         take_hint: int = 500,
-        continuation_token: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        continuation_token: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> PagedResult[BucketFile]:
         """Async version of list_files() with cursor-based pagination.
 
@@ -1063,11 +1062,11 @@ class BucketsService(FolderContext, BaseService):
     def exists_file(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         blob_file_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> bool:
         """Check if a file exists in a bucket.
 
@@ -1146,11 +1145,11 @@ class BucketsService(FolderContext, BaseService):
     async def exists_file_async(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         blob_file_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> bool:
         """Async version of exists_file().
 
@@ -1220,11 +1219,11 @@ class BucketsService(FolderContext, BaseService):
     def delete_file(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         blob_file_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Delete a file from a bucket.
 
@@ -1256,11 +1255,11 @@ class BucketsService(FolderContext, BaseService):
     async def delete_file_async(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         blob_file_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Delete a file from a bucket asynchronously.
 
@@ -1292,15 +1291,15 @@ class BucketsService(FolderContext, BaseService):
     def get_files(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         prefix: str = "",
         recursive: bool = False,
-        file_name_glob: Optional[str] = None,
+        file_name_glob: str | None = None,
         skip: int = 0,
         top: int = 500,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> PagedResult[BucketFile]:
         """Get files using OData GetFiles API with offset-based pagination.
 
@@ -1457,15 +1456,15 @@ class BucketsService(FolderContext, BaseService):
     async def get_files_async(
         self,
         *,
-        name: Optional[str] = None,
-        key: Optional[str] = None,
+        name: str | None = None,
+        key: str | None = None,
         prefix: str = "",
         recursive: bool = False,
-        file_name_glob: Optional[str] = None,
+        file_name_glob: str | None = None,
         skip: int = 0,
         top: int = 500,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> PagedResult[BucketFile]:
         """Async version of get_files() with offset-based pagination.
 
@@ -1580,14 +1579,14 @@ class BucketsService(FolderContext, BaseService):
         )
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
     def _list_spec(
         self,
-        folder_path: Optional[str],
-        folder_key: Optional[str],
-        name: Optional[str],
+        folder_path: str | None,
+        folder_key: str | None,
+        name: str | None,
         skip: int,
         top: int,
     ) -> RequestSpec:
@@ -1599,7 +1598,7 @@ class BucketsService(FolderContext, BaseService):
 
         filter_str = " and ".join(filters) if filters else None
 
-        params: Dict[str, Any] = {"$skip": skip, "$top": top}
+        params: dict[str, Any] = {"$skip": skip, "$top": top}
         if filter_str:
             params["$filter"] = filter_str
 
@@ -1615,10 +1614,10 @@ class BucketsService(FolderContext, BaseService):
     def _create_spec(
         self,
         name: str,
-        description: Optional[str],
+        description: str | None,
         identifier: str,
-        folder_path: Optional[str],
-        folder_key: Optional[str],
+        folder_path: str | None,
+        folder_key: str | None,
     ) -> RequestSpec:
         """Build request for creating bucket."""
         body = {
@@ -1640,8 +1639,8 @@ class BucketsService(FolderContext, BaseService):
     def _retrieve_spec(
         self,
         name: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         escaped_name = name.replace("'", "''")
         return RequestSpec(
@@ -1657,8 +1656,8 @@ class BucketsService(FolderContext, BaseService):
         self,
         bucket_id: int,
         blob_file_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="GET",
@@ -1676,8 +1675,8 @@ class BucketsService(FolderContext, BaseService):
         bucket_id: int,
         content_type: str,
         blob_file_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="GET",
@@ -1693,8 +1692,8 @@ class BucketsService(FolderContext, BaseService):
     def _retrieve_by_key_spec(
         self,
         key: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         escaped_key = key.replace("'", "''")
         return RequestSpec(
@@ -1711,10 +1710,10 @@ class BucketsService(FolderContext, BaseService):
         self,
         bucket_id: int,
         prefix: str,
-        continuation_token: Optional[str] = None,
+        continuation_token: str | None = None,
         take_hint: int = 500,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         """Build REST API request for listing files in a bucket.
 
@@ -1728,7 +1727,7 @@ class BucketsService(FolderContext, BaseService):
             folder_key: Folder key
             folder_path: Folder path
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if prefix:
             params["prefix"] = prefix
         if continuation_token is not None:
@@ -1748,8 +1747,8 @@ class BucketsService(FolderContext, BaseService):
         self,
         bucket_id: int,
         blob_file_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         """Build request for deleting a file from a bucket."""
         return RequestSpec(
@@ -1768,11 +1767,11 @@ class BucketsService(FolderContext, BaseService):
         bucket_id: int,
         prefix: str = "",
         recursive: bool = False,
-        file_name_glob: Optional[str] = None,
+        file_name_glob: str | None = None,
         skip: int = 0,
         top: int = 500,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         """Build OData request for GetFiles endpoint.
 
@@ -1789,7 +1788,7 @@ class BucketsService(FolderContext, BaseService):
         Returns:
             RequestSpec: OData request specification
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
 
         params["directory"] = "/" if not prefix else prefix
 

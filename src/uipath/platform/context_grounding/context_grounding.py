@@ -1,9 +1,6 @@
 """Context Grounding response payload models."""
 
-from typing import Optional
-
 from pydantic import BaseModel, ConfigDict, Field
-
 
 class ContextGroundingMetadata(BaseModel):
     """Model representing metadata for a Context Grounding query response."""
@@ -17,7 +14,6 @@ class ContextGroundingMetadata(BaseModel):
     )
     operation_id: str = Field(alias="operation_id")
     strategy: str = Field(alias="strategy")
-
 
 class ContextGroundingQueryResponse(BaseModel):
     """Model representing a Context Grounding query response item."""
@@ -33,7 +29,7 @@ class ContextGroundingQueryResponse(BaseModel):
     page_number: str = Field(alias="page_number")
     content: str = Field(alias="content")
     metadata: ContextGroundingMetadata = Field(alias="metadata")
-    source_document_id: Optional[str] = Field(default=None, alias="source_document_id")
-    caption: Optional[str] = Field(default=None, alias="caption")
-    score: Optional[float] = Field(default=None, alias="score")
-    reference: Optional[str] = Field(default=None, alias="reference")
+    source_document_id: str | None = Field(default=None, alias="source_document_id")
+    caption: str | None = Field(default=None, alias="caption")
+    score: float | None = Field(default=None, alias="score")
+    reference: str | None = Field(default=None, alias="reference")

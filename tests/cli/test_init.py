@@ -7,7 +7,6 @@ from click.testing import CliRunner
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
 
-
 class TestInit:
     def test_init_env_file_creation(self, runner: CliRunner, temp_dir: str) -> None:
         """Test .env file creation scenarios."""
@@ -133,12 +132,11 @@ class TestInit:
             # Create test script with typed input/output
             script_content = """
 from dataclasses import dataclass
-from typing import Optional
 
 @dataclass
 class Input:
     message: str
-    count: Optional[int] = None
+    count: int | None = None
 
 @dataclass
 class Output:
@@ -184,43 +182,36 @@ def main(input: Input) -> Output:
             script_content = """
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Dict, Optional
-from pydantic import BaseModel
 
+from pydantic import BaseModel
 
 class StringEnum(str, Enum):
     OPTION_A = "option_a"
     OPTION_B = "option_b"
     OPTION_C = "option_c"
 
-
 class IntEnum(int, Enum):
     ONE = 1
     TWO = 2
     THREE = 3
-
 
 class FloatEnum(float, Enum):
     PI = 3.14
     E = 2.71
     GOLDEN = 1.618
 
-
 class BoolEnum(int, Enum):
     FALSE_VALUE = 0
     TRUE_VALUE = 1
-
 
 class NestedPydanticModel(BaseModel):
     nested_field: str
     nested_number: int
 
-
 @dataclass
 class NestedDataclass:
     nested_str: str
     nested_int: int
-
 
 @dataclass
 class Input:
@@ -228,29 +219,27 @@ class Input:
     integer_field: int
     float_field: float
     boolean_field: bool
-    list_of_strings: List[str]
-    list_of_integers: List[int]
-    dict_field: Dict[str, str]
-    optional_string: Optional[str]
-    optional_int: Optional[int]
-    optional_list: Optional[List[str]]
+    list_of_strings: list[str]
+    list_of_integers: list[int]
+    dict_field: dict[str, str]
+    optional_string: str | None
+    optional_int: int | None
+    optional_list: list[str] | None
     string_enum_field: StringEnum
     int_enum_field: IntEnum
     float_enum_field: FloatEnum
     bool_enum_field: BoolEnum
     pydantic_nested: NestedPydanticModel
     dataclass_nested: NestedDataclass
-    list_of_objects: List[NestedDataclass]
-    nested_list: List[List[str]]
-    optional_with_default: Optional[str] = None
+    list_of_objects: list[NestedDataclass]
+    nested_list: list[list[str]]
+    optional_with_default: str | None = None
     int_with_default: int = 42
-
 
 @dataclass
 class Output:
     result: str
     success: bool
-
 
 def main(input: Input) -> Output:
     return Output(result="test", success=True)

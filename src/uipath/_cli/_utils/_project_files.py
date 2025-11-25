@@ -6,7 +6,7 @@ import re
 import tomllib
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Literal, Optional, Tuple
+from typing import Any, AsyncIterator, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
@@ -24,11 +24,9 @@ from ._studio_project import (
 
 logger = logging.getLogger(__name__)
 
-
 class Severity(IntEnum):
     LOG = 0
     WARNING = 1
-
 
 class UpdateEvent(BaseModel):
     """Update about a file operation in progress."""
@@ -48,7 +46,6 @@ class UpdateEvent(BaseModel):
     message: str
     severity: Severity = Field(default=Severity.LOG)
 
-
 class ProjectPullError(Exception):
     """Exception raised when pulling a project fails."""
 
@@ -56,7 +53,6 @@ class ProjectPullError(Exception):
         self.project_id = project_id
         self.message = message
         super().__init__(self.message)
-
 
 class FileInfo(BaseModel):
     """Information about a file to be included in the project.
@@ -72,9 +68,7 @@ class FileInfo(BaseModel):
     relative_path: str
     is_binary: bool
 
-
 console = ConsoleLogger()
-
 
 def get_project_config(directory: str) -> dict[str, Any]:
     """Retrieve and combine project configuration from uipath.json and pyproject.toml.
@@ -114,7 +108,6 @@ def get_project_config(directory: str) -> dict[str, Any]:
         "packOptions": config_data.pack_options or {},
     }
 
-
 def validate_project_files(directory: str) -> None:
     required_files = [
         UiPathConfig.bindings_file_path,
@@ -131,7 +124,6 @@ def validate_project_files(directory: str) -> None:
         console.error(
             f"Missing required files: {missing_str}. Please run 'uipath init'."
         )
-
 
 def validate_config(config: dict[str, str]) -> None:
     """Validate the combined project configuration.
@@ -174,7 +166,6 @@ def validate_config(config: dict[str, str]) -> None:
         if char in config["project_name"]:
             console.error(f"Project name contains invalid character: '{char}'")
 
-
 def validate_config_structure(config_data: dict[str, Any]) -> None:
     """Validate the structure of uipath.json configuration.
 
@@ -188,7 +179,6 @@ def validate_config_structure(config_data: dict[str, Any]) -> None:
     for field in required_fields:
         if field not in config_data:
             console.error(f"uipath.json is missing the required field: {field}.")
-
 
 def ensure_config_file(directory: str) -> None:
     """Check if uipath.json exists in the specified directory.
@@ -204,8 +194,7 @@ def ensure_config_file(directory: str) -> None:
             "uipath.json not found. Please run `uipath init` in the project directory."
         )
 
-
-def extract_dependencies_from_toml(project_data: Dict[str, Any]) -> Dict[str, str]:
+def extract_dependencies_from_toml(project_data: dict[str, Any]) -> dict[str, str]:
     """Extract and parse dependencies from pyproject.toml project data.
 
     Args:
@@ -239,8 +228,7 @@ def extract_dependencies_from_toml(project_data: Dict[str, Any]) -> Dict[str, st
 
     return dependencies
 
-
-def parse_dependency_string(dependency: str) -> Tuple[str, str]:
+def parse_dependency_string(dependency: str) -> tuple[str, str]:
     """Parse a dependency string into package name and version specifier.
 
     Handles PEP 508 dependency specifications including:
@@ -298,7 +286,6 @@ def parse_dependency_string(dependency: str) -> Tuple[str, str]:
             version_spec = "*"
 
     return package_name, version_spec
-
 
 def read_toml_project(file_path: str) -> dict[str, Any]:
     """Read and parse pyproject.toml file with improved error handling and validation.
@@ -367,9 +354,8 @@ def read_toml_project(file_path: str) -> dict[str, Any]:
         "requires-python": project.get("requires-python", "").strip(),
     }
 
-
 def files_to_include(
-    pack_options: Optional[PackOptions],
+    pack_options: PackOptions | None,
     directory: str,
     include_uv_lock: bool = True,
     directories_to_ignore: list[str] | None = None,
@@ -491,7 +477,6 @@ def files_to_include(
                 )
     return extra_files
 
-
 def compute_normalized_hash(content: str) -> str:
     """Compute hash of normalized content.
 
@@ -511,9 +496,8 @@ def compute_normalized_hash(content: str) -> str:
 
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
-
 def collect_files_from_folder(
-    folder: ProjectFolder, base_path: str, files_dict: Dict[str, ProjectFile]
+    folder: ProjectFolder, base_path: str, files_dict: dict[str, ProjectFile]
 ) -> None:
     """Recursively collect all files from a folder and its subfolders.
 
@@ -531,7 +515,6 @@ def collect_files_from_folder(
     for subfolder in folder.folders:
         subfolder_path = os.path.join(base_path, subfolder.name)
         collect_files_from_folder(subfolder, subfolder_path, files_dict)
-
 
 async def pull_project(
     project_id: str,
@@ -557,7 +540,6 @@ async def pull_project(
     except Exception as e:
         raise ProjectPullError(project_id) from e
 
-
 async def download_folder_files(
     studio_client: StudioClient,
     folder: ProjectFolder,
@@ -573,7 +555,7 @@ async def download_folder_files(
     Yields:
         FileOperationUpdate: Progress updates for each file operation
     """
-    files_dict: Dict[str, ProjectFile] = {}
+    files_dict: dict[str, ProjectFile] = {}
     collect_files_from_folder(folder, "", files_dict)
 
     for file_path, remote_file in files_dict.items():

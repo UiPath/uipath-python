@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Sequence
 
 import httpx
 from opentelemetry.sdk.trace import ReadableSpan
@@ -17,7 +17,6 @@ from ._utils import _SpanUtils
 
 logger = logging.getLogger(__name__)
 
-
 def _safe_parse_json(s: Any) -> Any:
     """Safely parse a JSON string, returning the original if not a string or on error."""
     if not isinstance(s, str):
@@ -27,8 +26,7 @@ def _safe_parse_json(s: Any) -> Any:
     except (json.JSONDecodeError, TypeError):
         return s
 
-
-def _get_llm_messages(attributes: Dict[str, Any], prefix: str) -> List[Dict[str, Any]]:
+def _get_llm_messages(attributes: dict[str, Any], prefix: str) -> list[dict[str, Any]]:
     """Extracts and reconstructs LLM messages from flattened attributes."""
     messages: dict[int, dict[str, Any]] = {}
     message_prefix = f"{prefix}."
@@ -72,7 +70,6 @@ def _get_llm_messages(attributes: Dict[str, Any], prefix: str) -> List[Dict[str,
     # Convert dict to list, ordered by index
     return [messages[i] for i in sorted(messages.keys())]
 
-
 class LlmOpsHttpExporter(SpanExporter):
     """An OpenTelemetry span exporter that sends spans to UiPath LLM Ops."""
 
@@ -96,8 +93,8 @@ class LlmOpsHttpExporter(SpanExporter):
 
     def __init__(
         self,
-        trace_id: Optional[str] = None,
-        extra_process_spans: Optional[bool] = False,
+        trace_id: str | None = None,
+        extra_process_spans: bool | None = False,
         **kwargs,
     ):
         """Initialize the exporter with the base URL and authentication token."""
@@ -152,7 +149,7 @@ class LlmOpsHttpExporter(SpanExporter):
         """Force flush the exporter."""
         return True
 
-    def _map_llm_call_attributes(self, attributes: Dict[str, Any]) -> Dict[str, Any]:
+    def _map_llm_call_attributes(self, attributes: dict[str, Any]) -> dict[str, Any]:
         """Maps attributes for LLM calls, handling flattened keys."""
         # Modify attributes in place to avoid copy
         result = attributes
@@ -222,7 +219,7 @@ class LlmOpsHttpExporter(SpanExporter):
 
         return result
 
-    def _map_tool_call_attributes(self, attributes: Dict[str, Any]) -> Dict[str, Any]:
+    def _map_tool_call_attributes(self, attributes: dict[str, Any]) -> dict[str, Any]:
         """Maps attributes for tool calls."""
         # Modify attributes in place to avoid copy
         result = attributes
@@ -241,14 +238,14 @@ class LlmOpsHttpExporter(SpanExporter):
 
         return result
 
-    def _determine_status(self, error: Optional[str]) -> int:
+    def _determine_status(self, error: str | None) -> int:
         if error:
             if error and error.startswith("GraphInterrupt("):
                 return self.Status.INTERRUPTED
             return self.Status.ERROR
         return self.Status.SUCCESS
 
-    def _process_span_attributes(self, span_data: Dict[str, Any]) -> None:
+    def _process_span_attributes(self, span_data: dict[str, Any]) -> None:
         """Extracts, transforms, and maps attributes for a span in-place.
 
         Args:
@@ -265,7 +262,7 @@ class LlmOpsHttpExporter(SpanExporter):
         if isinstance(attributes_val, str):
             # Legacy path: parse JSON string
             try:
-                attributes: Dict[str, Any] = json.loads(attributes_val)
+                attributes: dict[str, Any] = json.loads(attributes_val)
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse attributes JSON: {e}")
                 return
@@ -308,13 +305,13 @@ class LlmOpsHttpExporter(SpanExporter):
         status = self._determine_status(error)
         span_data["Status"] = status
 
-    def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
+    def _build_url(self, span_list: list[dict[str, Any]]) -> str:
         """Construct the URL for the API request."""
         trace_id = str(span_list[0]["TraceId"])
         return f"{self.base_url}/llmopstenant_/api/Traces/spans?traceId={trace_id}&source=Robots"
 
     def _send_with_retries(
-        self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4
+        self, url: str, payload: list[dict[str, Any]], max_retries: int = 4
     ) -> SpanExportResult:
         """Send the HTTP request with retry logic."""
         for attempt in range(max_retries):
@@ -343,7 +340,6 @@ class LlmOpsHttpExporter(SpanExporter):
         uipath_url = uipath_url.rstrip("/")
 
         return uipath_url
-
 
 class JsonLinesFileExporter(SpanExporter):
     def __init__(self, file_path: str):

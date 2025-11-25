@@ -1,7 +1,7 @@
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import TypeAdapter
 
@@ -68,12 +68,11 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluatorConfig,
 )
 
-
 class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
 
     @staticmethod
-    def _prepare_evaluator_config(data: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_evaluator_config(data: dict[str, Any]) -> dict[str, Any]:
         """Prepare evaluator config by merging top-level fields into evaluatorConfig.
 
         This allows flexibility in specifying fields like 'name' and 'description' either at the
@@ -106,7 +105,7 @@ class EvaluatorFactory:
 
     @classmethod
     def create_evaluator(
-        cls, data: Dict[str, Any], evaluators_dir: Path | None = None
+        cls, data: dict[str, Any], evaluators_dir: Path | None = None
     ) -> BaseEvaluator[Any, Any, Any]:
         if data.get("version", None) == "1.0":
             return cls._create_evaluator_internal(data, evaluators_dir)
@@ -115,7 +114,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_evaluator_internal(
-        data: Dict[str, Any],
+        data: dict[str, Any],
         evaluators_dir: Path | None = None,
     ) -> BaseEvaluator[Any, Any, Any]:
         # check custom evaluator
@@ -165,7 +164,7 @@ class EvaluatorFactory:
                 raise ValueError(f"Unknown evaluator configuration: {config}")
 
     @staticmethod
-    def _create_contains_evaluator(data: Dict[str, Any]) -> ContainsEvaluator:
+    def _create_contains_evaluator(data: dict[str, Any]) -> ContainsEvaluator:
         evaluator_id = data.get("id")
         if not evaluator_id or not isinstance(evaluator_id, str):
             raise ValueError("Evaluator 'id' must be a non-empty string")
@@ -178,7 +177,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_coded_evaluator_internal(
-        data: Dict[str, Any],
+        data: dict[str, Any],
         file_path_str: str,
         class_name: str,
         evaluators_dir: Path | None = None,
@@ -260,7 +259,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_exact_match_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> ExactMatchEvaluator:
         return TypeAdapter(ExactMatchEvaluator).validate_python(
             {
@@ -271,7 +270,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_json_similarity_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> JsonSimilarityEvaluator:
         return TypeAdapter(JsonSimilarityEvaluator).validate_python(
             {
@@ -282,7 +281,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_llm_judge_output_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> LLMJudgeOutputEvaluator:
         return TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
             {
@@ -293,7 +292,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_llm_judge_strict_json_similarity_output_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> LLMJudgeStrictJSONSimilarityOutputEvaluator:
         return TypeAdapter(LLMJudgeStrictJSONSimilarityOutputEvaluator).validate_python(
             {
@@ -304,7 +303,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_trajectory_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> LLMJudgeTrajectoryEvaluator:
         return TypeAdapter(LLMJudgeTrajectoryEvaluator).validate_python(
             {
@@ -315,7 +314,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_tool_call_args_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> ToolCallArgsEvaluator:
         return TypeAdapter(ToolCallArgsEvaluator).validate_python(
             {
@@ -326,7 +325,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_tool_call_count_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> ToolCallCountEvaluator:
         return TypeAdapter(ToolCallCountEvaluator).validate_python(
             {
@@ -337,7 +336,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_tool_call_order_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> ToolCallOrderEvaluator:
         return TypeAdapter(ToolCallOrderEvaluator).validate_python(
             {
@@ -348,7 +347,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_tool_call_output_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> ToolCallOutputEvaluator:
         return TypeAdapter(ToolCallOutputEvaluator).validate_python(
             {
@@ -359,7 +358,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_llm_judge_simulation_trajectory_evaluator(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> LLMJudgeTrajectorySimulationEvaluator:
         return TypeAdapter(LLMJudgeTrajectorySimulationEvaluator).validate_python(
             {
@@ -370,7 +369,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_legacy_evaluator_internal(
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> LegacyBaseEvaluator[Any]:
         """Create an evaluator instance from configuration data.
 

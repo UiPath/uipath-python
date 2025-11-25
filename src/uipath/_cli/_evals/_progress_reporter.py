@@ -6,7 +6,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 from urllib.parse import urlparse
 
 from opentelemetry import trace
@@ -49,7 +49,6 @@ from uipath.tracing import LlmOpsHttpExporter
 
 logger = logging.getLogger(__name__)
 
-
 def gracefully_handle_errors(func):
     """Decorator to catch and log errors without stopping execution."""
 
@@ -69,7 +68,6 @@ def gracefully_handle_errors(func):
             return None
 
     return wrapper
-
 
 class StudioWebProgressReporter:
     """Handles reporting evaluation progress to StudioWeb."""
@@ -93,12 +91,12 @@ class StudioWebProgressReporter:
                 "Cannot report data to StudioWeb. Please set UIPATH_PROJECT_ID."
             )
 
-        self.eval_set_run_ids: Dict[str, str] = {}
-        self.evaluators: Dict[str, Any] = {}
-        self.evaluator_scores: Dict[str, List[float]] = {}
-        self.eval_run_ids: Dict[str, str] = {}
-        self.is_coded_eval: Dict[str, bool] = {}  # Track coded vs legacy per execution
-        self.eval_spans: Dict[
+        self.eval_set_run_ids: dict[str, str] = {}
+        self.evaluators: dict[str, Any] = {}
+        self.evaluator_scores: dict[str, list[float]] = {}
+        self.eval_run_ids: dict[str, str] = {}
+        self.is_coded_eval: dict[str, bool] = {}  # Track coded vs legacy per execution
+        self.eval_spans: dict[
             str, list[Any]
         ] = {}  # Store spans per execution for usage metrics
         self.eval_set_execution_id: str | None = (
@@ -153,7 +151,7 @@ class StudioWebProgressReporter:
         return "agentsruntime_/api/"
 
     def _is_coded_evaluator(
-        self, evaluators: List[BaseEvaluator[Any, Any, Any]]
+        self, evaluators: list[BaseEvaluator[Any, Any, Any]]
     ) -> bool:
         """Check if evaluators are coded (BaseEvaluator) vs legacy (LegacyBaseEvaluator).
 
@@ -236,7 +234,7 @@ class StudioWebProgressReporter:
         eval_set_id: str,
         agent_snapshot: StudioWebAgentSnapshot,
         no_of_evals: int,
-        evaluators: List[LegacyBaseEvaluator[Any]],
+        evaluators: list[LegacyBaseEvaluator[Any]],
         is_coded: bool = False,
     ) -> str:
         """Create a new evaluation set run in StudioWeb."""
@@ -1014,7 +1012,7 @@ class StudioWebProgressReporter:
             logger.warning(f"Failed to create eval run trace: {e}")
 
     async def _send_evaluator_traces(
-        self, eval_run_id: str, eval_results: List[EvalItemResult], spans: list[Any]
+        self, eval_run_id: str, eval_results: list[EvalItemResult], spans: list[Any]
     ) -> None:
         """Send trace spans for all evaluators.
 

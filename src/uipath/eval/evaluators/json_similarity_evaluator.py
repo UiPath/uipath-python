@@ -1,7 +1,7 @@
 """JSON similarity evaluator for flexible structural comparison of outputs."""
 
 import math
-from typing import Any, Tuple
+from typing import Any
 
 from ..models import (
     AgentExecution,
@@ -15,12 +15,10 @@ from .output_evaluator import (
     OutputEvaluatorConfig,
 )
 
-
 class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria]):
     """Configuration for the json similarity evaluator."""
 
     name: str = "JsonSimilarityEvaluator"
-
 
 class JsonSimilarityEvaluator(
     OutputEvaluator[OutputEvaluationCriteria, JsonSimilarityEvaluatorConfig, str]
@@ -78,7 +76,7 @@ class JsonSimilarityEvaluator(
 
     def _compare_tokens(
         self, expected_token: Any, actual_token: Any
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         if self._is_number(expected_token) and self._is_number(actual_token):
             return self._compare_numbers(float(expected_token), float(actual_token))
 
@@ -122,7 +120,7 @@ class JsonSimilarityEvaluator(
 
     def _compare_numbers(
         self, expected_number: float, actual_number: float
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         total = 1.0
         if math.isclose(expected_number, 0.0, abs_tol=1e-12):
             matched = 1.0 if math.isclose(actual_number, 0.0, abs_tol=1e-12) else 0.0
@@ -133,7 +131,7 @@ class JsonSimilarityEvaluator(
 
     def _compare_strings(
         self, expected_string: str, actual_string: str
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         total = 1.0
         if not expected_string and not actual_string:
             return 1.0, total

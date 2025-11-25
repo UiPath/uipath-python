@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,7 +10,6 @@ from ..platform.guardrails import BuiltInValidatorGuardrail, Guardrail
 from ..tracing import traced
 from ._base_service import BaseService
 
-
 class BuiltInGuardrailValidationResult(BaseModel):
     """Result from built-in guardrail validation."""
 
@@ -19,14 +18,12 @@ class BuiltInGuardrailValidationResult(BaseModel):
     validation_passed: bool = Field(alias="validation_passed")
     reason: str = Field(alias="reason")
 
-
 class GuardrailViolationError(Exception):
     """Exception raised when guardrail validation fails."""
 
     def __init__(self, detected_issue: Any):
         self.detected_issue = detected_issue
         super().__init__(f"Guardrail violation detected: {detected_issue}")
-
 
 class GuardrailsService(FolderContext, BaseService):
     """Service for validating text against UiPath Guardrails."""
@@ -37,11 +34,11 @@ class GuardrailsService(FolderContext, BaseService):
     @traced("evaluate_guardrail", run_type="uipath")
     def evaluate_guardrail(
         self,
-        input_data: Union[str, Dict[str, Any]],
+        input_data: Union[str, dict[str, Any]],
         guardrail: Guardrail,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> BuiltInGuardrailValidationResult:
         """Call the API to validate input_data with the given guardrail.
 
