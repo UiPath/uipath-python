@@ -67,3 +67,10 @@ def mock_tracer():
     TracingManager.reapply_traced_decorator(mock_tracer_impl)
     yield
     TracingManager.reapply_traced_decorator(None)
+
+
+@pytest.fixture
+def jobs_service(config, execution_context):
+    from uipath._services.jobs_service import JobsService
+
+    return JobsService(config, execution_context)
