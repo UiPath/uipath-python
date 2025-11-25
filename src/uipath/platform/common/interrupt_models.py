@@ -25,7 +25,7 @@ class WaitJob(BaseModel):
     process_folder_key: Optional[str] = None
 
 
-class CreateAction(BaseModel):
+class CreateTask(BaseModel):
     """Model representing an action creation."""
 
     title: str
@@ -38,9 +38,21 @@ class CreateAction(BaseModel):
     app_version: Optional[int] = 1
 
 
-class WaitAction(BaseModel):
+class CreateEscalation(CreateTask):
+    """Model representing an escalation creation."""
+
+    pass
+
+
+class WaitTask(BaseModel):
     """Model representing a wait action operation."""
 
     action: Action
     app_folder_path: Optional[str] = None
     app_folder_key: Optional[str] = None
+
+
+class WaitEscalation(WaitTask):
+    """Model representing a wait escalation operation."""
+
+    pass

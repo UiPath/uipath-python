@@ -2,11 +2,12 @@ import json
 import uuid
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Optional
+from typing import Any
 
 from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
+    UiPathResumeTriggerName,
     UiPathResumeTriggerType,
     UiPathRuntimeStatus,
 )
@@ -17,7 +18,14 @@ from uipath.runtime.errors import (
 )
 
 from uipath.platform import UiPath
-from uipath.platform.common import CreateAction, InvokeProcess, WaitAction, WaitJob
+from uipath.platform.common import (
+    CreateEscalation,
+    CreateTask,
+    InvokeProcess,
+    WaitEscalation,
+    WaitJob,
+    WaitTask,
+)
 
 from .._utils._common import serialize_object
 
@@ -43,7 +51,7 @@ class HitlReader:
     """Handles reading and retrieving Human-In-The-Loop (HITL) data from UiPath services."""
 
     @classmethod
-    async def read(cls, resume_trigger: UiPathResumeTrigger) -> Optional[str]:
+    async def read(cls, resume_trigger: UiPathResumeTrigger) -> Any:
         """Reads data from a UiPath resume trigger based on its type.
 
         This method handles different types of resume triggers (ACTION, JOB, API) and retrieves
@@ -63,13 +71,18 @@ class HitlReader:
         """
         uipath = UiPath()
         match resume_trigger.trigger_type:
-            case UiPathResumeTriggerType.ACTION:
+            case UiPathResumeTriggerType.TASK:
                 if resume_trigger.item_key:
                     action = await uipath.actions.retrieve_async(
                         resume_trigger.item_key,
                         app_folder_key=resume_trigger.folder_key,
                         app_folder_path=resume_trigger.folder_path,
                     )
+                    if (
+                        resume_trigger.trigger_name
+                        == UiPathResumeTriggerName.ESCALATION
+                    ):
+                        return action
 
                     return action.data
 
@@ -149,12 +162,30 @@ class HitlProcessor:
         Returns:
             The appropriate UiPathResumeTriggerType based on the input value type.
         """
-        if isinstance(self.value, CreateAction) or isinstance(self.value, WaitAction):
-            return UiPathResumeTriggerType.ACTION
+        if isinstance(self.value, CreateTask) or isinstance(self.value, WaitTask):
+            return UiPathResumeTriggerType.TASK
         if isinstance(self.value, InvokeProcess) or isinstance(self.value, WaitJob):
             return UiPathResumeTriggerType.JOB
         # default to API trigger
         return UiPathResumeTriggerType.API
+
+    @cached_property
+    def trigger_name(self) -> UiPathResumeTriggerName:
+        """Determines the resume trigger name based on the input value.
+
+        Returns:
+            The appropriate UiPathResumeTriggerName based on the input value type.
+        """
+        if isinstance(self.value, CreateEscalation) or isinstance(
+            self.value, WaitEscalation
+        ):
+            return UiPathResumeTriggerName.ESCALATION
+        if isinstance(self.value, CreateTask) or isinstance(self.value, WaitTask):
+            return UiPathResumeTriggerName.TASK
+        if isinstance(self.value, InvokeProcess) or isinstance(self.value, WaitJob):
+            return UiPathResumeTriggerName.JOB
+        # default to API trigger
+        return UiPathResumeTriggerName.API
 
     async def create_resume_trigger(self) -> UiPathResumeTrigger:
         """Creates a UiPath resume trigger based on the input value and its type.
@@ -179,16 +210,18 @@ class HitlProcessor:
         try:
             hitl_input = self.value
             resume_trigger = UiPathResumeTrigger(
-                trigger_type=self.type, payload=serialize_object(hitl_input)
+                trigger_type=self.type,
+                trigger_name=self.trigger_name,
+                payload=serialize_object(hitl_input),
             )
 
             match self.type:
-                case UiPathResumeTriggerType.ACTION:
+                case UiPathResumeTriggerType.TASK:
                     resume_trigger.folder_path = hitl_input.app_folder_path
                     resume_trigger.folder_key = hitl_input.app_folder_key
-                    if isinstance(hitl_input, WaitAction):
+                    if isinstance(hitl_input, WaitTask):
                         resume_trigger.item_key = hitl_input.action.key
-                    elif isinstance(hitl_input, CreateAction):
+                    elif isinstance(hitl_input, CreateTask):
                         action = await uipath.actions.create_async(
                             title=hitl_input.title,
                             app_name=hitl_input.app_name if hitl_input.app_name else "",
