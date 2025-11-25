@@ -35,7 +35,6 @@ class CreateTask(BaseModel):
     app_folder_path: Optional[str] = None
     app_folder_key: Optional[str] = None
     app_key: Optional[str] = None
-    app_version: Optional[int] = 1
 
 
 class CreateEscalation(CreateTask):

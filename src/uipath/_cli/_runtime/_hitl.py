@@ -232,9 +232,6 @@ class HitlProcessor:
                             if hitl_input.app_folder_key
                             else "",
                             app_key=hitl_input.app_key if hitl_input.app_key else "",
-                            app_version=hitl_input.app_version
-                            if hitl_input.app_version
-                            else 1,
                             assignee=hitl_input.assignee if hitl_input.assignee else "",
                             data=hitl_input.data,
                         )

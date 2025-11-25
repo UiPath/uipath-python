@@ -22,7 +22,6 @@ def _create_spec(
     action_schema: Optional[ActionSchema],
     title: str,
     app_key: Optional[str] = None,
-    app_version: Optional[int] = 1,
     app_folder_key: Optional[str] = None,
     app_folder_path: Optional[str] = None,
 ) -> RequestSpec:
@@ -82,7 +81,6 @@ def _create_spec(
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
         json={
             "appId": app_key,
-            "appVersion": app_version,
             "title": title,
             "data": data if data is not None else {},
             "actionableMessageMetaData": {
@@ -182,7 +180,6 @@ class ActionsService(FolderContext, BaseService):
         app_key: Optional[str] = None,
         app_folder_path: Optional[str] = None,
         app_folder_key: Optional[str] = None,
-        app_version: Optional[int] = 1,
         assignee: Optional[str] = None,
     ) -> Action:
         """Creates a new action asynchronously.
@@ -197,7 +194,6 @@ class ActionsService(FolderContext, BaseService):
             app_key: The key of the application (if creating an app-specific action)
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
-            app_version: The version of the application
             assignee: Optional username or email to assign the task to
 
         Returns:
@@ -217,7 +213,6 @@ class ActionsService(FolderContext, BaseService):
             title=title,
             data=data,
             app_key=key,
-            app_version=app_version,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
@@ -253,7 +248,6 @@ class ActionsService(FolderContext, BaseService):
         app_key: Optional[str] = None,
         app_folder_path: Optional[str] = None,
         app_folder_key: Optional[str] = None,
-        app_version: Optional[int] = 1,
         assignee: Optional[str] = None,
     ) -> Action:
         """Creates a new action synchronously.
@@ -268,7 +262,6 @@ class ActionsService(FolderContext, BaseService):
             app_key: The key of the application (if creating an app-specific action)
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
-            app_version: The version of the application
             assignee: Optional username or email to assign the task to
 
         Returns:
@@ -288,7 +281,6 @@ class ActionsService(FolderContext, BaseService):
             title=title,
             data=data,
             app_key=key,
-            app_version=app_version,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
