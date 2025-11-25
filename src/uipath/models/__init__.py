@@ -33,6 +33,7 @@ from .interrupt_models import (
     WaitJob,
 )
 from .job import Job
+from .mcp import McpServer
 from .paging import PagedResult
 from .processes import Process
 from .queues import (
@@ -62,6 +63,7 @@ __all__ = [
     "ConnectionToken",
     "EventArguments",
     "Job",
+    "McpServer",
     "InvokeProcess",
     "ActionSchema",
     "WaitJob",
