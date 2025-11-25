@@ -37,6 +37,8 @@ class CreateAction(BaseModel):
     app_key: Optional[str] = None
     app_version: Optional[int] = 1
 
+class CreateEscalation(CreateAction):
+    pass
 
 class WaitAction(BaseModel):
     """Model representing a wait action operation."""
@@ -44,3 +46,6 @@ class WaitAction(BaseModel):
     action: Action
     app_folder_path: Optional[str] = None
     app_folder_key: Optional[str] = None
+
+class WaitEscalation(WaitAction):
+    pass

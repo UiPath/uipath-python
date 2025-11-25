@@ -17,7 +17,7 @@ from uipath.runtime.errors import (
 )
 
 from uipath.platform import UiPath
-from uipath.platform.common import CreateAction, InvokeProcess, WaitAction, WaitJob
+from uipath.platform.common import CreateAction, InvokeProcess, WaitAction, WaitJob, CreateEscalation, WaitEscalation
 
 from .._utils._common import serialize_object
 
@@ -63,7 +63,7 @@ class HitlReader:
         """
         uipath = UiPath()
         match resume_trigger.trigger_type:
-            case UiPathResumeTriggerType.ACTION:
+            case UiPathResumeTriggerType.ACTION | UiPathResumeTriggerType.ESCALATION:
                 if resume_trigger.item_key:
                     action = await uipath.actions.retrieve_async(
                         resume_trigger.item_key,
@@ -71,7 +71,7 @@ class HitlReader:
                         app_folder_path=resume_trigger.folder_path,
                     )
 
-                    return action.data
+                    return action.data if resume_trigger.trigger_type == UiPathResumeTriggerType.ACTION else action
 
             case UiPathResumeTriggerType.JOB:
                 if resume_trigger.item_key:
@@ -149,6 +149,8 @@ class HitlProcessor:
         Returns:
             The appropriate UiPathResumeTriggerType based on the input value type.
         """
+        if isinstance(self.value, CreateEscalation) or isinstance(self.value, WaitEscalation):
+            return UiPathResumeTriggerType.ESCALATION
         if isinstance(self.value, CreateAction) or isinstance(self.value, WaitAction):
             return UiPathResumeTriggerType.ACTION
         if isinstance(self.value, InvokeProcess) or isinstance(self.value, WaitJob):
@@ -183,7 +185,7 @@ class HitlProcessor:
             )
 
             match self.type:
-                case UiPathResumeTriggerType.ACTION:
+                case UiPathResumeTriggerType.ACTION | UiPathResumeTriggerType.ESCALATION:
                     resume_trigger.folder_path = hitl_input.app_folder_path
                     resume_trigger.folder_key = hitl_input.app_folder_key
                     if isinstance(hitl_input, WaitAction):
