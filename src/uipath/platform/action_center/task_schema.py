@@ -12,7 +12,7 @@ class FieldDetails(BaseModel):
     key: str
 
 
-class ActionSchema(BaseModel):
+class TaskSchema(BaseModel):
     """Model representing the schema of an action in the UiPath platform."""
 
     model_config = ConfigDict(

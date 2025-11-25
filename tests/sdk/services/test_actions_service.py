@@ -3,25 +3,25 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.actions_service import ActionsService
+from uipath._services.tasks_service import TasksService
 from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.platform.actions import Action
+from uipath.platform.action_center import Task
 
 
 @pytest.fixture
 def service(
     config: Config, execution_context: ExecutionContext, monkeypatch: pytest.MonkeyPatch
-) -> ActionsService:
+) -> TasksService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
 
-    return ActionsService(config=config, execution_context=execution_context)
+    return TasksService(config=config, execution_context=execution_context)
 
 
-class TestActionsService:
+class TestTasksService:
     def test_retrieve(
         self,
         httpx_mock: HTTPXMock,
-        service: ActionsService,
+        service: TasksService,
         base_url: str,
         org: str,
         tenant: str,
@@ -38,7 +38,7 @@ class TestActionsService:
             app_folder_path="test-folder",
         )
 
-        assert isinstance(action, Action)
+        assert isinstance(action, Task)
         assert action.id == 1
         assert action.title == "Test Action"
 
@@ -55,14 +55,14 @@ class TestActionsService:
         assert HEADER_USER_AGENT in sent_request.headers
         assert (
             sent_request.headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ActionsService.retrieve/{version}"
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.TasksService.retrieve/{version}"
         )
 
     @pytest.mark.anyio
     async def test_retrieve_async(
         self,
         httpx_mock: HTTPXMock,
-        service: ActionsService,
+        service: TasksService,
         base_url: str,
         org: str,
         tenant: str,
@@ -79,7 +79,7 @@ class TestActionsService:
             app_folder_path="test-folder",
         )
 
-        assert isinstance(action, Action)
+        assert isinstance(action, Task)
         assert action.id == 1
         assert action.title == "Test Action"
 
@@ -96,13 +96,13 @@ class TestActionsService:
         assert HEADER_USER_AGENT in sent_request.headers
         assert (
             sent_request.headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ActionsService.retrieve_async/{version}"
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.TasksService.retrieve_async/{version}"
         )
 
     def test_create_with_app_key(
         self,
         httpx_mock: HTTPXMock,
-        service: ActionsService,
+        service: TasksService,
         base_url: str,
         org: str,
         tenant: str,
@@ -119,14 +119,14 @@ class TestActionsService:
             data={"test": "data"},
         )
 
-        assert isinstance(action, Action)
+        assert isinstance(action, Task)
         assert action.id == 1
         assert action.title == "Test Action"
 
     def test_create_with_assignee(
         self,
         httpx_mock: HTTPXMock,
-        service: ActionsService,
+        service: TasksService,
         base_url: str,
         org: str,
         tenant: str,
@@ -173,6 +173,6 @@ class TestActionsService:
             assignee="test@example.com",
         )
 
-        assert isinstance(action, Action)
+        assert isinstance(action, Task)
         assert action.id == 1
         assert action.title == "Test Action"

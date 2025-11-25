@@ -73,7 +73,7 @@ class HitlReader:
         match resume_trigger.trigger_type:
             case UiPathResumeTriggerType.TASK:
                 if resume_trigger.item_key:
-                    action = await uipath.actions.retrieve_async(
+                    action = await uipath.tasks.retrieve_async(
                         resume_trigger.item_key,
                         app_folder_key=resume_trigger.folder_key,
                         app_folder_path=resume_trigger.folder_path,
@@ -222,7 +222,7 @@ class HitlProcessor:
                     if isinstance(hitl_input, WaitTask):
                         resume_trigger.item_key = hitl_input.action.key
                     elif isinstance(hitl_input, CreateTask):
-                        action = await uipath.actions.create_async(
+                        action = await uipath.tasks.create_async(
                             title=hitl_input.title,
                             app_name=hitl_input.app_name if hitl_input.app_name else "",
                             app_folder_path=hitl_input.app_folder_path
@@ -232,9 +232,6 @@ class HitlProcessor:
                             if hitl_input.app_folder_key
                             else "",
                             app_key=hitl_input.app_key if hitl_input.app_key else "",
-                            app_version=hitl_input.app_version
-                            if hitl_input.app_version
-                            else 1,
                             assignee=hitl_input.assignee if hitl_input.assignee else "",
                             data=hitl_input.data,
                         )

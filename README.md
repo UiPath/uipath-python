@@ -88,7 +88,7 @@ The SDK provides access to various UiPath services:
 
 -   `sdk.queues` - Work with transaction queues
 
--   `sdk.actions` - Work with Action Center
+-   `sdk.tasks` - Work with Action Center
 
 -   `sdk.api_client` - Direct access to the API client for custom requests
 

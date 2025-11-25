@@ -12,17 +12,16 @@ from .._utils.constants import (
     HEADER_FOLDER_PATH,
     HEADER_TENANT_ID,
 )
-from ..platform.actions import Action, ActionSchema
+from ..platform.action_center import Task, TaskSchema
 from ..tracing import traced
 from ._base_service import BaseService
 
 
 def _create_spec(
     data: Optional[Dict[str, Any]],
-    action_schema: Optional[ActionSchema],
+    action_schema: Optional[TaskSchema],
     title: str,
     app_key: Optional[str] = None,
-    app_version: Optional[int] = 1,
     app_folder_key: Optional[str] = None,
     app_folder_path: Optional[str] = None,
 ) -> RequestSpec:
@@ -82,7 +81,6 @@ def _create_spec(
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
         json={
             "appId": app_key,
-            "appVersion": app_version,
             "title": title,
             "data": data if data is not None else {},
             "actionableMessageMetaData": {
@@ -150,15 +148,15 @@ def folder_headers(
     return headers
 
 
-class ActionsService(FolderContext, BaseService):
-    """Service for managing UiPath Actions.
+class TasksService(FolderContext, BaseService):
+    """Service for managing UiPath Action Center tasks.
 
-    Actions are task-based automation components that can be integrated into
+    Tasks are task-based automation components that can be integrated into
     applications and processes. They represent discrete units of work that can
     be triggered and monitored through the UiPath API.
 
-    This service provides methods to create and retrieve actions, supporting
-    both app-specific and generic actions. It inherits folder context management
+    This service provides methods to create and retrieve tasks, supporting
+    both app-specific and generic tasks. It inherits folder context management
     capabilities from FolderContext.
 
     Reference: https://docs.uipath.com/automation-cloud/docs/actions
@@ -167,7 +165,7 @@ class ActionsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="actions_create", run_type="uipath")
+    @traced(name="tasks_create", run_type="uipath")
     @resource_override(
         resource_type="app",
         resource_identifier="app_name",
@@ -182,9 +180,8 @@ class ActionsService(FolderContext, BaseService):
         app_key: Optional[str] = None,
         app_folder_path: Optional[str] = None,
         app_folder_key: Optional[str] = None,
-        app_version: Optional[int] = 1,
         assignee: Optional[str] = None,
-    ) -> Action:
+    ) -> Task:
         """Creates a new action asynchronously.
 
         This method creates a new action task in UiPath Orchestrator. The action can be
@@ -197,7 +194,6 @@ class ActionsService(FolderContext, BaseService):
             app_key: The key of the application (if creating an app-specific action)
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
-            app_version: The version of the application
             assignee: Optional username or email to assign the task to
 
         Returns:
@@ -217,7 +213,6 @@ class ActionsService(FolderContext, BaseService):
             title=title,
             data=data,
             app_key=key,
-            app_version=app_version,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
@@ -236,9 +231,9 @@ class ActionsService(FolderContext, BaseService):
             await self.request_async(
                 spec.method, spec.endpoint, json=spec.json, content=spec.content
             )
-        return Action.model_validate(json_response)
+        return Task.model_validate(json_response)
 
-    @traced(name="actions_create", run_type="uipath")
+    @traced(name="tasks_create", run_type="uipath")
     @resource_override(
         resource_type="app",
         resource_identifier="app_name",
@@ -253,10 +248,9 @@ class ActionsService(FolderContext, BaseService):
         app_key: Optional[str] = None,
         app_folder_path: Optional[str] = None,
         app_folder_key: Optional[str] = None,
-        app_version: Optional[int] = 1,
         assignee: Optional[str] = None,
-    ) -> Action:
-        """Creates a new action synchronously.
+    ) -> Task:
+        """Creates a new task synchronously.
 
         This method creates a new action task in UiPath Orchestrator. The action can be
         either app-specific (using app_name or app_key) or a generic action.
@@ -268,7 +262,6 @@ class ActionsService(FolderContext, BaseService):
             app_key: The key of the application (if creating an app-specific action)
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
-            app_version: The version of the application
             assignee: Optional username or email to assign the task to
 
         Returns:
@@ -288,7 +281,6 @@ class ActionsService(FolderContext, BaseService):
             title=title,
             data=data,
             app_key=key,
-            app_version=app_version,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
@@ -307,21 +299,21 @@ class ActionsService(FolderContext, BaseService):
             self.request(
                 spec.method, spec.endpoint, json=spec.json, content=spec.content
             )
-        return Action.model_validate(json_response)
+        return Task.model_validate(json_response)
 
-    @traced(name="actions_retrieve", run_type="uipath")
+    @traced(name="tasks_retrieve", run_type="uipath")
     def retrieve(
         self, action_key: str, app_folder_path: str = "", app_folder_key: str = ""
-    ) -> Action:
-        """Retrieves an action by its key synchronously.
+    ) -> Task:
+        """Retrieves a task by its key synchronously.
 
         Args:
-            action_key: The unique identifier of the action to retrieve
-            app_folder_path: Optional folder path for the action
-            app_folder_key: Optional folder key for the action
+            action_key: The unique identifier of the task to retrieve
+            app_folder_path: Optional folder path for the task
+            app_folder_key: Optional folder key for the task
 
         Returns:
-            Action: The retrieved action object
+            Task: The retrieved task object
         """
         spec = _retrieve_action_spec(
             action_key=action_key,
@@ -332,21 +324,21 @@ class ActionsService(FolderContext, BaseService):
             spec.method, spec.endpoint, params=spec.params, headers=spec.headers
         )
 
-        return Action.model_validate(response.json())
+        return Task.model_validate(response.json())
 
-    @traced(name="actions_retrieve", run_type="uipath")
+    @traced(name="tasks_retrieve", run_type="uipath")
     async def retrieve_async(
         self, action_key: str, app_folder_path: str = "", app_folder_key: str = ""
-    ) -> Action:
-        """Retrieves an action by its key asynchronously.
+    ) -> Task:
+        """Retrieves a task by its key asynchronously.
 
         Args:
-            action_key: The unique identifier of the action to retrieve
-            app_folder_path: Optional folder path for the action
-            app_folder_key: Optional folder key for the action
+            action_key: The unique identifier of the task to retrieve
+            app_folder_path: Optional folder path for the task
+            app_folder_key: Optional folder key for the task
 
         Returns:
-            Action: The retrieved action object
+            Task: The retrieved task object
         """
         spec = _retrieve_action_spec(
             action_key=action_key,
@@ -357,11 +349,11 @@ class ActionsService(FolderContext, BaseService):
             spec.method, spec.endpoint, params=spec.params, headers=spec.headers
         )
 
-        return Action.model_validate(response.json())
+        return Task.model_validate(response.json())
 
     async def _get_app_key_and_schema_async(
         self, app_name: Optional[str], app_folder_path: Optional[str]
-    ) -> Tuple[str, Optional[ActionSchema]]:
+    ) -> Tuple[str, Optional[TaskSchema]]:
         if not app_name:
             raise Exception("appName or appKey is required")
         spec = _retrieve_app_key_spec(app_name=app_name)
@@ -384,7 +376,7 @@ class ActionsService(FolderContext, BaseService):
         try:
             return (
                 deployed_app_key,
-                ActionSchema(
+                TaskSchema(
                     key=action_schema["key"],
                     in_outs=action_schema["inOuts"],
                     inputs=action_schema["inputs"],
@@ -397,7 +389,7 @@ class ActionsService(FolderContext, BaseService):
 
     def _get_app_key_and_schema(
         self, app_name: Optional[str], app_folder_path: Optional[str]
-    ) -> Tuple[str, Optional[ActionSchema]]:
+    ) -> Tuple[str, Optional[TaskSchema]]:
         if not app_name:
             raise Exception("appName or appKey is required")
 
@@ -422,7 +414,7 @@ class ActionsService(FolderContext, BaseService):
         try:
             return (
                 deployed_app_key,
-                ActionSchema(
+                TaskSchema(
                     key=action_schema["key"],
                     in_outs=action_schema["inOuts"],
                     inputs=action_schema["inputs"],

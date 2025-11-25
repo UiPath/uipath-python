@@ -1,4 +1,3 @@
-from .actions_service import ActionsService
 from .api_client import ApiClient
 from .assets_service import AssetsService
 from .attachments_service import AttachmentsService
@@ -18,9 +17,10 @@ from .mcp_service import McpService
 from .processes_service import ProcessesService
 from .queues_service import QueuesService
 from .resource_catalog_service import ResourceCatalogService
+from .tasks_service import TasksService
 
 __all__ = [
-    "ActionsService",
+    "TasksService",
     "AssetsService",
     "AttachmentsService",
     "BucketsService",

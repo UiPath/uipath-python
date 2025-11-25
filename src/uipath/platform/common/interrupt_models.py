@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel
 
-from ..actions import Action
+from ..action_center import Task
 from ..orchestrator import Job
 
 
@@ -35,7 +35,6 @@ class CreateTask(BaseModel):
     app_folder_path: Optional[str] = None
     app_folder_key: Optional[str] = None
     app_key: Optional[str] = None
-    app_version: Optional[int] = 1
 
 
 class CreateEscalation(CreateTask):
@@ -47,7 +46,7 @@ class CreateEscalation(CreateTask):
 class WaitTask(BaseModel):
     """Model representing a wait action operation."""
 
-    action: Action
+    action: Task
     app_folder_path: Optional[str] = None
     app_folder_key: Optional[str] = None
 

@@ -12,7 +12,7 @@ from uipath.runtime import (
 from uipath.runtime.errors import UiPathRuntimeError
 
 from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
-from uipath.platform.actions import Action
+from uipath.platform.action_center import Task
 from uipath.platform.common import CreateTask, InvokeProcess, WaitJob, WaitTask
 from uipath.platform.orchestrator import (
     Job,
@@ -46,11 +46,11 @@ class TestHitlReader:
         action_key = "test-action-key"
         action_data = {"answer": "test-action-data"}
 
-        mock_action = Action(key=action_key, data=action_data)
+        mock_action = Task(key=action_key, data=action_data)
         mock_retrieve_async = AsyncMock(return_value=mock_action)
 
         with patch(
-            "uipath._services.actions_service.ActionsService.retrieve_async",
+            "uipath._services.tasks_service.TasksService.retrieve_async",
             new=mock_retrieve_async,
         ):
             resume_trigger = UiPathResumeTrigger(
@@ -192,11 +192,11 @@ class TestHitlProcessor:
     """Tests for the HitlProcessor class."""
 
     @pytest.mark.anyio
-    async def test_create_resume_trigger_create_action(
+    async def test_create_resume_trigger_create_task(
         self,
         setup_test_env: None,
     ) -> None:
-        """Test creating a resume trigger for CreateAction."""
+        """Test creating a resume trigger for CreateTask."""
         action_key = "test-action-key"
         create_action = CreateTask(
             title="Test Action",
@@ -205,11 +205,11 @@ class TestHitlProcessor:
             data={"input": "test-input"},
         )
 
-        mock_action = Action(key=action_key)
+        mock_action = Task(key=action_key)
         mock_create_async = AsyncMock(return_value=mock_action)
 
         with patch(
-            "uipath._services.actions_service.ActionsService.create_async",
+            "uipath._services.tasks_service.TasksService.create_async",
             new=mock_create_async,
         ):
             processor = HitlProcessor(create_action)
@@ -225,19 +225,18 @@ class TestHitlProcessor:
                 app_folder_path=create_action.app_folder_path,
                 app_folder_key="",
                 app_key="",
-                app_version=1,
                 assignee="",
                 data=create_action.data,
             )
 
     @pytest.mark.anyio
-    async def test_create_resume_trigger_wait_action(
+    async def test_create_resume_trigger_wait_task(
         self,
         setup_test_env: None,
     ) -> None:
-        """Test creating a resume trigger for WaitAction."""
+        """Test creating a resume trigger for WaitTask."""
         action_key = "test-action-key"
-        action = Action(key=action_key)
+        action = Task(key=action_key)
         wait_action = WaitTask(action=action, app_folder_path="/test/path")
 
         processor = HitlProcessor(wait_action)

@@ -112,7 +112,7 @@ The agent demonstrates the following resource interactions:
 |---------------|------------|---------|
 | **Asset** | `uipath.assets.retrieve_async()` | Retrieve asset values |
 | **Connection** | `uipath.connections.retrieve_async()` | Get connection details |
-| **App (Action)** | `uipath.actions.create_async()` | Create action items |
+| **App (Task)** | `uipath.tasks.create_async()` | Create tasks |
 | **Index** | `uipath.context_grounding.retrieve_async()` | Access context grounding data |
 | **Bucket** | `uipath.buckets.retrieve_async()` | Access storage buckets |
 | **Process** | `uipath.processes.invoke_async()` | Trigger process execution |

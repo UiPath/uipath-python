@@ -1,4 +1,4 @@
-"""Data model for an Action in the UiPath platform."""
+"""Data model for an Action in the UiPath Platform."""
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
-class Action(BaseModel):
-    """Model representing an Action in the UiPath platform."""
+class Task(BaseModel):
+    """Model representing a Task in the UiPath Platform."""
 
     model_config = ConfigDict(
         validate_by_name=True,

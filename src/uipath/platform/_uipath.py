@@ -6,7 +6,6 @@ from pydantic import ValidationError
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._services import (
-    ActionsService,
     ApiClient,
     AssetsService,
     AttachmentsService,
@@ -22,6 +21,7 @@ from .._services import (
     ProcessesService,
     QueuesService,
     ResourceCatalogService,
+    TasksService,
     UiPathLlmChatService,
     UiPathOpenAIService,
 )
@@ -75,8 +75,8 @@ class UiPath:
         return ProcessesService(self._config, self._execution_context, self.attachments)
 
     @property
-    def actions(self) -> ActionsService:
-        return ActionsService(self._config, self._execution_context)
+    def tasks(self) -> TasksService:
+        return TasksService(self._config, self._execution_context)
 
     @cached_property
     def buckets(self) -> BucketsService:
