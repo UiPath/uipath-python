@@ -87,6 +87,12 @@ def cli(
         output_format=format,
         debug=debug,
     )
+    from importlib_metadata import entry_points
+    discovered_factories = entry_points(group='uipath.runtime.factories')
+
+    for factory in discovered_factories:
+        register_func = factory.load()
+        register_func()
 
     if lv:
         try:

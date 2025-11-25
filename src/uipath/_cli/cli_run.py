@@ -14,9 +14,8 @@ from uipath.runtime.errors import UiPathRuntimeError
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
-from uipath.functions.factory import UiPathFunctionsRuntimeFactory
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
-
+from uipath.runtime import UiPathRuntimeFactoryRegistry
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -109,7 +108,7 @@ def run(
                 runtime: UiPathRuntimeProtocol | None = None
                 with ctx:
                     try:
-                        factory = UiPathFunctionsRuntimeFactory(ctx.config_path)
+                        factory = UiPathRuntimeFactoryRegistry.get()
                         runtime = await factory.new_runtime(
                             entrypoint, ctx.job_id or "default"
                         )
