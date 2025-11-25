@@ -1,16 +1,22 @@
 import asyncio
-import os
 from typing import Optional
 
 import click
+from uipath.core.tracing import UiPathTraceManager
+from uipath.runtime import (
+    UiPathExecuteOptions,
+    UiPathRuntimeProtocol,
+    UiPathRuntimeResult,
+)
+from uipath.runtime.context import UiPathRuntimeContext
+from uipath.runtime.errors import UiPathRuntimeError
 
-from uipath._cli._runtime._runtime_factory import generate_runtime_factory
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
+from uipath.functions.factory import UiPathFunctionsRuntimeFactory
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 
-from ._runtime._contracts import UiPathRuntimeError
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -69,16 +75,8 @@ def run(
     debug_port: int,
 ) -> None:
     """Execute the project."""
-    context_args = {
-        "entrypoint": entrypoint,
-        "input": input,
-        "resume": resume,
-        "input_file": file or input_file,
-        "execution_output_file": output_file,
-        "trace_file": trace_file,
-        "debug": debug,
-    }
     input_file = file or input_file
+
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
@@ -89,7 +87,7 @@ def run(
         input,
         resume,
         input_file=input_file,
-        execution_output_file=output_file,
+        output_file=output_file,
         trace_file=trace_file,
         debug=debug,
         debug_port=debug_port,
@@ -97,50 +95,71 @@ def run(
 
     if result.error_message:
         console.error(result.error_message)
+        return
 
     if result.should_continue:
         if not entrypoint:
-            console.error("""No entrypoint specified. Please provide a path to a Python script.
-    Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
-            return
-
-        if not os.path.exists(entrypoint):
-            console.error(f"""Script not found at path {entrypoint}.
-    Usage: `uipath run <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
+            console.error("""No entrypoint specified. Please provide the path to the Python function.
+    Usage: `uipath run <entrypoint> <input_arguments> [-f <input_json_file_path>]`""")
             return
 
         try:
 
-            async def execute() -> None:
-                runtime_factory = generate_runtime_factory()
-                context = runtime_factory.new_context(**context_args)
-                if context.job_id:
-                    runtime_factory.add_span_exporter(LlmOpsHttpExporter())
-
-                if trace_file:
-                    runtime_factory.add_span_exporter(JsonLinesFileExporter(trace_file))
-
-                if context.job_id:
-                    async with ResourceOverwritesContext(
-                        lambda: read_resource_overwrites_from_file(context.runtime_dir)
-                    ) as ctx:
-                        console.info(
-                            f"Applied {ctx.overwrites_count} resource overwrite(s)"
+            async def execute_runtime(ctx: UiPathRuntimeContext) -> UiPathRuntimeResult:
+                runtime: UiPathRuntimeProtocol | None = None
+                with ctx:
+                    try:
+                        factory = UiPathFunctionsRuntimeFactory(ctx.config_path)
+                        runtime = await factory.new_runtime(
+                            entrypoint, ctx.job_id or "default"
                         )
+                        options = UiPathExecuteOptions(resume=resume)
+                        ctx.result = await runtime.execute(
+                            input=ctx.get_input(), options=options
+                        )
+                        return ctx.result
+                    finally:
+                        if runtime:
+                            await runtime.dispose()
 
-                        result = await runtime_factory.execute(context)
+            async def execute() -> None:
+                ctx = UiPathRuntimeContext.with_defaults(
+                    entrypoint=entrypoint,
+                    input=input,
+                    input_file=file or input_file,
+                    output_file=output_file,
+                    trace_file=trace_file,
+                )
+
+                trace_manager = UiPathTraceManager()
+
+                if ctx.trace_file:
+                    trace_manager.add_span_exporter(
+                        JsonLinesFileExporter(ctx.trace_file)
+                    )
+
+                if ctx.job_id:
+                    trace_manager.add_span_exporter(LlmOpsHttpExporter())
+
+                    async with ResourceOverwritesContext(
+                        lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
+                    ) as rcs_ctx:
+                        console.info(
+                            f"Applied {rcs_ctx.overwrites_count} resource overwrite(s)"
+                        )
+                        await execute_runtime(ctx)
+
                 else:
-                    result = await runtime_factory.execute(context)
+                    result = await execute_runtime(ctx)
 
-                if not context.job_id and result:
-                    console.info(f"{result.output}")
+                    if result:
+                        console.info(f"{result.output}")
 
             asyncio.run(execute())
 
         except UiPathRuntimeError as e:
             console.error(f"{e.error_info.title} - {e.error_info.detail}")
         except Exception as e:
-            # Handle unexpected errors
             console.error(
                 f"Error: Unexpected error occurred - {str(e)}", include_traceback=True
             )

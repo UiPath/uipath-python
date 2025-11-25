@@ -14,4 +14,4 @@ echo "Packing agent..."
 uv run uipath pack
 
 echo "Input from input.json file"
-uv run uipath run main.py '{"message": "abc" }'
+uv run uipath run main '{"message": "abc" }'

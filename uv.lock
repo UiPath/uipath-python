@@ -2392,14 +2392,14 @@ dependencies = [
     { name = "pathlib" },
     { name = "pydantic-function-models" },
     { name = "pyjwt" },
-    { name = "pyperclip" },
     { name = "pysignalr" },
     { name = "python-dotenv" },
     { name = "rich" },
     { name = "tenacity" },
-    { name = "textual" },
     { name = "truststore" },
     { name = "uipath-core" },
+    { name = "uipath-dev" },
+    { name = "uipath-runtime" },
 ]
 
 [package.dev-dependencies]
@@ -2438,14 +2438,14 @@ requires-dist = [
     { name = "pathlib", specifier = ">=1.0.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.10" },
     { name = "pyjwt", specifier = ">=2.10.1" },
-    { name = "pyperclip", specifier = ">=1.9.0" },
     { name = "pysignalr", specifier = "==1.3.0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
-    { name = "textual", specifier = ">=5.3.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", specifier = ">=0.0.5,<0.1.0" },
+    { name = "uipath-dev", specifier = ">=0.0.5,<0.1.0" },
+    { name = "uipath-runtime", specifier = ">=0.0.17,<0.1.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -2486,6 +2486,32 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c6/be/575d6075bffb70de8f91feeef873d61d8e4051ac66edd97e14d639599ba4/uipath_core-0.0.5.tar.gz", hash = "sha256:b52e7455a45a1af504b6aa12844f14bd6d5bb69c98399b54c962723f5b0cacad", size = 77751, upload-time = "2025-11-24T06:48:40.943Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/37/ae/9a2488196b98f0f9442573cdbfa146a2ae614aec22dabc28c9b34b4abf45/uipath_core-0.0.5-py3-none-any.whl", hash = "sha256:056b8f2fede1e23717ad0c356a300466ac8ca41dd03b9a5fecb6ab24dd5dc97e", size = 13183, upload-time = "2025-11-24T06:48:39.717Z" },
+]
+
+[[package]]
+name = "uipath-dev"
+version = "0.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyperclip" },
+    { name = "textual" },
+    { name = "uipath-runtime" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/31/51/2f2377081c48a6b02e7227ac95b84778556753429bdf26ac07b0b2cebc03/uipath_dev-0.0.5.tar.gz", hash = "sha256:313b117011e11547b3848fcaa48ec347a4b3fc888ef6cf2cf8665430de38f2e8", size = 89698, upload-time = "2025-11-25T05:49:59.126Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/9b/2e3943b5f315011f0d907140641839f055d67bc4ad70ab6933287350e541/uipath_dev-0.0.5-py3-none-any.whl", hash = "sha256:ffcd51d4de3ade6744182afcf0829449baef204d2c2a350eaec95b3a661cd065", size = 35630, upload-time = "2025-11-25T05:49:58.032Z" },
+]
+
+[[package]]
+name = "uipath-runtime"
+version = "0.0.17"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "uipath-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/2c/5d60d658facf444f9307a1edaa23a006e245c0c53d6aed20e6703aafd3d5/uipath_runtime-0.0.17.tar.gz", hash = "sha256:b31207db95307e9968e97804d356d072dc15375805453465841df4795c7a6645", size = 87548, upload-time = "2025-11-25T10:47:54.748Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/35/0e/5335d5d9e4e8516d8f4fef61c56188b637fb94de252164ec1f56526c907a/uipath_runtime-0.0.17-py3-none-any.whl", hash = "sha256:37636ca07090609e8d70dfc58a20b2abb309aea5aba079e24e0866b9f817c94c", size = 33753, upload-time = "2025-11-25T10:47:53.587Z" },
 ]
 
 [[package]]

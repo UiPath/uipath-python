@@ -10,9 +10,10 @@ from typing import Any, AsyncIterator, Dict, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from uipath._cli.models.uipath_json_schema import PackOptions, UiPathJsonConfig
+
 from ..._config import UiPathConfig
 from .._utils._console import ConsoleLogger
-from ..models.runtime_schema import RuntimeSchema
 from ._constants import is_binary_file
 from ._studio_project import (
     ProjectFile,
@@ -97,21 +98,20 @@ def get_project_config(directory: str) -> dict[str, Any]:
         console.error("pyproject.toml not found.")
 
     with open(config_path, "r") as config_file:
-        config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(config_file))
+        config_data = TypeAdapter(UiPathJsonConfig).validate_python(
+            json.load(config_file)
+        )
 
     toml_data = read_toml_project(toml_path)
 
     return {
         "project_name": toml_data["name"],
         "description": toml_data["description"],
-        "entryPoints": [ep.model_dump(by_alias=True) for ep in config_data.entrypoints]
-        if config_data.entrypoints
-        else [],
         "version": toml_data["version"],
         "authors": toml_data["authors"],
         "dependencies": toml_data.get("dependencies", {}),
         "requires-python": toml_data.get("requires-python", None),
-        "settings": config_data.settings or {},
+        "packOptions": config_data.pack_options or {},
     }
 
 
@@ -369,7 +369,7 @@ def read_toml_project(file_path: str) -> dict[str, Any]:
 
 
 def files_to_include(
-    settings: Optional[dict[str, Any]],
+    pack_options: Optional[PackOptions],
     directory: str,
     include_uv_lock: bool = True,
     directories_to_ignore: list[str] | None = None,
@@ -380,7 +380,7 @@ def files_to_include(
     and explicit inclusion rules. Skips virtual environments and hidden directories.
 
     Args:
-        settings: File handling settings
+        pack_options: File handling settings
         directory: Root directory to search for files
         include_uv_lock: Whether to include uv.lock file
         directories_to_ignore: List of directories to ignore
@@ -396,15 +396,15 @@ def files_to_include(
         directories_to_ignore = []
     if include_uv_lock:
         files_included += ["uv.lock"]
-    if settings is not None:
-        if "fileExtensionsIncluded" in settings:
-            file_extensions_included.extend(settings["fileExtensionsIncluded"])
-        if "filesIncluded" in settings:
-            files_included.extend(settings["filesIncluded"])
-        if "filesExcluded" in settings:
-            files_excluded.extend(settings["filesExcluded"])
-        if "directoriesExcluded" in settings:
-            directories_to_ignore.extend(settings["directoriesExcluded"])
+    if pack_options is not None:
+        if pack_options.file_extensions_included:
+            file_extensions_included.extend(pack_options.file_extensions_included)
+        if pack_options.files_included:
+            files_included.extend(pack_options.files_included)
+        if pack_options.files_excluded:
+            files_excluded.extend(pack_options.files_excluded)
+        if pack_options.directories_excluded:
+            directories_to_ignore.extend(pack_options.directories_excluded)
 
     def is_venv_dir(d: str) -> bool:
         """Check if a directory is a Python virtual environment.

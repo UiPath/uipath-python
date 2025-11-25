@@ -1,26 +1,23 @@
-from typing import TypeVar
-
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
-from uipath._cli._runtime._contracts import (
-    UiPathBaseRuntime,
-    UiPathRuntimeContext,
-    UiPathRuntimeFactory,
+from uipath.core.tracing import UiPathTraceManager
+from uipath.runtime import (
+    UiPathRuntimeFactoryProtocol,
     UiPathRuntimeResult,
 )
-from uipath._events._event_bus import EventBus
 
-T = TypeVar("T", bound=UiPathBaseRuntime)
-C = TypeVar("C", bound=UiPathRuntimeContext)
+from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath._events._event_bus import EventBus
 
 
 async def evaluate(
-    runtime_factory: UiPathRuntimeFactory[T, C],
+    runtime_factory: UiPathRuntimeFactoryProtocol,
+    trace_manager: UiPathTraceManager,
     eval_context: UiPathEvalContext,
     event_bus: EventBus,
 ) -> UiPathRuntimeResult:
-    async with UiPathEvalRuntime.from_eval_context(
+    async with UiPathEvalRuntime(
         factory=runtime_factory,
         context=eval_context,
+        trace_manager=trace_manager,
         event_bus=event_bus,
     ) as eval_runtime:
         results = await eval_runtime.execute()

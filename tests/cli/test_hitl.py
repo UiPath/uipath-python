@@ -3,14 +3,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
-
-from uipath._cli._runtime._contracts import (
+from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
     UiPathResumeTriggerType,
-    UiPathRuntimeError,
     UiPathRuntimeStatus,
 )
+from uipath.runtime.errors import UiPathRuntimeError
+
 from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
 from uipath.platform.actions import Action
 from uipath.platform.common import CreateAction, InvokeProcess, WaitAction, WaitJob
@@ -183,7 +183,7 @@ class TestHitlReader:
         with pytest.raises(UiPathRuntimeError) as exc_info:
             await HitlReader.read(resume_trigger)
         error_dict = exc_info.value.as_dict
-        assert error_dict["code"] == "Python.API_CONNECTION_ERROR"
+        assert error_dict["code"] == "Python.RETRIEVE_PAYLOAD_ERROR"
         assert error_dict["title"] == "Failed to get trigger payload"
         assert "Server error '500 Internal Server Error'" in error_dict["detail"]
 

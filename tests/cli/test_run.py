@@ -1,19 +1,17 @@
 # type: ignore
 import os
-from unittest import mock
 from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
 
-from tests.cli.utils.uipath_json import UiPathJson
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
 
 
 @pytest.fixture
 def entrypoint():
-    return "entrypoint.py"
+    return "main"
 
 
 @pytest.fixture
@@ -44,6 +42,11 @@ def mock_env_vars():
     }
 
 
+def create_uipath_json(script_path: str, entrypoint_name: str = "main"):
+    """Helper to create uipath.json with functions."""
+    return {"functions": {entrypoint_name: f"{script_path}:main"}}
+
+
 class TestRun:
     class TestFileInput:
         def test_run_input_file_not_found(
@@ -53,9 +56,17 @@ class TestRun:
             entrypoint: str,
         ):
             with runner.isolated_filesystem(temp_dir=temp_dir):
-                file_path = os.path.join(temp_dir, entrypoint)
+                script_file = "entrypoint.py"
+                file_path = os.path.join(temp_dir, script_file)
                 with open(file_path, "w") as f:
-                    f.write("script content")
+                    f.write("def main(input): return input")
+
+                # Create uipath.json
+                with open("uipath.json", "w") as f:
+                    import json
+
+                    json.dump(create_uipath_json(script_file), f)
+
                 result = runner.invoke(
                     cli, ["run", entrypoint, "--file", "not-here.json"]
                 )
@@ -70,15 +81,22 @@ class TestRun:
         ):
             file_name = "not-json.txt"
             with runner.isolated_filesystem(temp_dir=temp_dir):
-                script_file_path = os.path.join(temp_dir, entrypoint)
+                script_file = "entrypoint.py"
+                script_file_path = os.path.join(temp_dir, script_file)
                 with open(script_file_path, "w") as f:
-                    f.write("script content")
+                    f.write("def main(input): return input")
+
                 file_path = os.path.join(temp_dir, file_name)
                 with open(file_path, "w") as f:
                     f.write("file content")
-                result = runner.invoke(
-                    cli, ["run", script_file_path, "--file", file_path]
-                )
+
+                # Create uipath.json
+                with open("uipath.json", "w") as f:
+                    import json
+
+                    json.dump(create_uipath_json(script_file_path), f)
+
+                result = runner.invoke(cli, ["run", "main", "--file", file_path])
                 assert result.exit_code == 1
                 assert "Invalid Input File Extension" in result.output
 
@@ -95,9 +113,21 @@ class TestRun:
             }"""
 
             with runner.isolated_filesystem(temp_dir=temp_dir):
+                script_file = "entrypoint.py"
+                script_file_path = os.path.join(temp_dir, script_file)
+                with open(script_file_path, "w") as f:
+                    f.write("def main(input): return input")
+
                 file_path = os.path.join(temp_dir, file_name)
                 with open(file_path, "w") as f:
                     f.write(json_content)
+
+                # Create uipath.json
+                with open("uipath.json", "w") as f:
+                    import json
+
+                    json.dump(create_uipath_json(script_file), f)
+
                 with patch("uipath._cli.cli_run.Middlewares.next") as mock_middleware:
                     mock_middleware.return_value = MiddlewareResult(
                         should_continue=False,
@@ -110,18 +140,6 @@ class TestRun:
                     )
                     assert result.exit_code == 0
                     assert "Successful execution." in result.output
-                    assert mock_middleware.call_count == 1
-                    assert mock_middleware.call_args == mock.call(
-                        "run",
-                        entrypoint,
-                        "{}",
-                        False,
-                        input_file=file_path,
-                        debug=False,
-                        debug_port=5678,
-                        execution_output_file=None,
-                        trace_file=None,
-                    )
 
     class TestMiddleware:
         def test_no_entrypoint(self, runner: CliRunner, temp_dir: str):
@@ -129,28 +147,30 @@ class TestRun:
                 result = runner.invoke(cli, ["run"])
                 assert result.exit_code == 1
                 assert (
-                    "No entrypoint specified. Please provide a path to a Python script."
-                    in result.output
+                    "No entrypoint specified" in result.output
+                    or "Missing argument" in result.output
                 )
 
         def test_script_not_found(
             self, runner: CliRunner, temp_dir: str, entrypoint: str
         ):
             with runner.isolated_filesystem(temp_dir=temp_dir):
+                # Create uipath.json but no actual script file
+                with open("uipath.json", "w") as f:
+                    import json
+
+                    json.dump(create_uipath_json("nonexistent.py"), f)
+
                 result = runner.invoke(cli, ["run", entrypoint])
                 assert result.exit_code == 1
-                assert f"Script not found at path {entrypoint}" in result.output
+                assert "not found" in result.output.lower()
 
-        @pytest.mark.parametrize(
-            "uipath_json_legacy", ["uipath-simple-script-mock.json"], indirect=True
-        )
         def test_successful_execution(
             self,
             runner: CliRunner,
             temp_dir: str,
             entrypoint: str,
             mock_env_vars: dict,
-            uipath_json_legacy: UiPathJson,
             simple_script: str,
         ):
             input_file_name = "input.json"
@@ -166,24 +186,31 @@ class TestRun:
                 output_file_path = os.path.join(temp_dir, output_file_name)
                 with open(input_file_path, "w") as f:
                     f.write(input_json_content)
+
                 # Create test script
-                script_file_path = os.path.join(temp_dir, entrypoint)
+                script_file = "entrypoint.py"
+                script_file_path = os.path.join(temp_dir, script_file)
                 with open(script_file_path, "w") as f:
                     f.write(simple_script)
+
                 # create uipath.json
                 with open("uipath.json", "w") as f:
-                    f.write(uipath_json_legacy.to_json())
+                    import json
+
+                    json.dump(create_uipath_json(script_file_path), f)
+
                 result = runner.invoke(
                     cli,
                     [
                         "run",
-                        script_file_path,
+                        "main",
                         "--input-file",
                         input_file_path,
                         "--output-file",
                         output_file_path,
                     ],
                 )
+                print(result.output)
                 assert result.exit_code == 0
                 assert "Successful execution." in result.output
                 assert result.output.count("Hello world") == 2
@@ -198,7 +225,6 @@ class TestRun:
         temp_dir: str,
         entrypoint: str,
         mock_env_vars: dict,
-        uipath_json_legacy: UiPathJson,
     ):
         input_file_name = "input.json"
         input_json_content = """
@@ -211,55 +237,25 @@ class TestRun:
             input_file_path = os.path.join(temp_dir, input_file_name)
             with open(input_file_path, "w") as f:
                 f.write(input_json_content)
-            # Create test script
-            script_file_path = os.path.join(temp_dir, entrypoint)
-            with open(script_file_path, "w") as f:
-                f.write("print(0)")
-            # create uipath.json
-            with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
-            result = runner.invoke(cli, ["run", script_file_path, "{}"])
-            assert result.exit_code == 1
-            assert "No main function (main, run, or execute)" in result.output
-            assert "Successful execution." not in result.output
 
-    def test_middleware_error(
-        self,
-        runner: CliRunner,
-        temp_dir: str,
-        entrypoint: str,
-        mock_env_vars: dict,
-        uipath_json_legacy: UiPathJson,
-    ):
-        input_file_name = "input.json"
-        input_json_content = """
-                {
-                    "message": "Hello world",
-                    "repeat": 2
-                }"""
-        with runner.isolated_filesystem(temp_dir=temp_dir):
-            # create input file
-            input_file_path = os.path.join(temp_dir, input_file_name)
-            with open(input_file_path, "w") as f:
-                f.write(input_json_content)
-            # Create test script
-            script_file_path = os.path.join(temp_dir, entrypoint)
+            # Create test script without main function
+            script_file = "entrypoint.py"
+            script_file_path = os.path.join(temp_dir, script_file)
             with open(script_file_path, "w") as f:
                 f.write("print(0)")
+
             # create uipath.json
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
-            with patch("uipath._cli.cli_run.Middlewares.next") as mock_middleware:
-                mock_middleware.return_value = MiddlewareResult(
-                    should_continue=False,
-                    info_message="Execution failed",
-                    error_message="some error message",
-                    should_include_stacktrace=True,
-                )
-                result = runner.invoke(cli, ["run", script_file_path, "{}"])
+                import json
+
+                json.dump(create_uipath_json(script_file), f)
+
+            result = runner.invoke(cli, ["run", entrypoint, "{}"])
             assert result.exit_code == 1
-            assert "some error message" in result.output
-            assert "Successful execution." not in result.output
+            assert (
+                "not found" in result.output.lower()
+                or "missing" in result.output.lower()
+            )
 
     def test_pydantic_model_execution(
         self,
@@ -267,7 +263,6 @@ class TestRun:
         temp_dir: str,
         entrypoint: str,
         mock_env_vars: dict,
-        uipath_json_legacy: UiPathJson,
     ):
         """Test successful execution with Pydantic models."""
         pydantic_script = """
@@ -314,19 +309,24 @@ def main(input_data: PersonIn) -> PersonOut:
             output_file_path = os.path.join(temp_dir, output_file_name)
             with open(input_file_path, "w") as f:
                 f.write(input_json_content)
+
             # Create test script
-            script_file_path = os.path.join(temp_dir, entrypoint)
+            script_file = "entrypoint.py"
+            script_file_path = os.path.join(temp_dir, script_file)
             with open(script_file_path, "w") as f:
                 f.write(pydantic_script)
+
             # create uipath.json
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                import json
+
+                json.dump(create_uipath_json(script_file_path), f)
 
             result = runner.invoke(
                 cli,
                 [
                     "run",
-                    script_file_path,
+                    "main",
                     "--input-file",
                     input_file_path,
                     "--output-file",

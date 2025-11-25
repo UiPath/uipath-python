@@ -2,13 +2,14 @@
 import json
 import os
 import zipfile
+from unittest.mock import patch
 
 from click.testing import CliRunner
 from utils.project_details import ProjectDetails
-from utils.uipath_json import UiPathJson
 
 import uipath._cli.cli_pack as cli_pack
 from uipath._cli import cli
+from uipath._cli.middlewares import MiddlewareResult
 
 
 def create_bindings_file():
@@ -16,6 +17,20 @@ def create_bindings_file():
     bindings_content = {"version": "2.0", "resources": []}
     with open("bindings.json", "w") as f:
         json.dump(bindings_content, f, indent=4)
+
+
+def create_uipath_json(
+    functions: dict[str, str] | None = None, pack_options: dict | None = None
+):
+    """Helper to create uipath.json with functions structure."""
+    if functions is None:
+        functions = {"main": "main.py:main"}
+
+    config = {"functions": functions}
+    if pack_options:
+        config["packOptions"] = pack_options
+
+    return config
 
 
 class TestPack:
@@ -26,18 +41,25 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test project packing scenarios."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files for packing
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             create_bindings_file()
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init to generate entry-points.json
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
             assert os.path.exists(
                 f".uipath/{project_details.name}.{project_details.version}.nupkg"
@@ -48,18 +70,25 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test project packing scenarios."""
         project_details.description = None
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             create_bindings_file()
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
             assert (
                 "pyproject.toml is missing the required field: project.description."
@@ -71,18 +100,25 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test project packing scenarios."""
         project_details.authors = None
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             create_bindings_file()
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
             assert (
                 """Project authors cannot be empty. Please specify authors in pyproject.toml:\n    authors = [{ name = "John Doe" }]"""
@@ -94,16 +130,24 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         project_details.requires_python = None
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             create_bindings_file()
-            result = runner.invoke(cli, ["pack", "./"])
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
             assert (
                 "'requires-python' field cannot be empty. Please specify it in pyproject.toml"
@@ -115,16 +159,24 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         project_details.name = ""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             create_bindings_file()
-            result = runner.invoke(cli, ["pack", "./"])
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
             assert (
                 "Project name cannot be empty. Please specify a name in pyproject.toml."
@@ -136,16 +188,24 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         project_details.name = "project < name"
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             create_bindings_file()
-            result = runner.invoke(cli, ["pack", "./"])
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
             assert """Project name contains invalid character: '<'""" in result.output
 
@@ -154,16 +214,24 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         project_details.description = "invalid project description &"
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             create_bindings_file()
-            result = runner.invoke(cli, ["pack", "./"])
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
             assert (
                 """Project description contains invalid character: '&'"""
@@ -178,7 +246,7 @@ class TestPack:
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             create_bindings_file()
-            result = runner.invoke(cli, ["pack", "./"])
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
             assert (
                 "uipath.json not found. Please run `uipath init` in the project directory."
@@ -186,85 +254,22 @@ class TestPack:
             )
 
     def test_pack_without_pyproject_toml(
-        self, runner: CliRunner, temp_dir: str, uipath_json_legacy: UiPathJson
+        self, runner: CliRunner, temp_dir: str
     ) -> None:
         """Test packing when pyproject.toml is missing."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             create_bindings_file()
-            result = runner.invoke(cli, ["pack", "./"])
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
             assert "pyproject.toml not found" in result.output
-
-    def test_generate_operate_file(
-        self, runner: CliRunner, temp_dir: str, uipath_json_legacy: UiPathJson
-    ) -> None:
-        """Test generating operate.json and its content."""
-        with runner.isolated_filesystem(temp_dir=temp_dir):
-            create_bindings_file()
-            operate_data = cli_pack.generate_operate_file(
-                json.loads(uipath_json_legacy.to_json())["entryPoints"]
-            )
-            assert (
-                operate_data["$schema"]
-                == "https://cloud.uipath.com/draft/2024-12/entry-point"
-            )
-            assert operate_data["main"] == uipath_json_legacy.entry_points[0].file_path
-            assert (
-                operate_data["contentType"] == uipath_json_legacy.entry_points[0].type
-            )
-            assert operate_data["targetFramework"] == "Portable"
-            assert operate_data["targetRuntime"] == "python"
-            assert operate_data["runtimeOptions"] == {
-                "requiresUserInteraction": False,
-                "isAttended": False,
-            }
-
-    def test_generate_bindings_content(
-        self, runner: CliRunner, temp_dir: str, uipath_json_legacy: UiPathJson
-    ) -> None:
-        """Test generating operate.json and its content."""
-        entrypoints_data = cli_pack.generate_entrypoints_file(
-            json.loads(uipath_json_legacy.to_json())["entryPoints"]
-        )
-        assert (
-            entrypoints_data["$schema"]
-            == "https://cloud.uipath.com/draft/2024-12/entry-point"
-        )
-        assert entrypoints_data["$id"] == "entry-points.json"
-        assert (
-            entrypoints_data["entryPoints"]
-            == json.loads(uipath_json_legacy.to_json())["entryPoints"]
-        )
-
-    def test_package_descriptor_content(
-        self, runner: CliRunner, temp_dir: str, uipath_json_legacy: UiPathJson
-    ) -> None:
-        """Test generating operate.json and its content."""
-        expected_files = {
-            "operate.json": "content/operate.json",
-            "entry-points.json": "content/entry-points.json",
-            "bindings.json": "content/bindings_v2.json",
-        }
-        for entry in uipath_json_legacy.entry_points:
-            expected_files[entry.file_path] = entry.file_path
-        content = cli_pack.generate_package_descriptor_content(
-            json.loads(uipath_json_legacy.to_json())["entryPoints"]
-        )
-        assert (
-            content["$schema"]
-            == "https://cloud.uipath.com/draft/2024-12/package-descriptor"
-        )
-        assert len(content["files"]) == 3 + len(uipath_json_legacy.entry_points)
-        assert content["files"] == expected_files
 
     def test_include_file_extensions(
         self,
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test generating operate.json and its content."""
         xml_file_name = "test.xml"
@@ -276,12 +281,15 @@ class TestPack:
         # Binary content for the exe file (simulating a simple executable)
         binary_content = b"\x4d\x5a\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00\xb8\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00"
 
-        uipath_json_legacy.settings.file_extensions_included = [".xml", ".exe"]
+        pack_options = {"fileExtensionsIncluded": [".xml", ".exe"]}
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(pack_options=pack_options), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             with open(xml_file_name, "w") as f:
                 f.write("<root><child>text</child></root>")
             with open(sh_file_name, "w") as f:
@@ -292,7 +300,14 @@ class TestPack:
                 f.write(binary_content)
             with open(binary_file_not_included, "w") as f:
                 f.write("---")
-            result = runner.invoke(cli, ["pack", "./"])
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
 
             assert result.exit_code == 0
             with zipfile.ZipFile(
@@ -315,22 +330,31 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test generating operate.json and its content."""
         file_to_add = "file_to_add.xml"
         random_file = "random_file.xml"
-        uipath_json_legacy.settings.files_included = [f"{file_to_add}"]
+        pack_options = {"filesIncluded": [file_to_add]}
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(pack_options=pack_options), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             with open(file_to_add, "w") as f:
                 f.write("<root><child>text</child></root>")
             with open(random_file, "w") as f:
                 f.write("<root><child>text</child></root>")
-            result = runner.invoke(cli, ["pack", "./"])
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
 
             assert result.exit_code == 0
             with zipfile.ZipFile(
@@ -344,18 +368,26 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test generating operate.json and its content."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
             os.mkdir("subdir")
             with open("subdir/should_be_included.py", "w") as f:
                 f.write('print("This file should be included in the .nupkg")')
-            result = runner.invoke(cli, ["pack", "./"])
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
 
             assert result.exit_code == 0
             with zipfile.ZipFile(
@@ -368,26 +400,37 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test error handling in pack command."""
+        functions = {"agent1": "agent1.py:main", "agent2": "agent2.py:execute"}
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(functions), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
-            for entry in uipath_json_legacy.entry_points:
-                with open(f"{entry.file_path}.py", "w") as f:
-                    f.write("#agent content")
-            result = runner.invoke(cli, ["pack", "./"])
+
+            # Create function files
+            with open("agent1.py", "w") as f:
+                f.write("def main(input): return input")
+            with open("agent2.py", "w") as f:
+                f.write("def execute(input): return input")
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
 
             assert result.exit_code == 0
             with zipfile.ZipFile(
                 f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
             ) as z:
                 assert result.exit_code == 0
-                for entry in uipath_json_legacy.entry_points:
-                    assert f"content/{entry.file_path}.py" in z.namelist()
+                assert "content/agent1.py" in z.namelist()
+                assert "content/agent2.py" in z.namelist()
                 assert "Packaging project" in result.output
                 assert f"Name       : {project_details.name}" in result.output
                 assert f"Version    : {project_details.version}" in result.output
@@ -403,7 +446,6 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that all dependency version formats are parsed correctly and included in operate.json."""
 
@@ -438,17 +480,20 @@ class TestPack:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
-            # Create entry point files
-            for entry in uipath_json_legacy.entry_points:
-                with open(f"{entry.file_path}.py", "w") as f:
-                    f.write("# agent content")
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
 
             # Run pack command
-            result = runner.invoke(cli, ["pack", "./"])
+            result = runner.invoke(cli, ["pack", "./"], env={})
 
             # Assert pack was successful
             assert result.exit_code == 0, f"Pack failed with output: {result.output}"
@@ -550,20 +595,30 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
+        functions = {"agent1": "agent1.py:main", "agent2": "agent2.py:execute"}
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(functions), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("uv.lock", "w") as f:
                 f.write("# uv.lock content")
-            for entry in uipath_json_legacy.entry_points:
-                with open(f"{entry.file_path}.py", "w") as f:
-                    f.write("# agent content")
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Create function files
+            with open("agent1.py", "w") as f:
+                f.write("def main(input): return input")
+            with open("agent2.py", "w") as f:
+                f.write("def execute(input): return input")
+
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
 
             nupkg_path = (
@@ -579,10 +634,9 @@ class TestPack:
                 "content/entry-points.json",
                 "content/bindings_v2.json",
                 "content/uv.lock",
+                "content/agent1.py",
+                "content/agent2.py",
             ]
-
-            for entry in uipath_json_legacy.entry_points:
-                expected_files.append(f"content/{entry.file_path}.py")
 
             with zipfile.ZipFile(nupkg_path, "r") as z:
                 actual_files = set(z.namelist())
@@ -594,20 +648,24 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
             with open("uv.lock", "w") as f:
                 f.write("# uv.lock content")
-            for entry in uipath_json_legacy.entry_points:
-                with open(f"{entry.file_path}.py", "w") as f:
-                    f.write("# agent content")
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
-            result = runner.invoke(cli, ["pack", "./", "--nolock"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./", "--nolock"], env={})
             assert result.exit_code == 0
 
             nupkg_path = (
@@ -626,20 +684,20 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that files mentioned in filesExcluded are excluded from the package."""
         json_file_to_exclude = "config.json"
         json_file_to_include = "other.json"
 
-        # Set up exclusions
-        uipath_json_legacy.settings.files_excluded = [json_file_to_exclude]
+        pack_options = {"filesExcluded": [json_file_to_exclude]}
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(pack_options=pack_options), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
             # Create files - .json files are included by default
             with open(json_file_to_exclude, "w") as f:
@@ -647,7 +705,13 @@ class TestPack:
             with open(json_file_to_include, "w") as f:
                 f.write('{"should": "be included"}')
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
 
             with zipfile.ZipFile(
@@ -663,26 +727,34 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that filesExcluded takes precedence over filesIncluded."""
         conflicting_file = "conflicting.txt"
 
-        # Set up both inclusion and exclusion for the same file
-        uipath_json_legacy.settings.files_included = [conflicting_file]
-        uipath_json_legacy.settings.files_excluded = [conflicting_file]
+        pack_options = {
+            "filesIncluded": [conflicting_file],
+            "filesExcluded": [conflicting_file],
+        }
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(pack_options=pack_options), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
             # Create the conflicting file
             with open(conflicting_file, "w") as f:
                 f.write("This file should be excluded despite being in filesIncluded")
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
 
             with zipfile.ZipFile(
@@ -696,20 +768,17 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that filename exclusion only affects root directory, path exclusion affects specific paths."""
-        # Exclude root config.json and specific path subdir2/settings.json
-        uipath_json_legacy.settings.files_excluded = [
-            "config.json",
-            "subdir2/settings.json",
-        ]
+        pack_options = {"filesExcluded": ["config.json", "subdir2/settings.json"]}
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(pack_options=pack_options), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
             # Create directories
             os.mkdir("subdir1")
@@ -732,7 +801,13 @@ class TestPack:
             ) as f:  # Specific path - should be excluded
                 f.write('{"subdir2": "settings"}')
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
 
             with zipfile.ZipFile(
@@ -757,17 +832,17 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that filename inclusion only affects root directory, path inclusion affects specific paths."""
-        # Include root data.txt and specific path subdir2/config.txt
-        uipath_json_legacy.settings.files_included = ["data.txt", "subdir1/config.txt"]
+        pack_options = {"filesIncluded": ["data.txt", "subdir1/config.txt"]}
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(pack_options=pack_options), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
             # Create directories
             os.mkdir("subdir1")
@@ -794,7 +869,13 @@ class TestPack:
             ) as f:  # Different path - should NOT be included
                 f.write("subdir2 config")
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
 
             with zipfile.ZipFile(
@@ -823,17 +904,17 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that directory exclusion by name only affects root level, by path affects specific paths."""
-        # Exclude root-level "temp" directory and specific path "tests/old"
-        uipath_json_legacy.settings.directories_excluded = ["temp", "tests/old"]
+        pack_options = {"directoriesExcluded": ["temp", "tests/old"]}
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(pack_options=pack_options), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
             # Create directory structure
             os.makedirs("temp")  # Root level - should be excluded
@@ -854,7 +935,13 @@ class TestPack:
             with open("old/config.json", "w") as f:
                 f.write('{"location": "root old"}')
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
 
             with zipfile.ZipFile(
@@ -882,15 +969,16 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that bindings.json is named bindings_v2.json in the .nupkg."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create necessary files for packing
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
             # Create bindings.json with some test resources
             bindings_content = {
@@ -916,7 +1004,13 @@ class TestPack:
             with open("bindings.json", "w") as f:
                 json.dump(bindings_content, f, indent=4)
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
 
             nupkg_path = (
@@ -942,14 +1036,15 @@ class TestPack:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        uipath_json_legacy: UiPathJson,
     ) -> None:
         """Test that evals and evaluations directories are excluded from the nupkg."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
-                f.write(uipath_json_legacy.to_json())
+                json.dump(create_uipath_json(), f)
             with open("pyproject.toml", "w") as f:
                 f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
 
             os.makedirs("evals")
             os.makedirs("evaluations")
@@ -962,7 +1057,13 @@ class TestPack:
             with open("other_dir/included.json", "w") as f:
                 f.write('{"should": "be included"}')
 
-            result = runner.invoke(cli, ["pack", "./"])
+            # Mock middleware and run init
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 0
 
             nupkg_path = (
@@ -974,3 +1075,105 @@ class TestPack:
                 assert "content/evals/test_eval.json" not in z.namelist()
                 assert "content/evaluations/test_evaluation.json" not in z.namelist()
                 assert "content/other_dir/included.json" in z.namelist()
+
+    def test_generate_operate_file(self, runner: CliRunner, temp_dir: str) -> None:
+        """Test generating operate.json from entry-points."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            create_bindings_file()
+
+            # Create entry-points structure (from entry-points.json)
+            entry_points = [
+                {
+                    "filePath": "agent1.py",
+                    "uniqueId": "agent1-id",
+                    "type": "agent",
+                    "input": {"type": "object", "properties": {}},
+                    "output": {"type": "object", "properties": {}},
+                }
+            ]
+
+            operate_data = cli_pack.generate_operate_file(entry_points)
+
+            assert (
+                operate_data["$schema"]
+                == "https://cloud.uipath.com/draft/2024-12/entry-point"
+            )
+            assert operate_data["main"] == entry_points[0]["filePath"]
+            assert operate_data["contentType"] == entry_points[0]["type"]
+            assert operate_data["targetFramework"] == "Portable"
+            assert operate_data["targetRuntime"] == "python"
+            assert operate_data["runtimeOptions"] == {
+                "requiresUserInteraction": False,
+                "isAttended": False,
+            }
+
+    def test_generate_bindings_content(self, runner: CliRunner, temp_dir: str) -> None:
+        """Test generating bindings content."""
+        bindings_data = cli_pack.generate_bindings_content()
+
+        assert bindings_data.version == "2.0"
+        assert bindings_data.resources == []
+
+    def test_generate_entrypoints_file(self, runner: CliRunner, temp_dir: str) -> None:
+        """Test generating entry-points.json from entry-points structure."""
+        entry_points = [
+            {
+                "filePath": "agent1.py",
+                "uniqueId": "agent1-id",
+                "type": "agent",
+                "input": {"type": "object", "properties": {}},
+                "output": {"type": "object", "properties": {}},
+            },
+            {
+                "filePath": "agent2.py",
+                "uniqueId": "agent2-id",
+                "type": "agent",
+                "input": {"type": "object", "properties": {}},
+                "output": {"type": "object", "properties": {}},
+            },
+        ]
+
+        entrypoints_data = cli_pack.generate_entrypoints_file(entry_points)
+
+        assert (
+            entrypoints_data["$schema"]
+            == "https://cloud.uipath.com/draft/2024-12/entry-point"
+        )
+        assert entrypoints_data["$id"] == "entry-points.json"
+        assert entrypoints_data["entryPoints"] == entry_points
+
+    def test_package_descriptor_content(self, runner: CliRunner, temp_dir: str) -> None:
+        """Test generating package-descriptor.json content."""
+        entry_points = [
+            {
+                "filePath": "agent1.py",
+                "uniqueId": "agent1-id",
+                "type": "agent",
+                "input": {"type": "object", "properties": {}},
+                "output": {"type": "object", "properties": {}},
+            },
+            {
+                "filePath": "agent2.py",
+                "uniqueId": "agent2-id",
+                "type": "agent",
+                "input": {"type": "object", "properties": {}},
+                "output": {"type": "object", "properties": {}},
+            },
+        ]
+
+        expected_files = {
+            "operate.json": "content/operate.json",
+            "entry-points.json": "content/entry-points.json",
+            "bindings.json": "content/bindings_v2.json",
+        }
+        for entry in entry_points:
+            expected_files[entry["filePath"]] = entry["filePath"]
+
+        content = cli_pack.generate_package_descriptor_content(entry_points)
+
+        assert (
+            content["$schema"]
+            == "https://cloud.uipath.com/draft/2024-12/package-descriptor"
+        )
+        assert len(content["files"]) == 3 + len(entry_points)
+        assert content["files"] == expected_files

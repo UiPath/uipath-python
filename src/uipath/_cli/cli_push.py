@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, AsyncIterator, Optional
+from typing import AsyncIterator, Optional
 from urllib.parse import urlparse
 
 import click
@@ -28,6 +28,7 @@ from ._utils._studio_project import (
 )
 from ._utils._uv_helpers import handle_uv_operations
 from .models.runtime_schema import Bindings
+from .models.uipath_json_schema import PackOptions
 
 console = ConsoleLogger()
 
@@ -165,7 +166,7 @@ async def create_resources(studio_client: StudioClient):
 
 async def upload_source_files_to_project(
     project_id: str,
-    settings: Optional[dict[str, Any]],
+    pack_options: Optional[PackOptions],
     directory: str,
     studio_client: Optional[StudioClient] = None,
     include_uv_lock: bool = True,
@@ -197,7 +198,7 @@ async def upload_source_files_to_project(
         include_uv_lock=include_uv_lock,
     )
 
-    async for update in sw_file_handler.upload_source_files(settings):
+    async for update in sw_file_handler.upload_source_files(pack_options):
         yield update
 
 
@@ -269,7 +270,7 @@ def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> No
         """Wrapper to handle async iteration and display updates."""
         async for update in upload_source_files_to_project(
             project_id,
-            config.get("settings", {}),
+            config.get("packOptions", {}),
             root,
             studio_client,
             include_uv_lock=not nolock,

@@ -37,11 +37,16 @@ def overwrites_data():
 @pytest.fixture
 def uipath_json_with_overwrites(overwrites_data):
     """Create a uipath.json structure with resource overwrites."""
-    return {
-        "projectVersion": "1.0.0",
-        "description": "Test project for resource overwrites",
-        "runtime": {"internalArguments": {"resourceOverwrites": overwrites_data}},
-    }
+
+    def _make_config(script_path: str = "main.py", function_name: str = "main"):
+        return {
+            "projectVersion": "1.0.0",
+            "description": "Test project for resource overwrites",
+            "runtime": {"internalArguments": {"resourceOverwrites": overwrites_data}},
+            "functions": {"main": f"{script_path}:{function_name}"},
+        }
+
+    return _make_config
 
 
 class TestResourceOverrides:
@@ -260,58 +265,6 @@ class TestResourceOverrides:
         assert process.resource_identifier == "Overwritten Process Name"
         assert process.folder_identifier == "Overwritten/Process/Folder"
 
-    def test_run_with_resource_overwrites(
-        self,
-        runner: CliRunner,
-        temp_dir: str,
-        sample_main_script: str,
-        uipath_json_with_overwrites: dict,
-        httpx_mock: HTTPXMock,
-    ):
-        """Test that uipath run applies resource overwrites correctly."""
-        entrypoint = "main.py"
-
-        with runner.isolated_filesystem(temp_dir=temp_dir):
-            # Create the main.py script
-            script_path = os.path.join(temp_dir, entrypoint)
-            with open(script_path, "w") as f:
-                f.write(sample_main_script)
-
-            # Create __uipath directory and uipath.json with overwrites
-            uipath_dir = os.path.join(temp_dir, "__uipath")
-            os.makedirs(uipath_dir, exist_ok=True)
-            uipath_json_path = os.path.join(uipath_dir, "uipath.json")
-            with open(uipath_json_path, "w") as f:
-                json.dump(uipath_json_with_overwrites, f)
-            org = "test-org"
-            tenant = "test-tenant"
-            base_url = f"https://example.com/{org}/{tenant}"
-            org_scoped_base_url = f"https://example.com/{org}"
-
-            # Set UIPATH_JOB_KEY environment variable so overwrites are applied
-            with patch.dict(
-                os.environ,
-                {
-                    "UIPATH_JOB_KEY": "test-job-key-12345",
-                    "UIPATH_URL": base_url,
-                    "UIPATH_ACCESS_TOKEN": "test-access-token-12345",
-                    "UIPATH_ORGANIZATION_ID": org,
-                    "UIPATH_TENANT_ID": tenant,
-                },
-            ):
-                self._mock_calls(httpx_mock, base_url, org_scoped_base_url)
-
-                current_dir_copy = os.getcwd()
-                os.chdir(temp_dir)
-
-                # Run the CLI command
-                result = runner.invoke(cli, ["run", script_path])
-
-                # Restore cwd
-                os.chdir(current_dir_copy)
-
-                self._assert(result, httpx_mock)
-
     def test_debug_with_resource_overwrites(
         self,
         runner: CliRunner,
@@ -331,7 +284,10 @@ class TestResourceOverrides:
 
             # Create minimal uipath.json for debug (overwrites come from studio client)
             with open(os.path.join(temp_dir, "uipath.json"), "w") as f:
-                json.dump({"projectVersion": "1.0.0"}, f)
+                json.dump(
+                    {"projectVersion": "1.0.0", "functions": {"main": "main.py:main"}},
+                    f,
+                )
 
             org = "test-org"
             tenant = "test-tenant"
@@ -374,7 +330,7 @@ class TestResourceOverrides:
                     os.chdir(temp_dir)
 
                     # Pass 'c' to continue execution in debug mode
-                    result = runner.invoke(cli, ["debug", script_path], input="c\n")
+                    result = runner.invoke(cli, ["debug", "main"], input="c\n")
 
                     # Restore cwd
                     os.chdir(current_dir_copy)

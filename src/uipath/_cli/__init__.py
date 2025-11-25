@@ -3,6 +3,8 @@ import sys
 
 import click
 
+from uipath.functions import register_default_runtime_factory
+
 from ._utils._common import add_cwd_to_path, load_environment_variables
 from ._utils._context import CliContext
 from .cli_add import add as add
@@ -20,9 +22,12 @@ from .cli_pull import pull as pull
 from .cli_push import push as push
 from .cli_register import register as register
 from .cli_run import run as run
+from .runtimes import load_runtime_factories
 
 load_environment_variables()
 add_cwd_to_path()
+register_default_runtime_factory()
+load_runtime_factories()
 
 
 def _get_safe_version() -> str:
