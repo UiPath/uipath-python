@@ -104,6 +104,7 @@ def debug(
                     resume=resume,
                 ) as ctx:
                     runtime: UiPathRuntimeProtocol | None = None
+                    debug_runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
                     try:
                         trace_manager = UiPathTraceManager()
@@ -128,6 +129,8 @@ def debug(
                         )
 
                     finally:
+                        if debug_runtime:
+                            await debug_runtime.dispose()
                         if runtime:
                             await runtime.dispose()
                         if factory:
