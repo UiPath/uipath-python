@@ -38,9 +38,9 @@ jobs:
 
       - name: Clone plugins
         run: |
-          git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-langchain-python plugins/uipath-langchain-python
-          git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-llamaindex-python plugins/uipath-llamaindex-python
-          git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-mcp-python plugins/uipath-mcp-python
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/UiPath/uipath-langchain-python plugins/uipath-langchain-python
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/UiPath/uipath-llamaindex-python plugins/uipath-llamaindex-python
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/UiPath/uipath-mcp-python plugins/uipath-mcp-python
 
       - name: Symlink plugin docs
         run: |
