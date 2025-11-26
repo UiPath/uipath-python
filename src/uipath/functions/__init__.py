@@ -11,7 +11,7 @@ def register_default_runtime_factory():
     UiPathRuntimeFactoryRegistry.register(
         "uipath",
         factory_callable=lambda context: UiPathFunctionsRuntimeFactory(
-            config_path=context.config_path if context else "uipath.json",
+            config_path="uipath.json",
         ),
         config_file="uipath.json",
     )
