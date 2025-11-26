@@ -97,7 +97,6 @@ class LlmOpsHttpExporter(SpanExporter):
     def __init__(
         self,
         trace_id: Optional[str] = None,
-        extra_process_spans: Optional[bool] = False,
         **kwargs,
     ):
         """Initialize the exporter with the base URL and authentication token."""
@@ -108,7 +107,6 @@ class LlmOpsHttpExporter(SpanExporter):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.auth_token}",
         }
-        self._extra_process_spans = extra_process_spans
 
         client_kwargs = get_httpx_client_kwargs()
 
@@ -132,10 +130,9 @@ class LlmOpsHttpExporter(SpanExporter):
 
         url = self._build_url(span_list)
 
-        # Process spans in-place if needed - work directly with dict
-        if self._extra_process_spans:
-            for span_data in span_list:
-                self._process_span_attributes(span_data)
+        # Process spans in-place - work directly with dict
+        for span_data in span_list:
+            self._process_span_attributes(span_data)
 
         # Serialize attributes once at the very end
         for span_data in span_list:
