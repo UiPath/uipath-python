@@ -5,6 +5,10 @@ from uipath._execution_context import ExecutionContext
 from uipath._folder_context import FolderContext
 from uipath._services import FolderService
 from uipath._services._base_service import BaseService
+from uipath._services._folder_helpers import (
+    resolve_folder_key,
+    resolve_folder_key_async,
+)
 from uipath._utils import Endpoint, RequestSpec, header_folder
 from uipath.platform.resource_catalog import Resource, ResourceType
 from uipath.tracing import traced
@@ -217,7 +221,13 @@ class ResourceCatalogService(FolderContext, BaseService):
         if take <= 0:
             raise ValueError(f"page_size must be greater than 0. Got {page_size}")
 
-        resolved_folder_key = self.folder_service.retrieve_folder_key(folder_path)
+        resolved_folder_key = resolve_folder_key(
+            folder_key,
+            folder_path,
+            self.folder_service,
+            self._folder_key,
+            self._folder_path,
+        )
 
         while True:
             spec = self._list_spec(
@@ -299,8 +309,12 @@ class ResourceCatalogService(FolderContext, BaseService):
         if take <= 0:
             raise ValueError(f"page_size must be greater than 0. Got {page_size}")
 
-        resolved_folder_key = await self.folder_service.retrieve_folder_key_async(
-            folder_path
+        resolved_folder_key = await resolve_folder_key_async(
+            folder_key,
+            folder_path,
+            self.folder_service,
+            self._folder_key,
+            self._folder_path,
         )
         while True:
             spec = self._list_spec(
@@ -385,7 +399,13 @@ class ResourceCatalogService(FolderContext, BaseService):
         if take <= 0:
             raise ValueError(f"page_size must be greater than 0. Got {page_size}")
 
-        resolved_folder_key = self.folder_service.retrieve_folder_key(folder_path)
+        resolved_folder_key = resolve_folder_key(
+            folder_key,
+            folder_path,
+            self.folder_service,
+            self._folder_key,
+            self._folder_path,
+        )
 
         while True:
             spec = self._list_by_type_spec(
@@ -471,8 +491,12 @@ class ResourceCatalogService(FolderContext, BaseService):
         if take <= 0:
             raise ValueError(f"page_size must be greater than 0. Got {page_size}")
 
-        resolved_folder_key = await self.folder_service.retrieve_folder_key_async(
-            folder_path
+        resolved_folder_key = await resolve_folder_key_async(
+            folder_key,
+            folder_path,
+            self.folder_service,
+            self._folder_key,
+            self._folder_path,
         )
 
         while True:

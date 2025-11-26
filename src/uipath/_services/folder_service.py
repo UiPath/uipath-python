@@ -21,7 +21,7 @@ class FolderService(BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    def retrieve_folder_key(self, folder_path: str | None) -> str | None:
+    def retrieve_folder_key(self, folder_path: str | None) -> str:
         """Resolve a folder path to its corresponding folder key.
 
         Args:
@@ -41,7 +41,7 @@ class FolderService(BaseService):
             raise FolderNotFoundException(folder_path)
         return resolved_folder_key
 
-    async def retrieve_folder_key_async(self, folder_path: str | None) -> str | None:
+    async def retrieve_folder_key_async(self, folder_path: str | None) -> str:
         """Asynchronously resolve a folder path to its corresponding folder key.
 
         Args:

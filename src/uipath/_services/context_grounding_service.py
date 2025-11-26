@@ -7,7 +7,12 @@ from typing_extensions import deprecated
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, resource_override
+from .._utils import (
+    Endpoint,
+    RequestSpec,
+    header_folder,
+    resource_override,
+)
 from .._utils.constants import (
     LLMV4_REQUEST,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
@@ -35,6 +40,7 @@ from ..platform.errors import (
 )
 from ..tracing import traced
 from ._base_service import BaseService
+from ._folder_helpers import resolve_folder_key
 from .buckets_service import BucketsService
 from .folder_service import FolderService
 
@@ -674,7 +680,13 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        folder_key = resolve_folder_key(
+            folder_key,
+            folder_path,
+            self._folders_service,
+            self._folder_key,
+            self._folder_path,
+        )
 
         return RequestSpec(
             method="POST",
@@ -690,7 +702,13 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        folder_key = resolve_folder_key(
+            folder_key,
+            folder_path,
+            self._folders_service,
+            self._folder_key,
+            self._folder_path,
+        )
 
         return RequestSpec(
             method="GET",
@@ -728,7 +746,13 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             RequestSpec for the create index request
         """
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        folder_key = resolve_folder_key(
+            folder_key,
+            folder_path,
+            self._folders_service,
+            self._folder_key,
+            self._folder_path,
+        )
 
         data_source_dict = self._build_data_source(source)
 
@@ -830,7 +854,13 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        folder_key = resolve_folder_key(
+            folder_key,
+            folder_path,
+            self._folders_service,
+            self._folder_key,
+            self._folder_path,
+        )
 
         return RequestSpec(
             method="GET",
@@ -846,7 +876,13 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        folder_key = resolve_folder_key(
+            folder_key,
+            folder_path,
+            self._folders_service,
+            self._folder_key,
+            self._folder_path,
+        )
 
         return RequestSpec(
             method="DELETE",
@@ -864,7 +900,13 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        folder_key = resolve_folder_key(
+            folder_key,
+            folder_path,
+            self._folders_service,
+            self._folder_key,
+            self._folder_path,
+        )
 
         return RequestSpec(
             method="POST",
@@ -877,22 +919,6 @@ class ContextGroundingService(FolderContext, BaseService):
                 **header_folder(folder_key, None),
             },
         )
-
-    def _resolve_folder_key(self, folder_key, folder_path):
-        if folder_key is None and folder_path is not None:
-            folder_key = self._folders_service.retrieve_key(folder_path=folder_path)
-
-        if folder_key is None and folder_path is None:
-            folder_key = self._folder_key or (
-                self._folders_service.retrieve_key(folder_path=self._folder_path)
-                if self._folder_path
-                else None
-            )
-
-        if folder_key is None:
-            raise ValueError("ContextGrounding: Failed to resolve folder key")
-
-        return folder_key
 
     def _extract_bucket_info(self, index: ContextGroundingIndex) -> Tuple[str, str]:
         """Extract bucket information from the index, validating it's a storage bucket data source.

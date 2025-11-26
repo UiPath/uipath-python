@@ -815,9 +815,10 @@ class TestContextGroundingService:
         tenant: str,
     ) -> None:
         """Verify that all requests pass spec.method, spec.endpoint, spec.params, and spec.headers correctly."""
-        # Mock folder service to always return the test folder key
-        with patch.object(
-            service._folders_service, "retrieve_key", return_value="test-folder-key"
+        # Mock resolve_folder_key to always return the test folder key
+        with patch(
+            "uipath._services.context_grounding_service.resolve_folder_key",
+            return_value="test-folder-key",
         ):
             # Test retrieve method
             with patch.object(service, "request") as mock_request:

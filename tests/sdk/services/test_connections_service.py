@@ -1,5 +1,5 @@
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import unquote_plus
 
 import pytest
@@ -564,28 +564,25 @@ class TestConnectionsService:
         version: str,
     ) -> None:
         """Test list method with folder path resolution."""
-        mock_folders_service.retrieve_folder_key.return_value = "folder-123"
+        with patch(
+            "uipath._services.connections_service.resolve_folder_key",
+            return_value="folder-123",
+        ):
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections?%24expand=connector%2Cfolder",
+                status_code=200,
+                json={"value": []},
+            )
 
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections?%24expand=connector%2Cfolder",
-            status_code=200,
-            json={"value": []},
-        )
+            service.list(folder_path="Finance/Production")
 
-        service.list(folder_path="Finance/Production")
+            sent_request = httpx_mock.get_request()
+            if sent_request is None:
+                raise Exception("No request was sent")
 
-        # Verify folder service was called
-        mock_folders_service.retrieve_folder_key.assert_called_once_with(
-            "Finance/Production"
-        )
-
-        sent_request = httpx_mock.get_request()
-        if sent_request is None:
-            raise Exception("No request was sent")
-
-        # Verify the resolved key was used in headers
-        assert HEADER_FOLDER_KEY in sent_request.headers
-        assert sent_request.headers[HEADER_FOLDER_KEY] == "folder-123"
+            # Verify the resolved key was used in headers
+            assert HEADER_FOLDER_KEY in sent_request.headers
+            assert sent_request.headers[HEADER_FOLDER_KEY] == "folder-123"
 
     def test_list_with_connector_filter(
         self,

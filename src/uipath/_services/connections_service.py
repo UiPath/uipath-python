@@ -7,6 +7,7 @@ from httpx import Response
 
 from .._config import Config
 from .._execution_context import ExecutionContext
+from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..platform.connections import (
     ActivityMetadata,
@@ -18,12 +19,13 @@ from ..platform.connections import (
 )
 from ..tracing import traced
 from ._base_service import BaseService
+from ._folder_helpers import resolve_folder_key, resolve_folder_key_async
 from .folder_service import FolderService
 
 logger: logging.Logger = logging.getLogger("uipath")
 
 
-class ConnectionsService(BaseService):
+class ConnectionsService(FolderContext, BaseService):
     """Service for managing UiPath external service connections.
 
     This service provides methods to retrieve direct connection information retrieval
@@ -183,7 +185,13 @@ class ConnectionsService(BaseService):
         """
         spec = self._list_spec(
             name=name,
-            folder_key=self._folders_service.retrieve_folder_key(folder_path),
+            folder_key=resolve_folder_key(
+                folder_key,
+                folder_path,
+                self._folders_service,
+                self._folder_key,
+                self._folder_path,
+            ),
             connector_key=connector_key,
             skip=skip,
             top=top,
@@ -237,8 +245,12 @@ class ConnectionsService(BaseService):
         """
         spec = self._list_spec(
             name=name,
-            folder_key=await self._folders_service.retrieve_folder_key_async(
-                folder_path
+            folder_key=await resolve_folder_key_async(
+                folder_key,
+                folder_path,
+                self._folders_service,
+                self._folder_key,
+                self._folder_path,
             ),
             connector_key=connector_key,
             skip=skip,
