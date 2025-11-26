@@ -11,12 +11,15 @@ from uipath.runtime import (
 )
 from uipath.runtime.errors import UiPathRuntimeError
 
-from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
 from uipath.platform.action_center import Task
 from uipath.platform.common import CreateTask, InvokeProcess, WaitJob, WaitTask
 from uipath.platform.orchestrator import (
     Job,
     JobErrorInfo,
+)
+from uipath.platform.resume_triggers import (
+    UiPathResumeTriggerCreator,
+    UiPathResumeTriggerReader,
 )
 
 
@@ -59,8 +62,8 @@ class TestHitlReader:
                 folder_key="test-folder",
                 folder_path="test-path",
             )
-
-            result = await HitlReader.read(resume_trigger)
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
             assert result == action_data
             mock_retrieve_async.assert_called_once_with(
                 action_key, app_folder_key="test-folder", app_folder_path="test-path"
@@ -94,8 +97,8 @@ class TestHitlReader:
                 folder_key="test-folder",
                 folder_path="test-path",
             )
-
-            result = await HitlReader.read(resume_trigger)
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
             assert result == output_args
             mock_retrieve_async.assert_called_once_with(
                 job_key, folder_key="test-folder", folder_path="test-path"
@@ -126,7 +129,8 @@ class TestHitlReader:
             )
 
             with pytest.raises(UiPathRuntimeError) as exc_info:
-                await HitlReader.read(resume_trigger)
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
             error_dict = exc_info.value.as_dict
             assert error_dict["code"] == "Python.INVOKED_PROCESS_FAILURE"
             assert error_dict["title"] == "Invoked process did not finish successfully."
@@ -157,7 +161,8 @@ class TestHitlReader:
             api_resume=UiPathApiTrigger(inbox_id=inbox_id, request="test"),
         )
 
-        result = await HitlReader.read(resume_trigger)
+        reader = UiPathResumeTriggerReader()
+        result = await reader.read_trigger(resume_trigger)
         assert result == payload_data
 
     @pytest.mark.anyio
@@ -181,7 +186,8 @@ class TestHitlReader:
         )
 
         with pytest.raises(UiPathRuntimeError) as exc_info:
-            await HitlReader.read(resume_trigger)
+            reader = UiPathResumeTriggerReader()
+            await reader.read_trigger(resume_trigger)
         error_dict = exc_info.value.as_dict
         assert error_dict["code"] == "Python.RETRIEVE_PAYLOAD_ERROR"
         assert error_dict["title"] == "Failed to get trigger payload"
@@ -212,8 +218,8 @@ class TestHitlProcessor:
             "uipath._services.tasks_service.TasksService.create_async",
             new=mock_create_async,
         ):
-            processor = HitlProcessor(create_action)
-            resume_trigger = await processor.create_resume_trigger()
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(create_action)
 
             assert resume_trigger is not None
             assert resume_trigger.trigger_type == UiPathResumeTriggerType.TASK
@@ -239,8 +245,8 @@ class TestHitlProcessor:
         action = Task(key=action_key)
         wait_action = WaitTask(action=action, app_folder_path="/test/path")
 
-        processor = HitlProcessor(wait_action)
-        resume_trigger = await processor.create_resume_trigger()
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_action)
 
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.TASK
@@ -267,8 +273,8 @@ class TestHitlProcessor:
             "uipath._services.processes_service.ProcessesService.invoke_async",
             new=mock_invoke,
         ) as mock_process_invoke_async:
-            processor = HitlProcessor(invoke_process)
-            resume_trigger = await processor.create_resume_trigger()
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(invoke_process)
 
             assert resume_trigger is not None
             assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
@@ -291,8 +297,8 @@ class TestHitlProcessor:
         job = Job(id=1234, key=job_key)
         wait_job = WaitJob(job=job, process_folder_path="/test/path")
 
-        processor = HitlProcessor(wait_job)
-        resume_trigger = await processor.create_resume_trigger()
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_job)
 
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
@@ -307,8 +313,8 @@ class TestHitlProcessor:
         """Test creating a resume trigger for API type."""
         api_input = "payload"
 
-        processor = HitlProcessor(api_input)
-        resume_trigger = await processor.create_resume_trigger()
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(api_input)
 
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.API
