@@ -34,7 +34,7 @@ This project showcases how to run Google's Agent Development Kit (ADK) agents on
 
 3. **Initialize UiPath configuration**:
    ```bash
-   uipath init .\multi_tool_agent\agent.py
+   uipath init
    ```
    This command will create (or update):
    - `uipath.json`: Contains input/output schemas and bindings

@@ -7,32 +7,13 @@ This section provides a comprehensive reference for all UiPath SDK services and 
 Initialize the UiPath SDK client
 
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 
 # Initialize with environment variables
 sdk = UiPath()
 
 # Or with explicit credentials
 sdk = UiPath(base_url="https://cloud.uipath.com/...", secret="your_token")
-```
-
-### Actions
-
-Actions service
-
-```python
-# Creates a new action synchronously.
-sdk.actions.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, app_version: Optional[int]=1, assignee: Optional[str]=None) -> uipath.models.actions.Action
-
-# Creates a new action asynchronously.
-sdk.actions.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, app_version: Optional[int]=1, assignee: Optional[str]=None) -> uipath.models.actions.Action
-
-# Retrieves an action by its key synchronously.
-sdk.actions.retrieve(action_key: str, app_folder_path: str="", app_folder_key: str="") -> uipath.models.actions.Action
-
-# Retrieves an action by its key asynchronously.
-sdk.actions.retrieve_async(action_key: str, app_folder_path: str="", app_folder_key: str="") -> uipath.models.actions.Action
-
 ```
 
 ### Api Client
@@ -51,10 +32,10 @@ Assets service
 
 ```python
 # Retrieve an asset by its name.
-sdk.assets.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.assets.UserAsset | uipath.models.assets.Asset
+sdk.assets.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.assets.UserAsset | uipath.platform.orchestrator.assets.Asset
 
 # Asynchronously retrieve an asset by its name.
-sdk.assets.retrieve_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.assets.UserAsset | uipath.models.assets.Asset
+sdk.assets.retrieve_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.assets.UserAsset | uipath.platform.orchestrator.assets.Asset
 
 # Gets a specified Orchestrator credential.
 sdk.assets.retrieve_credential(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Optional[str]
@@ -63,10 +44,10 @@ sdk.assets.retrieve_credential(name: str, folder_key: Optional[str]=None, folder
 sdk.assets.retrieve_credential_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Optional[str]
 
 # Update an asset's value.
-sdk.assets.update(robot_asset: uipath.models.assets.UserAsset, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
+sdk.assets.update(robot_asset: uipath.platform.orchestrator.assets.UserAsset, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Asynchronously update an asset's value.
-sdk.assets.update_async(robot_asset: uipath.models.assets.UserAsset, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
+sdk.assets.update_async(robot_asset: uipath.platform.orchestrator.assets.UserAsset, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 ```
 
@@ -101,10 +82,10 @@ Buckets service
 
 ```python
 # Create a new bucket.
-sdk.buckets.create(name: str, description: Optional[str]=None, identifier: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.buckets.Bucket
+sdk.buckets.create(name: str, description: Optional[str]=None, identifier: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.platform.orchestrator.buckets.Bucket
 
 # Async version of create().
-sdk.buckets.create_async(name: str, description: Optional[str]=None, identifier: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.models.buckets.Bucket
+sdk.buckets.create_async(name: str, description: Optional[str]=None, identifier: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> uipath.platform.orchestrator.buckets.Bucket
 
 # Delete a bucket.
 sdk.buckets.delete(name: Optional[str]=None, key: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
@@ -136,29 +117,29 @@ sdk.buckets.exists_file(name: Optional[str]=None, key: Optional[str]=None, blob_
 # Async version of exists_file().
 sdk.buckets.exists_file_async(name: Optional[str]=None, key: Optional[str]=None, blob_file_path: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> bool
 
-# Get files using OData GetFiles API (Studio-compatible).
-sdk.buckets.get_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.BucketFile]
+# Get files using OData GetFiles API with offset-based pagination.
+sdk.buckets.get_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, skip: int=0, top: int=500, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.common.paging.PagedResult[uipath.platform.orchestrator.buckets.BucketFile]
 
-# Async version of get_files().
-sdk.buckets.get_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.BucketFile]
+# Async version of get_files() with offset-based pagination.
+sdk.buckets.get_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", recursive: bool=False, file_name_glob: Optional[str]=None, skip: int=0, top: int=500, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.common.paging.PagedResult[uipath.platform.orchestrator.buckets.BucketFile]
 
-# List buckets with auto-pagination.
-sdk.buckets.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.Bucket]
+# List buckets using OData API with offset-based pagination.
+sdk.buckets.list(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None, skip: int=0, top: int=100) -> uipath.platform.common.paging.PagedResult[uipath.platform.orchestrator.buckets.Bucket]
 
-# Async version of list() with auto-pagination.
-sdk.buckets.list_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.Bucket]
+# Async version of list() with offset-based pagination.
+sdk.buckets.list_async(folder_path: Optional[str]=None, folder_key: Optional[str]=None, name: Optional[str]=None, skip: int=0, top: int=100) -> uipath.platform.common.paging.PagedResult[uipath.platform.orchestrator.buckets.Bucket]
 
-# List files in a bucket.
-sdk.buckets.list_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Iterator[uipath.models.buckets.BucketFile]
+# List files in a bucket using cursor-based pagination.
+sdk.buckets.list_files(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", take_hint: int=500, continuation_token: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.common.paging.PagedResult[uipath.platform.orchestrator.buckets.BucketFile]
 
-# List files in a bucket asynchronously.
-sdk.buckets.list_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.AsyncIterator[uipath.models.buckets.BucketFile]
+# Async version of list_files() with cursor-based pagination.
+sdk.buckets.list_files_async(name: Optional[str]=None, key: Optional[str]=None, prefix: str="", take_hint: int=500, continuation_token: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.common.paging.PagedResult[uipath.platform.orchestrator.buckets.BucketFile]
 
 # Retrieve bucket information by its name.
-sdk.buckets.retrieve(name: Optional[str]=None, key: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.buckets.Bucket
+sdk.buckets.retrieve(name: Optional[str]=None, key: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.buckets.Bucket
 
 # Asynchronously retrieve bucket information by its name.
-sdk.buckets.retrieve_async(name: Optional[str]=None, key: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.buckets.Bucket
+sdk.buckets.retrieve_async(name: Optional[str]=None, key: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.buckets.Bucket
 
 # Upload a file to a bucket.
 sdk.buckets.upload(key: Optional[str]=None, name: Optional[str]=None, blob_file_path: str, content_type: Optional[str]=None, source_path: Optional[str]=None, content: Union[str, bytes, NoneType]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
@@ -173,35 +154,41 @@ sdk.buckets.upload_async(key: Optional[str]=None, name: Optional[str]=None, blob
 Connections service
 
 ```python
+# Invoke an activity synchronously.
+sdk.connections.invoke_activity(activity_metadata: uipath.platform.connections.connections.ActivityMetadata, connection_id: str, activity_input: Dict[str, Any]) -> typing.Any
+
+# Invoke an activity asynchronously.
+sdk.connections.invoke_activity_async(activity_metadata: uipath.platform.connections.connections.ActivityMetadata, connection_id: str, activity_input: Dict[str, Any]) -> typing.Any
+
 # Lists all connections with optional filtering.
-sdk.connections.list(name: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, connector_key: Optional[str]=None, skip: Optional[int]=None, top: Optional[int]=None) -> typing.List[uipath.models.connections.Connection]
+sdk.connections.list(name: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, connector_key: Optional[str]=None, skip: Optional[int]=None, top: Optional[int]=None) -> typing.List[uipath.platform.connections.connections.Connection]
 
 # Asynchronously lists all connections with optional filtering.
-sdk.connections.list_async(name: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, connector_key: Optional[str]=None, skip: Optional[int]=None, top: Optional[int]=None) -> typing.List[uipath.models.connections.Connection]
+sdk.connections.list_async(name: Optional[str]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, connector_key: Optional[str]=None, skip: Optional[int]=None, top: Optional[int]=None) -> typing.List[uipath.platform.connections.connections.Connection]
 
 # Synchronously retrieve connection API metadata.
-sdk.connections.metadata(element_instance_id: int, connector_key: str, tool_path: str, parameters: Optional[Dict[str, str]]=None, schema_mode: bool=True, max_jit_depth: int=5) -> uipath.models.connections.ConnectionMetadata
+sdk.connections.metadata(element_instance_id: int, connector_key: str, tool_path: str, parameters: Optional[Dict[str, str]]=None, schema_mode: bool=True, max_jit_depth: int=5) -> uipath.platform.connections.connections.ConnectionMetadata
 
 # Asynchronously retrieve connection API metadata.
-sdk.connections.metadata_async(element_instance_id: int, connector_key: str, tool_path: str, parameters: Optional[Dict[str, str]]=None, schema_mode: bool=True, max_jit_depth: int=5) -> uipath.models.connections.ConnectionMetadata
+sdk.connections.metadata_async(element_instance_id: int, connector_key: str, tool_path: str, parameters: Optional[Dict[str, str]]=None, schema_mode: bool=True, max_jit_depth: int=5) -> uipath.platform.connections.connections.ConnectionMetadata
 
 # Retrieve connection details by its key.
-sdk.connections.retrieve(key: str) -> uipath.models.connections.Connection
+sdk.connections.retrieve(key: str) -> uipath.platform.connections.connections.Connection
 
 # Asynchronously retrieve connection details by its key.
-sdk.connections.retrieve_async(key: str) -> uipath.models.connections.Connection
+sdk.connections.retrieve_async(key: str) -> uipath.platform.connections.connections.Connection
 
 # Retrieve event payload from UiPath Integration Service.
-sdk.connections.retrieve_event_payload(event_args: uipath.models.connections.EventArguments) -> typing.Dict[str, typing.Any]
+sdk.connections.retrieve_event_payload(event_args: uipath.platform.connections.connections.EventArguments) -> typing.Dict[str, typing.Any]
 
 # Retrieve event payload from UiPath Integration Service.
-sdk.connections.retrieve_event_payload_async(event_args: uipath.models.connections.EventArguments) -> typing.Dict[str, typing.Any]
+sdk.connections.retrieve_event_payload_async(event_args: uipath.platform.connections.connections.EventArguments) -> typing.Dict[str, typing.Any]
 
 # Retrieve an authentication token for a connection.
-sdk.connections.retrieve_token(key: str, token_type: <enum 'ConnectionTokenType="direct") -> uipath.models.connections.ConnectionToken
+sdk.connections.retrieve_token(key: str, token_type: <enum 'ConnectionTokenType="ConnectionTokenType.DIRECT") -> uipath.platform.connections.connections.ConnectionToken
 
 # Asynchronously retrieve an authentication token for a connection.
-sdk.connections.retrieve_token_async(key: str, token_type: <enum 'ConnectionTokenType="direct") -> uipath.models.connections.ConnectionToken
+sdk.connections.retrieve_token_async(key: str, token_type: <enum 'ConnectionTokenType="ConnectionTokenType.DIRECT") -> uipath.platform.connections.connections.ConnectionToken
 
 ```
 
@@ -217,28 +204,28 @@ sdk.context_grounding.add_to_index(name: str, blob_file_path: str, content_type:
 sdk.context_grounding.add_to_index_async(name: str, blob_file_path: str, content_type: Optional[str]=None, content: Union[str, bytes, NoneType]=None, source_path: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, ingest_data: bool=True) -> None
 
 # Create a new context grounding index.
-sdk.context_grounding.create_index(name: str, source: Dict[str, Any], description: Optional[str]=None, cron_expression: Optional[str]=None, time_zone_id: Optional[str]=None, advanced_ingestion: Optional[bool]=True, preprocessing_request: Optional[str]="#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.create_index(name: str, source: Union[uipath.platform.context_grounding.context_grounding_payloads.BucketSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.GoogleDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.DropboxSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.OneDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.ConfluenceSourceConfig], description: Optional[str]=None, advanced_ingestion: Optional[bool]=True, preprocessing_request: Optional[str]="#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Create a new context grounding index.
-sdk.context_grounding.create_index_async(name: str, source: Dict[str, Any], description: Optional[str]=None, cron_expression: Optional[str]=None, time_zone_id: Optional[str]=None, advanced_ingestion: Optional[bool]=True, preprocessing_request: Optional[str]="#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.create_index_async(name: str, source: Union[uipath.platform.context_grounding.context_grounding_payloads.BucketSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.GoogleDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.DropboxSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.OneDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.ConfluenceSourceConfig], description: Optional[str]=None, advanced_ingestion: Optional[bool]=True, preprocessing_request: Optional[str]="#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Delete a context grounding index.
-sdk.context_grounding.delete_index(index: uipath.models.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+sdk.context_grounding.delete_index(index: uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
 # Asynchronously delete a context grounding index.
-sdk.context_grounding.delete_index_async(index: uipath.models.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+sdk.context_grounding.delete_index_async(index: uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
 # Ingest data into the context grounding index.
-sdk.context_grounding.ingest_data(index: uipath.models.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+sdk.context_grounding.ingest_data(index: uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
 # Asynchronously ingest data into the context grounding index.
-sdk.context_grounding.ingest_data_async(index: uipath.models.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+sdk.context_grounding.ingest_data_async(index: uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
 # Retrieve context grounding index information by its name.
-sdk.context_grounding.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Asynchronously retrieve context grounding index information by its name.
-sdk.context_grounding.retrieve_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.retrieve_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Retrieve context grounding index information by its ID.
 sdk.context_grounding.retrieve_by_id(id: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Any
@@ -247,10 +234,20 @@ sdk.context_grounding.retrieve_by_id(id: str, folder_key: Optional[str]=None, fo
 sdk.context_grounding.retrieve_by_id_async(id: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Any
 
 # Search for contextual information within a specific index.
-sdk.context_grounding.search(name: str, query: str, number_of_results: int=10, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.models.context_grounding.ContextGroundingQueryResponse]
+sdk.context_grounding.search(name: str, query: str, number_of_results: int=10, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding.ContextGroundingQueryResponse]
 
 # Search asynchronously for contextual information within a specific index.
-sdk.context_grounding.search_async(name: str, query: str, number_of_results: int=10, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.models.context_grounding.ContextGroundingQueryResponse]
+sdk.context_grounding.search_async(name: str, query: str, number_of_results: int=10, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding.ContextGroundingQueryResponse]
+
+```
+
+### Conversational
+
+Conversational service
+
+```python
+# Access conversational service methods
+service = sdk.conversational
 
 ```
 
@@ -260,40 +257,40 @@ Documents service
 
 ```python
 # Classify a document using a DU Modern project.
-sdk.documents.classify(tag: str, project_name: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.models.documents.ClassificationResult]
+sdk.documents.classify(project_type: <enum 'ProjectType, tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
 
 # Asynchronously version of the [`classify`][uipath._services.documents_service.DocumentsService.classify] method.
-sdk.documents.classify_async(tag: str, project_name: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.models.documents.ClassificationResult]
+sdk.documents.classify_async(project_type: <enum 'ProjectType, tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
 
 # Create a validate classification action for a document based on the classification results. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-classifications).
-sdk.documents.create_validate_classification_action(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, classification_results: List[uipath.models.documents.ClassificationResult]) -> uipath.models.documents.ValidateClassificationAction
+sdk.documents.create_validate_classification_action(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, classification_results: List[uipath.platform.documents.documents.ClassificationResult]) -> uipath.platform.documents.documents.ValidateClassificationAction
 
 # Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validate_classification_action] method.
-sdk.documents.create_validate_classification_action_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, classification_results: List[uipath.models.documents.ClassificationResult]) -> uipath.models.documents.ValidateClassificationAction
+sdk.documents.create_validate_classification_action_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, classification_results: List[uipath.platform.documents.documents.ClassificationResult]) -> uipath.platform.documents.documents.ValidateClassificationAction
 
 # Create a validate extraction action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
-sdk.documents.create_validate_extraction_action(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.models.documents.ExtractionResponse) -> uipath.models.documents.ValidateExtractionAction
+sdk.documents.create_validate_extraction_action(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.platform.documents.documents.ExtractionResponse) -> uipath.platform.documents.documents.ValidateExtractionAction
 
 # Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validate_extraction_action] method.
-sdk.documents.create_validate_extraction_action_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.models.documents.ExtractionResponse) -> uipath.models.documents.ValidateExtractionAction
+sdk.documents.create_validate_extraction_action_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.platform.documents.documents.ExtractionResponse) -> uipath.platform.documents.documents.ValidateExtractionAction
 
 # Extract predicted data from a document using an DU Modern/IXP project.
-sdk.documents.extract(tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.models.documents.ClassificationResult]=None, project_type: Optional[uipath.models.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.models.documents.ExtractionResponse, uipath.models.documents.ExtractionResponseIXP]
+sdk.documents.extract(tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.platform.documents.documents.ClassificationResult]=None, project_type: Optional[uipath.platform.documents.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.platform.documents.documents.ExtractionResponse, uipath.platform.documents.documents.ExtractionResponseIXP]
 
 # Asynchronously version of the [`extract`][uipath._services.documents_service.DocumentsService.extract] method.
-sdk.documents.extract_async(tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.models.documents.ClassificationResult]=None, project_type: Optional[uipath.models.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.models.documents.ExtractionResponse, uipath.models.documents.ExtractionResponseIXP]
+sdk.documents.extract_async(tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.platform.documents.documents.ClassificationResult]=None, project_type: Optional[uipath.platform.documents.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.platform.documents.documents.ExtractionResponse, uipath.platform.documents.documents.ExtractionResponseIXP]
 
 # Get the result of a validate classification action.
-sdk.documents.get_validate_classification_result(validation_action: uipath.models.documents.ValidateClassificationAction) -> typing.List[uipath.models.documents.ClassificationResult]
+sdk.documents.get_validate_classification_result(validation_action: uipath.platform.documents.documents.ValidateClassificationAction) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
 
-# Get the result of a validate classification action.
-sdk.documents.get_validate_classification_result_async(validation_action: uipath.models.documents.ValidateClassificationAction) -> typing.List[uipath.models.documents.ClassificationResult]
+# Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validate_classification_result] method.
+sdk.documents.get_validate_classification_result_async(validation_action: uipath.platform.documents.documents.ValidateClassificationAction) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
 
 # Get the result of a validate extraction action.
-sdk.documents.get_validate_extraction_result(validation_action: uipath.models.documents.ValidateExtractionAction) -> typing.Union[uipath.models.documents.ExtractionResponse, uipath.models.documents.ExtractionResponseIXP]
+sdk.documents.get_validate_extraction_result(validation_action: uipath.platform.documents.documents.ValidateExtractionAction) -> typing.Union[uipath.platform.documents.documents.ExtractionResponse, uipath.platform.documents.documents.ExtractionResponseIXP]
 
 # Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validate_extraction_result] method.
-sdk.documents.get_validate_extraction_result_async(validation_action: uipath.models.documents.ValidateExtractionAction) -> typing.Union[uipath.models.documents.ExtractionResponse, uipath.models.documents.ExtractionResponseIXP]
+sdk.documents.get_validate_extraction_result_async(validation_action: uipath.platform.documents.documents.ValidateExtractionAction) -> typing.Union[uipath.platform.documents.documents.ExtractionResponse, uipath.platform.documents.documents.ExtractionResponseIXP]
 
 ```
 
@@ -303,40 +300,40 @@ Entities service
 
 ```python
 # Delete multiple records from an entity in a single batch operation.
-sdk.entities.delete_records(entity_key: str, record_ids: List[str]) -> uipath.models.entities.EntityRecordsBatchResponse
+sdk.entities.delete_records(entity_key: str, record_ids: List[str]) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Asynchronously delete multiple records from an entity in a single batch operation.
-sdk.entities.delete_records_async(entity_key: str, record_ids: List[str]) -> uipath.models.entities.EntityRecordsBatchResponse
+sdk.entities.delete_records_async(entity_key: str, record_ids: List[str]) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Insert multiple records into an entity in a single batch operation.
-sdk.entities.insert_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.models.entities.EntityRecordsBatchResponse
+sdk.entities.insert_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Asynchronously insert multiple records into an entity in a single batch operation.
-sdk.entities.insert_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.models.entities.EntityRecordsBatchResponse
+sdk.entities.insert_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # List all entities in the Data Service.
-sdk.entities.list_entities() -> typing.List[uipath.models.entities.Entity]
+sdk.entities.list_entities() -> typing.List[uipath.platform.entities.entities.Entity]
 
 # Asynchronously list all entities in the Data Service.
-sdk.entities.list_entities_async() -> typing.List[uipath.models.entities.Entity]
+sdk.entities.list_entities_async() -> typing.List[uipath.platform.entities.entities.Entity]
 
 # List records from an entity with optional pagination and schema validation.
-sdk.entities.list_records(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.models.entities.EntityRecord]
+sdk.entities.list_records(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.EntityRecord]
 
 # Asynchronously list records from an entity with optional pagination and schema validation.
-sdk.entities.list_records_async(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.models.entities.EntityRecord]
+sdk.entities.list_records_async(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.EntityRecord]
 
 # Retrieve an entity by its key.
-sdk.entities.retrieve(entity_key: str) -> uipath.models.entities.Entity
+sdk.entities.retrieve(entity_key: str) -> uipath.platform.entities.entities.Entity
 
 # Asynchronously retrieve an entity by its key.
-sdk.entities.retrieve_async(entity_key: str) -> uipath.models.entities.Entity
+sdk.entities.retrieve_async(entity_key: str) -> uipath.platform.entities.entities.Entity
 
 # Update multiple records in an entity in a single batch operation.
-sdk.entities.update_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.models.entities.EntityRecordsBatchResponse
+sdk.entities.update_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Asynchronously update multiple records in an entity in a single batch operation.
-sdk.entities.update_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.models.entities.EntityRecordsBatchResponse
+sdk.entities.update_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 ```
 
@@ -345,8 +342,17 @@ sdk.entities.update_records_async(entity_key: str, records: List[Any], schema: O
 Folders service
 
 ```python
+# Resolve a folder path to its corresponding folder key.
+sdk.folders.retrieve_folder_key(folder_path: str | None) -> str | None
+
+# Asynchronously resolve a folder path to its corresponding folder key.
+sdk.folders.retrieve_folder_key_async(folder_path: str | None) -> str | None
+
 # Retrieve the folder key by folder path with pagination support.
 sdk.folders.retrieve_key(folder_path: str) -> typing.Optional[str]
+
+# Retrieve the folder key by folder path with pagination support.
+sdk.folders.retrieve_key_async(folder_path: str) -> typing.Optional[str]
 
 ```
 
@@ -362,10 +368,10 @@ sdk.jobs.create_attachment(name: str, content: Union[str, bytes, NoneType]=None,
 sdk.jobs.create_attachment_async(name: str, content: Union[str, bytes, NoneType]=None, source_path: Union[str, pathlib.Path, NoneType]=None, job_key: Union[str, uuid.UUID, NoneType]=None, category: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uuid.UUID
 
 # Get the actual output data, downloading from attachment if necessary.
-sdk.jobs.extract_output(job: uipath.models.job.Job) -> typing.Optional[str]
+sdk.jobs.extract_output(job: uipath.platform.orchestrator.job.Job) -> typing.Optional[str]
 
 # Asynchronously fetch the actual output data, downloading from attachment if necessary.
-sdk.jobs.extract_output_async(job: uipath.models.job.Job) -> typing.Optional[str]
+sdk.jobs.extract_output_async(job: uipath.platform.orchestrator.job.Job) -> typing.Optional[str]
 
 # Link an attachment to a job.
 sdk.jobs.link_attachment(attachment_key: uuid.UUID, job_key: uuid.UUID, category: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None)
@@ -386,7 +392,7 @@ sdk.jobs.resume(inbox_id: Optional[str]=None, job_id: Optional[str]=None, folder
 sdk.jobs.resume_async(inbox_id: Optional[str]=None, job_id: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, payload: Any) -> None
 
 # Retrieve a job identified by its key.
-sdk.jobs.retrieve(job_key: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.job.Job
+sdk.jobs.retrieve(job_key: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.job.Job
 
 # Fetch payload data for API triggers.
 sdk.jobs.retrieve_api_payload(inbox_id: str) -> typing.Any
@@ -395,7 +401,7 @@ sdk.jobs.retrieve_api_payload(inbox_id: str) -> typing.Any
 sdk.jobs.retrieve_api_payload_async(inbox_id: str) -> typing.Any
 
 # Asynchronously retrieve a job identified by its key.
-sdk.jobs.retrieve_async(job_key: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.job.Job
+sdk.jobs.retrieve_async(job_key: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.job.Job
 
 ```
 
@@ -405,7 +411,7 @@ Llm service
 
 ```python
 # Generate chat completions using UiPath's normalized LLM Gateway API.
-sdk.llm.chat_completions(messages: Union[List[Dict[str, str]], List[tuple[str, str]]], model: str="gpt-4o-mini-2024-07-18", max_tokens: int=4096, temperature: float=0, n: int=1, frequency_penalty: float=0, presence_penalty: float=0, top_p: Optional[float]=1, top_k: Optional[int]=None, tools: Optional[List[uipath.models.llm_gateway.ToolDefinition]]=None, tool_choice: Union[uipath.models.llm_gateway.AutoToolChoice, uipath.models.llm_gateway.RequiredToolChoice, uipath.models.llm_gateway.SpecificToolChoice, Literal['auto', 'none'], NoneType]=None, response_format: Union[Dict[str, Any], type[pydantic.main.BaseModel], NoneType]=None, api_version: str="2024-08-01-preview")
+sdk.llm.chat_completions(messages: Union[List[Dict[str, str]], List[tuple[str, str]]], model: str="gpt-4o-mini-2024-07-18", max_tokens: int=4096, temperature: float=0, n: int=1, frequency_penalty: float=0, presence_penalty: float=0, top_p: Optional[float]=1, top_k: Optional[int]=None, tools: Optional[List[uipath.platform.llm_gateway.llm_gateway.ToolDefinition]]=None, tool_choice: Union[uipath.platform.llm_gateway.llm_gateway.AutoToolChoice, uipath.platform.llm_gateway.llm_gateway.RequiredToolChoice, uipath.platform.llm_gateway.llm_gateway.SpecificToolChoice, Literal['auto', 'none'], NoneType]=None, response_format: Union[Dict[str, Any], type[pydantic.main.BaseModel], NoneType]=None, api_version: str="2024-08-01-preview")
 
 ```
 
@@ -422,16 +428,35 @@ sdk.llm_openai.embeddings(input: str, embedding_model: str="text-embedding-ada-0
 
 ```
 
+### Mcp
+
+Mcp service
+
+```python
+# List all MCP servers.
+sdk.mcp.list(folder_path: Optional[str]=None) -> typing.List[uipath.platform.orchestrator.mcp.McpServer]
+
+# Asynchronously list all MCP servers.
+sdk.mcp.list_async(folder_path: Optional[str]=None) -> typing.List[uipath.platform.orchestrator.mcp.McpServer]
+
+# Retrieve a specific MCP server by its slug.
+sdk.mcp.retrieve(slug: str, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.mcp.McpServer
+
+# Asynchronously retrieve a specific MCP server by its slug.
+sdk.mcp.retrieve_async(slug: str, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.mcp.McpServer
+
+```
+
 ### Processes
 
 Processes service
 
 ```python
 # Start execution of a process by its name.
-sdk.processes.invoke(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.job.Job
+sdk.processes.invoke(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.job.Job
 
 # Asynchronously start execution of a process by its name.
-sdk.processes.invoke_async(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.models.job.Job
+sdk.processes.invoke_async(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.job.Job
 
 ```
 
@@ -441,28 +466,28 @@ Queues service
 
 ```python
 # Completes a transaction item with the specified result.
-sdk.queues.complete_transaction_item(transaction_key: str, result: Union[Dict[str, Any], uipath.models.queues.TransactionItemResult]) -> httpx.Response
+sdk.queues.complete_transaction_item(transaction_key: str, result: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItemResult]) -> httpx.Response
 
 # Asynchronously completes a transaction item with the specified result.
-sdk.queues.complete_transaction_item_async(transaction_key: str, result: Union[Dict[str, Any], uipath.models.queues.TransactionItemResult]) -> httpx.Response
+sdk.queues.complete_transaction_item_async(transaction_key: str, result: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItemResult]) -> httpx.Response
 
 # Creates a new queue item in the Orchestrator.
-sdk.queues.create_item(item: Union[Dict[str, Any], uipath.models.queues.QueueItem]) -> httpx.Response
+sdk.queues.create_item(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]) -> httpx.Response
 
 # Asynchronously creates a new queue item in the Orchestrator.
-sdk.queues.create_item_async(item: Union[Dict[str, Any], uipath.models.queues.QueueItem]) -> httpx.Response
+sdk.queues.create_item_async(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]) -> httpx.Response
 
 # Creates multiple queue items in bulk.
-sdk.queues.create_items(items: List[Union[Dict[str, Any], uipath.models.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType) -> httpx.Response
+sdk.queues.create_items(items: List[Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType) -> httpx.Response
 
 # Asynchronously creates multiple queue items in bulk.
-sdk.queues.create_items_async(items: List[Union[Dict[str, Any], uipath.models.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType) -> httpx.Response
+sdk.queues.create_items_async(items: List[Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType) -> httpx.Response
 
 # Creates a new transaction item in a queue.
-sdk.queues.create_transaction_item(item: Union[Dict[str, Any], uipath.models.queues.TransactionItem], no_robot: bool=False) -> httpx.Response
+sdk.queues.create_transaction_item(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItem], no_robot: bool=False) -> httpx.Response
 
 # Asynchronously creates a new transaction item in a queue.
-sdk.queues.create_transaction_item_async(item: Union[Dict[str, Any], uipath.models.queues.TransactionItem], no_robot: bool=False) -> httpx.Response
+sdk.queues.create_transaction_item_async(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItem], no_robot: bool=False) -> httpx.Response
 
 # Retrieves a list of queue items from the Orchestrator.
 sdk.queues.list_items() -> httpx.Response
@@ -475,6 +500,50 @@ sdk.queues.update_progress_of_transaction_item(transaction_key: str, progress: s
 
 # Asynchronously updates the progress of a transaction item.
 sdk.queues.update_progress_of_transaction_item_async(transaction_key: str, progress: str) -> httpx.Response
+
+```
+
+### Resource Catalog
+
+Resource Catalog service
+
+```python
+# Get tenant scoped resources and folder scoped resources (accessible to the user).
+sdk.resource_catalog.list(resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.Iterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+
+# Asynchronously get tenant scoped resources and folder scoped resources (accessible to the user).
+sdk.resource_catalog.list_async(resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.AsyncIterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+
+# Get resources of a specific type (tenant scoped or folder scoped).
+sdk.resource_catalog.list_by_type(resource_type: <enum 'ResourceType, name: Optional[str]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.Iterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+
+# Asynchronously get resources of a specific type (tenant scoped or folder scoped).
+sdk.resource_catalog.list_by_type_async(resource_type: <enum 'ResourceType, name: Optional[str]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.AsyncIterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+
+# Search for tenant scoped resources and folder scoped resources (accessible to the user).
+sdk.resource_catalog.search(name: Optional[str]=None, resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, page_size: int=20) -> typing.Iterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+
+# Asynchronously search for tenant scoped resources and folder scoped resources (accessible to the user).
+sdk.resource_catalog.search_async(name: Optional[str]=None, resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, page_size: int=20) -> typing.AsyncIterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+
+```
+
+### Tasks
+
+Tasks service
+
+```python
+# Creates a new task synchronously.
+sdk.tasks.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None) -> uipath.platform.action_center.tasks.Task
+
+# Creates a new action asynchronously.
+sdk.tasks.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None) -> uipath.platform.action_center.tasks.Task
+
+# Retrieves a task by its key synchronously.
+sdk.tasks.retrieve(action_key: str, app_folder_path: str="", app_folder_key: str="") -> uipath.platform.action_center.tasks.Task
+
+# Retrieves a task by its key asynchronously.
+sdk.tasks.retrieve_async(action_key: str, app_folder_path: str="", app_folder_key: str="") -> uipath.platform.action_center.tasks.Task
 
 ```
 
