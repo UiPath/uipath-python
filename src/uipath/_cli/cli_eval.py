@@ -171,7 +171,7 @@ def eval(
 
                     project_id = UiPathConfig.project_id
 
-                    runtime_factory = UiPathRuntimeFactoryRegistry.get()
+                    runtime_factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
 
                     try:
                         if project_id:

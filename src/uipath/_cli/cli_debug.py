@@ -101,6 +101,7 @@ def debug(
                     input=input,
                     input_file=input_file,
                     output_file=output_file,
+                    resume=resume,
                 ) as ctx:
                     runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
@@ -110,7 +111,7 @@ def debug(
                         if ctx.job_id:
                             trace_manager.add_span_exporter(LlmOpsHttpExporter())
 
-                        factory = UiPathRuntimeFactoryRegistry.get()
+                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
 
                         runtime = await factory.new_runtime(
                             entrypoint, ctx.job_id or "default"

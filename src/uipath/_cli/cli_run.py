@@ -115,7 +115,7 @@ def run(
                     runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
                     try:
-                        factory = UiPathRuntimeFactoryRegistry.get()
+                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
                         runtime = await factory.new_runtime(
                             entrypoint, ctx.job_id or "default"
                         )
@@ -137,7 +137,7 @@ def run(
                     runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
                     try:
-                        factory = UiPathRuntimeFactoryRegistry.get()
+                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
                         runtime = await factory.new_runtime(entrypoint, "default")
                         debug_bridge: UiPathDebugBridgeProtocol = ConsoleDebugBridge()
                         await debug_bridge.emit_execution_started()
@@ -164,6 +164,7 @@ def run(
                     input_file=file or input_file,
                     output_file=output_file,
                     trace_file=trace_file,
+                    resume=resume,
                 )
 
                 trace_manager = UiPathTraceManager()
