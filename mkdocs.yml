@@ -59,7 +59,7 @@ nav:
         - CLI Reference: cli/index.md
         - Tracing: core/traced.md
         - Services:
-            - Actions: core/actions.md
+            - Action Center: core/action_center.md
             - Assets: core/assets.md
             - Buckets: core/buckets.md
             - Connections: core/connections.md
