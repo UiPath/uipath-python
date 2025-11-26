@@ -68,7 +68,7 @@ def debug(
     debug: bool,
     debug_port: int,
 ) -> None:
-    """Execute the project."""
+    """Debug the project."""
     input_file = file or input_file
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):

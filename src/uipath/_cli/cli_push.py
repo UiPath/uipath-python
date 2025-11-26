@@ -222,7 +222,7 @@ async def upload_source_files_to_project(
     help="Automatically overwrite remote files without prompts",
 )
 def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> None:
-    """Push local project files to Studio Web Project.
+    """Push local project files to Studio Web.
 
     This command pushes the local project files to a UiPath Studio Web project.
     It ensures that the remote project structure matches the local files by:

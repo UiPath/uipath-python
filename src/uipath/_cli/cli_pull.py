@@ -29,7 +29,7 @@ console = ConsoleLogger()
     help="Automatically overwrite local files without prompts",
 )
 def pull(root: Path, overwrite: bool) -> None:
-    """Pull remote project files from Studio Web Project.
+    """Pull remote project files from Studio Web.
 
     This command pulls the remote project files from a UiPath Studio Web project.
 

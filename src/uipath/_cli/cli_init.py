@@ -243,7 +243,7 @@ def _add_graph_to_chart(chart: Chart | Subgraph, graph: UiPathRuntimeGraph) -> N
     help="Won't override existing .agent files and AGENTS.md file.",
 )
 def init(no_agents_md_override: bool) -> None:
-    """Create uipath.json with input/output schemas and bindings."""
+    """Initialize the project."""
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
         generate_env_file(current_directory)
