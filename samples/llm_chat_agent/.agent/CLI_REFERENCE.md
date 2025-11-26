@@ -14,19 +14,12 @@ The UiPath Python SDK provides a comprehensive CLI for managing coded agents and
 
 ### `uipath init`
 
-**Description:** Create uipath.json with input/output schemas and bindings.
-
-**Arguments:**
-
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `entrypoint` | No | N/A |
+**Description:** Initialize the project.
 
 **Options:**
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--infer-bindings` | flag | false | Infer bindings from the script. |
 | `--no-agents-md-override` | flag | false | Won't override existing .agent files and AGENTS.md file. |
 
 **Usage Examples:**
@@ -104,6 +97,7 @@ uv run uipath run --resume
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
         enable_mocker_cache: Enable caching for LLM mocker responses
+        report_coverage: Report evaluation coverage
     
 
 **Arguments:**
@@ -122,6 +116,7 @@ uv run uipath run --resume
 | `--workers` | value | `1` | Number of parallel workers for running evaluations (default: 1) |
 | `--output-file` | value | `Sentinel.UNSET` | File path where the output will be written |
 | `--enable-mocker-cache` | flag | false | Enable caching for LLM mocker responses |
+| `--report-coverage` | flag | false | Report evaluation coverage |
 
 **Usage Examples:**
 

@@ -3,8 +3,8 @@
     "$id": "entry-points.json",
     "entryPoints": [
         {
-            "filePath": "main.py",
-            "uniqueId": "32749da7-3f64-4dd6-8d35-fe3f120e2c22",
+            "filePath": "main",
+            "uniqueId": "5e994161-0809-455d-8d67-e13e4db0be85",
             "type": "agent",
             "input": {
                 "type": "object",

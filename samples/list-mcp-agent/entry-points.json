@@ -3,12 +3,30 @@
     "$id": "entry-points.json",
     "entryPoints": [
         {
-            "filePath": "main.py",
-            "uniqueId": "073388ad-b233-4d1a-9caf-89d0768bab94",
+            "filePath": "main",
+            "uniqueId": "74019482-c9d2-451b-8b9d-11fe671aab0a",
             "type": "agent",
-            "input": {},
+            "input": {
+                "type": "object",
+                "properties": {
+                    "server_name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "server_name"
+                ]
+            },
             "output": {
-                "type": "string"
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "message"
+                ]
             }
         }
     ]

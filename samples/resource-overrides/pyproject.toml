@@ -8,3 +8,8 @@ requires-python = ">=3.11"
 dependencies = [
   "uipath>=2.2.0, <2.3.0",
 ]
+
+[dependency-groups]
+dev = [
+    "uipath-dev>=0.0.5",
+]

@@ -144,7 +144,7 @@ This pattern ensures consistent serialization and makes it easy to extract the a
 Run the evaluation to test the mocked agent's behavior:
 
 ```bash
-uv run uipath eval samples/weather_tools/main.py samples/weather_tools/evaluations/eval-sets/default.json --workers 1
+uv run uipath eval main samples/weather_tools/evaluations/eval-sets/default.json --workers 1
 ```
 
 ### Evaluation Output

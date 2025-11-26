@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from uipath.platform import EventArguments
+from uipath.platform.connections import EventArguments
 from uipath.platform import UiPath
 from uipath.tracing import traced
 import logging

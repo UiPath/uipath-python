@@ -8,8 +8,6 @@ from uipath.platform import UiPath
 from uipath.platform.orchestrator import McpServer
 from uipath.tracing import traced
 
-uipath = UiPath()
-
 
 @dataclass
 class McpAgentInput:
@@ -22,10 +20,12 @@ class McpAgentOutput:
 
 
 def list_mcp_servers() -> list[McpServer]:
+    uipath = UiPath()
     return uipath.mcp.list(folder_path="Shared")
 
 
 def retrieve_mcp_server(slug: str) -> McpServer:
+    uipath = UiPath()
     return uipath.mcp.retrieve(slug, folder_path="Shared")
 
 

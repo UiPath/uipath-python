@@ -23,7 +23,7 @@ class Output(BaseModel):
 ### SDK Initialization
 
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 
 # Initialize with environment variables
 uipath = UiPath()
@@ -45,7 +45,7 @@ uipath = UiPath(
 Every agent should follow this basic structure:
 
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 from pydantic import BaseModel
 
 # 1. Define Input, and Output models
