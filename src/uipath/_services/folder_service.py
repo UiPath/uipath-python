@@ -2,12 +2,11 @@ from typing import Optional
 
 from typing_extensions import deprecated
 
-from uipath.tracing import traced
-
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint, RequestSpec
-from ..models.errors import FolderNotFoundException
+from ..platform.errors import FolderNotFoundException
+from ..tracing import traced
 from ._base_service import BaseService
 
 

@@ -26,7 +26,7 @@ async def get_personal_workspace_key_async() -> Optional[str]:
 
 
 async def _get_personal_workspace_info_internal_async() -> dict[str, Any]:
-    from ... import UiPath
+    from ...platform import UiPath
 
     uipath = UiPath()
 

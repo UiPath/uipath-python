@@ -4,6 +4,6 @@ version = "0.0.1"
 description = "calculator-agent"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
-    "uipath>=2.1.169, <2.2.0",
+    "uipath>=2.2.0, <2.3.0",
 ]
 requires-python = ">=3.11"

@@ -1,18 +1,29 @@
 import asyncio
-import os
-from typing import Optional
 
 import click
+from uipath.core.tracing import UiPathTraceManager
+from uipath.runtime import UiPathRuntimeFactoryRegistry
 
-from uipath._cli._dev._terminal import UiPathDevTerminal
-from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
-from uipath._cli._runtime._runtime import UiPathScriptRuntime
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
-from uipath._cli.cli_init import init
 from uipath._cli.middlewares import Middlewares
 
 console = ConsoleLogger()
+
+
+def _check_dev_dependency() -> None:
+    """Check if uipath-dev is installed and raise helpful error if not."""
+    import importlib.util
+
+    if importlib.util.find_spec("uipath.dev") is None:
+        raise ImportError(
+            "The 'uipath-dev' package is required to use the dev command.\n"
+            "Please install it as a development dependency:\n\n"
+            "  # Using pip:\n"
+            "  pip install uipath-dev\n\n"
+            "  # Using uv:\n"
+            "  uv add uipath-dev --dev\n\n"
+        )
 
 
 @click.command()
@@ -28,19 +39,18 @@ console = ConsoleLogger()
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
-def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
-    """Launch interactive debugging interface."""
-    project_file = os.path.join(os.getcwd(), "entry-points.json")
-
-    if not os.path.exists(project_file):
-        console.warning("Project not initialized. Running `uipath init`...")
-        ctx = click.get_current_context()
-        ctx.invoke(init)
+def dev(interface: str | None, debug: bool, debug_port: int) -> None:
+    """Launch UiPath Developer Console."""
+    try:
+        _check_dev_dependency()
+    except ImportError as e:
+        console.error(str(e))
+        return
 
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
 
-    console.info("Launching UiPath debugging terminal ...")
+    console.info("Launching UiPath Developer Console ...")
     result = Middlewares.next(
         "dev",
         interface,
@@ -51,11 +61,27 @@ def dev(interface: Optional[str], debug: bool, debug_port: int) -> None:
 
     try:
         if interface == "terminal":
-            runtime_factory = UiPathRuntimeFactory(
-                UiPathScriptRuntime, UiPathRuntimeContext
-            )
-            app = UiPathDevTerminal(runtime_factory)
-            asyncio.run(app.run_async())
+
+            async def run_terminal() -> None:
+                from uipath.dev import (  # type: ignore[import-untyped]
+                    UiPathDeveloperConsole,
+                )
+
+                trace_manager = UiPathTraceManager()
+                factory = UiPathRuntimeFactoryRegistry.get()
+
+                try:
+                    app = UiPathDeveloperConsole(
+                        runtime_factory=factory, trace_manager=trace_manager
+                    )
+
+                    await app.run_async()
+
+                finally:
+                    if factory:
+                        await factory.dispose()
+
+            asyncio.run(run_terminal())
         else:
             console.error(f"Unknown interface: {interface}")
     except KeyboardInterrupt:

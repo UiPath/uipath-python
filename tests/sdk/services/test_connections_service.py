@@ -11,15 +11,13 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.connections_service import ConnectionsService
 from uipath._services.folder_service import FolderService
 from uipath._utils.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
-from uipath.models import (
+from uipath.platform.connections import (
+    ActivityMetadata,
+    ActivityParameterLocationInfo,
     Connection,
     ConnectionMetadata,
     ConnectionToken,
     EventArguments,
-)
-from uipath.models.connections import (
-    ActivityMetadata,
-    ActivityParameterLocationInfo,
 )
 from uipath.utils.dynamic_schema import jsonschema_to_pydantic
 

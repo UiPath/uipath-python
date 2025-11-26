@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,18 +12,6 @@ class BaseModelWithDefaultConfig(BaseModel):
         populate_by_name=True,
         extra="allow",
     )
-
-
-class Entrypoint(BaseModelWithDefaultConfig):
-    file_path: str = Field(..., alias="filePath")
-    unique_id: str = Field(..., alias="uniqueId")
-    type: str = Field(..., alias="type")
-    input: Dict[str, Any] = Field(..., alias="input")
-    output: Dict[str, Any] = Field(..., alias="output")
-
-
-class Entrypoints(BaseModelWithDefaultConfig):
-    entry_points: List[Entrypoint] = Field(..., alias="entryPoints")
 
 
 class BindingResourceValue(BaseModelWithDefaultConfig):
@@ -42,7 +30,7 @@ class BindingResource(BaseModelWithDefaultConfig):
 
 class Bindings(BaseModelWithDefaultConfig):
     version: str = Field(..., alias="version")
-    resources: List[BindingResource] = Field(..., alias="resources")
+    resources: list[BindingResource] = Field(..., alias="resources")
 
 
 class RuntimeInternalArguments(BaseModelWithDefaultConfig):
@@ -53,16 +41,3 @@ class RuntimeArguments(BaseModelWithDefaultConfig):
     internal_arguments: Optional[RuntimeInternalArguments] = Field(
         default=None, alias="internalArguments"
     )
-
-
-class RuntimeSchema(BaseModelWithDefaultConfig):
-    runtime: Optional[RuntimeArguments] = Field(default=None, alias="runtime")
-
-    # TODO: left for backward compatibility with uipath-langchain and uipath-llamaindex libraries. should be removed on 2.2.x
-    entrypoints: Optional[List[Entrypoint]] = Field(default=None, alias="entryPoints")
-
-    # TODO: left for backward compatibility with uipath-langchain and uipath-llamaindex libraries. should be removed on 2.2.x
-    bindings: Optional[Bindings] = Field(
-        default=Bindings(version="2.0", resources=[]), alias="bindings"
-    )
-    settings: Optional[Dict[str, Any]] = Field(default=None, alias="settings")

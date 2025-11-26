@@ -4,9 +4,9 @@ import json
 from datetime import datetime
 from typing import Any, Dict
 
-from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import EvaluationItem
-from uipath.tracing._traced import traced
+from uipath.platform import UiPath
+from uipath.tracing import traced
 
 from .mocker import UiPathInputMockingError
 

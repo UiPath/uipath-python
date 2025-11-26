@@ -8,7 +8,7 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.folder_service import FolderService
 from uipath._services.mcp_service import McpService
 from uipath._utils.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
-from uipath.models.mcp import McpServer
+from uipath.platform.orchestrator.mcp import McpServer
 
 
 @pytest.fixture

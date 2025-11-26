@@ -7,7 +7,8 @@ from string import Template
 import click
 from pydantic import TypeAdapter
 
-from uipath._cli.models.runtime_schema import Bindings, RuntimeSchema
+from uipath._cli.models.runtime_schema import Bindings
+from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
 from uipath._config import UiPathConfig
 from uipath._utils.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 
@@ -200,26 +201,20 @@ def is_venv_dir(d):
 def pack_fn(
     project_name,
     description,
-    entry_points,
     version,
     authors,
     directory,
     dependencies=None,
     include_uv_lock=True,
 ):
-    if legacy_config := entry_points:
-        entrypoints_file_content = generate_entrypoints_file(entry_points)
+    entry_points_file_path = os.path.join(
+        directory, str(UiPathConfig.entry_points_file_path)
+    )
+    if not os.path.exists(entry_points_file_path):
+        raise Exception("'entry-points.json' file not found. Please run 'uipath init'.")
     else:
-        entry_points_file_path = os.path.join(
-            directory, str(UiPathConfig.entry_points_file_path)
-        )
-        if not os.path.exists(entry_points_file_path):
-            raise Exception(
-                "'entry-points.json' file not found. Please run 'uipath init'."
-            )
-        else:
-            with open(entry_points_file_path, "r") as f:
-                entry_points = json.load(f).get("entryPoints", [])
+        with open(entry_points_file_path, "r") as f:
+            entry_points = json.load(f).get("entryPoints", [])
 
     operate_file = generate_operate_file(entry_points, dependencies)
 
@@ -228,16 +223,13 @@ def pack_fn(
         console.error("uipath.json not found, please run `uipath init`.")
 
     with open(config_path, "r") as f:
-        config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(f))
+        config_data = TypeAdapter(UiPathJsonConfig).validate_python(json.load(f))
 
-    # for backwards compatibility. should be removed
-    if not (config_data.bindings and config_data.bindings.resources):
-        # try to read bindings from bindings.json
-        bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
-        if os.path.exists(bindings_path):
-            with open(bindings_path, "r") as f:
-                bindings_data = TypeAdapter(Bindings).validate_python(json.load(f))
-                config_data.bindings = bindings_data
+    # try to read bindings from bindings.json
+    bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
+    if os.path.exists(bindings_path):
+        with open(bindings_path, "r") as f:
+            bindings_data = TypeAdapter(Bindings).validate_python(json.load(f))
 
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
@@ -269,21 +261,16 @@ def pack_fn(
             json.dumps(package_descriptor_content, indent=4),
         )
         z.writestr("content/operate.json", json.dumps(operate_file, indent=4))
-        if legacy_config:
-            z.writestr(
-                "content/entry-points.json",
-                json.dumps(entrypoints_file_content, indent=4),
-            )
-        if config_data.bindings:
+        if bindings_data:
             z.writestr(
                 "content/bindings_v2.json",
-                json.dumps(config_data.bindings.model_dump(by_alias=True), indent=4),
+                json.dumps(bindings_data.model_dump(by_alias=True), indent=4),
             )
         z.writestr(f"{project_name}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
         files = files_to_include(
-            config_data.settings,
+            config_data.pack_options,
             directory,
             include_uv_lock,
             directories_to_ignore=[LEGACY_EVAL_FOLDER, EVALS_FOLDER],
@@ -352,7 +339,6 @@ def pack(root, nolock):
             pack_fn(
                 config["project_name"],
                 config["description"],
-                config.get("entryPoints", None),
                 version or config["version"],
                 config["authors"],
                 root,

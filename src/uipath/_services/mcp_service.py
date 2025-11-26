@@ -4,8 +4,8 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
-from ..models import McpServer
-from ..tracing._traced import traced
+from ..platform.orchestrator.mcp import McpServer
+from ..tracing import traced
 from ._base_service import BaseService
 from .folder_service import FolderService
 

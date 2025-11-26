@@ -22,7 +22,7 @@ def runner():
 def mock_client():
     """Provide a mocked UiPath client."""
     # Patch where UiPath is actually defined
-    with patch("uipath._uipath.UiPath") as mock:
+    with patch("uipath.platform._uipath.UiPath") as mock:
         client_instance = MagicMock()
         mock.return_value = client_instance
 

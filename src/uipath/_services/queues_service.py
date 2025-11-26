@@ -6,7 +6,12 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec
-from ..models import CommitType, QueueItem, TransactionItem, TransactionItemResult
+from ..platform.orchestrator import (
+    CommitType,
+    QueueItem,
+    TransactionItem,
+    TransactionItemResult,
+)
 from ..tracing import traced
 from ._base_service import BaseService
 

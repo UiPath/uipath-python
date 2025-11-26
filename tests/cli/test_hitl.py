@@ -3,17 +3,24 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
-
-from uipath._cli._runtime._contracts import (
+from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
     UiPathResumeTriggerType,
-    UiPathRuntimeError,
     UiPathRuntimeStatus,
 )
-from uipath._cli._runtime._hitl import HitlProcessor, HitlReader
-from uipath.models import Action, CreateAction, InvokeProcess, Job, WaitAction, WaitJob
-from uipath.models.job import JobErrorInfo
+from uipath.runtime.errors import UiPathRuntimeError
+
+from uipath.platform.action_center import Task
+from uipath.platform.common import CreateTask, InvokeProcess, WaitJob, WaitTask
+from uipath.platform.orchestrator import (
+    Job,
+    JobErrorInfo,
+)
+from uipath.platform.resume_triggers import (
+    UiPathResumeTriggerCreator,
+    UiPathResumeTriggerReader,
+)
 
 
 @pytest.fixture
@@ -42,21 +49,21 @@ class TestHitlReader:
         action_key = "test-action-key"
         action_data = {"answer": "test-action-data"}
 
-        mock_action = Action(key=action_key, data=action_data)
+        mock_action = Task(key=action_key, data=action_data)
         mock_retrieve_async = AsyncMock(return_value=mock_action)
 
         with patch(
-            "uipath._services.actions_service.ActionsService.retrieve_async",
+            "uipath._services.tasks_service.TasksService.retrieve_async",
             new=mock_retrieve_async,
         ):
             resume_trigger = UiPathResumeTrigger(
-                trigger_type=UiPathResumeTriggerType.ACTION,
+                trigger_type=UiPathResumeTriggerType.TASK,
                 item_key=action_key,
                 folder_key="test-folder",
                 folder_path="test-path",
             )
-
-            result = await HitlReader.read(resume_trigger)
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
             assert result == action_data
             mock_retrieve_async.assert_called_once_with(
                 action_key, app_folder_key="test-folder", app_folder_path="test-path"
@@ -90,8 +97,8 @@ class TestHitlReader:
                 folder_key="test-folder",
                 folder_path="test-path",
             )
-
-            result = await HitlReader.read(resume_trigger)
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
             assert result == output_args
             mock_retrieve_async.assert_called_once_with(
                 job_key, folder_key="test-folder", folder_path="test-path"
@@ -122,7 +129,8 @@ class TestHitlReader:
             )
 
             with pytest.raises(UiPathRuntimeError) as exc_info:
-                await HitlReader.read(resume_trigger)
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
             error_dict = exc_info.value.as_dict
             assert error_dict["code"] == "Python.INVOKED_PROCESS_FAILURE"
             assert error_dict["title"] == "Invoked process did not finish successfully."
@@ -153,7 +161,8 @@ class TestHitlReader:
             api_resume=UiPathApiTrigger(inbox_id=inbox_id, request="test"),
         )
 
-        result = await HitlReader.read(resume_trigger)
+        reader = UiPathResumeTriggerReader()
+        result = await reader.read_trigger(resume_trigger)
         assert result == payload_data
 
     @pytest.mark.anyio
@@ -177,9 +186,10 @@ class TestHitlReader:
         )
 
         with pytest.raises(UiPathRuntimeError) as exc_info:
-            await HitlReader.read(resume_trigger)
+            reader = UiPathResumeTriggerReader()
+            await reader.read_trigger(resume_trigger)
         error_dict = exc_info.value.as_dict
-        assert error_dict["code"] == "Python.API_CONNECTION_ERROR"
+        assert error_dict["code"] == "Python.RETRIEVE_PAYLOAD_ERROR"
         assert error_dict["title"] == "Failed to get trigger payload"
         assert "Server error '500 Internal Server Error'" in error_dict["detail"]
 
@@ -188,31 +198,31 @@ class TestHitlProcessor:
     """Tests for the HitlProcessor class."""
 
     @pytest.mark.anyio
-    async def test_create_resume_trigger_create_action(
+    async def test_create_resume_trigger_create_task(
         self,
         setup_test_env: None,
     ) -> None:
-        """Test creating a resume trigger for CreateAction."""
+        """Test creating a resume trigger for CreateTask."""
         action_key = "test-action-key"
-        create_action = CreateAction(
+        create_action = CreateTask(
             title="Test Action",
             app_name="TestApp",
             app_folder_path="/test/path",
             data={"input": "test-input"},
         )
 
-        mock_action = Action(key=action_key)
+        mock_action = Task(key=action_key)
         mock_create_async = AsyncMock(return_value=mock_action)
 
         with patch(
-            "uipath._services.actions_service.ActionsService.create_async",
+            "uipath._services.tasks_service.TasksService.create_async",
             new=mock_create_async,
         ):
-            processor = HitlProcessor(create_action)
-            resume_trigger = await processor.create_resume_trigger()
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(create_action)
 
             assert resume_trigger is not None
-            assert resume_trigger.trigger_type == UiPathResumeTriggerType.ACTION
+            assert resume_trigger.trigger_type == UiPathResumeTriggerType.TASK
             assert resume_trigger.item_key == action_key
             assert resume_trigger.folder_path == create_action.app_folder_path
             mock_create_async.assert_called_once_with(
@@ -221,26 +231,25 @@ class TestHitlProcessor:
                 app_folder_path=create_action.app_folder_path,
                 app_folder_key="",
                 app_key="",
-                app_version=1,
                 assignee="",
                 data=create_action.data,
             )
 
     @pytest.mark.anyio
-    async def test_create_resume_trigger_wait_action(
+    async def test_create_resume_trigger_wait_task(
         self,
         setup_test_env: None,
     ) -> None:
-        """Test creating a resume trigger for WaitAction."""
+        """Test creating a resume trigger for WaitTask."""
         action_key = "test-action-key"
-        action = Action(key=action_key)
-        wait_action = WaitAction(action=action, app_folder_path="/test/path")
+        action = Task(key=action_key)
+        wait_action = WaitTask(action=action, app_folder_path="/test/path")
 
-        processor = HitlProcessor(wait_action)
-        resume_trigger = await processor.create_resume_trigger()
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_action)
 
         assert resume_trigger is not None
-        assert resume_trigger.trigger_type == UiPathResumeTriggerType.ACTION
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.TASK
         assert resume_trigger.item_key == action_key
         assert resume_trigger.folder_path == wait_action.app_folder_path
 
@@ -264,8 +273,8 @@ class TestHitlProcessor:
             "uipath._services.processes_service.ProcessesService.invoke_async",
             new=mock_invoke,
         ) as mock_process_invoke_async:
-            processor = HitlProcessor(invoke_process)
-            resume_trigger = await processor.create_resume_trigger()
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(invoke_process)
 
             assert resume_trigger is not None
             assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
@@ -288,8 +297,8 @@ class TestHitlProcessor:
         job = Job(id=1234, key=job_key)
         wait_job = WaitJob(job=job, process_folder_path="/test/path")
 
-        processor = HitlProcessor(wait_job)
-        resume_trigger = await processor.create_resume_trigger()
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_job)
 
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
@@ -304,8 +313,8 @@ class TestHitlProcessor:
         """Test creating a resume trigger for API type."""
         api_input = "payload"
 
-        processor = HitlProcessor(api_input)
-        resume_trigger = await processor.create_resume_trigger()
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(api_input)
 
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.API

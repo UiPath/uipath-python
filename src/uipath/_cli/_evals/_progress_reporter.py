@@ -14,7 +14,6 @@ from opentelemetry.trace import SpanContext, SpanKind, TraceFlags
 from pydantic import BaseModel
 from rich.console import Console
 
-from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
     EvaluationStatus,
@@ -25,9 +24,7 @@ from uipath._cli._evals._models._sw_reporting import (
     StudioWebProgressItem,
 )
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._cli._utils._project_files import (
-    get_project_config,
-)
+from uipath._config import UiPathConfig
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -47,6 +44,7 @@ from uipath.eval.evaluators import (
     LegacyBaseEvaluator,
 )
 from uipath.eval.models import EvalItemResult, ScoreType
+from uipath.platform import UiPath
 from uipath.tracing import LlmOpsHttpExporter
 
 logger = logging.getLogger(__name__)
@@ -547,9 +545,17 @@ class StudioWebProgressReporter:
 
     def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
         try:
-            project_config = get_project_config(os.getcwd())
+            entry_points_file_path = os.path.join(
+                os.getcwd(), str(UiPathConfig.entry_points_file_path)
+            )
+            if not os.path.exists(entry_points_file_path):
+                return StudioWebAgentSnapshot(input_schema={}, output_schema={})
+
+            with open(entry_points_file_path, "r") as f:
+                entry_points = json.load(f).get("entryPoints", [])
+
             ep = None
-            for entry_point in project_config.get("entryPoints", []):
+            for entry_point in entry_points:
                 if entry_point.get("filePath") == entrypoint:
                     ep = entry_point
                     break

@@ -5,7 +5,7 @@ from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._services.folder_service import FolderService
 from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models.errors import FolderNotFoundException
+from uipath.platform.errors import FolderNotFoundException
 
 
 @pytest.fixture

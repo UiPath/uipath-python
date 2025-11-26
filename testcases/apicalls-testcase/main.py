@@ -1,8 +1,7 @@
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
-from uipath import UiPath
+from uipath.platform import UiPath
 
 logger = logging.getLogger(__name__)
 

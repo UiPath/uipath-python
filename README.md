@@ -58,7 +58,7 @@ UIPATH_ACCESS_TOKEN=YOUR_TOKEN_HERE
 ## Basic Usage
 
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 # Initialize the SDK
 sdk = UiPath()
 # Execute a process
@@ -88,7 +88,7 @@ The SDK provides access to various UiPath services:
 
 -   `sdk.queues` - Work with transaction queues
 
--   `sdk.actions` - Work with Action Center
+-   `sdk.tasks` - Work with Action Center
 
 -   `sdk.api_client` - Direct access to the API client for custom requests
 

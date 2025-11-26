@@ -10,7 +10,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint
-from ..models.documents import (
+from ..platform.documents import (
     ActionPriority,
     ClassificationResponse,
     ClassificationResult,

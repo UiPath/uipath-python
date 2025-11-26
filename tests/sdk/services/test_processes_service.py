@@ -9,7 +9,7 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.attachments_service import AttachmentsService
 from uipath._services.processes_service import ProcessesService
 from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models.job import Job
+from uipath.platform.orchestrator import Job
 
 
 @pytest.fixture

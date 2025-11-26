@@ -4,7 +4,7 @@ import logging
 import os
 
 from typing import Optional
-from uipath import UiPath
+from uipath.platform import UiPath
 from uipath.tracing import traced
 
 dotenv.load_dotenv()

@@ -7,8 +7,7 @@ from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._services.assets_service import AssetsService
 from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models import UserAsset
-from uipath.models.assets import Asset
+from uipath.platform.orchestrator import Asset, UserAsset
 
 
 @pytest.fixture

@@ -1,5 +1,5 @@
 from typing import Any
-from uipath import UiPath
+from uipath.platform import UiPath
 from pydantic import BaseModel
 
 
@@ -25,7 +25,7 @@ async def main() -> Response:
     response.resources.append(Resource(name="connection", value=connection.model_dump()))
 
     # Actions (Apps) - create action
-    action = await uipath.actions.create_async(
+    action = await uipath.tasks.create_async(
         title="Action Title",
         data={"key": "value"},
         app_name="app_name",

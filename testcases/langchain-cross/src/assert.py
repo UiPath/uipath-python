@@ -1,5 +1,6 @@
 import json
 import os
+from trace_assert import assert_traces
 
 # Check NuGet package
 uipath_dir = ".uipath"
@@ -40,6 +41,9 @@ actual_report = output_section.get("report")
 assert actual_report == expected_report, (
     f"Expected report: '{expected_report}', but got: '{actual_report}'"
 )
+
+# Simple trace assertions - just check that expected spans exist
+assert_traces(".uipath/traces.jsonl", "expected_traces.json")
 
 print("Required fields validation passed")
 print(f"Output structure validation passed - report: '{actual_report}'")

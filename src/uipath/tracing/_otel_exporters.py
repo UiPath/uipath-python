@@ -97,7 +97,6 @@ class LlmOpsHttpExporter(SpanExporter):
     def __init__(
         self,
         trace_id: Optional[str] = None,
-        extra_process_spans: Optional[bool] = False,
         **kwargs,
     ):
         """Initialize the exporter with the base URL and authentication token."""
@@ -108,7 +107,6 @@ class LlmOpsHttpExporter(SpanExporter):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.auth_token}",
         }
-        self._extra_process_spans = extra_process_spans
 
         client_kwargs = get_httpx_client_kwargs()
 
@@ -132,10 +130,9 @@ class LlmOpsHttpExporter(SpanExporter):
 
         url = self._build_url(span_list)
 
-        # Process spans in-place if needed - work directly with dict
-        if self._extra_process_spans:
-            for span_data in span_list:
-                self._process_span_attributes(span_data)
+        # Process spans in-place - work directly with dict
+        for span_data in span_list:
+            self._process_span_attributes(span_data)
 
         # Serialize attributes once at the very end
         for span_data in span_list:
@@ -355,16 +352,11 @@ class JsonLinesFileExporter(SpanExporter):
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         try:
-            uipath_spans = [
-                _SpanUtils.otel_span_to_uipath_span(
-                    span, serialize_attributes=True
-                ).to_dict(serialize_attributes=True)
-                for span in spans
-            ]
+            dict_spans = [span.to_json(indent=None) for span in spans]
 
             with open(self.file_path, "a") as f:
-                for span in uipath_spans:
-                    f.write(json.dumps(span) + "\n")
+                for span in dict_spans:
+                    f.write(span + "\n")
             return SpanExportResult.SUCCESS
         except Exception as e:
             logger.error(f"Failed to export spans to {self.file_path}: {e}")

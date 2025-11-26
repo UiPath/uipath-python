@@ -1,14 +1,13 @@
 import asyncio
-from typing import Any, AsyncIterator, Optional
+from typing import AsyncIterator, Optional
 from urllib.parse import urlparse
 
 import click
 
-from uipath.models.exceptions import EnrichedException
+from uipath.platform.errors import EnrichedException, FolderNotFoundException
 
 from .._config import UiPathConfig
-from ..models import ResourceType
-from ..models.errors import FolderNotFoundException
+from ..platform.resource_catalog import ResourceType
 from ._push.sw_file_handler import SwFileHandler
 from ._utils._common import ensure_coded_agent_project, may_override_files
 from ._utils._console import ConsoleLogger
@@ -29,6 +28,7 @@ from ._utils._studio_project import (
 )
 from ._utils._uv_helpers import handle_uv_operations
 from .models.runtime_schema import Bindings
+from .models.uipath_json_schema import PackOptions
 
 console = ConsoleLogger()
 
@@ -44,7 +44,7 @@ def get_org_scoped_url(base_url: str) -> str:
 async def create_resources(studio_client: StudioClient):
     console.info("\nImporting referenced resources to Studio Web project...")
 
-    from uipath import UiPath
+    from uipath.platform import UiPath
 
     uipath = UiPath()
     resource_catalog = uipath.resource_catalog
@@ -166,7 +166,7 @@ async def create_resources(studio_client: StudioClient):
 
 async def upload_source_files_to_project(
     project_id: str,
-    settings: Optional[dict[str, Any]],
+    pack_options: Optional[PackOptions],
     directory: str,
     studio_client: Optional[StudioClient] = None,
     include_uv_lock: bool = True,
@@ -198,7 +198,7 @@ async def upload_source_files_to_project(
         include_uv_lock=include_uv_lock,
     )
 
-    async for update in sw_file_handler.upload_source_files(settings):
+    async for update in sw_file_handler.upload_source_files(pack_options):
         yield update
 
 
@@ -222,7 +222,7 @@ async def upload_source_files_to_project(
     help="Automatically overwrite remote files without prompts",
 )
 def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> None:
-    """Push local project files to Studio Web Project.
+    """Push local project files to Studio Web.
 
     This command pushes the local project files to a UiPath Studio Web project.
     It ensures that the remote project structure matches the local files by:
@@ -270,7 +270,7 @@ def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> No
         """Wrapper to handle async iteration and display updates."""
         async for update in upload_source_files_to_project(
             project_id,
-            config.get("settings", {}),
+            config.get("packOptions", {}),
             root,
             studio_client,
             include_uv_lock=not nolock,

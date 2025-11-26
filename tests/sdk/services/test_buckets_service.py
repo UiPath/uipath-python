@@ -471,7 +471,7 @@ class TestExists:
         )
 
         # Should raise exception (not return False)
-        from uipath.models.exceptions import EnrichedException
+        from uipath.platform.errors import EnrichedException
 
         with pytest.raises(EnrichedException):
             service.exists("error-bucket")

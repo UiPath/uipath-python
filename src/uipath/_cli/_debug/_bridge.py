@@ -2,32 +2,26 @@ import asyncio
 import json
 import logging
 import os
-from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set
+from typing import Any, Literal, Set
 
 from pydantic import BaseModel
 from pysignalr.client import SignalRClient
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.tree import Tree
-
-from uipath._cli._runtime._contracts import (
+from uipath.runtime import (
     UiPathBreakpointResult,
     UiPathRuntimeContext,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
+from uipath.runtime.debug import UiPathDebugBridgeProtocol, UiPathDebugQuitError
+from uipath.runtime.events import UiPathRuntimeStateEvent
+
 from uipath._cli._utils._common import serialize_object
-from uipath._events._events import UiPathAgentStateEvent
 
 logger = logging.getLogger(__name__)
-
-
-class DebuggerQuitException(Exception):
-    """Raised when user quits the debugger."""
-
-    pass
 
 
 class DebugCommand(str, Enum):
@@ -68,72 +62,7 @@ class DebuggerState:
         return node_name in self.breakpoints
 
 
-class UiPathDebugBridge(ABC):
-    """Abstract interface for debug communication.
-
-    Implementations: SignalR, Console, WebSocket, etc.
-    """
-
-    @abstractmethod
-    async def connect(self) -> None:
-        """Establish connection to debugger."""
-        pass
-
-    @abstractmethod
-    async def disconnect(self) -> None:
-        """Close connection to debugger."""
-        pass
-
-    @abstractmethod
-    async def emit_execution_started(self, execution_id: str, **kwargs) -> None:
-        """Notify debugger that execution started."""
-        pass
-
-    @abstractmethod
-    async def emit_state_update(self, state_event: UiPathAgentStateEvent) -> None:
-        """Notify debugger of agent state update."""
-        pass
-
-    @abstractmethod
-    async def emit_breakpoint_hit(
-        self, breakpoint_result: UiPathBreakpointResult
-    ) -> None:
-        """Notify debugger that a breakpoint was hit."""
-        pass
-
-    @abstractmethod
-    async def emit_execution_completed(
-        self,
-        runtime_result: UiPathRuntimeResult,
-    ) -> None:
-        """Notify debugger that execution completed."""
-        pass
-
-    @abstractmethod
-    async def emit_execution_error(
-        self,
-        execution_id: str,
-        error: str,
-    ) -> None:
-        """Notify debugger that an error occurred."""
-        pass
-
-    @abstractmethod
-    async def wait_for_resume(self) -> Any:
-        """Wait for resume command from debugger."""
-        pass
-
-    @abstractmethod
-    def get_breakpoints(self) -> List[str] | Literal["*"]:
-        """Get nodes to suspend execution at.
-
-        Returns:
-            List of node names to suspend at, or ["*"] for all nodes (step mode)
-        """
-        pass
-
-
-class ConsoleDebugBridge(UiPathDebugBridge):
+class ConsoleDebugBridge:
     """Console-based debug bridge for local development."""
 
     def __init__(self, verbose: bool = True):
@@ -158,11 +87,11 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         self.console.print("[green]Debug session completed")
         self.console.print("[dim]─" * 40)
 
-    async def emit_execution_started(self, execution_id: str, **kwargs) -> None:
+    async def emit_execution_started(self, **kwargs) -> None:
         """Print execution started."""
         self.console.print("[green]▶ START[/green] [dim]")
 
-    async def emit_state_update(self, state_event: UiPathAgentStateEvent) -> None:
+    async def emit_state_update(self, state_event: UiPathRuntimeStateEvent) -> None:
         """Print agent state update."""
         if not self.verbose:
             return
@@ -210,12 +139,16 @@ class ConsoleDebugBridge(UiPathDebugBridge):
             symbol = "●"
 
         self.console.print(f"[{color}]{symbol} END[/{color}]")
+        output_data: dict[str, Any] = {}
         if runtime_result.output:
-            self._print_json(runtime_result.output, label="output")
+            if isinstance(runtime_result.output, BaseModel):
+                output_data = runtime_result.output.model_dump()
+            else:
+                output_data = runtime_result.output
+        self._print_json(output_data, label="output")
 
     async def emit_execution_error(
         self,
-        execution_id: str,
         error: str,
     ) -> None:
         """Print error."""
@@ -257,13 +190,13 @@ class ConsoleDebugBridge(UiPathDebugBridge):
             self.console.print()
             return command_result
 
-    def get_breakpoints(self) -> List[str] | Literal["*"]:
+    def get_breakpoints(self) -> list[str] | Literal["*"]:
         """Get nodes to suspend execution at."""
         if self.state.step_mode:
             return "*"  # Suspend at all nodes
         return list(self.state.breakpoints)  # Only suspend at breakpoints
 
-    def _parse_command(self, user_input: str) -> Dict[str, Any]:
+    def _parse_command(self, user_input: str) -> dict[str, Any]:
         """Parse user command input.
 
         Returns:
@@ -313,7 +246,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
             }
 
         elif cmd in ["q", "quit", "exit"]:
-            raise DebuggerQuitException("User requested exit")
+            raise UiPathDebugQuitError("User requested exit")
 
         elif cmd in ["h", "help", "?"]:
             self._print_help()
@@ -351,7 +284,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
         self.console.print("  [yellow]q, quit[/yellow]         Exit debugger")
         self.console.print()
 
-    def _print_json(self, data: Dict[str, Any], label: str = "data") -> None:
+    def _print_json(self, data: dict[str, Any], label: str = "data") -> None:
         """Print JSON data with enhanced hierarchy."""
         try:
             # Create a tree for nested structure
@@ -430,7 +363,7 @@ class ConsoleDebugBridge(UiPathDebugBridge):
                 self.console.print()
 
 
-class SignalRDebugBridge(UiPathDebugBridge):
+class SignalRDebugBridge:
     """SignalR-based debug bridge for remote debugging.
 
     Communicates with a SignalR hub server.
@@ -439,16 +372,16 @@ class SignalRDebugBridge(UiPathDebugBridge):
     def __init__(
         self,
         hub_url: str,
-        access_token: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
+        access_token: str | None = None,
+        headers: dict[str, str] | None = None,
     ):
         self.hub_url = hub_url
         self.access_token = access_token
         self.headers = headers or {}
         self.state = DebuggerState()
-        self._client: Optional[SignalRClient] = None
+        self._client: SignalRClient | None = None
         self._connected_event = asyncio.Event()
-        self._resume_event: Optional[asyncio.Event] = None
+        self._resume_event: asyncio.Event | None = None
         self._quit_event = asyncio.Event()
 
     async def connect(self) -> None:
@@ -530,12 +463,12 @@ class SignalRDebugBridge(UiPathDebugBridge):
         except Exception as e:
             logger.warning(f"Error closing SignalR WebSocket: {e}")
 
-    async def emit_execution_started(self, execution_id: str, **kwargs) -> None:
+    async def emit_execution_started(self, **kwargs) -> None:
         """Send execution started event."""
-        logger.info(f"Execution started: {execution_id}")
-        await self._send("OnExecutionStarted", {"executionId": execution_id, **kwargs})
+        logger.info("Execution started")
+        await self._send("OnExecutionStarted", {**kwargs})
 
-    async def emit_state_update(self, state_event: UiPathAgentStateEvent) -> None:
+    async def emit_state_update(self, state_event: UiPathRuntimeStateEvent) -> None:
         """Send agent state update to remote debugger."""
         logger.info(f"State update: {state_event.node_name}")
         await self._send(
@@ -581,18 +514,16 @@ class SignalRDebugBridge(UiPathDebugBridge):
 
     async def emit_execution_error(
         self,
-        execution_id: str,
         error: str,
     ) -> None:
         """Send execution error event."""
         if not self._connected_event.is_set():
             return
 
-        logger.error(f"Execution error: {execution_id} - {error}")
+        logger.error(f"Execution error: {error}")
         await self._send(
             "OnExecutionError",
             {
-                "executionId": execution_id,
                 "error": error,
             },
         )
@@ -622,17 +553,17 @@ class SignalRDebugBridge(UiPathDebugBridge):
 
         if quit_task in done:
             logger.info("Quit command received during wait")
-            raise DebuggerQuitException("Quit command received from server")
+            raise UiPathDebugQuitError("Quit command received from server")
 
         logger.info("Resume command received")
 
-    def get_breakpoints(self) -> List[str] | Literal["*"]:
+    def get_breakpoints(self) -> list[str] | Literal["*"]:
         """Get nodes to suspend execution at."""
         if self.state.step_mode:
             return "*"  # Suspend at all nodes
         return list(self.state.breakpoints)  # Only suspend at breakpoints
 
-    async def _send(self, event_name: str, data: Dict[str, Any]) -> None:
+    async def _send(self, event_name: str, data: dict[str, Any]) -> None:
         """Send message to SignalR hub via SendCommand.
 
         Args:
@@ -779,15 +710,13 @@ class SignalRDebugBridge(UiPathDebugBridge):
         logger.error(f"SignalR error: {error}")
 
 
-def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridge:
+def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridgeProtocol:
     """Factory to get SignalR debug bridge for remote debugging."""
     uipath_url = os.environ.get("UIPATH_URL")
     if not uipath_url or not context.job_id:
         raise ValueError(
             "UIPATH_URL and UIPATH_JOB_KEY are required for remote debugging"
         )
-    if not context.trace_context:
-        raise ValueError("trace_context is required for remote debugging")
 
     signalr_url = f"{uipath_url.rstrip('/')}/orchestrator_/signalr/robotdebug?sessionId={context.job_id}"
 
@@ -795,16 +724,16 @@ def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridge:
         hub_url=signalr_url,
         access_token=os.environ.get("UIPATH_ACCESS_TOKEN"),
         headers={
-            "X-UiPath-Internal-TenantId": context.trace_context.tenant_id or "",
-            "X-UiPath-Internal-AccountId": context.trace_context.org_id or "",
-            "X-UiPath-FolderKey": context.trace_context.folder_key or "",
+            "X-UiPath-Internal-TenantId": context.tenant_id or "",
+            "X-UiPath-Internal-AccountId": context.org_id or "",
+            "X-UiPath-FolderKey": context.folder_key or "",
         },
     )
 
 
 def get_debug_bridge(
     context: UiPathRuntimeContext, verbose: bool = True
-) -> UiPathDebugBridge:
+) -> UiPathDebugBridgeProtocol:
     """Factory to get appropriate debug bridge based on context.
 
     Args:

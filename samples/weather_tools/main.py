@@ -1,10 +1,7 @@
-import asyncio
 import logging
 from enum import Enum
-from functools import wraps
-from typing import Callable, Literal, TypeVar
+from typing import Literal, TypeVar
 
-from opentelemetry import trace
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 

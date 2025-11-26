@@ -1,8 +1,15 @@
 import asyncio
-import os
-from typing import Optional
 
 import click
+from uipath.core.tracing import UiPathTraceManager
+from uipath.runtime import (
+    UiPathExecuteOptions,
+    UiPathRuntimeContext,
+    UiPathRuntimeFactoryProtocol,
+    UiPathRuntimeFactoryRegistry,
+    UiPathRuntimeProtocol,
+)
+from uipath.runtime.debug import UiPathDebugBridgeProtocol, UiPathDebugRuntime
 
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
@@ -10,13 +17,7 @@ from uipath._config import UiPathConfig
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.tracing import LlmOpsHttpExporter
 
-from ._debug._bridge import UiPathDebugBridge, get_debug_bridge
-from ._debug._runtime import UiPathDebugRuntime
-from ._runtime._contracts import (
-    UiPathRuntimeContext,
-    UiPathRuntimeFactory,
-)
-from ._runtime._runtime import UiPathScriptRuntime
+from ._debug._bridge import get_debug_bridge
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -58,16 +59,16 @@ console = ConsoleLogger()
     help="Port for the debug server (default: 5678)",
 )
 def debug(
-    entrypoint: Optional[str],
-    input: Optional[str],
+    entrypoint: str | None,
+    input: str | None,
     resume: bool,
-    file: Optional[str],
-    input_file: Optional[str],
-    output_file: Optional[str],
+    file: str | None,
+    input_file: str | None,
+    output_file: str | None,
     debug: bool,
     debug_port: int,
 ) -> None:
-    """Execute the project."""
+    """Debug the project."""
     input_file = file or input_file
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
@@ -79,7 +80,7 @@ def debug(
         input,
         resume,
         input_file=input_file,
-        execution_output_file=output_file,
+        output_file=output_file,
         debug=debug,
         debug_port=debug_port,
     )
@@ -89,41 +90,48 @@ def debug(
 
     if result.should_continue:
         if not entrypoint:
-            console.error("""No entrypoint specified. Please provide a path to a Python script.
-    Usage: `uipath debug <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
-
-        if not (entrypoint and os.path.exists(entrypoint)):
-            console.error(f"""Script not found at path {entrypoint}.
-    Usage: `uipath debug <entrypoint_path> <input_arguments> [-f <input_json_file_path>]`""")
+            console.error("""No entrypoint specified.
+    Usage: `uipath debug <entrypoint> <input_arguments> [-f <input_json_file_path>]`""")
+            return
 
         try:
-            debug_context = UiPathRuntimeContext.with_defaults(
-                entrypoint=entrypoint,
-                input=input,
-                input_file=input_file,
-                resume=resume,
-                execution_output_file=output_file,
-                debug=debug,
-            )
-
-            runtime_factory = UiPathRuntimeFactory(
-                UiPathScriptRuntime,
-                UiPathRuntimeContext,
-                context_generator=lambda: debug_context,
-            )
-
-            debug_bridge: UiPathDebugBridge = get_debug_bridge(debug_context)
-
-            if debug_context.job_id:
-                runtime_factory.add_span_exporter(LlmOpsHttpExporter())
 
             async def execute_debug_runtime():
-                async with UiPathDebugRuntime.from_debug_context(
-                    factory=runtime_factory,
-                    context=debug_context,
-                    debug_bridge=debug_bridge,
-                ) as debug_runtime:
-                    await debug_runtime.execute()
+                with UiPathRuntimeContext.with_defaults(
+                    input=input,
+                    input_file=input_file,
+                    output_file=output_file,
+                    resume=resume,
+                ) as ctx:
+                    runtime: UiPathRuntimeProtocol | None = None
+                    factory: UiPathRuntimeFactoryProtocol | None = None
+                    try:
+                        trace_manager = UiPathTraceManager()
+
+                        if ctx.job_id:
+                            trace_manager.add_span_exporter(LlmOpsHttpExporter())
+
+                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+
+                        runtime = await factory.new_runtime(
+                            entrypoint, ctx.job_id or "default"
+                        )
+                        debug_bridge: UiPathDebugBridgeProtocol = get_debug_bridge(ctx)
+
+                        debug_runtime = UiPathDebugRuntime(
+                            delegate=runtime,
+                            debug_bridge=debug_bridge,
+                        )
+
+                        ctx.result = await debug_runtime.execute(
+                            ctx.get_input(), options=UiPathExecuteOptions(resume=resume)
+                        )
+
+                    finally:
+                        if runtime:
+                            await runtime.dispose()
+                        if factory:
+                            await factory.dispose()
 
             async def execute():
                 project_id = UiPathConfig.project_id

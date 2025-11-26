@@ -12,14 +12,13 @@ from .._utils.constants import (
     LLMV4_REQUEST,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
-from ..models import IngestionInProgressException
-from ..models.context_grounding import ContextGroundingQueryResponse
-from ..models.context_grounding_index import ContextGroundingIndex
-from ..models.context_grounding_payloads import (
+from ..platform.context_grounding import (
     BucketDataSource,
     BucketSourceConfig,
     ConfluenceDataSource,
     ConfluenceSourceConfig,
+    ContextGroundingIndex,
+    ContextGroundingQueryResponse,
     CreateIndexPayload,
     DropboxDataSource,
     DropboxSourceConfig,
@@ -30,7 +29,10 @@ from ..models.context_grounding_payloads import (
     PreProcessing,
     SourceConfig,
 )
-from ..models.exceptions import UnsupportedDataSourceException
+from ..platform.errors import (
+    IngestionInProgressException,
+    UnsupportedDataSourceException,
+)
 from ..tracing import traced
 from ._base_service import BaseService
 from .buckets_service import BucketsService

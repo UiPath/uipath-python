@@ -19,8 +19,11 @@ from typing import Any, Callable
 import click
 from httpx import HTTPError
 
-from ...models.errors import BaseUrlMissingError, SecretMissingError
-from ...models.exceptions import EnrichedException
+from ...platform.errors import (
+    BaseUrlMissingError,
+    EnrichedException,
+    SecretMissingError,
+)
 from ._context import get_cli_context
 
 
@@ -316,7 +319,7 @@ class ServiceCommandBase:
         cli_ctx = get_cli_context(ctx)
 
         if cli_ctx._client is None:
-            from ..._uipath import UiPath
+            from ...platform._uipath import UiPath
 
             base_url = os.environ.get("UIPATH_URL")
             secret = os.environ.get("UIPATH_ACCESS_TOKEN")
