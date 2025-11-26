@@ -70,6 +70,11 @@ def validate_config_structure(config_data):
 
 
 def generate_operate_file(entryPoints, dependencies=None):
+    if not entryPoints:
+        raise ValueError(
+            "No entry points found in entry-points.json. Please run 'uipath init' to generate valid entry points."
+        )
+
     project_id = get_project_id()
 
     first_entry = entryPoints[0]
