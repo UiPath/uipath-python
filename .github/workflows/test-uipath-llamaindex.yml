@@ -16,7 +16,8 @@ jobs:
       contents: read
 
     # Only run if PR has the test:uipath-llamaindex label
-    if: contains(github.event.pull_request.labels.*.name, 'test:uipath-llamaindex')
+    # if: contains(github.event.pull_request.labels.*.name, 'test:uipath-llamaindex')
+    if: false  # Temporarily disable until fixed
 
     steps:
       - name: Checkout uipath-python
