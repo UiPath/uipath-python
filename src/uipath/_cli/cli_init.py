@@ -8,12 +8,19 @@ import uuid
 from pathlib import Path
 
 import click
+from mermaid_builder.flowchart import (  # type: ignore[import-untyped]
+    Chart,
+    ChartDir,
+    Link,
+    Node,
+    Subgraph,
+)
 from uipath.runtime import (
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeFactoryRegistry,
     UiPathRuntimeProtocol,
 )
-from uipath.runtime.schema import UiPathRuntimeSchema
+from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
 
 from .._config import UiPathConfig
 from .._utils.constants import ENV_TELEMETRY_ENABLED
@@ -172,6 +179,61 @@ def write_entry_points_file(entry_points: list[UiPathRuntimeSchema]) -> Path:
     return entry_points_file_path
 
 
+def write_mermaid_files(entry_points: list[UiPathRuntimeSchema]) -> list[Path]:
+    """Write mermaid diagram files for each entrypoint.
+
+    Args:
+        entry_points: The entrypoints list with graph data
+
+    Returns:
+        list[Path]: List of paths to the written mermaid files
+    """
+    mermaid_paths = []
+
+    for ep in entry_points:
+        if not ep.graph:
+            continue
+
+        chart = Chart(direction=ChartDir.TB)
+
+        _add_graph_to_chart(chart, ep.graph)
+
+        mermaid_file_path = Path(os.getcwd()) / f"{ep.file_path}.mermaid"
+
+        with open(mermaid_file_path, "w") as f:
+            f.write(str(chart))
+
+        mermaid_paths.append(mermaid_file_path)
+
+    return mermaid_paths
+
+
+def _add_graph_to_chart(chart: Chart | Subgraph, graph: UiPathRuntimeGraph) -> None:
+    """Recursively add nodes and edges from UiPathRuntimeGraph to mermaid chart.
+
+    Args:
+        chart: The Chart or Subgraph to add nodes to
+        graph: UiPathRuntimeGraph instance
+    """
+    node_objects = {}
+
+    for node in graph.nodes:
+        if node.subgraph:
+            subgraph = Subgraph(title=node.name, direction=ChartDir.LR)
+            _add_graph_to_chart(subgraph, node.subgraph)
+            chart.add_subgraph(subgraph)
+        else:
+            mermaid_node = Node(title=node.name, id=node.id)
+            chart.add_node(mermaid_node)
+            node_objects[node.id] = mermaid_node
+
+    for edge in graph.edges:
+        link = Link(
+            src=edge.source, dest=edge.target, text=edge.label if edge.label else None
+        )
+        chart.add_link(link)
+
+
 @click.command()
 @click.option(
     "--no-agents-md-override",
@@ -242,6 +304,13 @@ def init(no_agents_md_override: bool) -> None:
                 console.success(
                     f"Created '{entry_points_path}' file with {len(entry_point_schemas)} entrypoint(s)."
                 )
+
+                # Write mermaid diagrams for each entrypoint
+                mermaid_paths = write_mermaid_files(entry_point_schemas)
+                if mermaid_paths and len(mermaid_paths) > 0:
+                    console.success(
+                        f"Created {len(mermaid_paths)} mermaid diagram file(s)."
+                    )
 
             except Exception as e:
                 console.error(

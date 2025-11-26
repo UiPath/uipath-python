@@ -927,6 +927,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mermaid-builder"
+version = "0.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/64/57/d83e7e62de05adbba2476b7596ed4a253907a4f4c19be74c40e7ce2944dc/mermaid_builder-0.0.3.tar.gz", hash = "sha256:3016ef25668bcb28de4a4746aabdfaa531c06a7e7f89fa1596e6a274c7c73705", size = 7183, upload-time = "2024-06-14T17:14:51.223Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5f/4e/7480454b7ee7de5c2c8561e83b4564196ecf1c9847e893dfbb51032e5a3b/mermaid_builder-0.0.3-py3-none-any.whl", hash = "sha256:decd7d25268bda7a520ce0cab7873e50fac1e33b41e5a1dd7daec5c0ae3c7ffb", size = 6696, upload-time = "2024-06-14T17:14:38.48Z" },
+]
+
+[[package]]
 name = "mkdocs"
 version = "1.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2388,6 +2397,7 @@ dependencies = [
     { name = "coverage" },
     { name = "httpx" },
     { name = "hydra-core" },
+    { name = "mermaid-builder" },
     { name = "mockito" },
     { name = "pathlib" },
     { name = "pydantic-function-models" },
@@ -2434,6 +2444,7 @@ requires-dist = [
     { name = "coverage", specifier = ">=7.8.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "hydra-core", specifier = ">=1.3.2" },
+    { name = "mermaid-builder", specifier = "==0.0.3" },
     { name = "mockito", specifier = ">=1.5.4" },
     { name = "pathlib", specifier = ">=1.0.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.10" },
