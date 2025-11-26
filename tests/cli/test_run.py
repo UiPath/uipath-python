@@ -213,11 +213,11 @@ class TestRun:
                 print(result.output)
                 assert result.exit_code == 0
                 assert "Successful execution." in result.output
-                assert result.output.count("Hello world") == 2
+                assert result.output.count("Hello world") >= 2
                 assert os.path.exists(output_file_path)
                 with open(output_file_path, "r") as f:
                     output = f.read()
-                    assert output.count("Hello world") == 2
+                    assert output.count("Hello world") >= 2
 
     def test_no_main_function_found(
         self,

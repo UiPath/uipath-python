@@ -9,10 +9,14 @@ from uipath.runtime import (
     UiPathRuntimeFactoryRegistry,
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
+    UiPathStreamOptions,
 )
 from uipath.runtime.context import UiPathRuntimeContext
+from uipath.runtime.debug import UiPathDebugBridgeProtocol
 from uipath.runtime.errors import UiPathRuntimeError
+from uipath.runtime.events import UiPathRuntimeStateEvent
 
+from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
@@ -107,8 +111,8 @@ def run(
         try:
 
             async def execute_runtime(ctx: UiPathRuntimeContext) -> UiPathRuntimeResult:
-                runtime: UiPathRuntimeProtocol | None = None
                 with ctx:
+                    runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
                     try:
                         factory = UiPathRuntimeFactoryRegistry.get()
@@ -119,6 +123,33 @@ def run(
                         ctx.result = await runtime.execute(
                             input=ctx.get_input(), options=options
                         )
+                        return ctx.result
+                    finally:
+                        if runtime:
+                            await runtime.dispose()
+                        if factory:
+                            await factory.dispose()
+
+            async def debug_runtime(
+                ctx: UiPathRuntimeContext,
+            ) -> UiPathRuntimeResult | None:
+                with ctx:
+                    runtime: UiPathRuntimeProtocol | None = None
+                    factory: UiPathRuntimeFactoryProtocol | None = None
+                    try:
+                        factory = UiPathRuntimeFactoryRegistry.get()
+                        runtime = await factory.new_runtime(entrypoint, "default")
+                        debug_bridge: UiPathDebugBridgeProtocol = ConsoleDebugBridge()
+                        await debug_bridge.emit_execution_started()
+                        options = UiPathStreamOptions(resume=resume)
+                        async for event in runtime.stream(
+                            ctx.get_input(), options=options
+                        ):
+                            if isinstance(event, UiPathRuntimeResult):
+                                await debug_bridge.emit_execution_completed(event)
+                                ctx.result = event
+                            elif isinstance(event, UiPathRuntimeStateEvent):
+                                await debug_bridge.emit_state_update(event)
                         return ctx.result
                     finally:
                         if runtime:
@@ -154,10 +185,7 @@ def run(
                         await execute_runtime(ctx)
 
                 else:
-                    result = await execute_runtime(ctx)
-
-                    if result:
-                        console.info(f"{result.output}")
+                    await debug_runtime(ctx)
 
             asyncio.run(execute())
 
