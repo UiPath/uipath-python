@@ -6,12 +6,21 @@ from typing import Any, Tuple, TypeVar
 from uipath.eval.models import EvaluationResult, NumericEvaluationResult
 
 from ..models.models import AgentExecution
+from .legacy_base_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
 from .legacy_deterministic_evaluator_base import DeterministicEvaluatorBase
 
 T = TypeVar("T")
 
 
-class LegacyJsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
+class LegacyJsonSimilarityEvaluatorConfig(LegacyEvaluatorConfig):
+    """Configuration for legacy json-similarity evaluators."""
+
+    name: str = "LegacyJsonSimilarityEvaluator"
+
+
+class LegacyJsonSimilarityEvaluator(
+    DeterministicEvaluatorBase[LegacyJsonSimilarityEvaluatorConfig]
+):
     """Legacy deterministic evaluator that scores structural JSON similarity between expected and actual output.
 
     Compares expected versus actual JSON-like structures and returns a
@@ -20,7 +29,9 @@ class LegacyJsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
     """
 
     async def evaluate(
-        self, agent_execution: AgentExecution, evaluation_criteria: dict[str, Any]
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate similarity between expected and actual JSON outputs.
 
@@ -37,7 +48,9 @@ class LegacyJsonSimilarityEvaluator(DeterministicEvaluatorBase[dict[str, Any]]):
             EvaluationResult: Numerical score between 0-100 indicating similarity
         """
         return NumericEvaluationResult(
-            score=self._compare_json(evaluation_criteria, agent_execution.agent_output)
+            score=self._compare_json(
+                evaluation_criteria.expected_output, agent_execution.agent_output
+            )
         )
 
     def _compare_json(self, expected: Any, actual: Any) -> float:

@@ -3,15 +3,15 @@ from typing import Optional
 
 import click
 import httpx
-
-from ..._utils._auth import update_env_file
-from ..._utils._ssl_context import get_httpx_client_kwargs
-from ...models.auth import TokenData
-from .._runtime._contracts import (
+from uipath.runtime.errors import (
     UiPathErrorCategory,
     UiPathErrorCode,
     UiPathRuntimeError,
 )
+
+from ..._utils._auth import update_env_file
+from ..._utils._ssl_context import get_httpx_client_kwargs
+from ...platform.common import TokenData
 from .._utils._console import ConsoleLogger
 from ._models import OrganizationInfo, TenantInfo, TenantsAndOrganizationInfoResponse
 from ._oidc_utils import OidcUtils
@@ -66,7 +66,6 @@ class PortalService:
     def update_token_data(self, token_data: TokenData):
         self.access_token = token_data.access_token
         self.prt_id = get_parsed_token_data(token_data).get("prt_id")
-        update_auth_file(token_data)
 
     def get_tenants_and_organizations(
         self,
@@ -92,7 +91,7 @@ class PortalService:
             f"Failed to get tenants and organizations: {response.status_code} {response.text}"
         )
 
-    def refresh_access_token(self, refresh_token: str) -> TokenData:  # type: ignore
+    def refresh_access_token(self, refresh_token: str) -> TokenData:
         url = build_service_url(self.domain, "/identity_/connect/token")
         client_id = OidcUtils.get_auth_config(self.domain).get("client_id")
 
@@ -111,6 +110,7 @@ class PortalService:
             self._console.error("Unauthorized")
 
         self._console.error(f"Failed to refresh token: {response.status_code}")
+        raise Exception(f"Failed to refresh token: {response.status_code}")
 
     def ensure_valid_token(self):
         """Ensure the access token is valid and refresh it if necessary.
@@ -129,6 +129,7 @@ class PortalService:
 
         def finalize(token_data: TokenData):
             self.update_token_data(token_data)
+            update_auth_file(token_data)
             update_env_file({"UIPATH_ACCESS_TOKEN": token_data.access_token})
 
         if exp is not None and float(exp) > time.time():
@@ -138,7 +139,7 @@ class PortalService:
         refresh_token = auth_data.refresh_token
         if not refresh_token:
             raise UiPathRuntimeError(
-                UiPathErrorCode.REFRESH_TOKEN_MISSING,
+                UiPathErrorCode.EXECUTION_ERROR,
                 "No refresh token found",
                 "The refresh token could not be retrieved. Please retry authenticating.",
                 UiPathErrorCategory.SYSTEM,
@@ -201,8 +202,9 @@ class PortalService:
         tenant = next((t for t in tenants if t["name"] == tenant_name), None)
         if not tenant:
             self._console.error(f"Tenant '{tenant_name}' not found.")
+            raise Exception(f"Tenant '{tenant_name}' not found.")
 
-        return self._set_tenant(tenant, organization)  # type: ignore
+        return self._set_tenant(tenant, organization)
 
     def resolve_tenant_info(self, tenant: Optional[str] = None):
         if tenant:

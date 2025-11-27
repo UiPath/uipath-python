@@ -8,13 +8,24 @@ from typing import Any, Callable, List, Optional, Union
 import click
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from uipath import UiPath
-from uipath._cli._utils._console import ConsoleLogger
 from uipath._config import UiPathConfig
-from uipath._utils._bindings import ResourceOverwrite
-from uipath._utils.constants import ENV_TENANT_ID, HEADER_SW_LOCK_KEY, HEADER_TENANT_ID
-from uipath.models.exceptions import EnrichedException
+from uipath._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
+from uipath._utils.constants import (
+    ENV_TENANT_ID,
+    HEADER_SW_LOCK_KEY,
+    HEADER_TENANT_ID,
+    PYTHON_CONFIGURATION_FILE,
+    STUDIO_METADATA_FILE,
+)
+from uipath.platform import UiPath
+from uipath.platform.errors import EnrichedException
 from uipath.tracing import traced
+
+
+class NonCodedAgentProjectException(Exception):
+    """Raised when the targeted project is not a coded agent one."""
+
+    pass
 
 
 class ProjectFile(BaseModel):
@@ -122,8 +133,6 @@ class ProjectStructure(ProjectFolder):
         folder_type: The type of the root folder (optional)
     """
 
-    pass
-
 
 class LockInfo(BaseModel):
     model_config = ConfigDict(
@@ -147,7 +156,8 @@ class Severity(str, Enum):
 
 class VirtualResourceRequest(BaseModel):
     model_config = ConfigDict(
-        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
     )
 
     kind: str = Field(alias="kind")
@@ -169,6 +179,71 @@ class VirtualResourceResult(BaseModel):
     message: str
 
 
+class ReferencedResourceFolder(BaseModel):
+    """Folder reference for a referenced resource.
+
+    Attributes:
+        fully_qualified_name: The fully qualified name of the folder
+        path: The path to the folder
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    folder_key: str = Field(alias="folderKey")
+    fully_qualified_name: str = Field(alias="fullyQualifiedName")
+    path: str = Field(alias="path")
+
+
+type_mappings = {
+    "text": "stringAsset",
+    "integer": "integerAsset",
+    "bool": "booleanAsset",
+    "credential": "credentialAsset",
+    "secret": "secretAsset",
+    "orchestrator": "orchestratorBucket",
+    "amazon": "amazonBucket",
+    "azure": "azureBucket",
+}
+
+
+class ReferencedResourceRequest(BaseModel):
+    """Request payload for creating a referenced resource.
+
+    Attributes:
+        key: The resource key
+        kind: The kind of resource
+        type: The type of resource
+        folder: Folder of the referenced resource
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    key: str = Field(alias="key")
+    kind: str = Field(alias="kind")
+    type: Optional[str] = Field(alias="type")
+    folder: ReferencedResourceFolder = Field(alias="folder")
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def lowercase_kind(cls, v: str) -> str:
+        return v[0].lower() + v[1:] if v else v
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def type_mapping(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        if v.lower() in type_mappings:
+            return type_mappings[v.lower()]
+        return v[0].lower() + v[1:]
+
+
 class ResourceOverwriteData(BaseModel):
     """Represents the overwrite details from the API response.
 
@@ -178,7 +253,8 @@ class ResourceOverwriteData(BaseModel):
     """
 
     model_config = ConfigDict(
-        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
     )
 
     name: str = Field(alias="name")
@@ -186,17 +262,20 @@ class ResourceOverwriteData(BaseModel):
 
 
 def get_folder_by_name(
-    structure: ProjectStructure, folder_name: str
+    structure: ProjectStructure, folder_name: str | None
 ) -> Optional[ProjectFolder]:
     """Get a folder from the project structure by name.
 
     Args:
         structure: The project structure
-        folder_name: Name of the folder to find
+        folder_name: Name of the folder to find or None for root folder
 
     Returns:
         Optional[ProjectFolder]: The found folder or None
     """
+    if not folder_name:
+        return structure
+
     for folder in structure.folders:
         if folder.name == folder_name:
             return folder
@@ -271,25 +350,69 @@ class StructuralMigration(BaseModel):
     modified_resources: List[ModifiedResource]
 
 
+class ProjectLockUnavailableError(RuntimeError):
+    """Raised when a project lock prevents execution."""
+
+    pass
+
+
+class Status(str, Enum):
+    ADDED = "ADDED"
+    UNCHANGED = "UNCHANGED"
+    UPDATED = "UPDATED"
+
+
+class ReferencedResourceResponse(BaseModel):
+    """Response from creating a referenced resource.
+
+    Attributes:
+        status: The status of the operation
+        resource: The resource details
+        saved: Whether the resource was saved
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    status: Status
+    resource: dict[str, Any]
+    saved: bool
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def parse_status(cls, v: str | Status) -> Status:
+        """Parse status string to Status enum."""
+        if isinstance(v, Status):
+            return v
+        if isinstance(v, str):
+            upper_v = v.upper()
+            for status in Status:
+                if status.value == upper_v:
+                    return status
+            raise ValueError(f"Invalid status value: {v}")
+        raise ValueError(
+            f"Status must be a string or Status enum, got {type(v).__name__}"
+        )
+
+
 def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
-    async def wrapper(self, *args, **kwargs):
+    async def wrapper(self: "StudioClient", *args, **kwargs):
         try:
-            lock_info = await self._retrieve_lock()
-            if not lock_info.project_lock_key:
-                raise RuntimeError("Failed to retrieve project lock key.")
-
-            headers = kwargs.get("headers", {}) or {}
-            headers[HEADER_SW_LOCK_KEY] = lock_info.project_lock_key
-            kwargs["headers"] = headers
+            lock_info: LockInfo = await self._retrieve_lock()
+            if lock_info is not None and lock_info.project_lock_key is not None:
+                headers = kwargs.get("headers", {}) or {}
+                headers[HEADER_SW_LOCK_KEY] = lock_info.project_lock_key
+                kwargs["headers"] = headers
 
             return await func(self, *args, **kwargs)
         except EnrichedException as e:
             if e.status_code == 423:
-                console = ConsoleLogger().get_instance()
-                console.error(
-                    "The project is temporarily locked. This could be due to modifications or active processes. Please wait a moment and try again."
-                )
+                raise ProjectLockUnavailableError(
+                    "Project is locked by another operation. Please try again later."
+                ) from e
             raise
 
     return wrapper
@@ -297,7 +420,7 @@ def with_lock_retry(func: Callable[..., Any]) -> Callable[..., Any]:
 
 class StudioSolutionsClient:
     def __init__(self, solution_id: str):
-        from uipath import UiPath
+        from uipath.platform import UiPath
 
         self.uipath: UiPath = UiPath()
         self._solutions_base_url: str = f"/studio_/backend/api/Solution/{solution_id}"
@@ -308,6 +431,7 @@ class StudioSolutionsClient:
         project_name: str,
         project_type: str = "Agent",
         trigger_type: str = "Manual",
+        description: Optional[str] = None,
     ):
         """Create a new project in the specified solution.
 
@@ -323,6 +447,7 @@ class StudioSolutionsClient:
             "createDefaultProjectCommand[projectType]": project_type,
             "createDefaultProjectCommand[triggerType]": trigger_type,
             "createDefaultProjectCommand[name]": project_name,
+            "createDefaultProjectCommand[description]": description,
         }
 
         response = await self.uipath.api_client.request_async(
@@ -333,6 +458,21 @@ class StudioSolutionsClient:
         )
 
         return response.json()
+
+
+class StudioProjectMetadata(BaseModel):
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    schema_version: int = Field(alias="schemaVersion")
+    last_push_date: str = Field(alias="lastPushDate")
+    last_push_author: str = Field(alias="lastPushAuthor")
+    code_version: str = Field(alias="codeVersion")
 
 
 class StudioClient:
@@ -347,6 +487,7 @@ class StudioClient:
         self._project_id = project_id
         self._solution_id_cache: Optional[str] = None
         self._resources_cache: Optional[List[dict[str, Any]]] = None
+        self._project_structure_cache: Optional[ProjectStructure] = None
 
     async def _get_solution_id(self) -> str:
         # implement property cache logic as coroutines are not supported
@@ -359,6 +500,28 @@ class StudioClient:
         )
         self._solution_id_cache = response.json()["solutionId"]
         return self._solution_id_cache
+
+    async def ensure_coded_agent_project_async(self):
+        structure = await self.get_project_structure_async()
+        if not any(file.name == PYTHON_CONFIGURATION_FILE for file in structure.files):
+            raise NonCodedAgentProjectException()
+
+    async def get_project_metadata_async(self) -> Optional[StudioProjectMetadata]:
+        structure = await self.get_project_structure_async()
+
+        folder = get_folder_by_name(structure, ".uipath")
+        if not folder:
+            return None
+        try:
+            file = next(
+                file for file in folder.files if file.name == STUDIO_METADATA_FILE
+            )
+        except StopIteration:
+            return None
+        response = await self.download_project_file_async(file)
+        return StudioProjectMetadata.model_validate_json(
+            response.read().decode("utf-8")
+        )
 
     async def _get_existing_resources(self) -> List[dict[str, Any]]:
         if self._resources_cache is not None:
@@ -413,7 +576,7 @@ class StudioClient:
         overwrites = {}
 
         for key, value in data.items():
-            overwrites[key] = ResourceOverwrite.model_validate(value)
+            overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
         return overwrites
 
@@ -506,6 +669,32 @@ class StudioClient:
         message = f"{base_message} created successfully."
         return VirtualResourceResult(severity=Severity.SUCCESS, message=message)
 
+    async def create_referenced_resource(
+        self, referenced_resource_request: ReferencedResourceRequest
+    ) -> ReferencedResourceResponse:
+        """Create a referenced resource.
+
+        Args:
+            referenced_resource_request: The referenced resource request details
+
+        Returns:
+            ReferencedResourceResponse: Serialized response with status, resource details, and saved flag
+        """
+        tenant_id = os.getenv(ENV_TENANT_ID, None)
+
+        solution_id = await self._get_solution_id()
+        response = await self.uipath.api_client.request_async(
+            "POST",
+            url=f"/studio_/backend/api/resourcebuilder/solutions/{solution_id}/resources/reference",
+            scoped="org",
+            json=referenced_resource_request.model_dump(
+                by_alias=True, exclude_none=True
+            ),
+            headers={HEADER_TENANT_ID: tenant_id},
+        )
+
+        return ReferencedResourceResponse.model_validate(response.json())
+
     async def _update_resource_specs(
         self, resource_key: str, new_specs: dict[str, Any]
     ):
@@ -521,23 +710,32 @@ class StudioClient:
         )
 
     @traced(name="get_project_structure", run_type="uipath")
-    async def get_project_structure_async(self) -> ProjectStructure:
+    async def get_project_structure_async(
+        self, force: bool = False
+    ) -> ProjectStructure:
         """Retrieve the project's file structure from UiPath Cloud.
 
         Makes an API call to fetch the complete file structure of a project,
         including all files and folders. The response is validated against
-        the ProjectStructure model.
+        the ProjectStructure model. Results are cached unless force is True.
+
+        Args:
+            force: If True, bypass cache and fetch fresh data from the API
 
         Returns:
             ProjectStructure: The complete project structure
         """
+        if not force and self._project_structure_cache is not None:
+            return self._project_structure_cache
+
         response = await self.uipath.api_client.request_async(
             "GET",
             url=f"{self.file_operations_base_url}/Structure",
             scoped="org",
         )
 
-        return ProjectStructure.model_validate(response.json())
+        self._project_structure_cache = ProjectStructure.model_validate(response.json())
+        return self._project_structure_cache
 
     @traced(name="create_folder", run_type="uipath")
     @with_lock_retry
@@ -593,7 +791,7 @@ class StudioClient:
         self,
         *,
         local_file_path: Optional[str] = None,
-        file_content: Optional[str] = None,
+        file_content: Optional[str | bytes] = None,
         file_name: str,
         folder: Optional[ProjectFolder] = None,
         remote_file: Optional[ProjectFile] = None,
@@ -601,7 +799,7 @@ class StudioClient:
     ) -> tuple[str, str]:
         if local_file_path:
             with open(local_file_path, "rb") as f:
-                file_content = f.read()  # type: ignore
+                file_content = f.read()
         files_data = {"file": (file_name, file_content, "application/octet-stream")}
 
         if remote_file:
@@ -745,7 +943,6 @@ class StudioClient:
                     (None, modified_resource.id),
                 )
             )
-
         response = await self.uipath.api_client.request_async(
             "POST",
             url=f"{self.file_operations_base_url}/StructuralMigration",

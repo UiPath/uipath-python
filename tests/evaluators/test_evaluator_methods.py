@@ -141,7 +141,7 @@ class TestExactMatchEvaluator:
         evaluator = ExactMatchEvaluator.model_validate(
             {"config": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})
+        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -162,7 +162,7 @@ class TestExactMatchEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"output": "Different output"}
+            expected_output={"output": "Different output"}  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
@@ -184,7 +184,7 @@ class TestExactMatchEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"output": "Test output"},
+            expected_output={"output": "Test output"},  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
@@ -295,7 +295,7 @@ class TestJsonSimilarityEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"name": "John", "age": 30, "city": "NYC"}
+            expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(execution, criteria)
@@ -319,7 +319,7 @@ class TestJsonSimilarityEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"name": "John", "age": 30, "city": "NYC"}
+            expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(execution, criteria)
@@ -817,7 +817,7 @@ class TestLlmAsAJudgeEvaluator:
 
         mock_llm.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmJudgeTest",
@@ -828,7 +828,7 @@ class TestLlmAsAJudgeEvaluator:
             {"config": config, "id": str(uuid.uuid4())}
         )
 
-        criteria = OutputEvaluationCriteria(expected_output="Expected output")
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -868,7 +868,7 @@ class TestLlmAsAJudgeEvaluator:
             }
         )
 
-        criteria = OutputEvaluationCriteria(expected_output="Expected output")
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -904,7 +904,7 @@ class TestLlmAsAJudgeEvaluator:
         mock_llm.chat_completions = mock_chat_completions
 
         # Mock the UiPath import and constructor
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmJudgeTest",
@@ -956,7 +956,7 @@ class TestLlmJudgeTrajectoryEvaluator:
         mock_llm.chat_completions = mock_chat_completions
 
         # Mock the UiPath import and constructor
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmTrajectoryTest",
@@ -1005,7 +1005,7 @@ class TestLlmJudgeTrajectoryEvaluator:
         mock_llm.chat_completions = mock_chat_completions
 
         # Mock the UiPath import and constructor
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmTrajectoryTest",
@@ -1050,7 +1050,7 @@ class TestEvaluatorErrorHandling:
         """Test that evaluators properly validate config fields."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LLMJudgeEvaluator",
@@ -1078,7 +1078,7 @@ class TestEvaluationResultTypes:
         evaluator = ExactMatchEvaluator.model_validate(
             {"config": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})
+        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -1101,7 +1101,7 @@ class TestJustificationHandling:
         evaluator = ExactMatchEvaluator.model_validate(
             {"config": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})
+        criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -1129,7 +1129,7 @@ class TestJustificationHandling:
             {"config": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
-            expected_output={"name": "John", "age": 30, "city": "NYC"}
+            expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
         )
 
         result = await evaluator.evaluate(execution, criteria)
@@ -1286,7 +1286,7 @@ class TestJustificationHandling:
             return mock_response
 
         mock_llm.chat_completions = mock_chat_completions
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmJudgeTest",
@@ -1296,7 +1296,7 @@ class TestJustificationHandling:
         evaluator = LLMJudgeOutputEvaluator.model_validate(
             {"config": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output="Expected output")
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
@@ -1336,7 +1336,7 @@ class TestJustificationHandling:
             return mock_response
 
         mock_llm.chat_completions = mock_chat_completions
-        mocker.patch("uipath.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
 
         config = {
             "name": "LlmTrajectoryTest",

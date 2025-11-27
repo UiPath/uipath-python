@@ -6,7 +6,7 @@ from .._config import Config
 from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
-from ..models import Asset, UserAsset
+from ..platform.orchestrator import Asset, UserAsset
 from ..tracing import traced
 from ._base_service import BaseService
 
@@ -47,7 +47,7 @@ class AssetsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 

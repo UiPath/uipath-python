@@ -194,7 +194,7 @@ def test_send_with_retries_success():
 
 class TestLangchainExporter(unittest.TestCase):
     def setUp(self):
-        self.exporter = LlmOpsHttpExporter(extra_process_spans=True)
+        self.exporter = LlmOpsHttpExporter()
 
     def test_process_span_with_dict_attributes(self):
         """

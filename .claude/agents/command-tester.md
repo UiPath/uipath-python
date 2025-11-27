@@ -154,7 +154,7 @@ When testing a fix, provide before/after comparison:
 **Baseline Capture** (before fix):
 ```bash
 # Capture initial state
-uipath eval main.py evals/eval-sets/legacy.json 2>&1 | tee baseline.log
+uipath eval main.py evaluations/eval-sets/legacy.json 2>&1 | tee baseline.log
 
 # Note:
 - HTTP status codes (e.g., 400 Bad Request)
@@ -165,7 +165,7 @@ uipath eval main.py evals/eval-sets/legacy.json 2>&1 | tee baseline.log
 **Post-Fix Verification** (after fix):
 ```bash
 # Run same command
-uipath eval main.py evals/eval-sets/legacy.json 2>&1 | tee fixed.log
+uipath eval main.py evaluations/eval-sets/legacy.json 2>&1 | tee fixed.log
 
 # Compare and report:
 - Status codes: 400 → 200
@@ -217,7 +217,7 @@ Track and report performance data:
 
 ```bash
 # Time the execution
-time uipath eval main.py evals/eval-sets/default.json
+time uipath eval main.py evaluations/eval-sets/default.json
 
 # Report:
 - Total execution time
@@ -231,8 +231,8 @@ time uipath eval main.py evals/eval-sets/default.json
 When testing multiple evaluation sets:
 ```bash
 # Run in parallel
-uipath eval main.py evals/eval-sets/legacy.json > legacy.log 2>&1 &
-uipath eval main.py evals/eval-sets/default.json > coded.log 2>&1 &
+uipath eval main.py evaluations/eval-sets/legacy.json > legacy.log 2>&1 &
+uipath eval main.py evaluations/eval-sets/default.json > coded.log 2>&1 &
 wait
 
 # Compare results side-by-side
@@ -244,7 +244,7 @@ When testing a fix, verify it doesn't break other functionality:
 
 ```bash
 # Test all evaluation sets
-for eval_set in evals/eval-sets/*.json; do
+for eval_set in evaluations/eval-sets/*.json; do
     echo "Testing: $eval_set"
     uipath eval main.py "$eval_set" 2>&1 | tee "test_$(basename $eval_set .json).log"
 done
@@ -287,7 +287,7 @@ Always provide:
 
 **Successful API Test**:
 ```
-✅ **Command**: `uipath eval main.py evals/eval-sets/default.json`
+✅ **Command**: `uipath eval main.py evaluations/eval-sets/default.json`
 📁 **Environment**: samples/calculator with root venv (DEBUG logging enabled)
 
 📡 **HTTP API Calls**:
@@ -321,7 +321,7 @@ Always provide:
 
 **API Test with Validation Errors**:
 ```
-❌ **Command**: `uipath eval main.py evals/eval-sets/legacy.json`
+❌ **Command**: `uipath eval main.py evaluations/eval-sets/legacy.json`
 📁 **Environment**: samples/calculator with root venv (DEBUG logging enabled)
 
 📡 **HTTP API Calls**:
@@ -351,7 +351,7 @@ Always provide:
 
 **Before/After Comparison**:
 ```
-🔄 **Command**: `uipath eval main.py evals/eval-sets/legacy.json`
+🔄 **Command**: `uipath eval main.py evaluations/eval-sets/legacy.json`
 📁 **Environment**: samples/calculator with root venv
 
 📊 **BEFORE FIX**:
@@ -427,7 +427,7 @@ diff before.log after.log | grep -E "HTTP|200|400|ERROR"
 
 ### Regression Mode (Verify No Breakage)
 ```bash
-for eval_set in evals/eval-sets/*.json; do
+for eval_set in evaluations/eval-sets/*.json; do
     name=$(basename "$eval_set" .json)
     uipath eval main.py "$eval_set" > "test_${name}.log" 2>&1
     if grep -q "200 OK" "test_${name}.log" && ! grep -q "Cannot report" "test_${name}.log"; then

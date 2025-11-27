@@ -1,16 +1,19 @@
-# type: ignore
 import hashlib
 import json
 import logging
 import os
 import re
+import tomllib
+from enum import IntEnum
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Literal, Optional, Protocol, Tuple
+from typing import Any, AsyncIterator, Dict, Literal, Optional, Tuple
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter
 
+from uipath._cli.models.uipath_json_schema import PackOptions, UiPathJsonConfig
+
+from ..._config import UiPathConfig
 from .._utils._console import ConsoleLogger
-from ..models.runtime_schema import RuntimeSchema
 from ._constants import is_binary_file
 from ._studio_project import (
     ProjectFile,
@@ -19,14 +22,15 @@ from ._studio_project import (
     get_folder_by_name,
 )
 
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
 logger = logging.getLogger(__name__)
 
 
-class FileOperationUpdate(BaseModel):
+class Severity(IntEnum):
+    LOG = 0
+    WARNING = 1
+
+
+class UpdateEvent(BaseModel):
     """Update about a file operation in progress."""
 
     file_path: str
@@ -42,6 +46,7 @@ class FileOperationUpdate(BaseModel):
         "created_folder",
     ]
     message: str
+    severity: Severity = Field(default=Severity.LOG)
 
 
 class ProjectPullError(Exception):
@@ -51,104 +56,6 @@ class ProjectPullError(Exception):
         self.project_id = project_id
         self.message = message
         super().__init__(self.message)
-
-
-class FileConflictHandler(Protocol):
-    """Protocol for handling file conflicts."""
-
-    def should_overwrite(
-        self,
-        file_path: str,
-        local_hash: str,
-        remote_hash: str,
-        local_full_path: Optional[Path] = None,
-    ) -> bool:
-        """Return True to overwrite, False to skip."""
-        ...
-
-
-class AlwaysOverwriteHandler:
-    """Handler that always overwrites files."""
-
-    def should_overwrite(
-        self,
-        file_path: str,
-        local_hash: str,
-        remote_hash: str,
-        local_full_path: Optional[Path] = None,
-    ) -> bool:
-        return True
-
-
-class AlwaysSkipHandler:
-    """Handler that always skips conflicts."""
-
-    def should_overwrite(
-        self,
-        file_path: str,
-        local_hash: str,
-        remote_hash: str,
-        local_full_path: Optional[Path] = None,
-    ) -> bool:
-        return False
-
-
-class InteractiveConflictHandler:
-    """Handler that prompts the user for each conflict during pull or push operations.
-
-    Attributes:
-        operation: The operation type - either "pull" or "push"
-    """
-
-    def __init__(self, operation: Literal["pull", "push"]) -> None:
-        """Initialize the handler with an operation type.
-
-        Args:
-            operation: Either "pull" or "push" to determine the prompt message
-        """
-        self.operation = operation
-
-    def should_overwrite(
-        self,
-        file_path: str,
-        local_hash: str,
-        remote_hash: str,
-        local_full_path: Optional[Path] = None,
-    ) -> bool:
-        """Ask the user if they want to overwrite based on the operation.
-
-        Args:
-            file_path: Relative path to the file (for display)
-            local_hash: Hash of the local file content
-            remote_hash: Hash of the remote file content
-            local_full_path: Full path to the local file (unused, kept for protocol compatibility)
-
-        Returns:
-            True if the user wants to overwrite, False otherwise
-        """
-        import sys
-
-        import click
-
-        click.echo(
-            click.style(
-                f"\nFile '{file_path}' has different content on remote.",
-                fg="yellow",
-            )
-        )
-
-        # Prompt user for confirmation with operation-specific message
-        sys.stdout.flush()
-        if self.operation == "pull":
-            return click.confirm(
-                "Do you want to overwrite the local file with the remote version?",
-                default=False,
-            )
-        else:  # push
-            return click.confirm(
-                "Do you want to push and overwrite the remote file with your local version?",
-                default=False,
-            )
 
 
 class FileInfo(BaseModel):
@@ -169,7 +76,7 @@ class FileInfo(BaseModel):
 console = ConsoleLogger()
 
 
-def get_project_config(directory: str) -> dict[str, str]:
+def get_project_config(directory: str) -> dict[str, Any]:
     """Retrieve and combine project configuration from uipath.json and pyproject.toml.
 
     Args:
@@ -191,20 +98,39 @@ def get_project_config(directory: str) -> dict[str, str]:
         console.error("pyproject.toml not found.")
 
     with open(config_path, "r") as config_file:
-        config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(config_file))
+        config_data = TypeAdapter(UiPathJsonConfig).validate_python(
+            json.load(config_file)
+        )
 
     toml_data = read_toml_project(toml_path)
 
     return {
         "project_name": toml_data["name"],
         "description": toml_data["description"],
-        "entryPoints": [ep.model_dump(by_alias=True) for ep in config_data.entrypoints],
         "version": toml_data["version"],
         "authors": toml_data["authors"],
         "dependencies": toml_data.get("dependencies", {}),
         "requires-python": toml_data.get("requires-python", None),
-        "settings": config_data.settings or {},
+        "packOptions": config_data.pack_options or {},
     }
+
+
+def validate_project_files(directory: str) -> None:
+    required_files = [
+        UiPathConfig.bindings_file_path,
+        UiPathConfig.entry_points_file_path,
+    ]
+
+    missing_files = []
+    for file_path in required_files:
+        if not os.path.isfile(os.path.join(directory, str(file_path))):
+            missing_files.append(f"'{file_path}'")
+
+    if missing_files:
+        missing_str = ", ".join(missing_files)
+        console.error(
+            f"Missing required files: {missing_str}. Please run 'uipath init'."
+        )
 
 
 def validate_config(config: dict[str, str]) -> None:
@@ -235,7 +161,7 @@ def validate_config(config: dict[str, str]) -> None:
 
     if not config["requires-python"] or config["requires-python"].strip() == "":
         console.error(
-            "'requires-python' field cannot be empty. Please specify it in pyproject.toml:  requires-python = \">=3.10\""
+            "'requires-python' field cannot be empty. Please specify it in pyproject.toml:  requires-python = \">=3.11\""
         )
 
     invalid_chars = ["&", "<", ">", '"', "'", ";"]
@@ -279,7 +205,7 @@ def ensure_config_file(directory: str) -> None:
         )
 
 
-def extract_dependencies_from_toml(project_data: Dict) -> Dict[str, str]:
+def extract_dependencies_from_toml(project_data: Dict[str, Any]) -> Dict[str, str]:
     """Extract and parse dependencies from pyproject.toml project data.
 
     Args:
@@ -288,7 +214,7 @@ def extract_dependencies_from_toml(project_data: Dict) -> Dict[str, str]:
     Returns:
         Dictionary mapping package names to version specifiers
     """
-    dependencies = {}
+    dependencies: dict[str, str] = {}
 
     if "dependencies" not in project_data:
         return dependencies
@@ -374,7 +300,7 @@ def parse_dependency_string(dependency: str) -> Tuple[str, str]:
     return package_name, version_spec
 
 
-def read_toml_project(file_path: str) -> dict:
+def read_toml_project(file_path: str) -> dict[str, Any]:
     """Read and parse pyproject.toml file with improved error handling and validation.
 
     Args:
@@ -443,7 +369,7 @@ def read_toml_project(file_path: str) -> dict:
 
 
 def files_to_include(
-    settings: Optional[dict[str, Any]],
+    pack_options: Optional[PackOptions],
     directory: str,
     include_uv_lock: bool = True,
     directories_to_ignore: list[str] | None = None,
@@ -454,7 +380,7 @@ def files_to_include(
     and explicit inclusion rules. Skips virtual environments and hidden directories.
 
     Args:
-        settings: File handling settings
+        pack_options: File handling settings
         directory: Root directory to search for files
         include_uv_lock: Whether to include uv.lock file
         directories_to_ignore: List of directories to ignore
@@ -470,15 +396,15 @@ def files_to_include(
         directories_to_ignore = []
     if include_uv_lock:
         files_included += ["uv.lock"]
-    if settings is not None:
-        if "fileExtensionsIncluded" in settings:
-            file_extensions_included.extend(settings["fileExtensionsIncluded"])
-        if "filesIncluded" in settings:
-            files_included.extend(settings["filesIncluded"])
-        if "filesExcluded" in settings:
-            files_excluded.extend(settings["filesExcluded"])
-        if "directoriesExcluded" in settings:
-            directories_to_ignore.extend(settings["directoriesExcluded"])
+    if pack_options is not None:
+        if pack_options.file_extensions_included:
+            file_extensions_included.extend(pack_options.file_extensions_included)
+        if pack_options.files_included:
+            files_included.extend(pack_options.files_included)
+        if pack_options.files_excluded:
+            files_excluded.extend(pack_options.files_excluded)
+        if pack_options.directories_excluded:
+            directories_to_ignore.extend(pack_options.directories_excluded)
 
     def is_venv_dir(d: str) -> bool:
         """Check if a directory is a Python virtual environment.
@@ -609,26 +535,21 @@ def collect_files_from_folder(
 
 async def pull_project(
     project_id: str,
-    download_configuration: dict[str, Path],
-    conflict_handler: Optional[FileConflictHandler] = None,
-) -> AsyncIterator[FileOperationUpdate]:
-    """Pull project with configurable conflict handling.
+    download_configuration: dict[str | None, Path],
+    studio_client: StudioClient,
+) -> AsyncIterator[UpdateEvent]:
+    """Pull project files.
 
     Yields:
         FileOperationUpdate: Progress updates for each file operation
     """
-    if conflict_handler is None:
-        conflict_handler = AlwaysOverwriteHandler()
-
-    studio_client = StudioClient(project_id)
-
     try:
         structure = await studio_client.get_project_structure_async()
         for source_key, destination in download_configuration.items():
             source_folder = get_folder_by_name(structure, source_key)
             if source_folder:
                 async for update in download_folder_files(
-                    studio_client, source_folder, destination, conflict_handler
+                    studio_client, source_folder, destination
                 ):
                     yield update
             else:
@@ -641,27 +562,19 @@ async def download_folder_files(
     studio_client: StudioClient,
     folder: ProjectFolder,
     base_path: Path,
-    conflict_handler: FileConflictHandler,
-) -> AsyncIterator[FileOperationUpdate]:
+) -> AsyncIterator[UpdateEvent]:
     """Download files from a folder recursively, yielding progress updates.
 
     Args:
         studio_client: Studio client
         folder: The folder to download files from
         base_path: Base path for local file storage
-        conflict_handler: Handler for file conflicts
 
     Yields:
         FileOperationUpdate: Progress updates for each file operation
     """
     files_dict: Dict[str, ProjectFile] = {}
     collect_files_from_folder(folder, "", files_dict)
-
-    yield FileOperationUpdate(
-        file_path=folder.name,
-        status="downloading",
-        message=f"Downloading '{folder.name}'...",
-    )
 
     for file_path, remote_file in files_dict.items():
         local_path = base_path / file_path
@@ -677,25 +590,16 @@ async def download_folder_files(
                 local_hash = compute_normalized_hash(local_content)
 
             if local_hash != remote_hash:
-                if conflict_handler.should_overwrite(
-                    file_path, local_hash, remote_hash, local_path
-                ):
-                    with open(local_path, "w", encoding="utf-8", newline="\n") as f:
-                        f.write(remote_content)
+                with open(local_path, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(remote_content)
 
-                    yield FileOperationUpdate(
-                        file_path=file_path,
-                        status="updated",
-                        message=f"Updated '{file_path}'",
-                    )
-                else:
-                    yield FileOperationUpdate(
-                        file_path=file_path,
-                        status="skipped",
-                        message=f"Skipped '{file_path}'",
-                    )
+                yield UpdateEvent(
+                    file_path=file_path,
+                    status="updated",
+                    message=f"Updated '{file_path}'",
+                )
             else:
-                yield FileOperationUpdate(
+                yield UpdateEvent(
                     file_path=file_path,
                     status="up_to_date",
                     message=f"File '{file_path}' is up to date",
@@ -704,7 +608,7 @@ async def download_folder_files(
             with open(local_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(remote_content)
 
-            yield FileOperationUpdate(
+            yield UpdateEvent(
                 file_path=file_path,
                 status="downloaded",
                 message=f"Downloaded '{file_path}'",

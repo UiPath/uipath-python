@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "agent": "agent.py:main"
+  }
+}

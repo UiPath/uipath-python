@@ -1,0 +1,15 @@
+[project]
+name = "weather-tools"
+version = "0.0.1"
+description = "Weather agent"
+authors = [{ name = "John Doe" }]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "uipath>=2.2.0, <2.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "uipath-dev>=0.0.5",
+]

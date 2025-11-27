@@ -7,7 +7,6 @@ from rich.console import Console
 from rich.rule import Rule
 from rich.table import Table
 
-from uipath._cli._evals._models._evaluation_set import AnyEvaluator
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -16,6 +15,7 @@ from uipath._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
+from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import ScoreType
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class ConsoleProgressReporter:
 
     def __init__(self):
         self.console = Console()
-        self.evaluators: Dict[str, AnyEvaluator] = {}
+        self.evaluators: Dict[str, BaseEvaluator[Any, Any, Any]] = {}
         self.display_started = False
         self.eval_results_by_name: Dict[str, list[Any]] = {}
 
@@ -76,7 +76,11 @@ class ConsoleProgressReporter:
             self.console.print(result)
 
     def _extract_error_message(self, payload: EvalRunUpdatedEvent) -> str:
-        return str(payload.exception_details.exception) or "Execution failed"  # type: ignore
+        return (
+            payload.exception_details
+            and str(payload.exception_details.exception)
+            or "Execution failed"
+        )
 
     def _display_failed_evaluation(self, eval_name: str) -> None:
         """Display results for a failed evaluation."""
@@ -146,7 +150,10 @@ class ConsoleProgressReporter:
                 error_msg = self._extract_error_message(payload)
                 self._display_failed_evaluation(payload.eval_item.name)
 
-                if payload.exception_details.runtime_exception:  # type: ignore
+                if (
+                    payload.exception_details
+                    and payload.exception_details.runtime_exception
+                ):
                     self._display_logs_panel(
                         payload.eval_item.name, payload.logs, error_msg
                     )

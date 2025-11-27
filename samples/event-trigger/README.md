@@ -25,7 +25,7 @@ Create a Python file with your agent logic using the UiPath SDK:
 
 ```python
 from dataclasses import dataclass
-from uipath.models import EventArguments
+from uipath.platform import EventArguments
 from uipath import UiPath
 import logging
 
@@ -114,15 +114,15 @@ logger = logging.getLogger(__name__)
 
 def main(input: EventArguments) -> EchoOut:
     sdk = UiPath()
-    
+
     # payload will be a json (dict) specific to your event
     payload = sdk.connections.retrieve_event_payload(input)
     logger.info(f"Successfully retrieved payload: {type(payload)}")
     logger.debug(f"Payload details: {payload}")
-    
+
     # Your processing logic here
     result = process_event(payload)
-    
+
     logger.info(f"Event processed successfully: {result}")
     return EchoOut(result)
 ```

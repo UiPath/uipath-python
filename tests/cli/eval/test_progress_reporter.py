@@ -240,7 +240,7 @@ class TestRequestSpecGeneration:
         assert spec.method == "POST"
         assert "coded/" in spec.endpoint
         assert spec.json["evalSetId"] == "test-eval-set"
-        assert spec.json["version"] == "1.0"
+        assert spec.json["source"] == 0
         assert spec.json["numberOfEvalsExecuted"] == 5
 
     def test_create_eval_set_run_spec_for_legacy(self, progress_reporter):
@@ -260,8 +260,9 @@ class TestRequestSpecGeneration:
 
         assert spec.method == "POST"
         assert "coded/" not in spec.endpoint
-        # Legacy should not have version field
+        # Legacy should not have version or source field
         assert "version" not in spec.json
+        assert "source" not in spec.json
         assert spec.json["numberOfEvalsExecuted"] == 5
 
     def test_update_coded_eval_run_spec(self, progress_reporter):

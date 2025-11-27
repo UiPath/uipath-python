@@ -5,8 +5,9 @@ from typing import Any, Dict
 
 from pydantic import TypeAdapter
 
-from uipath._cli._evals._helpers import try_extract_file_and_class_name  # type: ignore
-from uipath._cli._evals._models._evaluation_set import AnyEvaluator
+from uipath._cli._evals._helpers import (  # type: ignore # Remove after gnarly fix
+    try_extract_file_and_class_name,
+)
 from uipath._cli._evals._models._evaluator import (
     EqualsEvaluatorParams,
     EvaluatorConfig,
@@ -71,15 +72,51 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
 class EvaluatorFactory:
     """Factory class for creating evaluator instances based on configuration."""
 
+    @staticmethod
+    def _prepare_evaluator_config(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare evaluator config by merging top-level fields into evaluatorConfig.
+
+        This allows flexibility in specifying fields like 'name' and 'description' either at the
+        top level or within evaluatorConfig. Top-level values take precedence if both exist.
+
+        Args:
+            data: The raw evaluator data dictionary
+
+        Returns:
+            The prepared evaluatorConfig with merged fields
+        """
+        evaluator_config = data.get("evaluatorConfig", {})
+        if not isinstance(evaluator_config, dict):
+            evaluator_config = {}
+        else:
+            # Create a copy to avoid modifying the original
+            evaluator_config = evaluator_config.copy()
+
+        # Merge top-level 'name' into config if present
+        if "name" in data and data["name"] is not None:
+            # Top-level name takes precedence
+            evaluator_config["name"] = data["name"]
+
+        # Merge top-level 'description' into config if present
+        if "description" in data and data["description"] is not None:
+            # Top-level description takes precedence
+            evaluator_config["description"] = data["description"]
+
+        return evaluator_config
+
     @classmethod
-    def create_evaluator(cls, data: Dict[str, Any]) -> AnyEvaluator:
+    def create_evaluator(
+        cls, data: Dict[str, Any], evaluators_dir: Path | None = None
+    ) -> BaseEvaluator[Any, Any, Any]:
         if data.get("version", None) == "1.0":
-            return cls._create_evaluator_internal(data)
-        return cls._create_legacy_evaluator_internal(data)
+            return cls._create_evaluator_internal(data, evaluators_dir)
+        else:
+            return cls._create_legacy_evaluator_internal(data)
 
     @staticmethod
     def _create_evaluator_internal(
         data: Dict[str, Any],
+        evaluators_dir: Path | None = None,
     ) -> BaseEvaluator[Any, Any, Any]:
         # check custom evaluator
         evaluator_schema = data.get("evaluatorSchema", "")
@@ -88,7 +125,7 @@ class EvaluatorFactory:
         )
         if success:
             return EvaluatorFactory._create_coded_evaluator_internal(
-                data, file_path, class_name
+                data, file_path, class_name, evaluators_dir
             )
 
         # use built-in evaluators
@@ -132,20 +169,26 @@ class EvaluatorFactory:
         evaluator_id = data.get("id")
         if not evaluator_id or not isinstance(evaluator_id, str):
             raise ValueError("Evaluator 'id' must be a non-empty string")
-        return ContainsEvaluator(
-            id=evaluator_id,
-            config=data.get("evaluatorConfig"),
-        )  # type: ignore
+        return TypeAdapter(ContainsEvaluator).validate_python(
+            {
+                "id": evaluator_id,
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
+            }
+        )
 
     @staticmethod
     def _create_coded_evaluator_internal(
-        data: Dict[str, Any], file_path_str: str, class_name: str
+        data: Dict[str, Any],
+        file_path_str: str,
+        class_name: str,
+        evaluators_dir: Path | None = None,
     ) -> BaseEvaluator[Any, Any, Any]:
         """Create a coded evaluator by dynamically loading from a Python file.
 
         Args:
             data: Dictionary containing evaluator configuration with evaluatorTypeId
                   in format "file://path/to/file.py:ClassName"
+            evaluators_dir: Directory containing evaluator configuration files
 
         Returns:
             Instance of the dynamically loaded evaluator class
@@ -156,18 +199,23 @@ class EvaluatorFactory:
         file_path = Path(file_path_str)
         if not file_path.is_absolute():
             if not file_path.exists():
-                file_path = (
-                    Path.cwd()
-                    / EVALS_DIRECTORY_NAME
-                    / "evaluators"
-                    / "custom"
-                    / file_path_str
-                )
+                # Try using the provided evaluators_dir first
+                if evaluators_dir is not None:
+                    file_path = evaluators_dir / "custom" / file_path_str
+                else:
+                    # Fall back to the old behavior
+                    file_path = (
+                        Path.cwd()
+                        / EVALS_DIRECTORY_NAME
+                        / "evaluators"
+                        / "custom"
+                        / file_path_str
+                    )
 
         if not file_path.exists():
             raise ValueError(
                 f"Evaluator file not found: {file_path}. "
-                f"Make sure the file exists in evals/evaluators/custom/"
+                f"Make sure the file exists in the evaluators/custom/ directory"
             )
 
         module_name = f"_custom_evaluator_{file_path.stem}_{id(data)}"
@@ -203,10 +251,12 @@ class EvaluatorFactory:
         evaluator_id = data.get("id")
         if not evaluator_id or not isinstance(evaluator_id, str):
             raise ValueError("Evaluator 'id' must be a non-empty string")
-        return evaluator_class(
-            id=evaluator_id,
-            config=data.get("evaluatorConfig", {}),
-        )  # type: ignore
+        return TypeAdapter(evaluator_class).validate_python(
+            {
+                "id": evaluator_id,
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
+            }
+        )
 
     @staticmethod
     def _create_exact_match_evaluator(
@@ -215,7 +265,7 @@ class EvaluatorFactory:
         return TypeAdapter(ExactMatchEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -226,7 +276,7 @@ class EvaluatorFactory:
         return TypeAdapter(JsonSimilarityEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -237,7 +287,7 @@ class EvaluatorFactory:
         return TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -248,7 +298,7 @@ class EvaluatorFactory:
         return TypeAdapter(LLMJudgeStrictJSONSimilarityOutputEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -259,7 +309,7 @@ class EvaluatorFactory:
         return TypeAdapter(LLMJudgeTrajectoryEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -270,7 +320,7 @@ class EvaluatorFactory:
         return TypeAdapter(ToolCallArgsEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -281,7 +331,7 @@ class EvaluatorFactory:
         return TypeAdapter(ToolCallCountEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -292,7 +342,7 @@ class EvaluatorFactory:
         return TypeAdapter(ToolCallOrderEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -303,7 +353,7 @@ class EvaluatorFactory:
         return TypeAdapter(ToolCallOutputEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -314,7 +364,7 @@ class EvaluatorFactory:
         return TypeAdapter(LLMJudgeTrajectorySimulationEvaluator).validate_python(
             {
                 "id": data.get("id"),
-                "config": data.get("evaluatorConfig"),
+                "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
 
@@ -352,14 +402,14 @@ class EvaluatorFactory:
         params: EqualsEvaluatorParams,
     ) -> LegacyExactMatchEvaluator:
         """Create a deterministic evaluator."""
-        return LegacyExactMatchEvaluator(**params.model_dump())
+        return LegacyExactMatchEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_json_similarity_evaluator(
         params: JsonSimilarityEvaluatorParams,
     ) -> LegacyJsonSimilarityEvaluator:
         """Create a deterministic evaluator."""
-        return LegacyJsonSimilarityEvaluator(**params.model_dump())
+        return LegacyJsonSimilarityEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_llm_as_judge_evaluator(
@@ -376,7 +426,7 @@ class EvaluatorFactory:
                 "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
             )
 
-        return LegacyLlmAsAJudgeEvaluator(**params.model_dump())
+        return LegacyLlmAsAJudgeEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_trajectory_evaluator(
@@ -393,4 +443,4 @@ class EvaluatorFactory:
                 "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
             )
 
-        return LegacyTrajectoryEvaluator(**params.model_dump())
+        return LegacyTrajectoryEvaluator(**params.model_dump(), config={})

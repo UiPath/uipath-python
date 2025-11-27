@@ -1,0 +1,117 @@
+{
+  "fileName": "default.json",
+  "id": "default-eval-set-id",
+  "name": "Basic Calculator Evaluation Set",
+  "batchSize": 10,
+  "evaluatorRefs": [
+    "equality",
+    "llm-as-a-judge",
+    "json-similarity",
+    "trajectory"
+  ],
+  "evaluations": [
+    {
+      "id": "test-addition",
+      "name": "Test Addition",
+      "inputs": {
+        "a": 1,
+        "b": 1,
+        "operator": "+"
+      },
+      "expectedOutput": {
+        "result": 2.0
+      },
+      "expectedAgentBehavior": "The operation should produce the right output.",
+      "evalSetId": "default-eval-set-id",
+      "createdAt": "2025-09-04T18:54:58.378Z",
+      "updatedAt": "2025-09-04T18:55:55.416Z"
+    },
+    {
+      "id": "test-random-addition-using-mockito",
+      "name": "Test Random Addition Using Mockito",
+      "inputs": {
+        "a": 1,
+        "b": 1,
+        "operator": "random"
+      },
+      "expectedOutput": {
+        "result": 2.0
+      },
+      "expectedAgentBehavior": "The operation should produce the right output.",
+      "mockingStrategy": {
+        "type": "mockito",
+        "behaviors": [
+          {
+            "function": "get_random_operator",
+            "arguments": {
+              "args": [],
+              "kwargs": {}
+            },
+            "then": [
+              {
+                "type": "return",
+                "value": {
+                  "result": "+"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "evalSetId": "default-eval-set-id",
+      "createdAt": "2025-09-04T18:54:58.378Z",
+      "updatedAt": "2025-09-04T18:55:55.416Z"
+    },
+    {
+      "id": "test-random-addition-using-llm",
+      "name": "Test Random Addition Using LLM",
+      "inputs": {
+        "a": 1,
+        "b": 1,
+        "operator": "random"
+      },
+      "expectedOutput": {
+        "result": 2.0
+      },
+      "expectedAgentBehavior": "The operation should produce the right output.",
+      "mockingStrategy": {
+        "type": "llm",
+        "prompt": "The random operator is '+'.",
+        "toolsToSimulate": [
+          {
+            "name": "get_random_operator"
+          }
+        ],
+        "model": {
+          "model": "gpt-4o-mini-2024-07-18",
+          "temperature": 0
+        }
+      },
+      "evalSetId": "default-eval-set-id",
+      "createdAt": "2025-09-04T18:54:58.378Z",
+      "updatedAt": "2025-09-04T18:55:55.416Z"
+    },
+    {
+      "id": "test-with-llm-input-mocking",
+      "name": "Test with LLM input mocking",
+      "inputs": {},
+      "expectedOutput": {
+        "result": 35
+      },
+      "expectedAgentBehavior": "The operation should produce the right output.",
+      "inputMockingStrategy": {
+        "prompt": "Generate a multiplication calculation where the first number is 5 and the second number is 7",
+        "model": {
+          "model": "gpt-4o-mini-2024-07-18",
+          "temperature": 0.3
+        }
+      },
+      "evalSetId": "default-eval-set-id",
+      "createdAt": "2025-09-04T18:54:58.378Z",
+      "updatedAt": "2025-09-04T18:55:55.416Z"
+    }
+  ],
+  "modelSettings": [],
+  "createdAt": "2025-09-04T18:54:58.379Z",
+  "updatedAt": "2025-09-04T18:55:55.416Z"
+}

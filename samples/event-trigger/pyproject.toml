@@ -1,9 +1,14 @@
 [project]
-name = "event-agent"
-version = "0.0.5"
-description = "event-agent"
+name = "event-trigger"
+version = "0.0.1"
+description = "Event Trigger Demo"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
-    "uipath>=2.1.18, <2.2.0",
+    "uipath>=2.2.0, <2.3.0",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "uipath-dev>=0.0.5",
+]

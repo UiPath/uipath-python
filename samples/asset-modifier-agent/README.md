@@ -77,7 +77,7 @@ Format your `input.json` file with the following structure:
 Execute the agent locally:
 
 ```bash
-uipath run --input-file input.json
+uipath run main --input-file input.json
 ```
 
 ## How It Works

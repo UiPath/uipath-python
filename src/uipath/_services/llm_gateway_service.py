@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from .._config import Config
 from .._execution_context import ExecutionContext
 from .._utils import Endpoint
-from ..models.llm_gateway import (
+from ..platform.llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
     TextEmbedding,
@@ -122,6 +122,9 @@ def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
             for key, value in properties.items():
                 properties[key] = clean_type(value)
             cleaned_type["properties"] = properties
+
+        if type_def.get("type") == "object":
+            cleaned_type["required"] = list(cleaned_type.get("properties", {}).keys())
 
         if "$defs" in type_def:
             cleaned_defs = {}

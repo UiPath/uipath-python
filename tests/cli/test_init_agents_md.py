@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from uipath._cli import cli
-from uipath._cli.cli_init import (  # type: ignore[attr-defined]
+from uipath._cli.cli_init import (
     generate_agent_md_file,
     generate_agent_md_files,
 )
@@ -110,7 +110,6 @@ class TestGenerateAgentMdFiles:
                     "uipath._cli.cli_init.importlib.resources.as_file"
                 ) as mock_as_file,
                 patch("uipath._cli.cli_init.console"),
-                patch("uipath._cli._runtime._runtime.console"),
             ):
                 temp_source = Path(temp_dir) / "temp_source.md"
                 temp_source.write_text("Test content")

@@ -1,0 +1,33 @@
+{
+    "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+    "$id": "entry-points.json",
+    "entryPoints": [
+        {
+            "filePath": "main",
+            "uniqueId": "74019482-c9d2-451b-8b9d-11fe671aab0a",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "server_name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "server_name"
+                ]
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "message"
+                ]
+            }
+        }
+    ]
+}

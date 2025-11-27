@@ -10,10 +10,20 @@ from uipath.eval.models import NumericEvaluationResult
 from ..._services import UiPathLlmChatService
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ..models.models import AgentExecution, EvaluationResult, LLMResponse
-from .legacy_base_evaluator import LegacyBaseEvaluator
+from .legacy_base_evaluator import (
+    LegacyBaseEvaluator,
+    LegacyEvaluationCriteria,
+    LegacyEvaluatorConfig,
+)
 
 
-class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
+class LegacyLlmAsAJudgeEvaluatorConfig(LegacyEvaluatorConfig):
+    """Configuration for legacy LLM-as-a-judge evaluators."""
+
+    name: str = "LegacyLlmAsAJudgeEvaluator"
+
+
+class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorConfig]):
     """Legacy evaluator that uses an LLM to judge the quality of agent output."""
 
     prompt: str
@@ -39,7 +49,7 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
 
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
-        from uipath import UiPath
+        from uipath.platform import UiPath
 
         uipath = UiPath()
         self.llm = uipath.llm
@@ -47,7 +57,7 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
     async def evaluate(
         self,
         agent_execution: AgentExecution,
-        evaluation_criteria: dict[str, Any],
+        evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate using an LLM as a judge.
 
@@ -65,7 +75,7 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
         """
         # Create the evaluation prompt
         evaluation_prompt = self._create_evaluation_prompt(
-            expected_output=evaluation_criteria,
+            expected_output=evaluation_criteria.expected_output,
             actual_output=agent_execution.agent_output,
         )
 
@@ -133,5 +143,6 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[dict[str, Any]]):
             },
         }
 
-        response = await self.llm.chat_completions(**request_data)  # type: ignore
+        assert self.llm, "LLM should be initialized before calling this method."
+        response = await self.llm.chat_completions(**request_data)
         return LLMResponse(**json.loads(response.choices[-1].message.content or "{}"))

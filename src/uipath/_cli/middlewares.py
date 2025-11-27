@@ -116,7 +116,7 @@ class Middlewares:
                 else:
                     middlewares = list(entry_points.get("uipath.middlewares", []))
             except Exception:
-                middlewares = list(importlib.metadata.entry_points())  # type: ignore
+                middlewares = list(importlib.metadata.entry_points())  # type: ignore # explicit ignore
                 middlewares = [
                     ep for ep in middlewares if ep.group == "uipath.middlewares"
                 ]

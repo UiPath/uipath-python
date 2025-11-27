@@ -1,16 +1,32 @@
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import urlparse
 
 import click
 from dotenv import load_dotenv
 
 from ..._config import UiPathConfig
-from ..._utils._bindings import ResourceOverwrite
-from ..._utils.constants import DOTENV_FILE
+from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
+from ..._utils.constants import DOTENV_FILE, ENV_UIPATH_ACCESS_TOKEN
 from ..spinner import Spinner
+from ._console import ConsoleLogger
+from ._studio_project import (
+    NonCodedAgentProjectException,
+    StudioClient,
+    StudioProjectMetadata,
+)
+
+
+def get_claim_from_token(claim_name: str) -> Optional[str]:
+    import jwt
+
+    token = os.getenv(ENV_UIPATH_ACCESS_TOKEN)
+    if not token:
+        raise Exception("JWT token not available")
+    decoded_token = jwt.decode(token, options={"verify_signature": False})
+    return decoded_token.get(claim_name)
 
 
 def add_cwd_to_path():
@@ -56,8 +72,8 @@ def get_env_vars(spinner: Optional[Spinner] = None) -> list[str]:
         click.echo("UIPATH_URL, UIPATH_ACCESS_TOKEN")
         click.get_current_context().exit(1)
 
-    # at this step we know for sure that both base_url and token exist. type checking can be disabled
-    return [base_url, token]  # type: ignore
+    assert base_url and token
+    return [base_url, token]
 
 
 def serialize_object(obj):
@@ -121,8 +137,63 @@ def load_environment_variables():
     load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
 
 
+async def ensure_coded_agent_project(studio_client: StudioClient):
+    try:
+        await studio_client.ensure_coded_agent_project_async()
+    except NonCodedAgentProjectException:
+        console = ConsoleLogger()
+        console.error(
+            "The targeted Studio Web project is not of type coded agent. Please check the UIPATH_PROJECT_ID environment variable."
+        )
+
+
+async def may_override_files(
+    studio_client: StudioClient, scope: Literal["remote", "local"]
+) -> bool:
+    from datetime import datetime
+
+    from packaging import version
+
+    remote_metadata = await studio_client.get_project_metadata_async()
+    if not remote_metadata:
+        return True
+
+    metadata_file_path = UiPathConfig.studio_metadata_file_path
+
+    local_code_version = None
+
+    if os.path.isfile(metadata_file_path):
+        with open(metadata_file_path, "r") as f:
+            local_data = json.load(f)
+            local_metadata = StudioProjectMetadata.model_validate(local_data)
+            local_code_version = local_metadata.code_version
+        if version.parse(local_code_version) >= version.parse(
+            remote_metadata.code_version
+        ):
+            return True
+
+    local_version_display = local_code_version if local_code_version else "Not Set"
+
+    try:
+        push_date = datetime.fromisoformat(remote_metadata.last_push_date)
+        formatted_date = push_date.strftime("%b %d, %Y at %I:%M %p UTC")
+    except (ValueError, TypeError):
+        formatted_date = remote_metadata.last_push_date
+
+    console = ConsoleLogger()
+    console.warning("Your local version is behind the remote version.")
+    console.info(f"  Remote version:  {remote_metadata.code_version}")
+    console.info(f"  Local version:   {local_version_display}")
+    console.info(f"  Last publisher:  {remote_metadata.last_push_author}")
+    console.info(f"  Last push date:  {formatted_date}")
+
+    return console.confirm(
+        f"Do you want to proceed with overwriting the {scope} files?"
+    )
+
+
 async def read_resource_overwrites_from_file(
-    directory_path: Optional[Path] = None,
+    directory_path: Optional[str] = None,
 ) -> dict[str, ResourceOverwrite]:
     """Read resource overwrites from a JSON file."""
     config_file_name = UiPathConfig.config_file_name
@@ -142,8 +213,7 @@ async def read_resource_overwrites_from_file(
                 .get("resourceOverwrites", {})
             )
             for key, value in resource_overwrites.items():
-                overwrite = ResourceOverwrite.model_validate(value)
-                overwrites_dict[key] = overwrite
+                overwrites_dict[key] = ResourceOverwriteParser.parse(key, value)
 
     # Return empty dict if file doesn't exist or invalid json
     except FileNotFoundError:

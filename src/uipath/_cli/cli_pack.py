@@ -1,4 +1,3 @@
-# type: ignore
 import json
 import os
 import uuid
@@ -8,10 +7,11 @@ from string import Template
 import click
 from pydantic import TypeAdapter
 
-from uipath._cli.models.runtime_schema import Bindings, RuntimeSchema
+from uipath._cli.models.runtime_schema import Bindings
+from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
 from uipath._config import UiPathConfig
+from uipath._utils.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 
-from ..telemetry import track
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
@@ -70,6 +70,11 @@ def validate_config_structure(config_data):
 
 
 def generate_operate_file(entryPoints, dependencies=None):
+    if not entryPoints:
+        raise ValueError(
+            "No entry points found in entry-points.json. Please run 'uipath init' to generate valid entry points."
+        )
+
     project_id = get_project_id()
 
     first_entry = entryPoints[0]
@@ -199,50 +204,56 @@ def is_venv_dir(d):
 
 
 def pack_fn(
-    projectName,
+    project_name,
     description,
-    entryPoints,
     version,
     authors,
     directory,
     dependencies=None,
     include_uv_lock=True,
 ):
-    operate_file = generate_operate_file(entryPoints, dependencies)
-    entrypoints_file = generate_entrypoints_file(entryPoints)
+    entry_points_file_path = os.path.join(
+        directory, str(UiPathConfig.entry_points_file_path)
+    )
+    if not os.path.exists(entry_points_file_path):
+        raise Exception("'entry-points.json' file not found. Please run 'uipath init'.")
+    else:
+        with open(entry_points_file_path, "r") as f:
+            entry_points = json.load(f).get("entryPoints", [])
+
+    operate_file = generate_operate_file(entry_points, dependencies)
 
     config_path = os.path.join(directory, "uipath.json")
     if not os.path.exists(config_path):
         console.error("uipath.json not found, please run `uipath init`.")
 
     with open(config_path, "r") as f:
-        config_data = TypeAdapter(RuntimeSchema).validate_python(json.load(f))
+        config_data = TypeAdapter(UiPathJsonConfig).validate_python(json.load(f))
 
-    # for backwards compatibility. should be removed
-    if not len(config_data.bindings.resources):
-        # try to read bindings from bindings.json
-        bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
-        if os.path.exists(bindings_path):
-            with open(bindings_path, "r") as f:
-                bindings_data = TypeAdapter(Bindings).validate_python(json.load(f))
-                config_data.bindings = bindings_data
+    # try to read bindings from bindings.json
+    bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
+    if os.path.exists(bindings_path):
+        with open(bindings_path, "r") as f:
+            bindings_data = TypeAdapter(Bindings).validate_python(json.load(f))
 
     content_types_content = generate_content_types_content()
     [psmdcp_file_name, psmdcp_content] = generate_psmdcp_content(
-        projectName, version, description, authors
+        project_name, version, description, authors
     )
-    nuspec_content = generate_nuspec_content(projectName, version, description, authors)
+    nuspec_content = generate_nuspec_content(
+        project_name, version, description, authors
+    )
     rels_content = generate_rels_content(
-        f"/{projectName}.nuspec",
+        f"/{project_name}.nuspec",
         f"/package/services/metadata/core-properties/{psmdcp_file_name}",
     )
-    package_descriptor_content = generate_package_descriptor_content(entryPoints)
+    package_descriptor_content = generate_package_descriptor_content(entry_points)
 
     # Create .uipath directory if it doesn't exist
     os.makedirs(".uipath", exist_ok=True)
 
     with zipfile.ZipFile(
-        f".uipath/{projectName}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
+        f".uipath/{project_name}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
     ) as z:
         # Add metadata files
         z.writestr(
@@ -255,15 +266,20 @@ def pack_fn(
             json.dumps(package_descriptor_content, indent=4),
         )
         z.writestr("content/operate.json", json.dumps(operate_file, indent=4))
-        z.writestr("content/entry-points.json", json.dumps(entrypoints_file, indent=4))
-        z.writestr(
-            "content/bindings_v2.json",
-            json.dumps(config_data.bindings.model_dump(by_alias=True), indent=4),
-        )
-        z.writestr(f"{projectName}.nuspec", nuspec_content)
+        if bindings_data:
+            z.writestr(
+                "content/bindings_v2.json",
+                json.dumps(bindings_data.model_dump(by_alias=True), indent=4),
+            )
+        z.writestr(f"{project_name}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        files = files_to_include(config_data.settings, directory, include_uv_lock)
+        files = files_to_include(
+            config_data.pack_options,
+            directory,
+            include_uv_lock,
+            directories_to_ignore=[LEGACY_EVAL_FOLDER, EVALS_FOLDER],
+        )
 
         for file in files:
             if file.is_binary:
@@ -311,7 +327,6 @@ def display_project_info(config):
     is_flag=True,
     help="Skip running uv lock and exclude uv.lock from the package",
 )
-@track
 def pack(root, nolock):
     """Pack the project."""
     version = get_project_version(root)
@@ -329,7 +344,6 @@ def pack(root, nolock):
             pack_fn(
                 config["project_name"],
                 config["description"],
-                config["entryPoints"],
                 version or config["version"],
                 config["authors"],
                 root,

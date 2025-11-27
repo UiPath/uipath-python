@@ -1,0 +1,105 @@
+{
+    "version": "2.0",
+    "resources": [
+        {
+            "resource": "asset",
+            "key": "asset_name.folder_key",
+            "value": {
+                "name": {
+                    "defaultValue": "asset_name",
+                    "isExpression": false,
+                    "displayName": "Name"
+                },
+                "folderPath": {
+                    "defaultValue": "folder_key",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "retrieve_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
+        },
+        {
+            "resource": "process",
+            "key": "process_name.folder_path",
+            "value": {
+                "name": {
+                    "defaultValue": "process_name",
+                    "isExpression": false,
+                    "displayName": "Name"
+                },
+                "folderPath": {
+                    "defaultValue": "folder_path",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "invoke_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
+        },
+        {
+            "resource": "bucket",
+            "key": "bucket_name.folder_path",
+            "value": {
+                "name": {
+                    "defaultValue": "bucket_name",
+                    "isExpression": false,
+                    "displayName": "Name"
+                },
+                "folderPath": {
+                    "defaultValue": "folder_path",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "retrieve_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
+        },
+        {
+            "resource": "index",
+            "key": "index_name.folder_path",
+            "value": {
+                "name": {
+                    "defaultValue": "index_name",
+                    "isExpression": false,
+                    "displayName": "Name"
+                },
+                "folderPath": {
+                    "defaultValue": "folder_path",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "retrieve_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
+        },
+        {
+            "resource": "connection",
+            "key": "connection_key",
+            "value": {
+                "ConnectionId": {
+                    "defaultValue": "connection_key",
+                    "isExpression": false,
+                    "displayName": "Connection"
+                }
+            },
+            "metadata": {
+                "BindingsVersion": "2.2",
+                "Connector": "",
+                "UseConnectionService": "True"
+            }
+        }
+    ]
+}

@@ -26,7 +26,7 @@ from uipath._services.llm_gateway_service import (
     ChatModels,
     UiPathLlmChatService,
 )
-from uipath.models.llm_gateway import (
+from uipath.platform.llm_gateway import (
     AutoToolChoice,
     ToolDefinition,
     ToolFunctionDefinition,

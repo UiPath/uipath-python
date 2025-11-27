@@ -1,199 +1,188 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncGenerator
+
+from uipath.core.tracing import UiPathTraceManager
+from uipath.runtime import (
+    UiPathExecuteOptions,
+    UiPathRuntimeEvent,
+    UiPathRuntimeProtocol,
+    UiPathRuntimeResult,
+    UiPathRuntimeStatus,
+    UiPathStreamOptions,
+)
+from uipath.runtime.schema import UiPathRuntimeSchema
 
 from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._models._output import UiPathEvalOutput
 from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
-from uipath._cli._runtime._contracts import UiPathRuntimeContext, UiPathRuntimeFactory
-from uipath._cli._runtime._runtime import UiPathRuntime
-from uipath._cli.models.runtime_schema import Entrypoint
 from uipath._events._event_bus import EventBus
 
 
 async def test_evaluate():
     # Arrange
     event_bus = EventBus()
-    context = UiPathEvalContext(
-        eval_set=str(Path(__file__).parent / "evals" / "eval-sets" / "default.json")
+    trace_manager = UiPathTraceManager()
+    context = UiPathEvalContext()
+    context.eval_set = str(
+        Path(__file__).parent / "evals" / "eval-sets" / "default.json"
     )
 
-    async def identity(input: Any) -> Any:
+    async def identity(input: dict[str, Any]) -> dict[str, Any]:
         return input
 
-    class TestRuntime(UiPathRuntime):
-        async def get_entrypoint(self) -> Entrypoint:
-            return Entrypoint(
-                file_path="test.py",  # type: ignore[call-arg]
-                unique_id="test",
+    class TestRuntime:
+        def __init__(self, executor):
+            self.executor = executor
+
+        async def execute(
+            self,
+            input: dict[str, Any] | None = None,
+            options: UiPathExecuteOptions | None = None,
+        ) -> UiPathRuntimeResult:
+            result = await self.executor(input or {})
+            return UiPathRuntimeResult(
+                output=result,
+                status=UiPathRuntimeStatus.SUCCESSFUL,
+            )
+
+        async def stream(
+            self,
+            input: dict[str, Any] | None = None,
+            options: UiPathStreamOptions | None = None,
+        ) -> AsyncGenerator[UiPathRuntimeEvent, None]:
+            result = await self.executor(input or {})
+            yield UiPathRuntimeResult(
+                output=result,
+                status=UiPathRuntimeStatus.SUCCESSFUL,
+            )
+
+        async def get_schema(self) -> UiPathRuntimeSchema:
+            return UiPathRuntimeSchema(
+                filePath="test.py",
+                uniqueId="test",
                 type="workflow",
                 input={"type": "object", "properties": {}},
                 output={"type": "object", "properties": {}},
             )
 
-    class MyFactory(UiPathRuntimeFactory[TestRuntime, UiPathRuntimeContext]):
-        def __init__(self):
-            super().__init__(
-                TestRuntime,
-                UiPathRuntimeContext,
-                runtime_generator=lambda context: TestRuntime(
-                    context, executor=identity
-                ),
-            )
+        async def dispose(self) -> None:
+            pass
+
+    class TestFactory:
+        def __init__(self, executor):
+            self.executor = executor
+
+        def discover_entrypoints(self) -> list[str]:
+            return ["test"]
+
+        async def discover_runtimes(self) -> list[UiPathRuntimeProtocol]:
+            return [TestRuntime(self.executor)]
+
+        async def new_runtime(
+            self, entrypoint: str, runtime_id: str
+        ) -> UiPathRuntimeProtocol:
+            return TestRuntime(self.executor)
+
+        async def dispose(self) -> None:
+            pass
+
+    factory = TestFactory(identity)
 
     # Act
-    result = await evaluate(MyFactory(), context, event_bus)
+    result = await evaluate(factory, trace_manager, context, event_bus)
 
     # Assert that the output is json-serializable
     UiPathEvalOutput.model_validate(result.output).model_dump_json()
     assert result.output
+    output_dict = (
+        result.output if isinstance(result.output, dict) else result.output.model_dump()
+    )
     assert (
-        result.output["evaluationSetResults"][0]["evaluationRunResults"][0]["result"][
+        output_dict["evaluationSetResults"][0]["evaluationRunResults"][0]["result"][
             "score"
         ]
-        == 100.0
+        == 1.0
     )
     assert (
-        result.output["evaluationSetResults"][0]["evaluationRunResults"][0][
-            "evaluatorId"
-        ]
-        == "equality"
+        output_dict["evaluationSetResults"][0]["evaluationRunResults"][0]["evaluatorId"]
+        == "ExactMatchEvaluator"
     )
-
-
-async def test_evaluate_with_custom_eval_set_run_id():
-    """Test that evaluate passes custom eval_set_run_id to the event."""
-    # Arrange
-    event_bus = EventBus()
-    custom_run_id = "custom-test-run-id-12345"
-    context = UiPathEvalContext(
-        eval_set=str(Path(__file__).parent / "evals" / "eval-sets" / "default.json"),
-        eval_set_run_id=custom_run_id,
-    )
-
-    async def identity(input: Any) -> Any:
-        return input
-
-    class TestRuntime(UiPathRuntime):
-        async def get_entrypoint(self) -> Entrypoint:
-            return Entrypoint(
-                file_path="test.py",  # type: ignore[call-arg]
-                unique_id="test",
-                type="workflow",
-                input={"type": "object", "properties": {}},
-                output={"type": "object", "properties": {}},
-            )
-
-    class MyFactory(UiPathRuntimeFactory[TestRuntime, UiPathRuntimeContext]):
-        def __init__(self):
-            super().__init__(
-                TestRuntime,
-                UiPathRuntimeContext,
-                runtime_generator=lambda context: TestRuntime(
-                    context, executor=identity
-                ),
-            )
-
-    factory = MyFactory()
-
-    # Create a runtime instance to verify the eval_set_run_id is passed to context
-    async with UiPathEvalRuntime.from_eval_context(
-        factory=factory,
-        context=context,
-        event_bus=event_bus,
-    ) as eval_runtime:
-        # Assert - verify that the custom run ID was stored in context
-        assert eval_runtime.context.eval_set_run_id == custom_run_id
-        # execution_id is different from eval_set_run_id - it's always a UUID
-        import uuid
-
-        assert eval_runtime.execution_id != custom_run_id
-        # Verify execution_id is a valid UUID
-        uuid.UUID(eval_runtime.execution_id)
-
-
-async def test_eval_runtime_uses_custom_eval_set_run_id():
-    """Test that UiPathEvalRuntime stores custom eval_set_run_id in context."""
-    # Arrange
-    custom_run_id = "my-custom-run-id"
-    context = UiPathEvalContext(
-        eval_set=str(Path(__file__).parent / "evals" / "eval-sets" / "default.json"),
-        eval_set_run_id=custom_run_id,
-    )
-    event_bus = EventBus()
-
-    async def identity(input: Any) -> Any:
-        return input
-
-    class TestRuntime(UiPathRuntime):
-        async def get_entrypoint(self) -> Entrypoint:
-            return Entrypoint(
-                file_path="test.py",  # type: ignore[call-arg]
-                unique_id="test",
-                type="workflow",
-                input={"type": "object", "properties": {}},
-                output={"type": "object", "properties": {}},
-            )
-
-    class MyFactory(UiPathRuntimeFactory[TestRuntime, UiPathRuntimeContext]):
-        def __init__(self):
-            super().__init__(
-                TestRuntime,
-                UiPathRuntimeContext,
-                runtime_generator=lambda context: TestRuntime(
-                    context, executor=identity
-                ),
-            )
-
-    factory = MyFactory()
-
-    # Act
-    runtime = UiPathEvalRuntime(context, factory, event_bus)
-
-    # Assert - verify eval_set_run_id is stored in context
-    assert runtime.context.eval_set_run_id == custom_run_id
-    # execution_id is separate and always a UUID
-    import uuid
-
-    assert runtime.execution_id != custom_run_id
-    # Verify execution_id is a valid UUID
-    uuid.UUID(runtime.execution_id)
 
 
 async def test_eval_runtime_generates_uuid_when_no_custom_id():
     """Test that UiPathEvalRuntime generates UUID when no custom eval_set_run_id provided."""
     # Arrange
-    context = UiPathEvalContext(
-        eval_set=str(Path(__file__).parent / "evals" / "eval-sets" / "default.json"),
+    context = UiPathEvalContext()
+    context.eval_set = str(
+        Path(__file__).parent / "evals" / "eval-sets" / "default.json"
     )
     event_bus = EventBus()
+    trace_manager = UiPathTraceManager()
 
-    async def identity(input: Any) -> Any:
+    async def identity(input: dict[str, Any]) -> dict[str, Any]:
         return input
 
-    class TestRuntime(UiPathRuntime):
-        async def get_entrypoint(self) -> Entrypoint:
-            return Entrypoint(
-                file_path="test.py",  # type: ignore[call-arg]
-                unique_id="test",
+    # Mock runtime that implements the protocol
+    class TestRuntime:
+        def __init__(self, executor):
+            self.executor = executor
+
+        async def execute(
+            self,
+            input: dict[str, Any] | None = None,
+            options: UiPathExecuteOptions | None = None,
+        ) -> UiPathRuntimeResult:
+            result = await self.executor(input or {})
+            return UiPathRuntimeResult(
+                output=result,
+                status=UiPathRuntimeStatus.SUCCESSFUL,
+            )
+
+        async def stream(
+            self,
+            input: dict[str, Any] | None = None,
+            options: UiPathStreamOptions | None = None,
+        ) -> AsyncGenerator[UiPathRuntimeEvent, None]:
+            result = await self.executor(input or {})
+            yield UiPathRuntimeResult(
+                output=result,
+                status=UiPathRuntimeStatus.SUCCESSFUL,
+            )
+
+        async def get_schema(self) -> UiPathRuntimeSchema:
+            return UiPathRuntimeSchema(
+                filePath="test.py",
+                uniqueId="test",
                 type="workflow",
                 input={"type": "object", "properties": {}},
                 output={"type": "object", "properties": {}},
             )
 
-    class MyFactory(UiPathRuntimeFactory[TestRuntime, UiPathRuntimeContext]):
-        def __init__(self):
-            super().__init__(
-                TestRuntime,
-                UiPathRuntimeContext,
-                runtime_generator=lambda context: TestRuntime(
-                    context, executor=identity
-                ),
-            )
+        async def dispose(self) -> None:
+            pass
 
-    factory = MyFactory()
+    class TestFactory:
+        def __init__(self, executor):
+            self.executor = executor
+
+        def discover_entrypoints(self) -> list[str]:
+            return ["test"]
+
+        async def discover_runtimes(self) -> list[UiPathRuntimeProtocol]:
+            return [TestRuntime(self.executor)]
+
+        async def new_runtime(
+            self, entrypoint: str, runtime_id: str
+        ) -> UiPathRuntimeProtocol:
+            return TestRuntime(self.executor)
+
+        async def dispose(self) -> None:
+            pass
+
+    factory = TestFactory(identity)
 
     # Act
-    runtime = UiPathEvalRuntime(context, factory, event_bus)
+    runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
     # Assert
     # Should be a valid UUID format (36 characters with dashes)

@@ -7,7 +7,7 @@ This section provides a comprehensive reference for all UiPath SDK services and 
 Initialize the UiPath SDK client
 
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 
 # Initialize with environment variables
 sdk = UiPath()
@@ -22,10 +22,10 @@ Actions service
 
 ```python
 # Creates a new action synchronously.
-sdk.actions.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, app_version: Optional[int]=1, assignee: Optional[str]=None) -> uipath.models.actions.Action
+sdk.actions.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None) -> uipath.models.actions.Action
 
 # Creates a new action asynchronously.
-sdk.actions.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, app_version: Optional[int]=1, assignee: Optional[str]=None) -> uipath.models.actions.Action
+sdk.actions.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None) -> uipath.models.actions.Action
 
 # Retrieves an action by its key synchronously.
 sdk.actions.retrieve(action_key: str, app_folder_path: str="", app_folder_key: str="") -> uipath.models.actions.Action

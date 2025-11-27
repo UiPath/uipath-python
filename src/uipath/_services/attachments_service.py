@@ -76,7 +76,7 @@ class AttachmentsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -191,7 +191,7 @@ class AttachmentsService(FolderContext, BaseService):
         Examples:
             ```python
             import asyncio
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -330,7 +330,7 @@ class AttachmentsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -463,7 +463,7 @@ class AttachmentsService(FolderContext, BaseService):
         Examples:
             ```python
             import asyncio
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -573,7 +573,7 @@ class AttachmentsService(FolderContext, BaseService):
 
         Examples:
             ```python
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 
@@ -644,7 +644,7 @@ class AttachmentsService(FolderContext, BaseService):
         Examples:
             ```python
             import asyncio
-            from uipath import UiPath
+            from uipath.platform import UiPath
 
             client = UiPath()
 

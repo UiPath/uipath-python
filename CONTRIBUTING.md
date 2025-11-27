@@ -4,11 +4,11 @@
 
 ### Prerequisites
 
-1. **Install Python ≥ 3.10**:
-    - Download and install Python 3.10 from the official [Python website](https://www.python.org/downloads/)
+1. **Install Python ≥ 3.11**:
+    - Download and install Python 3.11 from the official [Python website](https://www.python.org/downloads/)
     - Verify the installation by running:
         ```sh
-        python3.10 --version
+        python3.11 --version
         ```
 
     Alternative: [mise](https://mise.jdx.dev/lang/python.html)
@@ -52,7 +52,7 @@ For additional commands related to linting, formatting, and building, run `just 
 
 2. Initialize the Python project:
     ```sh
-    uv init . --python 3.10
+    uv init . --python 3.11
     ```
 
 3. Set the SDK path:
@@ -65,12 +65,15 @@ For additional commands related to linting, formatting, and building, run `just 
     uv add --editable ${PATH_TO_SDK}
     ```
 
-> **Note:** Instead of cloning the project into `.venv/lib/python3.10/site-packages/uipath`, this mode creates a file named `_uipath.pth` inside `.venv/lib/python3.10/site-packages`. This file contains the value of `PATH_TO_SDK`, which is added to `sys.path`—the list of directories where Python searches for packages. To view the entries, run `python -c 'import sys; print(sys.path)'`.
+> **Note:** Instead of cloning the project into `.venv/lib/python3.11/site-packages/uipath`, this mode creates a file named `_uipath.pth` inside `.venv/lib/python3.11/site-packages`. This file contains the value of `PATH_TO_SDK`, which is added to `sys.path`—the list of directories where Python searches for packages. To view the entries, run `python -c 'import sys; print(sys.path)'`.
 
 ## API Style Guide
 
 ### General Rule
 - Use `key` instead of `id` for resource identifiers
+- Write well-typed, type-checker-friendly code.
+  - Do not use `# type: ignore` comments unless *absolutely* required.
+  - NEVER use `# type: ignore` at the start of a file.
 
 ### Standard Methods and Naming Conventions
 

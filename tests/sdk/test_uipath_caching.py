@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 from pytest import MonkeyPatch
 
-from uipath import UiPath
+from uipath.platform import UiPath
 
 
 @pytest.fixture
@@ -206,10 +206,12 @@ class TestStatelessServices:
 
     def test_actions_service_creates_new_instances(self, sdk: UiPath) -> None:
         """Verify that actions service creates new instances (stateless)."""
-        actions1 = sdk.actions
-        actions2 = sdk.actions
+        actions1 = sdk.tasks
+        actions2 = sdk.tasks
 
-        assert actions1 is not actions2, "Actions service should create new instances"
+        assert actions1 is not actions2, (
+            "Action Center service should create new instances"
+        )
 
     def test_queues_service_creates_new_instances(self, sdk: UiPath) -> None:
         """Verify that queues service creates new instances (stateless)."""
@@ -230,7 +232,7 @@ class TestStatelessServices:
         [
             "api_client",
             "assets",
-            "actions",
+            "tasks",
             "processes",
             "queues",
             "jobs",

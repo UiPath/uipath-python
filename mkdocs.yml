@@ -59,7 +59,7 @@ nav:
         - CLI Reference: cli/index.md
         - Tracing: core/traced.md
         - Services:
-            - Actions: core/actions.md
+            - Action Center: core/action_center.md
             - Assets: core/assets.md
             - Buckets: core/buckets.md
             - Connections: core/connections.md
@@ -69,8 +69,24 @@ nav:
             - LLM Gateway: core/llm_gateway.md
             - Queues: core/queues.md
             - Processes: core/processes.md
+            - Resource Catalog: core/resource_catalog.md
         - Models:
             - Documents: core/documents_models.md
+        - Evaluations:
+            - Overview: eval/index.md
+            - Output Evaluators:
+                - Contains: eval/contains.md
+                - Exact Match: eval/exact_match.md
+                - JSON Similarity: eval/json_similarity.md
+                - LLM Judge Output: eval/llm_judge_output.md
+            - Trajectory Evaluators:
+                - Tool Call Order: eval/tool_call_order.md
+                - Tool Call Count: eval/tool_call_count.md
+                - Tool Call Args: eval/tool_call_args.md
+                - Tool Call Output: eval/tool_call_output.md
+                - LLM Judge Trajectory: eval/llm_judge_trajectory.md
+            - Custom Evaluators: eval/custom_evaluators.md
+
   - UiPath MCP SDK:
       - Getting Started: mcp/quick_start.md
       - How To Pack Binary: mcp/how_to_pack_binary.md

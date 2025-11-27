@@ -1,10 +1,7 @@
-import asyncio
 import logging
 from enum import Enum
-from functools import wraps
-from typing import Callable, Literal, TypeVar
+from typing import Literal, TypeVar
 
-from opentelemetry import trace
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 
@@ -14,51 +11,6 @@ from uipath.tracing import traced
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-
-
-def mock_tool_span(func: Callable[..., T]) -> Callable[..., T]:
-    """
-    Decorator that wraps a function to set tool.name on the OTEL span.
-
-    This decorator sets the tool.name attribute required by UiPath's trajectory
-    evaluation system to extract tool calls from traces.
-
-    Usage:
-        @traced()                    # Creates OTEL span for tracing
-        @mockable(example_calls=...) # Adds mocking support
-        @mock_tool_span                 # Innermost - sets tool.name attribute
-        async def my_tool(arg: str) -> dict:
-            return {"result": "value"}
-
-    Multiple Tool Calls:
-        Each tool invocation via .ainvoke() creates a separate span with its own
-        tool.name attribute. The trajectory evaluator will extract all tool calls
-        in sequence:
-            - get_temperature(...) -> span with tool.name="get_temperature"
-            - get_humidity(...)    -> span with tool.name="get_humidity"
-            - get_forecast(...)    -> span with tool.name="get_forecast"
-    """
-    @wraps(func)
-    async def async_wrapper(*args, **kwargs):
-        # Get current span and set tool.name attribute
-        span = trace.get_current_span()
-        if span and span.is_recording():
-            span.set_attribute("tool.name", func.__name__)
-        return await func(*args, **kwargs)
-
-    @wraps(func)
-    def sync_wrapper(*args, **kwargs):
-        # Get current span and set tool.name attribute
-        span = trace.get_current_span()
-        if span and span.is_recording():
-            span.set_attribute("tool.name", func.__name__)
-        return func(*args, **kwargs)
-
-    # Detect if the function is async or sync
-    if asyncio.iscoroutinefunction(func):
-        return async_wrapper
-    else:
-        return sync_wrapper
 
 
 class City(str, Enum):
@@ -102,9 +54,8 @@ GET_TEMPERATURE_EXAMPLES = [
     )
 ]
 
-@traced()
+@traced(name="get_temperature", span_type="tool")
 @mockable(example_calls=GET_TEMPERATURE_EXAMPLES)
-@mock_tool_span
 async def get_temperature(city: str) -> dict:
     """Get the current temperature for a city.
 
@@ -136,9 +87,8 @@ GET_CONDITION_EXAMPLES = [
     )
 ]
 
-@traced()
+@traced(name="get_weather_condition", span_type="tool")
 @mockable(example_calls=GET_CONDITION_EXAMPLES)
-@mock_tool_span
 async def get_weather_condition(city: str) -> dict:
     """Get the current weather condition for a city.
 
@@ -170,9 +120,8 @@ GET_HUMIDITY_EXAMPLES = [
     )
 ]
 
-@traced()
+@traced(name="get_humidity", span_type="tool")
 @mockable(example_calls=GET_HUMIDITY_EXAMPLES)
-@mock_tool_span
 async def get_humidity(city: str) -> dict:
     """Get the current humidity level for a city.
 
@@ -205,9 +154,8 @@ GET_FORECAST_EXAMPLES = [
 ]
 
 
-@traced()
+@traced(name="get_forecast", span_type="tool")
 @mockable(example_calls=GET_FORECAST_EXAMPLES)
-@mock_tool_span
 async def get_forecast(city: str) -> dict:
     """Get the weather forecast for a city.
 
@@ -239,9 +187,8 @@ GET_ALERTS_EXAMPLES = [
     )
 ]
 
-@traced()
+@traced(name="get_weather_alerts", span_type="tool")
 @mockable(example_calls=GET_ALERTS_EXAMPLES)
-@mock_tool_span
 async def get_weather_alerts(city: str) -> dict:
     """Get weather alerts for a city.
 
@@ -265,7 +212,7 @@ async def get_weather_alerts(city: str) -> dict:
     return {"content":{"alerts": alerts.get(city_enum, [])}}
 
 
-@traced()
+@traced(name="main")
 async def main(input: WeatherInput) -> WeatherOutput:
     """Main weather agent that orchestrates different weather tools.
 

@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
--   Python 3.10 or higher
+-   Python 3.11 or higher
 -   `pip` or `uv` package manager
 -   A UiPath Cloud Platform account with appropriate permissions
 
@@ -11,7 +11,6 @@
 //// tab | Linux, macOS, Windows Bash
 
 <!-- termynal -->
-
 ```shell
 > mkdir uipath_coded_process
 > cd uipath_coded_process
@@ -22,7 +21,6 @@
 //// tab | Windows PowerShell
 
 <!-- termynal -->
-
 ```powershell
 > New-Item -ItemType Directory -Path uipath_coded_process
 > Set-Location uipath_coded_process
@@ -34,15 +32,14 @@
     new: true
 
 <!-- termynal -->
-
 ```shell
 # Initialize a new uv project in the current directory
-> uv init . --python 3.10
+> uv init . --python 3.11
 
 # Create a new virtual environment
 # By default, uv creates a virtual environment in a directory called .venv
 > uv venv
-Using CPython 3.10.16 interpreter at: [PATH]
+Using CPython 3.11 interpreter at: [PATH]
 Creating virtual environment at: .venv
 Activate with: source .venv/bin/activate
 
@@ -64,7 +61,6 @@ uipath version 2.0.29
 //// tab | pip
 
 <!-- termynal -->
-
 ```shell
 # Create a new virtual environment
 > python -m venv .venv
@@ -89,7 +85,7 @@ uipath version 2.0.29
 
 ### Telemetry
 
-To help us improve the developer experience, the CLI collects basic usage data about commands invocation. For more details about UiPath’s privacy practices, please review the [privacy statement](https://www.uipath.com/legal/privacy-policy).
+To help us improve the developer experience, the CLI collects basic usage data about commands invocation. For more details about UiPath's privacy practices, please review the [privacy statement](https://www.uipath.com/legal/privacy-policy).
 
 #### Disabling telemetry data
 
@@ -100,7 +96,6 @@ Telemetry is enabled by default, yet it is possible to opt-out by setting to `fa
 To debug your script locally and publish your project, you need to authenticate with UiPath:
 
 <!-- termynal -->
-
 ```shell
 > uipath auth
 ⠋ Authenticating with UiPath ...
@@ -120,7 +115,6 @@ Upon successful authentication, your project will contain a `.env` file with you
 ### Writing Your Code
 
 Open `main.py` in your code editor. You can start with this example code:
-
 ```python
 from dataclasses import dataclass
 from typing import Optional
@@ -151,14 +145,25 @@ def main(input: EchoIn) -> EchoOut:
 
 ### Initializing the UiPath Project
 
-To create a UiPath project, run the following command in your terminal:
+Before running `uipath init`, you need to create a `uipath.json` file that specifies which functions to expose. Create a `uipath.json` file in your project directory with the following content:
+```json
+{
+  "functions": {
+    "main": "main.py:main"
+  }
+}
+```
+
+The `functions` object maps function names to their locations in the format `<file>:<function_name>`.
+
+Now, run the initialization command:
 
 <!-- termynal -->
-
 ```shell
 > uipath init
 ⠋ Initializing UiPath project ...
-✓  Created 'uipath.json' file.
+✓  Created 'entry-points.json' file.
+✓  Created 'bindings.json' file.
 ```
 
 /// warning
@@ -166,13 +171,15 @@ To create a UiPath project, run the following command in your terminal:
 The `uipath init` command executes your `main.py` file to analyze its structure and collect information about inputs and outputs.
 ///
 
-This command creates a `uipath.json` file containing the project metadata.
+This command generates two files:
+
+- `entry-points.json`: Contains the input/output schema for your functions
+- `bindings.json`: Allows you to configure overridable resource bindings.
 
 <!-- termynal -->
-
 ```shell
 # Debug your project
-> uipath run main.py '{"message": "test"}'
+> uipath run main '{"message": "test"}'
 [2025-04-11 10:13:58,857][INFO] {'message': 'test'}
 ```
 
@@ -181,19 +188,19 @@ Depending on the shell you are using, it may be necessary to escape the input js
 
 /// tab | Bash/ZSH/PowerShell
 ```console
-uipath run main.py '{"message": "test"}'
+uipath run main '{"message": "test"}'
 ```
 ///
 
 /// tab | Windows CMD
 ```console
-uipath run main.py "{""message"": ""test""}"
+uipath run main "{""message"": ""test""}"
 ```
 ///
 
 /// tab | Windows PowerShell
 ```console
-uipath run main.py '{\"message\":\"test\"}'
+uipath run main '{\"message\":\"test\"}'
 ```
 ///
 
@@ -202,7 +209,6 @@ uipath run main.py '{\"message\":\"test\"}'
 ### Packaging and Publishing
 
 Before packaging your project, add your details to the `pyproject.toml` file. Add the following line below the `description` field:
-
 ```toml
 authors = [{ name = "Your Name", email = "your.email@uipath.com" }]
 ```
@@ -210,7 +216,6 @@ authors = [{ name = "Your Name", email = "your.email@uipath.com" }]
 Then, package your project:
 
 <!-- termynal -->
-
 ```shell
 > uipath pack
 ⠋ Packaging project ...
@@ -224,7 +229,6 @@ Authors    : Your Name
 Finally, publish your package:
 
 <!-- termynal -->
-
 ```shell
 > uipath publish
 ⠋ Fetching available package feeds...
@@ -244,9 +248,8 @@ After selecting your publishing destination (tenant or personal workspace), you'
 Create a **new project** (separate from the one you just packaged and published) following the same steps as above. This new project will invoke your previous process using the UiPath SDK.
 
 Open `main.py` in your code editor and add the following code:
-
 ```python
-from uipath import UiPath
+from uipath.platform import UiPath
 
 
 def main():
@@ -269,13 +272,11 @@ An agent can invoke itself if needed, but this must be done with caution. Be min
 ### Verifying the Execution
 
 <!-- termynal -->
-
 ```shell
 > uipath run main.py
 ```
 
 Open your browser and navigate to UiPath. Go to the specified folder, where you'll see a new job for `uipath_coded_process` has been executed. The output will be:
-
 ```
 [Echo]: Hello, World! Echo: Hello, World! Echo: Hello, World!
 ```

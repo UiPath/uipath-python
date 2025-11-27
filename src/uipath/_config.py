@@ -25,6 +25,12 @@ class ConfigurationManager:
         return Path(UIPATH_BINDINGS_FILE)
 
     @property
+    def config_file_path(self) -> Path:
+        from uipath._utils.constants import UIPATH_CONFIG_FILE
+
+        return Path(UIPATH_CONFIG_FILE)
+
+    @property
     def config_file_name(self) -> str:
         from uipath._utils.constants import UIPATH_CONFIG_FILE
 
@@ -51,6 +57,32 @@ class ConfigurationManager:
         from uipath._utils.constants import ENV_JOB_KEY
 
         return os.getenv(ENV_JOB_KEY, None)
+
+    @property
+    def has_legacy_eval_folder(self) -> bool:
+        from uipath._utils.constants import LEGACY_EVAL_FOLDER
+
+        eval_path = Path(os.getcwd()) / LEGACY_EVAL_FOLDER
+        return eval_path.exists() and eval_path.is_dir()
+
+    @property
+    def has_eval_folder(self) -> bool:
+        from uipath._utils.constants import EVALS_FOLDER
+
+        coded_eval_path = Path(os.getcwd()) / EVALS_FOLDER
+        return coded_eval_path.exists() and coded_eval_path.is_dir()
+
+    @property
+    def entry_points_file_path(self) -> Path:
+        from uipath._utils.constants import ENTRY_POINTS_FILE
+
+        return Path(ENTRY_POINTS_FILE)
+
+    @property
+    def studio_metadata_file_path(self) -> Path:
+        from uipath._utils.constants import STUDIO_METADATA_FILE
+
+        return Path(".uipath", STUDIO_METADATA_FILE)
 
 
 UiPathConfig = ConfigurationManager()

@@ -1,4 +1,5 @@
-from unittest.mock import MagicMock
+import json
+from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import unquote_plus
 
 import pytest
@@ -10,7 +11,9 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.connections_service import ConnectionsService
 from uipath._services.folder_service import FolderService
 from uipath._utils.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
-from uipath.models import (
+from uipath.platform.connections import (
+    ActivityMetadata,
+    ActivityParameterLocationInfo,
     Connection,
     ConnectionMetadata,
     ConnectionToken,
@@ -23,7 +26,8 @@ from uipath.utils.dynamic_schema import jsonschema_to_pydantic
 def mock_folders_service() -> MagicMock:
     """Mock FolderService for testing."""
     service = MagicMock(spec=FolderService)
-    service.retrieve_key.return_value = "test-folder-key"
+    service.retrieve_folder_key.return_value = "test-folder-key"
+    service.retrieve_folder_key_async = AsyncMock(return_value="test-folder-key")
     return service
 
 
@@ -560,7 +564,7 @@ class TestConnectionsService:
         version: str,
     ) -> None:
         """Test list method with folder path resolution."""
-        mock_folders_service.retrieve_key.return_value = "folder-123"
+        mock_folders_service.retrieve_folder_key.return_value = "folder-123"
 
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections?%24expand=connector%2Cfolder",
@@ -571,8 +575,8 @@ class TestConnectionsService:
         service.list(folder_path="Finance/Production")
 
         # Verify folder service was called
-        mock_folders_service.retrieve_key.assert_called_once_with(
-            folder_path="Finance/Production"
+        mock_folders_service.retrieve_folder_key.assert_called_once_with(
+            "Finance/Production"
         )
 
         sent_request = httpx_mock.get_request()
@@ -657,7 +661,7 @@ class TestConnectionsService:
         version: str,
     ) -> None:
         """Test list method with multiple filters combined."""
-        mock_folders_service.retrieve_key.return_value = "folder-456"
+        mock_folders_service.retrieve_folder_key.return_value = "folder-456"
 
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections?%24filter=contains%28Name%2C%20%27Slack%27%29%20and%20connector%2Fkey%20eq%20%27uipath-slack%27&%24expand=connector%2Cfolder",
@@ -930,20 +934,6 @@ class TestConnectionsService:
         ):
             await service.retrieve_event_payload_async(event_args=event_args)
 
-    def test_list_with_invalid_folder_path(
-        self, service: ConnectionsService, mock_folders_service: MagicMock
-    ) -> None:
-        """Test that ValueError is raised when folder_path cannot be resolved."""
-        mock_folders_service.retrieve_key.return_value = None
-
-        with pytest.raises(ValueError) as exc_info:
-            service.list(folder_path="NonExistent/Folder")
-
-        assert "Folder with path 'NonExistent/Folder' not found" in str(exc_info.value)
-        mock_folders_service.retrieve_key.assert_called_once_with(
-            folder_path="NonExistent/Folder"
-        )
-
     def test_list_with_name_containing_quote(
         self, httpx_mock: HTTPXMock, service: ConnectionsService
     ) -> None:
@@ -993,18 +983,6 @@ class TestConnectionsService:
         assert len(connections) == 1
         assert connections[0].id == "conn-1"
         assert connections[0].name == "Direct List Connection"
-
-    def test_list_with_both_folder_path_and_folder_key_raises_error(
-        self, service: ConnectionsService
-    ) -> None:
-        """Test that providing both folder_path and folder_key raises ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            service.list(folder_path="Finance/Production", folder_key="folder-123")
-
-        assert "folder_path and folder_key are mutually exclusive" in str(
-            exc_info.value
-        )
-        assert "cannot be provided together" in str(exc_info.value)
 
     def test_get_jit_action_url_with_api_action(
         self, service: ConnectionsService
@@ -1258,3 +1236,419 @@ class TestConnectionsService:
         # Verify exactly 2 requests were made (initial + 1 JIT level, then stopped)
         requests = httpx_mock.get_requests()
         assert len(requests) == 2
+
+
+@pytest.fixture
+def simple_activity_metadata() -> ActivityMetadata:
+    """Simple activity metadata for non-path tests."""
+    return ActivityMetadata(
+        object_path="/elements/test-connector/test-activity",
+        method_name="POST",
+        content_type="application/json",
+        parameter_location_info=ActivityParameterLocationInfo(
+            query_params=["query_param", "query_param2"],
+            header_params=["custom_header", "custom_header2"],
+            path_params=[],
+            multipart_params=[],
+            body_fields=["body_field1", "body_field2", "body_field3"],
+        ),
+    )
+
+
+@pytest.fixture
+def path_activity_metadata() -> ActivityMetadata:
+    """Sample activity metadata for testing with all parameter types."""
+    return ActivityMetadata(
+        object_path="/elements/test-connector/users/{userId}/posts/{postId}",
+        method_name="POST",
+        content_type="application/json",
+        parameter_location_info=ActivityParameterLocationInfo(
+            query_params=[],
+            header_params=[],
+            path_params=["userId", "postId"],
+            multipart_params=[],
+            body_fields=[],
+        ),
+    )
+
+
+@pytest.fixture
+def multipart_activity_metadata() -> ActivityMetadata:
+    """Sample multipart activity metadata for testing."""
+    return ActivityMetadata(
+        object_path="/elements/test-connector/upload",
+        method_name="POST",
+        content_type="multipart/form-data",
+        parameter_location_info=ActivityParameterLocationInfo(
+            query_params=[],
+            header_params=[],
+            path_params=[],
+            multipart_params=["file_param"],
+            body_fields=["description"],
+        ),
+    )
+
+
+class TestConnectorActivityInvocation:
+    def test_invoke_activity_with_query_params(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test invoking with query parameters only."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "query_param": "test search query",
+            "query_param2": "additional query",
+        }
+        expected_response = {"results": [], "total": 0}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        _ = service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        # Check query parameters
+        assert sent_request.url.params["query_param"] == "test search query"
+        assert sent_request.url.params["query_param2"] == "additional query"
+
+    def test_invoke_activity_with_header_params(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test invoking with header parameters only."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "custom_header": "secret-api-key",
+            "custom_header2": "client-123",
+        }
+        expected_response = {"authenticated": True}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        _ = service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        # Check custom headers
+        assert sent_request.headers["custom_header"] == "secret-api-key"
+        assert sent_request.headers["custom_header2"] == "client-123"
+
+    def test_invoke_activity_sets_standard_headers(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test invoking sets standard headers correctly."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "body_field1": "Test Item",
+        }
+        expected_response = {"status": "success"}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        _ = service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        # Check standard headers
+        assert sent_request.headers["x-uipath-originator"] == "uipath-python"
+        assert sent_request.headers["x-uipath-source"] == "uipath-python"
+
+    def test_invoke_activity_with_body_fields(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test invoking with JSON body fields only."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "body_field1": "Test Item",
+            "body_field2": "This is a test item",
+            "body_field3": "high",
+        }
+        expected_response = {"id": 456, "status": "created"}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        _ = service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        # Check JSON body
+        request_json = json.loads(sent_request.content.decode())
+        assert request_json == {
+            "body_field1": "Test Item",
+            "body_field2": "This is a test item",
+            "body_field3": "high",
+        }
+
+    def test_invoke_activity_with_path_parameters(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        path_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test invoking with path parameters only."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "userId": "user456",
+            "postId": "post789",
+        }
+        expected_response = {"user": "user456", "post": "post789"}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        _ = service.invoke_activity(
+            activity_metadata=path_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        # Verify URL path substitution worked correctly
+        assert sent_request.url.path.endswith(
+            "/elements_/v3/element/instances/test-connection-123/elements/test-connector/users/user456/posts/post789"
+        )
+
+    def test_invoke_activity_multipart_request(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        multipart_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test invoking an Integration Service activity with multipart content."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "file_param": b"test file content",
+            "description": "Test file upload",
+        }
+        expected_response = {"upload_id": "upload123", "status": "success"}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        _ = service.invoke_activity(
+            activity_metadata=multipart_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert "multipart/form-data" in sent_request.headers.get("content-type", "")
+
+    @pytest.mark.asyncio
+    async def test_invoke_activity_async_json_request(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test async invocation of an Integration Service activity."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "query_param": "test_query",
+            "body_field1": "async_value1",
+            "body_field2": "async_value2",
+        }
+        expected_response = {"result": "async_success", "data": {"id": 456}}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        response = await service.invoke_activity_async(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        assert response == expected_response
+
+    def test_invoke_activity_with_none_values_filtered(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test that None values are filtered out from the request."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "query_param": "test_query",
+            "custom_header": None,  # This should be filtered out
+            "body_field1": "value1",
+            "body_field2": None,  # This should be filtered out
+        }
+        expected_response = {"result": "success"}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        _ = service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        # custom_header should not be present since it was None
+        assert "custom_header" not in sent_request.headers
+
+        # Only non-None body fields should be present
+        request_json = json.loads(sent_request.content.decode())
+        assert request_json == {"body_field1": "value1"}
+
+    def test_invoke_activity_unknown_parameter_raises_error(
+        self,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test that unknown parameters raise a ValueError."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "unknown_param": "value",  # This parameter doesn't exist in metadata
+        }
+
+        with pytest.raises(
+            ValueError,
+            match="Parameter unknown_param does not exist in activity metadata",
+        ):
+            service.invoke_activity(
+                activity_metadata=simple_activity_metadata,
+                connection_id=connection_id,
+                activity_input=activity_input,
+            )
+
+    def test_invoke_activity_unsupported_content_type_raises_error(
+        self,
+        service: ConnectionsService,
+    ) -> None:
+        """Test that unsupported content types raise a ValueError."""
+        unsupported_metadata = ActivityMetadata(
+            object_path="/elements/test-connector/test-activity",
+            method_name="POST",
+            content_type="application/xml",  # Unsupported content type
+            parameter_location_info=ActivityParameterLocationInfo(
+                query_params=[],
+                header_params=[],
+                path_params=[],
+                multipart_params=[],
+                body_fields=["xml_data"],
+            ),
+        )
+
+        connection_id = "test-connection-123"
+        activity_input = {"xml_data": "<test>data</test>"}
+
+        with pytest.raises(
+            ValueError, match="Unsupported content type: application/xml"
+        ):
+            service.invoke_activity(
+                activity_metadata=unsupported_metadata,
+                connection_id=connection_id,
+                activity_input=activity_input,
+            )
+
+    def test_invoke_activity_empty_input(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+    ) -> None:
+        """Test invoking with empty input."""
+        activity_metadata = ActivityMetadata(
+            object_path="/elements/test-connector/ping",
+            method_name="GET",
+            content_type="application/json",
+            parameter_location_info=ActivityParameterLocationInfo(
+                query_params=[],
+                header_params=[],
+                path_params=[],
+                multipart_params=[],
+                body_fields=[],
+            ),
+        )
+
+        connection_id = "test-connection-123"
+        expected_response = {"status": "pong"}
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json=expected_response,
+        )
+
+        result = service.invoke_activity(
+            activity_metadata=activity_metadata,
+            connection_id=connection_id,
+            activity_input={},
+        )
+
+        assert result == expected_response

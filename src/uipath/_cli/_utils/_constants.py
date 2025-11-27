@@ -1,8 +1,7 @@
 BINDINGS_VERSION = "2.2"
 
-# Agent.json constants
-AGENT_VERSION = "1.0.0"
-AGENT_STORAGE_VERSION = "1.0.0"
+# studio_metadata.json constants
+SCHEMA_VERSION = 1
 AGENT_INITIAL_CODE_VERSION = "1.0.0"
 AGENT_TARGET_RUNTIME = "python"
 
@@ -58,10 +57,7 @@ BINARY_EXTENSIONS = (
     | SPECIAL_EXTENSIONS
 )
 
-# Directory names
 EVALS_DIRECTORY_NAME = "evals"
-DEBUG_DIRECTORY_NAME = "debug"
-SRC_DIRECTORY_NAME = "src"
 
 
 def is_binary_file(file_extension: str) -> bool:

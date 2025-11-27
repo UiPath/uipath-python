@@ -1,4 +1,3 @@
-import json
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import httpx
@@ -10,16 +9,30 @@ from .._execution_context import ExecutionContext
 from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder, resource_override
 from .._utils.constants import (
-    CONFLUENCE_DATA_SOURCE,
-    DROPBOX_DATA_SOURCE,
-    GOOGLE_DRIVE_DATA_SOURCE,
-    LLMV4,
-    ONEDRIVE_DATA_SOURCE,
+    LLMV4_REQUEST,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
-from ..models import IngestionInProgressException
-from ..models.context_grounding import ContextGroundingQueryResponse
-from ..models.context_grounding_index import ContextGroundingIndex
+from ..platform.context_grounding import (
+    BucketDataSource,
+    BucketSourceConfig,
+    ConfluenceDataSource,
+    ConfluenceSourceConfig,
+    ContextGroundingIndex,
+    ContextGroundingQueryResponse,
+    CreateIndexPayload,
+    DropboxDataSource,
+    DropboxSourceConfig,
+    GoogleDriveDataSource,
+    GoogleDriveSourceConfig,
+    OneDriveDataSource,
+    OneDriveSourceConfig,
+    PreProcessing,
+    SourceConfig,
+)
+from ..platform.errors import (
+    IngestionInProgressException,
+    UnsupportedDataSourceException,
+)
 from ..tracing import traced
 from ._base_service import BaseService
 from .buckets_service import BucketsService
@@ -323,12 +336,10 @@ class ContextGroundingService(FolderContext, BaseService):
     def create_index(
         self,
         name: str,
-        source: Dict[str, Any],
+        source: SourceConfig,
         description: Optional[str] = None,
-        cron_expression: Optional[str] = None,
-        time_zone_id: Optional[str] = None,
         advanced_ingestion: Optional[bool] = True,
-        preprocessing_request: Optional[str] = LLMV4,
+        preprocessing_request: Optional[str] = LLMV4_REQUEST,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
@@ -336,17 +347,18 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the index to create.
-            source (dict): Source configuration dictionary:
-                - For buckets: type="bucket", bucket_name, folder_path, directory_path="/" (optional), file_type (optional)
-                - For Google Drive: type="google", connection_name, connection_id, leaf_folder_id, directory_path, folder_path, file_type (optional)
-                - For Dropbox: type="dropbox", connection_name, connection_id, directory_path, folder_path, file_type (optional)
-                - For OneDrive: type="onedrive", connection_name, connection_id, leaf_folder_id, directory_path, folder_path, file_type (optional)
-                - For Confluence: type="confluence", connection_name, connection_id, space_id, directory_path, folder_path, file_type (optional)
+            source (SourceConfig): Source configuration using one of:
+                - BucketSourceConfig: For storage buckets
+                - GoogleDriveSourceConfig: For Google Drive
+                - DropboxSourceConfig: For Dropbox
+                - OneDriveSourceConfig: For OneDrive
+                - ConfluenceSourceConfig: For Confluence
+
+                The source can include an optional indexer field for scheduled indexing:
+                    source.indexer = Indexer(cron_expression="0 0 18 ? * 2", time_zone_id="UTC")
             description (Optional[str]): Description of the index.
-            cron_expression (Optional[str]): Cron expression for scheduled indexing (e.g., "0 0 18 ? * 2" for Tuesdays at 6 PM).
-            time_zone_id (Optional[str]): Valid Windows Timezone ID for the cron expression (e.g., "UTC", "Pacific Standard Time", "GTB Standard Time").
             advanced_ingestion (Optional[bool]): Enable advanced ingestion with preprocessing. Defaults to True.
-            preprocessing_request (Optional[str]): The OData type for preprocessing request. Defaults to LLMV4.
+            preprocessing_request (Optional[str]): The OData type for preprocessing request. Defaults to LLMV4_REQUEST.
             folder_key (Optional[str]): The key of the folder where the index will be created.
             folder_path (Optional[str]): The path of the folder where the index will be created.
 
@@ -357,12 +369,10 @@ class ContextGroundingService(FolderContext, BaseService):
             name=name,
             description=description,
             source=source,
-            cron_expression=cron_expression,
-            time_zone_id=time_zone_id,
             advanced_ingestion=advanced_ingestion
             if advanced_ingestion is not None
             else True,
-            preprocessing_request=preprocessing_request or LLMV4,
+            preprocessing_request=preprocessing_request or LLMV4_REQUEST,
             folder_path=folder_path,
             folder_key=folder_key,
         )
@@ -370,7 +380,7 @@ class ContextGroundingService(FolderContext, BaseService):
         response = self.request(
             spec.method,
             spec.endpoint,
-            content=spec.content,
+            json=spec.json,
             headers=spec.headers,
         )
 
@@ -381,12 +391,10 @@ class ContextGroundingService(FolderContext, BaseService):
     async def create_index_async(
         self,
         name: str,
-        source: Dict[str, Any],
+        source: SourceConfig,
         description: Optional[str] = None,
-        cron_expression: Optional[str] = None,
-        time_zone_id: Optional[str] = None,
         advanced_ingestion: Optional[bool] = True,
-        preprocessing_request: Optional[str] = LLMV4,
+        preprocessing_request: Optional[str] = LLMV4_REQUEST,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
@@ -394,17 +402,18 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the index to create.
-            source (dict): Source configuration dictionary:
-                - For buckets: type="bucket", bucket_name, folder_path, directory_path="/" (optional), file_type (optional)
-                - For Google Drive: type="google_drive", connection_name, connection_id, leaf_folder_id, directory_path, folder_path, file_type (optional)
-                - For Dropbox: type="dropbox", connection_name, connection_id, directory_path, folder_path, file_type (optional)
-                - For OneDrive: type="onedrive", connection_name, connection_id, leaf_folder_id, directory_path, folder_path, file_type (optional)
-                - For Confluence: type="confluence", connection_name, connection_id, space_id, directory_path, folder_path, file_type (optional)
+            source (SourceConfig): Source configuration using one of:
+                - BucketSourceConfig: For storage buckets
+                - GoogleDriveSourceConfig: For Google Drive
+                - DropboxSourceConfig: For Dropbox
+                - OneDriveSourceConfig: For OneDrive
+                - ConfluenceSourceConfig: For Confluence
+
+                The source can include an optional indexer field for scheduled indexing:
+                    source.indexer = Indexer(cron_expression="0 0 18 ? * 2", time_zone_id="UTC")
             description (Optional[str]): Description of the index.
-            cron_expression (Optional[str]): Cron expression for scheduled indexing (e.g., "0 0 18 ? * 2" for Tuesdays at 6 PM).
-            time_zone_id (Optional[str]): Valid Windows Timezone ID for the cron expression (e.g., "UTC", "Pacific Standard Time", "GTB Standard Time").
             advanced_ingestion (Optional[bool]): Enable advanced ingestion with preprocessing. Defaults to True.
-            preprocessing_request (Optional[str]): The OData type for preprocessing request. Defaults to LLMV4.
+            preprocessing_request (Optional[str]): The OData type for preprocessing request. Defaults to LLMV4_REQUEST.
             folder_key (Optional[str]): The key of the folder where the index will be created.
             folder_path (Optional[str]): The path of the folder where the index will be created.
 
@@ -415,12 +424,10 @@ class ContextGroundingService(FolderContext, BaseService):
             name=name,
             description=description,
             source=source,
-            cron_expression=cron_expression,
-            time_zone_id=time_zone_id,
             advanced_ingestion=advanced_ingestion
             if advanced_ingestion is not None
             else True,
-            preprocessing_request=preprocessing_request or LLMV4,
+            preprocessing_request=preprocessing_request or LLMV4_REQUEST,
             folder_path=folder_path,
             folder_key=folder_key,
         )
@@ -428,7 +435,7 @@ class ContextGroundingService(FolderContext, BaseService):
         response = await self.request_async(
             spec.method,
             spec.endpoint,
-            content=spec.content,
+            json=spec.json,
             headers=spec.headers,
         )
 
@@ -701,11 +708,9 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         description: Optional[str],
-        source: Dict[str, Any],
+        source: SourceConfig,
         advanced_ingestion: bool,
         preprocessing_request: str,
-        cron_expression: Optional[str] = None,
-        time_zone_id: Optional[str] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
@@ -714,9 +719,7 @@ class ContextGroundingService(FolderContext, BaseService):
         Args:
             name: Index name
             description: Index description
-            source: Source configuration dictionary
-            cron_expression: Optional cron expression for scheduled indexing
-            time_zone_id: Optional timezone for cron expression
+            source: Source configuration (typed model) with optional indexer
             advanced_ingestion: Whether to enable advanced ingestion with preprocessing
             preprocessing_request: OData type for preprocessing request
             folder_key: Optional folder key
@@ -725,175 +728,101 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             RequestSpec for the create index request
         """
-        source_type = source.get("type", "").lower()
-
         folder_key = self._resolve_folder_key(folder_key, folder_path)
-        file_type = source.get("file_type")
-        file_name_glob = f"**/*.{file_type}" if file_type else "**/*"
 
-        data_source = self._build_data_source(source_type, source, file_name_glob)
+        data_source_dict = self._build_data_source(source)
 
-        if cron_expression:
-            data_source["indexer"] = {
-                "cronExpression": cron_expression,
-                "timeZoneId": time_zone_id or "UTC",
-            }
+        # Add indexer from source config if present
+        if source.indexer:
+            data_source_dict["indexer"] = source.indexer.model_dump(by_alias=True)
 
-        payload = {
-            "name": name,
-            "description": description or "",
-            "dataSource": data_source,
-        }
-
-        if advanced_ingestion and preprocessing_request:
-            payload["preProcessing"] = {
-                "@odata.type": preprocessing_request,
-            }
+        payload = CreateIndexPayload(
+            name=name,
+            description=description or "",
+            data_source=data_source_dict,
+            pre_processing=(
+                PreProcessing(**{"@odata.type": preprocessing_request})
+                if advanced_ingestion and preprocessing_request
+                else None
+            ),
+        )
 
         return RequestSpec(
             method="POST",
             endpoint=Endpoint("/ecs_/v2/indexes/create"),
-            content=json.dumps(payload),
+            json=payload.model_dump(by_alias=True, exclude_none=True),
             headers={
                 **header_folder(folder_key, None),
-                "Content-Type": "application/json",
             },
         )
 
-    def _build_data_source(
-        self, source_type: str, source: Dict[str, Any], file_name_glob: str
-    ) -> Dict[str, Any]:
-        """Build data source configuration based on type."""
-        if source_type == "bucket":
-            return self._build_bucket_data_source(source, file_name_glob)
-        elif source_type in ["google_drive"]:
-            return self._build_google_drive_data_source(source, file_name_glob)
-        elif source_type == "dropbox":
-            return self._build_dropbox_data_source(source, file_name_glob)
-        elif source_type == "onedrive":
-            return self._build_onedrive_data_source(source, file_name_glob)
-        elif source_type == "confluence":
-            return self._build_confluence_data_source(source, file_name_glob)
+    def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:
+        """Build data source configuration from typed source config.
+
+        Args:
+            source: Typed source configuration model
+
+        Returns:
+            Dictionary with data source configuration for API
+        """
+        file_name_glob = f"**/*.{source.file_type}" if source.file_type else "**/*"
+
+        data_source: Union[
+            BucketDataSource,
+            GoogleDriveDataSource,
+            DropboxDataSource,
+            OneDriveDataSource,
+            ConfluenceDataSource,
+        ]
+
+        if isinstance(source, BucketSourceConfig):
+            data_source = BucketDataSource(
+                folder=source.folder_path,
+                bucketName=source.bucket_name,
+                fileNameGlob=file_name_glob,
+                directoryPath=source.directory_path,
+            )
+        elif isinstance(source, GoogleDriveSourceConfig):
+            data_source = GoogleDriveDataSource(
+                folder=source.folder_path,
+                connectionId=source.connection_id,
+                connectionName=source.connection_name,
+                leafFolderId=source.leaf_folder_id,
+                directoryPath=source.directory_path,
+                fileNameGlob=file_name_glob,
+            )
+        elif isinstance(source, DropboxSourceConfig):
+            data_source = DropboxDataSource(
+                folder=source.folder_path,
+                connectionId=source.connection_id,
+                connectionName=source.connection_name,
+                directoryPath=source.directory_path,
+                fileNameGlob=file_name_glob,
+            )
+        elif isinstance(source, OneDriveSourceConfig):
+            data_source = OneDriveDataSource(
+                folder=source.folder_path,
+                connectionId=source.connection_id,
+                connectionName=source.connection_name,
+                leafFolderId=source.leaf_folder_id,
+                directoryPath=source.directory_path,
+                fileNameGlob=file_name_glob,
+            )
+        elif isinstance(source, ConfluenceSourceConfig):
+            data_source = ConfluenceDataSource(
+                folder=source.folder_path,
+                connectionId=source.connection_id,
+                connectionName=source.connection_name,
+                directoryPath=source.directory_path,
+                fileNameGlob=file_name_glob,
+                spaceId=source.space_id,
+            )
         else:
             raise ValueError(
-                f"Unsupported data source type: {source_type}. "
-                f"Supported types: bucket, google_drive, dropbox, onedrive, confluence"
+                f"Unsupported source configuration type: {type(source).__name__}"
             )
 
-    def _build_bucket_data_source(
-        self, source: Dict[str, Any], file_name_glob: str
-    ) -> Dict[str, Any]:
-        """Build data source configuration for storage bucket."""
-        required_fields = ["bucket_name", "folder_path"]
-        for field in required_fields:
-            if not source.get(field):
-                raise ValueError(f"{field} is required for bucket data source")
-
-        return {
-            "@odata.type": ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
-            "folder": source["folder_path"],
-            "bucketName": source["bucket_name"],
-            "fileNameGlob": file_name_glob,
-            "directoryPath": source.get("directory_path", "/"),
-        }
-
-    def _build_google_drive_data_source(
-        self, source: Dict[str, Any], file_name_glob: str
-    ) -> Dict[str, Any]:
-        """Build data source configuration for Google Drive."""
-        required_fields = [
-            "connection_id",
-            "connection_name",
-            "leaf_folder_id",
-            "directory_path",
-            "folder_path",
-        ]
-        for field in required_fields:
-            if not source.get(field):
-                raise ValueError(f"{field} is required for Google Drive data source")
-
-        return {
-            "@odata.type": GOOGLE_DRIVE_DATA_SOURCE,
-            "folder": source["folder_path"],
-            "connectionId": source["connection_id"],
-            "connectionName": source["connection_name"],
-            "leafFolderId": source["leaf_folder_id"],
-            "directoryPath": source["directory_path"],
-            "fileNameGlob": file_name_glob,
-        }
-
-    def _build_dropbox_data_source(
-        self, source: Dict[str, Any], file_name_glob: str
-    ) -> Dict[str, Any]:
-        """Build data source configuration for Dropbox."""
-        required_fields = [
-            "connection_id",
-            "connection_name",
-            "directory_path",
-            "folder_path",
-        ]
-        for field in required_fields:
-            if not source.get(field):
-                raise ValueError(f"{field} is required for Dropbox data source")
-
-        return {
-            "@odata.type": DROPBOX_DATA_SOURCE,
-            "folder": source["folder_path"],
-            "connectionId": source["connection_id"],
-            "connectionName": source["connection_name"],
-            "directoryPath": source["directory_path"],
-            "fileNameGlob": file_name_glob,
-        }
-
-    def _build_onedrive_data_source(
-        self, source: Dict[str, Any], file_name_glob: str
-    ) -> Dict[str, Any]:
-        """Build data source configuration for OneDrive."""
-        required_fields = [
-            "connection_id",
-            "connection_name",
-            "leaf_folder_id",
-            "directory_path",
-            "folder_path",
-        ]
-        for field in required_fields:
-            if not source.get(field):
-                raise ValueError(f"{field} is required for OneDrive data source")
-
-        return {
-            "@odata.type": ONEDRIVE_DATA_SOURCE,
-            "folder": source["folder_path"],
-            "connectionId": source["connection_id"],
-            "connectionName": source["connection_name"],
-            "leafFolderId": source["leaf_folder_id"],
-            "directoryPath": source["directory_path"],
-            "fileNameGlob": file_name_glob,
-        }
-
-    def _build_confluence_data_source(
-        self, source: Dict[str, Any], file_name_glob: str
-    ) -> Dict[str, Any]:
-        """Build data source configuration for Confluence."""
-        required_fields = [
-            "connection_id",
-            "connection_name",
-            "directory_path",
-            "folder_path",
-            "space_id",
-        ]
-        for field in required_fields:
-            if not source.get(field):
-                raise ValueError(f"{field} is required for Confluence data source")
-
-        return {
-            "@odata.type": CONFLUENCE_DATA_SOURCE,
-            "folder": source["folder_path"],
-            "connectionId": source["connection_id"],
-            "connectionName": source["connection_name"],
-            "directoryPath": source["directory_path"],
-            "fileNameGlob": file_name_glob,
-            "spaceId": source["space_id"],
-        }
+        return data_source.model_dump(by_alias=True, exclude_none=True)
 
     def _retrieve_by_id_spec(
         self,
@@ -966,9 +895,38 @@ class ContextGroundingService(FolderContext, BaseService):
         return folder_key
 
     def _extract_bucket_info(self, index: ContextGroundingIndex) -> Tuple[str, str]:
-        try:
-            return index.data_source.bucketName, index.data_source.folder  # type: ignore
-        except AttributeError as e:
-            raise Exception(
-                "ContextGrounding: Cannot extract bucket data from index"
-            ) from e
+        """Extract bucket information from the index, validating it's a storage bucket data source.
+
+        Args:
+            index: The context grounding index
+
+        Returns:
+            Tuple of (bucket_name, folder_path)
+
+        Raises:
+            UnsupportedDataSourceException: If the data source is not an Orchestrator Storage Bucket
+        """
+        if not index.data_source:
+            raise UnsupportedDataSourceException("add_to_index")
+
+        # Check if the data source has the @odata.type field indicating it's a storage bucket
+        data_source_dict = (
+            index.data_source.model_dump(by_alias=True)
+            if hasattr(index.data_source, "model_dump")
+            else index.data_source.__dict__
+        )
+        odata_type = data_source_dict.get("@odata.type") or data_source_dict.get(
+            "odata.type"
+        )
+
+        if odata_type and odata_type != ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE:
+            raise UnsupportedDataSourceException("add_to_index", odata_type)
+
+        # Try to extract bucket information
+        bucket_name = getattr(index.data_source, "bucketName", None)
+        folder = getattr(index.data_source, "folder", None)
+
+        if not bucket_name or not folder:
+            raise UnsupportedDataSourceException("add_to_index")
+
+        return bucket_name, folder

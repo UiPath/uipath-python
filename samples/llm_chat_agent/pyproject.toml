@@ -2,10 +2,9 @@
 name = "llm-chat-agent"
 version = "0.0.1"
 description = "Sample agent demonstrating actual LLM calls with UiPath LLM Gateway"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-    "uipath>=2.0.79, <2.2.0",
-    "pydantic>=2.0.0",
+    "uipath>=2.2.0, <2.3.0",
 ]
 
 [project.optional-dependencies]
@@ -17,3 +16,8 @@ dev = [
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "uipath-dev>=0.0.5",
+]

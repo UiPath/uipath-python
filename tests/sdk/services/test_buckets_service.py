@@ -286,8 +286,8 @@ class TestList:
         org: str,
         tenant: str,
     ):
-        """Test listing all buckets with auto-pagination."""
-        # Mock first page (100 items - full page)
+        """Test listing buckets returns single page."""
+        # Mock single page (100 items)
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=0&$top=100",
             status_code=200,
@@ -298,22 +298,12 @@ class TestList:
                 ]
             },
         )
-        # Mock second page (30 items - partial page signals end)
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=100&$top=100",
-            status_code=200,
-            json={
-                "value": [
-                    {"Id": i, "Name": f"bucket-{i}", "Identifier": f"id-{i}"}
-                    for i in range(100, 130)
-                ]
-            },
-        )
 
+        # Single page - no auto-pagination
         buckets = list(service.list())
-        assert len(buckets) == 130
+        assert len(buckets) == 100
         assert buckets[0].id == 0
-        assert buckets[129].id == 129
+        assert buckets[99].id == 99
 
     def test_list_with_name_filter(
         self,
@@ -412,7 +402,7 @@ class TestList:
     ):
         """Test async version of list()."""
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=0&$top=50",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=0&$top=100",
             status_code=200,
             json={
                 "value": [
@@ -423,7 +413,7 @@ class TestList:
         )
 
         buckets = []
-        async for bucket in service.list_async():
+        for bucket in (await service.list_async()).items:
             buckets.append(bucket)
 
         assert len(buckets) == 10
@@ -481,7 +471,7 @@ class TestExists:
         )
 
         # Should raise exception (not return False)
-        from uipath.models.exceptions import EnrichedException
+        from uipath.platform.errors import EnrichedException
 
         with pytest.raises(EnrichedException):
             service.exists("error-bucket")
@@ -780,7 +770,11 @@ class TestListFiles:
             },
         )
 
-        files = list(service.list_files(name="test-bucket"))
+        result = service.list_files(name="test-bucket")
+
+        files = result.items
+        token = result.continuation_token
+        assert token is None  # No more pages
         assert len(files) == 2
         assert files[0].path == "/data/file1.txt"
         assert files[0].size == 100
@@ -818,7 +812,11 @@ class TestListFiles:
             },
         )
 
-        files = list(service.list_files(name="test-bucket", prefix="data"))
+        result = service.list_files(name="test-bucket", prefix="data")
+
+        files = result.items
+        token = result.continuation_token
+        assert token is None
         assert len(files) == 1
         assert files[0].path == "/data/file1.txt"
 
@@ -831,6 +829,12 @@ class TestListFiles:
         tenant: str,
     ):
         """Test list_files() handles pagination with continuationToken."""
+        # Mock bucket retrieval (called twice - once for each page)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
             status_code=200,
@@ -873,8 +877,29 @@ class TestListFiles:
             },
         )
 
-        files = list(service.list_files(name="test-bucket"))
-        assert len(files) == 550
+        # Manual pagination
+        all_files = []
+        token = None
+
+        # First page
+        result = service.list_files(name="test-bucket", continuation_token=token)
+
+        files = result.items
+        token = result.continuation_token
+        assert len(files) == 500
+        assert token == "page2token"
+        all_files.extend(files)
+
+        # Second page
+        result = service.list_files(name="test-bucket", continuation_token=token)
+
+        files = result.items
+        token = result.continuation_token
+        assert len(files) == 50
+        assert token is None  # No more pages
+        all_files.extend(files)
+
+        assert len(all_files) == 550
 
     def test_list_files_empty(
         self,
@@ -897,7 +922,11 @@ class TestListFiles:
             json={"items": [], "continuationToken": None},
         )
 
-        files = list(service.list_files(name="empty-bucket"))
+        result = service.list_files(name="empty-bucket")
+
+        files = result.items
+        token = result.continuation_token
+        assert token is None  # No more pages
         assert len(files) == 0
 
     @pytest.mark.asyncio
@@ -932,7 +961,10 @@ class TestListFiles:
             },
         )
 
-        files = [f async for f in service.list_files_async(name="test-bucket")]
+        result = await service.list_files_async(name="test-bucket")
+        files = result.items
+        token = result.continuation_token
+        assert token is None  # No more pages
         assert len(files) == 1
         assert files[0].path == "/async-file.txt"
 
@@ -1115,6 +1147,12 @@ class TestGetFiles:
         tenant: str,
     ):
         """Test get_files() handles pagination with $skip and $top."""
+        # Mock bucket retrieval (called twice - once for each page)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
             status_code=200,
@@ -1155,8 +1193,17 @@ class TestGetFiles:
             },
         )
 
-        files = list(service.get_files(name="test-bucket"))
-        assert len(files) == 550
+        # Manual pagination to get all files across both pages
+        all_files = []
+        skip = 0
+        while True:
+            result = service.get_files(name="test-bucket", skip=skip)
+            all_files.extend(result.items)
+            if not result.has_more:
+                break
+            skip += result.top
+
+        assert len(all_files) == 550
 
     def test_get_files_empty(
         self,
@@ -1248,7 +1295,8 @@ class TestGetFiles:
             },
         )
 
-        files = [f async for f in service.get_files_async(name="test-bucket")]
+        result = await service.get_files_async(name="test-bucket")
+        files = result.items
         assert len(files) == 1
         assert files[0].path == "async-file.txt"
 
@@ -1272,9 +1320,9 @@ class TestExistsFile:
             json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
         )
 
-        # Mock ListFiles response with matching file
+        # Mock ListFiles response with matching file (take_hint=1 for performance)
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=data%2Ffile.txt&takeHint=500",
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=%2Fdata%2Ffile.txt&takeHint=1",
             status_code=200,
             json={
                 "items": [
@@ -1310,7 +1358,7 @@ class TestExistsFile:
 
         # Mock ListFiles response with no matching files
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=nonexistent.txt&takeHint=500",
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=%2Fnonexistent.txt&takeHint=1",
             status_code=200,
             json={"items": [], "continuationToken": None},
         )
@@ -1360,7 +1408,7 @@ class TestExistsFile:
 
         # Mock first page with matching file
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=target.txt&takeHint=500",
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=%2Ftarget.txt&takeHint=1",
             status_code=200,
             json={
                 "items": [
@@ -1402,7 +1450,7 @@ class TestExistsFile:
 
         # First page - no match
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=target.txt&takeHint=500",
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=%2Ftarget.txt&takeHint=1",
             status_code=200,
             json={
                 "items": [
@@ -1419,7 +1467,7 @@ class TestExistsFile:
 
         # Second page - found
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=target.txt&continuationToken=page2&takeHint=500",
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=%2Ftarget.txt&continuationToken=page2&takeHint=1",
             status_code=200,
             json={
                 "items": [
@@ -1458,7 +1506,7 @@ class TestExistsFile:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=file.txt&takeHint=500",
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=%2Ffile.txt&takeHint=1",
             status_code=200,
             json={
                 "items": [
@@ -1497,7 +1545,7 @@ class TestExistsFile:
 
         # Mock ListFiles response
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=async-file.txt&takeHint=500",
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=%2Fasync-file.txt&takeHint=1",
             status_code=200,
             json={
                 "items": [
@@ -1534,7 +1582,7 @@ class TestExistsFile:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=missing.txt&takeHint=500",
+            url=f"{base_url}{org}{tenant}/api/Buckets/123/ListFiles?prefix=%2Fmissing.txt&takeHint=1",
             status_code=200,
             json={"items": [], "continuationToken": None},
         )
@@ -1569,3 +1617,322 @@ class TestExistsFile:
         """Test async version raises ValueError for whitespace-only blob_file_path."""
         with pytest.raises(ValueError, match="blob_file_path cannot be empty"):
             await service.exists_file_async(name="test-bucket", blob_file_path="  ")
+
+
+class TestTopParameterValidation:
+    """Test top parameter validation for methods using 'top' parameter."""
+
+    # -------------------- list() tests --------------------
+
+    def test_list_top_exceeds_maximum(self, service: BucketsService):
+        """Test that top > 1000 raises ValueError for list()."""
+        with pytest.raises(ValueError, match=r"top must be <= 1000.*requested: 1001"):
+            service.list(top=1001)
+
+    def test_list_top_at_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that top = 1000 is allowed for list()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=0&$top=1000",
+            json={"value": [], "@odata.count": 0},
+        )
+        result = service.list(top=1000)
+        assert result is not None
+        assert len(result.items) == 0
+
+    def test_list_top_below_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that top = 999 is allowed for list()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=0&$top=999",
+            json={"value": [], "@odata.count": 0},
+        )
+        result = service.list(top=999)
+        assert result is not None
+
+    # -------------------- list_async() tests --------------------
+
+    @pytest.mark.asyncio
+    async def test_list_async_top_exceeds_maximum(self, service: BucketsService):
+        """Test that top > 1000 raises ValueError for list_async()."""
+        with pytest.raises(ValueError, match=r"top must be <= 1000.*requested: 2000"):
+            await service.list_async(top=2000)
+
+    @pytest.mark.asyncio
+    async def test_list_async_top_at_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that top = 1000 is allowed for list_async()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=0&$top=1000",
+            json={"value": [], "@odata.count": 0},
+        )
+        result = await service.list_async(top=1000)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_list_async_top_below_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that top = 999 is allowed for list_async()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=0&$top=999",
+            json={"value": [], "@odata.count": 0},
+        )
+        result = await service.list_async(top=999)
+        assert result is not None
+
+    # -------------------- get_files() tests --------------------
+
+    def test_get_files_top_exceeds_maximum(self, service: BucketsService):
+        """Test that top > 1000 raises ValueError for get_files()."""
+        with pytest.raises(ValueError, match=r"top must be <= 1000"):
+            service.get_files(name="test-bucket", top=1001)
+
+    def test_get_files_top_at_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that top = 1000 is allowed for get_files()."""
+        # Mock bucket retrieval
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+        # Mock file retrieval with GetFiles endpoint
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=1000",
+            json={"value": []},
+        )
+        result = service.get_files(name="test-bucket", top=1000)
+        assert result is not None
+
+    def test_get_files_top_below_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that top = 999 is allowed for get_files()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=999",
+            json={"value": []},
+        )
+        result = service.get_files(name="test-bucket", top=999)
+        assert result is not None
+
+    # -------------------- get_files_async() tests --------------------
+
+    @pytest.mark.asyncio
+    async def test_get_files_async_top_exceeds_maximum(self, service: BucketsService):
+        """Test that top > 1000 raises ValueError for get_files_async()."""
+        with pytest.raises(ValueError, match=r"top must be <= 1000"):
+            await service.get_files_async(name="test-bucket", top=1001)
+
+    @pytest.mark.asyncio
+    async def test_get_files_async_top_at_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that top = 1000 is allowed for get_files_async()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=1000",
+            json={"value": []},
+        )
+        result = await service.get_files_async(name="test-bucket", top=1000)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_get_files_async_top_below_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that top = 999 is allowed for get_files_async()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24top=999",
+            json={"value": []},
+        )
+        result = await service.get_files_async(name="test-bucket", top=999)
+        assert result is not None
+
+    # -------------------- skip parameter validation tests --------------------
+
+    def test_list_skip_exceeds_maximum(self, service: BucketsService):
+        """Test that skip > 10000 raises ValueError for list()."""
+        with pytest.raises(
+            ValueError, match=r"skip must be <= 10000.*requested: 10001"
+        ):
+            service.list(skip=10001)
+
+    def test_list_skip_at_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that skip = 10000 is allowed for list()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=10000&$top=100",
+            json={"value": [], "@odata.count": 0},
+        )
+        result = service.list(skip=10000)
+        assert result is not None
+
+    def test_list_skip_below_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that skip = 9999 is allowed for list()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=9999&$top=100",
+            json={"value": [], "@odata.count": 0},
+        )
+        result = service.list(skip=9999)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_list_async_skip_exceeds_maximum(self, service: BucketsService):
+        """Test that skip > 10000 raises ValueError for list_async()."""
+        with pytest.raises(
+            ValueError, match=r"skip must be <= 10000.*requested: 20000"
+        ):
+            await service.list_async(skip=20000)
+
+    @pytest.mark.asyncio
+    async def test_list_async_skip_at_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that skip = 10000 is allowed for list_async()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=10000&$top=100",
+            json={"value": [], "@odata.count": 0},
+        )
+        result = await service.list_async(skip=10000)
+        assert result is not None
+
+    def test_get_files_skip_exceeds_maximum(self, service: BucketsService):
+        """Test that skip > 10000 raises ValueError for get_files()."""
+        with pytest.raises(ValueError, match=r"skip must be <= 10000"):
+            service.get_files(name="test-bucket", skip=10001)
+
+    def test_get_files_skip_at_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that skip = 10000 is allowed for get_files()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24skip=10000&%24top=500",
+            json={"value": []},
+        )
+        result = service.get_files(name="test-bucket", skip=10000)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_get_files_async_skip_exceeds_maximum(self, service: BucketsService):
+        """Test that skip > 10000 raises ValueError for get_files_async()."""
+        with pytest.raises(ValueError, match=r"skip must be <= 10000"):
+            await service.get_files_async(name="test-bucket", skip=10001)
+
+    @pytest.mark.asyncio
+    async def test_get_files_async_skip_at_maximum(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that skip = 10000 is allowed for get_files_async()."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'test-bucket'&$top=1",
+            json={"value": [{"Id": 123, "Name": "test-bucket", "Identifier": "id-1"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(123)/UiPath.Server.Configuration.OData.GetFiles?directory=%2F&%24skip=10000&%24top=500",
+            json={"value": []},
+        )
+        result = await service.get_files_async(name="test-bucket", skip=10000)
+        assert result is not None
+
+    def test_combined_max_skip_and_top(
+        self,
+        service: BucketsService,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Test that skip=10000 and top=1000 work together (combined boundary)."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$skip=10000&$top=1000",
+            json={"value": [], "@odata.count": 0},
+        )
+        result = service.list(skip=10000, top=1000)
+        assert result is not None

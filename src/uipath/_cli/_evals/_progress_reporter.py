@@ -5,28 +5,26 @@ import json
 import logging
 import os
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 from opentelemetry import trace
+from opentelemetry.trace import SpanContext, SpanKind, TraceFlags
 from pydantic import BaseModel
 from rich.console import Console
 
-from uipath import UiPath
 from uipath._cli._evals._models._evaluation_set import (
-    AnyEvaluationItem,
-    AnyEvaluator,
     EvaluationItem,
     EvaluationStatus,
 )
+from uipath._cli._evals._models._evaluator import Evaluator
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
     StudioWebProgressItem,
 )
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._cli._utils._project_files import (  # type: ignore
-    get_project_config,
-)
+from uipath._config import UiPathConfig
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -41,8 +39,12 @@ from uipath._utils.constants import (
     ENV_TENANT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
-from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
+from uipath.eval.evaluators import (
+    BaseEvaluator,
+    LegacyBaseEvaluator,
+)
 from uipath.eval.models import EvalItemResult, ScoreType
+from uipath.platform import UiPath
 from uipath.tracing import LlmOpsHttpExporter
 
 logger = logging.getLogger(__name__)
@@ -99,10 +101,26 @@ class StudioWebProgressReporter:
         self.eval_spans: Dict[
             str, list[Any]
         ] = {}  # Store spans per execution for usage metrics
+        self.eval_set_execution_id: str | None = (
+            None  # Track current eval set execution ID
+        )
 
     def _format_error_message(self, error: Exception, context: str) -> None:
         """Helper method to format and display error messages consistently."""
         self._rich_console.print(f"    • \u26a0  [dim]{context}: {error}[/dim]")
+
+    def _status_to_string(self, status: EvaluationStatus) -> str:
+        """Convert EvaluationStatus enum to PascalCase string for API.
+
+        Args:
+            status: The EvaluationStatus enum value
+
+        Returns:
+            PascalCase string representation (e.g., "InProgress", "Completed")
+        """
+        # Convert SNAKE_CASE enum name to PascalCase
+        components = status.name.split("_")
+        return "".join(x.title() for x in components)
 
     def _is_localhost(self) -> bool:
         """Check if the eval backend URL is localhost.
@@ -134,7 +152,9 @@ class StudioWebProgressReporter:
             return "api/"
         return "agentsruntime_/api/"
 
-    def _is_coded_evaluator(self, evaluators: List[AnyEvaluator]) -> bool:
+    def _is_coded_evaluator(
+        self, evaluators: List[BaseEvaluator[Any, Any, Any]]
+    ) -> bool:
         """Check if evaluators are coded (BaseEvaluator) vs legacy (LegacyBaseEvaluator).
 
         Args:
@@ -146,7 +166,7 @@ class StudioWebProgressReporter:
         if not evaluators:
             return False
         # Check the first evaluator type
-        return isinstance(evaluators[0], BaseEvaluator)
+        return not isinstance(evaluators[0], LegacyBaseEvaluator)
 
     def _extract_usage_from_spans(
         self, spans: list[Any]
@@ -236,7 +256,7 @@ class StudioWebProgressReporter:
 
     @gracefully_handle_errors
     async def create_eval_run(
-        self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
+        self, eval_item: EvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> str:
         """Create a new evaluation run in StudioWeb.
 
@@ -263,7 +283,7 @@ class StudioWebProgressReporter:
     async def update_eval_run(
         self,
         sw_progress_item: StudioWebProgressItem,
-        evaluators: dict[str, AnyEvaluator],
+        evaluators: dict[str, Evaluator],
         is_coded: bool = False,
         spans: list[Any] | None = None,
     ):
@@ -349,6 +369,9 @@ class StudioWebProgressReporter:
             self.evaluators = {eval.id: eval for eval in payload.evaluators}
             self.evaluator_scores = {eval.id: [] for eval in payload.evaluators}
 
+            # Store the eval set execution ID for mapping eval runs to eval set
+            self.eval_set_execution_id = payload.execution_id
+
             # Detect if using coded evaluators and store for this execution
             is_coded = self._is_coded_evaluator(payload.evaluators)
             self.is_coded_eval[payload.execution_id] = is_coded
@@ -367,6 +390,10 @@ class StudioWebProgressReporter:
             if current_span.is_recording():
                 current_span.set_attribute("eval_set_run_id", eval_set_run_id)
 
+            # Create and send parent trace for the evaluation set run
+            if eval_set_run_id:
+                await self._send_parent_trace(eval_set_run_id, payload.eval_set_id)
+
             logger.debug(
                 f"Created eval set run with ID: {eval_set_run_id} (coded={is_coded})"
             )
@@ -376,14 +403,19 @@ class StudioWebProgressReporter:
 
     async def handle_create_eval_run(self, payload: EvalRunCreatedEvent) -> None:
         try:
-            if eval_set_run_id := self.eval_set_run_ids.get(payload.execution_id):
+            # Use the stored eval set execution ID to find the eval_set_run_id
+            if self.eval_set_execution_id and (
+                eval_set_run_id := self.eval_set_run_ids.get(self.eval_set_execution_id)
+            ):
                 # Get the is_coded flag for this execution
-                is_coded = self.is_coded_eval.get(payload.execution_id, False)
+                is_coded = self.is_coded_eval.get(self.eval_set_execution_id, False)
                 eval_run_id = await self.create_eval_run(
                     payload.eval_item, eval_set_run_id, is_coded
                 )
                 if eval_run_id:
+                    # Store eval_run_id with the individual eval run's execution_id
                     self.eval_run_ids[payload.execution_id] = eval_run_id
+
                     logger.debug(
                         f"Created eval run with ID: {eval_run_id} (coded={is_coded})"
                     )
@@ -395,9 +427,18 @@ class StudioWebProgressReporter:
 
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
-            self.spans_exporter.trace_id = self.eval_set_run_ids.get(
-                payload.execution_id
-            )
+            eval_run_id = self.eval_run_ids.get(payload.execution_id)
+
+            # Use evalRunId as the trace_id for agent execution spans
+            # This makes all agent spans children of the eval run trace
+            if eval_run_id:
+                self.spans_exporter.trace_id = eval_run_id
+            else:
+                # Fallback to evalSetRunId if eval_run_id not available yet
+                if self.eval_set_execution_id:
+                    self.spans_exporter.trace_id = self.eval_set_run_ids.get(
+                        self.eval_set_execution_id
+                    )
 
             self.spans_exporter.export(payload.spans)
 
@@ -416,13 +457,17 @@ class StudioWebProgressReporter:
                         case ScoreType.ERROR:
                             self.evaluator_scores[evaluator_id].append(0)
 
-            eval_run_id = self.eval_run_ids[payload.execution_id]
-            if eval_run_id:
+            if eval_run_id and self.eval_set_execution_id:
                 # Get the is_coded flag for this execution
-                is_coded = self.is_coded_eval.get(payload.execution_id, False)
+                is_coded = self.is_coded_eval.get(self.eval_set_execution_id, False)
 
                 # Extract usage metrics from spans
                 self._extract_usage_from_spans(payload.spans)
+
+                # Send evaluator traces
+                await self._send_evaluator_traces(
+                    eval_run_id, payload.eval_results, payload.spans
+                )
 
                 await self.update_eval_run(
                     StudioWebProgressItem(
@@ -500,9 +545,17 @@ class StudioWebProgressReporter:
 
     def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
         try:
-            project_config = get_project_config(os.getcwd())
+            entry_points_file_path = os.path.join(
+                os.getcwd(), str(UiPathConfig.entry_points_file_path)
+            )
+            if not os.path.exists(entry_points_file_path):
+                return StudioWebAgentSnapshot(input_schema={}, output_schema={})
+
+            with open(entry_points_file_path, "r") as f:
+                entry_points = json.load(f).get("entryPoints", [])
+
             ep = None
-            for entry_point in project_config.get("entryPoints", []):
+            for entry_point in entry_points:
                 if entry_point.get("filePath") == entrypoint:
                     ep = entry_point
                     break
@@ -564,7 +617,7 @@ class StudioWebProgressReporter:
             )
             assertion_runs.append(
                 {
-                    "status": EvaluationStatus.COMPLETED.value,
+                    "status": self._status_to_string(EvaluationStatus.COMPLETED),
                     "evaluatorId": evaluator_id_value,
                     "completionMetrics": {
                         "duration": int(eval_result.result.evaluation_time)
@@ -622,7 +675,7 @@ class StudioWebProgressReporter:
             )
             evaluator_runs.append(
                 {
-                    "status": EvaluationStatus.COMPLETED.value,
+                    "status": self._status_to_string(EvaluationStatus.COMPLETED),
                     "evaluatorId": eval_result.evaluator_id,
                     "result": {
                         "score": {
@@ -655,21 +708,27 @@ class StudioWebProgressReporter:
     ) -> RequestSpec:
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalRunId": eval_run_id,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.COMPLETED.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "result": {
+                "output": dict(actual_output),
+                "evaluatorScores": evaluator_scores,
+            },
+            "completionMetrics": {"duration": int(execution_time)},
+            "assertionRuns": assertion_runs,
+        }
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
-            json={
-                "evalRunId": eval_run_id,
-                "status": EvaluationStatus.COMPLETED.value,
-                "result": {
-                    "output": {**actual_output},
-                    "evaluatorScores": evaluator_scores,
-                },
-                "completionMetrics": {"duration": int(execution_time)},
-                "assertionRuns": assertion_runs,
-            },
+            json=payload,
             headers=self._tenant_header(),
         )
 
@@ -685,26 +744,32 @@ class StudioWebProgressReporter:
         """Create update spec for coded evaluators."""
         # For coded evaluations, endpoint has /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalRunId": eval_run_id,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.COMPLETED.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "result": {
+                "output": dict(actual_output),
+                "scores": evaluator_scores,
+            },
+            "completionMetrics": {"duration": int(execution_time)},
+            "evaluatorRuns": evaluator_runs,
+        }
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
-            json={
-                "evalRunId": eval_run_id,
-                "status": EvaluationStatus.COMPLETED.value,
-                "result": {
-                    "output": {**actual_output},
-                    "scores": evaluator_scores,
-                },
-                "completionMetrics": {"duration": int(execution_time)},
-                "evaluatorRuns": evaluator_runs,
-            },
+            json=payload,
             headers=self._tenant_header(),
         )
 
     def _create_eval_run_spec(
-        self, eval_item: AnyEvaluationItem, eval_set_run_id: str, is_coded: bool = False
+        self, eval_item: EvaluationItem, eval_set_run_id: str, is_coded: bool = False
     ) -> RequestSpec:
         # Legacy API expects eval IDs as GUIDs, coded accepts strings
         # Convert string IDs to deterministic GUIDs for legacy
@@ -735,16 +800,22 @@ class StudioWebProgressReporter:
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalSetRunId": eval_set_run_id,
+            "evalSnapshot": eval_snapshot,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.IN_PROGRESS.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.IN_PROGRESS),
+        }
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
             ),
-            json={
-                "evalSetRunId": eval_set_run_id,
-                "evalSnapshot": eval_snapshot,
-                "status": EvaluationStatus.IN_PROGRESS.value,
-            },
+            json=payload,
             headers=self._tenant_header(),
         )
 
@@ -775,13 +846,15 @@ class StudioWebProgressReporter:
             "agentId": self._project_id,
             "evalSetId": eval_set_id_value,
             "agentSnapshot": agent_snapshot.model_dump(by_alias=True),
-            "status": EvaluationStatus.IN_PROGRESS.value,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.IN_PROGRESS.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.IN_PROGRESS),
             "numberOfEvalsExecuted": no_of_evals,
         }
 
-        # Add version field for coded evaluations
         if is_coded:
-            payload["version"] = "1.0"
+            payload["source"] = 0
 
         return RequestSpec(
             method="POST",
@@ -820,23 +893,342 @@ class StudioWebProgressReporter:
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalSetRunId": eval_set_run_id,
+            # For coded evaluations, use integer status; for legacy, use string
+            "status": EvaluationStatus.COMPLETED.value
+            if is_coded
+            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "evaluatorScores": evaluator_scores_list,
+        }
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
                 f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalSetRun"
             ),
-            json={
-                "evalSetRunId": eval_set_run_id,
-                "status": EvaluationStatus.COMPLETED.value,
-                "evaluatorScores": evaluator_scores_list,
-            },
+            json=payload,
             headers=self._tenant_header(),
         )
 
-    def _tenant_header(self) -> dict[str, str]:
+    def _tenant_header(self) -> dict[str, str | None]:
         tenant_id = os.getenv(ENV_TENANT_ID, None)
         if not tenant_id:
             self._console.error(
                 f"{ENV_TENANT_ID} env var is not set. Please run 'uipath auth'."
             )
-        return {HEADER_INTERNAL_TENANT_ID: tenant_id}  # type: ignore
+        return {HEADER_INTERNAL_TENANT_ID: tenant_id}
+
+    async def _send_parent_trace(
+        self, eval_set_run_id: str, eval_set_name: str
+    ) -> None:
+        """Send the parent trace span for the evaluation set run.
+
+        Args:
+            eval_set_run_id: The ID of the evaluation set run
+            eval_set_name: The name of the evaluation set
+        """
+        try:
+            # Get the tracer
+            tracer = trace.get_tracer(__name__)
+
+            # Convert eval_set_run_id to trace ID format (128-bit integer)
+            trace_id_int = int(uuid.UUID(eval_set_run_id))
+
+            # Create a span context with the eval_set_run_id as the trace ID
+            span_context = SpanContext(
+                trace_id=trace_id_int,
+                span_id=trace_id_int,  # Use same ID for root span
+                is_remote=False,
+                trace_flags=TraceFlags(0x01),  # Sampled
+            )
+
+            # Create a non-recording span with our custom context
+            ctx = trace.set_span_in_context(trace.NonRecordingSpan(span_context))
+
+            # Start a new span with the custom trace ID
+            with tracer.start_as_current_span(
+                eval_set_name,
+                context=ctx,
+                kind=SpanKind.INTERNAL,
+                start_time=int(datetime.now(timezone.utc).timestamp() * 1_000_000_000),
+            ) as span:
+                # Set attributes for the evaluation set span
+                span.set_attribute("openinference.span.kind", "CHAIN")
+                span.set_attribute("span.type", "evaluationSet")
+                span.set_attribute("eval_set_run_id", eval_set_run_id)
+
+            logger.debug(f"Created parent trace for eval set run: {eval_set_run_id}")
+
+        except Exception as e:
+            logger.warning(f"Failed to create parent trace: {e}")
+
+    async def _send_eval_run_trace(
+        self, eval_run_id: str, eval_set_run_id: str, eval_name: str
+    ) -> None:
+        """Send the child trace span for an evaluation run.
+
+        Args:
+            eval_run_id: The ID of the evaluation run
+            eval_set_run_id: The ID of the parent evaluation set run
+            eval_name: The name of the evaluation
+        """
+        try:
+            # Get the tracer
+            tracer = trace.get_tracer(__name__)
+
+            # Convert IDs to trace format
+            trace_id_int = int(uuid.UUID(eval_run_id))
+            parent_span_id_int = int(uuid.UUID(eval_set_run_id))
+
+            # Create a parent span context
+            parent_context = SpanContext(
+                trace_id=trace_id_int,
+                span_id=parent_span_id_int,
+                is_remote=False,
+                trace_flags=TraceFlags(0x01),
+            )
+
+            # Create context with parent span
+            ctx = trace.set_span_in_context(trace.NonRecordingSpan(parent_context))
+
+            # Start a new span with the eval_run_id as trace ID
+            with tracer.start_as_current_span(
+                eval_name,
+                context=ctx,
+                kind=SpanKind.INTERNAL,
+                start_time=int(datetime.now(timezone.utc).timestamp() * 1_000_000_000),
+            ) as span:
+                # Set attributes for the evaluation run span
+                span.set_attribute("openinference.span.kind", "CHAIN")
+                span.set_attribute("span.type", "evaluation")
+                span.set_attribute("eval_run_id", eval_run_id)
+                span.set_attribute("eval_set_run_id", eval_set_run_id)
+
+            logger.debug(
+                f"Created trace for eval run: {eval_run_id} (parent: {eval_set_run_id})"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to create eval run trace: {e}")
+
+    async def _send_evaluator_traces(
+        self, eval_run_id: str, eval_results: List[EvalItemResult], spans: list[Any]
+    ) -> None:
+        """Send trace spans for all evaluators.
+
+        Args:
+            eval_run_id: The ID of the evaluation run
+            eval_results: List of evaluator results
+            spans: List of spans that may contain evaluator LLM calls
+        """
+        try:
+            if not eval_results:
+                logger.debug(
+                    f"No evaluator results to trace for eval run: {eval_run_id}"
+                )
+                return
+
+            # First, export the agent execution spans so they appear in the trace
+            agent_readable_spans = []
+            if spans:
+                for span in spans:
+                    if hasattr(span, "_readable_span"):
+                        agent_readable_spans.append(span._readable_span())
+
+            if agent_readable_spans:
+                self.spans_exporter.export(agent_readable_spans)
+                logger.debug(
+                    f"Exported {len(agent_readable_spans)} agent execution spans for eval run: {eval_run_id}"
+                )
+
+            # Get the tracer
+            tracer = trace.get_tracer(__name__)
+
+            # Calculate overall start and end times for the evaluators parent span
+            # Since evaluators run sequentially, the parent span duration should be
+            # the sum of all individual evaluator times
+            now = datetime.now(timezone.utc)
+
+            # Sum all evaluator execution times for sequential execution
+            total_eval_time = (
+                sum(
+                    (
+                        r.result.evaluation_time
+                        for r in eval_results
+                        if r.result.evaluation_time
+                    )
+                )
+                or 0.0
+            )
+
+            # Parent span covers the sequential evaluation period
+            parent_end_time = now
+            parent_start_time = (
+                datetime.fromtimestamp(
+                    now.timestamp() - total_eval_time, tz=timezone.utc
+                )
+                if total_eval_time > 0
+                else now
+            )
+
+            # Find the root execution span from the agent spans
+            # The root span typically has no parent
+            root_span_uuid = None
+            if spans:
+                from uipath.tracing._utils import _SpanUtils
+
+                for span in spans:
+                    # Check if this span has no parent (indicating it's the root)
+                    if span.parent is None:
+                        # Get the span context and convert to UUID
+                        span_context = span.get_span_context()
+                        root_span_uuid = _SpanUtils.span_id_to_uuid4(
+                            span_context.span_id
+                        )
+                        break
+
+            # Convert eval_run_id to trace ID format
+            trace_id_int = int(uuid.UUID(eval_run_id))
+
+            # Create parent span context - child of root span if available
+            # The root span should be the eval span (the agent execution root)
+            if root_span_uuid:
+                # Convert root span UUID to integer for SpanContext
+                root_span_id_int = int(root_span_uuid)
+                parent_context = SpanContext(
+                    trace_id=trace_id_int,
+                    span_id=root_span_id_int,
+                    is_remote=False,
+                    trace_flags=TraceFlags(0x01),
+                )
+                ctx = trace.set_span_in_context(trace.NonRecordingSpan(parent_context))
+            else:
+                # No root span found, create as root span with eval_run_id as both trace and span
+                parent_context = SpanContext(
+                    trace_id=trace_id_int,
+                    span_id=trace_id_int,
+                    is_remote=False,
+                    trace_flags=TraceFlags(0x01),
+                )
+                ctx = trace.set_span_in_context(trace.NonRecordingSpan(parent_context))
+
+            # Create the evaluators parent span
+            parent_start_ns = int(parent_start_time.timestamp() * 1_000_000_000)
+            parent_end_ns = int(parent_end_time.timestamp() * 1_000_000_000)
+
+            # Start parent span manually (not using with statement) to control end time
+            parent_span = tracer.start_span(
+                "Evaluators",
+                context=ctx,
+                kind=SpanKind.INTERNAL,
+                start_time=parent_start_ns,
+            )
+
+            # Set attributes for the evaluators parent span
+            parent_span.set_attribute("openinference.span.kind", "CHAIN")
+            parent_span.set_attribute("span.type", "evaluators")
+            parent_span.set_attribute("eval_run_id", eval_run_id)
+
+            # Make this span the active span for child spans
+            parent_ctx = trace.set_span_in_context(parent_span, ctx)
+
+            # Track the current time for sequential execution
+            current_time = parent_start_time
+
+            # Collect all readable spans for export
+            readable_spans = []
+
+            # Create individual evaluator spans - running sequentially
+            for eval_result in eval_results:
+                # Get evaluator name from stored evaluators
+                evaluator = self.evaluators.get(eval_result.evaluator_id)
+                evaluator_name = evaluator.id if evaluator else eval_result.evaluator_id
+
+                # Each evaluator starts where the previous one ended (sequential execution)
+                eval_time = eval_result.result.evaluation_time or 0
+                eval_start = current_time
+                eval_end = datetime.fromtimestamp(
+                    current_time.timestamp() + eval_time, tz=timezone.utc
+                )
+
+                # Move current time forward for the next evaluator
+                current_time = eval_end
+
+                # Create timestamps
+                eval_start_ns = int(eval_start.timestamp() * 1_000_000_000)
+                eval_end_ns = int(eval_end.timestamp() * 1_000_000_000)
+
+                # Start evaluator span manually (not using with statement) to control end time
+                evaluator_span = tracer.start_span(
+                    evaluator_name,
+                    context=parent_ctx,
+                    kind=SpanKind.INTERNAL,
+                    start_time=eval_start_ns,
+                )
+
+                # Set attributes for the evaluator span
+                evaluator_span.set_attribute("openinference.span.kind", "EVALUATOR")
+                evaluator_span.set_attribute("span.type", "evaluator")
+                evaluator_span.set_attribute("evaluator_id", eval_result.evaluator_id)
+                evaluator_span.set_attribute("evaluator_name", evaluator_name)
+                evaluator_span.set_attribute("eval_run_id", eval_run_id)
+                evaluator_span.set_attribute("score", eval_result.result.score)
+                evaluator_span.set_attribute(
+                    "score_type", eval_result.result.score_type.name
+                )
+
+                # Add details/justification if available
+                if eval_result.result.details:
+                    if isinstance(eval_result.result.details, BaseModel):
+                        evaluator_span.set_attribute(
+                            "details",
+                            json.dumps(eval_result.result.details.model_dump()),
+                        )
+                    else:
+                        evaluator_span.set_attribute(
+                            "details", str(eval_result.result.details)
+                        )
+
+                # Add evaluation time if available
+                if eval_result.result.evaluation_time:
+                    evaluator_span.set_attribute(
+                        "evaluation_time", eval_result.result.evaluation_time
+                    )
+
+                # Set status based on score type
+                from opentelemetry.trace import Status, StatusCode
+
+                if eval_result.result.score_type == ScoreType.ERROR:
+                    evaluator_span.set_status(
+                        Status(StatusCode.ERROR, "Evaluation failed")
+                    )
+                else:
+                    evaluator_span.set_status(Status(StatusCode.OK))
+
+                # End the evaluator span at the correct time
+                evaluator_span.end(end_time=eval_end_ns)
+
+                # Convert to ReadableSpan for export
+                # The span object has a method to get the readable version
+                if hasattr(evaluator_span, "_readable_span"):
+                    readable_spans.append(evaluator_span._readable_span())
+
+            # End the parent span at the correct time after all children are created
+            parent_span.end(end_time=parent_end_ns)
+
+            # Convert parent span to ReadableSpan
+            if hasattr(parent_span, "_readable_span"):
+                # Add parent span at the beginning for proper ordering
+                readable_spans.insert(0, parent_span._readable_span())
+
+            # Export all evaluator spans together
+            if readable_spans:
+                self.spans_exporter.export(readable_spans)
+
+            logger.debug(
+                f"Created evaluator traces for eval run: {eval_run_id} ({len(eval_results)} evaluators)"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create evaluator traces: {e}")

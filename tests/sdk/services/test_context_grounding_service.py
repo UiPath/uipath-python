@@ -1,6 +1,8 @@
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
@@ -8,8 +10,17 @@ from uipath._execution_context import ExecutionContext
 from uipath._services.buckets_service import BucketsService
 from uipath._services.context_grounding_service import ContextGroundingService
 from uipath._services.folder_service import FolderService
-from uipath._utils.constants import HEADER_USER_AGENT
-from uipath.models import ContextGroundingIndex, ContextGroundingQueryResponse
+from uipath._utils.constants import HEADER_USER_AGENT, LLMV3Mini_REQUEST
+from uipath.platform.context_grounding import (
+    BucketSourceConfig,
+    ConfluenceSourceConfig,
+    ContextGroundingIndex,
+    ContextGroundingQueryResponse,
+    DropboxSourceConfig,
+    GoogleDriveSourceConfig,
+    Indexer,
+    OneDriveSourceConfig,
+)
 
 
 @pytest.fixture
@@ -369,13 +380,12 @@ class TestContextGroundingService:
             },
         )
 
-        source = {
-            "type": "bucket",
-            "bucket_name": "test-bucket",
-            "folder_path": "/test/folder",
-            "directory_path": "/",
-            "file_type": "pdf",
-        }
+        source = BucketSourceConfig(
+            bucket_name="test-bucket",
+            folder_path="/test/folder",
+            directory_path="/",
+            file_type="pdf",
+        )
 
         index = service.create_index(
             name="test-bucket-index",
@@ -401,8 +411,6 @@ class TestContextGroundingService:
             create_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.create_index/{version}"
         )
-
-        import json
 
         request_data = json.loads(create_request.content)
         assert request_data["name"] == "test-bucket-index"
@@ -453,22 +461,22 @@ class TestContextGroundingService:
             },
         )
 
-        source = {
-            "type": "google_drive",
-            "connection_id": "conn-123",
-            "connection_name": "Google Drive Connection",
-            "leaf_folder_id": "folder-456",
-            "directory_path": "/shared-docs",
-            "folder_path": "/test/folder",
-            "file_type": "docx",
-        }
+        source = GoogleDriveSourceConfig(
+            connection_id="conn-123",
+            connection_name="Google Drive Connection",
+            leaf_folder_id="folder-456",
+            directory_path="/shared-docs",
+            folder_path="/test/folder",
+            file_type="docx",
+            indexer=Indexer(
+                cron_expression="0 18 * * 2", time_zone_id="Pacific Standard Time"
+            ),
+        )
 
         index = service.create_index(
             name="test-google-index",
             description="Test Google Drive index",
             source=source,
-            cron_expression="0 0 18 ? * 2",
-            time_zone_id="Pacific Standard Time",
         )
 
         assert isinstance(index, ContextGroundingIndex)
@@ -477,8 +485,6 @@ class TestContextGroundingService:
 
         sent_requests = httpx_mock.get_requests()
         create_request = sent_requests[1]
-
-        import json
 
         request_data = json.loads(create_request.content)
         assert (
@@ -490,7 +496,7 @@ class TestContextGroundingService:
         assert request_data["dataSource"]["leafFolderId"] == "folder-456"
         assert request_data["dataSource"]["directoryPath"] == "/shared-docs"
         assert request_data["dataSource"]["fileNameGlob"] == "**/*.docx"
-        assert request_data["dataSource"]["indexer"]["cronExpression"] == "0 0 18 ? * 2"
+        assert request_data["dataSource"]["indexer"]["cronExpression"] == "0 18 * * 2"
         assert (
             request_data["dataSource"]["indexer"]["timeZoneId"]
             == "Pacific Standard Time"
@@ -527,13 +533,12 @@ class TestContextGroundingService:
             },
         )
 
-        source = {
-            "type": "dropbox",
-            "connection_id": "dropbox-conn-789",
-            "connection_name": "Dropbox Connection",
-            "directory_path": "/company-files",
-            "folder_path": "/test/folder",
-        }
+        source = DropboxSourceConfig(
+            connection_id="dropbox-conn-789",
+            connection_name="Dropbox Connection",
+            directory_path="/company-files",
+            folder_path="/test/folder",
+        )
 
         index = service.create_index(
             name="test-dropbox-index", source=source, advanced_ingestion=False
@@ -544,8 +549,6 @@ class TestContextGroundingService:
 
         sent_requests = httpx_mock.get_requests()
         create_request = sent_requests[1]
-
-        import json
 
         request_data = json.loads(create_request.content)
         assert (
@@ -589,15 +592,14 @@ class TestContextGroundingService:
             },
         )
 
-        source = {
-            "type": "onedrive",
-            "connection_id": "onedrive-conn-101",
-            "connection_name": "OneDrive Connection",
-            "leaf_folder_id": "onedrive-folder-202",
-            "directory_path": "/reports",
-            "folder_path": "/test/folder",
-            "file_type": "xlsx",
-        }
+        source = OneDriveSourceConfig(
+            connection_id="onedrive-conn-101",
+            connection_name="OneDrive Connection",
+            leaf_folder_id="onedrive-folder-202",
+            directory_path="/reports",
+            folder_path="/test/folder",
+            file_type="xlsx",
+        )
 
         index = service.create_index(name="test-onedrive-index", source=source)
 
@@ -606,8 +608,6 @@ class TestContextGroundingService:
 
         sent_requests = httpx_mock.get_requests()
         create_request = sent_requests[1]
-
-        import json
 
         request_data = json.loads(create_request.content)
         assert (
@@ -649,14 +649,13 @@ class TestContextGroundingService:
             },
         )
 
-        source = {
-            "type": "confluence",
-            "connection_id": "confluence-conn-303",
-            "connection_name": "Confluence Connection",
-            "space_id": "space-404",
-            "directory_path": "/wiki-docs",
-            "folder_path": "/test/folder",
-        }
+        source = ConfluenceSourceConfig(
+            connection_id="confluence-conn-303",
+            connection_name="Confluence Connection",
+            space_id="space-404",
+            directory_path="/wiki-docs",
+            folder_path="/test/folder",
+        )
 
         index = service.create_index(name="test-confluence-index", source=source)
 
@@ -665,8 +664,6 @@ class TestContextGroundingService:
 
         sent_requests = httpx_mock.get_requests()
         create_request = sent_requests[1]
-
-        import json
 
         request_data = json.loads(create_request.content)
         assert (
@@ -710,11 +707,10 @@ class TestContextGroundingService:
             },
         )
 
-        source = {
-            "type": "bucket",
-            "bucket_name": "async-bucket",
-            "folder_path": "/async/folder",
-        }
+        source = BucketSourceConfig(
+            bucket_name="async-bucket",
+            folder_path="/async/folder",
+        )
 
         index = await service.create_index_async(
             name="test-async-index", description="Test async index", source=source
@@ -741,25 +737,9 @@ class TestContextGroundingService:
         org: str,
         tenant: str,
     ) -> None:
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
-            status_code=200,
-            json={
-                "PageItems": [
-                    {
-                        "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
-                    }
-                ]
-            },
-        )
-
-        source = {"type": "bucket", "folder_path": "/test/folder"}
-
-        with pytest.raises(
-            ValueError, match="bucket_name is required for bucket data source"
-        ):
-            service.create_index(name="test-invalid-bucket", source=source)
+        # Pydantic will raise ValidationError for missing required fields
+        with pytest.raises(ValidationError, match="bucket_name"):
+            BucketSourceConfig(folder_path="/test/folder")  # type: ignore[call-arg]
 
     def test_create_index_missing_google_drive_fields(
         self,
@@ -769,57 +749,12 @@ class TestContextGroundingService:
         org: str,
         tenant: str,
     ) -> None:
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
-            status_code=200,
-            json={
-                "PageItems": [
-                    {
-                        "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
-                    }
-                ]
-            },
-        )
-
-        source = {
-            "type": "google_drive",
-            "connection_id": "conn-123",
-            "folder_path": "/test/folder",
-        }
-
-        with pytest.raises(
-            ValueError, match="connection_name is required for Google Drive data source"
-        ):
-            service.create_index(name="test-invalid-google", source=source)
-
-    def test_create_index_unsupported_source_type(
-        self,
-        httpx_mock: HTTPXMock,
-        service: ContextGroundingService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ) -> None:
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
-            status_code=200,
-            json={
-                "PageItems": [
-                    {
-                        "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
-                    }
-                ]
-            },
-        )
-
-        source = {"type": "unsupported", "folder_path": "/test/folder"}
-
-        with pytest.raises(
-            ValueError, match="Unsupported data source type: unsupported"
-        ):
-            service.create_index(name="test-unsupported", source=source)
+        # Pydantic will raise ValidationError for missing required fields
+        with pytest.raises(ValidationError, match="connection_name"):
+            GoogleDriveSourceConfig(  # type: ignore[call-arg]
+                connection_id="conn-123",
+                folder_path="/test/folder",
+            )
 
     def test_create_index_custom_preprocessing(
         self,
@@ -829,8 +764,6 @@ class TestContextGroundingService:
         org: str,
         tenant: str,
     ) -> None:
-        from uipath._utils.constants import LLMV3Mini
-
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
             status_code=200,
@@ -854,16 +787,15 @@ class TestContextGroundingService:
             },
         )
 
-        source = {
-            "type": "bucket",
-            "bucket_name": "test-bucket",
-            "folder_path": "/test/folder",
-        }
+        source = BucketSourceConfig(
+            bucket_name="test-bucket",
+            folder_path="/test/folder",
+        )
 
         index = service.create_index(
             name="test-custom-prep-index",
             source=source,
-            preprocessing_request=LLMV3Mini,
+            preprocessing_request=LLMV3Mini_REQUEST,
         )
 
         assert isinstance(index, ContextGroundingIndex)
@@ -871,10 +803,8 @@ class TestContextGroundingService:
         sent_requests = httpx_mock.get_requests()
         create_request = sent_requests[1]
 
-        import json
-
         request_data = json.loads(create_request.content)
-        assert request_data["preProcessing"]["@odata.type"] == LLMV3Mini
+        assert request_data["preProcessing"]["@odata.type"] == LLMV3Mini_REQUEST
 
     def test_all_requests_pass_spec_parameters(
         self,
@@ -967,24 +897,23 @@ class TestContextGroundingService:
                 }
                 mock_request.return_value = mock_response
 
-                source = {
-                    "type": "bucket",
-                    "bucket_name": "test-bucket",
-                    "folder_path": "/test/folder",
-                }
+                source = BucketSourceConfig(
+                    bucket_name="test-bucket",
+                    folder_path="/test/folder",
+                    directory_path="/",
+                )
                 service.create_index(name="test-new-index", source=source)
 
                 assert mock_request.called
                 call_args = mock_request.call_args
                 assert call_args[0][0] == "POST"  # method
                 assert str(call_args[0][1]) == "/ecs_/v2/indexes/create"  # endpoint
-                assert "content" in call_args[1]
+                assert "json" in call_args[1]
                 assert "headers" in call_args[1]
                 assert "x-uipath-folderkey" in call_args[1]["headers"]
                 assert (
                     call_args[1]["headers"]["x-uipath-folderkey"] == "test-folder-key"
                 )
-                assert "Content-Type" in call_args[1]["headers"]
 
             # Test ingest_data method
             with patch.object(service, "request") as mock_request:

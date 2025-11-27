@@ -12,7 +12,7 @@ Tool call evaluators validate specific aspects of how tools are invoked during a
 
 **Purpose**: Validates that tools are called the expected number of times.
 
-**Configuration**: `evals/evaluators/tool-call-count.json`
+**Configuration**: `evaluations/evaluators/tool-call-count.json`
 
 **Example Usage**:
 ```json
@@ -42,7 +42,7 @@ Tool call evaluators validate specific aspects of how tools are invoked during a
 
 **Purpose**: Validates that tools are called in the correct sequence.
 
-**Configuration**: `evals/evaluators/tool-call-order.json`
+**Configuration**: `evaluations/evaluators/tool-call-order.json`
 
 **Example Usage**:
 ```json
@@ -70,7 +70,7 @@ Tool call evaluators validate specific aspects of how tools are invoked during a
 
 **Purpose**: Validates that tools are called with correct arguments.
 
-**Configuration**: `evals/evaluators/tool-call-args.json`
+**Configuration**: `evaluations/evaluators/tool-call-args.json`
 
 **Example Usage**:
 ```json
@@ -101,7 +101,7 @@ Tool call evaluators validate specific aspects of how tools are invoked during a
 
 **Purpose**: Validates that tools produce expected outputs.
 
-**Configuration**: `evals/evaluators/tool-call-output.json`
+**Configuration**: `evaluations/evaluators/tool-call-output.json`
 
 **Example Usage**:
 ```json
@@ -243,7 +243,7 @@ All tool outputs use a consistent `{"content": {...}}` structure:
 Execute all evaluators including tool call evaluators:
 
 ```bash
-uv run uipath eval samples/weather_tools/main.py samples/weather_tools/evals/eval-sets/default.json --workers 1
+uv run uipath eval samples/weather_tools/main.py samples/weather_tools/evaluations/eval-sets/default.json --workers 1
 ```
 
 ## Test Cases in Default Eval Set

@@ -107,7 +107,7 @@ class TestCleanupSchema:
         assert schema["additionalProperties"] is False
 
         # Only required_field should be in required array
-        assert schema["required"] == ["required_field"]
+        assert schema["required"] == ["required_field", "optional_field"]
 
         # Both fields should be in properties
         assert "required_field" in schema["properties"]
@@ -228,5 +228,4 @@ class TestCleanupSchema:
         assert "id" in required_fields
         assert "created_at" in required_fields
         assert "name" in required_fields
-        # description is optional, so not in required
-        assert "description" not in required_fields
+        assert "description" in required_fields

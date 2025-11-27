@@ -17,6 +17,7 @@ A Python SDK for programmatic interaction with UiPath Cloud Platform services, f
 - https://uipath.github.io/uipath-python/core/jobs - Job management
 - https://uipath.github.io/uipath-python/core/assets - Asset storage and retrieval
 - https://uipath.github.io/uipath-python/core/queues - Queue operations
+- https://uipath.github.io/uipath-python/core/resource_catalog - Resources search
 - https://uipath.github.io/uipath-python/core/buckets - Cloud storage buckets
 - https://uipath.github.io/uipath-python/core/attachments - File attachments
 - https://uipath.github.io/uipath-python/core/actions - Action Center integration

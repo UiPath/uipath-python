@@ -5,16 +5,26 @@ from typing import List, Optional
 import click
 from pydantic import TypeAdapter, ValidationError
 
-from uipath._cli._evals._models._evaluation_set import AnyEvaluationSet
+from uipath._cli._evals._models._evaluation_set import (
+    EvaluationItem,
+    EvaluationSet,
+    InputMockingStrategy,
+    LegacyEvaluationItem,
+    LegacyEvaluationSet,
+    LLMMockingStrategy,
+)
 from uipath._cli._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
 
 
+EVAL_SETS_DIRECTORY_NAME = "evaluations/eval-sets"
+
+
 class EvalHelpers:
     @staticmethod
     def auto_discover_eval_set() -> str:
-        """Auto-discover evaluation set from evals/eval-sets directory.
+        """Auto-discover evaluation set from {EVAL_SETS_DIRECTORY_NAME} directory.
 
         Returns:
             Path to the evaluation set file
@@ -22,11 +32,11 @@ class EvalHelpers:
         Raises:
             ValueError: If no eval set found or multiple eval sets exist
         """
-        eval_sets_dir = Path("evals/eval-sets")
+        eval_sets_dir = Path(EVAL_SETS_DIRECTORY_NAME)
 
         if not eval_sets_dir.exists():
             raise ValueError(
-                "No 'evals/eval-sets' directory found. "
+                f"No '{EVAL_SETS_DIRECTORY_NAME}' directory found. "
                 "Please set 'UIPATH_PROJECT_ID' env var and run 'uipath pull'."
             )
 
@@ -34,7 +44,7 @@ class EvalHelpers:
 
         if not eval_set_files:
             raise ValueError(
-                "No evaluation set files found in 'evals/eval-sets' directory. "
+                f"No evaluation set files found in '{EVAL_SETS_DIRECTORY_NAME}' directory. "
             )
 
         if len(eval_set_files) > 1:
@@ -58,7 +68,7 @@ class EvalHelpers:
     @staticmethod
     def load_eval_set(
         eval_set_path: str, eval_ids: Optional[List[str]] = None
-    ) -> tuple[AnyEvaluationSet, str]:
+    ) -> tuple[EvaluationSet, str]:
         """Load the evaluation set from file.
 
         Args:
@@ -66,14 +76,14 @@ class EvalHelpers:
             eval_ids: Optional list of evaluation IDs to filter
 
         Returns:
-            Tuple of (AnyEvaluationSet, resolved_path)
+            Tuple of (EvaluationSet, resolved_path)
         """
-        # If the file doesn't exist at the given path, try looking in evals/eval-sets/
+        # If the file doesn't exist at the given path, try looking in {EVAL_SETS_DIRECTORY_NAME}/
         resolved_path = eval_set_path
         if not Path(eval_set_path).exists():
-            # Check if it's just a filename, then search in evals/eval-sets/
+            # Check if it's just a filename, then search in {EVAL_SETS_DIRECTORY_NAME}/
             if Path(eval_set_path).name == eval_set_path:
-                eval_sets_path = Path("evals/eval-sets") / eval_set_path
+                eval_sets_path = Path(EVAL_SETS_DIRECTORY_NAME) / eval_set_path
                 if eval_sets_path.exists():
                     resolved_path = str(eval_sets_path)
 
@@ -83,7 +93,7 @@ class EvalHelpers:
         except FileNotFoundError as e:
             raise ValueError(
                 f"Evaluation set file not found: '{eval_set_path}'. "
-                f"Searched in current directory and evals/eval-sets/ directory."
+                f"Searched in current directory and {EVAL_SETS_DIRECTORY_NAME}/ directory."
             ) from e
         except json.JSONDecodeError as e:
             raise ValueError(
@@ -92,9 +102,55 @@ class EvalHelpers:
             ) from e
 
         try:
-            eval_set: AnyEvaluationSet = TypeAdapter(AnyEvaluationSet).validate_python(
-                data
-            )
+            eval_set: EvaluationSet | LegacyEvaluationSet = TypeAdapter(
+                EvaluationSet | LegacyEvaluationSet
+            ).validate_python(data)
+            if isinstance(eval_set, LegacyEvaluationSet):
+
+                def migrate_evaluation_item(
+                    evaluation: LegacyEvaluationItem, evaluators: list[str]
+                ) -> EvaluationItem:
+                    mocking_strategy = None
+                    input_mocking_strategy = None
+                    if (
+                        evaluation.simulate_input
+                        and evaluation.input_generation_instructions
+                    ):
+                        input_mocking_strategy = InputMockingStrategy(
+                            prompt=evaluation.input_generation_instructions,
+                        )
+                    if evaluation.simulate_tools and evaluation.simulation_instructions:
+                        mocking_strategy = LLMMockingStrategy(
+                            prompt=evaluation.simulation_instructions,
+                            tools_to_simulate=evaluation.tools_to_simulate or [],
+                        )
+                    return EvaluationItem.model_validate(
+                        {
+                            "id": evaluation.id,
+                            "name": evaluation.name,
+                            "inputs": evaluation.inputs,
+                            "expectedAgentBehavior": evaluation.expected_agent_behavior,
+                            "mockingStrategy": mocking_strategy,
+                            "inputMockingStrategy": input_mocking_strategy,
+                            "evaluationCriterias": {
+                                k: {
+                                    "expectedOutput": evaluation.expected_output,
+                                    "expectedAgentBehavior": evaluation.expected_agent_behavior,
+                                }
+                                for k in evaluators
+                            },
+                        }
+                    )
+
+                eval_set = EvaluationSet(
+                    id=eval_set.id,
+                    name=eval_set.name,
+                    evaluator_refs=eval_set.evaluator_refs,
+                    evaluations=[
+                        migrate_evaluation_item(evaluation, eval_set.evaluator_refs)
+                        for evaluation in eval_set.evaluations
+                    ],
+                )
         except ValidationError as e:
             raise ValueError(
                 f"Invalid evaluation set format in '{resolved_path}': {str(e)}. "

@@ -19,8 +19,11 @@ from typing import Any, Callable
 import click
 from httpx import HTTPError
 
-from ...models.errors import BaseUrlMissingError, SecretMissingError
-from ...models.exceptions import EnrichedException
+from ...platform.errors import (
+    BaseUrlMissingError,
+    EnrichedException,
+    SecretMissingError,
+)
 from ._context import get_cli_context
 
 
@@ -78,9 +81,9 @@ def service_command(f: Callable[..., Any]) -> Callable[..., Any]:
         try:
             result = f(ctx, *args, **kwargs)
 
-            if inspect.isawaitable(result):
+            if inspect.iscoroutine(result):
                 try:
-                    result = asyncio.run(result)  # type: ignore[arg-type]
+                    result = asyncio.run(result)
                 except RuntimeError as e:
                     if "cannot be called from a running event loop" in str(e).lower():
                         prev_loop = asyncio.get_event_loop()
@@ -316,7 +319,7 @@ class ServiceCommandBase:
         cli_ctx = get_cli_context(ctx)
 
         if cli_ctx._client is None:
-            from ..._uipath import UiPath
+            from ...platform._uipath import UiPath
 
             base_url = os.environ.get("UIPATH_URL")
             secret = os.environ.get("UIPATH_ACCESS_TOKEN")

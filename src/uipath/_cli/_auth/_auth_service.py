@@ -13,7 +13,9 @@ from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._services import ExternalApplicationService
 from uipath._utils._auth import update_env_file
-from uipath.models.auth import TokenData
+from uipath.platform.common import TokenData
+
+from ._utils import update_auth_file
 
 
 class AuthService:
@@ -45,10 +47,13 @@ class AuthService:
         self._authenticate_authorization_code()
 
     def _authenticate_client_credentials(self):
+        assert self._client_id and self._client_secret, (
+            "Client ID and Client Secret must be provided."
+        )
         external_app_service = ExternalApplicationService(self._base_url)
         token_data = external_app_service.get_token_data(
-            self._client_id,  # type: ignore
-            self._client_secret,  # type: ignore
+            self._client_id,
+            self._client_secret,
             self._scope,
         )
 
@@ -69,9 +74,8 @@ class AuthService:
 
         if tenant_name:
             self._tenant = tenant_name
-            with PortalService(
-                self._domain, access_token=token_data.access_token
-            ) as portal_service:
+            with PortalService(self._domain) as portal_service:
+                portal_service.update_token_data(token_data)
                 tenant_info = portal_service.resolve_tenant_info(self._tenant)
                 env_vars["UIPATH_TENANT_ID"] = tenant_info["tenant_id"]
         else:
@@ -85,6 +89,7 @@ class AuthService:
 
             token_data = self._perform_oauth_flow()
             portal_service.update_token_data(token_data)
+            update_auth_file(token_data)
 
             tenant_info = portal_service.resolve_tenant_info(self._tenant)
             uipath_url = portal_service.build_tenant_url()

@@ -3,6 +3,7 @@
 import json
 import warnings
 from abc import ABC, abstractmethod
+from types import NoneType
 from typing import Any, Generic, TypeVar, Union, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -33,7 +34,8 @@ class BaseEvaluatorConfig(BaseModel, Generic[T]):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-    name: str
+    name: str = Field(description="The name of the evaluator")
+    description: str = Field(default="", description="The description of the evaluator")
     default_evaluation_criteria: T | None = None
 
 
@@ -94,13 +96,29 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         if hasattr(cls, "evaluate") and not getattr(
             cls.evaluate, "_has_metrics_decorator", False
         ):
-            cls.evaluate = track_evaluation_metrics(cls.evaluate)  # type: ignore[method-assign]
-            cls.evaluate._has_metrics_decorator = True  # type: ignore[attr-defined]
+            new_evaluation_method = track_evaluation_metrics(cls.evaluate)
+            new_evaluation_method._has_metrics_decorator = True  # type: ignore[attr-defined] # probably a better way to do this
+            cls.evaluate = new_evaluation_method  # type: ignore[method-assign] # probably a better way to do this
 
     @property
     def name(self) -> str:
         """Evaluator's name."""
         return self.evaluator_config.name
+
+    @name.setter
+    def name(self, value: str) -> None:
+        """Set the evaluator's name."""
+        self.evaluator_config.name = value
+
+    @property
+    def description(self) -> str:
+        """Evaluator's description."""
+        return self.evaluator_config.description
+
+    @description.setter
+    def description(self, value: str) -> None:
+        """Set the evaluator's description."""
+        self.evaluator_config.description = value
 
     @model_validator(mode="before")
     @classmethod
@@ -360,8 +378,10 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             justification_type = args[0]
 
             # Validate the justification type - must be str, type(None), or BaseEvaluatorJustification subclass
-            if justification_type is str or justification_type is type(None):
+            if justification_type is str:
                 return cast(type[J], justification_type)
+            elif justification_type is None:
+                return cast(type[J], NoneType)
             elif isinstance(justification_type, type) and issubclass(
                 justification_type, BaseEvaluatorJustification
             ):

@@ -3,12 +3,12 @@ import os
 from functools import wraps
 from importlib.metadata import version
 from logging import INFO, WARNING, LogRecord, getLogger
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Union
 
-from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry.sdk._logs import LoggingHandler
-from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import AnyValue
 
+from .._cli._utils._common import get_claim_from_token
 from .._utils.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
@@ -21,10 +21,10 @@ from ._constants import (
     _CLOUD_ORG_ID,
     _CLOUD_TENANT_ID,
     _CLOUD_URL,
+    _CLOUD_USER_ID,
     _CODE_FILEPATH,
     _CODE_FUNCTION,
     _CODE_LINENO,
-    _CONNECTION_STRING,
     _OTEL_RESOURCE_ATTRIBUTES,
     _PROJECT_KEY,
     _SDK_VERSION,
@@ -58,7 +58,7 @@ def _get_project_key() -> str:
 
 class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
     @staticmethod
-    def _get_attributes(record: LogRecord) -> Attributes:  # type: ignore[override]
+    def _get_attributes(record: LogRecord) -> Mapping[str, AnyValue]:
         attributes = dict(LoggingHandler._get_attributes(record) or {})
         attributes[_APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE] = True
         attributes[_CLOUD_TENANT_ID] = os.getenv(ENV_TENANT_ID, _UNKNOWN)
@@ -66,6 +66,11 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
         attributes[_CLOUD_URL] = os.getenv(ENV_BASE_URL, _UNKNOWN)
         attributes[_APP_NAME] = "UiPath.Sdk"
         attributes[_SDK_VERSION] = version("uipath")
+        try:
+            cloud_user_id = get_claim_from_token("sub")
+        except Exception:
+            cloud_user_id = _UNKNOWN
+        attributes[_CLOUD_USER_ID] = cloud_user_id
         attributes[_PROJECT_KEY] = _get_project_key()
 
         if _CODE_FILEPATH in attributes:
@@ -75,7 +80,7 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
         if _CODE_LINENO in attributes:
             del attributes[_CODE_LINENO]
 
-        return attributes  # type: ignore[return-value]
+        return attributes
 
 
 class _TelemetryClient:
@@ -96,11 +101,6 @@ class _TelemetryClient:
             )
             os.environ["OTEL_TRACES_EXPORTER"] = "none"
             os.environ["APPLICATIONINSIGHTS_STATSBEAT_DISABLED_ALL"] = "true"
-
-            configure_azure_monitor(
-                connection_string=_CONNECTION_STRING,
-                disable_offline_storage=True,
-            )
 
             getLogger("azure").setLevel(WARNING)
             _logger.addHandler(_AzureMonitorOpenTelemetryEventHandler())

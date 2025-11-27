@@ -6,7 +6,7 @@ import pytest
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._services.llm_gateway_service import ChatModels, UiPathLlmChatService
-from uipath.models.llm_gateway import (
+from uipath.platform.llm_gateway import (
     AutoToolChoice,
     SpecificToolChoice,
     ToolDefinition,

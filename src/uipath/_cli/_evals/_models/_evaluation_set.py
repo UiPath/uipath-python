@@ -1,10 +1,55 @@
 from enum import Enum, IntEnum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from uipath.eval.evaluators import BaseEvaluator, LegacyBaseEvaluator
+
+class EvaluatorReference(BaseModel):
+    """Reference to an evaluator with optional weight.
+
+    Can be constructed from:
+    - A string (evaluator ID): EvaluatorReference(ref="evaluator-id")
+    - A dict with ref and optional weight: EvaluatorReference(ref="evaluator-id", weight=2.0)
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    ref: str = Field(..., description="Path to the evaluator configuration file")
+    weight: float = Field(
+        default=1.0,
+        description="Weight for this evaluator in scoring calculations",
+        ge=0,
+    )
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any) -> Any:
+        """Allow creating EvaluatorReference from a string or dict."""
+        from pydantic_core import core_schema
+
+        def validate_from_str(value: str) -> dict[str, Any]:
+            """Convert a string to a dict with ref field."""
+            return {"ref": value}
+
+        def serialize(instance: "EvaluatorReference") -> Any:
+            if instance.weight != 1.0:
+                return {"ref": instance.ref, "weight": instance.weight}
+            return instance.ref
+
+        python_schema = handler(source_type)
+        return core_schema.union_schema(
+            [
+                core_schema.chain_schema(
+                    [
+                        core_schema.str_schema(),
+                        core_schema.no_info_plain_validator_function(validate_from_str),
+                        python_schema,
+                    ]
+                ),
+                python_schema,
+            ],
+            serialization=core_schema.plain_serializer_function_ser_schema(serialize),
+        )
 
 
 class EvaluationSimulationTool(BaseModel):
@@ -138,13 +183,16 @@ class LegacyEvaluationItem(BaseModel):
     eval_set_id: str = Field(alias="evalSetId")
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
-    mocking_strategy: Optional[MockingStrategy] = Field(
-        default=None,
-        alias="mockingStrategy",
+    simulate_input: Optional[bool] = Field(default=None, alias="simulateInput")
+    input_generation_instructions: Optional[str] = Field(
+        default=None, alias="inputGenerationInstructions"
     )
-    input_mocking_strategy: Optional[InputMockingStrategy] = Field(
-        default=None,
-        alias="inputMockingStrategy",
+    simulate_tools: Optional[bool] = Field(default=None, alias="simulateInput")
+    simulation_instructions: Optional[str] = Field(
+        default=None, alias="simulationInstructions"
+    )
+    tools_to_simulate: list[EvaluationSimulationTool] = Field(
+        default_factory=list, alias="toolsToSimulate"
     )
 
 
@@ -159,16 +207,20 @@ class EvaluationSet(BaseModel):
     name: str
     version: Literal["1.0"] = "1.0"
     evaluator_refs: List[str] = Field(default_factory=list)
+    evaluator_configs: List[EvaluatorReference] = Field(
+        default_factory=list, alias="evaluatorConfigs"
+    )
     evaluations: List[EvaluationItem] = Field(default_factory=list)
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[EvaluationItem] = []
+        remaining_ids = set(eval_ids)
         for evaluation in self.evaluations:
-            if evaluation.id in eval_ids:
+            if evaluation.id in remaining_ids:
                 selected_evals.append(evaluation)
-                eval_ids.remove(evaluation.id)
-        if len(eval_ids) > 0:
-            raise ValueError("Unknown evaluation ids: {}".format(eval_ids))
+                remaining_ids.remove(evaluation.id)
+        if len(remaining_ids) > 0:
+            raise ValueError("Unknown evaluation ids: {}".format(remaining_ids))
         self.evaluations = selected_evals
 
 
@@ -180,6 +232,9 @@ class LegacyEvaluationSet(BaseModel):
     id: str
     file_name: str = Field(..., alias="fileName")
     evaluator_refs: List[str] = Field(default_factory=list)
+    evaluator_configs: List[EvaluatorReference] = Field(
+        default_factory=list, alias="evaluatorConfigs"
+    )
     evaluations: List[LegacyEvaluationItem] = Field(default_factory=list)
     name: str
     batch_size: int = Field(10, alias="batchSize")
@@ -192,12 +247,13 @@ class LegacyEvaluationSet(BaseModel):
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[LegacyEvaluationItem] = []
+        remaining_ids = set(eval_ids)
         for evaluation in self.evaluations:
-            if evaluation.id in eval_ids:
+            if evaluation.id in remaining_ids:
                 selected_evals.append(evaluation)
-                eval_ids.remove(evaluation.id)
-        if len(eval_ids) > 0:
-            raise ValueError("Unknown evaluation ids: {}".format(eval_ids))
+                remaining_ids.remove(evaluation.id)
+        if len(remaining_ids) > 0:
+            raise ValueError("Unknown evaluation ids: {}".format(remaining_ids))
         self.evaluations = selected_evals
 
 
@@ -216,15 +272,3 @@ def _discriminate_eval_set(
         if version == "1.0":
             return "evaluation_set"
     return "legacy_evaluation_set"
-
-
-AnyEvaluationSet = Annotated[
-    Union[
-        Annotated[EvaluationSet, Tag("evaluation_set")],
-        Annotated[LegacyEvaluationSet, Tag("legacy_evaluation_set")],
-    ],
-    Discriminator(_discriminate_eval_set),
-]
-
-AnyEvaluationItem = Union[EvaluationItem, LegacyEvaluationItem]
-AnyEvaluator = Union[LegacyBaseEvaluator[Any], BaseEvaluator[Any, Any, Any]]

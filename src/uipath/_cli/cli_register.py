@@ -1,10 +1,10 @@
-# type: ignore
 import logging
 
 import click
 
-from ..telemetry import track
-from ._evals._helpers import register_evaluator
+from ._evals._helpers import (  # type: ignore[attr-defined] # Remove after gnarly fix
+    register_evaluator,
+)
 from ._utils._console import ConsoleLogger
 from ._utils._resources import Resources
 
@@ -15,7 +15,6 @@ console = ConsoleLogger()
 @click.command()
 @click.argument("resource", required=True)
 @click.argument("args", nargs=-1)
-@track
 def register(resource: str, args: tuple[str]) -> None:
     """Register a local resource.
 

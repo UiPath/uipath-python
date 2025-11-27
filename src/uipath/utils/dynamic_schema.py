@@ -54,7 +54,7 @@ def jsonschema_to_pydantic(
                 class DynamicEnum(base_type, Enum):
                     pass
 
-                type_ = DynamicEnum(prop.get("title", "DynamicEnum"), dynamic_members)  # type: ignore[call-arg]
+                type_ = DynamicEnum(prop.get("title", "DynamicEnum"), dynamic_members)  # type: ignore[call-arg] # explicit ignore
                 return type_
             elif type_ == "array":
                 item_type: Any = convert_type(prop.get("items", {}))

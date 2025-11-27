@@ -6,10 +6,11 @@ from _pytest.monkeypatch import MonkeyPatch
 from pytest_httpx import HTTPXMock
 
 from uipath._cli._evals._models._evaluation_set import (
-    LegacyEvaluationItem,
+    EvaluationItem,
     LLMMockingStrategy,
     MockitoMockingStrategy,
 )
+from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.mocker import UiPathMockResponseGenerationError
 from uipath._cli._evals.mocks.mocks import set_execution_context
 from uipath.eval.mocks import mockable
@@ -31,8 +32,9 @@ def test_mockito_mockable_sync():
         "id": "evaluation-id",
         "name": "Mock foo",
         "inputs": {},
-        "expectedOutput": {},
-        "expectedAgentBehavior": "",
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
         "mockingStrategy": {
             "type": "mockito",
             "behaviors": [
@@ -46,11 +48,8 @@ def test_mockito_mockable_sync():
                 }
             ],
         },
-        "evalSetId": "eval-set-id",
-        "createdAt": "2025-09-04T18:54:58.378Z",
-        "updatedAt": "2025-09-04T18:55:55.416Z",
     }
-    evaluation = LegacyEvaluationItem(**evaluation_item)
+    evaluation = EvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
@@ -91,8 +90,9 @@ async def test_mockito_mockable_async():
         "id": "evaluation-id",
         "name": "Mock foo",
         "inputs": {},
-        "expectedOutput": {},
-        "expectedAgentBehavior": "",
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
         "mockingStrategy": {
             "type": "mockito",
             "behaviors": [
@@ -106,11 +106,8 @@ async def test_mockito_mockable_async():
                 }
             ],
         },
-        "evalSetId": "eval-set-id",
-        "createdAt": "2025-09-04T18:54:58.378Z",
-        "updatedAt": "2025-09-04T18:55:55.416Z",
     }
-    evaluation = LegacyEvaluationItem(**evaluation_item)
+    evaluation = EvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
@@ -140,6 +137,8 @@ async def test_mockito_mockable_async():
 def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
 
     # Arrange
     @mockable()
@@ -154,18 +153,16 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
         "id": "evaluation-id",
         "name": "Mock foo",
         "inputs": {},
-        "expectedOutput": {},
-        "expectedAgentBehavior": "",
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
         "mockingStrategy": {
             "type": "llm",
             "prompt": "response is 'bar1'",
             "toolsToSimulate": [{"name": "foo"}],
         },
-        "evalSetId": "eval-set-id",
-        "createdAt": "2025-09-04T18:54:58.378Z",
-        "updatedAt": "2025-09-04T18:55:55.416Z",
     }
-    evaluation = LegacyEvaluationItem(**evaluation_item)
+    evaluation = EvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
     httpx_mock.add_response(
         url="https://example.com/agenthub_/llm/api/capabilities",
@@ -226,6 +223,8 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
 async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
 
     # Arrange
     @mockable()
@@ -240,18 +239,16 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
         "id": "evaluation-id",
         "name": "Mock foo",
         "inputs": {},
-        "expectedOutput": {},
-        "expectedAgentBehavior": "",
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
         "mockingStrategy": {
             "type": "llm",
             "prompt": "response is 'bar1'",
             "toolsToSimulate": [{"name": "foo"}],
         },
-        "evalSetId": "eval-set-id",
-        "createdAt": "2025-09-04T18:54:58.378Z",
-        "updatedAt": "2025-09-04T18:55:55.416Z",
     }
-    evaluation = LegacyEvaluationItem(**evaluation_item)
+    evaluation = EvaluationItem(**evaluation_item)
     assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
 
     # Mock capability checks

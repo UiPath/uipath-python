@@ -4,27 +4,23 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Optional, Set
+from typing import AsyncIterator, Optional, Set
 
 import click
 
-from ...models.exceptions import EnrichedException
-from .._evals._helpers import (  # type: ignore
-    register_evaluator,
-    try_extract_file_and_class_name,
-)
+from uipath._cli.models.uipath_json_schema import PackOptions
+
+from ..._config import UiPathConfig
+from ...platform.errors import EnrichedException
+from .._utils._common import get_claim_from_token
 from .._utils._console import ConsoleLogger
 from .._utils._constants import (
     AGENT_INITIAL_CODE_VERSION,
-    AGENT_STORAGE_VERSION,
-    AGENT_TARGET_RUNTIME,
-    AGENT_VERSION,
-    EVALS_DIRECTORY_NAME,
+    SCHEMA_VERSION,
 )
-from .._utils._project_files import (  # type: ignore
+from .._utils._project_files import (
     FileInfo,
-    FileOperationUpdate,
-    InteractiveConflictHandler,
+    UpdateEvent,
     compute_normalized_hash,
     files_to_include,
     read_toml_project,
@@ -38,7 +34,6 @@ from .._utils._studio_project import (
     StructuralMigration,
     StudioClient,
 )
-from .models import EvaluatorFileDetails
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +54,7 @@ class SwFileHandler:
         project_id: str,
         directory: str,
         include_uv_lock: bool = True,
-        conflict_handler: Optional[InteractiveConflictHandler] = None,
+        studio_client: Optional[StudioClient] = None,
     ) -> None:
         """Initialize the SwFileHandler.
 
@@ -67,16 +62,13 @@ class SwFileHandler:
             project_id: The ID of the UiPath project
             directory: Local project directory
             include_uv_lock: Whether to include uv.lock file
-            conflict_handler: Optional handler for file conflicts
+            studio_client: Optional; an existing StudioClient instance to reuse instead of creating a new one.
         """
         self.directory = directory
         self.include_uv_lock = include_uv_lock
         self.console = ConsoleLogger()
-        self._studio_client = StudioClient(project_id)
+        self._studio_client = studio_client or StudioClient(project_id)
         self._project_structure: Optional[ProjectStructure] = None
-        self._conflict_handler = conflict_handler or InteractiveConflictHandler(
-            operation="push"
-        )
 
     def _get_folder_by_name(
         self, structure: ProjectStructure, folder_name: str
@@ -98,7 +90,7 @@ class SwFileHandler:
     def collect_all_files(
         self,
         folder: ProjectFolder,
-        files_dict: Dict[str, ProjectFile],
+        files_dict: dict[str, ProjectFile],
         current_path: str = "",
     ) -> None:
         """Recursively collect all files from a folder with computed paths.
@@ -123,49 +115,36 @@ class SwFileHandler:
     def _get_remote_files(
         self,
         structure: ProjectStructure,
-        source_code_folder: Optional[ProjectFolder] = None,
-    ) -> tuple[Dict[str, ProjectFile], Dict[str, ProjectFile]]:
+    ) -> dict[str, ProjectFile]:
         """Get all files from the project structure indexed by name.
 
         Args:
             structure: The project structure
-            source_code_folder: Optional source_code folder to collect files from
 
         Returns:
-            Tuple of (root_files, source_code_files) dictionaries with file paths as keys
+            files:  dictionary with file paths as keys
         """
-        root_files: Dict[str, ProjectFile] = {}
-        source_code_files: Dict[str, ProjectFile] = {}
+        files: dict[str, ProjectFile] = {}
+        self.collect_all_files(structure, files)
 
-        # Add files from root level
-        for file in structure.files:
-            root_files[file.name] = file
-
-        # Add files from source_code folder if it exists
-        if source_code_folder:
-            self.collect_all_files(source_code_folder, source_code_files)
-
-        return root_files, source_code_files
+        return files
 
     async def _process_file_uploads(
         self,
         local_files: list[FileInfo],
-        source_code_files: Dict[str, ProjectFile],
-        root_files: Dict[str, ProjectFile],
-    ) -> list[FileOperationUpdate]:
-        """Process all file uploads to the source_code folder.
+        remote_files: dict[str, ProjectFile],
+    ) -> list[UpdateEvent]:
+        """Process all file uploads.
 
         This method:
         1. Compares local files with remote files
         2. Builds a structural migration with added/modified/deleted resources
-        3. Prepares agent.json and entry-points.json
-        4. Performs the structural migration
-        5. Cleans up empty folders
+        3. Performs the structural migration
+        4. Cleans up empty folders
 
         Args:
             local_files: List of files to upload
-            source_code_files: Dictionary of existing remote files
-            root_files: Dictionary of existing root-level files
+            remote_files: Dictionary of existing files
 
         Returns:
             List of FileOperationUpdate objects describing all file operations
@@ -177,23 +156,20 @@ class SwFileHandler:
             deleted_resources=[], added_resources=[], modified_resources=[]
         )
         processed_source_files: Set[str] = set()
-        updates: list[FileOperationUpdate] = []
+        updates: list[UpdateEvent] = []
 
-        # Process each local file and build structural migration
         for local_file in local_files:
             if not os.path.exists(local_file.file_path):
                 logger.info(f"File not found: '{local_file.file_path}'")
                 continue
 
-            remote_file = source_code_files.get(
+            remote_file = remote_files.get(
                 local_file.relative_path.replace("\\", "/"), None
             )
 
             if remote_file:
-                # File exists remotely - check if content differs
                 processed_source_files.add(remote_file.id)
 
-                # Download remote file and compare with local
                 try:
                     remote_response = (
                         await self._studio_client.download_project_file_async(
@@ -207,39 +183,25 @@ class SwFileHandler:
                         local_content = f.read()
                         local_hash = compute_normalized_hash(local_content)
 
-                    # Only update if content differs and user confirms
+                    # Only update if content differs
                     if local_hash != remote_hash:
-                        if self._conflict_handler.should_overwrite(
-                            local_file.relative_path,
-                            remote_hash,
-                            local_hash,
-                            local_full_path=os.path.abspath(local_file.file_path),
-                        ):
-                            structural_migration.modified_resources.append(
-                                ModifiedResource(
-                                    id=remote_file.id,
-                                    content_file_path=local_file.file_path,
-                                )
+                        structural_migration.modified_resources.append(
+                            ModifiedResource(
+                                id=remote_file.id,
+                                content_file_path=local_file.file_path,
                             )
-                            updates.append(
-                                FileOperationUpdate(
-                                    file_path=local_file.file_path,
-                                    status="updating",
-                                    message=f"Updating '{local_file.file_name}'",
-                                )
+                        )
+                        updates.append(
+                            UpdateEvent(
+                                file_path=local_file.file_path,
+                                status="updating",
+                                message=f"Updating '{local_file.file_name}'",
                             )
-                        else:
-                            updates.append(
-                                FileOperationUpdate(
-                                    file_path=local_file.file_path,
-                                    status="skipped",
-                                    message=f"Skipped '{local_file.file_name}'",
-                                )
-                            )
+                        )
                     else:
                         # Content is the same, no need to update
                         updates.append(
-                            FileOperationUpdate(
+                            UpdateEvent(
                                 file_path=local_file.file_path,
                                 status="up_to_date",
                                 message=f"File '{local_file.file_name}' is up to date",
@@ -256,7 +218,7 @@ class SwFileHandler:
                         )
                     )
                     updates.append(
-                        FileOperationUpdate(
+                        UpdateEvent(
                             file_path=local_file.file_path,
                             status="updating",
                             message=f"Updating '{local_file.file_name}'",
@@ -268,13 +230,11 @@ class SwFileHandler:
                 structural_migration.added_resources.append(
                     AddedResource(
                         content_file_path=local_file.file_path,
-                        parent_path=f"source_code/{parent_path}"
-                        if parent_path != ""
-                        else "source_code",
+                        parent_path=f"{parent_path}" if parent_path != "" else None,
                     )
                 )
                 updates.append(
-                    FileOperationUpdate(
+                    UpdateEvent(
                         file_path=local_file.file_path,
                         status="uploading",
                         message=f"Uploading '{local_file.file_name}'",
@@ -283,41 +243,40 @@ class SwFileHandler:
 
         # Identify and add deleted files (files that exist remotely but not locally)
         deleted_files = self._collect_deleted_files(
-            source_code_files, processed_source_files
+            remote_files,
+            processed_source_files,
+            files_to_ignore=["studio_metadata.json"],
+            directories_to_ignore=[
+                name
+                for name, condition in [
+                    ("evals", not UiPathConfig.has_legacy_eval_folder),
+                    ("evaluations", not UiPathConfig.has_eval_folder),
+                ]
+                if condition
+            ],
         )
         structural_migration.deleted_resources.extend(deleted_files)
 
         # Add delete updates
         for file_id in deleted_files:
             file_name = next(
-                (name for name, f in source_code_files.items() if f.id == file_id),
+                (name for name, f in remote_files.items() if f.id == file_id),
                 file_id,
             )
             updates.append(
-                FileOperationUpdate(
+                UpdateEvent(
                     file_path=file_name,
                     status="deleting",
                     message=f"Deleting '{file_name}'",
                 )
             )
 
-        # Load uipath.json configuration
-        with open(os.path.join(self.directory, "uipath.json"), "r") as f:
-            uipath_config = json.load(f)
-
-        # Prepare agent.json migration (may download existing file to increment version)
-        agent_update = await self._prepare_agent_json_migration(
-            structural_migration, root_files, uipath_config
+        # Prepare metadata file
+        update_metadata_event = await self._prepare_metadata_file(
+            structural_migration, remote_files
         )
-        if agent_update:
-            updates.append(agent_update)
-
-        # Prepare entry-points.json migration (may download existing file to merge)
-        entry_points_update = await self._prepare_entrypoints_json_migration(
-            structural_migration, root_files, uipath_config
-        )
-        if entry_points_update:
-            updates.append(entry_points_update)
+        if update_metadata_event:
+            updates.append(update_metadata_event)
 
         # Perform the structural migration (uploads/updates/deletes all files)
         await self._studio_client.perform_structural_migration_async(
@@ -331,13 +290,15 @@ class SwFileHandler:
 
     def _collect_deleted_files(
         self,
-        source_code_files: Dict[str, ProjectFile],
+        remote_files: dict[str, ProjectFile],
         processed_source_file_ids: Set[str],
+        files_to_ignore: list[str] | None = None,
+        directories_to_ignore: list[str] | None = None,
     ) -> set[str]:
         """Identify remote files that no longer exist locally.
 
         Args:
-            source_code_files: Dictionary of existing remote files
+            remote_files: Dictionary of existing remote files
             processed_source_file_ids: Set of file IDs that were processed (exist locally)
 
         Returns:
@@ -345,8 +306,24 @@ class SwFileHandler:
         """
         deleted_file_ids: Set[str] = set()
 
-        for _, remote_file in source_code_files.items():
-            if remote_file.id not in processed_source_file_ids:
+        if not files_to_ignore:
+            files_to_ignore = []
+
+        if not directories_to_ignore:
+            directories_to_ignore = []
+
+        for file_path, remote_file in remote_files.items():
+            if any(
+                [
+                    file_path.startswith(directory_name)
+                    for directory_name in directories_to_ignore
+                ]
+            ):
+                continue
+            if (
+                remote_file.id not in processed_source_file_ids
+                and remote_file.name not in files_to_ignore
+            ):
                 deleted_file_ids.add(remote_file.id)
 
         return deleted_file_ids
@@ -359,13 +336,9 @@ class SwFileHandler:
         2. Recursively finds all empty folders
         3. Deletes each empty folder
         """
-        structure = await self._studio_client.get_project_structure_async()
-        source_code_folder = self._get_folder_by_name(structure, "source_code")
+        structure = await self._studio_client.get_project_structure_async(force=True)
 
-        if not source_code_folder:
-            return
-
-        empty_folders = self._find_empty_folders(source_code_folder)
+        empty_folders = self._find_empty_folders(structure)
 
         if empty_folders:
             for folder in empty_folders:
@@ -416,98 +389,21 @@ class SwFileHandler:
 
         return True
 
-    async def _prepare_entrypoints_json_migration(
+    async def _prepare_metadata_file(
         self,
         structural_migration: StructuralMigration,
-        root_files: Dict[str, ProjectFile],
-        uipath_config: Dict[str, Any],
-    ) -> Optional[FileOperationUpdate]:
-        """Prepare entry-points.json to be included in the same structural migration.
+        remote_files: dict[str, ProjectFile],
+    ) -> UpdateEvent:
+        """Prepare .uipath/studio_metadata.json file.
 
         This method:
-        1. Downloads existing entry-points.json if it exists
-        2. Merges entryPoints from uipath.json config
-        3. Adds to structural migration as modified or added resource
+        1. Checks if file exists locally, initializes with defaults if not
+        2. Extracts author from JWT token or pyproject.toml
+        3. Downloads existing studio_metadata.json from remote if it exists to increment code version
 
         Args:
             structural_migration: The structural migration to add resources to
-            root_files: Dictionary of root-level files
-            uipath_config: Configuration from uipath.json
-
-        Returns:
-            FileOperationUpdate describing the operation, or None if error occurred
-        """
-        existing = root_files.get("entry-points.json")
-
-        if existing:
-            # Entry-points.json exists - download and merge
-            try:
-                entry_points_json = (
-                    await self._studio_client.download_project_file_async(existing)
-                ).json()
-                entry_points_json["entryPoints"] = uipath_config["entryPoints"]
-            except Exception:
-                logger.info(
-                    "Could not parse existing 'entry-points.json' file, using default version"
-                )
-                # If parsing fails, create default structure
-                entry_points_json = {
-                    "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
-                    "$id": "entry-points.json",
-                    "entryPoints": uipath_config["entryPoints"],
-                }
-
-            structural_migration.modified_resources.append(
-                ModifiedResource(
-                    id=existing.id,
-                    content_string=json.dumps(entry_points_json),
-                )
-            )
-            return FileOperationUpdate(
-                file_path="entry-points.json",
-                status="updating",
-                message="Updating 'entry-points.json'",
-            )
-        else:
-            # Entry-points.json doesn't exist - create new one
-            logger.info(
-                "'entry-points.json' file does not exist in Studio Web project, initializing using default version"
-            )
-            entry_points_json = {
-                "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
-                "$id": "entry-points.json",
-                "entryPoints": uipath_config["entryPoints"],
-            }
-            structural_migration.added_resources.append(
-                AddedResource(
-                    file_name="entry-points.json",
-                    content_string=json.dumps(entry_points_json),
-                )
-            )
-            return FileOperationUpdate(
-                file_path="entry-points.json",
-                status="uploading",
-                message="Uploading 'entry-points.json'",
-            )
-
-    async def _prepare_agent_json_migration(
-        self,
-        structural_migration: StructuralMigration,
-        root_files: Dict[str, ProjectFile],
-        uipath_config: Dict[str, Any],
-    ) -> Optional[FileOperationUpdate]:
-        """Prepare agent.json to be included in the same structural migration.
-
-        This method:
-        1. Extracts author from JWT token or pyproject.toml
-        2. Downloads existing agent.json if it exists to increment code version
-        3. Builds complete agent.json structure
-        4. Adds to structural migration as modified or added resource
-
-        Args:
-            structural_migration: The structural migration to add resources to
-            root_files: Dictionary of root-level files
-            uipath_config: Configuration from uipath.json
+            remote_files: Dictionary of remote files
 
         Returns:
             FileOperationUpdate describing the operation, or None if error occurred
@@ -515,123 +411,96 @@ class SwFileHandler:
 
         def get_author_from_token_or_toml() -> str:
             """Get author from JWT token or fall back to pyproject.toml."""
-            import jwt
-
-            token = os.getenv("UIPATH_ACCESS_TOKEN")
-            if token:
-                try:
-                    decoded_token = jwt.decode(
-                        token, options={"verify_signature": False}
-                    )
-                    preferred_username = decoded_token.get("preferred_username")
-                    if preferred_username:
-                        return preferred_username
-                except Exception:
-                    # If JWT decoding fails, fall back to toml
-                    pass
+            try:
+                preferred_username = get_claim_from_token("preferred_username")
+                if preferred_username:
+                    return preferred_username
+            except Exception:
+                # fallback to toml
+                pass
 
             toml_data = read_toml_project(
                 os.path.join(self.directory, "pyproject.toml")
             )
             return toml_data.get("authors", "").strip()
 
-        # Extract input and output schemas from entrypoints
-        try:
-            input_schema = uipath_config["entryPoints"][0]["input"]
-            output_schema = uipath_config["entryPoints"][0]["output"]
-        except (FileNotFoundError, KeyError) as e:
-            logger.error(
-                f"Unable to extract entrypoints from configuration file. Please run 'uipath init' : {str(e)}",
-            )
-            return None
-
         author = get_author_from_token_or_toml()
 
-        # Initialize agent.json structure with metadata
-        agent_json = {
-            "version": AGENT_VERSION,
-            "metadata": {
-                "storageVersion": AGENT_STORAGE_VERSION,
-                "targetRuntime": AGENT_TARGET_RUNTIME,
-                "isConversational": False,
+        local_metadata_file = os.path.join(
+            self.directory, str(UiPathConfig.studio_metadata_file_path)
+        )
+        if not os.path.exists(local_metadata_file):
+            metadata = {
+                "schemaVersion": SCHEMA_VERSION,
+                "lastPushDate": datetime.now(timezone.utc).isoformat(),
+                "lastPushAuthor": author,
                 "codeVersion": AGENT_INITIAL_CODE_VERSION,
-                "author": author,
-                "pushDate": datetime.now(timezone.utc).isoformat(),
-            },
-            "inputSchema": input_schema,
-            "outputSchema": output_schema,
-            "bindings": uipath_config.get(
-                "bindings", {"version": "2.0", "resources": []}
-            ),
-            "settings": {},
-            # TODO: remove this after validation check gets removed on SW side
-            "entryPoints": [{}],
-        }
+            }
+            os.makedirs(os.path.dirname(local_metadata_file), exist_ok=True)
+            with open(local_metadata_file, "w") as f:
+                json.dump(metadata, f, indent=2)
+        else:
+            with open(local_metadata_file, "r") as f:
+                metadata = json.load(f)
 
-        existing = root_files.get("agent.json")
+        existing = remote_files.get(".uipath/studio_metadata.json")
         if existing:
-            # Agent.json exists - download and increment version
             try:
-                existing_agent_json = (
+                existing_metadata = (
                     await self._studio_client.download_project_file_async(existing)
                 ).json()
-                version_parts = existing_agent_json["metadata"]["codeVersion"].split(
-                    "."
-                )
+                version_parts = existing_metadata["codeVersion"].split(".")
                 if len(version_parts) >= 3:
                     # Increment patch version (0.1.0 -> 0.1.1)
                     version_parts[-1] = str(int(version_parts[-1]) + 1)
-                    agent_json["metadata"]["codeVersion"] = ".".join(version_parts)
+                    metadata["codeVersion"] = ".".join(version_parts)
                 else:
                     # Invalid version format, use default with patch = 1
-                    agent_json["metadata"]["codeVersion"] = (
-                        AGENT_INITIAL_CODE_VERSION[:-1] + "1"
-                    )
+                    metadata["codeVersion"] = AGENT_INITIAL_CODE_VERSION[:-1] + "1"
             except Exception:
                 logger.info(
-                    "Could not parse existing 'agent.json' file, using default version"
+                    "Could not parse existing metadata file, using default version"
                 )
+
+            with open(local_metadata_file, "w") as f:
+                f.write(json.dumps(metadata))
 
             structural_migration.modified_resources.append(
                 ModifiedResource(
                     id=existing.id,
-                    content_string=json.dumps(agent_json),
+                    content_string=json.dumps(metadata),
                 )
             )
-            return FileOperationUpdate(
-                file_path="agent.json",
+            return UpdateEvent(
+                file_path=".uipath/studio_metadata.json",
                 status="updating",
-                message="Updating 'agent.json'",
+                message="Updating '.uipath/studio_metadata.json'",
             )
         else:
-            # Agent.json doesn't exist - create new one
-            logger.info(
-                "'agent.json' file does not exist in Studio Web project, initializing using default version"
-            )
             structural_migration.added_resources.append(
                 AddedResource(
-                    file_name="agent.json",
-                    content_string=json.dumps(agent_json),
+                    file_name="studio_metadata.json",
+                    content_string=json.dumps(metadata),
+                    parent_path=".uipath",
                 )
             )
-            return FileOperationUpdate(
-                file_path="agent.json",
+            return UpdateEvent(
+                file_path=".uipath/studio_metadata.json",
                 status="uploading",
-                message="Uploading 'agent.json'",
+                message="Uploading '.uipath/studio_metadata.json'",
             )
 
     async def upload_source_files(
-        self, settings: Optional[dict[str, Any]]
-    ) -> AsyncIterator[FileOperationUpdate]:
+        self, pack_options: PackOptions | None = None
+    ) -> AsyncIterator[UpdateEvent]:
         """Main method to upload source files to the UiPath project.
 
         This method:
-        1. Gets project structure (or creates if doesn't exist)
-        2. Creates source_code folder if needed
-        3. Collects local files to upload
-        4. Processes file uploads (yields progress updates)
-        5. Performs structural migration
-        6. Cleans up empty folders
+        1. Gets project structure (or creates if it doesn't exist)
+        2. Collects local files to upload
+        3. Processes file uploads (yields progress updates)
+        4. Performs structural migration
+        5. Cleans up empty folders
 
         Args:
             settings: File handling settings (includes/excludes)
@@ -653,162 +522,25 @@ class SwFileHandler:
             else:
                 raise
 
-        source_code_folder = self._get_folder_by_name(structure, "source_code")
-        root_files, source_code_files = self._get_remote_files(
-            structure, source_code_folder
-        )
-
-        # Create source_code folder if it doesn't exist
-        if not source_code_folder:
-            await self._studio_client.create_folder_async("source_code")
-            yield FileOperationUpdate(
-                file_path="source_code",
-                status="created_folder",
-                message="Created 'source_code' folder.",
-            )
-            source_code_files = {}
+        remote_files = self._get_remote_files(structure)
 
         # Get files to upload and process them
-        files = files_to_include(
-            settings,
+        local_files = files_to_include(
+            pack_options,
             self.directory,
             self.include_uv_lock,
-            directories_to_ignore=[EVALS_DIRECTORY_NAME],
         )
 
-        # Process all files and get updates (this includes HTTP calls for agent.json/entry-points.json)
-        updates = await self._process_file_uploads(files, source_code_files, root_files)
+        updates = await self._process_file_uploads(local_files, remote_files)
 
         # Yield all updates
         for update in updates:
             yield update
 
-    def _extract_evaluator_details(self, file_path: str) -> tuple[bool, str]:
-        """Return whether an evaluator JSON file has a version property and the custom-evaluator python file (if exists).
-
-        Args:
-            file_path: Path to the file to check
-
-        Returns:
-            tuple[bool, str]: A tuple containing:
-                        - A boolean indicating whether the JSON file contains a "version" property.
-                        - The path to the custom-evaluator Python file, if it exists; otherwise, an empty string.
-        """
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            _, file_name, _ = try_extract_file_and_class_name(
-                data.get("evaluatorSchema", "")
-            )
-            return "version" in data, file_name
-        except (json.JSONDecodeError, FileNotFoundError):
-            return False, ""
-
-    def _get_coded_evals_files(self) -> tuple[list[EvaluatorFileDetails], list[str]]:
-        """Get coded-evals files from local evals directory.
-
-        Returns:
-            Tuple of (evaluator_files, eval_set_files) with version property
-        """
-        evaluator_files: list[EvaluatorFileDetails] = []
-        eval_set_files = []
-
-        # Check {self.directory}/evals/evaluators/ for files with version property
-        evaluators_dir = os.path.join(
-            self.directory, EVALS_DIRECTORY_NAME, "evaluators"
-        )
-        if os.path.exists(evaluators_dir):
-            for file_name in os.listdir(evaluators_dir):
-                if file_name.endswith(".json"):
-                    file_path = os.path.join(evaluators_dir, file_name)
-                    version, file_name = self._extract_evaluator_details(file_path)
-                    if version:
-                        evaluator_files.append(
-                            EvaluatorFileDetails(
-                                path=file_path, custom_evaluator_file_name=file_name
-                            )
-                        )
-
-        # Check {self.directory}/evals/eval-sets/ for files with version property
-        eval_sets_dir = os.path.join(self.directory, EVALS_DIRECTORY_NAME, "eval-sets")
-        if os.path.exists(eval_sets_dir):
-            for file_name in os.listdir(eval_sets_dir):
-                if file_name.endswith(".json"):
-                    file_path = os.path.join(eval_sets_dir, file_name)
-                    version, _ = self._extract_evaluator_details(file_path)
-                    if version:
-                        eval_set_files.append(file_path)
-
-        return evaluator_files, eval_set_files
-
-    def _get_subfolder_by_name(
-        self, parent_folder: ProjectFolder, subfolder_name: str
-    ) -> Optional[ProjectFolder]:
-        """Get a subfolder from within a parent folder by name.
-
-        Args:
-            parent_folder: The parent folder to search within
-            subfolder_name: Name of the subfolder to find
-
-        Returns:
-            Optional[ProjectFolder]: The found subfolder or None
-        """
-        for folder in parent_folder.folders:
-            if folder.name == subfolder_name:
-                return folder
-        return None
-
-    async def _ensure_coded_evals_structure(
-        self, structure: ProjectStructure
-    ) -> ProjectFolder:
-        """Ensure coded-evals folder structure exists in remote project.
-
-        Args:
-            structure: Current project structure
-
-        Returns:
-            ProjectFolder: The coded-evals folder
-        """
-        coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
-
-        if not coded_evals_folder:
-            coded_evals_id = await self._studio_client.create_folder_async(
-                "coded-evals"
-            )
-            self.console.success(
-                f"Created {click.style('coded-evals', fg='cyan')} folder"
-            )
-
-            await self._studio_client.create_folder_async("evaluators", coded_evals_id)
-            self.console.success(
-                f"Created {click.style('coded-evals/evaluators', fg='cyan')} folder"
-            )
-
-            await self._studio_client.create_folder_async("eval-sets", coded_evals_id)
-            self.console.success(
-                f"Created {click.style('coded-evals/eval-sets', fg='cyan')} folder"
-            )
-
-            # Refresh structure to get the new folders
-            structure = await self._studio_client.get_project_structure_async()
-            coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
-            assert coded_evals_folder, "Coded-evals folder uploaded but not found."
-
-        return coded_evals_folder
-
-    def _collect_files_from_folder(
-        self, folder: Optional[ProjectFolder]
-    ) -> Dict[str, ProjectFile]:
-        files: Dict[str, ProjectFile] = {}
-        if folder:
-            for file in folder.files:
-                files[file.name] = file
-        return files
-
     async def _process_file_sync(
         self,
         local_file_path: str,
-        remote_files: Dict[str, ProjectFile],
+        remote_files: dict[str, ProjectFile],
         parent_path: str,
         destination_prefix: str,
         structural_migration: StructuralMigration,
@@ -843,26 +575,17 @@ class SwFileHandler:
                     local_content = f.read()
                     local_hash = compute_normalized_hash(local_content)
 
-                # Only update if content differs and user confirms
+                # Only update if content differs
                 if local_hash != remote_hash:
-                    if self._conflict_handler.should_overwrite(
-                        destination,
-                        remote_hash,
-                        local_hash,
-                        local_full_path=os.path.abspath(local_file_path),
-                    ):
-                        structural_migration.modified_resources.append(
-                            ModifiedResource(
-                                id=remote_file.id, content_file_path=local_file_path
-                            )
+                    structural_migration.modified_resources.append(
+                        ModifiedResource(
+                            id=remote_file.id, content_file_path=local_file_path
                         )
-                        self.console.info(
-                            f"Updating {click.style(destination, fg='yellow')}"
-                        )
-                    else:
-                        self.console.info(
-                            f"Skipped {click.style(destination, fg='bright_black')}"
-                        )
+                    )
+                    self.console.info(
+                        f"Updating {click.style(destination, fg='yellow')}"
+                    )
+
                 else:
                     # Content is the same, no need to update
                     self.console.info(f"File '{destination}' is up to date")
@@ -885,7 +608,7 @@ class SwFileHandler:
 
     def _collect_deleted_remote_files(
         self,
-        remote_files: Dict[str, ProjectFile],
+        remote_files: dict[str, ProjectFile],
         processed_ids: Set[str],
         destination_prefix: str,
         structural_migration: StructuralMigration,
@@ -904,149 +627,4 @@ class SwFileHandler:
                 destination = f"{destination_prefix}/{file_name}"
                 self.console.info(
                     f"Deleting {click.style(destination, fg='bright_red')}"
-                )
-
-    async def upload_coded_evals_files(self) -> None:
-        """Upload coded-evals files (files with version property) to Studio Web.
-
-        This method:
-        1. Scans local evals/evaluators and evals/eval-sets for files with version property
-        2. Ensures coded-evals folder structure exists in remote project
-        3. Uploads the files to coded-evals/evaluators and coded-evals/eval-sets respectively
-        4. Deletes remote files that no longer exist locally (consistent with source file behavior)
-        """
-        evaluator_details, eval_set_files = self._get_coded_evals_files()
-
-        structure = await self._studio_client.get_project_structure_async()
-        coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
-
-        # If no coded-evals folder exists and no local files, nothing to do
-        if not coded_evals_folder and not evaluator_details and not eval_set_files:
-            return
-
-        # Ensure folder structure exists if we have local files
-        if evaluator_details or eval_set_files:
-            await self._ensure_coded_evals_structure(structure)
-            # Refresh structure to get the new folders
-            structure = await self._studio_client.get_project_structure_async()
-            coded_evals_folder = self._get_folder_by_name(structure, "coded-evals")
-        else:
-            return
-
-        if not coded_evals_folder:
-            return  # Nothing to sync
-
-        evaluators_folder = self._get_subfolder_by_name(
-            coded_evals_folder, "evaluators"
-        )
-        if evaluators_folder:
-            eval_sets_folder = self._get_subfolder_by_name(
-                coded_evals_folder, "eval-sets"
-            )
-            custom_evaluators_folder = self._get_subfolder_by_name(
-                evaluators_folder, "custom"
-            )
-            evaluator_types_folder = None
-            if custom_evaluators_folder:
-                evaluator_types_folder = self._get_subfolder_by_name(
-                    custom_evaluators_folder, "types"
-                )
-
-            remote_evaluator_files = self._collect_files_from_folder(evaluators_folder)
-            remote_eval_set_files = self._collect_files_from_folder(eval_sets_folder)
-            remote_custom_evaluator_files = self._collect_files_from_folder(
-                custom_evaluators_folder
-            )
-            remote_custom_evaluator_type_files = self._collect_files_from_folder(
-                evaluator_types_folder
-            )
-
-            # Create structural migration for coded-evals files
-            structural_migration = StructuralMigration(
-                deleted_resources=[], added_resources=[], modified_resources=[]
-            )
-
-            processed_evaluator_ids: Set[str] = set()
-            processed_eval_set_ids: Set[str] = set()
-            processed_custom_evaluator_ids: Set[str] = set()
-            processed_evaluator_type_ids: Set[str] = set()
-
-            for evaluator in evaluator_details:
-                if evaluator.is_custom:
-                    evaluator_schema_file_path, evaluator_types_file_path = (
-                        register_evaluator(evaluator.custom_evaluator_file_name)
-                    )
-
-                    await self._process_file_sync(
-                        evaluator_schema_file_path,
-                        remote_custom_evaluator_files,
-                        "coded-evals/evaluators/custom",
-                        "coded-evals/evaluators/custom",
-                        structural_migration,
-                        processed_custom_evaluator_ids,
-                    )
-
-                    await self._process_file_sync(
-                        evaluator_types_file_path,
-                        remote_custom_evaluator_type_files,
-                        "coded-evals/evaluators/custom/types",
-                        "coded-evals/evaluators/custom/types",
-                        structural_migration,
-                        processed_evaluator_type_ids,
-                    )
-
-                await self._process_file_sync(
-                    evaluator.path,
-                    remote_evaluator_files,
-                    "coded-evals/evaluators",
-                    "coded-evals/evaluators",
-                    structural_migration,
-                    processed_evaluator_ids,
-                )
-
-            for eval_set_file in eval_set_files:
-                await self._process_file_sync(
-                    eval_set_file,
-                    remote_eval_set_files,
-                    "coded-evals/eval-sets",
-                    "coded-evals/eval-sets",
-                    structural_migration,
-                    processed_eval_set_ids,
-                )
-
-            self._collect_deleted_remote_files(
-                remote_evaluator_files,
-                processed_evaluator_ids,
-                "coded-evals/evaluators",
-                structural_migration,
-            )
-
-            self._collect_deleted_remote_files(
-                remote_eval_set_files,
-                processed_eval_set_ids,
-                "coded-evals/eval-sets",
-                structural_migration,
-            )
-
-            self._collect_deleted_remote_files(
-                remote_custom_evaluator_files,
-                processed_custom_evaluator_ids,
-                "coded-evals/evaluators/custom",
-                structural_migration,
-            )
-
-            self._collect_deleted_remote_files(
-                remote_custom_evaluator_type_files,
-                processed_evaluator_type_ids,
-                "coded-evals/evaluators/custom/types",
-                structural_migration,
-            )
-
-            if (
-                structural_migration.added_resources
-                or structural_migration.modified_resources
-                or structural_migration.deleted_resources
-            ):
-                await self._studio_client.perform_structural_migration_async(
-                    structural_migration
                 )

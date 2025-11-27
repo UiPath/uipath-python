@@ -1,29 +1,18 @@
-# type: ignore
-"""CLI command for pulling remote project files from UiPath StudioWeb solution.
+"""CLI command for pulling remote project files from UiPath StudioWeb solution."""
 
-This module provides functionality to pull remote project files from a UiPath StudioWeb solution.
-It handles:
-- File downloads from source_code and coded-evals folders
-- Maintaining folder structure locally
-- File comparison using hashes
-- Interactive confirmation for overwriting files
-"""
-
-# type: ignore
 import asyncio
 from pathlib import Path
 
 import click
 
 from .._config import UiPathConfig
-from ..telemetry import track
+from ._utils._common import ensure_coded_agent_project, may_override_files
 from ._utils._console import ConsoleLogger
-from ._utils._constants import EVALS_DIRECTORY_NAME
 from ._utils._project_files import (
-    InteractiveConflictHandler,
     ProjectPullError,
     pull_project,
 )
+from ._utils._studio_project import StudioClient
 
 console = ConsoleLogger()
 
@@ -34,17 +23,19 @@ console = ConsoleLogger()
     type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=Path),
     default=Path("."),
 )
-@track
-def pull(root: Path) -> None:
-    """Pull remote project files from Studio Web Project.
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Automatically overwrite local files without prompts",
+)
+def pull(root: Path, overwrite: bool) -> None:
+    """Pull remote project files from Studio Web.
 
     This command pulls the remote project files from a UiPath Studio Web project.
-    It downloads files from the source_code and coded-evals folders, maintaining the
-    folder structure locally. Files are compared using hashes before overwriting,
-    and user confirmation is required for differing files.
 
     Args:
         root: The root directory to pull files into
+        overwrite: Whether to automatically overwrite local files without prompts
 
     Environment Variables:
         UIPATH_PROJECT_ID: Required. The ID of the UiPath Studio Web project
@@ -52,25 +43,34 @@ def pull(root: Path) -> None:
     Example:
         $ uipath pull
         $ uipath pull /path/to/project
+        $ uipath pull --overwrite
     """
     project_id = UiPathConfig.project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
+        return
 
-    download_configuration = {
-        "source_code": root,
-        "coded-evals": root / EVALS_DIRECTORY_NAME,
+    studio_client = StudioClient(project_id=project_id)
+
+    asyncio.run(ensure_coded_agent_project(studio_client))
+
+    if not overwrite:
+        may_override = asyncio.run(may_override_files(studio_client, "local"))
+        if not may_override:
+            console.info("Operation aborted.")
+            return
+
+    download_configuration: dict[str | None, Path] = {
+        None: root,
     }
 
-    # Create interactive conflict handler for user confirmation
-    conflict_handler = InteractiveConflictHandler(operation="pull")
     console.log("Pulling UiPath project from Studio Web...")
 
     try:
 
         async def run_pull():
             async for update in pull_project(
-                project_id, download_configuration, conflict_handler
+                project_id, download_configuration, studio_client
             ):
                 console.info(f"Processing: {update.file_path}")
                 console.info(update.message)

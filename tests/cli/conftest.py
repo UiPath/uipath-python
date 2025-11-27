@@ -3,7 +3,6 @@ import os
 import pytest
 
 from tests.cli.utils.project_details import ProjectDetails
-from tests.cli.utils.uipath_json import UiPathJson
 
 
 @pytest.fixture
@@ -30,19 +29,3 @@ def project_details() -> ProjectDetails:
         with open("tests/cli/mocks/pyproject.toml", "r") as file:
             data = file.read()
     return ProjectDetails.from_toml(data)
-
-
-@pytest.fixture
-def uipath_json(request) -> UiPathJson:
-    file_name = (
-        "uipath-mock.json"
-        if not hasattr(request, "param") or request.param is None
-        else request.param
-    )
-    if os.path.isfile(f"mocks/{file_name}"):
-        with open(f"mocks/{file_name}", "r") as file:
-            data = file.read()
-    else:
-        with open(f"tests/cli/mocks/{file_name}", "r") as file:
-            data = file.read()
-    return UiPathJson.from_json(data)
