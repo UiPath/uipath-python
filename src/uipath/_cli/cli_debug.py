@@ -97,18 +97,21 @@ def debug(
         try:
 
             async def execute_debug_runtime():
+                trace_manager = UiPathTraceManager()
+
                 with UiPathRuntimeContext.with_defaults(
                     input=input,
                     input_file=input_file,
                     output_file=output_file,
                     resume=resume,
+                    trace_manager=trace_manager,
+                    command="debug",
                 ) as ctx:
                     runtime: UiPathRuntimeProtocol | None = None
                     debug_runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
-                    try:
-                        trace_manager = UiPathTraceManager()
 
+                    try:
                         if ctx.job_id:
                             trace_manager.add_span_exporter(LlmOpsHttpExporter())
 
@@ -117,6 +120,7 @@ def debug(
                         runtime = await factory.new_runtime(
                             entrypoint, ctx.job_id or "default"
                         )
+
                         debug_bridge: UiPathDebugBridgeProtocol = get_debug_bridge(ctx)
 
                         debug_runtime = UiPathDebugRuntime(
@@ -124,9 +128,23 @@ def debug(
                             debug_bridge=debug_bridge,
                         )
 
-                        ctx.result = await debug_runtime.execute(
-                            ctx.get_input(), options=UiPathExecuteOptions(resume=resume)
-                        )
+                        project_id = UiPathConfig.project_id
+
+                        if project_id:
+                            studio_client = StudioClient(project_id)
+
+                            async with ResourceOverwritesContext(
+                                lambda: studio_client.get_resource_overwrites()
+                            ):
+                                ctx.result = await debug_runtime.execute(
+                                    ctx.get_input(),
+                                    options=UiPathExecuteOptions(resume=resume),
+                                )
+                        else:
+                            ctx.result = await debug_runtime.execute(
+                                ctx.get_input(),
+                                options=UiPathExecuteOptions(resume=resume),
+                            )
 
                     finally:
                         if debug_runtime:
@@ -136,23 +154,7 @@ def debug(
                         if factory:
                             await factory.dispose()
 
-            async def execute():
-                project_id = UiPathConfig.project_id
-
-                if project_id:
-                    studio_client = StudioClient(project_id)
-
-                    async with ResourceOverwritesContext(
-                        lambda: studio_client.get_resource_overwrites()
-                    ) as ctx:
-                        console.info(
-                            f"Applied {ctx.overwrites_count} resource overwrite(s)"
-                        )
-                        await execute_debug_runtime()
-                else:
-                    await execute_debug_runtime()
-
-            asyncio.run(execute())
+            asyncio.run(execute_debug_runtime())
         except Exception as e:
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True

@@ -176,7 +176,6 @@ class TestResourceOverrides:
         # Verify execution was successful
         print(result.output)
         assert result.exit_code == 0
-        assert "Applied 6 resource overwrite(s)" in result.output
 
         # Now verify that overridden values were used in API calls
         # Get all requests made

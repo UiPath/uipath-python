@@ -158,6 +158,8 @@ def run(
                             await factory.dispose()
 
             async def execute() -> None:
+                trace_manager = UiPathTraceManager()
+
                 ctx = UiPathRuntimeContext.with_defaults(
                     entrypoint=entrypoint,
                     input=input,
@@ -165,9 +167,9 @@ def run(
                     output_file=output_file,
                     trace_file=trace_file,
                     resume=resume,
+                    command="run",
+                    trace_manager=trace_manager,
                 )
-
-                trace_manager = UiPathTraceManager()
 
                 if ctx.trace_file:
                     trace_manager.add_span_exporter(
@@ -179,10 +181,7 @@ def run(
 
                     async with ResourceOverwritesContext(
                         lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
-                    ) as rcs_ctx:
-                        console.info(
-                            f"Applied {rcs_ctx.overwrites_count} resource overwrite(s)"
-                        )
+                    ):
                         await execute_runtime(ctx)
 
                 else:

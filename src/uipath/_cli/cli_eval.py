@@ -161,11 +161,13 @@ def eval(
                 console_reporter = ConsoleProgressReporter()
                 await console_reporter.subscribe_to_eval_runtime_events(event_bus)
 
+                trace_manager = UiPathTraceManager()
+
                 with UiPathRuntimeContext.with_defaults(
                     output_file=output_file,
+                    trace_manager=trace_manager,
+                    command="eval",
                 ) as ctx:
-                    trace_manager = UiPathTraceManager()
-
                     if ctx.job_id:
                         trace_manager.add_span_exporter(LlmOpsHttpExporter())
 
@@ -179,10 +181,7 @@ def eval(
 
                             async with ResourceOverwritesContext(
                                 lambda: studio_client.get_resource_overwrites()
-                            ) as rcs_ctx:
-                                console.info(
-                                    f"Applied {rcs_ctx.overwrites_count} resource overwrite(s)"
-                                )
+                            ):
                                 ctx.result = await evaluate(
                                     runtime_factory,
                                     trace_manager,
