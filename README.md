@@ -131,10 +131,21 @@ This command opens a browser for authentication and creates/updates your `.env` 
 ### Initialize a Project
 
 ```bash
-uipath init [ENTRYPOINT]
+uipath init
 ```
 
-Creates a `uipath.json` configuration file for your project. If the entrypoint is not provided, it will try to find a single Python file in the current directory.
+The `uipath.json` file should include your entry points in the `functions` section:
+```json
+{
+  "functions": {
+    "main": "main.py:main"
+  }
+}
+```
+
+Running `uipath init` will process these function definitions and create the corresponding `entry-points.json` file needed for deployment.
+
+For more details on the configuration format, see the [UiPath configuration specifications](specs/README.md).
 
 ### Debug a Project
 

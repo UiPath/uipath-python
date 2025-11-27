@@ -172,6 +172,7 @@ The `uipath init` command executes your `main.py` file to analyze its structure 
 ///
 
 This command generates two files:
+
 - `entry-points.json`: Contains the input/output schema for your functions
 - `bindings.json`: Allows you to configure overridable resource bindings.
 

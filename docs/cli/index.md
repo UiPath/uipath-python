@@ -46,14 +46,24 @@ For more information about package requirements, see  [the official documentatio
 
 /// warning
 
-The `uipath init` command executes your `main.py` file to analyze its structure and collect information about inputs and outputs.
+The `uipath.json` file should include your entry points in the `functions` section:
+```json
+{
+  "functions": {
+    "main": "main.py:main"
+  }
+}
+```
+
+Running `uipath init` will process these function definitions and create the corresponding `entry-points.json` file needed for deployment.
 ///
+
 
 <!-- termynal -->
 ```shell
 > uipath init
 ⠋ Initializing UiPath project ...
-✓  Created 'uipath.json' file.
+✓  Created 'entry-points.json' file.
 ```
 ---
 
@@ -111,7 +121,7 @@ uipath run agent '{\"topic\":\"uipath\"}'
 <!-- termynal -->
 
 ```shell
-> uipath run main.py '{"message": "test"}'
+> uipath run main '{"message": "test"}'
 [2025-04-11 10:13:58,857][INFO] {'message': 'test'}
 ```
 ---
@@ -139,11 +149,11 @@ By default, the following file types are included in the `.nupkg` file:
 
 ### Including Extra Files
 
-To include additional files, update the `uipath.json` file by adding a `settings` section. Use the following configuration format:
+To include additional files, update the `uipath.json` file by adding a `packOptions` section. Use the following configuration format:
 
 ```json
 {
-    "settings": {
+    "packOptions": {
         "filesIncluded": [
             "<file here>"
         ],
