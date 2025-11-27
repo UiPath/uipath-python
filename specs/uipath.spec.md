@@ -131,10 +131,7 @@ Defines entrypoints for pure Python scripts. Each key is a friendly name for the
   "runtimeOptions": {
     "isConversational": false
   },
-  "designOptions": {
-    "theme": "dark",
-    "autoSave": true
-  },
+  "designOptions": {},
   "packOptions": {
     "fileExtensionsIncluded": [".py", ".json", ".yaml", ".md"],
     "filesIncluded": ["pyproject.toml", "README.md"],
