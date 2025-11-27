@@ -1,4 +1,6 @@
-import toml
+import tomllib
+
+import tomli_w
 
 
 class ProjectDetails:
@@ -20,7 +22,7 @@ class ProjectDetails:
 
     @classmethod
     def from_toml(cls, toml_str):
-        data = toml.loads(toml_str)
+        data = tomllib.loads(toml_str)
         project_data = data.get("project")
         if project_data:
             name = project_data.get("name")
@@ -35,15 +37,19 @@ class ProjectDetails:
         else:
             return None
 
-    def to_toml(self):
+    def to_toml(self) -> str:
         data = {
             "project": {
-                "name": self.name,
-                "version": self.version,
-                "description": self.description,
-                "authors": self.authors,
-                "dependencies": self.dependencies,
-                "requires-python": self.requires_python,
+                k: v
+                for k, v in {
+                    "name": self.name,
+                    "version": self.version,
+                    "description": self.description,
+                    "authors": self.authors,
+                    "dependencies": self.dependencies,
+                    "requires-python": self.requires_python,
+                }.items()
+                if v is not None
             }
         }
-        return toml.dumps(data)
+        return tomli_w.dumps(data)
