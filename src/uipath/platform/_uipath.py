@@ -26,7 +26,6 @@ from .._services import (
     UiPathOpenAIService,
 )
 from .._utils._auth import resolve_config
-from .._utils._logs import setup_logging
 from .errors import BaseUrlMissingError, SecretMissingError
 
 
@@ -55,7 +54,6 @@ class UiPath:
                     raise BaseUrlMissingError() from e
                 elif error["loc"][0] == "secret":
                     raise SecretMissingError() from e
-        setup_logging(should_debug=debug)
         self._execution_context = ExecutionContext()
 
     @property

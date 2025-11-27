@@ -5,6 +5,7 @@ import click
 
 from uipath.functions import register_default_runtime_factory
 
+from .._utils._logs import setup_logging
 from ._utils._common import add_cwd_to_path, load_environment_variables
 from ._utils._context import CliContext
 from .cli_add import add as add
@@ -87,6 +88,8 @@ def cli(
         output_format=format,
         debug=debug,
     )
+
+    setup_logging(should_debug=debug)
 
     if lv:
         try:
