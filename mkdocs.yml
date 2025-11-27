@@ -110,6 +110,20 @@ nav:
 
 plugins:
   - search
+  - llmstxt:
+      sections:
+        "UiPath SDK":
+          - core/*.md
+          - cli/*.md
+        "UiPath MCP SDK":
+          - mcp/*.md
+        "UiPath LangChain SDK":
+          - langchain/*.md
+        "UiPath LlamaIndex SDK":
+          - llamaindex/*.md
+        "Contributing & Resources":
+          - CONTRIBUTING.md
+          - FAQ.md
   - mkdocstrings:
       default_handler: python
       handlers:
