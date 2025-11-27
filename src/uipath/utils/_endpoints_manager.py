@@ -16,11 +16,17 @@ class UiPathEndpoints(Enum):
     AH_EMBEDDING_ENDPOINT = (
         "agenthub_/llm/openai/deployments/{model}/embeddings?api-version={api_version}"
     )
+    AH_VENDOR_COMPLETION_ENDPOINT = (
+        "agenthub_/llm/raw/vendor/{vendor}/model/{model}/completions"
+    )
     AH_CAPABILITIES_ENDPOINT = "agenthub_/llm/api/capabilities"
 
     OR_NORMALIZED_COMPLETION_ENDPOINT = "orchestrator_/llm/api/chat/completions"
     OR_PASSTHROUGH_COMPLETION_ENDPOINT = "orchestrator_/llm/openai/deployments/{model}/chat/completions?api-version={api_version}"
     OR_EMBEDDING_ENDPOINT = "orchestrator_/llm/openai/deployments/{model}/embeddings?api-version={api_version}"
+    OR_VENDOR_COMPLETION_ENDPOINT = (
+        "orchestrator_/llm/raw/vendor/{vendor}/model/{model}/completions"
+    )
     OR_CAPABILITIES_ENDPOINT = "orchestrator_/llm/api/capabilities"
 
 
@@ -51,6 +57,7 @@ class EndpointManager:
         get_passthrough_endpoint(): Returns the appropriate passthrough completion endpoint.
         get_normalized_endpoint(): Returns the appropriate normalized completion endpoint.
         get_embeddings_endpoint(): Returns the appropriate embeddings endpoint.
+        get_vendor_endpoint(): Returns the appropriate vendor completion endpoint.
     All endpoint methods automatically select the best available endpoint using the fallback order,
     unless overridden by the UIPATH_LLM_SERVICE environment variable.
     """  # noqa: D205
@@ -181,4 +188,12 @@ class EndpointManager:
         return cls._select_endpoint(
             UiPathEndpoints.AH_EMBEDDING_ENDPOINT,
             UiPathEndpoints.OR_EMBEDDING_ENDPOINT,
+        )
+
+    @classmethod
+    def get_vendor_endpoint(cls) -> str:
+        """Get the vendor completion endpoint."""
+        return cls._select_endpoint(
+            UiPathEndpoints.AH_VENDOR_COMPLETION_ENDPOINT,
+            UiPathEndpoints.OR_VENDOR_COMPLETION_ENDPOINT,
         )
