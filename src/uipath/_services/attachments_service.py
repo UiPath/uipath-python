@@ -2,10 +2,12 @@ import os
 import shutil
 import tempfile
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional, Union, overload
+from typing import Any, Dict, Iterator, Optional, Union, overload
 
 import httpx
+from httpx import Response
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -13,6 +15,7 @@ from .._folder_context import FolderContext
 from .._utils import Endpoint, RequestSpec, header_folder
 from .._utils._ssl_context import get_httpx_client_kwargs
 from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
+from ..platform.attachments import Attachment
 from ..tracing import traced
 from ._base_service import BaseService
 
@@ -42,6 +45,71 @@ class AttachmentsService(FolderContext, BaseService):
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self._temp_dir = os.path.join(tempfile.gettempdir(), TEMP_ATTACHMENTS_FOLDER)
+
+    @traced(name="attachments_open", run_type="uipath")
+    @contextmanager
+    def open(
+        self,
+        *,
+        attachment: Attachment,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Iterator[Response]:
+        """Open an attachment.
+
+        Args:
+            attachment (Attachment): The attachment to open.
+            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            str: The name of the downloaded attachment.
+
+        Raises:
+            Exception: If the download fails and no local file is found.
+        """
+        try:
+            spec = self._retrieve_download_uri_spec(
+                key=attachment.id,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            )
+
+            result = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            ).json()
+
+            download_uri = result["BlobFileAccess"]["Uri"]
+            headers = {
+                key: value
+                for key, value in zip(
+                    result["BlobFileAccess"]["Headers"]["Keys"],
+                    result["BlobFileAccess"]["Headers"]["Values"],
+                    strict=False,
+                )
+            }
+
+            if result["BlobFileAccess"]["RequiresAuth"]:
+                # self.request("GET", download_uri, headers=headers | self.auth_headers)
+                # Standard bearer tokens do not work here!
+                # Authentication information is not given in the correct format.
+                raise Exception(
+                    "Attachment access not supported via UiPath Coded Agents."
+                )
+            else:
+                with httpx.Client(**get_httpx_client_kwargs()) as client:
+                    with client.stream(
+                        "GET", download_uri, headers=headers
+                    ) as response:
+                        yield response
+        except Exception as e:
+            # Re-raise the original exception if we can't find it locally
+            raise Exception(
+                f"Attachment with key {attachment.id} not found in UiPath or local storage"
+            ) from e
 
     @traced(name="attachments_download", run_type="uipath")
     def download(
