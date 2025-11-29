@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 import os
+import signal
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Any, Literal
 
@@ -75,13 +77,20 @@ class ConsoleDebugBridge:
         self.verbose = verbose
         self.state = DebuggerState()
 
+        self._stdin_executor = ThreadPoolExecutor(max_workers=1)
+        self._terminate_event: asyncio.Event | None = None
+
     async def connect(self) -> None:
-        """Connect to console debugger."""
+        """Initialize the console debugger."""
+        self._terminate_event = asyncio.Event()
+        signal.signal(
+            signal.SIGINT, self._handle_sigint
+        )  # We need to catch CTRL+C during polling
         self.console.print()
         self._print_help()
 
     async def disconnect(self) -> None:
-        """Cleanup."""
+        """Clean up console debugger."""
         self.console.print()
         self.console.print("[dim]─" * 40)
         self.console.print("[green]Debug session completed")
@@ -116,7 +125,6 @@ class ConsoleDebugBridge:
 
         self.console.print("[red]─" * 40)
 
-        # Display current state
         if breakpoint_result.current_state:
             self._print_json(breakpoint_result.current_state, label="state")
 
@@ -165,24 +173,31 @@ class ConsoleDebugBridge:
         self.console.print(f"[red]{error_display}[/red]")
         self.console.print("[red]─" * 40)
 
-    async def wait_for_resume(self) -> Any:
+    async def wait_for_resume(self) -> dict[str, Any]:
         """Wait for user to press Enter or type commands."""
         while True:  # Keep looping until we get a resume command
             self.console.print()
 
-            # Run input() in executor to not block async loop
             loop = asyncio.get_running_loop()
-            user_input = await loop.run_in_executor(None, lambda: input("> "))
+            future = loop.run_in_executor(
+                self._stdin_executor, self._read_input_blocking
+            )
+
+            try:
+                user_input = await future
+            except asyncio.CancelledError:
+                return {"command": DebugCommand.CONTINUE, "args": None}
 
             command_result = self._parse_command(user_input.strip())
 
             # Handle commands that need another prompt
-            if command_result["command"] in [
+
+            if command_result["command"] in {
                 DebugCommand.BREAKPOINT,
                 DebugCommand.LIST_BREAKPOINTS,
                 DebugCommand.CLEAR_BREAKPOINT,
                 DebugCommand.HELP,
-            ]:
+            }:
                 # These commands don't resume execution, loop again
                 continue
 
@@ -190,11 +205,31 @@ class ConsoleDebugBridge:
             self.console.print()
             return command_result
 
+    async def wait_for_terminate(self) -> None:
+        """Wait until user requests termination (Ctrl+C or 'q')."""
+        assert self._terminate_event is not None, "Debugger not connected"
+        await self._terminate_event.wait()
+
     def get_breakpoints(self) -> list[str] | Literal["*"]:
         """Get nodes to suspend execution at."""
         if self.state.step_mode:
             return "*"  # Suspend at all nodes
         return list(self.state.breakpoints)  # Only suspend at breakpoints
+
+    def _read_input_blocking(self) -> str:
+        assert self._terminate_event is not None, "Debugger not connected"
+        try:
+            return input("> ")
+        except KeyboardInterrupt as e:
+            self._terminate_event.set()
+            raise UiPathDebugQuitError("User pressed Ctrl+C") from e
+        except EOFError as e:
+            self._terminate_event.set()
+            raise UiPathDebugQuitError("STDIN closed by user") from e
+
+    def _handle_sigint(self, signum: int, frame: Any) -> None:
+        assert self._terminate_event is not None, "Debugger not connected"
+        asyncio.get_running_loop().call_soon_threadsafe(self._terminate_event.set)
 
     def _parse_command(self, user_input: str) -> dict[str, Any]:
         """Parse user command input.
@@ -202,6 +237,8 @@ class ConsoleDebugBridge:
         Returns:
             Dict with 'command' and optional 'args'
         """
+        assert self._terminate_event is not None, "Debugger not connected"
+
         if not user_input:
             return {"command": DebugCommand.CONTINUE, "args": None}
 
@@ -246,6 +283,7 @@ class ConsoleDebugBridge:
             }
 
         elif cmd in ["q", "quit", "exit"]:
+            self._terminate_event.set()
             raise UiPathDebugQuitError("User requested exit")
 
         elif cmd in ["h", "help", "?"]:
@@ -382,7 +420,7 @@ class SignalRDebugBridge:
         self._client: SignalRClient | None = None
         self._connected_event = asyncio.Event()
         self._resume_event: asyncio.Event | None = None
-        self._quit_event = asyncio.Event()
+        self._terminate_event = asyncio.Event()
 
     async def connect(self) -> None:
         """Establish SignalR connection."""
@@ -538,10 +576,10 @@ class SignalRDebugBridge:
         self._resume_event = asyncio.Event()
 
         resume_task = asyncio.create_task(self._resume_event.wait())
-        quit_task = asyncio.create_task(self._quit_event.wait())
+        terminate_task = asyncio.create_task(self._terminate_event.wait())
 
         done, pending = await asyncio.wait(
-            {resume_task, quit_task}, return_when=asyncio.FIRST_COMPLETED
+            {resume_task, terminate_task}, return_when=asyncio.FIRST_COMPLETED
         )
 
         for task in pending:
@@ -551,11 +589,15 @@ class SignalRDebugBridge:
             except asyncio.CancelledError:
                 pass
 
-        if quit_task in done:
-            logger.info("Quit command received during wait")
-            raise UiPathDebugQuitError("Quit command received from server")
+        if terminate_task in done:
+            logger.info("Terminate command received during wait")
+            raise UiPathDebugQuitError("Terminate command received from server")
 
         logger.info("Resume command received")
+
+    async def wait_for_terminate(self) -> None:
+        """Wait for terminate command from server."""
+        await self._terminate_event.wait()
 
     def get_breakpoints(self) -> list[str] | Literal["*"]:
         """Get nodes to suspend execution at."""
@@ -693,7 +735,7 @@ class SignalRDebugBridge:
     async def _handle_quit(self, _args: list[Any]) -> None:
         """Handle Quit command from SignalR server."""
         logger.info("Quit command received")
-        self._quit_event.set()
+        self._terminate_event.set()
 
     async def _handle_open(self) -> None:
         """Handle SignalR connection open."""

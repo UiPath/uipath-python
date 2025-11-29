@@ -114,7 +114,9 @@ class TestHitlReader:
         job_error_info = JobErrorInfo(code="error code")
         job_id = 1234
 
-        mock_job = Job(id=job_id, key=job_key, state="Failed", job_error=job_error_info)
+        mock_job = Job(
+            id=job_id, key=job_key, state="Faulted", job_error=job_error_info
+        )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
         with patch(
