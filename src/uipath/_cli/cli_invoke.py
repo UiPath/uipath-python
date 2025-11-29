@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import tomllib
-from typing import Optional
 
 import click
 import httpx
@@ -44,9 +43,7 @@ def _read_project_details() -> tuple[str, str]:
     type=click.Path(exists=True),
     help="File path for the .json input",
 )
-def invoke(
-    entrypoint: Optional[str], input: Optional[str], file: Optional[str]
-) -> None:
+def invoke(entrypoint: str | None, input: str | None, file: str | None) -> None:
     """Invoke an agent published in my workspace."""
     if file:
         _, file_extension = os.path.splitext(file)

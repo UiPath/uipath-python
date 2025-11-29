@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator
 from urllib.parse import urlparse
 
 import click
@@ -166,9 +166,9 @@ async def create_resources(studio_client: StudioClient):
 
 async def upload_source_files_to_project(
     project_id: str,
-    pack_options: Optional[PackOptions],
+    pack_options: PackOptions | None,
     directory: str,
-    studio_client: Optional[StudioClient] = None,
+    studio_client: StudioClient | None = None,
     include_uv_lock: bool = True,
 ) -> AsyncIterator[UpdateEvent]:
     """Upload source files to UiPath project, yielding progress updates.

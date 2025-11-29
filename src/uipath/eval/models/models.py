@@ -3,7 +3,7 @@
 import traceback
 from dataclasses import dataclass
 from enum import Enum, IntEnum
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, Field
@@ -14,10 +14,10 @@ class AgentExecution(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    agent_input: Optional[Dict[str, Any]]
-    agent_output: Dict[str, Any]
+    agent_input: dict[str, Any] | None
+    agent_output: dict[str, Any]
     agent_trace: list[ReadableSpan]
-    expected_agent_behavior: Optional[str] = None
+    expected_agent_behavior: str | None = None
     simulation_instructions: str = ""
 
 
@@ -39,9 +39,9 @@ class ScoreType(IntEnum):
 class BaseEvaluationResult(BaseModel):
     """Base class for evaluation results."""
 
-    details: Optional[str | BaseModel] = None
+    details: str | BaseModel | None = None
     # this is marked as optional, as it is populated inside the 'measure_execution_time' decorator
-    evaluation_time: Optional[float] = None
+    evaluation_time: float | None = None
 
 
 class BooleanEvaluationResult(BaseEvaluationResult):
@@ -128,9 +128,9 @@ class TrajectoryEvaluationSpan:
 
     name: str
     status: str
-    attributes: Dict[str, Any]
-    parent_name: Optional[str] = None
-    events: Optional[List[Dict[str, Any]]] = None
+    attributes: dict[str, Any]
+    parent_name: str | None = None
+    events: list[dict[str, Any]] | None = None
 
     def __post_init__(self):
         """Initialize default values."""
@@ -139,7 +139,7 @@ class TrajectoryEvaluationSpan:
 
     @classmethod
     def from_readable_span(
-        cls, span: ReadableSpan, parent_spans: Optional[Dict[int, str]] = None
+        cls, span: ReadableSpan, parent_spans: dict[int, str] | None = None
     ) -> "TrajectoryEvaluationSpan":
         """Convert a ReadableSpan to a TrajectoryEvaluationSpan.
 
@@ -182,7 +182,7 @@ class TrajectoryEvaluationSpan:
             events=events,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "name": self.name,
@@ -196,11 +196,11 @@ class TrajectoryEvaluationSpan:
 class TrajectoryEvaluationTrace(BaseModel):
     """Container for a collection of trajectory evaluation spans."""
 
-    spans: List[TrajectoryEvaluationSpan]
+    spans: list[TrajectoryEvaluationSpan]
 
     @classmethod
     def from_readable_spans(
-        cls, spans: List[ReadableSpan]
+        cls, spans: list[ReadableSpan]
     ) -> "TrajectoryEvaluationTrace":
         """Convert a list of ReadableSpans to TrajectoryEvaluationTrace.
 
@@ -224,10 +224,7 @@ class TrajectoryEvaluationTrace(BaseModel):
 
         return cls(spans=evaluation_spans)
 
-    class Config:
-        """Pydantic configuration."""
-
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class EvaluatorType(str, Enum):
@@ -321,6 +318,6 @@ class UiPathEvaluationError(Exception):
         super().__init__(detail)
 
     @property
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         """Get the error information as a dictionary."""
         return self.error_info.model_dump()
