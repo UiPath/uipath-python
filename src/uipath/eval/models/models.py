@@ -15,7 +15,7 @@ class AgentExecution(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     agent_input: dict[str, Any] | None
-    agent_output: dict[str, Any]
+    agent_output: dict[str, Any] | str
     agent_trace: list[ReadableSpan]
     expected_agent_behavior: str | None = None
     simulation_instructions: str = ""

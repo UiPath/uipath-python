@@ -109,52 +109,28 @@ def run(
 
         try:
 
-            async def execute_runtime(ctx: UiPathRuntimeContext) -> UiPathRuntimeResult:
-                with ctx:
-                    runtime: UiPathRuntimeProtocol | None = None
-                    factory: UiPathRuntimeFactoryProtocol | None = None
-                    try:
-                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
-                        runtime = await factory.new_runtime(
-                            entrypoint, ctx.job_id or "default"
-                        )
-                        options = UiPathExecuteOptions(resume=resume)
-                        ctx.result = await runtime.execute(
-                            input=ctx.get_input(), options=options
-                        )
-                        return ctx.result
-                    finally:
-                        if runtime:
-                            await runtime.dispose()
-                        if factory:
-                            await factory.dispose()
+            async def execute_runtime(
+                ctx: UiPathRuntimeContext, runtime: UiPathRuntimeProtocol
+            ) -> UiPathRuntimeResult:
+                options = UiPathExecuteOptions(resume=resume)
+                ctx.result = await runtime.execute(
+                    input=ctx.get_input(), options=options
+                )
+                return ctx.result
 
             async def debug_runtime(
-                ctx: UiPathRuntimeContext,
+                ctx: UiPathRuntimeContext, runtime: UiPathRuntimeProtocol
             ) -> UiPathRuntimeResult | None:
-                with ctx:
-                    runtime: UiPathRuntimeProtocol | None = None
-                    factory: UiPathRuntimeFactoryProtocol | None = None
-                    try:
-                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
-                        runtime = await factory.new_runtime(entrypoint, "default")
-                        debug_bridge: UiPathDebugBridgeProtocol = ConsoleDebugBridge()
-                        await debug_bridge.emit_execution_started()
-                        options = UiPathStreamOptions(resume=resume)
-                        async for event in runtime.stream(
-                            ctx.get_input(), options=options
-                        ):
-                            if isinstance(event, UiPathRuntimeResult):
-                                await debug_bridge.emit_execution_completed(event)
-                                ctx.result = event
-                            elif isinstance(event, UiPathRuntimeStateEvent):
-                                await debug_bridge.emit_state_update(event)
-                        return ctx.result
-                    finally:
-                        if runtime:
-                            await runtime.dispose()
-                        if factory:
-                            await factory.dispose()
+                debug_bridge: UiPathDebugBridgeProtocol = ConsoleDebugBridge()
+                await debug_bridge.emit_execution_started()
+                options = UiPathStreamOptions(resume=resume)
+                async for event in runtime.stream(ctx.get_input(), options=options):
+                    if isinstance(event, UiPathRuntimeResult):
+                        await debug_bridge.emit_execution_completed(event)
+                        ctx.result = event
+                    elif isinstance(event, UiPathRuntimeStateEvent):
+                        await debug_bridge.emit_state_update(event)
+                return ctx.result
 
             async def execute() -> None:
                 trace_manager = UiPathTraceManager()
@@ -175,16 +151,27 @@ def run(
                         JsonLinesFileExporter(ctx.trace_file)
                     )
 
-                if ctx.job_id:
-                    trace_manager.add_span_exporter(LlmOpsHttpExporter())
-
-                    async with ResourceOverwritesContext(
-                        lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
-                    ):
-                        await execute_runtime(ctx)
-
-                else:
-                    await debug_runtime(ctx)
+                async with ResourceOverwritesContext(
+                    lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
+                ):
+                    with ctx:
+                        runtime: UiPathRuntimeProtocol | None = None
+                        factory: UiPathRuntimeFactoryProtocol | None = None
+                        try:
+                            factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+                            runtime = await factory.new_runtime(
+                                entrypoint, ctx.job_id or "default"
+                            )
+                            if ctx.job_id:
+                                trace_manager.add_span_exporter(LlmOpsHttpExporter())
+                                ctx.result = await execute_runtime(ctx, runtime)
+                            else:
+                                ctx.result = await debug_runtime(ctx, runtime)
+                        finally:
+                            if runtime:
+                                await runtime.dispose()
+                            if factory:
+                                await factory.dispose()
 
             asyncio.run(execute())
 
