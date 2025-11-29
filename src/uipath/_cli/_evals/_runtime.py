@@ -612,7 +612,7 @@ class UiPathEvalRuntime:
         *,
         evaluation_criteria: Any,
     ) -> EvaluationResult:
-        output_data: dict[str, Any] = {}
+        output_data: dict[str, Any] | str = {}
         if execution_output.result.output:
             if isinstance(execution_output.result.output, BaseModel):
                 output_data = execution_output.result.output.model_dump()

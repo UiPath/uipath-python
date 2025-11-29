@@ -52,7 +52,9 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""
-        if self.evaluator_config.target_output_key != "*":
+        if self.evaluator_config.target_output_key != "*" and isinstance(
+            agent_execution.agent_output, dict
+        ):
             try:
                 return agent_execution.agent_output[
                     self.evaluator_config.target_output_key

@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
+from pydantic import BaseModel
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
@@ -19,7 +20,6 @@ from uipath._events._event_bus import EventBus
 
 
 async def test_evaluate():
-    # Arrange
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
     context = UiPathEvalContext()
@@ -95,8 +95,11 @@ async def test_evaluate():
     UiPathEvalOutput.model_validate(result.output).model_dump_json()
     assert result.output
     output_dict = (
-        result.output if isinstance(result.output, dict) else result.output.model_dump()
+        result.output.model_dump()
+        if isinstance(result.output, BaseModel)
+        else result.output
     )
+    assert isinstance(output_dict, dict)
     assert (
         output_dict["evaluationSetResults"][0]["evaluationRunResults"][0]["result"][
             "score"

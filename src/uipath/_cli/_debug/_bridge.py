@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from enum import Enum
-from typing import Any, Literal, Set
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from pysignalr.client import SignalRClient
@@ -40,7 +40,7 @@ class DebuggerState:
     """Maintains debugger state across execution."""
 
     def __init__(self):
-        self.breakpoints: Set[str] = set()
+        self.breakpoints: set[str] = set()
         self.step_mode: bool = False
 
     def add_breakpoint(self, node_name: str) -> None:
@@ -139,7 +139,7 @@ class ConsoleDebugBridge:
             symbol = "●"
 
         self.console.print(f"[{color}]{symbol} END[/{color}]")
-        output_data: dict[str, Any] = {}
+        output_data: dict[str, Any] | str = {}
         if runtime_result.output:
             if isinstance(runtime_result.output, BaseModel):
                 output_data = runtime_result.output.model_dump()
@@ -284,7 +284,7 @@ class ConsoleDebugBridge:
         self.console.print("  [yellow]q, quit[/yellow]         Exit debugger")
         self.console.print()
 
-    def _print_json(self, data: dict[str, Any], label: str = "data") -> None:
+    def _print_json(self, data: dict[str, Any] | str, label: str = "data") -> None:
         """Print JSON data with enhanced hierarchy."""
         try:
             # Create a tree for nested structure
