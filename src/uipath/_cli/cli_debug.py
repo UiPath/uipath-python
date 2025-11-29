@@ -112,8 +112,13 @@ def debug(
                     factory: UiPathRuntimeFactoryProtocol | None = None
 
                     try:
+                        trigger_poll_interval: float = 5.0
+
                         if ctx.job_id:
                             trace_manager.add_span_exporter(LlmOpsHttpExporter())
+                            trigger_poll_interval = (
+                                0.0  # Polling disabled for production jobs
+                            )
 
                         factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
 
@@ -126,6 +131,7 @@ def debug(
                         debug_runtime = UiPathDebugRuntime(
                             delegate=runtime,
                             debug_bridge=debug_bridge,
+                            trigger_poll_interval=trigger_poll_interval,
                         )
 
                         project_id = UiPathConfig.project_id

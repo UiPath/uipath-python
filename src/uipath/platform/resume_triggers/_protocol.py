@@ -97,19 +97,22 @@ class UiPathResumeTriggerReader:
                         folder_key=trigger.folder_key,
                         folder_path=trigger.folder_path,
                     )
-                    if (
-                        job.state
-                        and not job.state.lower()
-                        == UiPathRuntimeStatus.SUCCESSFUL.value.lower()
-                    ):
-                        raise UiPathRuntimeError(
-                            UiPathErrorCode.INVOKED_PROCESS_FAILURE,
-                            "Invoked process did not finish successfully.",
-                            _try_convert_to_json_format(str(job.job_error or job.info))
-                            or "Job error unavailable.",
-                        )
-                    output_data = await uipath.jobs.extract_output_async(job)
-                    return _try_convert_to_json_format(output_data)
+                    job_state = (job.state or "").lower()
+                    successful_state = UiPathRuntimeStatus.SUCCESSFUL.value.lower()
+                    faulted_state = UiPathRuntimeStatus.FAULTED.value.lower()
+
+                    if job_state == successful_state:
+                        output_data = await uipath.jobs.extract_output_async(job)
+                        return _try_convert_to_json_format(output_data)
+
+                    raise UiPathRuntimeError(
+                        UiPathErrorCode.INVOKED_PROCESS_FAILURE,
+                        "Invoked process did not finish successfully.",
+                        _try_convert_to_json_format(str(job.job_error or job.info))
+                        or "Job error unavailable."
+                        if job_state == faulted_state
+                        else f"Job {job.key} is {job_state}.",
+                    )
 
             case UiPathResumeTriggerType.API:
                 if trigger.api_resume and trigger.api_resume.inbox_id:
