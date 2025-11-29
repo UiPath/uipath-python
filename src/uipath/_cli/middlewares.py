@@ -2,7 +2,7 @@ import importlib.metadata
 import inspect
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 from ._utils._console import ConsoleLogger
 
@@ -13,8 +13,8 @@ console = ConsoleLogger()
 @dataclass
 class MiddlewareResult:
     should_continue: bool
-    info_message: Optional[str] = None
-    error_message: Optional[str] = None
+    info_message: str | None = None
+    error_message: str | None = None
     should_include_stacktrace: bool = False
 
 
@@ -22,7 +22,7 @@ MiddlewareFunc = Callable[..., MiddlewareResult]
 
 
 class Middlewares:
-    _middlewares: Dict[str, List[MiddlewareFunc]] = {
+    _middlewares: dict[str, list[MiddlewareFunc]] = {
         "new": [],
         "init": [],
         "pack": [],
@@ -46,7 +46,7 @@ class Middlewares:
         )
 
     @classmethod
-    def get(cls, command: str) -> List[MiddlewareFunc]:
+    def get(cls, command: str) -> list[MiddlewareFunc]:
         """Get all middlewares for a specific command."""
         return cls._middlewares.get(command, [])
 
@@ -93,7 +93,7 @@ class Middlewares:
         return MiddlewareResult(should_continue=True)
 
     @classmethod
-    def clear(cls, command: Optional[str] = None) -> None:
+    def clear(cls, command: str | None = None) -> None:
         """Clear middlewares for a specific command or all middlewares if command is None."""
         if command:
             if command in cls._middlewares:

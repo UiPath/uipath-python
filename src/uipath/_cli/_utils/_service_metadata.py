@@ -27,7 +27,7 @@ Example:
 
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CreateParameter(BaseModel):
@@ -57,10 +57,7 @@ class CreateParameter(BaseModel):
     default: Any = None
     option_name: str | None = None
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DeleteCommandConfig(BaseModel):
@@ -83,10 +80,7 @@ class DeleteCommandConfig(BaseModel):
     dry_run_supported: bool = True
     confirmation_prompt: str | None = None
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ExistsCommandConfig(BaseModel):
@@ -106,10 +100,7 @@ class ExistsCommandConfig(BaseModel):
     identifier_arg_name: str = "name"
     return_format: str = "dict"  # "bool", "dict", or "text"
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ServiceMetadata(BaseModel):
@@ -156,10 +147,7 @@ class ServiceMetadata(BaseModel):
     list_supports_filters: bool = False
     retrieve_identifier: str = "name"
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
     @model_validator(mode="after")
     def set_defaults(self) -> "ServiceMetadata":

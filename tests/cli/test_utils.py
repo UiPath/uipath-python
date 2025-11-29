@@ -1,28 +1,28 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
 from uipath._cli._utils._common import serialize_object
 
 
-class TestPydanticModel(BaseModel):
-    """Test Pydantic model for serialization testing."""
+class SamplePydanticModel(BaseModel):
+    """Sample Pydantic model for serialization testing."""
 
     name: str
     age: int
-    tags: List[str]
-    metadata: Optional[Dict[str, Any]] = None
+    tags: list[str]
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
-class TestDataClass:
-    """Test dataclass for serialization testing."""
+class SampleDataClass:
+    """Sample dataclass for serialization testing."""
 
     value: str
-    numbers: List[int]
+    numbers: list[int]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"value": self.value, "numbers": self.numbers}
 
 
@@ -61,7 +61,7 @@ def test_serialize_dict() -> None:
 
 def test_serialize_pydantic_model() -> None:
     """Test serialization of Pydantic models with nested structures."""
-    model = TestPydanticModel(
+    model = SamplePydanticModel(
         name="test", age=25, tags=["tag1", "tag2"], metadata={"key": "value"}
     )
     expected = {
@@ -75,7 +75,7 @@ def test_serialize_pydantic_model() -> None:
 
 def test_serialize_dataclass() -> None:
     """Test serialization of dataclass with to_dict method."""
-    data = TestDataClass(value="test", numbers=[1, 2, 3])
+    data = SampleDataClass(value="test", numbers=[1, 2, 3])
     expected = {"value": "test", "numbers": [1, 2, 3]}
     assert serialize_object(data) == expected
 
@@ -91,13 +91,13 @@ def test_serialize_iterable() -> None:
 def test_serialize_complex_nested_structure() -> None:
     """Test serialization of complex nested structure with mixed types."""
     complex_structure = {
-        "model": TestPydanticModel(
+        "model": SamplePydanticModel(
             name="test", age=25, tags=["tag1", "tag2"], metadata={"nested": True}
         ),
-        "dataclass": TestDataClass(value="test", numbers=[1, 2, 3]),
+        "dataclass": SampleDataClass(value="test", numbers=[1, 2, 3]),
         "list": [
             {"key": "value"},
-            TestPydanticModel(name="nested", age=30, tags=["tag3"]),
+            SamplePydanticModel(name="nested", age=30, tags=["tag3"]),
             [1, 2, 3],
         ],
     }

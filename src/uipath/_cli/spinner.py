@@ -1,5 +1,3 @@
-from typing import Optional
-
 from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner as RichSpinner
@@ -12,7 +10,7 @@ class Spinner:
     def __init__(self, message: str = ""):
         self.message = message
         self._console = Console()
-        self._live: Optional[Live] = None
+        self._live: Live | None = None
         self._spinner = RichSpinner("dots", Text(message))
 
     def start(self, message: str = "") -> None:

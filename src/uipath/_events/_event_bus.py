@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Callable, Dict, List, Optional, Set, TypeVar
+from typing import Any, Callable, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +14,8 @@ class EventBus:
 
     def __init__(self) -> None:
         """Initialize a new EventBus instance."""
-        self._subscribers: Dict[str, List[Callable[[Any], Any]]] = {}
-        self._running_tasks: Set[asyncio.Task[Any]] = set()
+        self._subscribers: dict[str, list[Callable[[Any], Any]]] = {}
+        self._running_tasks: set[asyncio.Task[Any]] = set()
 
     def subscribe(self, topic: str, handler: Callable[[Any], Any]) -> None:
         """Subscribe a handler method/function to a topic.
@@ -93,7 +93,7 @@ class EventBus:
         self._cleanup_completed_tasks()
         return len(self._running_tasks)
 
-    async def wait_for_all(self, timeout: Optional[float] = None) -> None:
+    async def wait_for_all(self, timeout: float | None = None) -> None:
         """Wait for all currently running subscriber tasks to complete.
 
         Args:
@@ -143,7 +143,7 @@ class EventBus:
         """
         return len(self._subscribers.get(topic, []))
 
-    def clear_subscribers(self, topic: Optional[str] = None) -> None:
+    def clear_subscribers(self, topic: str | None = None) -> None:
         """Clear subscribers for a topic or all topics.
 
         Args:
