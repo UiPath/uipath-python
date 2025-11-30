@@ -7,7 +7,7 @@ These tests catch:
 """
 
 import inspect
-from typing import Any, Optional, Set
+from typing import Any
 
 import click
 import pytest
@@ -23,7 +23,7 @@ CLI_ONLY_OPTIONS = {"confirm", "dry_run"}
 SDK_COMMON_PARAMS = {"folder_path", "folder_key"}
 
 
-def get_cli_option_names(cmd: click.Command) -> Set[str]:
+def get_cli_option_names(cmd: click.Command) -> set[str]:
     """Extract parameter names from a Click command (options AND arguments).
 
     Args:
@@ -39,7 +39,7 @@ def get_cli_option_names(cmd: click.Command) -> Set[str]:
     }
 
 
-def get_sdk_param_names(method) -> Set[str]:
+def get_sdk_param_names(method) -> set[str]:
     """Extract parameter names from SDK method signature.
 
     Args:
@@ -58,9 +58,9 @@ def assert_cli_sdk_alignment(
     cli_command: click.Command,
     sdk_method: Any,
     *,
-    exclude_cli: Optional[Set[str]] = None,
-    exclude_sdk: Optional[Set[str]] = None,
-    param_mappings: Optional[dict[str, str]] = None,
+    exclude_cli: set[str] | None = None,
+    exclude_sdk: set[str] | None = None,
+    param_mappings: dict[str, str] | None = None,
 ) -> None:
     """Assert that CLI command options align with SDK method parameters.
 

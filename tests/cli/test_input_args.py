@@ -5,19 +5,17 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from uipath._cli._utils._input_args import get_type_schema
+from uipath.functions.schema_gen import get_type_schema
 
 
 class EventArguments(BaseModel):
     """Test Pydantic model with aliases for testing."""
 
-    event_connector: Optional[str] = Field(default=None, alias="UiPathEventConnector")
-    event: Optional[str] = Field(default=None, alias="UiPathEvent")
-    event_object_type: Optional[str] = Field(
-        default=None, alias="UiPathEventObjectType"
-    )
-    event_object_id: Optional[str] = Field(default=None, alias="UiPathEventObjectId")
-    additional_event_data: Optional[str] = Field(
+    event_connector: str | None = Field(default=None, alias="UiPathEventConnector")
+    event: str | None = Field(default=None, alias="UiPathEvent")
+    event_object_type: str | None = Field(default=None, alias="UiPathEventObjectType")
+    event_object_id: str | None = Field(default=None, alias="UiPathEventObjectId")
+    additional_event_data: str | None = Field(
         default=None, alias="UiPathAdditionalEventData"
     )
 
@@ -26,9 +24,9 @@ class RequiredFieldsModel(BaseModel):
     """Test Pydantic model with required and optional fields."""
 
     required_field: str
-    optional_field: Optional[str] = None
+    optional_field: str | None = None
     aliased_required: int = Field(alias="AliasedRequired")
-    aliased_optional: Optional[int] = Field(default=100, alias="AliasedOptional")
+    aliased_optional: int | None = Field(default=100, alias="AliasedOptional")
 
 
 @dataclass
@@ -111,4 +109,10 @@ def test_primitive_types():
 def test_optional_types():
     """Test handling of Optional types."""
     schema = get_type_schema(Optional[str])
+    assert schema == {"type": "string"}  # Should unwrap Optional
+
+
+def test_optional_union_types():
+    """Test handling of Optional types."""
+    schema = get_type_schema(str | None)
     assert schema == {"type": "string"}  # Should unwrap Optional

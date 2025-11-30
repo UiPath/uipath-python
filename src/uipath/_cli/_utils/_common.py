@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 from urllib.parse import urlparse
 
 import click
@@ -19,7 +19,7 @@ from ._studio_project import (
 )
 
 
-def get_claim_from_token(claim_name: str) -> Optional[str]:
+def get_claim_from_token(claim_name: str) -> str | None:
     import jwt
 
     token = os.getenv(ENV_UIPATH_ACCESS_TOKEN)
@@ -59,7 +59,7 @@ def environment_options(function):
     return function
 
 
-def get_env_vars(spinner: Optional[Spinner] = None) -> list[str]:
+def get_env_vars(spinner: Spinner | None = None) -> list[str]:
     base_url = os.environ.get("UIPATH_URL")
     token = os.environ.get("UIPATH_ACCESS_TOKEN")
 
@@ -193,7 +193,7 @@ async def may_override_files(
 
 
 async def read_resource_overwrites_from_file(
-    directory_path: Optional[str] = None,
+    directory_path: str | None = None,
 ) -> dict[str, ResourceOverwrite]:
     """Read resource overwrites from a JSON file."""
     config_file_name = UiPathConfig.config_file_name

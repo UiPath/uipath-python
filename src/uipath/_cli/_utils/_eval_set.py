@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from typing import List, Optional
 
 import click
 from pydantic import TypeAdapter, ValidationError
@@ -67,7 +66,7 @@ class EvalHelpers:
 
     @staticmethod
     def load_eval_set(
-        eval_set_path: str, eval_ids: Optional[List[str]] = None
+        eval_set_path: str, eval_ids: list[str] | None = None
     ) -> tuple[EvaluationSet, str]:
         """Load the evaluation set from file.
 

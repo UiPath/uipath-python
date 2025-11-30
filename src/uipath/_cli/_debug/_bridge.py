@@ -73,7 +73,7 @@ class ConsoleDebugBridge:
         Args:
             verbose: If True, show state updates. If False, only show breakpoints.
         """
-        self.console = Console()
+        self.console = Console(force_terminal=True)
         self.verbose = verbose
         self.state = DebuggerState()
 

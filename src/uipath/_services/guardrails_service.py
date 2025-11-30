@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -37,11 +37,11 @@ class GuardrailsService(FolderContext, BaseService):
     @traced("evaluate_guardrail", run_type="uipath")
     def evaluate_guardrail(
         self,
-        input_data: Union[str, Dict[str, Any]],
+        input_data: str | dict[str, Any],
         guardrail: Guardrail,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> BuiltInGuardrailValidationResult:
         """Call the API to validate input_data with the given guardrail.
 

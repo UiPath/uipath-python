@@ -1,5 +1,5 @@
 from os import environ as env
-from typing import Any, Optional
+from typing import Any
 
 from ._utils.constants import (
     ENV_FOLDER_KEY,
@@ -20,12 +20,12 @@ class FolderContext:
 
     def __init__(self, **kwargs: Any) -> None:
         try:
-            self._folder_key: Optional[str] = env[ENV_FOLDER_KEY]
+            self._folder_key: str | None = env[ENV_FOLDER_KEY]
         except KeyError:
             self._folder_key = None
 
         try:
-            self._folder_path: Optional[str] = env[ENV_FOLDER_PATH]
+            self._folder_path: str | None = env[ENV_FOLDER_PATH]
         except KeyError:
             self._folder_path = None
 

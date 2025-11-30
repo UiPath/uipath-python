@@ -5,7 +5,6 @@ import os
 import socketserver
 import threading
 import time
-from typing import Optional
 
 # Server port
 PORT = 6234
@@ -113,10 +112,10 @@ class HTTPServer:
         self.port = port
         self.redirect_uri = redirect_uri
         self.client_id = client_id
-        self.httpd: Optional[socketserver.TCPServer] = None
+        self.httpd: socketserver.TCPServer | None = None
         self.token_data = None
         self.should_shutdown = False
-        self.token_received_event: Optional[asyncio.Event] = None
+        self.token_received_event: asyncio.Event | None = None
         self.loop = None
 
     def token_received_callback(self, token_data):

@@ -1893,14 +1893,14 @@ wheels = [
 
 [[package]]
 name = "pydantic-function-models"
-version = "0.1.10"
+version = "0.1.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/83/dc9cf4c16159266e643a16b14dd90c24e859670fbe2611140c0cd5503cae/pydantic_function_models-0.1.10.tar.gz", hash = "sha256:d88e37c19bc2b9d88850a6f00f0227212aae1b0d55de45c9de7af65373844027", size = 9150, upload-time = "2025-02-17T16:53:34.769Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/9f/9f89602abf782693974d1812657b7b0bab346c011f31d7a05ca71f5643e2/pydantic_function_models-0.1.11.tar.gz", hash = "sha256:28292961bc71f9e4d75ae608ef1cf820ce650ba019067776ee82c6612ccf1cca", size = 9018, upload-time = "2025-11-29T20:16:39.726Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/c6/c8412c88f4113b7cf3b33ae08f4abcd94fe0413d09ec49780f35f8f9e790/pydantic_function_models-0.1.10-py3-none-any.whl", hash = "sha256:9c1b0be9537a48f3ad9e3d9dd6c4e9ebcce98dd79a1bb329868b576cf50452c1", size = 8061, upload-time = "2025-02-17T16:53:28.904Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/5c/cd8bd73e893604e335f4347539851a8f8dede32fbf6d7a009f564c2c6681/pydantic_function_models-0.1.11-py3-none-any.whl", hash = "sha256:1c17d45f7b7b95ad1644226a9b8d6d05ce1565a0d0bbe03f4ec86e21487aff2b", size = 8028, upload-time = "2025-11-29T20:16:38.391Z" },
 ]
 
 [[package]]
@@ -2401,7 +2401,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.2.7"
+version = "2.2.8"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2458,7 +2458,7 @@ requires-dist = [
     { name = "mermaid-builder", specifier = "==0.0.3" },
     { name = "mockito", specifier = ">=1.5.4" },
     { name = "pathlib", specifier = ">=1.0.1" },
-    { name = "pydantic-function-models", specifier = ">=0.1.10" },
+    { name = "pydantic-function-models", specifier = ">=0.1.11" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pysignalr", specifier = "==1.3.0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
@@ -2466,7 +2466,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", specifier = ">=0.0.5,<0.1.0" },
-    { name = "uipath-runtime", specifier = ">=0.1.0,<0.2.0" },
+    { name = "uipath-runtime", specifier = ">=0.1.1,<0.2.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -2512,14 +2512,14 @@ wheels = [
 
 [[package]]
 name = "uipath-runtime"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "uipath-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/5f/b48eaa87501ccffb067878ff99773fa89fbc1cafa8ab736d8fd5ae099b59/uipath_runtime-0.1.0.tar.gz", hash = "sha256:2a262eb29faeb1d62158ccaf1d1ec44752813625fdbcab5671a625c999c433ac", size = 87980, upload-time = "2025-11-29T13:10:32.269Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/e9/7b2549a15681fa6a874193690627ad8b849a0bf72f4ce51fb0fa07cfb301/uipath_runtime-0.1.1.tar.gz", hash = "sha256:a2ccb930a3b18ef8e7063e5a943cf534c0815d0e019743a26cef5cbacfa2c05b", size = 87996, upload-time = "2025-11-30T16:40:19.528Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/2a/39364e985269ac27b6b78d0323e6f516e25287bca87938a2088442b5cf06/uipath_runtime-0.1.0-py3-none-any.whl", hash = "sha256:997b53737fc6f22bb2e80700fd45c6b0a7912af6843fd4a103c58bdcf30f7fdd", size = 34207, upload-time = "2025-11-29T13:10:31.127Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/c3/4a22b7716b6778cede22f83d3eb49fdd8b4031811e953ff5d8240ecd4bd5/uipath_runtime-0.1.1-py3-none-any.whl", hash = "sha256:c0a21dfc5d4467244862666528c052ec5ac2488df0a7aa30b43129a3140d5e36", size = 34228, upload-time = "2025-11-30T16:40:18.191Z" },
 ]
 
 [[package]]

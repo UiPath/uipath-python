@@ -1,7 +1,7 @@
 """Json schema to dynamic pydantic model."""
 
 from enum import Enum
-from typing import Any, Dict, List, Type, Union
+from typing import Any, Type, Union
 
 from pydantic import BaseModel, Field, create_model
 
@@ -37,8 +37,8 @@ def jsonschema_to_pydantic(
                 "number": float,
                 "integer": int,
                 "boolean": bool,
-                "array": List,
-                "object": Dict[str, Any],
+                "array": list,
+                "object": dict,
                 "null": None,
             }
 
@@ -58,7 +58,7 @@ def jsonschema_to_pydantic(
                 return type_
             elif type_ == "array":
                 item_type: Any = convert_type(prop.get("items", {}))
-                return List[item_type]  # noqa F821
+                return list[item_type]  # noqa F821
             elif type_ == "object":
                 if "properties" in prop:
                     if "title" in prop and prop["title"]:
@@ -94,7 +94,7 @@ def jsonschema_to_pydantic(
                         object_model.__doc__ = prop["description"]
                     return object_model
                 else:
-                    return Dict[str, Any]
+                    return dict[str, Any]
             else:
                 return type_mapping.get(type_, Any)
 

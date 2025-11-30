@@ -11,14 +11,14 @@ import inspect
 import sys
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import click
 
 
-def get_command_help(command: click.Command, command_name: str) -> Dict[str, Any]:
+def get_command_help(command: click.Command, command_name: str) -> dict[str, Any]:
     """Extract help information from a Click command.
 
     Args:
@@ -548,7 +548,7 @@ def generate_service_cli_docs() -> str:
 
 
 def _write_command_doc(
-    output: StringIO, cmd_info: Dict[str, Any], *path_parts: str
+    output: StringIO, cmd_info: dict[str, Any], *path_parts: str
 ) -> None:
     """Write command documentation to output stream.
 

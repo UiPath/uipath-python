@@ -5,7 +5,7 @@ import uuid
 from collections import defaultdict
 from pathlib import Path
 from time import time
-from typing import Any, Optional, Sequence
+from typing import Any, Sequence
 
 import coverage
 from opentelemetry import context as context_api
@@ -87,7 +87,7 @@ class ExecutionSpanExporter(SpanExporter):
         """Retrieve spans for a given execution id."""
         return self._spans.get(execution_id, [])
 
-    def clear(self, execution_id: Optional[str] = None) -> None:
+    def clear(self, execution_id: str | None = None) -> None:
         """Clear stored spans for one or all executions."""
         if execution_id:
             self._spans.pop(execution_id, None)
@@ -106,7 +106,7 @@ class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
         self.collector = collector
 
     def on_start(
-        self, span: Span, parent_context: Optional[context_api.Context] = None
+        self, span: Span, parent_context: context_api.Context | None = None
     ) -> None:
         super().on_start(span, parent_context)
 
@@ -132,7 +132,7 @@ class ExecutionLogsExporter:
         log_handler = self._log_handlers.get(execution_id)
         return log_handler.buffer if log_handler else []
 
-    def clear(self, execution_id: Optional[str] = None) -> None:
+    def clear(self, execution_id: str | None = None) -> None:
         """Clear stored spans for one or all executions."""
         if execution_id:
             self._log_handlers.pop(execution_id, None)
@@ -143,12 +143,12 @@ class ExecutionLogsExporter:
 class UiPathEvalContext:
     """Context used for evaluation runs."""
 
-    entrypoint: Optional[str] = None
-    no_report: Optional[bool] = False
-    workers: Optional[int] = 1
-    eval_set: Optional[str] = None
-    eval_ids: Optional[list[str]] = None
-    eval_set_run_id: Optional[str] = None
+    entrypoint: str | None = None
+    no_report: bool | None = False
+    workers: int | None = 1
+    eval_set: str | None = None
+    eval_ids: list[str] | None = None
+    eval_set_run_id: str | None = None
     verbose: bool = False
     enable_mocker_cache: bool = False
     report_coverage: bool = False
@@ -178,7 +178,7 @@ class UiPathEvalRuntime:
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
-        self.schema: Optional[UiPathRuntimeSchema] = None
+        self.schema: UiPathRuntimeSchema | None = None
         self.coverage = coverage.Coverage(branch=True)
 
     async def __aenter__(self) -> "UiPathEvalRuntime":

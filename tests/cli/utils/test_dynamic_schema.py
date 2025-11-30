@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +10,7 @@ def atest_dynamic_schema():
     class InnerSchema(BaseModel):
         """Inner schema description including a self-reference."""
 
-        self_reference: Optional["InnerSchema"] = None
+        self_reference: "InnerSchema" | None = None
 
     class CustomEnum(str, Enum):
         KEY_1 = "VALUE_1"
@@ -23,24 +22,24 @@ def atest_dynamic_schema():
         string: str = Field(
             default="", title="String Title", description="String Description"
         )
-        optional_string: Optional[str] = Field(
+        optional_string: str | None = Field(
             default=None,
             title="Optional String Title",
             description="Optional String Description",
         )
-        list_str: List[str] = Field(
+        list_str: list[str] = Field(
             default=[], title="List String", description="List String Description"
         )
 
         integer: int = Field(
             default=0, title="Integer Title", description="Integer Description"
         )
-        optional_integer: Optional[int] = Field(
+        optional_integer: int | None = Field(
             default=None,
             title="Option Integer Title",
             description="Option Integer Description",
         )
-        list_integer: List[int] = Field(
+        list_integer: list[int] = Field(
             default=[],
             title="List Integer Title",
             description="List Integer Description",
@@ -49,12 +48,12 @@ def atest_dynamic_schema():
         floating: float = Field(
             default=0.0, title="Floating Title", description="Floating Description"
         )
-        optional_floating: Optional[float] = Field(
+        optional_floating: float | None = Field(
             default=None,
             title="Option Floating Title",
             description="Option Floating Description",
         )
-        list_floating: List[float] = Field(
+        list_floating: list[float] = Field(
             default=[],
             title="List Floating Title",
             description="List Floating Description",
@@ -63,12 +62,12 @@ def atest_dynamic_schema():
         boolean: bool = Field(
             default=False, title="Boolean Title", description="Boolean Description"
         )
-        optional_boolean: Optional[bool] = Field(
+        optional_boolean: bool | None = Field(
             default=None,
             title="Option Boolean Title",
             description="Option Boolean Description",
         )
-        list_boolean: List[bool] = Field(
+        list_boolean: list[bool] = Field(
             default=[],
             title="List Boolean Title",
             description="List Boolean Description",
@@ -79,12 +78,12 @@ def atest_dynamic_schema():
             title="Nested Object Title",
             description="Nested Object Description",
         )
-        optional_nested_object: Optional[InnerSchema] = Field(
+        optional_nested_object: InnerSchema | None = Field(
             default=None,
             title="Optional Nested Object Title",
             description="Optional Nested Object Description",
         )
-        list_nested_object: List[InnerSchema] = Field(
+        list_nested_object: list[InnerSchema] = Field(
             default=[],
             title="List Nested Object Title",
             description="List Nested Object Description",

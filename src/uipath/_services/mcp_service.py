@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import List
 
 from .._config import Config
 from .._execution_context import ExecutionContext
@@ -30,7 +30,7 @@ class McpService(FolderContext, BaseService):
     def list(
         self,
         *,
-        folder_path: Optional[str] = None,
+        folder_path: str | None = None,
     ) -> List[McpServer]:
         """List all MCP servers.
 
@@ -68,7 +68,7 @@ class McpService(FolderContext, BaseService):
     async def list_async(
         self,
         *,
-        folder_path: Optional[str] = None,
+        folder_path: str | None = None,
     ) -> List[McpServer]:
         """Asynchronously list all MCP servers.
 
@@ -112,7 +112,7 @@ class McpService(FolderContext, BaseService):
         self,
         slug: str,
         *,
-        folder_path: Optional[str] = None,
+        folder_path: str | None = None,
     ) -> McpServer:
         """Retrieve a specific MCP server by its slug.
 
@@ -152,7 +152,7 @@ class McpService(FolderContext, BaseService):
         self,
         slug: str,
         *,
-        folder_path: Optional[str] = None,
+        folder_path: str | None = None,
     ) -> McpServer:
         """Asynchronously retrieve a specific MCP server by its slug.
 
@@ -193,13 +193,13 @@ class McpService(FolderContext, BaseService):
         return McpServer.model_validate(response.json())
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
     def _list_spec(
         self,
         *,
-        folder_path: Optional[str],
+        folder_path: str | None,
     ) -> RequestSpec:
         folder_key = self._folders_service.retrieve_folder_key(folder_path)
         return RequestSpec(
@@ -214,7 +214,7 @@ class McpService(FolderContext, BaseService):
         self,
         slug: str,
         *,
-        folder_path: Optional[str],
+        folder_path: str | None,
     ) -> RequestSpec:
         folder_key = self._folders_service.retrieve_folder_key(folder_path)
         return RequestSpec(

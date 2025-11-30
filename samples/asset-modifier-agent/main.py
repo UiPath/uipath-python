@@ -2,8 +2,7 @@ import dataclasses
 import dotenv
 import logging
 import os
-
-from typing import Optional
+from typing import Any
 from uipath.platform import UiPath
 from uipath.tracing import traced
 
@@ -38,7 +37,7 @@ class AgentInput:
     asset_name: str
     folder_path: str
 
-def get_asset(client: UiPath, name: str, folder_path: str) -> Optional[object]:
+def get_asset(client: UiPath, name: str, folder_path: str) -> Any:
     """Retrieve an asset from UiPath.
 
     Args:
@@ -46,7 +45,7 @@ def get_asset(client: UiPath, name: str, folder_path: str) -> Optional[object]:
         folder_path (str): The UiPath folder path.
 
     Returns:
-        Optional[object]: The asset object if found, else None.
+        Any: The asset object if found, else None.
     """
     return client.assets.retrieve(name=name, folder_path=folder_path)
 

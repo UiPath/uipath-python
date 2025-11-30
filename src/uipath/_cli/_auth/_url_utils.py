@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Tuple
+from typing import Tuple
 from urllib.parse import urlparse
 
 from .._utils._console import ConsoleLogger
@@ -7,7 +7,7 @@ from .._utils._console import ConsoleLogger
 console = ConsoleLogger()
 
 
-def resolve_domain(base_url: Optional[str], environment: Optional[str]) -> str:
+def resolve_domain(base_url: str | None, environment: str | None) -> str:
     """Resolve the UiPath domain, giving priority to base_url when valid.
 
     Args:
@@ -55,7 +55,7 @@ def build_service_url(domain: str, path: str) -> str:
     return f"{domain}{path}"
 
 
-def extract_org_tenant(uipath_url: str) -> Tuple[Optional[str], Optional[str]]:
+def extract_org_tenant(uipath_url: str) -> Tuple[str | None, str | None]:
     """Extract organization and tenant from a UiPath URL.
 
     Accepts values like:

@@ -92,7 +92,6 @@ class MyEvaluatorConfig(BaseEvaluatorConfig[MyEvaluationCriteria]):
 Implement the core evaluation logic:
 
 ```python
-from typing import List
 from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import AgentExecution, NumericEvaluationResult
 import json
@@ -150,13 +149,13 @@ class MyCustomEvaluator(
             }),
         )
 
-    def _extract_values(self, agent_execution: AgentExecution) -> List[str]:
+    def _extract_values(self, agent_execution: AgentExecution) -> list[str]:
         """Extract values from agent execution (implement your logic)."""
         # Your custom extraction logic here
         return []
 
     def _compute_similarity(
-        self, actual: List[str], expected: List[str]
+        self, actual: list[str], expected: list[str]
     ) -> float:
         """Compute similarity score (implement your logic)."""
         # Your custom scoring logic here
@@ -248,7 +247,7 @@ Custom evaluators often need to extract information from tool calls in the agent
 ```python
 from uipath.eval._helpers.evaluators_helpers import extract_tool_calls
 
-def _process_tool_calls(self, agent_execution: AgentExecution) -> List[str]:
+def _process_tool_calls(self, agent_execution: AgentExecution) -> list[str]:
     """Extract and process tool calls from the execution trace."""
     tool_calls = extract_tool_calls(agent_execution.agent_trace)
 
@@ -286,7 +285,6 @@ Here's a complete example based on real-world usage that compares data patterns 
 ```python
 """Custom evaluator for pattern comparison."""
 import json
-from typing import List
 
 from pydantic import Field
 from uipath.eval.evaluators import BaseEvaluator
@@ -299,7 +297,7 @@ from uipath.eval.models import AgentExecution
 from uipath.eval._helpers.evaluators_helpers import extract_tool_calls
 
 
-def _compute_jaccard_similarity(expected: List[str], actual: List[str]) -> float:
+def _compute_jaccard_similarity(expected: list[str], actual: list[str]) -> float:
     """Compute Jaccard similarity (intersection over union).
 
     Returns 1.0 when both expected and actual are empty (perfect match).
@@ -319,7 +317,7 @@ def _compute_jaccard_similarity(expected: List[str], actual: List[str]) -> float
 class PatternEvaluatorCriteria(BaseEvaluationCriteria):
     """Evaluation criteria for pattern evaluator."""
 
-    expected_output: List[str] = Field(default_factory=list)
+    expected_output: list[str] = Field(default_factory=list)
 
 
 class PatternEvaluatorConfig(BaseEvaluatorConfig[PatternEvaluatorCriteria]):
@@ -371,7 +369,7 @@ class PatternComparisonEvaluator(
             }),
         )
 
-    def _extract_patterns(self, agent_execution: AgentExecution) -> List[str]:
+    def _extract_patterns(self, agent_execution: AgentExecution) -> list[str]:
         """Extract patterns from tool calls.
 
         Args:
@@ -418,7 +416,7 @@ def _extract_data(
     self,
     agent_execution: AgentExecution,
     tool_name: str
-) -> List[str]:
+) -> list[str]:
     """Extract data from specific tool calls.
 
     Args:
@@ -484,8 +482,8 @@ Make your scoring logic explicit and well-documented, using config values approp
 ```python
 def _compute_score(
     self,
-    actual: List[str],
-    expected: List[str]
+    actual: list[str],
+    expected: list[str]
 ) -> float:
     """Compute evaluation score.
 
@@ -618,7 +616,7 @@ def _extract_from_specific_tool(
 
 ```python
 def _compute_set_similarity(
-    self, actual: List[str], expected: List[str]
+    self, actual: list[str], expected: list[str]
 ) -> float:
     """Compute similarity using set operations."""
     actual_set = set(actual)

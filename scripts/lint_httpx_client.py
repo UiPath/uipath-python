@@ -9,7 +9,7 @@ and proxy configuration in the UiPath Python SDK.
 import ast
 import sys
 from pathlib import Path
-from typing import List, NamedTuple
+from typing import NamedTuple
 
 
 class LintViolation(NamedTuple):
@@ -32,7 +32,7 @@ class HttpxClientChecker(ast.NodeVisitor):
             filename: The path to the file being checked.
         """
         self.filename = filename
-        self.violations: List[LintViolation] = []
+        self.violations: list[LintViolation] = []
         self.has_httpx_import = False
         self.has_get_httpx_client_kwargs_import = False
         # Track variables that contain get_httpx_client_kwargs
@@ -183,7 +183,7 @@ class HttpxClientChecker(ast.NodeVisitor):
         return False
 
 
-def check_file(filepath: Path) -> List[LintViolation]:
+def check_file(filepath: Path) -> list[LintViolation]:
     """Check a single Python file for httpx.Client() violations."""
     try:
         with open(filepath, "r", encoding="utf-8") as f:
