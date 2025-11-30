@@ -1,7 +1,6 @@
 import json
 import os
 from pathlib import Path
-from typing import Optional
 
 from ..._utils._auth import parse_access_token
 from ...platform.common import TokenData
@@ -22,7 +21,7 @@ def get_auth_data() -> TokenData:
     return TokenData.model_validate(json.load(open(auth_file)))
 
 
-def get_parsed_token_data(token_data: Optional[TokenData] = None) -> AccessTokenData:
+def get_parsed_token_data(token_data: TokenData | None = None) -> AccessTokenData:
     if not token_data:
         token_data = get_auth_data()
     return parse_access_token(token_data.access_token)

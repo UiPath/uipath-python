@@ -117,14 +117,13 @@ Upon successful authentication, your project will contain a `.env` file with you
 Open `main.py` in your code editor. You can start with this example code:
 ```python
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class EchoIn:
     message: str
-    repeat: Optional[int] = 1
-    prefix: Optional[str] = None
+    repeat: int | None = 1
+    prefix: str | None = None
 
 
 @dataclass

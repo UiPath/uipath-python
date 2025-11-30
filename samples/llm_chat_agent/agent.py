@@ -15,7 +15,7 @@ API Integrations:
 import asyncio
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 import httpx
 from dotenv import load_dotenv
@@ -54,14 +54,14 @@ class AgentOutput(BaseModel):
     """Output model for the agent."""
 
     response: str = Field(description="Agent's response to the user")
-    tool_calls_made: List[str] = Field(
+    tool_calls_made: list[str] = Field(
         default_factory=list, description="Names of tools that were called"
     )
 
 
 # Tool implementations
 @traced()
-async def get_current_weather(city: str) -> Dict[str, Any]:
+async def get_current_weather(city: str) -> dict[str, Any]:
     """
     Get the current weather for a city using Open-Meteo API.
 
@@ -174,7 +174,7 @@ def get_weather_description(code: int) -> str:
 
 
 @traced()
-async def calculate(expression: str) -> Dict[str, Any]:
+async def calculate(expression: str) -> dict[str, Any]:
     """
     Perform a mathematical calculation using Newton API.
 
@@ -274,7 +274,7 @@ CALCULATOR_TOOL = ToolDefinition(
 
 
 @traced()
-async def execute_tool_call(tool_name: str, tool_arguments: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_tool_call(tool_name: str, tool_arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Execute a tool based on its name and arguments.
 

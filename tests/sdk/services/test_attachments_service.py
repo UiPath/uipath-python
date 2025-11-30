@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import uuid
-from typing import TYPE_CHECKING, Any, Dict, Generator, Tuple
+from typing import TYPE_CHECKING, Any, Generator, Tuple
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -107,7 +107,7 @@ def local_attachment_file(
 
 
 @pytest.fixture
-def blob_uri_response() -> Dict[str, Any]:
+def blob_uri_response() -> dict[str, Any]:
     """Provides a mock response for blob access requests.
 
     Returns:
@@ -139,7 +139,7 @@ class TestAttachmentsService:
         tenant: str,
         version: str,
         temp_file: Tuple[str, str, str],
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test uploading an attachment from a file path.
 
@@ -215,7 +215,7 @@ class TestAttachmentsService:
         org: str,
         tenant: str,
         version: str,
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test uploading an attachment with in-memory content.
 
@@ -310,7 +310,7 @@ class TestAttachmentsService:
         base_url: str,
         org: str,
         tenant: str,
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test asynchronously uploading an attachment with in-memory content.
 
@@ -376,7 +376,7 @@ class TestAttachmentsService:
         tenant: str,
         version: str,
         tmp_path: Any,
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test downloading an attachment.
 
@@ -456,7 +456,7 @@ class TestAttachmentsService:
         tenant: str,
         version: str,
         tmp_path: Any,
-        blob_uri_response: Dict[str, Any],
+        blob_uri_response: dict[str, Any],
     ) -> None:
         """Test asynchronously downloading an attachment.
 

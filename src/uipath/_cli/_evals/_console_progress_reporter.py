@@ -1,7 +1,7 @@
 """Console progress reporter for evaluation runs with line-by-line output."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from rich.console import Console
 from rich.rule import Rule
@@ -26,9 +26,9 @@ class ConsoleProgressReporter:
 
     def __init__(self):
         self.console = Console()
-        self.evaluators: Dict[str, BaseEvaluator[Any, Any, Any]] = {}
+        self.evaluators: dict[str, BaseEvaluator[Any, Any, Any]] = {}
         self.display_started = False
-        self.eval_results_by_name: Dict[str, list[Any]] = {}
+        self.eval_results_by_name: dict[str, list[Any]] = {}
 
     def _convert_score_to_numeric(self, eval_result) -> float:
         """Convert evaluation result score to numeric value."""

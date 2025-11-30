@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, model_serializer
@@ -46,8 +46,8 @@ class EvaluationResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     score: float
-    details: Optional[str | BaseModel] = None
-    evaluation_time: Optional[float] = None
+    details: str | BaseModel | None = None
+    evaluation_time: float | None = None
 
     @model_serializer(mode="wrap")
     def serialize_model(
@@ -92,8 +92,8 @@ class EvaluationRunResult(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluation_name: str
-    evaluation_run_results: List[EvaluationRunResultDto]
-    agent_execution_output: Optional[UiPathSerializableEvalRunExecutionOutput] = None
+    evaluation_run_results: list[EvaluationRunResultDto]
+    agent_execution_output: UiPathSerializableEvalRunExecutionOutput | None = None
 
     @property
     def score(self) -> float:
@@ -109,7 +109,7 @@ class UiPathEvalOutput(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluation_set_name: str
-    evaluation_set_results: List[EvaluationRunResult]
+    evaluation_set_results: list[EvaluationRunResult]
 
     @property
     def score(self) -> float:
@@ -124,9 +124,9 @@ class UiPathEvalOutput(BaseModel):
 
     def calculate_final_score(
         self,
-        evaluator_weights: Dict[str, float] | None = None,
+        evaluator_weights: dict[str, float] | None = None,
         default_weight: float = 1.0,
-    ) -> tuple[float, Dict[str, float]]:
+    ) -> tuple[float, dict[str, float]]:
         """Aggregate evaluation results with deduplication and weighted scoring.
 
         This function performs the following steps:

@@ -1,7 +1,6 @@
 import logging
 import os
 from enum import Enum
-from typing import Optional
 
 import httpx
 
@@ -63,8 +62,8 @@ class EndpointManager:
     """  # noqa: D205
 
     _base_url = os.getenv("UIPATH_URL", "")
-    _agenthub_available: Optional[bool] = None
-    _orchestrator_available: Optional[bool] = None
+    _agenthub_available: bool | None = None
+    _orchestrator_available: bool | None = None
 
     @classmethod
     def is_agenthub_available(cls) -> bool:

@@ -2,7 +2,6 @@ import base64
 import hashlib
 import json
 import os
-from typing import Optional
 from urllib.parse import urlencode, urlparse
 
 import httpx
@@ -29,7 +28,7 @@ def get_state_param() -> str:
     return base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
 
 
-def _get_version_from_api(domain: str) -> Optional[str]:
+def _get_version_from_api(domain: str) -> str | None:
     """Fetch the version from the UiPath orchestrator API.
 
     Args:
@@ -125,7 +124,7 @@ class OidcUtils:
         return next((p for p in candidates if is_free(p)), None)
 
     @classmethod
-    def get_auth_config(cls, domain: Optional[str] = None) -> AuthConfig:
+    def get_auth_config(cls, domain: str | None = None) -> AuthConfig:
         """Get the appropriate auth configuration based on domain.
 
         Args:

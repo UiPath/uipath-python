@@ -1,7 +1,5 @@
 """Tests for the _cleanup_schema function in LLM Gateway Service."""
 
-from typing import List, Optional
-
 from pydantic import BaseModel
 
 from uipath._services.llm_gateway_service import _cleanup_schema
@@ -15,13 +13,13 @@ class SimpleModel(BaseModel):
 
 
 class ModelWithList(BaseModel):
-    names: List[str]
-    numbers: List[int]
+    names: list[str]
+    numbers: list[int]
 
 
 class ModelWithOptional(BaseModel):
     required_field: str
-    optional_field: Optional[str] = None
+    optional_field: str | None = None
 
 
 # Complex nested models for comprehensive testing
@@ -34,26 +32,26 @@ class Task(BaseModel):
 class Project(BaseModel):
     project_id: int
     name: str
-    tasks: List[Task]
+    tasks: list[Task]
 
 
 class Team(BaseModel):
     team_id: int
     team_name: str
-    members: List[str]
-    projects: List[Project]
+    members: list[str]
+    projects: list[Project]
 
 
 class Department(BaseModel):
     department_id: int
     department_name: str
-    teams: List[Team]
+    teams: list[Team]
 
 
 class Company(BaseModel):
     company_id: int
     company_name: str
-    departments: List[Department]
+    departments: list[Department]
 
 
 class TestCleanupSchema:
@@ -212,7 +210,7 @@ class TestCleanupSchema:
 
         class ExtendedEntity(BaseEntity):
             name: str
-            description: Optional[str] = None
+            description: str | None = None
 
         schema = _cleanup_schema(ExtendedEntity)
 

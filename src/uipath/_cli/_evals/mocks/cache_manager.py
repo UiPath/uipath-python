@@ -3,19 +3,19 @@
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 
 class CacheManager:
     """Manages caching for LLM and input mocker responses."""
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Path | None = None):
         """Initialize the cache manager with in-memory cache."""
         self.cache_dir = cache_dir or (Path.cwd() / ".uipath" / "eval_cache")
-        self._memory_cache: Dict[str, Any] = {}
-        self._dirty_keys: Set[str] = set()
+        self._memory_cache: dict[str, Any] = {}
+        self._dirty_keys: set[str] = set()
 
-    def _compute_cache_key(self, cache_key_data: Dict[str, Any]) -> str:
+    def _compute_cache_key(self, cache_key_data: dict[str, Any]) -> str:
         """Compute a hash from cache key data."""
         serialized = json.dumps(cache_key_data, sort_keys=True)
         return hashlib.sha256(serialized.encode()).hexdigest()
@@ -23,7 +23,7 @@ class CacheManager:
     def _get_cache_key_string(
         self,
         mocker_type: str,
-        cache_key_data: Dict[str, Any],
+        cache_key_data: dict[str, Any],
         function_name: str,
     ) -> str:
         """Generate unique cache key string for memory lookup."""
@@ -40,9 +40,9 @@ class CacheManager:
     def get(
         self,
         mocker_type: str,
-        cache_key_data: Dict[str, Any],
+        cache_key_data: dict[str, Any],
         function_name: str,
-    ) -> Optional[Any]:
+    ) -> Any:
         """Retrieve a cached response from memory first, then disk."""
         cache_key_string = self._get_cache_key_string(
             mocker_type, cache_key_data, function_name
@@ -67,7 +67,7 @@ class CacheManager:
     def set(
         self,
         mocker_type: str,
-        cache_key_data: Dict[str, Any],
+        cache_key_data: dict[str, Any],
         response: Any,
         function_name: str,
     ) -> None:

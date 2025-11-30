@@ -3,6 +3,7 @@
 import inspect
 from dataclasses import fields, is_dataclass
 from enum import Enum
+from types import UnionType
 from typing import Any, Union, get_args, get_origin
 
 from pydantic import BaseModel
@@ -28,9 +29,11 @@ def get_type_schema(type_hint: Any) -> dict[str, Any]:
     args = get_args(type_hint)
 
     # Handle Optional[T] / Union[T, None]
-    if origin is Union:
+    if origin is Union or origin is UnionType:
+        # Filter out None/NoneType from the union
         non_none_args = [arg for arg in args if arg is not type(None)]
-        if non_none_args:
+
+        if len(non_none_args) == 1:
             return get_type_schema(non_none_args[0])
         return {"type": "object"}
 

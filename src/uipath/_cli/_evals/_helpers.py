@@ -6,7 +6,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import click
 
@@ -35,7 +35,7 @@ def to_kebab_case(text: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "-", text).lower()
 
 
-def find_evaluator_file(filename: str) -> Optional[Path]:
+def find_evaluator_file(filename: str) -> Path | None:
     """Find the evaluator file in evals/evaluators/custom folder."""
     custom_evaluators_path = Path.cwd() / EVALS_DIRECTORY_NAME / "evaluators" / "custom"
 
@@ -49,7 +49,7 @@ def find_evaluator_file(filename: str) -> Optional[Path]:
     return None
 
 
-def find_base_evaluator_class(file_path: Path) -> Optional[str]:
+def find_base_evaluator_class(file_path: Path) -> str | None:
     """Parse the Python file and find the class that inherits from BaseEvaluator."""
     try:
         with open(file_path, "r") as f:
@@ -73,7 +73,7 @@ def find_base_evaluator_class(file_path: Path) -> Optional[str]:
         return None
 
 
-def load_evaluator_class(file_path: Path, class_name: str) -> Optional[type]:
+def load_evaluator_class(file_path: Path, class_name: str) -> type | None:
     """Dynamically load the evaluator class from the file."""
     try:
         parent_dir = str(file_path.parent)

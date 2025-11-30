@@ -16,7 +16,7 @@ Classes:
     UiPathLlmChatService: Service using UiPath's normalized API format
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -77,7 +77,7 @@ class EmbeddingModels(object):
     text_embedding_ada_002 = "text-embedding-ada-002"
 
 
-def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
+def _cleanup_schema(model_class: type[BaseModel]) -> dict[str, Any]:
     """Clean up a Pydantic model schema for use with LLM Gateway.
 
     This function converts a Pydantic model's JSON schema to a format that's
@@ -93,12 +93,11 @@ def _cleanup_schema(model_class: type[BaseModel]) -> Dict[str, Any]:
     Examples:
         ```python
         from pydantic import BaseModel
-        from typing import List
 
         class Country(BaseModel):
             name: str
             capital: str
-            languages: List[str]
+            languages: list[str]
 
         schema = _cleanup_schema(Country)
         # Returns a clean schema without titles and unnecessary metadata
@@ -204,11 +203,11 @@ class UiPathOpenAIService(BaseService):
     @traced(name="llm_chat_completions", run_type="uipath")
     async def chat_completions(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 4096,
         temperature: float = 0,
-        response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
+        response_format: dict[str, Any] | type[BaseModel] | None = None,
         api_version: str = API_VERSION,
     ):
         """Generate chat completions using UiPath's LLM Gateway service.
@@ -265,12 +264,11 @@ class UiPathOpenAIService(BaseService):
 
             # Using Pydantic model for structured response
             from pydantic import BaseModel
-            from typing import List
 
             class Country(BaseModel):
                 name: str
                 capital: str
-                languages: List[str]
+                languages: list[str]
 
             response = await service.chat_completions(
                 messages=[
@@ -347,18 +345,18 @@ class UiPathLlmChatService(BaseService):
     @traced(name="llm_chat_completions", run_type="uipath")
     async def chat_completions(
         self,
-        messages: Union[List[Dict[str, str]], List[tuple[str, str]]],
+        messages: list[dict[str, str]] | list[tuple[str, str]],
         model: str = ChatModels.gpt_4o_mini_2024_07_18,
         max_tokens: int = 4096,
         temperature: float = 0,
         n: int = 1,
         frequency_penalty: float = 0,
         presence_penalty: float = 0,
-        top_p: Optional[float] = 1,
-        top_k: Optional[int] = None,
-        tools: Optional[List[ToolDefinition]] = None,
-        tool_choice: Optional[ToolChoice] = None,
-        response_format: Optional[Union[Dict[str, Any], type[BaseModel]]] = None,
+        top_p: float | None = 1,
+        top_k: int | None = None,
+        tools: list[ToolDefinition] | None = None,
+        tool_choice: ToolChoice | None = None,
+        response_format: dict[str, Any] | type[BaseModel] | None = None,
         api_version: str = NORMALIZED_API_VERSION,
     ):
         """Generate chat completions using UiPath's normalized LLM Gateway API.
@@ -456,12 +454,11 @@ class UiPathLlmChatService(BaseService):
 
             # Using Pydantic model for structured response
             from pydantic import BaseModel
-            from typing import List
 
             class Country(BaseModel):
                 name: str
                 capital: str
-                languages: List[str]
+                languages: list[str]
 
             response = await service.chat_completions(
                 messages=[
@@ -558,7 +555,7 @@ class UiPathLlmChatService(BaseService):
 
         return ChatCompletion.model_validate(response.json())
 
-    def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> Dict[str, Any]:
+    def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> dict[str, Any]:
         """Convert an OpenAI-style tool definition to UiPath API format.
 
         This internal method transforms tool definitions from the standard OpenAI format

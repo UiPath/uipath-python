@@ -1,7 +1,7 @@
 # type: ignore
 import json
 import os
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -42,7 +42,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test successful project pull with various file operations."""
@@ -229,7 +229,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
         monkeypatch: Any,
     ) -> None:
@@ -310,7 +310,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test pull when API request fails."""
@@ -339,7 +339,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test pull when the project is not a coded agent project (missing pyproject.toml)."""
@@ -397,7 +397,7 @@ class TestPull:
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
-        mock_env_vars: Dict[str, str],
+        mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
         """Test that pull command uses evaluations folder instead of evals."""

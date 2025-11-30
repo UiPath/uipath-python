@@ -1,12 +1,11 @@
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class EchoIn:
     message: str
-    repeat: Optional[int] = 1
-    prefix: Optional[str] = None
+    repeat: int | None = 1
+    prefix: str | None = None
 
 
 @dataclass

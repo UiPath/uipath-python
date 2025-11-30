@@ -1,7 +1,6 @@
 import asyncio
 import os
 import webbrowser
-from typing import Optional
 
 from uipath._cli._auth._auth_server import HTTPServer
 from uipath._cli._auth._oidc_utils import OidcUtils
@@ -21,14 +20,14 @@ from ._utils import update_auth_file
 class AuthService:
     def __init__(
         self,
-        environment: Optional[str],
+        environment: str | None,
         *,
         force: bool,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
-        base_url: Optional[str] = None,
-        tenant: Optional[str] = None,
-        scope: Optional[str] = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        base_url: str | None = None,
+        tenant: str | None = None,
+        scope: str | None = None,
     ):
         self._force = force
         self._console = ConsoleLogger()

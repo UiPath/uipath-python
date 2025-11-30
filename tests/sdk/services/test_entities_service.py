@@ -7,7 +7,7 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services import EntitiesService
+from uipath._services.entities_service import EntitiesService
 from uipath.platform.entities import Entity
 
 
@@ -36,7 +36,7 @@ def record_schema(request):
 @pytest.fixture(params=[True, False], ids=["optional_field", "required_field"])
 def record_schema_optional(request):
     is_optional = request.param
-    field_type = Optional[int] if is_optional else int
+    field_type = Optional[int] | None if is_optional else int
     schema_name = f"RecordSchema{'Optional' if is_optional else 'Required'}"
 
     RecordSchemaOptional = make_dataclass(

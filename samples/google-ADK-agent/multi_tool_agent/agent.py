@@ -1,6 +1,5 @@
 import dataclasses
 import datetime
-from typing import Dict
 from zoneinfo import ZoneInfo
 
 from google.adk.agents import Agent
@@ -9,7 +8,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 
 
-def get_weather(city: str) -> Dict[str, str]:
+def get_weather(city: str) -> dict[str, str]:
     """Retrieves the current weather report for a specified city.
 
     Args:
@@ -33,7 +32,7 @@ def get_weather(city: str) -> Dict[str, str]:
         }
 
 
-def get_current_time(city: str) -> Dict[str, str]:
+def get_current_time(city: str) -> dict[str, str]:
     """Returns the current time in a specified city.
 
     Args:
