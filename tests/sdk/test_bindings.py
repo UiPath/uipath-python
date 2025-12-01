@@ -4,9 +4,11 @@ import pytest
 
 from uipath._utils import resource_override
 from uipath._utils._bindings import (
+    ConnectionResourceOverwrite,
     GenericResourceOverwrite,
     ResourceOverwritesContext,
     _resource_overwrites,
+    resolve_folder_from_bindings,
 )
 
 
@@ -335,3 +337,153 @@ class TestResourceOverwritesContext:
         # Verify context was cleaned up despite the exception
         result_after = get_asset("test", "original")
         assert result_after == ("test", "original")
+
+
+class TestResolveFolderFromBindings:
+    """Tests for the resolve_folder_from_bindings utility function."""
+
+    def test_returns_none_when_no_context(self):
+        """Test that resolve_folder_from_bindings returns (None, None) when context is not set."""
+        result = resolve_folder_from_bindings("app", "my_app")
+        assert result == (None, None)
+
+    def test_returns_none_when_resource_name_is_none(self):
+        """Test that resolve_folder_from_bindings returns (None, None) when resource_name is None."""
+        overwrites = {
+            "app.my_app": GenericResourceOverwrite(
+                resource_type="app", name="new_app", folder_path="new_folder"
+            )
+        }
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = resolve_folder_from_bindings("app", None)
+            assert result == (None, None)
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_returns_none_when_resource_name_is_empty(self):
+        """Test that resolve_folder_from_bindings returns (None, None) when resource_name is empty."""
+        overwrites = {
+            "app.my_app": GenericResourceOverwrite(
+                resource_type="app", name="new_app", folder_path="new_folder"
+            )
+        }
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = resolve_folder_from_bindings("app", "")
+            assert result == (None, None)
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_returns_folder_path_for_generic_overwrite(self):
+        """Test that resolve_folder_from_bindings returns folder_path for GenericResourceOverwrite."""
+        overwrites = {
+            "app.my_app": GenericResourceOverwrite(
+                resource_type="app", name="new_app", folder_path="new_folder"
+            )
+        }
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = resolve_folder_from_bindings("app", "my_app")
+            assert result == ("new_folder", None)
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_returns_folder_key_for_connection_overwrite(self):
+        """Test that resolve_folder_from_bindings returns folder_key for ConnectionResourceOverwrite."""
+        overwrites = {
+            "connection.my_connection": ConnectionResourceOverwrite(
+                resource_type="connection",
+                connection_id="conn_123",
+                element_instance_id="elem_456",
+                folder_key="folder_key_789",
+            )
+        }
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = resolve_folder_from_bindings("connection", "my_connection")
+            assert result == (None, "folder_key_789")
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_returns_none_when_no_matching_key(self):
+        """Test that resolve_folder_from_bindings returns (None, None) when no matching key exists."""
+        overwrites = {
+            "app.other_app": GenericResourceOverwrite(
+                resource_type="app", name="new_app", folder_path="new_folder"
+            )
+        }
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = resolve_folder_from_bindings("app", "my_app")
+            assert result == (None, None)
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_prefers_specific_key_with_folder_path(self):
+        """Test that resolve_folder_from_bindings prefers specific key with folder_path."""
+        overwrites = {
+            "app.my_app": GenericResourceOverwrite(
+                resource_type="app", name="generic_app", folder_path="generic_folder"
+            ),
+            "app.my_app.specific_folder": GenericResourceOverwrite(
+                resource_type="app", name="specific_app", folder_path="specific_folder"
+            ),
+        }
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = resolve_folder_from_bindings("app", "my_app", "specific_folder")
+            assert result == ("specific_folder", None)
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_falls_back_to_generic_key_when_specific_not_found(self):
+        """Test that resolve_folder_from_bindings falls back to generic key."""
+        overwrites = {
+            "app.my_app": GenericResourceOverwrite(
+                resource_type="app", name="generic_app", folder_path="generic_folder"
+            ),
+        }
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = resolve_folder_from_bindings("app", "my_app", "unknown_folder")
+            assert result == ("generic_folder", None)
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_works_with_process_resource_type(self):
+        """Test that resolve_folder_from_bindings works with process resource type."""
+        overwrites = {
+            "process.my_process": GenericResourceOverwrite(
+                resource_type="process",
+                name="new_process",
+                folder_path="process_folder",
+            )
+        }
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = resolve_folder_from_bindings("process", "my_process")
+            assert result == ("process_folder", None)
+        finally:
+            _resource_overwrites.reset(token)
+
+    @pytest.mark.anyio
+    async def test_works_within_resource_overwrites_context(self):
+        """Test that resolve_folder_from_bindings works within ResourceOverwritesContext."""
+
+        async def get_overwrites():
+            return {
+                "app.my_app": GenericResourceOverwrite(
+                    resource_type="app",
+                    name="resolved_app",
+                    folder_path="resolved_folder",
+                )
+            }
+
+        async with ResourceOverwritesContext(get_overwrites):
+            result = resolve_folder_from_bindings("app", "my_app")
+            assert result == ("resolved_folder", None)
+
+        # Context should be cleaned up
+        result_after = resolve_folder_from_bindings("app", "my_app")
+        assert result_after == (None, None)
