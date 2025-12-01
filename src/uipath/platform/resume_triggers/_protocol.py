@@ -4,18 +4,6 @@ import json
 import uuid
 from typing import Any
 
-from uipath._cli._utils._common import serialize_object
-from uipath._utils._bindings import resolve_folder_from_bindings
-from uipath.platform import UiPath
-from uipath.platform.action_center import Task
-from uipath.platform.common import (
-    CreateEscalation,
-    CreateTask,
-    InvokeProcess,
-    WaitEscalation,
-    WaitJob,
-    WaitTask,
-)
 from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
@@ -27,6 +15,19 @@ from uipath.runtime.errors import (
     UiPathErrorCategory,
     UiPathErrorCode,
     UiPathRuntimeError,
+)
+
+from uipath._cli._utils._common import serialize_object
+from uipath._utils._bindings import resolve_folder_from_bindings
+from uipath.platform import UiPath
+from uipath.platform.action_center import Task
+from uipath.platform.common import (
+    CreateEscalation,
+    CreateTask,
+    InvokeProcess,
+    WaitEscalation,
+    WaitJob,
+    WaitTask,
 )
 
 
