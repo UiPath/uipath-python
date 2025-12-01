@@ -4,6 +4,18 @@ import json
 import uuid
 from typing import Any
 
+from uipath._cli._utils._common import serialize_object
+from uipath._utils._bindings import resolve_folder_from_bindings
+from uipath.platform import UiPath
+from uipath.platform.action_center import Task
+from uipath.platform.common import (
+    CreateEscalation,
+    CreateTask,
+    InvokeProcess,
+    WaitEscalation,
+    WaitJob,
+    WaitTask,
+)
 from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
@@ -15,18 +27,6 @@ from uipath.runtime.errors import (
     UiPathErrorCategory,
     UiPathErrorCode,
     UiPathRuntimeError,
-)
-
-from uipath._cli._utils._common import serialize_object
-from uipath.platform import UiPath
-from uipath.platform.action_center import Task
-from uipath.platform.common import (
-    CreateEscalation,
-    CreateTask,
-    InvokeProcess,
-    WaitEscalation,
-    WaitJob,
-    WaitTask,
 )
 
 
@@ -266,6 +266,16 @@ class UiPathResumeTriggerCreator:
         if isinstance(value, (WaitTask, WaitEscalation)):
             resume_trigger.item_key = value.action.key
         elif isinstance(value, (CreateTask, CreateEscalation)):
+            resolved_path, resolved_key = resolve_folder_from_bindings(
+                resource_type="app",
+                resource_name=value.app_name,
+                folder_path=value.app_folder_path,
+            )
+            if resolved_path:
+                resume_trigger.folder_path = resolved_path
+            if resolved_key:
+                resume_trigger.folder_key = resolved_key
+
             action = await uipath.tasks.create_async(
                 title=value.title,
                 app_name=value.app_name if value.app_name else "",
@@ -295,6 +305,16 @@ class UiPathResumeTriggerCreator:
         if isinstance(value, WaitJob):
             resume_trigger.item_key = value.job.key
         elif isinstance(value, InvokeProcess):
+            resolved_path, resolved_key = resolve_folder_from_bindings(
+                resource_type="process",
+                resource_name=value.name,
+                folder_path=value.process_folder_path,
+            )
+            if resolved_path:
+                resume_trigger.folder_path = resolved_path
+            if resolved_key:
+                resume_trigger.folder_key = resolved_key
+
             job = await uipath.processes.invoke_async(
                 name=value.name,
                 input_arguments=value.input_arguments,
