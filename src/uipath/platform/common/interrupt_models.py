@@ -38,9 +38,18 @@ class CreateTask(BaseModel):
 
 
 class CreateEscalation(CreateTask):
-    """Model representing an escalation creation."""
+    """Model representing an escalation creation with additional metadata."""
 
-    pass
+    app_version: Optional[int] = None
+    priority: Optional[str] = None
+    labels: Optional[list[str]] = None
+    is_actionable_message_enabled: Optional[bool] = None
+    actionable_message_metadata: Optional[Dict[str, Any]] = None
+    agent_id: Optional[str] = None
+    instance_id: Optional[str] = None
+    job_key: Optional[str] = None
+    process_key: Optional[str] = None
+    resource_key: Optional[str] = None
 
 
 class WaitTask(BaseModel):

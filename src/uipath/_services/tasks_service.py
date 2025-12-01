@@ -24,6 +24,16 @@ def _create_spec(
     app_key: Optional[str] = None,
     app_folder_key: Optional[str] = None,
     app_folder_path: Optional[str] = None,
+    app_version: Optional[int] = None,
+    priority: Optional[str] = None,
+    labels: Optional[List[str]] = None,
+    is_actionable_message_enabled: Optional[bool] = None,
+    actionable_message_metadata: Optional[Dict[str, Any]] = None,
+    agent_id: Optional[str] = None,
+    instance_id: Optional[str] = None,
+    job_key: Optional[str] = None,
+    process_key: Optional[str] = None,
+    resource_key: Optional[str] = None,
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -76,30 +86,89 @@ def _create_spec(
                     }
                 )
 
+    # Build tags array from labels
+    tags = []
+    if labels:
+        for label in labels:
+            tags.append(
+                {
+                    "Name": label,
+                    "DisplayName": label,
+                    "Value": label,
+                    "DisplayValue": label,
+                }
+            )
+
+    # Build additional properties
+    additional_properties: Dict[str, Any] = {}
+    if resource_key:
+        additional_properties["AppType"] = "Dynamic"
+        additional_properties["FolderKey"] = app_folder_key or ""
+
+    # Build task source metadata
+    task_source_metadata: Dict[str, Any] = {}
+    if instance_id:
+        task_source_metadata["InstanceId"] = instance_id
+    if app_folder_key:
+        task_source_metadata["FolderKey"] = app_folder_key
+    if job_key:
+        task_source_metadata["JobKey"] = job_key
+    if process_key:
+        task_source_metadata["ProcessKey"] = process_key
+
+    # Build task source
+    task_source: Optional[Dict[str, Any]] = None
+    if agent_id:
+        task_source = {
+            "SourceName": "Agent",
+            "SourceId": agent_id,
+            "TaskSourceMetadata": task_source_metadata,
+        }
+
+    # Build base payload matching .NET structure
+    payload: Dict[str, Any] = {
+        "appId": app_key,
+        "title": title,
+        "data": data if data is not None else {},
+    }
+
+    # Add optional fields
+    if app_version is not None:
+        payload["appVersion"] = app_version
+    if priority is not None:
+        payload["priority"] = priority
+    if tags:
+        payload["tags"] = tags
+    if is_actionable_message_enabled is not None:
+        payload["isActionableMessageEnabled"] = is_actionable_message_enabled
+    if additional_properties:
+        payload["additionalProperties"] = additional_properties
+    if task_source:
+        payload["taskSource"] = task_source
+
+    # Add actionable message metadata (legacy format for backward compatibility)
+    if actionable_message_metadata:
+        payload["actionableMessageMetaData"] = actionable_message_metadata
+    elif action_schema is not None:
+        payload["actionableMessageMetaData"] = {
+            "fieldSet": {
+                "id": str(uuid.uuid4()),
+                "fields": field_list,
+            }
+            if len(field_list) != 0
+            else {},
+            "actionSet": {
+                "id": str(uuid.uuid4()),
+                "actions": outcome_list,
+            }
+            if len(outcome_list) != 0
+            else {},
+        }
+
     return RequestSpec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
-        json={
-            "appId": app_key,
-            "title": title,
-            "data": data if data is not None else {},
-            "actionableMessageMetaData": {
-                "fieldSet": {
-                    "id": str(uuid.uuid4()),
-                    "fields": field_list,
-                }
-                if len(field_list) != 0
-                else {},
-                "actionSet": {
-                    "id": str(uuid.uuid4()),
-                    "actions": outcome_list,
-                }
-                if len(outcome_list) != 0
-                else {},
-            }
-            if action_schema is not None
-            else {},
-        },
+        json=payload,
         headers=folder_headers(app_folder_key, app_folder_path),
     )
 
@@ -185,6 +254,16 @@ class TasksService(FolderContext, BaseService):
         app_folder_path: Optional[str] = None,
         app_folder_key: Optional[str] = None,
         assignee: Optional[str] = None,
+        app_version: Optional[int] = None,
+        priority: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        is_actionable_message_enabled: Optional[bool] = None,
+        actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        agent_id: Optional[str] = None,
+        instance_id: Optional[str] = None,
+        job_key: Optional[str] = None,
+        process_key: Optional[str] = None,
+        resource_key: Optional[str] = None,
     ) -> Task:
         """Creates a new action asynchronously.
 
@@ -199,6 +278,16 @@ class TasksService(FolderContext, BaseService):
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
             assignee: Optional username or email to assign the task to
+            app_version: Optional application version
+            priority: Optional task priority (Low, Medium, High, Critical)
+            labels: Optional list of tag labels for the task
+            is_actionable_message_enabled: Optional flag for actionable message feature
+            actionable_message_metadata: Optional metadata for actionable messages
+            agent_id: Optional agent identifier for task source
+            instance_id: Optional instance/trace identifier
+            job_key: Optional job key for task source metadata
+            process_key: Optional process key for task source metadata
+            resource_key: Optional resource key for additional properties
 
         Returns:
             Action: The created action object
@@ -220,6 +309,16 @@ class TasksService(FolderContext, BaseService):
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
+            app_version=app_version,
+            priority=priority,
+            labels=labels,
+            is_actionable_message_enabled=is_actionable_message_enabled,
+            actionable_message_metadata=actionable_message_metadata,
+            agent_id=agent_id,
+            instance_id=instance_id,
+            job_key=job_key,
+            process_key=process_key,
+            resource_key=resource_key,
         )
 
         response = await self.request_async(
@@ -253,6 +352,16 @@ class TasksService(FolderContext, BaseService):
         app_folder_path: Optional[str] = None,
         app_folder_key: Optional[str] = None,
         assignee: Optional[str] = None,
+        app_version: Optional[int] = None,
+        priority: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        is_actionable_message_enabled: Optional[bool] = None,
+        actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        agent_id: Optional[str] = None,
+        instance_id: Optional[str] = None,
+        job_key: Optional[str] = None,
+        process_key: Optional[str] = None,
+        resource_key: Optional[str] = None,
     ) -> Task:
         """Creates a new task synchronously.
 
@@ -267,6 +376,16 @@ class TasksService(FolderContext, BaseService):
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
             assignee: Optional username or email to assign the task to
+            app_version: Optional application version
+            priority: Optional task priority (Low, Medium, High, Critical)
+            labels: Optional list of tag labels for the task
+            is_actionable_message_enabled: Optional flag for actionable message feature
+            actionable_message_metadata: Optional metadata for actionable messages
+            agent_id: Optional agent identifier for task source
+            instance_id: Optional instance/trace identifier
+            job_key: Optional job key for task source metadata
+            process_key: Optional process key for task source metadata
+            resource_key: Optional resource key for additional properties
 
         Returns:
             Action: The created action object
@@ -288,6 +407,16 @@ class TasksService(FolderContext, BaseService):
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
+            app_version=app_version,
+            priority=priority,
+            labels=labels,
+            is_actionable_message_enabled=is_actionable_message_enabled,
+            actionable_message_metadata=actionable_message_metadata,
+            agent_id=agent_id,
+            instance_id=instance_id,
+            job_key=job_key,
+            process_key=process_key,
+            resource_key=resource_key,
         )
 
         response = self.request(
