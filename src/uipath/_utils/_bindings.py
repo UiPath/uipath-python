@@ -197,3 +197,48 @@ def get_inferred_bindings_names(cls: T):
             inferred_bindings[name] = method._infer_bindings_mappings  # type: ignore # probably a better way to do this
 
     return inferred_bindings
+
+
+def resolve_folder_from_bindings(
+    resource_type: str,
+    resource_name: Optional[str],
+    folder_path: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """Resolve folder path and key from bindings context.
+
+    This function looks up the bindings context variable to find the folder
+    information for a given resource.
+
+    Args:
+        resource_type: The type of resource (e.g., "app", "process", "index")
+        resource_name: The name/identifier of the resource
+        folder_path: Optional current folder path for more specific matching
+
+    Returns:
+        Tuple of (folder_path, folder_key) from bindings. Returns (None, None)
+        if no bindings context is available or no matching resource is found.
+    """
+    if not resource_name:
+        return None, None
+
+    context_overwrites = _resource_overwrites.get()
+    if context_overwrites is None:
+        return None, None
+
+    key = f"{resource_type}.{resource_name}"
+    # try to apply folder path, fallback to resource_type.resource_name
+    if folder_path:
+        key = (
+            f"{key}.{folder_path}"
+            if f"{key}.{folder_path}" in context_overwrites
+            else key
+        )
+
+    matched = context_overwrites.get(key)
+    if matched is None:
+        return None, None
+
+    if isinstance(matched, ConnectionResourceOverwrite):
+        return None, matched.folder_identifier
+
+    return matched.folder_identifier, None
