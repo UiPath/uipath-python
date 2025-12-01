@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from typing import Any
+from typing import Any, Dict
 
 from uipath._cli._utils._common import serialize_object
 from uipath._utils._bindings import resolve_folder_from_bindings
@@ -276,6 +276,34 @@ class UiPathResumeTriggerCreator:
             if resolved_key:
                 resume_trigger.folder_key = resolved_key
 
+            # Extract additional escalation metadata if present
+            additional_params: Dict[str, Any] = {}
+            if isinstance(value, CreateEscalation):
+                if value.app_version is not None:
+                    additional_params["app_version"] = value.app_version
+                if value.priority is not None:
+                    additional_params["priority"] = value.priority
+                if value.labels is not None:
+                    additional_params["labels"] = value.labels
+                if value.is_actionable_message_enabled is not None:
+                    additional_params["is_actionable_message_enabled"] = (
+                        value.is_actionable_message_enabled
+                    )
+                if value.actionable_message_metadata is not None:
+                    additional_params["actionable_message_metadata"] = (
+                        value.actionable_message_metadata
+                    )
+                if value.agent_id is not None:
+                    additional_params["agent_id"] = value.agent_id
+                if value.instance_id is not None:
+                    additional_params["instance_id"] = value.instance_id
+                if value.job_key is not None:
+                    additional_params["job_key"] = value.job_key
+                if value.process_key is not None:
+                    additional_params["process_key"] = value.process_key
+                if value.resource_key is not None:
+                    additional_params["resource_key"] = value.resource_key
+
             action = await uipath.tasks.create_async(
                 title=value.title,
                 app_name=value.app_name if value.app_name else "",
@@ -284,6 +312,7 @@ class UiPathResumeTriggerCreator:
                 app_key=value.app_key if value.app_key else "",
                 assignee=value.assignee if value.assignee else "",
                 data=value.data,
+                **additional_params,
             )
             if not action:
                 raise Exception("Failed to create action")
