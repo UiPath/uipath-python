@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any, Callable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from uipath.tracing import traced
 from uipath.tracing._utils import _SpanUtils
@@ -105,15 +105,16 @@ class LLMMocker(Mocker):
             if return_type is None:
                 return_type = Any
 
-            class OutputSchema(BaseModel):
-                response: return_type
+            output_schema = params.get(
+                "output_schema", TypeAdapter(return_type).json_schema()
+            )
 
             response_format = {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": OutputSchema.__name__.lower(),
+                    "name": "OutputSchema",
                     "strict": True,
-                    "schema": _cleanup_schema(OutputSchema),
+                    "schema": _cleanup_schema(output_schema),
                 },
             }
             try:
@@ -199,10 +200,7 @@ class LLMMocker(Mocker):
                     response_format=response_format,
                     **completion_kwargs,
                 )
-                mocked_response = OutputSchema(
-                    **json.loads(response.choices[0].message.content)
-                )
-                result = mocked_response.model_dump(mode="json")["response"]
+                result = json.loads(response.choices[0].message.content)
 
                 if cache_manager is not None:
                     cache_manager.set(

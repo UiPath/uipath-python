@@ -1,8 +1,10 @@
+import json
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
+from pydantic import BaseModel
 from pytest_httpx import HTTPXMock
 
 from uipath._cli._evals._models._evaluation_set import (
@@ -142,7 +144,7 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
 
     # Arrange
     @mockable()
-    def foo(*args, **kwargs):
+    def foo(*args, **kwargs) -> str:
         raise NotImplementedError()
 
     @mockable()
@@ -189,7 +191,7 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
                     "index": 0,
                     "message": {
                         "role": "ai",
-                        "content": '{"response": "bar1"}',
+                        "content": '"bar1"',
                         "tool_calls": None,
                     },
                     "finish_reason": "EOS",
@@ -206,6 +208,19 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
 
     assert foo() == "bar1"
+
+    mock_request = httpx_mock.get_request()
+    assert mock_request
+    request = json.loads(mock_request.content.decode("utf-8"))
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "OutputSchema",
+            "strict": True,
+            "schema": {"type": "string"},
+        },
+    }
+
     with pytest.raises(NotImplementedError):
         assert foofoo()
     httpx_mock.add_response(
@@ -228,7 +243,7 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
 
     # Arrange
     @mockable()
-    async def foo(*args, **kwargs):
+    async def foo(*args, **kwargs) -> str:
         raise NotImplementedError()
 
     @mockable()
@@ -277,7 +292,7 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
                     "index": 0,
                     "message": {
                         "role": "ai",
-                        "content": '{"response": "bar1"}',
+                        "content": '"bar1"',
                         "tool_calls": None,
                     },
                     "finish_reason": "EOS",
@@ -294,6 +309,19 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
     set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
 
     assert await foo() == "bar1"
+
+    mock_request = httpx_mock.get_request()
+    assert mock_request
+    request = json.loads(mock_request.content.decode("utf-8"))
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "OutputSchema",
+            "strict": True,
+            "schema": {"type": "string"},
+        },
+    }
+
     with pytest.raises(NotImplementedError):
         assert await foofoo()
 
@@ -305,3 +333,188 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
     )
     with pytest.raises(UiPathMockResponseGenerationError):
         assert await foo()
+
+
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+def test_llm_mockable_with_output_schema_sync(
+    httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch
+):
+    monkeypatch.setenv("UIPATH_URL", "https://example.com")
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
+
+    class ToolResponseMock(BaseModel):
+        content: str
+
+    # Arrange
+    @mockable(output_schema=ToolResponseMock.model_json_schema())
+    def foo(*args, **kwargs) -> dict[str, Any]:
+        raise NotImplementedError()
+
+    evaluation_item: dict[str, Any] = {
+        "id": "evaluation-id",
+        "name": "Mock foo",
+        "inputs": {},
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
+        "mockingStrategy": {
+            "type": "llm",
+            "prompt": "response content is 'bar1'",
+            "toolsToSimulate": [{"name": "foo"}],
+        },
+    }
+    evaluation = EvaluationItem(**evaluation_item)
+    assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
+    httpx_mock.add_response(
+        url="https://example.com/agenthub_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+    httpx_mock.add_response(
+        url="https://example.com/orchestrator_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+
+    httpx_mock.add_response(
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
+        status_code=200,
+        json={
+            "id": "response-id",
+            "object": "",
+            "created": 0,
+            "model": "model",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "ai",
+                        "content": '{"content": "bar1"}',
+                        "tool_calls": None,
+                    },
+                    "finish_reason": "EOS",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": 2,
+            },
+        },
+    )
+    # Act & Assert
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+    assert foo() == {"content": "bar1"}
+    mock_request = httpx_mock.get_request()
+    assert mock_request
+    request = json.loads(mock_request.content.decode("utf-8"))
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "OutputSchema",
+            "strict": True,
+            "schema": {
+                "required": ["content"],
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"content": {"type": "string"}},
+            },
+        },
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+async def test_llm_mockable_with_output_schema_async(
+    httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch
+):
+    monkeypatch.setenv("UIPATH_URL", "https://example.com")
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
+
+    class ToolResponseMock(BaseModel):
+        content: str
+
+    # Arrange
+    @mockable(output_schema=ToolResponseMock.model_json_schema())
+    async def foo(*args, **kwargs) -> dict[str, Any]:
+        raise NotImplementedError()
+
+    evaluation_item: dict[str, Any] = {
+        "id": "evaluation-id",
+        "name": "Mock foo",
+        "inputs": {},
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
+        "mockingStrategy": {
+            "type": "llm",
+            "prompt": "response content is 'bar1'",
+            "toolsToSimulate": [{"name": "foo"}],
+        },
+    }
+    evaluation = EvaluationItem(**evaluation_item)
+    assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
+    httpx_mock.add_response(
+        url="https://example.com/agenthub_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+    httpx_mock.add_response(
+        url="https://example.com/orchestrator_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+
+    httpx_mock.add_response(
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
+        status_code=200,
+        json={
+            "id": "response-id",
+            "object": "",
+            "created": 0,
+            "model": "model",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "ai",
+                        "content": '{"content": "bar1"}',
+                        "tool_calls": None,
+                    },
+                    "finish_reason": "EOS",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": 2,
+            },
+        },
+    )
+    # Act & Assert
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+    assert await foo() == {"content": "bar1"}
+    mock_request = httpx_mock.get_request()
+    assert mock_request
+    request = json.loads(mock_request.content.decode("utf-8"))
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "OutputSchema",
+            "strict": True,
+            "schema": {
+                "required": ["content"],
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"content": {"type": "string"}},
+            },
+        },
+    }
