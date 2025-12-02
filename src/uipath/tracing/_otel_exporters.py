@@ -115,6 +115,10 @@ class LlmOpsHttpExporter(SpanExporter):
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to UiPath LLM Ops."""
+        if len(spans) == 0:
+            logger.warning("No spans to export")
+            return SpanExportResult.SUCCESS
+
         logger.debug(
             f"Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
         )

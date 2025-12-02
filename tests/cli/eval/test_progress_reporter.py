@@ -9,6 +9,7 @@ This module tests the progress reporting functionality including:
 """
 
 import json
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -282,6 +283,7 @@ class TestRequestSpecGeneration:
             eval_run_id="test-run-id",
             actual_output={"result": "success"},
             execution_time=5.5,
+            success=True,
             is_coded=True,
         )
 
@@ -291,6 +293,7 @@ class TestRequestSpecGeneration:
         assert spec.json["evaluatorRuns"] == evaluator_runs
         assert spec.json["result"]["scores"] == evaluator_scores
         assert spec.json["completionMetrics"]["duration"] == 5
+        assert spec.json["status"] == 2  # COMPLETED
 
     def test_update_legacy_eval_run_spec(self, progress_reporter):
         """Test updating eval run spec for legacy evaluators."""
@@ -305,6 +308,7 @@ class TestRequestSpecGeneration:
             eval_run_id="test-run-id",
             actual_output={"result": "success"},
             execution_time=5.5,
+            success=True,
             is_coded=False,
         )
 
@@ -314,6 +318,47 @@ class TestRequestSpecGeneration:
         assert spec.json["assertionRuns"] == assertion_runs
         assert spec.json["result"]["evaluatorScores"] == evaluator_scores
         assert spec.json["completionMetrics"]["duration"] == 5
+        assert spec.json["status"] == "Completed"  # String format for legacy
+
+    def test_update_coded_eval_run_spec_with_failure(self, progress_reporter):
+        """Test updating eval run spec for coded evaluators with failure."""
+        evaluator_runs: list[dict[str, Any]] = []
+        evaluator_scores: list[dict[str, Any]] = []
+
+        spec = progress_reporter._update_coded_eval_run_spec(
+            evaluator_runs=evaluator_runs,
+            evaluator_scores=evaluator_scores,
+            eval_run_id="test-run-id",
+            actual_output={},
+            execution_time=0.0,
+            success=False,
+            is_coded=True,
+        )
+
+        assert spec.method == "PUT"
+        assert "coded/" in spec.endpoint
+        assert spec.json["evalRunId"] == "test-run-id"
+        assert spec.json["status"] == 3  # FAILED
+
+    def test_update_legacy_eval_run_spec_with_failure(self, progress_reporter):
+        """Test updating eval run spec for legacy evaluators with failure."""
+        assertion_runs: list[dict[str, Any]] = []
+        evaluator_scores: list[dict[str, Any]] = []
+
+        spec = progress_reporter._update_eval_run_spec(
+            assertion_runs=assertion_runs,
+            evaluator_scores=evaluator_scores,
+            eval_run_id="test-run-id",
+            actual_output={},
+            execution_time=0.0,
+            success=False,
+            is_coded=False,
+        )
+
+        assert spec.method == "PUT"
+        assert "coded/" not in spec.endpoint
+        assert spec.json["evalRunId"] == "test-run-id"
+        assert spec.json["status"] == "Failed"  # String format for legacy
 
 
 # Tests for custom eval set run ID handling
@@ -421,3 +466,72 @@ class TestCustomEvalSetRunId:
 
         # Assert
         assert event.eval_set_run_id is None
+
+
+# Tests for eval set run status updates
+class TestEvalSetRunStatusUpdates:
+    """Tests for handling eval set run status updates (completed vs failed)."""
+
+    def test_update_eval_set_run_spec_with_success_coded(self, progress_reporter):
+        """Test updating eval set run spec for coded evaluators with success=True."""
+        evaluator_scores = {"eval-1": 0.9, "eval-2": 0.85}
+
+        spec = progress_reporter._update_eval_set_run_spec(
+            eval_set_run_id="test-run-id",
+            evaluator_scores=evaluator_scores,
+            is_coded=True,
+            success=True,
+        )
+
+        assert spec.method == "PUT"
+        assert "coded/" in spec.endpoint
+        assert spec.json["evalSetRunId"] == "test-run-id"
+        assert spec.json["status"] == 2  # COMPLETED = 2
+
+    def test_update_eval_set_run_spec_with_failure_coded(self, progress_reporter):
+        """Test updating eval set run spec for coded evaluators with success=False."""
+        evaluator_scores = {"eval-1": 0.9, "eval-2": 0.85}
+
+        spec = progress_reporter._update_eval_set_run_spec(
+            eval_set_run_id="test-run-id",
+            evaluator_scores=evaluator_scores,
+            is_coded=True,
+            success=False,
+        )
+
+        assert spec.method == "PUT"
+        assert "coded/" in spec.endpoint
+        assert spec.json["evalSetRunId"] == "test-run-id"
+        assert spec.json["status"] == 3  # FAILED = 3
+
+    def test_update_eval_set_run_spec_with_success_legacy(self, progress_reporter):
+        """Test updating eval set run spec for legacy evaluators with success=True."""
+        evaluator_scores = {"eval-1": 0.9, "eval-2": 0.85}
+
+        spec = progress_reporter._update_eval_set_run_spec(
+            eval_set_run_id="test-run-id",
+            evaluator_scores=evaluator_scores,
+            is_coded=False,
+            success=True,
+        )
+
+        assert spec.method == "PUT"
+        assert "coded/" not in spec.endpoint
+        assert spec.json["evalSetRunId"] == "test-run-id"
+        assert spec.json["status"] == "Completed"  # String format for legacy
+
+    def test_update_eval_set_run_spec_with_failure_legacy(self, progress_reporter):
+        """Test updating eval set run spec for legacy evaluators with success=False."""
+        evaluator_scores = {"eval-1": 0.9, "eval-2": 0.85}
+
+        spec = progress_reporter._update_eval_set_run_spec(
+            eval_set_run_id="test-run-id",
+            evaluator_scores=evaluator_scores,
+            is_coded=False,
+            success=False,
+        )
+
+        assert spec.method == "PUT"
+        assert "coded/" not in spec.endpoint
+        assert spec.json["evalSetRunId"] == "test-run-id"
+        assert spec.json["status"] == "Failed"  # String format for legacy
