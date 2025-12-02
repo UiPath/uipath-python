@@ -77,15 +77,15 @@ class EmbeddingModels(object):
     text_embedding_ada_002 = "text-embedding-ada-002"
 
 
-def _cleanup_schema(model_class: type[BaseModel]) -> dict[str, Any]:
-    """Clean up a Pydantic model schema for use with LLM Gateway.
+def _cleanup_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Clean up a JSON schema for use with LLM Gateway.
 
-    This function converts a Pydantic model's JSON schema to a format that's
+    This function converts a JSON schema to a format that's
     compatible with the LLM Gateway's JSON schema requirements by removing
     titles and other metadata that might cause validation issues.
 
     Args:
-        model_class (type[BaseModel]): A Pydantic BaseModel class to convert to schema.
+        schema (dict[str, Any]): an input JSON schema.
 
     Returns:
         dict: A cleaned JSON schema dictionary suitable for LLM Gateway response_format.
@@ -99,11 +99,10 @@ def _cleanup_schema(model_class: type[BaseModel]) -> dict[str, Any]:
             capital: str
             languages: list[str]
 
-        schema = _cleanup_schema(Country)
+        schema = _cleanup_schema(Country.model_json_schema())
         # Returns a clean schema without titles and unnecessary metadata
         ```
     """
-    schema = model_class.model_json_schema()
 
     def clean_type(type_def):
         """Clean property definitions by removing titles and cleaning nested items. Additionally, `additionalProperties` is ensured on all objects."""
@@ -303,7 +302,7 @@ class UiPathOpenAIService(BaseService):
                 response_format, BaseModel
             ):
                 # Convert Pydantic model to JSON schema format
-                cleaned_schema = _cleanup_schema(response_format)
+                cleaned_schema = _cleanup_schema(response_format.model_json_schema())
                 request_body["response_format"] = {
                     "type": "json_schema",
                     "json_schema": {
@@ -511,7 +510,7 @@ class UiPathLlmChatService(BaseService):
                 response_format, BaseModel
             ):
                 # Convert Pydantic model to JSON schema format
-                cleaned_schema = _cleanup_schema(response_format)
+                cleaned_schema = _cleanup_schema(response_format.model_json_schema())
                 request_body["response_format"] = {
                     "type": "json_schema",
                     "json_schema": {
