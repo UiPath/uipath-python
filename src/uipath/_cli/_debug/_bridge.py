@@ -23,6 +23,9 @@ from uipath.runtime.events import UiPathRuntimeStateEvent
 
 from uipath._cli._utils._common import serialize_object
 
+# Backward compatibility alias for uipath-agents
+UiPathDebugBridge = UiPathDebugBridgeProtocol
+
 logger = logging.getLogger(__name__)
 
 

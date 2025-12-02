@@ -1,0 +1,45 @@
+{
+  "transformation_summary": {
+    "input_count": 23,
+    "output_count": 15,
+    "reduction_percentage": 34.8,
+    "spans_removed": 8
+  },
+  "input_breakdown": {
+    "langgraph_parents": 3,
+    "agent_nodes": 1,
+    "function_calls": 6,
+    "llm_spans": 1,
+    "tool_spans": 12,
+    "other": 0
+  },
+  "output_breakdown": {
+    "synthetic_parents": 2,
+    "llm_spans": 1,
+    "tool_spans": 12
+  },
+  "span_mappings": {
+    "buffered_not_emitted": [
+      "LangGraph (nested)",
+      "agent nodes",
+      "function calls (non-LLM/tool)",
+      "A_Plus_B nodes",
+      "route_agent nodes"
+    ],
+    "passed_through": [
+      "LLM spans (UiPathChat)",
+      "TOOL spans (GET, POST, A_Plus_B tools)"
+    ],
+    "created": [
+      "Agent run - Agent (synthetic parent, emitted twice)"
+    ]
+  },
+  "key_changes": [
+    "Original 3 LangGraph parents \u2192 1 synthetic 'Agent run - Agent' parent",
+    "Buffered 1 agent node spans (not emitted)",
+    "Buffered 6 function call spans (not emitted)",
+    "Preserved all 1 LLM spans with reparenting",
+    "Preserved all 12 tool spans with reparenting",
+    "Emitted synthetic parent twice: running state + completed state"
+  ]
+}

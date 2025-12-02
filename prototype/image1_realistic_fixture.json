@@ -1,0 +1,319 @@
+{
+  "spans": [
+    {
+      "id": "span-langgraph-001",
+      "trace_id": "trace-xyz-789",
+      "name": "LangGraph",
+      "parent_id": null,
+      "start_time": "2025-01-19T14:30:00.000Z",
+      "end_time": "2025-01-19T14:30:10.000Z",
+      "status": 1,
+      "duration_ms": 10000,
+      "attributes": {
+        "openinference.span.kind": "CHAIN",
+        "langgraph.graph": "main_graph"
+      }
+    },
+    {
+      "id": "span-get-001",
+      "trace_id": "trace-xyz-789",
+      "name": "GET",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:00.100Z",
+      "end_time": "2025-01-19T14:30:00.196Z",
+      "status": 1,
+      "duration_ms": 96,
+      "attributes": {
+        "http.method": "GET",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-post-001",
+      "trace_id": "trace-xyz-789",
+      "name": "POST",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:00.200Z",
+      "end_time": "2025-01-19T14:30:04.422Z",
+      "status": 1,
+      "duration_ms": 4222,
+      "attributes": {
+        "http.method": "POST",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-processes-invoke-001",
+      "trace_id": "trace-xyz-789",
+      "name": "processes_invoke",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:04.422Z",
+      "end_time": "2025-01-19T14:30:04.422Z",
+      "status": 1,
+      "duration_ms": 0,
+      "attributes": {
+        "function.name": "processes_invoke"
+      }
+    },
+    {
+      "id": "span-post-002",
+      "trace_id": "trace-xyz-789",
+      "name": "POST",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:04.422Z",
+      "end_time": "2025-01-19T14:30:04.833Z",
+      "status": 1,
+      "duration_ms": 411,
+      "attributes": {
+        "http.method": "POST",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-get-002",
+      "trace_id": "trace-xyz-789",
+      "name": "GET",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:04.833Z",
+      "end_time": "2025-01-19T14:30:05.020Z",
+      "status": 1,
+      "duration_ms": 187,
+      "attributes": {
+        "http.method": "GET",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-langgraph-002",
+      "trace_id": "trace-xyz-789",
+      "name": "LangGraph",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:05.020Z",
+      "end_time": "2025-01-19T14:30:06.673Z",
+      "status": 1,
+      "duration_ms": 1653,
+      "attributes": {
+        "openinference.span.kind": "CHAIN",
+        "langgraph.nested": true
+      }
+    },
+    {
+      "id": "span-get-003",
+      "trace_id": "trace-xyz-789",
+      "name": "GET",
+      "parent_id": "span-langgraph-002",
+      "start_time": "2025-01-19T14:30:05.100Z",
+      "end_time": "2025-01-19T14:30:05.180Z",
+      "status": 1,
+      "duration_ms": 80,
+      "attributes": {
+        "http.method": "GET",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-post-003",
+      "trace_id": "trace-xyz-789",
+      "name": "POST",
+      "parent_id": "span-langgraph-002",
+      "start_time": "2025-01-19T14:30:05.180Z",
+      "end_time": "2025-01-19T14:30:05.334Z",
+      "status": 1,
+      "duration_ms": 154,
+      "attributes": {
+        "http.method": "POST",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-processes-invoke-002",
+      "trace_id": "trace-xyz-789",
+      "name": "processes_invoke",
+      "parent_id": "span-langgraph-002",
+      "start_time": "2025-01-19T14:30:05.334Z",
+      "end_time": "2025-01-19T14:30:05.334Z",
+      "status": 1,
+      "duration_ms": 0,
+      "attributes": {
+        "function.name": "processes_invoke"
+      }
+    },
+    {
+      "id": "span-post-004",
+      "trace_id": "trace-xyz-789",
+      "name": "POST",
+      "parent_id": "span-langgraph-002",
+      "start_time": "2025-01-19T14:30:05.334Z",
+      "end_time": "2025-01-19T14:30:05.642Z",
+      "status": 1,
+      "duration_ms": 308,
+      "attributes": {
+        "http.method": "POST",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-get-004",
+      "trace_id": "trace-xyz-789",
+      "name": "GET",
+      "parent_id": "span-langgraph-002",
+      "start_time": "2025-01-19T14:30:05.642Z",
+      "end_time": "2025-01-19T14:30:05.838Z",
+      "status": 1,
+      "duration_ms": 196,
+      "attributes": {
+        "http.method": "GET",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-langgraph-003",
+      "trace_id": "trace-xyz-789",
+      "name": "LangGraph",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:06.673Z",
+      "end_time": "2025-01-19T14:30:08.003Z",
+      "status": 1,
+      "duration_ms": 1330,
+      "attributes": {
+        "openinference.span.kind": "CHAIN",
+        "langgraph.nested": true
+      }
+    },
+    {
+      "id": "span-a-plus-b-001",
+      "trace_id": "trace-xyz-789",
+      "name": "A_Plus_B",
+      "parent_id": "span-langgraph-003",
+      "start_time": "2025-01-19T14:30:06.700Z",
+      "end_time": "2025-01-19T14:30:06.703Z",
+      "status": 1,
+      "duration_ms": 3,
+      "attributes": {
+        "function.name": "A_Plus_B"
+      }
+    },
+    {
+      "id": "span-a-plus-b-tool-001",
+      "trace_id": "trace-xyz-789",
+      "name": "A_Plus_B",
+      "parent_id": "span-a-plus-b-001",
+      "start_time": "2025-01-19T14:30:06.701Z",
+      "end_time": "2025-01-19T14:30:06.702Z",
+      "status": 1,
+      "duration_ms": 1,
+      "attributes": {
+        "openinference.span.kind": "TOOL",
+        "tool.name": "A_Plus_B"
+      }
+    },
+    {
+      "id": "span-agent-001",
+      "trace_id": "trace-xyz-789",
+      "name": "agent",
+      "parent_id": "span-langgraph-003",
+      "start_time": "2025-01-19T14:30:06.703Z",
+      "end_time": "2025-01-19T14:30:08.003Z",
+      "status": 1,
+      "duration_ms": 1300,
+      "attributes": {
+        "langgraph.node": "agent"
+      }
+    },
+    {
+      "id": "span-uipath-chat-001",
+      "trace_id": "trace-xyz-789",
+      "name": "UiPathChat",
+      "parent_id": "span-agent-001",
+      "start_time": "2025-01-19T14:30:06.704Z",
+      "end_time": "2025-01-19T14:30:07.934Z",
+      "status": 1,
+      "duration_ms": 1230,
+      "attributes": {
+        "llm.model_name": "gpt-4.1-2025-04-14",
+        "openinference.span.kind": "LLM"
+      }
+    },
+    {
+      "id": "span-route-agent-001",
+      "trace_id": "trace-xyz-789",
+      "name": "route_agent",
+      "parent_id": "span-agent-001",
+      "start_time": "2025-01-19T14:30:07.934Z",
+      "end_time": "2025-01-19T14:30:07.935Z",
+      "status": 1,
+      "duration_ms": 1,
+      "attributes": {
+        "function.name": "route_agent"
+      }
+    },
+    {
+      "id": "span-a-plus-b-002",
+      "trace_id": "trace-xyz-789",
+      "name": "A_Plus_B",
+      "parent_id": "span-langgraph-003",
+      "start_time": "2025-01-19T14:30:07.935Z",
+      "end_time": "2025-01-19T14:30:07.940Z",
+      "status": 1,
+      "duration_ms": 5,
+      "attributes": {
+        "function.name": "A_Plus_B"
+      }
+    },
+    {
+      "id": "span-a-plus-b-tool-002",
+      "trace_id": "trace-xyz-789",
+      "name": "A_Plus_B",
+      "parent_id": "span-a-plus-b-002",
+      "start_time": "2025-01-19T14:30:07.936Z",
+      "end_time": "2025-01-19T14:30:07.938Z",
+      "status": 1,
+      "duration_ms": 2,
+      "attributes": {
+        "openinference.span.kind": "TOOL",
+        "tool.name": "A_Plus_B"
+      }
+    },
+    {
+      "id": "span-get-005",
+      "trace_id": "trace-xyz-789",
+      "name": "GET",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:08.003Z",
+      "end_time": "2025-01-19T14:30:08.083Z",
+      "status": 1,
+      "duration_ms": 80,
+      "attributes": {
+        "http.method": "GET",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-post-005",
+      "trace_id": "trace-xyz-789",
+      "name": "POST",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:08.083Z",
+      "end_time": "2025-01-19T14:30:09.313Z",
+      "status": 1,
+      "duration_ms": 1230,
+      "attributes": {
+        "http.method": "POST",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-processes-invoke-003",
+      "trace_id": "trace-xyz-789",
+      "name": "processes_invoke",
+      "parent_id": "span-langgraph-001",
+      "start_time": "2025-01-19T14:30:09.313Z",
+      "end_time": "2025-01-19T14:30:09.314Z",
+      "status": 1,
+      "duration_ms": 1,
+      "attributes": {
+        "function.name": "processes_invoke"
+      }
+    }
+  ]
+}

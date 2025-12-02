@@ -1,0 +1,224 @@
+{
+  "description": "LangGraph trace with guardrail pattern - GET/POST wrapping LLM calls and tool calls",
+  "spans": [
+    {
+      "id": "span-langgraph-root",
+      "trace_id": "trace-guardrail-001",
+      "name": "LangGraph",
+      "parent_id": null,
+      "start_time": "2025-01-21T10:00:00.000Z",
+      "end_time": "2025-01-21T10:00:37.480Z",
+      "status": 1,
+      "duration_ms": 37480,
+      "attributes": {
+        "openinference.span.kind": "CHAIN",
+        "langgraph.graph": "agent_graph"
+      }
+    },
+    {
+      "id": "span-agent-input-guardrail",
+      "trace_id": "trace-guardrail-001",
+      "name": "Agent input guardrail check",
+      "parent_id": "span-langgraph-root",
+      "start_time": "2025-01-21T10:00:00.100Z",
+      "end_time": "2025-01-21T10:00:01.960Z",
+      "status": 1,
+      "duration_ms": 1960,
+      "attributes": {
+        "guardrail.type": "input",
+        "guardrail.phase": "pre_agent"
+      }
+    },
+    {
+      "id": "span-input-guardrail-get",
+      "trace_id": "trace-guardrail-001",
+      "name": "GET",
+      "parent_id": "span-agent-input-guardrail",
+      "start_time": "2025-01-21T10:00:00.200Z",
+      "end_time": "2025-01-21T10:00:01.960Z",
+      "status": 1,
+      "duration_ms": 1760,
+      "attributes": {
+        "http.method": "GET",
+        "http.url": "/api/guardrails/input/validate",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-llm-call-1",
+      "trace_id": "trace-guardrail-001",
+      "name": "LLM call",
+      "parent_id": "span-langgraph-root",
+      "start_time": "2025-01-21T10:00:02.000Z",
+      "end_time": "2025-01-21T10:00:08.980Z",
+      "status": 1,
+      "duration_ms": 6980,
+      "attributes": {
+        "llm.model_name": "gpt-4o",
+        "llm.provider": "openai",
+        "openinference.span.kind": "LLM"
+      }
+    },
+    {
+      "id": "span-llm-call-1-get",
+      "trace_id": "trace-guardrail-001",
+      "name": "GET",
+      "parent_id": "span-llm-call-1",
+      "start_time": "2025-01-21T10:00:02.100Z",
+      "end_time": "2025-01-21T10:00:04.500Z",
+      "status": 1,
+      "duration_ms": 2400,
+      "attributes": {
+        "http.method": "GET",
+        "http.url": "/api/llm/context",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-llm-call-1-post",
+      "trace_id": "trace-guardrail-001",
+      "name": "POST",
+      "parent_id": "span-llm-call-1",
+      "start_time": "2025-01-21T10:00:04.500Z",
+      "end_time": "2025-01-21T10:00:08.980Z",
+      "status": 1,
+      "duration_ms": 4480,
+      "attributes": {
+        "http.method": "POST",
+        "http.url": "/api/llm/generate",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-tool-call-a-plus-b",
+      "trace_id": "trace-guardrail-001",
+      "name": "Tool call - A_Plus_B",
+      "parent_id": "span-langgraph-root",
+      "start_time": "2025-01-21T10:00:09.000Z",
+      "end_time": "2025-01-21T10:00:26.060Z",
+      "status": 1,
+      "duration_ms": 17060,
+      "attributes": {
+        "tool.name": "A_Plus_B",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-tool-call-get",
+      "trace_id": "trace-guardrail-001",
+      "name": "GET",
+      "parent_id": "span-tool-call-a-plus-b",
+      "start_time": "2025-01-21T10:00:09.100Z",
+      "end_time": "2025-01-21T10:00:12.500Z",
+      "status": 1,
+      "duration_ms": 3400,
+      "attributes": {
+        "http.method": "GET",
+        "http.url": "/api/tools/a_plus_b/prepare",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-tool-call-post",
+      "trace_id": "trace-guardrail-001",
+      "name": "POST",
+      "parent_id": "span-tool-call-a-plus-b",
+      "start_time": "2025-01-21T10:00:12.500Z",
+      "end_time": "2025-01-21T10:00:26.060Z",
+      "status": 1,
+      "duration_ms": 13560,
+      "attributes": {
+        "http.method": "POST",
+        "http.url": "/api/tools/a_plus_b/execute",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-llm-call-2",
+      "trace_id": "trace-guardrail-001",
+      "name": "LLM call",
+      "parent_id": "span-langgraph-root",
+      "start_time": "2025-01-21T10:00:26.100Z",
+      "end_time": "2025-01-21T10:00:32.120Z",
+      "status": 1,
+      "duration_ms": 6020,
+      "attributes": {
+        "llm.model_name": "gpt-4o",
+        "llm.provider": "openai",
+        "openinference.span.kind": "LLM"
+      }
+    },
+    {
+      "id": "span-llm-call-2-get",
+      "trace_id": "trace-guardrail-001",
+      "name": "GET",
+      "parent_id": "span-llm-call-2",
+      "start_time": "2025-01-21T10:00:26.200Z",
+      "end_time": "2025-01-21T10:00:28.600Z",
+      "status": 1,
+      "duration_ms": 2400,
+      "attributes": {
+        "http.method": "GET",
+        "http.url": "/api/llm/context",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-llm-call-2-post",
+      "trace_id": "trace-guardrail-001",
+      "name": "POST",
+      "parent_id": "span-llm-call-2",
+      "start_time": "2025-01-21T10:00:28.600Z",
+      "end_time": "2025-01-21T10:00:32.120Z",
+      "status": 1,
+      "duration_ms": 3520,
+      "attributes": {
+        "http.method": "POST",
+        "http.url": "/api/llm/generate",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-agent-output-guardrail",
+      "trace_id": "trace-guardrail-001",
+      "name": "Agent output guardrail check",
+      "parent_id": "span-langgraph-root",
+      "start_time": "2025-01-21T10:00:32.200Z",
+      "end_time": "2025-01-21T10:00:32.916Z",
+      "status": 1,
+      "duration_ms": 716,
+      "attributes": {
+        "guardrail.type": "output",
+        "guardrail.phase": "post_agent"
+      }
+    },
+    {
+      "id": "span-output-guardrail-post",
+      "trace_id": "trace-guardrail-001",
+      "name": "POST",
+      "parent_id": "span-agent-output-guardrail",
+      "start_time": "2025-01-21T10:00:32.300Z",
+      "end_time": "2025-01-21T10:00:32.916Z",
+      "status": 1,
+      "duration_ms": 616,
+      "attributes": {
+        "http.method": "POST",
+        "http.url": "/api/guardrails/output/validate",
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-agent-output",
+      "trace_id": "trace-guardrail-001",
+      "name": "Agent output",
+      "parent_id": "span-langgraph-root",
+      "start_time": "2025-01-21T10:00:32.920Z",
+      "end_time": "2025-01-21T10:00:32.920Z",
+      "status": 1,
+      "duration_ms": 0,
+      "attributes": {
+        "output.type": "final"
+      }
+    }
+  ]
+}

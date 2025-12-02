@@ -1,0 +1,87 @@
+[
+  {
+    "id": "643968a664754eb4",
+    "trace_id": "trace-abc",
+    "parent_id": null,
+    "name": "Agent run - Agent",
+    "start_time": 1000,
+    "end_time": null,
+    "status": 0,
+    "span_type": "agentRun",
+    "attributes": {
+      "type": "agentRun",
+      "agentName": "Agent"
+    }
+  },
+  {
+    "id": "9790c4a967334373",
+    "trace_id": "trace-abc",
+    "parent_id": "643968a664754eb4",
+    "name": "LLM call",
+    "start_time": 1003,
+    "end_time": 1009,
+    "status": 1,
+    "span_type": "completion",
+    "attributes": {
+      "type": "completion"
+    }
+  },
+  {
+    "id": "8904ab6f34274afe",
+    "trace_id": "trace-abc",
+    "parent_id": "9790c4a967334373",
+    "name": "Model run",
+    "start_time": 1003,
+    "end_time": 1009,
+    "status": 1,
+    "span_type": "completion",
+    "attributes": {
+      "type": "completion",
+      "model": "gpt-4o",
+      "usage": {
+        "promptTokens": 100,
+        "completionTokens": 50,
+        "totalTokens": 150
+      },
+      "settings": {
+        "temperature": 0,
+        "max_tokens": 1024
+      }
+    }
+  },
+  {
+    "id": "643968a664754eb4",
+    "trace_id": "trace-abc",
+    "parent_id": null,
+    "name": "Agent run - Agent",
+    "start_time": 1000,
+    "end_time": 1012,
+    "status": 1,
+    "span_type": "agentRun",
+    "attributes": {
+      "type": "agentRun",
+      "agentName": "Agent",
+      "systemPrompt": "You are an assistant.",
+      "userPrompt": "What is 2+2?",
+      "output": {
+        "content": "The answer is 4."
+      }
+    }
+  },
+  {
+    "id": "87e8bb4bedbe42b8",
+    "trace_id": "trace-abc",
+    "parent_id": "643968a664754eb4",
+    "name": "Agent output",
+    "start_time": 1012,
+    "end_time": 1012,
+    "status": 1,
+    "span_type": "agentOutput",
+    "attributes": {
+      "type": "agentOutput",
+      "output": {
+        "content": "The answer is 4."
+      }
+    }
+  }
+]

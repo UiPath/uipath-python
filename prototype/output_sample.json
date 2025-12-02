@@ -1,0 +1,106 @@
+{
+  "spans": [
+    {
+      "id": "synthetic-abc-001",
+      "trace_id": "trace-abc-123",
+      "name": "Agent run - Agent",
+      "parent_id": null,
+      "start_time": "2025-01-19T10:00:00.000Z",
+      "end_time": null,
+      "status": 0,
+      "attributes": {
+        "openinference.span.kind": "CHAIN",
+        "langgraph.simplified": true
+      }
+    },
+    {
+      "id": "span-003",
+      "trace_id": "trace-abc-123",
+      "name": "gpt-4o",
+      "parent_id": "synthetic-abc-001",
+      "start_time": "2025-01-19T10:00:02.000Z",
+      "end_time": "2025-01-19T10:00:04.000Z",
+      "status": 1,
+      "attributes": {
+        "llm.model_name": "gpt-4o",
+        "openinference.span.kind": "LLM"
+      }
+    },
+    {
+      "id": "span-006",
+      "trace_id": "trace-abc-123",
+      "name": "gpt-4o-mini",
+      "parent_id": "synthetic-abc-001",
+      "start_time": "2025-01-19T10:00:08.000Z",
+      "end_time": "2025-01-19T10:00:09.000Z",
+      "status": 1,
+      "attributes": {
+        "llm.model_name": "gpt-4o-mini",
+        "openinference.span.kind": "LLM"
+      }
+    },
+    {
+      "id": "span-007",
+      "trace_id": "trace-abc-123",
+      "name": "search_people_email",
+      "parent_id": "synthetic-abc-001",
+      "start_time": "2025-01-19T10:00:10.000Z",
+      "end_time": "2025-01-19T10:00:12.000Z",
+      "status": 1,
+      "attributes": {
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-009",
+      "trace_id": "trace-abc-123",
+      "name": "gpt-4o",
+      "parent_id": "synthetic-abc-001",
+      "start_time": "2025-01-19T10:00:17.000Z",
+      "end_time": "2025-01-19T10:00:20.000Z",
+      "status": 1,
+      "attributes": {
+        "llm.model_name": "gpt-4o",
+        "openinference.span.kind": "LLM"
+      }
+    },
+    {
+      "id": "span-012",
+      "trace_id": "trace-abc-123",
+      "name": "send_email",
+      "parent_id": "synthetic-abc-001",
+      "start_time": "2025-01-19T10:00:25.000Z",
+      "end_time": "2025-01-19T10:00:30.000Z",
+      "status": 1,
+      "attributes": {
+        "openinference.span.kind": "TOOL"
+      }
+    },
+    {
+      "id": "span-014",
+      "trace_id": "trace-abc-123",
+      "name": "gpt-4o",
+      "parent_id": "synthetic-abc-001",
+      "start_time": "2025-01-19T10:00:34.000Z",
+      "end_time": "2025-01-19T10:00:38.000Z",
+      "status": 1,
+      "attributes": {
+        "llm.model_name": "gpt-4o",
+        "openinference.span.kind": "LLM"
+      }
+    },
+    {
+      "id": "synthetic-abc-001",
+      "trace_id": "trace-abc-123",
+      "name": "Agent run - Agent",
+      "parent_id": null,
+      "start_time": "2025-01-19T10:00:00.000Z",
+      "end_time": "2025-01-19T10:00:45.000Z",
+      "status": 1,
+      "attributes": {
+        "openinference.span.kind": "CHAIN",
+        "langgraph.simplified": true
+      }
+    }
+  ]
+}
