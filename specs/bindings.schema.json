@@ -40,6 +40,7 @@
               "process",
               "bucket",
               "index",
+              "app",
               "connection"
             ]
           },
@@ -52,7 +53,7 @@
             "description": "Resource configuration values",
             "oneOf": [
               {
-                "title": "Asset/Process/Bucket/Index Value",
+                "title": "Asset/Process/Bucket/App/Index Value",
                 "properties": {
                   "name": {
                     "$ref": "#/definitions/propertyDefinition",
