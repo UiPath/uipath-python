@@ -2,7 +2,7 @@
 
 ## Overview
 
-The resources configuration file defines bindings for UiPath resources including assets, processes, buckets, indexes, and connections. This file enables declarative configuration of resource references used throughout your UiPath project.
+The resources configuration file defines bindings for UiPath resources including assets, processes, buckets, indexes, apps and connections. This file enables declarative configuration of resource references used throughout your UiPath project.
 
 **File Name:** `bindings.json`
 
@@ -41,7 +41,9 @@ The configuration supports multiple resource types:
 2. **process** - Workflow processes
 3. **bucket** - Storage buckets
 4. **index** - Search indexes
-5. **connection** - External connections
+5. **apps** - Action center apps
+6. **connection** - External connections
+
 
 ---
 
@@ -226,8 +228,46 @@ Indexes are used for search and query operations.
 - `DisplayLabel`: `"FullName"`
 
 ---
+### 5. App
 
-### 5. Connection
+Apps are used to create Human In The Loop tasks and escalations.
+
+**Key Format:** `app_name.app_folder_path`
+
+**Example:**
+
+```json
+ {
+    "resource": "app",
+    "key": "app_name.app_folder_path",
+    "value": {
+        "name": {
+            "defaultValue": "app_name",
+            "isExpression": false,
+            "displayName": "App Name"
+        },
+        "folderPath": {
+            "defaultValue": "app_folder_path",
+            "isExpression": false,
+            "displayName": "App Folder Path"
+        }
+    },
+    "metadata": {
+        "ActivityName": "create_async",
+        "BindingsVersion": "2.2",
+        "DisplayLabel": "app_name"
+    }
+}
+```
+
+**Common Metadata:**
+- `ActivityName`: Typically `"retrieve_async"`
+- `BindingsVersion`: `"2.2"`
+- `DisplayLabel`: `"FullName"`
+
+---
+
+### 6. Connection
 
 Connections define external system integrations.
 
@@ -265,7 +305,7 @@ Connections define external system integrations.
 
 ## Value Object Structure
 
-### For Assets, Processes, Buckets, and Indexes
+### For Assets, Processes, Buckets, Apps and Indexes
 
 ```json
 {
@@ -324,110 +364,131 @@ Metadata provides additional context about the resource binding.
 
 ```json
 {
-  "$schema": "https://cloud.uipath.com/draft/2024-12/bindings",
-  "version": "2.0",
-  "resources": [
-    {
-      "resource": "asset",
-      "key": "APIKey.Production",
-      "value": {
-        "name": {
-          "defaultValue": "APIKey",
-          "isExpression": false,
-          "displayName": "Name"
+    "$schema": "https://cloud.uipath.com/draft/2024-12/bindings",
+    "version": "2.0",
+    "resources": [
+        {
+            "resource": "asset",
+            "key": "APIKey.Production",
+            "value": {
+                "name": {
+                    "defaultValue": "APIKey",
+                    "isExpression": false,
+                    "displayName": "Name"
+                },
+                "folderPath": {
+                    "defaultValue": "Production",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "retrieve_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
         },
-        "folderPath": {
-          "defaultValue": "Production",
-          "isExpression": false,
-          "displayName": "Folder Path"
-        }
-      },
-      "metadata": {
-        "ActivityName": "retrieve_async",
-        "BindingsVersion": "2.2",
-        "DisplayLabel": "FullName"
-      }
-    },
-    {
-      "resource": "process",
-      "key": "InvoiceProcessing.Finance",
-      "value": {
-        "name": {
-          "defaultValue": "InvoiceProcessing",
-          "isExpression": false,
-          "displayName": "Name"
+        {
+            "resource": "process",
+            "key": "InvoiceProcessing.Finance",
+            "value": {
+                "name": {
+                    "defaultValue": "InvoiceProcessing",
+                    "isExpression": false,
+                    "displayName": "Name"
+                },
+                "folderPath": {
+                    "defaultValue": "Finance",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "invoke_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
         },
-        "folderPath": {
-          "defaultValue": "Finance",
-          "isExpression": false,
-          "displayName": "Folder Path"
-        }
-      },
-      "metadata": {
-        "ActivityName": "invoke_async",
-        "BindingsVersion": "2.2",
-        "DisplayLabel": "FullName"
-      }
-    },
-    {
-      "resource": "bucket",
-      "key": "InvoiceStorage.Finance",
-      "value": {
-        "name": {
-          "defaultValue": "InvoiceStorage",
-          "isExpression": false,
-          "displayName": "Name"
+        {
+            "resource": "bucket",
+            "key": "InvoiceStorage.Finance",
+            "value": {
+                "name": {
+                    "defaultValue": "InvoiceStorage",
+                    "isExpression": false,
+                    "displayName": "Name"
+                },
+                "folderPath": {
+                    "defaultValue": "Finance",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "retrieve_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
         },
-        "folderPath": {
-          "defaultValue": "Finance",
-          "isExpression": false,
-          "displayName": "Folder Path"
-        }
-      },
-      "metadata": {
-        "ActivityName": "retrieve_async",
-        "BindingsVersion": "2.2",
-        "DisplayLabel": "FullName"
-      }
-    },
-    {
-      "resource": "index",
-      "key": "VendorIndex.Finance",
-      "value": {
-        "name": {
-          "defaultValue": "VendorIndex",
-          "isExpression": false,
-          "displayName": "Name"
+        {
+            "resource": "index",
+            "key": "VendorIndex.Finance",
+            "value": {
+                "name": {
+                    "defaultValue": "VendorIndex",
+                    "isExpression": false,
+                    "displayName": "Name"
+                },
+                "folderPath": {
+                    "defaultValue": "Finance",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "retrieve_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
+            }
         },
-        "folderPath": {
-          "defaultValue": "Finance",
-          "isExpression": false,
-          "displayName": "Folder Path"
+        {
+            "resource": "app",
+            "key": "app_name.app_folder_path",
+            "value": {
+                "name": {
+                    "defaultValue": "app_name",
+                    "isExpression": false,
+                    "displayName": "App Name"
+                },
+                "folderPath": {
+                    "defaultValue": "app_folder_path",
+                    "isExpression": false,
+                    "displayName": "App Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "create_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "app_name"
+            }
+        },
+        {
+            "resource": "connection",
+            "key": "SalesforceAPI",
+            "value": {
+                "ConnectionId": {
+                    "defaultValue": "SalesforceAPI",
+                    "isExpression": false,
+                    "displayName": "Connection"
+                }
+            },
+            "metadata": {
+                "BindingsVersion": "2.2",
+                "Connector": "Salesforce",
+                "UseConnectionService": "True"
+            }
         }
-      },
-      "metadata": {
-        "ActivityName": "retrieve_async",
-        "BindingsVersion": "2.2",
-        "DisplayLabel": "FullName"
-      }
-    },
-    {
-      "resource": "connection",
-      "key": "SalesforceAPI",
-      "value": {
-        "ConnectionId": {
-          "defaultValue": "SalesforceAPI",
-          "isExpression": false,
-          "displayName": "Connection"
-        }
-      },
-      "metadata": {
-        "BindingsVersion": "2.2",
-        "Connector": "Salesforce",
-        "UseConnectionService": "True"
-      }
-    }
-  ]
+    ]
 }
 ```
 ---
