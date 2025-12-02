@@ -25,6 +25,7 @@ A Python SDK for programmatic interaction with UiPath Cloud Platform services, f
 - https://uipath.github.io/uipath-python/core/documents - Document handling
 - https://uipath.github.io/uipath-python/core/documents_models - Document data models
 - https://uipath.github.io/uipath-python/core/environment_variables - Environment configuration
+- https://uipath.github.io/uipath-python/core/guardrails - Guardrails validation
 - https://uipath.github.io/uipath-python/core/traced - Tracing and observability
 
 ### LLM & AI Features

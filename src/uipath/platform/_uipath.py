@@ -15,6 +15,7 @@ from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
+from .guardrails import GuardrailsService
 from .llm_gateway import UiPathLlmChatService, UiPathOpenAIService
 from .orchestrator import (
     AssetsService,
@@ -133,3 +134,7 @@ class UiPath:
     @property
     def mcp(self) -> McpService:
         return McpService(self._config, self._execution_context, self.folders)
+
+    @property
+    def guardrails(self) -> GuardrailsService:
+        return GuardrailsService(self._config, self._execution_context)
