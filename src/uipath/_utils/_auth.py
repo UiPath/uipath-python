@@ -4,7 +4,7 @@ from os import environ as env
 from pathlib import Path
 from typing import Optional
 
-from .._services import ExternalApplicationService
+from ..platform.common import ExternalApplicationService
 from .constants import (
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,

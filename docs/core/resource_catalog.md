@@ -1,1 +1,1 @@
-::: uipath._services.resource_catalog_service
+::: uipath.platform.resource_catalog._resource_catalog_service

@@ -8,8 +8,8 @@ from pydantic import field_validator
 
 from uipath.eval.models import EvaluationResult
 
-from ..._services import UiPathLlmChatService
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
+from ...platform.llm_gateway import UiPathLlmChatService
 from ..models.models import (
     AgentExecution,
     LLMResponse,

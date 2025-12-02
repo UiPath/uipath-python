@@ -1,1 +1,1 @@
-::: uipath._services.buckets_service
+::: uipath.platform.orchestrator._buckets_service

@@ -4,21 +4,29 @@ import httpx
 from pydantic import TypeAdapter
 from typing_extensions import deprecated
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, resource_override
-from .._utils.constants import (
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ..._utils.constants import (
     LLMV4_REQUEST,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
-from ..platform.context_grounding import (
+from ...tracing import traced
+from ..common._base_service import BaseService
+from ..errors import (
+    IngestionInProgressException,
+    UnsupportedDataSourceException,
+)
+from ..orchestrator._buckets_service import BucketsService
+from ..orchestrator._folder_service import FolderService
+from .context_grounding import ContextGroundingQueryResponse
+from .context_grounding_index import ContextGroundingIndex
+from .context_grounding_payloads import (
     BucketDataSource,
     BucketSourceConfig,
     ConfluenceDataSource,
     ConfluenceSourceConfig,
-    ContextGroundingIndex,
-    ContextGroundingQueryResponse,
     CreateIndexPayload,
     DropboxDataSource,
     DropboxSourceConfig,
@@ -29,14 +37,6 @@ from ..platform.context_grounding import (
     PreProcessing,
     SourceConfig,
 )
-from ..platform.errors import (
-    IngestionInProgressException,
-    UnsupportedDataSourceException,
-)
-from ..tracing import traced
-from ._base_service import BaseService
-from .buckets_service import BucketsService
-from .folder_service import FolderService
 
 
 class ContextGroundingService(FolderContext, BaseService):

@@ -5,15 +5,15 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast, overload
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder
-from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
-from ..platform.orchestrator import Job
-from ..tracing import traced
-from ._base_service import BaseService
-from .attachments_service import AttachmentsService
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, header_folder
+from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
+from ...tracing import traced
+from ..common._base_service import BaseService
+from ._attachments_service import AttachmentsService
+from .job import Job
 
 
 class JobsService(FolderContext, BaseService):

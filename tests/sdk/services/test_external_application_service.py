@@ -2,7 +2,9 @@ import httpx
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._services.external_application_service import ExternalApplicationService
+from uipath.platform.common._external_application_service import (
+    ExternalApplicationService,
+)
 from uipath.platform.errors import EnrichedException
 
 

@@ -3,6 +3,9 @@
 This module contains common models used across multiple services.
 """
 
+from ._api_client import ApiClient
+from ._base_service import BaseService
+from ._external_application_service import ExternalApplicationService
 from .auth import TokenData
 from .interrupt_models import (
     CreateEscalation,
@@ -15,6 +18,9 @@ from .interrupt_models import (
 from .paging import PagedResult
 
 __all__ = [
+    "ApiClient",
+    "BaseService",
+    "ExternalApplicationService",
     "TokenData",
     "CreateTask",
     "CreateEscalation",

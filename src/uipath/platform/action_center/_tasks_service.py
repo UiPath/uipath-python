@@ -2,19 +2,20 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, resource_override
-from .._utils.constants import (
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, resource_override
+from ..._utils.constants import (
     ENV_TENANT_ID,
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
     HEADER_TENANT_ID,
 )
-from ..platform.action_center import Task, TaskSchema
-from ..tracing import traced
-from ._base_service import BaseService
+from ...tracing import traced
+from ..common._base_service import BaseService
+from .task_schema import TaskSchema
+from .tasks import Task
 
 
 def _create_spec(

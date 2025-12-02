@@ -1,1 +1,1 @@
-::: uipath._services.documents_service
+::: uipath.platform.documents._documents_service

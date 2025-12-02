@@ -1,1 +1,1 @@
-::: uipath._services.jobs_service
+::: uipath.platform.orchestrator._jobs_service

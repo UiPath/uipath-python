@@ -3,6 +3,7 @@
 This module contains models related to UiPath Guardrails service.
 """
 
+from ._guardrails_service import GuardrailsService
 from .guardrails import (
     AllFieldsSelector,
     ApplyTo,
@@ -33,6 +34,7 @@ from .guardrails import (
 )
 
 __all__ = [
+    "GuardrailsService",
     "FieldSource",
     "ApplyTo",
     "FieldReference",

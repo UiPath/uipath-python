@@ -3,6 +3,7 @@
 This module contains models related to UiPath LLM Gateway service.
 """
 
+from ._llm_gateway_service import UiPathLlmChatService, UiPathOpenAIService
 from .llm_gateway import (
     AutoToolChoice,
     ChatCompletion,
@@ -23,6 +24,8 @@ from .llm_gateway import (
 )
 
 __all__ = [
+    "UiPathLlmChatService",
+    "UiPathOpenAIService",
     "ToolPropertyDefinition",
     "ToolParametersDefinition",
     "ToolFunctionDefinition",

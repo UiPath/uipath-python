@@ -3,15 +3,15 @@ import os
 import uuid
 from typing import Any, Dict, Optional
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, resource_override
-from .._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
-from ..platform.orchestrator import Job
-from ..tracing import traced
-from . import AttachmentsService
-from ._base_service import BaseService
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ..._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
+from ...tracing import traced
+from ..common._base_service import BaseService
+from ._attachments_service import AttachmentsService
+from .job import Job
 
 
 class ProcessesService(FolderContext, BaseService):

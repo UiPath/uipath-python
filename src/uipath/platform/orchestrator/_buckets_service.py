@@ -6,15 +6,15 @@ from typing import Any, Dict, Optional, Union
 
 import httpx
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, resource_override
-from .._utils._ssl_context import get_httpx_client_kwargs
-from ..platform.common import PagedResult
-from ..platform.orchestrator import Bucket, BucketFile
-from ..tracing import traced
-from ._base_service import BaseService
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ..._utils._ssl_context import get_httpx_client_kwargs
+from ...tracing import traced
+from ..common._base_service import BaseService
+from ..common.paging import PagedResult
+from .buckets import Bucket, BucketFile
 
 # Pagination limits
 MAX_PAGE_SIZE = 1000  # Maximum items per page (top parameter)

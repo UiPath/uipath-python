@@ -1,9 +1,9 @@
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._utils import Endpoint, RequestSpec
-from ..agent.conversation import UiPathConversationMessage
-from ..tracing import traced
-from ._base_service import BaseService
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._utils import Endpoint, RequestSpec
+from ...agent.conversation import UiPathConversationMessage
+from ...tracing import traced
+from ..common._base_service import BaseService
 
 
 class ConversationsService(BaseService):

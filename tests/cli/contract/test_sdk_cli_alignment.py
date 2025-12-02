@@ -211,11 +211,11 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
 
     This test runs on every commit to catch SDK/CLI drift early.
     """
-    from uipath import _services
     from uipath._cli import services as cli_services
+    from uipath.platform import orchestrator
 
     # Get SDK class and method
-    sdk_cls = getattr(_services, sdk_class)
+    sdk_cls = getattr(orchestrator, sdk_class)
     sdk_meth = getattr(sdk_cls, sdk_method)
 
     # Get CLI service group and command

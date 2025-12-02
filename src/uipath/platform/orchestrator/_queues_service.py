@@ -2,18 +2,18 @@ from typing import Any, Dict, List, Union
 
 from httpx import Response
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec
-from ..platform.orchestrator import (
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec
+from ...tracing import traced
+from ..common._base_service import BaseService
+from .queues import (
     CommitType,
     QueueItem,
     TransactionItem,
     TransactionItemResult,
 )
-from ..tracing import traced
-from ._base_service import BaseService
 
 
 class QueuesService(FolderContext, BaseService):

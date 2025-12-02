@@ -1,1 +1,1 @@
-::: uipath._services.tasks_service
+::: uipath.platform.action_center._tasks_service

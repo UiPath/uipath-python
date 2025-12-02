@@ -7,9 +7,6 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.buckets_service import BucketsService
-from uipath._services.context_grounding_service import ContextGroundingService
-from uipath._services.folder_service import FolderService
 from uipath._utils.constants import HEADER_USER_AGENT, LLMV3Mini_REQUEST
 from uipath.platform.context_grounding import (
     BucketSourceConfig,
@@ -21,6 +18,11 @@ from uipath.platform.context_grounding import (
     Indexer,
     OneDriveSourceConfig,
 )
+from uipath.platform.context_grounding._context_grounding_service import (
+    ContextGroundingService,
+)
+from uipath.platform.orchestrator._buckets_service import BucketsService
+from uipath.platform.orchestrator._folder_service import FolderService
 
 
 @pytest.fixture

@@ -1,1 +1,1 @@
-::: uipath._services.attachments_service
+::: uipath.platform.orchestrator._attachments_service

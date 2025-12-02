@@ -10,9 +10,8 @@ from uipath._cli._auth._portal_service import (
 from uipath._cli._auth._url_utils import extract_org_tenant, resolve_domain
 from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._services import ExternalApplicationService
 from uipath._utils._auth import update_env_file
-from uipath.platform.common import TokenData
+from uipath.platform.common import ExternalApplicationService, TokenData
 
 from ._utils import update_auth_file
 

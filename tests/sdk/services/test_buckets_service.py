@@ -6,7 +6,7 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.buckets_service import BucketsService
+from uipath.platform.orchestrator._buckets_service import BucketsService
 
 
 @pytest.fixture

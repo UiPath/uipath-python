@@ -9,8 +9,8 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.attachments_service import AttachmentsService
 from uipath._utils.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
+from uipath.platform.orchestrator._attachments_service import AttachmentsService
 
 if TYPE_CHECKING:
     from _pytest.monkeypatch import MonkeyPatch

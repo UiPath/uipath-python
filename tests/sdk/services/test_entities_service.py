@@ -7,8 +7,8 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.entities_service import EntitiesService
 from uipath.platform.entities import Entity
+from uipath.platform.entities._entities_service import EntitiesService
 
 
 @pytest.fixture

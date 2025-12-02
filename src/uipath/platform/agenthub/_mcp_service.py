@@ -1,13 +1,13 @@
 from typing import List
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder
-from ..platform.orchestrator.mcp import McpServer
-from ..tracing import traced
-from ._base_service import BaseService
-from .folder_service import FolderService
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, header_folder
+from ...tracing import traced
+from ..common._base_service import BaseService
+from ..orchestrator._folder_service import FolderService
+from ..orchestrator.mcp import McpServer
 
 
 class McpService(FolderContext, BaseService):

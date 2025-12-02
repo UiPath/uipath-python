@@ -5,28 +5,27 @@ from pydantic import ValidationError
 
 from .._config import Config
 from .._execution_context import ExecutionContext
-from .._services import (
-    ApiClient,
+from .._utils._auth import resolve_config
+from .action_center import TasksService
+from .agenthub import McpService
+from .autopilot import ConversationsService
+from .common import ApiClient
+from .connections import ConnectionsService
+from .context_grounding import ContextGroundingService
+from .documents import DocumentsService
+from .entities import EntitiesService
+from .errors import BaseUrlMissingError, SecretMissingError
+from .llm_gateway import UiPathLlmChatService, UiPathOpenAIService
+from .orchestrator import (
     AssetsService,
     AttachmentsService,
     BucketsService,
-    ConnectionsService,
-    ContextGroundingService,
-    ConversationsService,
-    DocumentsService,
-    EntitiesService,
     FolderService,
     JobsService,
-    McpService,
     ProcessesService,
     QueuesService,
-    ResourceCatalogService,
-    TasksService,
-    UiPathLlmChatService,
-    UiPathOpenAIService,
 )
-from .._utils._auth import resolve_config
-from .errors import BaseUrlMissingError, SecretMissingError
+from .resource_catalog import ResourceCatalogService
 
 
 class UiPath:

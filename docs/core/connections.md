@@ -1,1 +1,1 @@
-::: uipath._services.connections_service
+::: uipath.platform.connections._connections_service
