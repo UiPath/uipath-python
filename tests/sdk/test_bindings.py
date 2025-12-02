@@ -385,7 +385,7 @@ class TestResolveFolderFromBindings:
         token = _resource_overwrites.set(overwrites)
         try:
             result = resolve_folder_from_bindings("app", "my_app")
-            assert result == ("new_folder", None)
+            assert result == ("new_folder", "new_folder")
         finally:
             _resource_overwrites.reset(token)
 
@@ -433,7 +433,7 @@ class TestResolveFolderFromBindings:
         token = _resource_overwrites.set(overwrites)
         try:
             result = resolve_folder_from_bindings("app", "my_app", "specific_folder")
-            assert result == ("specific_folder", None)
+            assert result == ("specific_folder", "specific_folder")
         finally:
             _resource_overwrites.reset(token)
 
@@ -447,7 +447,7 @@ class TestResolveFolderFromBindings:
         token = _resource_overwrites.set(overwrites)
         try:
             result = resolve_folder_from_bindings("app", "my_app", "unknown_folder")
-            assert result == ("generic_folder", None)
+            assert result == ("generic_folder", "generic_folder")
         finally:
             _resource_overwrites.reset(token)
 
@@ -463,7 +463,7 @@ class TestResolveFolderFromBindings:
         token = _resource_overwrites.set(overwrites)
         try:
             result = resolve_folder_from_bindings("process", "my_process")
-            assert result == ("process_folder", None)
+            assert result == ("process_folder", "process_folder")
         finally:
             _resource_overwrites.reset(token)
 
@@ -482,7 +482,7 @@ class TestResolveFolderFromBindings:
 
         async with ResourceOverwritesContext(get_overwrites):
             result = resolve_folder_from_bindings("app", "my_app")
-            assert result == ("resolved_folder", None)
+            assert result == ("resolved_folder", "resolved_folder")
 
         # Context should be cleaned up
         result_after = resolve_folder_from_bindings("app", "my_app")

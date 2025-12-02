@@ -238,7 +238,7 @@ def resolve_folder_from_bindings(
     if matched is None:
         return None, None
 
-    if isinstance(matched, ConnectionResourceOverwrite):
-        return None, matched.folder_identifier
+    if hasattr(matched, "folder_path"):
+        return matched.folder_path, matched.folder_identifier
 
-    return matched.folder_identifier, None
+    return None, matched.folder_identifier
