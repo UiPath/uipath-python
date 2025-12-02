@@ -1,1 +1,1 @@
-::: uipath._services.processes_service
+::: uipath.platform.orchestrator._processes_service

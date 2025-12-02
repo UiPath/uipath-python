@@ -19,12 +19,12 @@ from tenacity import (
     wait_exponential,
 )
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._utils import UiPathUrl, user_agent_value
-from .._utils._ssl_context import get_httpx_client_kwargs
-from .._utils.constants import HEADER_USER_AGENT
-from ..platform.errors import EnrichedException
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._utils import UiPathUrl, user_agent_value
+from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils.constants import HEADER_USER_AGENT
+from ..errors import EnrichedException
 
 
 def is_retryable_exception(exception: BaseException) -> bool:

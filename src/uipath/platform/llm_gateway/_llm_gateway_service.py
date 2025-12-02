@@ -20,19 +20,19 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._utils import Endpoint
-from ..platform.llm_gateway import (
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._utils import Endpoint
+from ...tracing import traced
+from ...utils import EndpointManager
+from ..common._base_service import BaseService
+from .llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
     TextEmbedding,
     ToolChoice,
     ToolDefinition,
 )
-from ..tracing import traced
-from ..utils import EndpointManager
-from ._base_service import BaseService
 
 # Common constants
 API_VERSION = "2024-10-21"  # Standard API version for OpenAI-compatible endpoints

@@ -3,9 +3,9 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.tasks_service import TasksService
 from uipath._utils.constants import HEADER_USER_AGENT
 from uipath.platform.action_center import Task
+from uipath.platform.action_center._tasks_service import TasksService
 
 
 @pytest.fixture

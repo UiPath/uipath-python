@@ -6,11 +6,13 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, Union
 from uuid import UUID
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint
-from ..platform.documents import (
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint
+from ...tracing import traced
+from ..common._base_service import BaseService
+from .documents import (
     ActionPriority,
     ClassificationResponse,
     ClassificationResult,
@@ -21,8 +23,6 @@ from ..platform.documents import (
     ValidateClassificationAction,
     ValidateExtractionAction,
 )
-from ..tracing import traced
-from ._base_service import BaseService
 
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
@@ -852,7 +852,7 @@ class DocumentsService(FolderContext, BaseService):
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
     ) -> List[ClassificationResult]:
-        """Asynchronously version of the [`classify`][uipath._services.documents_service.DocumentsService.classify] method."""
+        """Asynchronously version of the [`classify`][uipath.platform.documents._documents_service.DocumentsService.classify] method."""
         _validate_classify_params(
             project_type=project_type,
             tag=tag,
@@ -1012,7 +1012,7 @@ class DocumentsService(FolderContext, BaseService):
         project_type: Optional[ProjectType] = None,
         document_type_name: Optional[str] = None,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
-        """Asynchronously version of the [`extract`][uipath._services.documents_service.DocumentsService.extract] method."""
+        """Asynchronously version of the [`extract`][uipath.platform.documents._documents_service.DocumentsService.extract] method."""
         project_type = _validate_extract_params_and_get_project_type(
             tag=tag,
             project_name=project_name,
@@ -1480,7 +1480,7 @@ class DocumentsService(FolderContext, BaseService):
             action_folder (str): Folder of the action.
             storage_bucket_name (str): Name of the storage bucket.
             storage_bucket_directory_path (str): Directory path in the storage bucket.
-            classification_results (List[ClassificationResult]): The classification results to be validated, typically obtained from the [`classify`][uipath._services.documents_service.DocumentsService.classify] method.
+            classification_results (List[ClassificationResult]): The classification results to be validated, typically obtained from the [`classify`][uipath.platform.documents._documents_service.DocumentsService.classify] method.
 
         Returns:
             ValidateClassificationAction: The created validate classification action.
@@ -1532,7 +1532,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: str,
         classification_results: List[ClassificationResult],
     ) -> ValidateClassificationAction:
-        """Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validate_classification_action] method."""
+        """Asynchronous version of the [`create_validation_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_classification_action] method."""
         if not classification_results:
             raise ValueError("`classification_results` must not be empty")
 
@@ -1576,7 +1576,7 @@ class DocumentsService(FolderContext, BaseService):
             action_folder (str): Folder of the action.
             storage_bucket_name (str): Name of the storage bucket.
             storage_bucket_directory_path (str): Directory path in the storage bucket.
-            extraction_response (ExtractionResponse): The extraction result to be validated, typically obtained from the [`extract`][uipath._services.documents_service.DocumentsService.extract] method.
+            extraction_response (ExtractionResponse): The extraction result to be validated, typically obtained from the [`extract`][uipath.platform.documents._documents_service.DocumentsService.extract] method.
 
         Returns:
             ValidateClassificationAction: The created validation action.
@@ -1627,7 +1627,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
     ) -> ValidateExtractionAction:
-        """Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validate_extraction_action] method."""
+        """Asynchronous version of the [`create_validation_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_extraction_action] method."""
         operation_id = await self._start_extraction_validation_async(
             project_id=extraction_response.project_id,
             project_type=extraction_response.project_type,
@@ -1660,7 +1660,7 @@ class DocumentsService(FolderContext, BaseService):
             This method will block until the validation action is completed, meaning the user has completed the validation in UiPath Action Center.
 
         Args:
-            validation_action (ValidateClassificationAction): The validation action to get the result for, typically obtained from the [`create_validate_classification_action`][uipath._services.documents_service.DocumentsService.create_validate_classification_action] method.
+            validation_action (ValidateClassificationAction): The validation action to get the result for, typically obtained from the [`create_validate_classification_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_classification_action] method.
 
         Returns:
             List[ClassificationResult]: The validated classification results.
@@ -1700,7 +1700,7 @@ class DocumentsService(FolderContext, BaseService):
     async def get_validate_classification_result_async(
         self, validation_action: ValidateClassificationAction
     ) -> List[ClassificationResult]:
-        """Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validate_classification_result] method."""
+        """Asynchronous version of the [`get_validation_result`][uipath.platform.documents._documents_service.DocumentsService.get_validate_classification_result] method."""
 
         async def result_getter() -> Tuple[str, None, Any]:
             result = await self._get_classification_validation_result_async(
@@ -1735,7 +1735,7 @@ class DocumentsService(FolderContext, BaseService):
             This method will block until the validation action is completed, meaning the user has completed the validation in UiPath Action Center.
 
         Args:
-            validation_action (ValidateClassificationAction): The validation action to get the result for, typically obtained from the [`create_validate_extraction_action`][uipath._services.documents_service.DocumentsService.create_validate_extraction_action] method.
+            validation_action (ValidateClassificationAction): The validation action to get the result for, typically obtained from the [`create_validate_extraction_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_extraction_action] method.
 
         Returns:
             Union[ExtractionResponse, ExtractionResponseIXP]: The validated extraction response.
@@ -1776,7 +1776,7 @@ class DocumentsService(FolderContext, BaseService):
     async def get_validate_extraction_result_async(
         self, validation_action: ValidateExtractionAction
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
-        """Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validate_extraction_result] method."""
+        """Asynchronous version of the [`get_validation_result`][uipath.platform.documents._documents_service.DocumentsService.get_validate_extraction_result] method."""
 
         async def result_getter() -> Tuple[str, None, Any]:
             result = await self._get_extraction_validation_result_async(

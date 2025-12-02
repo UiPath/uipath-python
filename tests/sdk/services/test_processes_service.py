@@ -6,10 +6,10 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.attachments_service import AttachmentsService
-from uipath._services.processes_service import ProcessesService
 from uipath._utils.constants import HEADER_USER_AGENT
 from uipath.platform.orchestrator import Job
+from uipath.platform.orchestrator._attachments_service import AttachmentsService
+from uipath.platform.orchestrator._processes_service import ProcessesService
 
 
 @pytest.fixture

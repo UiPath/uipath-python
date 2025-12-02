@@ -2,16 +2,16 @@ from typing import Any, List, Optional, Type
 
 from httpx import Response
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._utils import Endpoint, RequestSpec
-from ..platform.entities import (
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._utils import Endpoint, RequestSpec
+from ...tracing import traced
+from ..common._base_service import BaseService
+from .entities import (
     Entity,
     EntityRecord,
     EntityRecordsBatchResponse,
 )
-from ..tracing import traced
-from ._base_service import BaseService
 
 
 class EntitiesService(BaseService):

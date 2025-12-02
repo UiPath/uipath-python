@@ -2,12 +2,12 @@ from typing import Optional
 
 from typing_extensions import deprecated
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._utils import Endpoint, RequestSpec
-from ..platform.errors import FolderNotFoundException
-from ..tracing import traced
-from ._base_service import BaseService
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._utils import Endpoint, RequestSpec
+from ...tracing import traced
+from ..common._base_service import BaseService
+from ..errors import FolderNotFoundException
 
 
 class FolderService(BaseService):

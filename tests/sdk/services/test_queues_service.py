@@ -5,7 +5,6 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.queues_service import QueuesService
 from uipath._utils.constants import HEADER_USER_AGENT
 from uipath.platform.orchestrator import (
     CommitType,
@@ -14,6 +13,7 @@ from uipath.platform.orchestrator import (
     TransactionItem,
     TransactionItemResult,
 )
+from uipath.platform.orchestrator._queues_service import QueuesService
 
 
 @pytest.fixture

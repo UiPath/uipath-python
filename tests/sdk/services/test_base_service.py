@@ -3,8 +3,8 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services._base_service import BaseService
 from uipath._utils.constants import HEADER_USER_AGENT
+from uipath.platform.common._base_service import BaseService
 
 
 @pytest.fixture

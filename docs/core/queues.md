@@ -1,1 +1,1 @@
-::: uipath._services.queues_service
+::: uipath.platform.orchestrator._queues_service

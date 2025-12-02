@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.llm_gateway_service import (
+from uipath.platform.llm_gateway._llm_gateway_service import (
     ChatModels,
     UiPathLlmChatService,
 )

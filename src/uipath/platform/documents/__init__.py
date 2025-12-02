@@ -3,6 +3,7 @@
 This module contains models related to UiPath Document Understanding service.
 """
 
+from ._documents_service import DocumentsService  # type: ignore[attr-defined]
 from .documents import (
     ActionPriority,
     ClassificationResponse,
@@ -23,6 +24,7 @@ from .documents import (
 )
 
 __all__ = [
+    "DocumentsService",
     "FieldType",
     "ActionPriority",
     "ProjectType",

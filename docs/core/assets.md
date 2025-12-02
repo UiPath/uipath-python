@@ -1,1 +1,1 @@
-::: uipath._services.assets_service
+::: uipath.platform.orchestrator._assets_service

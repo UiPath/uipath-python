@@ -5,10 +5,13 @@ from urllib.parse import parse_qsl, quote, urlsplit
 
 from httpx import Response
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._utils import Endpoint, RequestSpec, header_folder, resource_override
-from ..platform.connections import (
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ...tracing import traced
+from ..common._base_service import BaseService
+from ..orchestrator._folder_service import FolderService
+from .connections import (
     ActivityMetadata,
     Connection,
     ConnectionMetadata,
@@ -16,9 +19,6 @@ from ..platform.connections import (
     ConnectionTokenType,
     EventArguments,
 )
-from ..tracing import traced
-from ._base_service import BaseService
-from .folder_service import FolderService
 
 logger: logging.Logger = logging.getLogger("uipath")
 

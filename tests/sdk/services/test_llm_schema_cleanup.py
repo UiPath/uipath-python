@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel
 
-from uipath._services.llm_gateway_service import _cleanup_schema
+from uipath.platform.llm_gateway._llm_gateway_service import _cleanup_schema
 
 
 # Simple test models

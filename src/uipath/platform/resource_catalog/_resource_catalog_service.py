@@ -1,13 +1,13 @@
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
-from uipath._folder_context import FolderContext
-from uipath._services import FolderService
-from uipath._services._base_service import BaseService
-from uipath._utils import Endpoint, RequestSpec, header_folder
-from uipath.platform.resource_catalog import Resource, ResourceType
-from uipath.tracing import traced
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, header_folder
+from ...tracing import traced
+from ..common._base_service import BaseService
+from ..orchestrator._folder_service import FolderService
+from .resource_catalog import Resource, ResourceType
 
 
 class ResourceCatalogService(FolderContext, BaseService):

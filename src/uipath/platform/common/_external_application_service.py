@@ -5,10 +5,10 @@ from urllib.parse import urlparse
 import httpx
 from httpx import HTTPStatusError, Request
 
-from .._utils._ssl_context import get_httpx_client_kwargs
-from .._utils.constants import ENV_BASE_URL
-from ..platform.common import TokenData
-from ..platform.errors import EnrichedException
+from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils.constants import ENV_BASE_URL
+from ..errors import EnrichedException
+from .auth import TokenData
 
 
 class ExternalApplicationService:

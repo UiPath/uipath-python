@@ -53,7 +53,7 @@ class TestHitlReader:
         mock_retrieve_async = AsyncMock(return_value=mock_action)
 
         with patch(
-            "uipath._services.tasks_service.TasksService.retrieve_async",
+            "uipath.platform.action_center._tasks_service.TasksService.retrieve_async",
             new=mock_retrieve_async,
         ):
             resume_trigger = UiPathResumeTrigger(
@@ -88,7 +88,7 @@ class TestHitlReader:
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
         with patch(
-            "uipath._services.jobs_service.JobsService.retrieve_async",
+            "uipath.platform.orchestrator._jobs_service.JobsService.retrieve_async",
             new=mock_retrieve_async,
         ):
             resume_trigger = UiPathResumeTrigger(
@@ -120,7 +120,7 @@ class TestHitlReader:
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
         with patch(
-            "uipath._services.jobs_service.JobsService.retrieve_async",
+            "uipath.platform.orchestrator._jobs_service.JobsService.retrieve_async",
             new=mock_retrieve_async,
         ):
             resume_trigger = UiPathResumeTrigger(
@@ -217,7 +217,7 @@ class TestHitlProcessor:
         mock_create_async = AsyncMock(return_value=mock_action)
 
         with patch(
-            "uipath._services.tasks_service.TasksService.create_async",
+            "uipath.platform.action_center._tasks_service.TasksService.create_async",
             new=mock_create_async,
         ):
             processor = UiPathResumeTriggerCreator()
@@ -272,7 +272,7 @@ class TestHitlProcessor:
         mock_invoke = AsyncMock(return_value=mock_job)
 
         with patch(
-            "uipath._services.processes_service.ProcessesService.invoke_async",
+            "uipath.platform.orchestrator._processes_service.ProcessesService.invoke_async",
             new=mock_invoke,
         ) as mock_process_invoke_async:
             processor = UiPathResumeTriggerCreator()

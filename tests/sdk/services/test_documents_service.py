@@ -8,9 +8,6 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.documents_service import (  # type: ignore[attr-defined]
-    DocumentsService,
-)
 from uipath.platform.documents import (
     ActionPriority,
     ClassificationResult,
@@ -18,6 +15,9 @@ from uipath.platform.documents import (
     ProjectType,
     ValidateClassificationAction,
     ValidateExtractionAction,
+)
+from uipath.platform.documents._documents_service import (  # type: ignore[attr-defined]
+    DocumentsService,
 )
 
 
@@ -1775,7 +1775,7 @@ class TestDocumentsService:
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
-    @patch("uipath._services.documents_service.time")
+    @patch("uipath.platform.documents._documents_service.time")
     async def test_wait_for_operation_timeout(
         self,
         mock_time: Mock,

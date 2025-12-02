@@ -7,14 +7,14 @@ from typing import Any, Dict, Optional, Union, overload
 
 import httpx
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder
-from .._utils._ssl_context import get_httpx_client_kwargs
-from .._utils.constants import TEMP_ATTACHMENTS_FOLDER
-from ..tracing import traced
-from ._base_service import BaseService
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, header_folder
+from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
+from ...tracing import traced
+from ..common._base_service import BaseService
 
 
 def _upload_attachment_input_processor(inputs: Dict[str, Any]) -> Dict[str, Any]:

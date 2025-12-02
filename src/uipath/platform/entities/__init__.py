@@ -3,6 +3,7 @@
 This module contains models related to UiPath Entities service.
 """
 
+from ._entities_service import EntitiesService
 from .entities import (
     Entity,
     EntityField,
@@ -19,6 +20,7 @@ from .entities import (
 )
 
 __all__ = [
+    "EntitiesService",
     "Entity",
     "EntityField",
     "EntityRecord",

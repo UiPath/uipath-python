@@ -3,6 +3,13 @@
 This module contains models related to UiPath Orchestrator services.
 """
 
+from ._assets_service import AssetsService
+from ._attachments_service import AttachmentsService
+from ._buckets_service import BucketsService
+from ._folder_service import FolderService
+from ._jobs_service import JobsService
+from ._processes_service import ProcessesService
+from ._queues_service import QueuesService
 from .assets import Asset, UserAsset
 from .attachment import Attachment
 from .buckets import Bucket, BucketFile
@@ -18,6 +25,13 @@ from .queues import (
 )
 
 __all__ = [
+    "AssetsService",
+    "AttachmentsService",
+    "BucketsService",
+    "FolderService",
+    "JobsService",
+    "ProcessesService",
+    "QueuesService",
     "Asset",
     "UserAsset",
     "Attachment",

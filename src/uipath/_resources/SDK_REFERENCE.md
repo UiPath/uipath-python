@@ -262,25 +262,25 @@ Documents service
 # Classify a document using a DU Modern project.
 sdk.documents.classify(tag: str, project_name: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.models.documents.ClassificationResult]
 
-# Asynchronously version of the [`classify`][uipath._services.documents_service.DocumentsService.classify] method.
+# Asynchronously version of the [`classify`][uipath.platform.documents._documents_service.DocumentsService.classify] method.
 sdk.documents.classify_async(tag: str, project_name: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.models.documents.ClassificationResult]
 
 # Create a validation action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
 sdk.documents.create_validation_action(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.models.documents.ExtractionResponse) -> uipath.models.documents.ValidationAction
 
-# Asynchronous version of the [`create_validation_action`][uipath._services.documents_service.DocumentsService.create_validation_action] method.
+# Asynchronous version of the [`create_validation_action`][uipath.platform.documents._documents_service.DocumentsService.create_validation_action] method.
 sdk.documents.create_validation_action_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.models.documents.ExtractionResponse) -> uipath.models.documents.ValidationAction
 
 # Extract predicted data from a document using an DU Modern/IXP project.
 sdk.documents.extract(tag: str, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.models.documents.ClassificationResult]=None, project_type: Optional[uipath.models.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.models.documents.ExtractionResponse, uipath.models.documents.ExtractionResponseIXP]
 
-# Asynchronously version of the [`extract`][uipath._services.documents_service.DocumentsService.extract] method.
+# Asynchronously version of the [`extract`][uipath.platform.documents._documents_service.DocumentsService.extract] method.
 sdk.documents.extract_async(tag: str, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.models.documents.ClassificationResult]=None, project_type: Optional[uipath.models.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.models.documents.ExtractionResponse, uipath.models.documents.ExtractionResponseIXP]
 
 # Get the result of a validation action.
 sdk.documents.get_validation_result(validation_action: uipath.models.documents.ValidationAction) -> uipath.models.documents.ValidatedResult
 
-# Asynchronous version of the [`get_validation_result`][uipath._services.documents_service.DocumentsService.get_validation_result] method.
+# Asynchronous version of the [`get_validation_result`][uipath.platform.documents._documents_service.DocumentsService.get_validation_result] method.
 sdk.documents.get_validation_result_async(validation_action: uipath.models.documents.ValidationAction) -> uipath.models.documents.ValidatedResult
 
 ```

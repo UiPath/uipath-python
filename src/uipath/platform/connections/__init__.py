@@ -3,6 +3,7 @@
 This module contains models related to UiPath Connections service.
 """
 
+from ._connections_service import ConnectionsService
 from .connections import (
     ActivityMetadata,
     ActivityParameterLocationInfo,
@@ -14,6 +15,7 @@ from .connections import (
 )
 
 __all__ = [
+    "ConnectionsService",
     "ActivityMetadata",
     "ActivityParameterLocationInfo",
     "Connection",

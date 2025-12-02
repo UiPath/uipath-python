@@ -2,13 +2,13 @@ from typing import Dict, Optional
 
 from httpx import Response
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
-from .._utils import Endpoint, RequestSpec, header_folder, resource_override
-from ..platform.orchestrator import Asset, UserAsset
-from ..tracing import traced
-from ._base_service import BaseService
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
+from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ...tracing import traced
+from ..common._base_service import BaseService
+from .assets import Asset, UserAsset
 
 
 class AssetsService(FolderContext, BaseService):

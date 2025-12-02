@@ -10,9 +10,9 @@ from pytest_mock import MockerFixture
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.jobs_service import JobsService
 from uipath._utils.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
 from uipath.platform.orchestrator import Job
+from uipath.platform.orchestrator._jobs_service import JobsService
 
 if TYPE_CHECKING:
     from _pytest.monkeypatch import MonkeyPatch

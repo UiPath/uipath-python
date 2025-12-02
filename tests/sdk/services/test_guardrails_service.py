@@ -3,7 +3,6 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.guardrails_service import GuardrailsService
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
@@ -11,6 +10,7 @@ from uipath.platform.guardrails import (
     GuardrailSelector,
     MapEnumParameterValue,
 )
+from uipath.platform.guardrails._guardrails_service import GuardrailsService
 
 
 @pytest.fixture

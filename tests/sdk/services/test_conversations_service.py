@@ -3,8 +3,8 @@ from pytest_httpx import HTTPXMock
 
 from uipath._config import Config
 from uipath._execution_context import ExecutionContext
-from uipath._services.conversations_service import ConversationsService
 from uipath.agent.conversation import UiPathConversationMessage
+from uipath.platform.autopilot._conversations_service import ConversationsService
 
 
 @pytest.fixture

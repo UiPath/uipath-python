@@ -2,9 +2,9 @@ from typing import Any, Literal, Union
 
 from httpx import URL, Response
 
-from .._config import Config
-from .._execution_context import ExecutionContext
-from .._folder_context import FolderContext
+from ..._config import Config
+from ..._execution_context import ExecutionContext
+from ..._folder_context import FolderContext
 from ._base_service import BaseService
 
 
