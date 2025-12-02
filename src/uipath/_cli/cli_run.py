@@ -1,6 +1,7 @@
 import asyncio
 
 import click
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
@@ -19,7 +20,11 @@ from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
-from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
+from uipath.tracing import (
+    JsonLinesFileExporter,
+    LangGraphCollapsingSpanProcessor,
+    LlmOpsHttpExporter,
+)
 
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -67,6 +72,12 @@ console = ConsoleLogger()
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
+@click.option(
+    "--langgraph-simplify",
+    is_flag=True,
+    envvar="UIPATH_LANGGRAPH_SIMPLIFY",
+    help="Enable LangGraph span collapsing (env: UIPATH_LANGGRAPH_SIMPLIFY)",
+)
 def run(
     entrypoint: str | None,
     input: str | None,
@@ -77,6 +88,7 @@ def run(
     trace_file: str | None,
     debug: bool,
     debug_port: int,
+    langgraph_simplify: bool,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -147,9 +159,17 @@ def run(
                 )
 
                 if ctx.trace_file:
-                    trace_manager.add_span_exporter(
-                        JsonLinesFileExporter(ctx.trace_file)
-                    )
+                    file_exporter = JsonLinesFileExporter(ctx.trace_file)
+                    batch_processor = BatchSpanProcessor(file_exporter)
+                    if langgraph_simplify:
+                        # Wrap with LangGraph collapsing processor
+                        processor = LangGraphCollapsingSpanProcessor(
+                            next_processor=batch_processor,
+                            enable_guardrails=False,  # Disable guardrails for POC
+                        )
+                        trace_manager.tracer_provider.add_span_processor(processor)
+                    else:
+                        trace_manager.tracer_provider.add_span_processor(batch_processor)
 
                 async with ResourceOverwritesContext(
                     lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
