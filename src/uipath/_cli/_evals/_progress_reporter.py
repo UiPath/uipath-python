@@ -323,6 +323,7 @@ class StudioWebProgressReporter:
                 eval_run_id=sw_progress_item.eval_run_id,
                 execution_time=sw_progress_item.agent_execution_time,
                 actual_output=sw_progress_item.agent_output,
+                success=sw_progress_item.success,
                 is_coded=is_coded,
             )
         else:
@@ -332,6 +333,7 @@ class StudioWebProgressReporter:
                 eval_run_id=sw_progress_item.eval_run_id,
                 execution_time=sw_progress_item.agent_execution_time,
                 actual_output=sw_progress_item.agent_output,
+                success=sw_progress_item.success,
                 is_coded=is_coded,
             )
 
@@ -350,10 +352,11 @@ class StudioWebProgressReporter:
         eval_set_run_id: str,
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
+        success: bool = True,
     ):
         """Update the evaluation set run status to complete."""
         spec = self._update_eval_set_run_spec(
-            eval_set_run_id, evaluator_scores, is_coded
+            eval_set_run_id, evaluator_scores, is_coded, success
         )
         await self._client.request_async(
             method=spec.method,
@@ -498,9 +501,11 @@ class StudioWebProgressReporter:
                     eval_set_run_id,
                     payload.evaluator_scores,
                     is_coded=is_coded,
+                    success=payload.success,
                 )
+                status_str = "completed" if payload.success else "failed"
                 logger.debug(
-                    f"Updated eval set run with ID: {eval_set_run_id} (coded={is_coded})"
+                    f"Updated eval set run with ID: {eval_set_run_id} (coded={is_coded}, status={status_str})"
                 )
             else:
                 logger.warning(
@@ -704,17 +709,19 @@ class StudioWebProgressReporter:
         eval_run_id: str,
         actual_output: dict[str, Any],
         execution_time: float,
+        success: bool,
         is_coded: bool = False,
     ) -> RequestSpec:
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
 
+        # Determine status based on success
+        status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
+
         payload: dict[str, Any] = {
             "evalRunId": eval_run_id,
             # For coded evaluations, use integer status; for legacy, use string
-            "status": EvaluationStatus.COMPLETED.value
-            if is_coded
-            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "status": status.value if is_coded else self._status_to_string(status),
             "result": {
                 "output": dict(actual_output),
                 "evaluatorScores": evaluator_scores,
@@ -739,18 +746,20 @@ class StudioWebProgressReporter:
         eval_run_id: str,
         actual_output: dict[str, Any],
         execution_time: float,
+        success: bool,
         is_coded: bool = False,
     ) -> RequestSpec:
         """Create update spec for coded evaluators."""
         # For coded evaluations, endpoint has /coded
         endpoint_suffix = "coded/" if is_coded else ""
 
+        # Determine status based on success
+        status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
+
         payload: dict[str, Any] = {
             "evalRunId": eval_run_id,
             # For coded evaluations, use integer status; for legacy, use string
-            "status": EvaluationStatus.COMPLETED.value
-            if is_coded
-            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "status": status.value if is_coded else self._status_to_string(status),
             "result": {
                 "output": dict(actual_output),
                 "scores": evaluator_scores,
@@ -870,6 +879,7 @@ class StudioWebProgressReporter:
         eval_set_run_id: str,
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
+        success: bool = True,
     ) -> RequestSpec:
         # Legacy API expects evaluatorId as GUID, coded accepts string
         evaluator_scores_list = []
@@ -894,12 +904,13 @@ class StudioWebProgressReporter:
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
 
+        # Determine status based on success
+        status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
+
         payload: dict[str, Any] = {
             "evalSetRunId": eval_set_run_id,
             # For coded evaluations, use integer status; for legacy, use string
-            "status": EvaluationStatus.COMPLETED.value
-            if is_coded
-            else self._status_to_string(EvaluationStatus.COMPLETED),
+            "status": status.value if is_coded else self._status_to_string(status),
             "evaluatorScores": evaluator_scores_list,
         }
 
