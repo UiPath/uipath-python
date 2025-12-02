@@ -61,6 +61,17 @@ def _simple_serialize_defaults(obj):
     return str(obj)
 
 
+class TraceStatus:
+    """Status values aligned with Temporal backend TraceStatus enum.
+
+    See: ~/repos/Agents/backend/Common/Traces/LlmOpsTrace.cs
+    """
+
+    UNSET = 0  # In-progress / Running
+    OK = 1  # Completed successfully
+    ERROR = 2  # Failed
+
+
 @dataclass
 class UiPathSpan:
     """Represents a span in the UiPath tracing system.

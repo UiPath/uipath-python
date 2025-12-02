@@ -15,6 +15,8 @@ from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.trace import SpanContext, TraceFlags
 
+from ._utils import TraceStatus
+
 logger = logging.getLogger(__name__)
 
 # LangGraph node names to filter out (buffer but don't emit)
@@ -34,7 +36,7 @@ class AgentExecution:
     buffered_spans: List[Dict[str, Any]] = field(default_factory=list)
     llm_call_count: int = 0  # Track number of LLM calls emitted
     is_root: bool = True  # Only root LangGraph spans get transformed
-    status: int = 1  # 1=OK, 2=ERROR
+    status: int = TraceStatus.OK  # TraceStatus.OK=1, TraceStatus.ERROR=2
     running_span_emitted: bool = False  # Track if running state was emitted
 
 
@@ -180,7 +182,7 @@ class LangGraphCollapsingSpanProcessor(SpanProcessor):
 
         # Determine status from span
         if span.status and span.status.status_code.value == 2:  # ERROR
-            execution.status = 2
+            execution.status = TraceStatus.ERROR
 
         # Emit final state
         self._emit_final_state(execution)
@@ -272,7 +274,7 @@ class LangGraphCollapsingSpanProcessor(SpanProcessor):
             "name": guardrail_name,
             "start_time": llm_span_dict["start_time"],
             "end_time": llm_span_dict["end_time"],
-            "status": 1,
+            "status": TraceStatus.OK,
             "span_type": guardrail_type,
             "attributes": {"type": guardrail_type},
         }
@@ -286,7 +288,7 @@ class LangGraphCollapsingSpanProcessor(SpanProcessor):
             "name": governance_name,
             "start_time": llm_span_dict["start_time"],
             "end_time": llm_span_dict["end_time"],
-            "status": 1,
+            "status": TraceStatus.OK,
             "span_type": governance_type,
             "attributes": {"type": governance_type},
         }
@@ -338,7 +340,7 @@ class LangGraphCollapsingSpanProcessor(SpanProcessor):
             "name": guardrail_name,
             "start_time": execution.start_time,
             "end_time": execution.end_time,
-            "status": 1,
+            "status": TraceStatus.OK,
             "span_type": guardrail_type,
             "attributes": {"type": guardrail_type},
         }
@@ -352,7 +354,7 @@ class LangGraphCollapsingSpanProcessor(SpanProcessor):
             "name": governance_name,
             "start_time": execution.start_time,
             "end_time": execution.end_time,
-            "status": 1,
+            "status": TraceStatus.OK,
             "span_type": governance_type,
             "attributes": {"type": governance_type},
         }
@@ -398,7 +400,7 @@ class LangGraphCollapsingSpanProcessor(SpanProcessor):
             "name": "Agent run - Agent",
             "start_time": execution.start_time,
             "end_time": execution.end_time if is_final else None,
-            "status": execution.status if is_final else 0,  # 0 = running/unset
+            "status": execution.status if is_final else TraceStatus.UNSET,
             "span_type": "agentRun",
             "attributes": {
                 "type": "agentRun",
@@ -434,7 +436,7 @@ class LangGraphCollapsingSpanProcessor(SpanProcessor):
             "name": "Agent output",
             "start_time": execution.end_time,
             "end_time": execution.end_time,
-            "status": 1,
+            "status": TraceStatus.OK,
             "span_type": "agentOutput",
             "attributes": {
                 "type": "agentOutput",
@@ -523,7 +525,7 @@ class LangGraphCollapsingSpanProcessor(SpanProcessor):
             "name": span.name,
             "start_time": span.start_time,
             "end_time": span.end_time,
-            "status": 1 if not span.status or span.status.status_code.value != 2 else 2,
+            "status": TraceStatus.OK if not span.status or span.status.status_code.value != 2 else TraceStatus.ERROR,
             "attributes": dict(span.attributes) if span.attributes else {},
         }
 
