@@ -1,4 +1,4 @@
-"""Tests for LangGraphCollapsingSpanProcessor - Phase 2 In-Progress Visibility."""
+"""Tests for LangGraphCollapsingSpanProcessor - Phase 2/3 In-Progress Visibility + Extract Fields."""
 
 import json
 from typing import Any, Dict, List, Optional
@@ -12,6 +12,9 @@ from uipath.tracing._langgraph_processor import (
     AgentExecution,
     LangGraphCollapsingSpanProcessor,
     SyntheticReadableSpan,
+    _parse_json,
+    extract_fields,
+    SPAN_TYPE_MAP,
 )
 from uipath.tracing._utils import TraceStatus
 
@@ -407,3 +410,341 @@ class TestSyntheticReadableSpan:
 
         span = SyntheticReadableSpan(span_dict)
         assert span.status.status_code == StatusCode.ERROR
+
+
+# =============================================================================
+# Phase 3 Tests: Extract Fields
+# =============================================================================
+
+
+class TestParseJson:
+    """Tests for _parse_json helper function."""
+
+    def test_parse_valid_json_string(self):
+        """Should parse valid JSON string to dict."""
+        result = _parse_json('{"key": "value"}')
+        assert result == {"key": "value"}
+
+    def test_parse_dict_passthrough(self):
+        """Should return dict as-is."""
+        input_dict = {"key": "value"}
+        result = _parse_json(input_dict)
+        assert result == input_dict
+
+    def test_parse_empty_string(self):
+        """Should return empty dict for empty string."""
+        assert _parse_json("") == {}
+
+    def test_parse_none(self):
+        """Should return empty dict for None."""
+        assert _parse_json(None) == {}
+
+    def test_parse_invalid_json(self):
+        """Should return empty dict for invalid JSON."""
+        assert _parse_json("not valid json") == {}
+
+    def test_parse_nested_json(self):
+        """Should parse nested JSON correctly."""
+        nested = '{"messages": [{"role": "user", "content": "Hello"}]}'
+        result = _parse_json(nested)
+        assert result == {"messages": [{"role": "user", "content": "Hello"}]}
+
+
+class TestExtractFields:
+    """Tests for extract_fields function - Phase 3 optimization."""
+
+    def test_extract_system_and_user_prompts(self):
+        """Should extract systemPrompt and userPrompt from messages."""
+        attrs = {
+            "input.value": json.dumps({
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": "What is the date?"}
+                ]
+            }),
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["systemPrompt"] == "You are a helpful assistant"
+        assert result["userPrompt"] == "What is the date?"
+        assert result["type"] == "completion"
+
+    def test_extract_output_content(self):
+        """Should extract output.content from output.value."""
+        attrs = {
+            "output.value": json.dumps({
+                "content": "The current date is November 27, 2025."
+            }),
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["output"] == {"content": "The current date is November 27, 2025."}
+
+    def test_extract_output_from_messages(self):
+        """Should extract output from last assistant message if no content field."""
+        attrs = {
+            "output.value": json.dumps({
+                "messages": [
+                    {"role": "user", "content": "Hello"},
+                    {"role": "assistant", "content": "Hi there!"}
+                ]
+            }),
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["output"] == {"content": "Hi there!"}
+
+    def test_span_type_mapping(self):
+        """Should map openinference.span.kind to UiPath span types."""
+        test_cases = [
+            ("CHAIN", "agentRun"),
+            ("LLM", "completion"),
+            ("TOOL", "toolCall"),
+            ("UNKNOWN", "agentRun"),  # Default fallback
+        ]
+
+        for otel_kind, expected_type in test_cases:
+            attrs = {"openinference.span.kind": otel_kind}
+            result = extract_fields(attrs)
+            assert result["type"] == expected_type, f"Failed for {otel_kind}"
+
+    def test_preserve_model_name(self):
+        """Should preserve llm.model_name as model."""
+        attrs = {
+            "llm.model_name": "gpt-4o-mini",
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["model"] == "gpt-4o-mini"
+
+    def test_preserve_token_counts(self):
+        """Should preserve token counts in usage object."""
+        attrs = {
+            "llm.token_count.prompt": 150,
+            "llm.token_count.completion": 50,
+            "llm.token_count.total": 200,
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["usage"] == {
+            "promptTokens": 150,
+            "completionTokens": 50,
+            "totalTokens": 200,
+        }
+
+    def test_preserve_error_info(self):
+        """Should preserve error information."""
+        attrs = {
+            "error": "Connection timeout",
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["error"] == "Connection timeout"
+
+    def test_preserve_exception_message(self):
+        """Should preserve exception.message as error."""
+        attrs = {
+            "exception.message": "Rate limit exceeded",
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["error"] == "Rate limit exceeded"
+
+    def test_preserve_invocation_parameters(self):
+        """Should preserve llm.invocation_parameters."""
+        attrs = {
+            "llm.invocation_parameters": json.dumps({
+                "temperature": 0.7,
+                "max_tokens": 1000
+            }),
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["invocationParameters"] == {
+            "temperature": 0.7,
+            "max_tokens": 1000
+        }
+
+    def test_drops_verbose_input_output_values(self):
+        """Should NOT include raw input.value/output.value in result."""
+        attrs = {
+            "input.value": json.dumps({
+                "messages": [{"role": "system", "content": "test"}]
+            }),
+            "output.value": json.dumps({
+                "messages": [{"role": "assistant", "content": "response"}],
+                "content": "response"
+            }),
+            "input.mime_type": "application/json",
+            "output.mime_type": "application/json",
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        # Verbose fields should NOT be in result
+        assert "input.value" not in result
+        assert "output.value" not in result
+        assert "input.mime_type" not in result
+        assert "output.mime_type" not in result
+
+        # Extracted fields should be present
+        assert "systemPrompt" in result
+        assert "output" in result
+
+    def test_handles_human_type_messages(self):
+        """Should handle 'human' as user role (LangGraph format)."""
+        attrs = {
+            "input.value": json.dumps({
+                "messages": [
+                    {"type": "system", "content": "System prompt"},
+                    {"type": "human", "content": "User question"}
+                ]
+            }),
+            "openinference.span.kind": "LLM"
+        }
+
+        result = extract_fields(attrs)
+
+        assert result["systemPrompt"] == "System prompt"
+        assert result["userPrompt"] == "User question"
+
+    def test_empty_attributes(self):
+        """Should handle empty attributes gracefully."""
+        result = extract_fields({})
+
+        assert result["type"] == "agentRun"  # Default
+        assert "systemPrompt" not in result
+        assert "userPrompt" not in result
+        assert "output" not in result
+
+    def test_full_realistic_llm_span(self):
+        """Test with realistic LLM span attributes."""
+        attrs = {
+            "input.value": json.dumps({
+                "messages": [
+                    {"role": "system", "content": "You are an advanced automatic agent."},
+                    {"role": "user", "content": "What is the current date?"}
+                ]
+            }),
+            "output.value": json.dumps({
+                "messages": [
+                    {"role": "system", "content": "You are an advanced..."},
+                    {"role": "user", "content": "What is..."},
+                    {"role": "assistant", "content": "The current date is November 27, 2025."}
+                ],
+                "content": "The current date is November 27, 2025."
+            }),
+            "input.mime_type": "application/json",
+            "output.mime_type": "application/json",
+            "openinference.span.kind": "LLM",
+            "llm.model_name": "gpt-4o-mini-2024-07-18",
+            "llm.token_count.prompt": 245,
+            "llm.token_count.completion": 12,
+            "llm.token_count.total": 257,
+            "llm.invocation_parameters": json.dumps({"temperature": 0, "max_tokens": 4096}),
+            "metadata": json.dumps({"thread_id": "default", "langgraph_step": 1}),
+        }
+
+        result = extract_fields(attrs)
+
+        # Verify extracted fields
+        assert result["type"] == "completion"
+        assert result["systemPrompt"] == "You are an advanced automatic agent."
+        assert result["userPrompt"] == "What is the current date?"
+        assert result["output"] == {"content": "The current date is November 27, 2025."}
+        assert result["model"] == "gpt-4o-mini-2024-07-18"
+        assert result["usage"] == {"promptTokens": 245, "completionTokens": 12, "totalTokens": 257}
+        assert result["invocationParameters"] == {"temperature": 0, "max_tokens": 4096}
+
+        # Verify dropped fields
+        assert "input.value" not in result
+        assert "output.value" not in result
+        assert "input.mime_type" not in result
+        assert "output.mime_type" not in result
+        assert "metadata" not in result
+
+
+class TestPhase3Integration:
+    """Integration tests for Phase 3 extract_fields in processor."""
+
+    @pytest.fixture
+    def mock_next_processor(self):
+        return MockSpanProcessor()
+
+    @pytest.fixture
+    def processor(self, mock_next_processor):
+        return LangGraphCollapsingSpanProcessor(
+            next_processor=mock_next_processor,
+            enable_guardrails=False,
+        )
+
+    def test_llm_span_uses_extract_fields(self, processor, mock_next_processor):
+        """LLM spans should use extract_fields for compact attributes."""
+        # Start LangGraph execution
+        start_span = MockSpan(name="LangGraph", trace_id=111, span_id=222)
+        processor.on_start(start_span, parent_context=None)
+
+        mock_next_processor.emitted_spans.clear()
+
+        # Send LLM span with verbose attributes
+        llm_span = MockReadableSpan(
+            name="UiPathChat",
+            trace_id=111,
+            span_id=333,
+            parent_span_id=222,
+            attributes={
+                "openinference.span.kind": "LLM",
+                "input.value": json.dumps({
+                    "messages": [
+                        {"role": "system", "content": "You are helpful"},
+                        {"role": "user", "content": "Hello"}
+                    ]
+                }),
+                "output.value": json.dumps({
+                    "content": "Hi there!"
+                }),
+                "llm.model_name": "gpt-4o-mini",
+                "llm.token_count.prompt": 100,
+                "llm.token_count.completion": 10,
+                "llm.token_count.total": 110,
+            },
+        )
+        processor.on_end(llm_span)
+
+        # Find Model run span
+        emitted = mock_next_processor.get_emitted_dicts()
+        model_runs = [s for s in emitted if s.get("name") == "Model run"]
+        assert len(model_runs) == 1
+
+        model_run_attrs = model_runs[0]["attributes"]
+
+        # Verify extract_fields was applied
+        assert model_run_attrs["type"] == "completion"
+        assert model_run_attrs.get("systemPrompt") == "You are helpful"
+        assert model_run_attrs.get("userPrompt") == "Hello"
+        assert model_run_attrs.get("output") == {"content": "Hi there!"}
+        assert model_run_attrs.get("model") == "gpt-4o-mini"
+        assert model_run_attrs.get("usage") == {"promptTokens": 100, "completionTokens": 10, "totalTokens": 110}
+
+        # Verify verbose fields are NOT present
+        assert "input.value" not in model_run_attrs
+        assert "output.value" not in model_run_attrs
+        assert "input.mime_type" not in model_run_attrs
+        assert "output.mime_type" not in model_run_attrs
