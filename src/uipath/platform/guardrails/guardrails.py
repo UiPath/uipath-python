@@ -6,6 +6,24 @@ from typing import Annotated, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class GuardrailValidationResult(BaseModel):
+    """Result returned from validating input with a given guardrail.
+
+    Attributes:
+        validation_passed: Indicates whether the input data passed the guardrail validation.
+        reason: Textual explanation describing why the validation passed or failed.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    validation_passed: bool = Field(
+        alias="validation_passed", description="Whether the input passed validation."
+    )
+    reason: str = Field(
+        alias="reason", description="Explanation for the validation result."
+    )
+
+
 class FieldSource(str, Enum):
     """Field source enumeration."""
 

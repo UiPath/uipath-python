@@ -1,35 +1,26 @@
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from ..._config import Config
 from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
-from ..._utils import Endpoint, RequestSpec, header_folder
+from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
 from ..common._base_service import BaseService
-from .guardrails import BuiltInValidatorGuardrail, Guardrail
+from .guardrails import BuiltInValidatorGuardrail, Guardrail, GuardrailValidationResult
 
 
-class BuiltInGuardrailValidationResult(BaseModel):
-    """Result from built-in guardrail validation."""
+class GuardrailsService(BaseService):
+    """Service for validating text against UiPath Guardrails.
 
-    model_config = ConfigDict(populate_by_name=True)
+    This service provides an interface for evaluating built-in guardrails such as:
 
-    validation_passed: bool = Field(alias="validation_passed")
-    reason: str = Field(alias="reason")
+    - PII detection
+    - Prompt injection detection
 
+    Deterministic and custom guardrails are not yet supported.
 
-class GuardrailViolationError(Exception):
-    """Exception raised when guardrail validation fails."""
-
-    def __init__(self, detected_issue: Any):
-        self.detected_issue = detected_issue
-        super().__init__(f"Guardrail violation detected: {detected_issue}")
-
-
-class GuardrailsService(FolderContext, BaseService):
-    """Service for validating text against UiPath Guardrails."""
+    !!! info "Version Availability"
+        This service is available starting from **uipath** version **2.2.12**.
+    """
 
     def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
         super().__init__(config=config, execution_context=execution_context)
@@ -39,13 +30,18 @@ class GuardrailsService(FolderContext, BaseService):
         self,
         input_data: str | dict[str, Any],
         guardrail: Guardrail,
-        *,
-        folder_key: str | None = None,
-        folder_path: str | None = None,
-    ) -> BuiltInGuardrailValidationResult:
-        """Call the API to validate input_data with the given guardrail.
+    ) -> GuardrailValidationResult:
+        """Validate input text using the provided guardrail.
 
-        Only supports built-in guardrails for now.
+        Args:
+            input_data: The text or structured data to validate. Dictionaries will be converted to a string before validation.
+            guardrail: A guardrail instance used for validation. Must be an instance of ``BuiltInValidatorGuardrail``. Custom guardrails are not supported.
+
+        Returns:
+            BuiltInGuardrailValidationResult: The outcome of the guardrail evaluation, containing whether validation passed and the reason.
+
+        Raises:
+            NotImplementedError: If a non-built-in guardrail is provided.
         """
         if isinstance(guardrail, BuiltInValidatorGuardrail):
             parameters = [
@@ -61,7 +57,6 @@ class GuardrailsService(FolderContext, BaseService):
                 method="POST",
                 endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
                 json=payload,
-                headers={**header_folder(folder_key, folder_path)},
             )
             response = self.request(
                 spec.method,
@@ -69,7 +64,7 @@ class GuardrailsService(FolderContext, BaseService):
                 json=spec.json,
                 headers=spec.headers,
             )
-            return BuiltInGuardrailValidationResult.model_validate(response.json())
+            return GuardrailValidationResult.model_validate(response.json())
         else:
             raise NotImplementedError(
                 "Custom guardrail validation is not yet supported by the API."

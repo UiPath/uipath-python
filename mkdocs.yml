@@ -66,6 +66,7 @@ nav:
             - Context Grounding: core/context_grounding.md
             - Documents: core/documents.md
             - Jobs: core/jobs.md
+            - Guardrails: core/guardrails.md
             - LLM Gateway: core/llm_gateway.md
             - Queues: core/queues.md
             - Processes: core/processes.md
