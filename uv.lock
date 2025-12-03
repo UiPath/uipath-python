@@ -2465,7 +2465,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
-    { name = "uipath-core", specifier = ">=0.0.5,<0.1.0" },
+    { name = "uipath-core", specifier = ">=0.0.6,<0.1.0" },
     { name = "uipath-runtime", specifier = ">=0.1.1,<0.2.0" },
 ]
 
@@ -2498,16 +2498,16 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.0.5"
+version = "0.0.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c6/be/575d6075bffb70de8f91feeef873d61d8e4051ac66edd97e14d639599ba4/uipath_core-0.0.5.tar.gz", hash = "sha256:b52e7455a45a1af504b6aa12844f14bd6d5bb69c98399b54c962723f5b0cacad", size = 77751, upload-time = "2025-11-24T06:48:40.943Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/79/b7be77e8dda5e5f74b353ed42e5e3fdea37e40f43bb5b06c11b4e9ea2a48/uipath_core-0.0.6.tar.gz", hash = "sha256:a097307b2101d49b1cb554d5808b6ca573640d6a0fe2bada971eb4ff860a648d", size = 81867, upload-time = "2025-12-02T09:30:56.352Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/37/ae/9a2488196b98f0f9442573cdbfa146a2ae614aec22dabc28c9b34b4abf45/uipath_core-0.0.5-py3-none-any.whl", hash = "sha256:056b8f2fede1e23717ad0c356a300466ac8ca41dd03b9a5fecb6ab24dd5dc97e", size = 13183, upload-time = "2025-11-24T06:48:39.717Z" },
+    { url = "https://files.pythonhosted.org/packages/09/4d/796f6ed63ba64c3b38e6763446c0c8ae9896ef443318a4d554a5dfcf447c/uipath_core-0.0.6-py3-none-any.whl", hash = "sha256:5bdd42b752659779774998ceffaf2672365d40dc8e4290a77cfd50f4e3504113", size = 21392, upload-time = "2025-12-02T09:30:54.899Z" },
 ]
 
 [[package]]
