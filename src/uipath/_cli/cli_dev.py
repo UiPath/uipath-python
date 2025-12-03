@@ -2,7 +2,7 @@ import asyncio
 
 import click
 from uipath.core.tracing import UiPathTraceManager
-from uipath.runtime import UiPathRuntimeFactoryRegistry
+from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
@@ -68,7 +68,11 @@ def dev(interface: str | None, debug: bool, debug_port: int) -> None:
                 )
 
                 trace_manager = UiPathTraceManager()
-                factory = UiPathRuntimeFactoryRegistry.get()
+                factory = UiPathRuntimeFactoryRegistry.get(
+                    context=UiPathRuntimeContext(
+                        trace_manager=trace_manager,
+                    )
+                )
 
                 try:
                     app = UiPathDeveloperConsole(
