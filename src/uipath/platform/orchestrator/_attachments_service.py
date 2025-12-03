@@ -11,15 +11,12 @@ import httpx
 from httpx import Response
 from httpx._types import RequestContent
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec, header_folder
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ...tracing import traced
 from ..attachments import Attachment, AttachmentMode
-from ..common._base_service import BaseService
+from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 
 
 def _upload_attachment_input_processor(inputs: dict[str, Any]) -> dict[str, Any]:
@@ -44,7 +41,9 @@ class AttachmentsService(FolderContext, BaseService):
     Reference: https://docs.uipath.com/orchestrator/reference/api-attachments
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self._temp_dir = os.path.join(tempfile.gettempdir(), TEMP_ATTACHMENTS_FOLDER)
 

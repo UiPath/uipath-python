@@ -6,8 +6,7 @@ from uuid import UUID, uuid4
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.documents import (
     ActionPriority,
     ClassificationResult,
@@ -22,7 +21,7 @@ from uipath.platform.documents._documents_service import (  # type: ignore[attr-
 
 
 @pytest.fixture
-def service(config: Config, execution_context: ExecutionContext):
+def service(config: UiPathApiConfig, execution_context: UiPathExecutionContext):
     return DocumentsService(config=config, execution_context=execution_context)
 
 

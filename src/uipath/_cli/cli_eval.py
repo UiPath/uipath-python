@@ -15,10 +15,10 @@ from uipath._cli._evals._runtime import (
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
-from uipath._config import UiPathConfig
 from uipath._events._event_bus import EventBus
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
+from uipath.platform.common import UiPathConfig
 from uipath.tracing import LlmOpsHttpExporter
 
 from ._utils._console import ConsoleLogger

@@ -5,13 +5,10 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast, overload
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ._attachments_service import AttachmentsService
 from .job import Job
 
@@ -24,7 +21,9 @@ class JobsService(FolderContext, BaseService):
       start time, and any input/output data.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self._attachments_service = AttachmentsService(config, execution_context)
         # Define the temp directory path for local attachments

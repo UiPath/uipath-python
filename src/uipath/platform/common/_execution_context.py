@@ -1,12 +1,12 @@
 from os import environ as env
 
-from ._utils.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
+from uipath._utils.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
 
 
-class ExecutionContext:
+class UiPathExecutionContext:
     """Manages the execution context for UiPath automation processes.
 
-    The ExecutionContext class handles information about the current execution environment,
+    The UiPathExecutionContext class handles information about the current execution environment,
     including the job instance ID and robot key. This information is essential for
     tracking and managing automation jobs in UiPath Automation Cloud.
     """

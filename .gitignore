@@ -29,3 +29,6 @@ wheels/
 .cache/*
 .cache
 site
+
+
+.claude/*

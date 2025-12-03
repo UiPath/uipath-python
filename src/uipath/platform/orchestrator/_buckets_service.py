@@ -6,13 +6,10 @@ from typing import Any, Dict, Optional, Union
 
 import httpx
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ..common.paging import PagedResult
 from .buckets import Bucket, BucketFile
 
@@ -28,7 +25,9 @@ class BucketsService(FolderContext, BaseService):
     used by automation processes.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self.custom_client = httpx.Client(**get_httpx_client_kwargs())
         self.custom_client_async = httpx.AsyncClient(**get_httpx_client_kwargs())

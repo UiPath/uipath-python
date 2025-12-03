@@ -2,11 +2,9 @@ from typing import Optional
 
 from typing_extensions import deprecated
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 from ..errors import FolderNotFoundException
 
 
@@ -18,7 +16,9 @@ class FolderService(BaseService):
     of UiPath resources (i.e. processes, assets, connections, storage buckets etc.) or other folders
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     def retrieve_folder_key(self, folder_path: str | None) -> str | None:

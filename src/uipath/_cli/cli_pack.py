@@ -10,8 +10,8 @@ from pydantic import TypeAdapter
 
 from uipath._cli.models.runtime_schema import Bindings
 from uipath._cli.models.uipath_json_schema import RuntimeOptions, UiPathJsonConfig
-from uipath._config import UiPathConfig
 from uipath._utils.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
+from uipath.platform.common import UiPathConfig
 
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger

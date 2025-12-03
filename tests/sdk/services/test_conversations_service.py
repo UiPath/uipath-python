@@ -2,14 +2,13 @@ import pytest
 from pytest_httpx import HTTPXMock
 from uipath.core.chat import UiPathConversationMessage
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
-from uipath.platform.autopilot import ConversationsService
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.chat import ConversationsService
 
 
 @pytest.fixture
 def service(
-    config: Config, execution_context: ExecutionContext
+    config: UiPathApiConfig, execution_context: UiPathExecutionContext
 ) -> ConversationsService:
     return ConversationsService(config=config, execution_context=execution_context)
 

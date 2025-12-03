@@ -22,7 +22,8 @@ from uipath.runtime import (
 )
 from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
 
-from .._config import UiPathConfig
+from uipath.platform.common import UiPathConfig
+
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._utils._console import ConsoleLogger

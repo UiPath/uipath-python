@@ -4,9 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_USER_AGENT
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.orchestrator._folder_service import FolderService
 from uipath.platform.resource_catalog import ResourceType
 from uipath.platform.resource_catalog._resource_catalog_service import (
@@ -25,8 +24,8 @@ def mock_folder_service() -> MagicMock:
 
 @pytest.fixture
 def service(
-    config: Config,
-    execution_context: ExecutionContext,
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
     mock_folder_service: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> ResourceCatalogService:

@@ -2,9 +2,6 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec, resource_override
 from ..._utils.constants import (
     ENV_TENANT_ID,
@@ -13,6 +10,7 @@ from ..._utils.constants import (
     HEADER_TENANT_ID,
 )
 from ...tracing import traced
+from ..common import FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ..common._base_service import BaseService
 from .task_schema import TaskSchema
 from .tasks import Task
@@ -163,7 +161,9 @@ class TasksService(FolderContext, BaseService):
     Reference: https://docs.uipath.com/automation-cloud/docs/actions
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="tasks_create", run_type="uipath")

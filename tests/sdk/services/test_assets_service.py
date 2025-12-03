@@ -3,16 +3,17 @@ from unittest.mock import Mock, patch
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_USER_AGENT
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.orchestrator import Asset, UserAsset
 from uipath.platform.orchestrator._assets_service import AssetsService
 
 
 @pytest.fixture
 def service(
-    config: Config, execution_context: ExecutionContext, monkeypatch: pytest.MonkeyPatch
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> AssetsService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
     return AssetsService(config=config, execution_context=execution_context)
@@ -65,13 +66,13 @@ class TestAssetsService:
             org: str,
             tenant: str,
             version: str,
-            config: Config,
+            config: UiPathApiConfig,
             monkeypatch: pytest.MonkeyPatch,
         ) -> None:
             monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
             service = AssetsService(
                 config=config,
-                execution_context=ExecutionContext(),
+                execution_context=UiPathExecutionContext(),
             )
 
             httpx_mock.add_response(
@@ -155,13 +156,13 @@ class TestAssetsService:
         self,
         service: AssetsService,
         monkeypatch: pytest.MonkeyPatch,
-        config: Config,
+        config: UiPathApiConfig,
     ) -> None:
         with pytest.raises(ValueError):
             monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
             service = AssetsService(
                 config=config,
-                execution_context=ExecutionContext(),
+                execution_context=UiPathExecutionContext(),
             )
             service.retrieve_credential(name="Test Credential")
 
@@ -292,7 +293,7 @@ class TestAssetsService:
             }
 
             monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
-            service._execution_context = ExecutionContext()
+            service._execution_context = UiPathExecutionContext()
 
             with patch.object(
                 service, "request", return_value=mock_response
@@ -323,7 +324,7 @@ class TestAssetsService:
             }
 
             monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
-            service._execution_context = ExecutionContext()
+            service._execution_context = UiPathExecutionContext()
 
             with patch.object(
                 service, "request_async", return_value=mock_response

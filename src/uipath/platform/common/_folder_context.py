@@ -1,7 +1,7 @@
 from os import environ as env
 from typing import Any
 
-from ._utils.constants import (
+from uipath._utils.constants import (
     ENV_FOLDER_KEY,
     ENV_FOLDER_PATH,
     HEADER_FOLDER_KEY,

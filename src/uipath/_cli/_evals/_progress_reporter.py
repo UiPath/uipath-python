@@ -24,7 +24,6 @@ from uipath._cli._evals._models._sw_reporting import (
     StudioWebProgressItem,
 )
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._config import UiPathConfig
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -45,6 +44,7 @@ from uipath.eval.evaluators import (
 )
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.platform import UiPath
+from uipath.platform.common import UiPathConfig
 from uipath.tracing import LlmOpsHttpExporter
 
 logger = logging.getLogger(__name__)

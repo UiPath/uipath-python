@@ -20,12 +20,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
 from ..._utils import Endpoint
 from ...tracing import traced
 from ...utils import EndpointManager
-from ..common._base_service import BaseService
+from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 from .llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
@@ -144,7 +142,9 @@ class UiPathOpenAIService(BaseService):
     API format and is suitable for applications that need direct OpenAI API compatibility.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="llm_embeddings", run_type="uipath")
@@ -338,7 +338,9 @@ class UiPathLlmChatService(BaseService):
     providers and includes enhanced features for enterprise use cases.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="llm_chat_completions", run_type="uipath")

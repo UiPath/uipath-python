@@ -1,14 +1,14 @@
 from uipath.core.chat import UiPathConversationMessage
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 
 
 class ConversationsService(BaseService):
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="retrieve_message", run_type="uipath")

@@ -5,9 +5,8 @@ import pytest
 from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_USER_AGENT, LLMV3Mini_REQUEST
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.context_grounding import (
     BucketSourceConfig,
     ConfluenceSourceConfig,
@@ -27,8 +26,8 @@ from uipath.platform.orchestrator._folder_service import FolderService
 
 @pytest.fixture
 def service(
-    config: Config,
-    execution_context: ExecutionContext,
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> ContextGroundingService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")

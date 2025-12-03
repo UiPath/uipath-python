@@ -4,14 +4,15 @@ from pathlib import Path
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.orchestrator._buckets_service import BucketsService
 
 
 @pytest.fixture
 def service(
-    config: Config, execution_context: ExecutionContext, monkeypatch: pytest.MonkeyPatch
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> BucketsService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
     return BucketsService(config=config, execution_context=execution_context)
