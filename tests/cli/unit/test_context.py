@@ -4,6 +4,7 @@ Tests the CliContext dataclass and get_cli_context() helper.
 """
 
 import click
+from click.testing import CliRunner
 
 from uipath._cli._utils._context import CliContext, get_cli_context
 
@@ -40,7 +41,7 @@ def test_get_cli_context_returns_typed_object():
         assert hasattr(cli_ctx, "debug")
 
     # Create a Click context with CliContext
-    runner = click.testing.CliRunner()
+    runner = CliRunner()
     ctx_obj = CliContext(output_format="json")
 
     with runner.isolated_filesystem():

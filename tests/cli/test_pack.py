@@ -10,6 +10,7 @@ from utils.project_details import ProjectDetails
 import uipath._cli.cli_pack as cli_pack
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
+from uipath._cli.models.uipath_json_schema import RuntimeOptions
 
 
 def create_bindings_file():
@@ -1092,7 +1093,9 @@ class TestPack:
                 }
             ]
 
-            operate_data = cli_pack.generate_operate_file(entry_points)
+            operate_data = cli_pack.generate_operate_file(
+                entry_points, RuntimeOptions(is_conversational=False)
+            )
 
             assert (
                 operate_data["$schema"]
@@ -1105,6 +1108,7 @@ class TestPack:
             assert operate_data["runtimeOptions"] == {
                 "requiresUserInteraction": False,
                 "isAttended": False,
+                "isConversational": False,
             }
 
     def test_generate_bindings_content(self, runner: CliRunner, temp_dir: str) -> None:
@@ -1177,3 +1181,70 @@ class TestPack:
         )
         assert len(content["files"]) == 3 + len(entry_points)
         assert content["files"] == expected_files
+
+    def test_is_conversational_in_operate_json(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that is_conversational is correctly placed in operate.json runtimeOptions."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # Create necessary files for packing
+            with open("uipath.json", "w") as f:
+                json.dump(create_uipath_json(), f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+            create_bindings_file()
+
+            # Mock middleware and run init to generate entry-points.json
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            # Modify uipath.json to set is_conversational to true
+            with open("uipath.json", "r") as f:
+                config = json.load(f)
+
+            # Add runtimeOptions with isConversational set to true
+            config["runtimeOptions"] = {"isConversational": True}
+
+            with open("uipath.json", "w") as f:
+                json.dump(config, f, indent=2)
+
+            # Run pack command
+            result = runner.invoke(cli, ["pack", "./"], env={})
+            assert result.exit_code == 0
+
+            # Extract and verify operate.json content
+            package_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            assert os.path.exists(package_path)
+
+            with zipfile.ZipFile(package_path, "r") as z:
+                # Read operate.json
+                operate_content = z.read("content/operate.json").decode("utf-8")
+                operate_data = json.loads(operate_content)
+
+                # Verify runtimeOptions exists
+                assert "runtimeOptions" in operate_data, (
+                    "runtimeOptions should be present in operate.json"
+                )
+
+                # Verify isConversational is present and set to true
+                assert "isConversational" in operate_data["runtimeOptions"], (
+                    "isConversational should be present in runtimeOptions"
+                )
+                assert operate_data["runtimeOptions"]["isConversational"] is True, (
+                    "isConversational should be set to true"
+                )
+
+                # Verify default runtimeOptions fields are still present
+                assert (
+                    operate_data["runtimeOptions"]["requiresUserInteraction"] is False
+                )
+                assert operate_data["runtimeOptions"]["isAttended"] is False

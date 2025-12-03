@@ -3,12 +3,13 @@ import os
 import uuid
 import zipfile
 from string import Template
+from typing import Any
 
 import click
 from pydantic import TypeAdapter
 
 from uipath._cli.models.runtime_schema import Bindings
-from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
+from uipath._cli.models.uipath_json_schema import RuntimeOptions, UiPathJsonConfig
 from uipath._config import UiPathConfig
 from uipath._utils.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 
@@ -69,7 +70,9 @@ def validate_config_structure(config_data):
             console.error(f"uipath.json is missing the required field: {field}.")
 
 
-def generate_operate_file(entryPoints, dependencies=None):
+def generate_operate_file(
+    entryPoints: list[dict[str, Any]], runtimeOptions: RuntimeOptions, dependencies=None
+):
     if not entryPoints:
         raise ValueError(
             "No entry points found in entry-points.json. Please run 'uipath init' to generate valid entry points."
@@ -88,10 +91,13 @@ def generate_operate_file(entryPoints, dependencies=None):
         "contentType": type,
         "targetFramework": "Portable",
         "targetRuntime": "python",
-        "runtimeOptions": {"requiresUserInteraction": False, "isAttended": False},
+        "runtimeOptions": {
+            "requiresUserInteraction": False,
+            "isAttended": False,
+            "isConversational": runtimeOptions.is_conversational,
+        },
     }
 
-    # Add dependencies if provided
     if dependencies:
         operate_json_data["dependencies"] = dependencies
 
@@ -215,13 +221,12 @@ def pack_fn(
     entry_points_file_path = os.path.join(
         directory, str(UiPathConfig.entry_points_file_path)
     )
+    entry_points: list[dict[str, Any]] = []
     if not os.path.exists(entry_points_file_path):
         raise Exception("'entry-points.json' file not found. Please run 'uipath init'.")
     else:
         with open(entry_points_file_path, "r") as f:
             entry_points = json.load(f).get("entryPoints", [])
-
-    operate_file = generate_operate_file(entry_points, dependencies)
 
     config_path = os.path.join(directory, "uipath.json")
     if not os.path.exists(config_path):
@@ -229,6 +234,10 @@ def pack_fn(
 
     with open(config_path, "r") as f:
         config_data = TypeAdapter(UiPathJsonConfig).validate_python(json.load(f))
+
+    operate_file = generate_operate_file(
+        entry_points, config_data.runtime_options, dependencies
+    )
 
     # try to read bindings from bindings.json
     bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
