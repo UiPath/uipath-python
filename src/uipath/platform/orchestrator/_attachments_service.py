@@ -1,11 +1,15 @@
+import copy
 import os
 import shutil
 import tempfile
 import uuid
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional, Union, overload
+from typing import Any, AsyncIterator, Iterator, Tuple, overload
 
 import httpx
+from httpx import Response
+from httpx._types import RequestContent
 
 from ..._config import Config
 from ..._execution_context import ExecutionContext
@@ -14,10 +18,11 @@ from ..._utils import Endpoint, RequestSpec, header_folder
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ...tracing import traced
+from ..attachments import Attachment, AttachmentMode
 from ..common._base_service import BaseService
 
 
-def _upload_attachment_input_processor(inputs: Dict[str, Any]) -> Dict[str, Any]:
+def _upload_attachment_input_processor(inputs: dict[str, Any]) -> dict[str, Any]:
     """Process attachment upload inputs to avoid logging large content."""
     processed_inputs = inputs.copy()
     if "source_path" in processed_inputs:
@@ -43,14 +48,174 @@ class AttachmentsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._temp_dir = os.path.join(tempfile.gettempdir(), TEMP_ATTACHMENTS_FOLDER)
 
+    @traced(name="attachments_open", run_type="uipath")
+    @contextmanager
+    def open(
+        self,
+        *,
+        attachment: Attachment,
+        mode: AttachmentMode = AttachmentMode.READ,
+        content: RequestContent | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> Iterator[Tuple[Attachment, Response]]:
+        """Open an attachment.
+
+        Args:
+            attachment (Attachment): The attachment to open.
+            mode (AttachmentMode): The mode to use.
+            content (RequestContent | None): An optional request content to upload.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            str: The name of the downloaded attachment.
+
+        Raises:
+            Exception: If the download fails and no local file is found.
+        """
+        try:
+            if mode == AttachmentMode.READ:
+                assert attachment.id, "Attachment ID is required to open an attachment."
+                spec = self._retrieve_download_uri_spec(
+                    key=attachment.id,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+            else:
+                spec = self._create_attachment_and_retrieve_upload_uri_spec(
+                    name=attachment.full_name,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+
+            result = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+                json=spec.json,
+            ).json()
+            resource: Attachment = copy.deepcopy(attachment)
+            resource.id = uuid.UUID(result["Id"])
+
+            resource_uri = result["BlobFileAccess"]["Uri"]
+            headers = {
+                key: value
+                for key, value in zip(
+                    result["BlobFileAccess"]["Headers"]["Keys"],
+                    result["BlobFileAccess"]["Headers"]["Values"],
+                    strict=False,
+                )
+            }
+
+            if result["BlobFileAccess"]["RequiresAuth"]:
+                raise Exception(
+                    "Attachment access not supported via UiPath Coded Agents."
+                )
+            else:
+                http_verb = "GET" if mode == AttachmentMode.READ else "PUT"
+                with httpx.Client(**get_httpx_client_kwargs()) as client:
+                    with client.stream(
+                        http_verb,
+                        resource_uri,
+                        headers=headers,
+                        content=content,
+                    ) as response:
+                        yield resource, response
+        except Exception as e:
+            # Re-raise the original exception if we can't find it locally
+            raise Exception(f"Attachment access failed with error: {e}") from e
+
+    @traced(name="attachments_open", run_type="uipath")
+    @asynccontextmanager
+    async def open_async(
+        self,
+        *,
+        attachment: Attachment,
+        mode: AttachmentMode = AttachmentMode.READ,
+        content: RequestContent | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> AsyncIterator[Tuple[Attachment, Response]]:
+        """Open an attachment asynchronously.
+
+        Args:
+            attachment (Attachment): The attachment to open.
+            mode (AttachmentMode): The mode to use.
+            content (RequestContent): An optional request content to upload.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            str: The name of the downloaded attachment.
+
+        Raises:
+            Exception: If the download fails and no local file is found.
+        """
+        try:
+            if mode == AttachmentMode.READ:
+                assert attachment.id, "Attachment ID is required to open an attachment."
+                spec = self._retrieve_download_uri_spec(
+                    key=attachment.id,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+            else:
+                spec = self._create_attachment_and_retrieve_upload_uri_spec(
+                    name=attachment.full_name,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+
+            result = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                    json=spec.json,
+                )
+            ).json()
+            resource: Attachment = copy.deepcopy(attachment)
+            resource.id = uuid.UUID(result["Id"])
+
+            resource_uri = result["BlobFileAccess"]["Uri"]
+            headers = {
+                key: value
+                for key, value in zip(
+                    result["BlobFileAccess"]["Headers"]["Keys"],
+                    result["BlobFileAccess"]["Headers"]["Values"],
+                    strict=False,
+                )
+            }
+
+            if result["BlobFileAccess"]["RequiresAuth"]:
+                raise Exception(
+                    "Attachment access not supported via UiPath Coded Agents."
+                )
+            else:
+                http_verb = "GET" if mode == AttachmentMode.READ else "PUT"
+                async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
+                    async with client.stream(
+                        http_verb,
+                        resource_uri,
+                        headers=headers,
+                        content=content,
+                    ) as response:
+                        yield resource, response
+        except Exception as e:
+            # Re-raise the original exception if we can't find it locally
+            raise Exception(f"Attachment access failed with error: {e}") from e
+
     @traced(name="attachments_download", run_type="uipath")
     def download(
         self,
         *,
         key: uuid.UUID,
         destination_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> str:
         """Download an attachment.
 
@@ -65,8 +230,8 @@ class AttachmentsService(FolderContext, BaseService):
         Args:
             key (uuid.UUID): The key of the attachment to download.
             destination_path (str): The local path where the attachment will be saved.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
             str: The name of the downloaded attachment.
@@ -163,8 +328,8 @@ class AttachmentsService(FolderContext, BaseService):
         *,
         key: uuid.UUID,
         destination_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> str:
         """Download an attachment asynchronously.
 
@@ -179,8 +344,8 @@ class AttachmentsService(FolderContext, BaseService):
         Args:
             key (uuid.UUID): The key of the attachment to download.
             destination_path (str): The local path where the attachment will be saved.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
             str: The name of the downloaded attachment.
@@ -280,9 +445,9 @@ class AttachmentsService(FolderContext, BaseService):
         self,
         *,
         name: str,
-        content: Union[str, bytes],
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content: str | bytes,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> uuid.UUID: ...
 
     @overload
@@ -291,8 +456,8 @@ class AttachmentsService(FolderContext, BaseService):
         *,
         name: str,
         source_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> uuid.UUID: ...
 
     @traced(
@@ -304,10 +469,10 @@ class AttachmentsService(FolderContext, BaseService):
         self,
         *,
         name: str,
-        content: Optional[Union[str, bytes]] = None,
-        source_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content: str | bytes | None = None,
+        source_path: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> uuid.UUID:
         """Upload a file or content to UiPath as an attachment.
 
@@ -316,10 +481,10 @@ class AttachmentsService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the attachment file.
-            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
-            source_path (Optional[str]): The local path of the file to upload.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            content (str | bytes | None): The content to upload (string or bytes).
+            source_path (str | None): The local path of the file to upload.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
             uuid.UUID: The UUID of the created attachment.
@@ -412,9 +577,9 @@ class AttachmentsService(FolderContext, BaseService):
         self,
         *,
         name: str,
-        content: Union[str, bytes],
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content: str | bytes,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> uuid.UUID: ...
 
     @overload
@@ -423,8 +588,8 @@ class AttachmentsService(FolderContext, BaseService):
         *,
         name: str,
         source_path: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> uuid.UUID: ...
 
     @traced(
@@ -436,10 +601,10 @@ class AttachmentsService(FolderContext, BaseService):
         self,
         *,
         name: str,
-        content: Optional[Union[str, bytes]] = None,
-        source_path: Optional[str] = None,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        content: str | bytes | None = None,
+        source_path: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> uuid.UUID:
         """Upload a file or content to UiPath as an attachment asynchronously.
 
@@ -448,10 +613,10 @@ class AttachmentsService(FolderContext, BaseService):
 
         Args:
             name (str): The name of the attachment file.
-            content (Optional[Union[str, bytes]]): The content to upload (string or bytes).
-            source_path (Optional[str]): The local path of the file to upload.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            content (str | bytes | None): The content to upload (string or bytes).
+            source_path (str | None): The local path of the file to upload.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
             uuid.UUID: The UUID of the created attachment.
@@ -550,8 +715,8 @@ class AttachmentsService(FolderContext, BaseService):
         self,
         *,
         key: uuid.UUID,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Delete an attachment.
 
@@ -565,8 +730,8 @@ class AttachmentsService(FolderContext, BaseService):
 
         Args:
             key (uuid.UUID): The key of the attachment to delete.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Raises:
             Exception: If the deletion fails and no local file is found.
@@ -620,8 +785,8 @@ class AttachmentsService(FolderContext, BaseService):
         self,
         *,
         key: uuid.UUID,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> None:
         """Delete an attachment asynchronously.
 
@@ -635,8 +800,8 @@ class AttachmentsService(FolderContext, BaseService):
 
         Args:
             key (uuid.UUID): The key of the attachment to delete.
-            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
-            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Raises:
             Exception: If the deletion fails and no local file is found.
@@ -688,15 +853,15 @@ class AttachmentsService(FolderContext, BaseService):
             ) from e
 
     @property
-    def custom_headers(self) -> Dict[str, str]:
+    def custom_headers(self) -> dict[str, str]:
         """Return custom headers for API requests."""
         return self.folder_headers
 
     def _create_attachment_and_retrieve_upload_uri_spec(
         self,
         name: str,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="POST",
@@ -712,8 +877,8 @@ class AttachmentsService(FolderContext, BaseService):
     def _retrieve_download_uri_spec(
         self,
         key: uuid.UUID,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="GET",
@@ -726,8 +891,8 @@ class AttachmentsService(FolderContext, BaseService):
     def _delete_attachment_spec(
         self,
         key: uuid.UUID,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="DELETE",

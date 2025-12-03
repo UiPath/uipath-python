@@ -1,0 +1,18 @@
+[project]
+name = "csv-processor"
+version = "0.0.1"
+description = "csv-processor"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "uipath>=2.2.0,<2.3.0",
+    "pandas>=2.3.3",
+]
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "uipath-dev>=0.0.5",
+]
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }
