@@ -4,22 +4,22 @@ import json
 import uuid
 from typing import Any
 
+from uipath.core.errors import (
+    ErrorCategory,
+    UiPathFaultedTriggerError,
+    UiPathPendingTriggerError,
+)
 from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
     UiPathResumeTriggerName,
     UiPathResumeTriggerType,
-    UiPathRuntimeStatus,
-)
-from uipath.runtime.errors import (
-    UiPathErrorCategory,
-    UiPathErrorCode,
-    UiPathRuntimeError,
 )
 
 from uipath._cli._utils._common import serialize_object
 from uipath.platform import UiPath
 from uipath.platform.action_center import Task
+from uipath.platform.action_center.tasks import TaskStatus
 from uipath.platform.common import (
     CreateEscalation,
     CreateTask,
@@ -28,6 +28,7 @@ from uipath.platform.common import (
     WaitJob,
     WaitTask,
 )
+from uipath.platform.orchestrator.job import JobState
 
 
 def _try_convert_to_json_format(value: str | None) -> str | None:
@@ -52,6 +53,20 @@ class UiPathResumeTriggerReader:
 
     Implements UiPathResumeTriggerReaderProtocol.
     """
+
+    def _extract_name_hint(self, field_name: str, payload: Any) -> str | None:
+        if not payload:
+            return payload
+
+        if isinstance(payload, dict):
+            return payload.get(field_name)
+
+        # 2.3.0 remove
+        try:
+            payload_dict = json.loads(payload)
+            return payload_dict.get(field_name)
+        except json.decoder.JSONDecodeError:
+            return None
 
     async def read_trigger(self, trigger: UiPathResumeTrigger) -> Any | None:
         """Read a resume trigger and convert it to runtime-compatible input.
@@ -80,15 +95,31 @@ class UiPathResumeTriggerReader:
         match trigger.trigger_type:
             case UiPathResumeTriggerType.TASK:
                 if trigger.item_key:
-                    action: Task = await uipath.tasks.retrieve_async(
+                    task: Task = await uipath.tasks.retrieve_async(
                         trigger.item_key,
                         app_folder_key=trigger.folder_key,
                         app_folder_path=trigger.folder_path,
+                        app_name=self._extract_name_hint("app_name", trigger.payload),
                     )
-                    if trigger.trigger_name == UiPathResumeTriggerName.ESCALATION:
-                        return action
+                    pending_status = TaskStatus.PENDING.value
+                    unassigned_status = TaskStatus.UNASSIGNED.value
 
-                    return action.data
+                    if task.status in (pending_status, unassigned_status):
+                        # 2.3.0 remove (task.status will already be the enum)
+                        current_status = (
+                            TaskStatus(task.status).name
+                            if isinstance(task.status, int)
+                            else "Unknown"
+                        )
+                        raise UiPathPendingTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"Task is not completed yet. Current status: {current_status}",
+                        )
+
+                    if trigger.trigger_name == UiPathResumeTriggerName.ESCALATION:
+                        return task
+
+                    return task.data
 
             case UiPathResumeTriggerType.JOB:
                 if trigger.item_key:
@@ -96,23 +127,34 @@ class UiPathResumeTriggerReader:
                         trigger.item_key,
                         folder_key=trigger.folder_key,
                         folder_path=trigger.folder_path,
+                        process_name=self._extract_name_hint("name", trigger.payload),
                     )
                     job_state = (job.state or "").lower()
-                    successful_state = UiPathRuntimeStatus.SUCCESSFUL.value.lower()
-                    faulted_state = UiPathRuntimeStatus.FAULTED.value.lower()
+                    successful_state = JobState.SUCCESSFUL.value
+                    faulted_state = JobState.FAULTED.value
+                    running_state = JobState.RUNNING.value
+                    pending_state = JobState.PENDING.value
 
-                    if job_state == successful_state:
-                        output_data = await uipath.jobs.extract_output_async(job)
-                        return _try_convert_to_json_format(output_data)
+                    if job_state in (pending_state, running_state):
+                        raise UiPathPendingTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"Job is not finished yet. Current state: {job_state}",
+                        )
 
-                    raise UiPathRuntimeError(
-                        UiPathErrorCode.INVOKED_PROCESS_FAILURE,
-                        "Invoked process did not finish successfully.",
-                        _try_convert_to_json_format(str(job.job_error or job.info))
-                        or "Job error unavailable."
-                        if job_state == faulted_state
-                        else f"Job {job.key} is {job_state}.",
-                    )
+                    if job_state != successful_state:
+                        job_error = (
+                            _try_convert_to_json_format(str(job.job_error or job.info))
+                            or "Job error unavailable."
+                            if job_state == faulted_state
+                            else f"Job {job.key} is {job_state}."
+                        )
+                        raise UiPathFaultedTriggerError(
+                            ErrorCategory.USER,
+                            f"Process did not finish successfully. Error: {job_error}",
+                        )
+
+                    output_data = await uipath.jobs.extract_output_async(job)
+                    return _try_convert_to_json_format(output_data)
 
             case UiPathResumeTriggerType.API:
                 if trigger.api_resume and trigger.api_resume.inbox_id:
@@ -121,25 +163,20 @@ class UiPathResumeTriggerReader:
                             trigger.api_resume.inbox_id
                         )
                     except Exception as e:
-                        raise UiPathRuntimeError(
-                            UiPathErrorCode.RETRIEVE_RESUME_TRIGGER_ERROR,
-                            "Failed to get trigger payload",
+                        raise UiPathFaultedTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"Failed to get trigger payload"
                             f"Error fetching API trigger payload for inbox {trigger.api_resume.inbox_id}: {str(e)}",
-                            UiPathErrorCategory.SYSTEM,
                         ) from e
             case _:
-                raise UiPathRuntimeError(
-                    UiPathErrorCode.UNKNOWN_TRIGGER_TYPE,
-                    "Unexpected trigger type received",
+                raise UiPathFaultedTriggerError(
+                    ErrorCategory.SYSTEM,
+                    f"Unexpected trigger type received"
                     f"Trigger type :{type(trigger.trigger_type)} is invalid",
-                    UiPathErrorCategory.USER,
                 )
 
-        raise UiPathRuntimeError(
-            UiPathErrorCode.RETRIEVE_RESUME_TRIGGER_ERROR,
-            "Failed to receive payload from HITL action",
-            detail="Failed to receive payload from HITL action",
-            category=UiPathErrorCategory.SYSTEM,
+        raise UiPathFaultedTriggerError(
+            ErrorCategory.SYSTEM, "Failed to receive payload from HITL action"
         )
 
 
@@ -198,20 +235,16 @@ class UiPathResumeTriggerCreator:
                     self._handle_api_trigger(suspend_value, resume_trigger)
 
                 case _:
-                    raise UiPathRuntimeError(
-                        UiPathErrorCode.UNKNOWN_HITL_MODEL,
-                        "Unexpected model received",
+                    raise UiPathFaultedTriggerError(
+                        ErrorCategory.SYSTEM,
+                        f"Unexpected model received"
                         f"{type(suspend_value)} is not a valid Human-In-The-Loop model",
-                        UiPathErrorCategory.USER,
                     )
-        except UiPathRuntimeError:
-            raise
         except Exception as e:
-            raise UiPathRuntimeError(
-                UiPathErrorCode.CREATE_RESUME_TRIGGER_ERROR,
+            raise UiPathFaultedTriggerError(
+                ErrorCategory.SYSTEM,
                 "Failed to create HITL action",
                 f"{str(e)}",
-                UiPathErrorCategory.SYSTEM,
             ) from e
 
         return resume_trigger

@@ -3,13 +3,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
+from uipath.core.errors import ErrorCategory, UiPathFaultedTriggerError
 from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
     UiPathResumeTriggerType,
     UiPathRuntimeStatus,
 )
-from uipath.runtime.errors import UiPathRuntimeError
 
 from uipath.platform.action_center import Task
 from uipath.platform.common import CreateTask, InvokeProcess, WaitJob, WaitTask
@@ -137,13 +137,10 @@ class TestHitlReader:
                 payload={"name": "process_name"},
             )
 
-            with pytest.raises(UiPathRuntimeError) as exc_info:
+            with pytest.raises(UiPathFaultedTriggerError) as exc_info:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
-            error_dict = exc_info.value.as_dict
-            assert error_dict["code"] == "Python.INVOKED_PROCESS_FAILURE"
-            assert error_dict["title"] == "Invoked process did not finish successfully."
-            assert job_error_info.code in error_dict["detail"]
+            assert exc_info.value.args[0] == ErrorCategory.USER
             mock_retrieve_async.assert_called_once_with(
                 job_key,
                 folder_key="test-folder",
@@ -197,13 +194,10 @@ class TestHitlReader:
             api_resume=UiPathApiTrigger(inbox_id=inbox_id, request="test"),
         )
 
-        with pytest.raises(UiPathRuntimeError) as exc_info:
+        with pytest.raises(UiPathFaultedTriggerError) as exc_info:
             reader = UiPathResumeTriggerReader()
             await reader.read_trigger(resume_trigger)
-        error_dict = exc_info.value.as_dict
-        assert error_dict["code"] == "Python.RETRIEVE_PAYLOAD_ERROR"
-        assert error_dict["title"] == "Failed to get trigger payload"
-        assert "Server error '500 Internal Server Error'" in error_dict["detail"]
+        assert exc_info.value.args[0] == ErrorCategory.SYSTEM
 
 
 class TestHitlProcessor:
