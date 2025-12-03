@@ -1,8 +1,19 @@
 """Models for Orchestrator Jobs."""
 
+from enum import Enum
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class JobState(str, Enum):
+    """Job state enum."""
+
+    SUCCESSFUL = "successful"
+    FAULTED = "faulted"
+    SUSPENDED = "suspended"
+    RUNNING = "running"
+    PENDING = "pending"
 
 
 class JobErrorInfo(BaseModel):
@@ -35,6 +46,7 @@ class Job(BaseModel):
     key: Optional[str] = Field(default=None, alias="Key")
     start_time: Optional[str] = Field(default=None, alias="StartTime")
     end_time: Optional[str] = Field(default=None, alias="EndTime")
+    # 2.3.0 change to JobState enum
     state: Optional[str] = Field(default=None, alias="State")
     job_priority: Optional[str] = Field(default=None, alias="JobPriority")
     specific_priority_value: Optional[int] = Field(

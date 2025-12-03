@@ -1,9 +1,18 @@
 """Data model for an Action in the UiPath Platform."""
 
+import enum
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+
+class TaskStatus(enum.IntEnum):
+    """Enum representing possible Task status."""
+
+    UNASSIGNED = 0
+    PENDING = 1
+    COMPLETED = 2
 
 
 class Task(BaseModel):
@@ -29,6 +38,7 @@ class Task(BaseModel):
     )
     app_tasks_metadata: Optional[Any] = Field(default=None, alias="appTasksMetadata")
     action_label: Optional[str] = Field(default=None, alias="actionLabel")
+    # 2.3.0 change to TaskStatus enum
     status: Optional[Union[str, int]] = None
     data: Optional[Dict[str, Any]] = None
     action: Optional[str] = None

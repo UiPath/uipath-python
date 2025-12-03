@@ -303,8 +303,17 @@ class TasksService(FolderContext, BaseService):
         return Task.model_validate(json_response)
 
     @traced(name="tasks_retrieve", run_type="uipath")
+    @resource_override(
+        resource_type="app",
+        resource_identifier="app_name",
+        folder_identifier="app_folder_path",
+    )
     def retrieve(
-        self, action_key: str, app_folder_path: str = "", app_folder_key: str = ""
+        self,
+        action_key: str,
+        app_folder_path: str = "",
+        app_folder_key: str = "",
+        app_name: str | None = None,
     ) -> Task:
         """Retrieves a task by its key synchronously.
 
@@ -312,7 +321,7 @@ class TasksService(FolderContext, BaseService):
             action_key: The unique identifier of the task to retrieve
             app_folder_path: Optional folder path for the task
             app_folder_key: Optional folder key for the task
-
+            app_name: app name hint for resource override
         Returns:
             Task: The retrieved task object
         """
@@ -328,8 +337,17 @@ class TasksService(FolderContext, BaseService):
         return Task.model_validate(response.json())
 
     @traced(name="tasks_retrieve", run_type="uipath")
+    @resource_override(
+        resource_type="app",
+        resource_identifier="app_name",
+        folder_identifier="app_folder_path",
+    )
     async def retrieve_async(
-        self, action_key: str, app_folder_path: str = "", app_folder_key: str = ""
+        self,
+        action_key: str,
+        app_folder_path: str = "",
+        app_folder_key: str = "",
+        app_name: str | None = None,
     ) -> Task:
         """Retrieves a task by its key asynchronously.
 
@@ -337,7 +355,7 @@ class TasksService(FolderContext, BaseService):
             action_key: The unique identifier of the task to retrieve
             app_folder_path: Optional folder path for the task
             app_folder_key: Optional folder key for the task
-
+            app_name: app name hint for resource override
         Returns:
             Task: The retrieved task object
         """
