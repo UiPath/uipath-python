@@ -7,6 +7,7 @@ from uipath._config import Config
 from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.agenthub._mcp_service import McpService
+from uipath.platform.common.paging import PagedResult
 from uipath.platform.orchestrator._folder_service import FolderService
 from uipath.platform.orchestrator.mcp import McpServer
 
@@ -87,11 +88,15 @@ class TestMcpService:
                 json=mock_servers,
             )
 
-            servers = service.list(folder_path="test-folder-path")
+            result = service.list(folder_path="test-folder-path")
 
-            assert len(servers) == 1
-            assert isinstance(servers[0], McpServer)
-            assert servers[0].name == "Test MCP Server"
+            assert isinstance(result, PagedResult)
+            assert len(result.items) == 1
+            assert isinstance(result.items[0], McpServer)
+            assert result.items[0].name == "Test MCP Server"
+            assert result.has_more is False
+            assert result.skip == 0
+            assert result.top == 100
 
             requests = httpx_mock.get_requests()
             assert len(requests) == 2
@@ -99,7 +104,8 @@ class TestMcpService:
             servers_request = requests[1]
             assert servers_request.method == "GET"
             assert (
-                servers_request.url == f"{base_url}{org}{tenant}/agenthub_/api/servers"
+                servers_request.url
+                == f"{base_url}{org}{tenant}/agenthub_/api/servers?%24skip=0&%24top=100"
             )
             assert HEADER_FOLDER_KEY in servers_request.headers
             assert servers_request.headers[HEADER_FOLDER_KEY] == "resolved-folder-key"
@@ -181,11 +187,15 @@ class TestMcpService:
                 json=mock_servers,
             )
 
-            servers = await service.list_async(folder_path="test-folder-path")
+            result = await service.list_async(folder_path="test-folder-path")
 
-            assert len(servers) == 1
-            assert isinstance(servers[0], McpServer)
-            assert servers[0].name == "Async Test Server"
+            assert isinstance(result, PagedResult)
+            assert len(result.items) == 1
+            assert isinstance(result.items[0], McpServer)
+            assert result.items[0].name == "Async Test Server"
+            assert result.has_more is False
+            assert result.skip == 0
+            assert result.top == 100
 
             requests = httpx_mock.get_requests()
             assert len(requests) == 2
@@ -193,7 +203,8 @@ class TestMcpService:
             servers_request = requests[1]
             assert servers_request.method == "GET"
             assert (
-                servers_request.url == f"{base_url}{org}{tenant}/agenthub_/api/servers"
+                servers_request.url
+                == f"{base_url}{org}{tenant}/agenthub_/api/servers?%24skip=0&%24top=100"
             )
             assert HEADER_FOLDER_KEY in servers_request.headers
             assert servers_request.headers[HEADER_FOLDER_KEY] == "test-folder-key"
@@ -382,7 +393,10 @@ class TestMcpService:
                 with patch.object(
                     service, "request", return_value=mock_response
                 ) as mock_request:
-                    service.list(folder_path="test-folder-path")
+                    result = service.list(folder_path="test-folder-path")
+
+                    assert isinstance(result, PagedResult)
+                    assert len(result.items) == 1
 
                     mock_request.assert_called_once()
                     call_kwargs = mock_request.call_args
@@ -398,6 +412,8 @@ class TestMcpService:
                         call_kwargs.kwargs["headers"][HEADER_FOLDER_KEY]
                         == "test-folder-key"
                     )
+                    assert call_kwargs.kwargs["params"]["$skip"] == 0
+                    assert call_kwargs.kwargs["params"]["$top"] == 100
 
         @pytest.mark.anyio
         async def test_list_async_passes_all_kwargs(self, service: McpService) -> None:
@@ -429,7 +445,10 @@ class TestMcpService:
                 with patch.object(
                     service, "request_async", return_value=mock_response
                 ) as mock_request:
-                    await service.list_async(folder_path="test-folder-path")
+                    result = await service.list_async(folder_path="test-folder-path")
+
+                    assert isinstance(result, PagedResult)
+                    assert len(result.items) == 1
 
                     mock_request.assert_called_once()
                     call_kwargs = mock_request.call_args
@@ -445,6 +464,8 @@ class TestMcpService:
                         call_kwargs.kwargs["headers"][HEADER_FOLDER_KEY]
                         == "test-folder-key"
                     )
+                    assert call_kwargs.kwargs["params"]["$skip"] == 0
+                    assert call_kwargs.kwargs["params"]["$top"] == 100
 
         def test_retrieve_passes_all_kwargs(self, service: McpService) -> None:
             """Test that retrieve passes all kwargs to request."""
