@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Union, cast, overload
 from ..._config import Config
 from ..._execution_context import ExecutionContext
 from ..._folder_context import FolderContext
-from ..._utils import Endpoint, RequestSpec, header_folder
+from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ...tracing import traced
 from ..common._base_service import BaseService
@@ -148,12 +148,15 @@ class JobsService(FolderContext, BaseService):
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
+    @traced(name="jobs_retrieve", run_type="uipath")
+    @resource_override(resource_type="process", resource_identifier="process_name")
     def retrieve(
         self,
         job_key: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+        process_name: str | None = None,
     ) -> Job:
         """Retrieve a job identified by its key.
 
@@ -161,6 +164,7 @@ class JobsService(FolderContext, BaseService):
             job_key (str): The job unique identifier.
             folder_key (Optional[str]): The key of the folder in which the job was executed.
             folder_path (Optional[str]): The path of the folder in which the job was executed.
+            process_name: process name hint for resource override
 
         Returns:
             Job: The retrieved job.
@@ -184,12 +188,15 @@ class JobsService(FolderContext, BaseService):
 
         return Job.model_validate(response.json())
 
+    @traced(name="jobs_retrieve_async", run_type="uipath")
+    @resource_override(resource_type="process", resource_identifier="process_name")
     async def retrieve_async(
         self,
         job_key: str,
         *,
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+        process_name: str | None = None,
     ) -> Job:
         """Asynchronously retrieve a job identified by its key.
 
@@ -197,6 +204,7 @@ class JobsService(FolderContext, BaseService):
             job_key (str): The job unique identifier.
             folder_key (Optional[str]): The key of the folder in which the job was executed.
             folder_path (Optional[str]): The path of the folder in which the job was executed.
+            process_name: process name hint for resource override
 
         Returns:
             Job: The retrieved job.

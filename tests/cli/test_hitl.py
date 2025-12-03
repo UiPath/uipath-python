@@ -66,7 +66,10 @@ class TestHitlReader:
             result = await reader.read_trigger(resume_trigger)
             assert result == action_data
             mock_retrieve_async.assert_called_once_with(
-                action_key, app_folder_key="test-folder", app_folder_path="test-path"
+                action_key,
+                app_folder_key="test-folder",
+                app_folder_path="test-path",
+                app_name=None,
             )
 
     @pytest.mark.anyio
@@ -101,7 +104,10 @@ class TestHitlReader:
             result = await reader.read_trigger(resume_trigger)
             assert result == output_args
             mock_retrieve_async.assert_called_once_with(
-                job_key, folder_key="test-folder", folder_path="test-path"
+                job_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+                process_name=None,
             )
 
     @pytest.mark.anyio
@@ -128,6 +134,7 @@ class TestHitlReader:
                 item_key=job_key,
                 folder_key="test-folder",
                 folder_path="test-path",
+                payload={"name": "process_name"},
             )
 
             with pytest.raises(UiPathRuntimeError) as exc_info:
@@ -138,7 +145,10 @@ class TestHitlReader:
             assert error_dict["title"] == "Invoked process did not finish successfully."
             assert job_error_info.code in error_dict["detail"]
             mock_retrieve_async.assert_called_once_with(
-                job_key, folder_key="test-folder", folder_path="test-path"
+                job_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+                process_name="process_name",
             )
 
     @pytest.mark.anyio
