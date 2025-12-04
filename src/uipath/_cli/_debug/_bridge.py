@@ -20,6 +20,7 @@ from uipath.runtime import (
 )
 from uipath.runtime.debug import UiPathDebugBridgeProtocol, UiPathDebugQuitError
 from uipath.runtime.events import UiPathRuntimeStateEvent
+from uipath.runtime.resumable import UiPathResumeTriggerType
 
 from uipath._cli._utils._common import serialize_object
 
@@ -79,6 +80,7 @@ class ConsoleDebugBridge:
 
         self._stdin_executor = ThreadPoolExecutor(max_workers=1)
         self._terminate_event: asyncio.Event | None = None
+        self._waiting_for_resume_data = False
 
     async def connect(self) -> None:
         """Initialize the console debugger."""
@@ -155,6 +157,41 @@ class ConsoleDebugBridge:
                 output_data = runtime_result.output
         self._print_json(output_data, label="output")
 
+    async def emit_execution_suspended(
+        self,
+        runtime_result: UiPathRuntimeResult,
+    ) -> None:
+        """Print execution suspended."""
+        self.console.print("[yellow]●[/yellow] [bold]<suspended>[/bold]")
+        if runtime_result.trigger is None:
+            return
+
+        if runtime_result.trigger.trigger_type == UiPathResumeTriggerType.API:
+            if runtime_result.output is None:
+                self._print_json({}, label="output")
+            elif isinstance(runtime_result.output, BaseModel):
+                self._print_json(runtime_result.output.model_dump(), label="output")
+            else:
+                self._print_json(runtime_result.output, label="output")
+            self.console.print("[dim]Please provide your input:[/dim]")
+
+            self._waiting_for_resume_data = True
+        else:
+            self._print_json(
+                runtime_result.trigger.model_dump() if runtime_result.trigger else {},
+                label="trigger",
+            )
+
+    async def emit_execution_resumed(self, resume_data: Any) -> None:
+        """Send execution resumed event."""
+        self.console.print("[yellow]●[/yellow] [bold]<resumed>[/bold]")
+        self._print_json(
+            resume_data.model_dump()
+            if resume_data and isinstance(resume_data, BaseModel)
+            else resume_data or {},
+            label="data",
+        )
+
     async def emit_execution_error(
         self,
         error: str,
@@ -173,7 +210,7 @@ class ConsoleDebugBridge:
         self.console.print(f"[red]{error_display}[/red]")
         self.console.print("[red]─" * 40)
 
-    async def wait_for_resume(self) -> dict[str, Any]:
+    async def wait_for_resume(self) -> Any:
         """Wait for user to press Enter or type commands."""
         while True:  # Keep looping until we get a resume command
             self.console.print()
@@ -187,6 +224,17 @@ class ConsoleDebugBridge:
                 user_input = await future
             except asyncio.CancelledError:
                 return {"command": DebugCommand.CONTINUE, "args": None}
+
+            if self._waiting_for_resume_data:
+                self._waiting_for_resume_data = False
+
+                stripped_input = user_input.strip()
+
+                # Try parse JSON, otherwise return raw string
+                try:
+                    return json.loads(stripped_input)
+                except Exception:
+                    return stripped_input
 
             command_result = self._parse_command(user_input.strip())
 
@@ -547,6 +595,52 @@ class SignalRDebugBridge:
             {
                 "status": runtime_result.status,
                 "output": runtime_result.output,
+            },
+        )
+
+    async def emit_execution_suspended(
+        self,
+        runtime_result: UiPathRuntimeResult,
+    ) -> None:
+        """Send execution suspended event."""
+        logger.info(f"Execution suspended: {runtime_result.status}")
+        if runtime_result.trigger is None:
+            return
+
+        if runtime_result.trigger.trigger_type == UiPathResumeTriggerType.API:
+            await self._send(
+                "OnBreakpointHit",
+                {
+                    "node": "<suspended>",
+                    "type": "before",
+                    "state": runtime_result.output.model_dump()
+                    if runtime_result.output
+                    and isinstance(runtime_result.output, BaseModel)
+                    else runtime_result.output or {},
+                    "nextNodes": [],
+                },
+            )
+        else:
+            await self._send(
+                "OnStateUpdate",
+                {
+                    "nodeName": "<suspended>",
+                    "state": runtime_result.trigger.model_dump()
+                    if runtime_result.trigger
+                    else {},
+                },
+            )
+
+    async def emit_execution_resumed(self, resume_data: Any) -> None:
+        """Send execution resumed event."""
+        logger.info("Execution resumed")
+        await self._send(
+            "OnStateUpdate",
+            {
+                "nodeName": "<resumed>",
+                "state": resume_data.model_dump()
+                if resume_data and isinstance(resume_data, BaseModel)
+                else resume_data or {},
             },
         )
 
