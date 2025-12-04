@@ -406,6 +406,127 @@ class TestQueuesService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.QueuesService.create_items_async/{version}"
         )
 
+    def test_create_item_with_reference(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        reference_value = "TEST-REF-12345"
+        queue_item = QueueItem(
+            name="test-queue",
+            reference=reference_value,
+            priority=QueueItemPriority.HIGH,
+            specific_content={"invoice_id": "INV-001"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem",
+            status_code=200,
+            json={
+                "Id": 1,
+                "Name": "test-queue",
+                "Reference": reference_value,
+                "Priority": "High",
+                "SpecificContent": {"invoice_id": "INV-001"},
+            },
+        )
+
+        response = service.create_item(queue_item)
+
+        assert response["Id"] == 1
+        assert response["Name"] == "test-queue"
+        assert response["Reference"] == reference_value
+        assert response["Priority"] == "High"
+        assert response["SpecificContent"] == {"invoice_id": "INV-001"}
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert sent_request.method == "POST"
+        assert (
+            sent_request.url
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem"
+        )
+        assert json.loads(sent_request.content.decode()) == {
+            "itemData": {
+                "Name": "test-queue",
+                "Reference": reference_value,
+                "Priority": "High",
+                "SpecificContent": {"invoice_id": "INV-001"},
+            }
+        }
+
+        assert HEADER_USER_AGENT in sent_request.headers
+        assert (
+            sent_request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.QueuesService.create_item/{version}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_item_with_reference_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        reference_value = "TEST-REF-12345"
+        queue_item = QueueItem(
+            name="test-queue",
+            reference=reference_value,
+            priority=QueueItemPriority.HIGH,
+            specific_content={"invoice_id": "INV-001"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem",
+            status_code=200,
+            json={
+                "Id": 1,
+                "Name": "test-queue",
+                "Reference": reference_value,
+                "Priority": "High",
+                "SpecificContent": {"invoice_id": "INV-001"},
+            },
+        )
+
+        response = await service.create_item_async(queue_item)
+
+        assert response["Id"] == 1
+        assert response["Name"] == "test-queue"
+        assert response["Reference"] == reference_value
+        assert response["Priority"] == "High"
+        assert response["SpecificContent"] == {"invoice_id": "INV-001"}
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert sent_request.method == "POST"
+        assert (
+            sent_request.url
+            == f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem"
+        )
+        assert json.loads(sent_request.content.decode()) == {
+            "itemData": {
+                "Name": "test-queue",
+                "Reference": reference_value,
+                "Priority": "High",
+                "SpecificContent": {"invoice_id": "INV-001"},
+            }
+        }
+
+        assert HEADER_USER_AGENT in sent_request.headers
+        assert (
+            sent_request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.QueuesService.create_item_async/{version}"
+        )
+
     def test_create_transaction_item(
         self,
         httpx_mock: HTTPXMock,
