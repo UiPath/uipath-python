@@ -27,42 +27,6 @@
       "updatedAt": "2025-09-04T18:55:55.416Z"
     },
     {
-      "id": "test-random-addition-using-mockito",
-      "name": "Test Random Addition Using Mockito",
-      "inputs": {
-        "a": 1,
-        "b": 1,
-        "operator": "random"
-      },
-      "expectedOutput": {
-        "result": 2.0
-      },
-      "expectedAgentBehavior": "The operation should produce the right output.",
-      "mockingStrategy": {
-        "type": "mockito",
-        "behaviors": [
-          {
-            "function": "get_random_operator",
-            "arguments": {
-              "args": [],
-              "kwargs": {}
-            },
-            "then": [
-              {
-                "type": "return",
-                "value": {
-                  "result": "+"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "evalSetId": "default-eval-set-id",
-      "createdAt": "2025-09-04T18:54:58.378Z",
-      "updatedAt": "2025-09-04T18:55:55.416Z"
-    },
-    {
       "id": "test-random-addition-using-llm",
       "name": "Test Random Addition Using LLM",
       "inputs": {
@@ -74,19 +38,13 @@
         "result": 2.0
       },
       "expectedAgentBehavior": "The operation should produce the right output.",
-      "mockingStrategy": {
-        "type": "llm",
-        "prompt": "The random operator is '+'.",
-        "toolsToSimulate": [
+      "simulateTools": true,
+      "simulationInstructions": "The random operator is '+'.",
+      "toolsToSimulate": [
           {
             "name": "get_random_operator"
           }
-        ],
-        "model": {
-          "model": "gpt-4o-mini-2024-07-18",
-          "temperature": 0
-        }
-      },
+      ],
       "evalSetId": "default-eval-set-id",
       "createdAt": "2025-09-04T18:54:58.378Z",
       "updatedAt": "2025-09-04T18:55:55.416Z"
@@ -99,13 +57,8 @@
         "result": 35
       },
       "expectedAgentBehavior": "The operation should produce the right output.",
-      "inputMockingStrategy": {
-        "prompt": "Generate a multiplication calculation where the first number is 5 and the second number is 7",
-        "model": {
-          "model": "gpt-4o-mini-2024-07-18",
-          "temperature": 0.3
-        }
-      },
+      "simulateInput": true,
+      "inputGenerationInstructions": "Generate a multiplication calculation where the first number is 5 and the second number is 7",
       "evalSetId": "default-eval-set-id",
       "createdAt": "2025-09-04T18:54:58.378Z",
       "updatedAt": "2025-09-04T18:55:55.416Z"

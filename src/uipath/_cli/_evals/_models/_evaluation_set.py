@@ -187,7 +187,7 @@ class LegacyEvaluationItem(BaseModel):
     input_generation_instructions: str | None = Field(
         default=None, alias="inputGenerationInstructions"
     )
-    simulate_tools: bool | None = Field(default=None, alias="simulateInput")
+    simulate_tools: bool | None = Field(default=None, alias="simulateTools")
     simulation_instructions: str | None = Field(
         default=None, alias="simulationInstructions"
     )
