@@ -86,6 +86,13 @@ class QueueItem(BaseModel):
         description="Operation id which started the job.",
         alias="ParentOperationId",
     )
+    reference: Optional[
+        Annotated[str, Field(min_length=0, strict=True, max_length=128)]
+    ] = Field(
+        default=None,
+        description="An optional, user-specified value for queue item identification.",
+        alias="Reference",
+    )
 
 
 class TransactionItem(BaseModel):
