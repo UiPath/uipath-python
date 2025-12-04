@@ -1,8 +1,71 @@
 """Context Grounding response payload models."""
 
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class CitationMode(str, Enum):
+    """Enum representing possible citation modes."""
+
+    SKIP = "Skip"
+    INLINE = "Inline"
+
+
+class DeepRagStatus(str, Enum):
+    """Enum representing possible deep RAG tasks status."""
+
+    QUEUED = "Queued"
+    IN_PROGRESS = "InProgress"
+    SUCCESSFUL = "Successful"
+    FAILED = "Failed"
+
+
+class DeepRagContent(BaseModel):
+    """Model representing a deep RAG task content."""
+
+    text: str
+    citations: list[str]
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+
+class DeepRagResponse(BaseModel):
+    """Model representing a deep RAG task response."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+    name: str
+    created_date: str = Field(alias="createdDate")
+    last_deep_rag_status: DeepRagStatus = Field(alias="lastDeepRagStatus")
+    content: DeepRagContent | None = Field(alias="content")
+
+
+class DeepRagCreationResponse(BaseModel):
+    """Model representing a deep RAG task creation response."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+    id: str
+    last_deep_rag_status: DeepRagStatus = Field(alias="lastDeepRagStatus")
+    created_date: str = Field(alias="createdDate")
 
 
 class ContextGroundingMetadata(BaseModel):
