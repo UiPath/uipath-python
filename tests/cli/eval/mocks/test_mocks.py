@@ -71,7 +71,7 @@ def test_mockito_mockable_sync():
     assert foo(x=1) == "bar1"
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
-        "x": {"_target_": "mockito.any"}
+        "x": {"_attr_": "mockito.any"}
     }
     set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
     assert foo(x=2) == "bar1"
@@ -129,7 +129,7 @@ async def test_mockito_mockable_async():
     assert await foo(x=1) == "bar1"
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
-        "x": {"_target_": "mockito.any"}
+        "x": {"_attr_": "mockito.any"}
     }
     set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
     assert await foo(x=2) == "bar1"

@@ -5,7 +5,7 @@ https://mockito-python.readthedocs.io/en/latest/
 
 from typing import Any, Callable
 
-from hydra.utils import instantiate
+import fromconfig  # type: ignore[import-untyped] # explicit ignore
 from mockito import (  # type: ignore[import-untyped] # explicit ignore
     invocation,
     mocking,
@@ -51,17 +51,17 @@ class MockitoMocker(Mocker):
 
         for behavior in self.evaluation_item.mocking_strategy.behaviors:
             stubbed = invocation.StubbedInvocation(mock_obj, behavior.function)(
-                *instantiate(behavior.arguments.args, _convert_="object"),
-                **instantiate(behavior.arguments.kwargs, _convert_="object"),
+                *fromconfig.fromconfig(behavior.arguments.args),
+                **fromconfig.fromconfig(behavior.arguments.kwargs),
             )
             for answer in behavior.then:
                 if answer.type == MockingAnswerType.RETURN:
                     stubbed = stubbed.thenReturn(
-                        instantiate(answer.model_dump(), _convert_="object")["value"]
+                        fromconfig.fromconfig(answer.model_dump())["value"]
                     )
                 elif answer.type == MockingAnswerType.RAISE:
                     stubbed = stubbed.thenRaise(
-                        instantiate(answer.model_dump(), _convert_="object")["value"]
+                        fromconfig.fromconfig(answer.model_dump())["value"]
                     )
 
     async def response(

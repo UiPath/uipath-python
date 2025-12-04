@@ -13,6 +13,66 @@
   ],
   "evaluations": [
     {
+      "id": "test-random-multiplication-using-mockito",
+      "name": "Test Random Multiplication Using Mockito",
+      "inputs": {
+        "a": 2,
+        "b": 4,
+        "operator": "random"
+      },
+      "evaluationCriterias": {
+        "ContainsEvaluator": {
+          "searchText": "8"
+        },
+        "CorrectOperatorEvaluator": {
+          "operator": "*"
+        },
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "result": "8.0"
+          }
+        },
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "LLMJudgeStrictJSONSimilarityOutputEvaluator": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should correctly parse the multiply operation, perform the calculation 2 * 4, and return the result 8.0"
+        }
+      },
+      "mockingStrategy": {
+        "type": "mockito",
+        "behaviors": [
+          {
+            "function": "get_random_operator",
+            "arguments": {
+              "args": [],
+              "kwargs": {}
+            },
+            "then": [
+              {
+                "type": "return",
+                "value": {
+                  "result": "*"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "default",
       "name": "Add",
       "inputs": {
