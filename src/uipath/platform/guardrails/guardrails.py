@@ -24,6 +24,13 @@ class GuardrailValidationResult(BaseModel):
     )
 
 
+class ExecutionStage(str, Enum):
+    """Execution stage enumeration."""
+
+    PRE_EXECUTION = "preExecution"
+    POST_EXECUTION = "postExecution"
+
+
 class FieldSource(str, Enum):
     """Field source enumeration."""
 
