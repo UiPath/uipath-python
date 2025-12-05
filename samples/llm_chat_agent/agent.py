@@ -20,18 +20,15 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
-from uipath.platform.llm_gateway._llm_gateway_service import (
-    ChatModels,
-    UiPathLlmChatService,
-)
-from uipath.platform.llm_gateway import (
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.chat import (
     AutoToolChoice,
+    ChatModels,
     ToolDefinition,
     ToolFunctionDefinition,
     ToolParametersDefinition,
     ToolPropertyDefinition,
+    UiPathLlmChatService,
 )
 from uipath.tracing import traced
 
@@ -323,8 +320,8 @@ async def main(input: AgentInput) -> AgentOutput:
         print(error_msg)
         return AgentOutput(response=error_msg.strip(), tool_calls_made=[])
 
-    config = Config(base_url=base_url, secret=access_token)
-    execution_context = ExecutionContext()
+    config = UiPathApiConfig(base_url=base_url, secret=access_token)
+    execution_context = UiPathExecutionContext()
     llm_service = UiPathLlmChatService(config=config, execution_context=execution_context)
 
     # Prepare the conversation

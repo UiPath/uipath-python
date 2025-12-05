@@ -3,8 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 
 
 @pytest.fixture
@@ -28,8 +27,8 @@ def secret() -> str:
 
 
 @pytest.fixture
-def config(base_url: str, org: str, tenant: str, secret: str) -> Config:
-    return Config(base_url=f"{base_url}{org}{tenant}", secret=secret)
+def config(base_url: str, org: str, tenant: str, secret: str) -> UiPathApiConfig:
+    return UiPathApiConfig(base_url=f"{base_url}{org}{tenant}", secret=secret)
 
 
 @pytest.fixture
@@ -40,9 +39,9 @@ def version(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 @pytest.fixture
-def execution_context(monkeypatch: pytest.MonkeyPatch) -> ExecutionContext:
+def execution_context(monkeypatch: pytest.MonkeyPatch) -> UiPathExecutionContext:
     monkeypatch.setenv("UIPATH_ROBOT_KEY", "test-robot-key")
-    return ExecutionContext()
+    return UiPathExecutionContext()
 
 
 @pytest.fixture

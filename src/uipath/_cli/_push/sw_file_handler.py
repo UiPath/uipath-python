@@ -9,8 +9,8 @@ from typing import AsyncIterator
 import click
 
 from uipath._cli.models.uipath_json_schema import PackOptions
+from uipath.platform.common import UiPathConfig
 
-from ..._config import UiPathConfig
 from ...platform.errors import EnrichedException
 from .._utils._common import get_claim_from_token
 from .._utils._console import ConsoleLogger

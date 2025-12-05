@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING, Any, Generator, Tuple
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.attachments import Attachment
 from uipath.platform.attachments.attachments import AttachmentMode
 from uipath.platform.orchestrator._attachments_service import AttachmentsService
@@ -20,15 +19,15 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def service(
-    config: Config,
-    execution_context: ExecutionContext,
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
     monkeypatch: "MonkeyPatch",
 ) -> AttachmentsService:
     """Fixture that provides a configured AttachmentsService instance for testing.
 
     Args:
         config: The Config fixture with test configuration settings.
-        execution_context: The ExecutionContext fixture with test execution context.
+        execution_context: The UiPathExecutionContext fixture with test execution context.
         monkeypatch: PyTest MonkeyPatch fixture for environment modification.
 
     Returns:

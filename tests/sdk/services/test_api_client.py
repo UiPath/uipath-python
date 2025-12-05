@@ -1,14 +1,15 @@
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_USER_AGENT
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common._api_client import ApiClient
 
 
 @pytest.fixture
-def service(config: Config, execution_context: ExecutionContext) -> ApiClient:
+def service(
+    config: UiPathApiConfig, execution_context: UiPathExecutionContext
+) -> ApiClient:
     return ApiClient(config=config, execution_context=execution_context)
 
 

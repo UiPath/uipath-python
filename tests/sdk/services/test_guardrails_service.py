@@ -1,8 +1,7 @@
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
@@ -15,7 +14,9 @@ from uipath.platform.guardrails._guardrails_service import GuardrailsService
 
 @pytest.fixture
 def service(
-    config: Config, execution_context: ExecutionContext, monkeypatch: pytest.MonkeyPatch
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> GuardrailsService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
     return GuardrailsService(config=config, execution_context=execution_context)

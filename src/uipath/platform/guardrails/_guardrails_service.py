@@ -1,10 +1,8 @@
 from typing import Any
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 from .guardrails import BuiltInValidatorGuardrail, Guardrail, GuardrailValidationResult
 
 
@@ -22,7 +20,9 @@ class GuardrailsService(BaseService):
         This service is available starting from **uipath** version **2.2.12**.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     @traced("evaluate_guardrail", run_type="uipath")

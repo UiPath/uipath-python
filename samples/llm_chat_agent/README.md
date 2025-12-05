@@ -120,15 +120,14 @@ Tools used: ['calculate']
 ### LLM Service Initialization
 
 ```python
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
-from uipath.platform.llm_gateway._llm_gateway_service import (
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.chat import (
     ChatModels,
     UiPathLlmChatService,
 )
 
-config = Config()  # Loads from environment
-execution_context = ExecutionContext()
+config = UiPathApiConfig()  # Loads from environment
+execution_context = UiPathExecutionContext()
 llm_service = UiPathLlmChatService(config=config, execution_context=execution_context)
 ```
 
@@ -148,7 +147,7 @@ result = await llm_service.chat_completions(
 ### Tool Definition
 
 ```python
-from uipath.platform.llm_gateway import (
+from uipath.platform.chat import (
     ToolDefinition,
     ToolFunctionDefinition,
     ToolParametersDefinition,

@@ -7,7 +7,8 @@ from urllib.parse import urlparse
 import click
 from dotenv import load_dotenv
 
-from ..._config import UiPathConfig
+from uipath.platform.common import UiPathConfig
+
 from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from ..._utils.constants import DOTENV_FILE, ENV_UIPATH_ACCESS_TOKEN
 from ..spinner import Spinner

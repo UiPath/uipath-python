@@ -1,11 +1,8 @@
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec, header_folder
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ..orchestrator._folder_service import FolderService
 from .resource_catalog import Resource, ResourceType
 
@@ -29,8 +26,8 @@ class ResourceCatalogService(FolderContext, BaseService):
 
     def __init__(
         self,
-        config: Config,
-        execution_context: ExecutionContext,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
         folder_service: FolderService,
     ) -> None:
         self.folder_service = folder_service

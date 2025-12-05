@@ -8,7 +8,6 @@ from typing import Any, Callable, List, Optional, Union
 import click
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from uipath._config import UiPathConfig
 from uipath._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from uipath._utils.constants import (
     ENV_TENANT_ID,
@@ -18,6 +17,7 @@ from uipath._utils.constants import (
     STUDIO_METADATA_FILE,
 )
 from uipath.platform import UiPath
+from uipath.platform.common import UiPathConfig
 from uipath.platform.errors import EnrichedException
 from uipath.tracing import traced
 

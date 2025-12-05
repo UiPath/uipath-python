@@ -5,11 +5,9 @@ from urllib.parse import parse_qsl, quote, urlsplit
 
 from httpx import Response
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 from ..orchestrator._folder_service import FolderService
 from .connections import (
     ActivityMetadata,
@@ -32,8 +30,8 @@ class ConnectionsService(BaseService):
 
     def __init__(
         self,
-        config: Config,
-        execution_context: ExecutionContext,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
         folders_service: FolderService,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)

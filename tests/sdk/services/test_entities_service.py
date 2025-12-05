@@ -5,16 +5,15 @@ from typing import Optional
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.entities import Entity
 from uipath.platform.entities._entities_service import EntitiesService
 
 
 @pytest.fixture
 def service(
-    config: Config,
-    execution_context: ExecutionContext,
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> EntitiesService:
     return EntitiesService(config=config, execution_context=execution_context)

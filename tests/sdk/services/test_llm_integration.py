@@ -3,13 +3,13 @@ import os
 import httpx
 import pytest
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
-from uipath.platform.llm_gateway._llm_gateway_service import (
+from uipath.platform import UiPathExecutionContext
+from uipath.platform.chat import (
     ChatModels,
     EmbeddingModels,
     UiPathOpenAIService,
 )
+from uipath.platform.common import UiPathApiConfig
 
 
 def get_env_var(name: str) -> str:
@@ -52,8 +52,8 @@ class TestLLMIntegration:
         base_url = get_env_var("UIPATH_URL")
         api_key = get_access_token()
 
-        config = Config(base_url=base_url, secret=api_key)
-        execution_context = ExecutionContext()
+        config = UiPathApiConfig(base_url=base_url, secret=api_key)
+        execution_context = UiPathExecutionContext()
         return UiPathOpenAIService(config=config, execution_context=execution_context)
 
     @pytest.mark.asyncio

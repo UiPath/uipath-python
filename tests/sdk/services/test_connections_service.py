@@ -6,9 +6,8 @@ import pytest
 from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.connections import (
     ActivityMetadata,
     ActivityParameterLocationInfo,
@@ -33,8 +32,8 @@ def mock_folders_service() -> MagicMock:
 
 @pytest.fixture
 def service(
-    config: Config,
-    execution_context: ExecutionContext,
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
     mock_folders_service: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> ConnectionsService:

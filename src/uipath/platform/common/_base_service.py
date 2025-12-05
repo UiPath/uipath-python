@@ -19,12 +19,12 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
 from ..._utils import UiPathUrl, user_agent_value
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import HEADER_USER_AGENT
 from ..errors import EnrichedException
+from ._config import UiPathApiConfig
+from ._execution_context import UiPathExecutionContext
 
 
 def is_retryable_exception(exception: BaseException) -> bool:
@@ -36,7 +36,9 @@ def is_retryable_status_code(response: Response) -> bool:
 
 
 class BaseService:
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         self._logger = getLogger("uipath")
         self._config = config
         self._execution_context = execution_context

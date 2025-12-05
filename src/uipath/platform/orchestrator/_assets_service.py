@@ -2,12 +2,9 @@ from typing import Dict, Optional
 
 from httpx import Response
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from .assets import Asset, UserAsset
 
 
@@ -18,7 +15,9 @@ class AssetsService(FolderContext, BaseService):
     credentials, and other settings used by automation processes.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self._base_url = "assets"
 

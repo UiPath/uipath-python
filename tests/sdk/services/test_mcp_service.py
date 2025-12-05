@@ -3,17 +3,18 @@ from unittest.mock import Mock, patch
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
-from uipath.platform.agenthub._mcp_service import McpService
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.orchestrator import McpService
 from uipath.platform.orchestrator._folder_service import FolderService
 from uipath.platform.orchestrator.mcp import McpServer
 
 
 @pytest.fixture
 def folders_service(
-    config: Config, execution_context: ExecutionContext, monkeypatch: pytest.MonkeyPatch
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> FolderService:
     monkeypatch.setenv("UIPATH_FOLDER_KEY", "test-folder-key")
     return FolderService(config=config, execution_context=execution_context)
@@ -21,8 +22,8 @@ def folders_service(
 
 @pytest.fixture
 def service(
-    config: Config,
-    execution_context: ExecutionContext,
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
     folders_service: FolderService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> McpService:
@@ -106,8 +107,8 @@ class TestMcpService:
 
         def test_list_without_folder_raises_error(
             self,
-            config: Config,
-            execution_context: ExecutionContext,
+            config: UiPathApiConfig,
+            execution_context: UiPathExecutionContext,
             monkeypatch: pytest.MonkeyPatch,
         ) -> None:
             """Test that listing servers without a folder_path raises ValueError."""

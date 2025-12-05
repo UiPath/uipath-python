@@ -4,7 +4,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 
-class Config(BaseModel):
+class UiPathApiConfig(BaseModel):
     base_url: str
     secret: str
 

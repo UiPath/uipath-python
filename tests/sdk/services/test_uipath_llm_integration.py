@@ -3,18 +3,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
-from uipath.platform.llm_gateway import (
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.chat import (
     AutoToolChoice,
+    ChatModels,
     SpecificToolChoice,
     ToolDefinition,
     ToolFunctionDefinition,
     ToolParametersDefinition,
     ToolPropertyDefinition,
-)
-from uipath.platform.llm_gateway._llm_gateway_service import (
-    ChatModels,
     UiPathLlmChatService,
 )
 
@@ -38,8 +35,8 @@ class TestUiPathLLMIntegration:
         base_url = get_env_var("UIPATH_URL")
         api_key = get_env_var("UIPATH_ACCESS_TOKEN")
 
-        config = Config(base_url=base_url, secret=api_key)
-        execution_context = ExecutionContext()
+        config = UiPathApiConfig(base_url=base_url, secret=api_key)
+        execution_context = UiPathExecutionContext()
         return UiPathLlmChatService(config=config, execution_context=execution_context)
 
     @pytest.mark.asyncio
@@ -207,11 +204,11 @@ class TestUiPathLLMIntegration:
 class TestUiPathLLMServiceMocked:
     @pytest.fixture
     def config(self):
-        return Config(base_url="https://example.com", secret="test_secret")
+        return UiPathApiConfig(base_url="https://example.com", secret="test_secret")
 
     @pytest.fixture
     def execution_context(self):
-        return ExecutionContext()
+        return UiPathExecutionContext()
 
     @pytest.fixture
     def llm_service(self, config, execution_context):

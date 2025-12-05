@@ -2,10 +2,10 @@ from typing import Any, Literal, Union
 
 from httpx import URL, Response
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ._base_service import BaseService
+from ._config import UiPathApiConfig
+from ._execution_context import UiPathExecutionContext
+from ._folder_context import FolderContext
 
 
 class ApiClient(FolderContext, BaseService):
@@ -17,7 +17,9 @@ class ApiClient(FolderContext, BaseService):
     with automatic authentication and retry logic.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     def request(

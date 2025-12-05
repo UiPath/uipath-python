@@ -4,12 +4,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import BaseModel
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
-from uipath.platform.llm_gateway import TextEmbedding
-from uipath.platform.llm_gateway._llm_gateway_service import (
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.chat import (
     ChatModels,
     EmbeddingModels,
+    TextEmbedding,
     UiPathOpenAIService,
 )
 
@@ -17,11 +16,11 @@ from uipath.platform.llm_gateway._llm_gateway_service import (
 class TestOpenAIService:
     @pytest.fixture
     def config(self):
-        return Config(base_url="https://example.com", secret="test_secret")
+        return UiPathApiConfig(base_url="https://example.com", secret="test_secret")
 
     @pytest.fixture
     def execution_context(self):
-        return ExecutionContext()
+        return UiPathExecutionContext()
 
     @pytest.fixture
     def openai_service(self, config, execution_context):

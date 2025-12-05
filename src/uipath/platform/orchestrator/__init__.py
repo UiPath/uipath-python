@@ -8,6 +8,7 @@ from ._attachments_service import AttachmentsService
 from ._buckets_service import BucketsService
 from ._folder_service import FolderService
 from ._jobs_service import JobsService
+from ._mcp_service import McpService
 from ._processes_service import ProcessesService
 from ._queues_service import QueuesService
 from .assets import Asset, UserAsset
@@ -30,6 +31,7 @@ __all__ = [
     "BucketsService",
     "FolderService",
     "JobsService",
+    "McpService",
     "ProcessesService",
     "QueuesService",
     "Asset",

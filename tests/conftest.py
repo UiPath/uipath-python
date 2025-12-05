@@ -7,7 +7,7 @@ from typing import Generator
 import pytest
 from click.testing import CliRunner
 
-from uipath._execution_context import ExecutionContext
+from uipath.platform import UiPathExecutionContext
 
 # Ensure local source package (src/uipath) is importable before tests collect
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
@@ -37,10 +37,10 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def execution_context(monkeypatch: pytest.MonkeyPatch) -> ExecutionContext:
+def execution_context(monkeypatch: pytest.MonkeyPatch) -> UiPathExecutionContext:
     """Provide an execution context for testing."""
     monkeypatch.setenv("UIPATH_ROBOT_KEY", "test-robot-key")
-    return ExecutionContext()
+    return UiPathExecutionContext()
 
 
 @pytest.fixture

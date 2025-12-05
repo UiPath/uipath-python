@@ -3,26 +3,23 @@ from typing import Optional
 
 from pydantic import ValidationError
 
-from .._config import Config
-from .._execution_context import ExecutionContext
 from .._utils._auth import resolve_config
 from .action_center import TasksService
-from .agenthub import McpService
-from .autopilot import ConversationsService
-from .common import ApiClient
+from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
+from .common import ApiClient, UiPathApiConfig, UiPathExecutionContext
 from .connections import ConnectionsService
 from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
 from .guardrails import GuardrailsService
-from .llm_gateway import UiPathLlmChatService, UiPathOpenAIService
 from .orchestrator import (
     AssetsService,
     AttachmentsService,
     BucketsService,
     FolderService,
     JobsService,
+    McpService,
     ProcessesService,
     QueuesService,
 )
@@ -44,7 +41,7 @@ class UiPath:
             base_url, secret = resolve_config(
                 base_url, secret, client_id, client_secret, scope
             )
-            self._config = Config(
+            self._config = UiPathApiConfig(
                 base_url=base_url,
                 secret=secret,
             )
@@ -54,7 +51,7 @@ class UiPath:
                     raise BaseUrlMissingError() from e
                 elif error["loc"][0] == "secret":
                     raise SecretMissingError() from e
-        self._execution_context = ExecutionContext()
+        self._execution_context = UiPathExecutionContext()
 
     @property
     def api_client(self) -> ApiClient:

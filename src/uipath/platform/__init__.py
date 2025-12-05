@@ -35,5 +35,6 @@ Exception classes are available in the `errors` module and should be imported ex
 """
 
 from ._uipath import UiPath
+from .common import UiPathApiConfig, UiPathExecutionContext
 
-__all__ = ["UiPath"]
+__all__ = ["UiPathApiConfig", "UiPath", "UiPathExecutionContext"]

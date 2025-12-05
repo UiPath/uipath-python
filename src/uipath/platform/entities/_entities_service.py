@@ -2,11 +2,9 @@ from typing import Any, List, Optional, Type
 
 from httpx import Response
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 from .entities import (
     Entity,
     EntityRecord,
@@ -21,7 +19,9 @@ class EntitiesService(BaseService):
     structured data for automation processes.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="entity_retrieve", run_type="uipath")

@@ -2,12 +2,9 @@ from typing import Any, Dict, List, Union
 
 from httpx import Response
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from .queues import (
     CommitType,
     QueueItem,
@@ -23,7 +20,9 @@ class QueuesService(FolderContext, BaseService):
     and scalable processing of work items.
     """
 
-    def __init__(self, config: Config, execution_context: ExecutionContext) -> None:
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
     @traced(name="queues_list_items", run_type="uipath")

@@ -4,9 +4,9 @@ from urllib.parse import urlparse
 
 import click
 
+from uipath.platform.common import UiPathConfig
 from uipath.platform.errors import EnrichedException, FolderNotFoundException
 
-from .._config import UiPathConfig
 from ..platform.resource_catalog import ResourceType
 from ._push.sw_file_handler import SwFileHandler
 from ._utils._common import ensure_coded_agent_project, may_override_files

@@ -1,13 +1,10 @@
 from typing import List
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec, header_folder
 from ...tracing import traced
-from ..common._base_service import BaseService
-from ..orchestrator._folder_service import FolderService
-from ..orchestrator.mcp import McpServer
+from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
+from ._folder_service import FolderService
+from .mcp import McpServer
 
 
 class McpService(FolderContext, BaseService):
@@ -19,8 +16,8 @@ class McpService(FolderContext, BaseService):
 
     def __init__(
         self,
-        config: Config,
-        execution_context: ExecutionContext,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
         folders_service: FolderService,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)

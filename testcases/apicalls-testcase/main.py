@@ -2,12 +2,11 @@ import logging
 from dataclasses import dataclass
 
 from uipath.platform import UiPath
-from uipath.platform.orchestrator import AssetsService, AttachmentsService, BucketsService, FolderService, JobsService, ProcessesService, QueuesService
-from uipath.platform.agenthub import McpService
+from uipath.platform.orchestrator import AssetsService, AttachmentsService, BucketsService, FolderService, JobsService, McpService, ProcessesService, QueuesService
 from uipath.platform.action_center import TasksService
 from uipath.platform.connections import ConnectionsService
 from uipath.platform.context_grounding import ContextGroundingService
-from uipath.platform.autopilot import ConversationsService
+from uipath.platform.chat import ConversationsService
 from uipath.platform.documents import DocumentsService
 from uipath.platform.entities import EntitiesService
 from uipath.platform.resource_catalog import ResourceCatalogService

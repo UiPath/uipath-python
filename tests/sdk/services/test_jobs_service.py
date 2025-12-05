@@ -8,9 +8,8 @@ import pytest
 from pytest_httpx import HTTPXMock
 from pytest_mock import MockerFixture
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.orchestrator import Job
 from uipath.platform.orchestrator._jobs_service import JobsService
 
@@ -20,8 +19,8 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def service(
-    config: Config,
-    execution_context: ExecutionContext,
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> JobsService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
@@ -561,8 +560,8 @@ class TestJobsService:
 
     def test_create_job_attachment_with_job_context(
         self,
-        config: Config,
-        execution_context: ExecutionContext,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
         monkeypatch: "MonkeyPatch",
         mocker: MockerFixture,
     ) -> None:
@@ -572,8 +571,8 @@ class TestJobsService:
         when a job key is available in the execution context.
 
         Args:
-            config: Config fixture.
-            execution_context: ExecutionContext fixture.
+            config: UiPathApiConfig fixture.
+            execution_context: UiPathExecutionContext fixture.
             monkeypatch: MonkeyPatch fixture.
             mocker: MockerFixture for mocking dependencies.
         """
@@ -588,7 +587,7 @@ class TestJobsService:
         monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
 
         # Create fresh execution context after setting environment variables
-        fresh_execution_context = ExecutionContext()
+        fresh_execution_context = UiPathExecutionContext()
         service = JobsService(config=config, execution_context=fresh_execution_context)
 
         # Mock the attachment service's upload method

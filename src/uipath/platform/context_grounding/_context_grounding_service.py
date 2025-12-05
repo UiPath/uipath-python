@@ -4,16 +4,13 @@ import httpx
 from pydantic import TypeAdapter
 from typing_extensions import deprecated
 
-from ..._config import Config
-from ..._execution_context import ExecutionContext
-from ..._folder_context import FolderContext
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils.constants import (
     LLMV4_REQUEST,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
 from ...tracing import traced
-from ..common._base_service import BaseService
+from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ..errors import (
     IngestionInProgressException,
     UnsupportedDataSourceException,
@@ -54,8 +51,8 @@ class ContextGroundingService(FolderContext, BaseService):
 
     def __init__(
         self,
-        config: Config,
-        execution_context: ExecutionContext,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
         folders_service: FolderService,
         buckets_service: BucketsService,
     ) -> None:

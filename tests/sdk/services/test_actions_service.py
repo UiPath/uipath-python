@@ -1,16 +1,17 @@
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath._config import Config
-from uipath._execution_context import ExecutionContext
 from uipath._utils.constants import HEADER_USER_AGENT
+from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.action_center import Task
 from uipath.platform.action_center._tasks_service import TasksService
 
 
 @pytest.fixture
 def service(
-    config: Config, execution_context: ExecutionContext, monkeypatch: pytest.MonkeyPatch
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> TasksService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
 
