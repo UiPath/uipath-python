@@ -1,1 +1,1 @@
-::: uipath.platform.llm_gateway._llm_gateway_service
+::: uipath.platform.chat._llm_gateway_service

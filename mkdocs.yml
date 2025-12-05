@@ -53,14 +53,17 @@ theme:
     - toc.follow
 
 nav:
+  - Home: index.md
   - UiPath SDK:
         - Getting Started: core/getting_started.md
+        - Release Notes: core/release_notes.md
         - Environment Variables: core/environment_variables.md
         - CLI Reference: cli/index.md
         - Tracing: core/traced.md
         - Services:
             - Action Center: core/action_center.md
             - Assets: core/assets.md
+            - Attachments: core/attachments.md
             - Buckets: core/buckets.md
             - Connections: core/connections.md
             - Context Grounding: core/context_grounding.md
