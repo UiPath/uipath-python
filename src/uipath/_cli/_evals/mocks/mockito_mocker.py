@@ -1,11 +1,13 @@
 """Mockito mocker implementation. https://mockito-python.readthedocs.io/en/latest ."""
 
+import importlib
 from typing import Any, Callable
 
 from mockito import (  # type: ignore[import-untyped] # explicit ignore
     invocation,
     mocking,
 )
+from pydantic import JsonValue
 
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
@@ -32,43 +34,30 @@ class Stub:
         return func
 
 
-def _resolve_value(config: Any) -> Any:
-    # Handle {"_attr_": "mockito.any"}
-    if isinstance(config, dict) and "_attr_" in config:
-        attr = config["_attr_"]
-        if attr == "mockito.any":
-            from mockito import any as mockito_any
-
-            return mockito_any()
-
-    # Handle {"_target_": "..."}
-    if isinstance(config, dict) and "_target_" in config:
-        target = config["_target_"]
-        module_path, name = target.rsplit(".", 1)
-
-        import importlib
-
-        module = importlib.import_module(module_path)
-        obj = getattr(module, name)
-
-        args = [_resolve_value(v) for v in config.get("_args_", [])]
-        kwargs = {
-            k: _resolve_value(v)
-            for k, v in config.items()
-            if k not in ("_target_", "_args_")
-        }
-        return obj(*args, **kwargs)
-
+def _resolve_value(config: JsonValue) -> Any:
     if isinstance(config, dict):
-        return {k: _resolve_value(v) for k, v in config.items()}
+        if "_target_" in config:
+            target = config["_target_"]
+            assert isinstance(target, str), (
+                "Please check mocking configuration -- _target_ must be a string."
+            )
+            module_path, name = target.rsplit(".", 1)
 
-    if isinstance(config, list):
+            module = importlib.import_module(module_path)
+            obj = getattr(module, name)
+
+            kwargs = {
+                k: _resolve_value(v) for k, v in config.items() if k != "_target_"
+            }
+            return obj(**kwargs)
+        else:
+            return {k: _resolve_value(v) for k, v in config.items()}
+
+    elif isinstance(config, list):
         return [_resolve_value(v) for v in config]
 
-    if isinstance(config, tuple):
-        return tuple(_resolve_value(v) for v in config)
-
-    return config
+    else:
+        return config
 
 
 class MockitoMocker(Mocker):
