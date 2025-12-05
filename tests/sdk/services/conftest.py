@@ -47,3 +47,10 @@ def execution_context(monkeypatch: pytest.MonkeyPatch) -> UiPathExecutionContext
 @pytest.fixture
 def tests_data_path() -> Path:
     return Path(__file__).resolve().parent / "tests_data"
+
+
+@pytest.fixture
+def jobs_service(config, execution_context):
+    from uipath.platform.orchestrator import JobsService
+
+    return JobsService(config, execution_context)

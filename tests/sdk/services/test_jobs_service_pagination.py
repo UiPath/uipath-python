@@ -2,8 +2,8 @@
 
 import pytest
 
-from uipath.models.job import Job
-from uipath.models.paging import PagedResult
+from uipath.platform.common.paging import PagedResult
+from uipath.platform.orchestrator.job import Job
 
 
 class TestJobsListPagination:

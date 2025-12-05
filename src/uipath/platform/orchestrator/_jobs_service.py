@@ -10,8 +10,8 @@ from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ..._utils.validation import validate_pagination_params
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
-from ..common.exceptions import EnrichedException
 from ..common.paging import PagedResult
+from ..errors import EnrichedException
 from ._attachments_service import AttachmentsService
 from .job import Job
 
