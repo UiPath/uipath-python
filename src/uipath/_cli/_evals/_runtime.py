@@ -260,7 +260,16 @@ class UiPathEvalRuntime:
         evaluator_averages: dict[str, float] = defaultdict(float)
         evaluator_count: dict[str, int] = defaultdict(int)
 
+        # Check if any eval runs failed
+        any_failed = False
         for eval_run_result in results.evaluation_set_results:
+            # Check if the agent execution had an error
+            if (
+                eval_run_result.agent_execution_output
+                and eval_run_result.agent_execution_output.result.error
+            ):
+                any_failed = True
+
             for result_dto in eval_run_result.evaluation_run_results:
                 evaluator_averages[result_dto.evaluator_id] += result_dto.result.score
                 evaluator_count[result_dto.evaluator_id] += 1
@@ -274,6 +283,7 @@ class UiPathEvalRuntime:
             EvalSetRunUpdatedEvent(
                 execution_id=self.execution_id,
                 evaluator_scores=evaluator_averages,
+                success=not any_failed,
             ),
             wait_for_completion=False,
         )
