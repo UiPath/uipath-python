@@ -19,7 +19,7 @@ from uipath.runtime.context import UiPathRuntimeContext
 logger = logging.getLogger(__name__)
 
 
-class WebSocketChatBridge:
+class SocketIOChatBridge:
     """WebSocket-based chat bridge for streaming conversational events to CAS.
 
     Implements UiPathChatBridgeProtocol using python-socketio library.
@@ -221,8 +221,6 @@ class WebSocketChatBridge:
 
 def get_chat_bridge(
     context: UiPathRuntimeContext,
-    conversation_id: str,
-    exchange_id: str,
 ) -> UiPathChatProtocol:
     """Factory to get WebSocket chat bridge for conversational agents.
 
@@ -245,6 +243,9 @@ def get_chat_bridge(
         await bridge.disconnect(conversation_id, exchange_id)
         ```
     """
+    assert context.conversation_id is not None, "conversation_id must be set in context"
+    assert context.exchange_id is not None, "exchange_id must be set in context"
+
     # Extract host from UIPATH_URL
     base_url = os.environ.get("UIPATH_URL")
     if not base_url:
@@ -259,7 +260,7 @@ def get_chat_bridge(
     host = parsed.netloc
 
     # Construct WebSocket URL for CAS
-    websocket_url = f"wss://{host}/autopilotforeveryone_/websocket_/socket.io?conversationId={conversation_id}"
+    websocket_url = f"wss://{host}/autopilotforeveryone_/websocket_/socket.io?conversationId={context.conversation_id}"
 
     # Build headers from context
     headers = {
@@ -268,12 +269,15 @@ def get_chat_bridge(
         or os.environ.get("UIPATH_TENANT_ID", ""),
         "X-UiPath-Internal-AccountId": context.org_id
         or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
-        "X-UiPath-ConversationId": conversation_id,
+        "X-UiPath-ConversationId": context.conversation_id,
     }
 
-    return WebSocketChatBridge(
+    return SocketIOChatBridge(
         websocket_url=websocket_url,
-        conversation_id=conversation_id,
-        exchange_id=exchange_id,
+        conversation_id=context.conversation_id,
+        exchange_id=context.exchange_id,
         headers=headers,
     )
+
+
+__all__ = ["get_chat_bridge"]
