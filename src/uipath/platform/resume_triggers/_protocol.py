@@ -29,9 +29,10 @@ from uipath.platform.common import (
     WaitTask,
 )
 from uipath.platform.orchestrator.job import JobState
+from uipath.platform.resume_triggers._enums import PropertyName, TriggerMarker
 
 
-def _try_convert_to_json_format(value: str | None) -> str | None:
+def _try_convert_to_json_format(value: str | None) -> Any:
     """Attempts to parse a string as JSON and returns the parsed object or original string.
 
     Args:
@@ -119,7 +120,16 @@ class UiPathResumeTriggerReader:
                     if trigger.trigger_name == UiPathResumeTriggerName.ESCALATION:
                         return task
 
-                    return task.data
+                    trigger_response = task.data
+                    if not bool(trigger_response):
+                        # 2.3.0 change to task.status.name
+                        assert isinstance(task.status, int)
+                        trigger_response = {
+                            "status": TaskStatus(task.status).name.lower(),
+                            PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
+                        }
+
+                    return trigger_response
 
             case UiPathResumeTriggerType.JOB:
                 if trigger.item_key:
@@ -161,7 +171,10 @@ class UiPathResumeTriggerReader:
                         trigger_response
                     ):
                         # 2.3.0 change to job_state.value
-                        return {"state": job_state}
+                        trigger_response = {
+                            "state": job_state,
+                            PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
+                        }
 
                     return trigger_response
 
@@ -255,7 +268,6 @@ class UiPathResumeTriggerCreator:
                 "Failed to create HITL action",
                 f"{str(e)}",
             ) from e
-
         return resume_trigger
 
     def _determine_trigger_type(self, value: Any) -> UiPathResumeTriggerType:

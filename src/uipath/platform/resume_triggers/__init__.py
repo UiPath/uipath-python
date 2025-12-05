@@ -1,5 +1,6 @@
 """Init file for resume triggers module."""
 
+from ._enums import PropertyName, TriggerMarker
 from ._protocol import (
     UiPathResumeTriggerCreator,
     UiPathResumeTriggerHandler,
@@ -10,4 +11,6 @@ __all__ = [
     "UiPathResumeTriggerReader",
     "UiPathResumeTriggerCreator",
     "UiPathResumeTriggerHandler",
+    "PropertyName",
+    "TriggerMarker",
 ]

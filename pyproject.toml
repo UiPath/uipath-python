@@ -1,11 +1,12 @@
 [project]
 name = "uipath"
-version = "2.2.24"
+version = "2.2.25"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
   "uipath-runtime>=0.2.3, <0.3.0",
+  "uipath-core>=0.1.0, <0.2.0",
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
@@ -126,9 +127,9 @@ init_typed = true
 warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
-addopts = "-ra -q --cov"
+#testpaths = ["tests"]
+#python_files = "test_*.py"
+#addopts = "-ra -q --cov"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
 
