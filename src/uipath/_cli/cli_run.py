@@ -29,7 +29,7 @@ console = ConsoleLogger()
 
 @click.command()
 @click.argument("entrypoint", required=False)
-@click.argument("input", required=False, default="{}")
+@click.argument("input", required=False, default=None)
 @click.option("--resume", is_flag=True, help="Resume execution from a previous state")
 @click.option(
     "-f",

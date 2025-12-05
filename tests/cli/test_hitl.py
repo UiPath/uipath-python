@@ -111,6 +111,44 @@ class TestHitlReader:
             )
 
     @pytest.mark.anyio
+    async def test_read_job_trigger_successful_empty_output(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a successful job trigger with empty output returns job state."""
+        job_key = "test-job-key"
+        job_id = 1234
+        job_state = UiPathRuntimeStatus.SUCCESSFUL.value
+
+        mock_job = Job(
+            id=job_id,
+            key=job_key,
+            state=job_state,
+            output_arguments="{}",
+        )
+        mock_retrieve_async = AsyncMock(return_value=mock_job)
+
+        with patch(
+            "uipath.platform.orchestrator._jobs_service.JobsService.retrieve_async",
+            new=mock_retrieve_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.JOB,
+                item_key=job_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+            )
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
+            assert result == {"state": job_state.lower()}
+            mock_retrieve_async.assert_called_once_with(
+                job_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+                process_name=None,
+            )
+
+    @pytest.mark.anyio
     async def test_read_job_trigger_failed(
         self,
         setup_test_env: None,

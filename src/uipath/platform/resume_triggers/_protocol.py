@@ -154,7 +154,16 @@ class UiPathResumeTriggerReader:
                         )
 
                     output_data = await uipath.jobs.extract_output_async(job)
-                    return _try_convert_to_json_format(output_data)
+                    trigger_response = _try_convert_to_json_format(output_data)
+
+                    # if response is an empty dictionary, use job state as placeholder value
+                    if isinstance(trigger_response, dict) and not bool(
+                        trigger_response
+                    ):
+                        # 2.3.0 change to job_state.value
+                        return {"state": job_state}
+
+                    return trigger_response
 
             case UiPathResumeTriggerType.API:
                 if trigger.api_resume and trigger.api_resume.inbox_id:
