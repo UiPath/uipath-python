@@ -7,8 +7,11 @@ from typing import Any, Dict, List, Optional, Union, cast, overload
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
+from ..._utils.validation import validate_pagination_params
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
+from ..common.paging import PagedResult
+from ..errors import EnrichedException
 from ._attachments_service import AttachmentsService
 from .job import Job
 
@@ -20,6 +23,10 @@ class JobsService(FolderContext, BaseService):
       a process and contains information about that specific run, including its status,
       start time, and any input/output data.
     """
+
+    # Pagination limits
+    MAX_PAGE_SIZE = 1000  # Maximum items per page
+    MAX_SKIP_OFFSET = 10000  # Maximum skip offset
 
     def __init__(
         self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
@@ -147,6 +154,323 @@ class JobsService(FolderContext, BaseService):
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
+    @traced(name="jobs_list", run_type="uipath")
+    def list(
+        self,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        filter: Optional[str] = None,
+        orderby: Optional[str] = None,
+        skip: int = 0,
+        top: int = 100,
+    ) -> PagedResult[Job]:
+        """List jobs using OData API with offset-based pagination.
+
+        Returns a single page of results with pagination metadata.
+
+        Args:
+            folder_path: Folder path to filter jobs
+            folder_key: Folder key (mutually exclusive with folder_path)
+            filter: OData $filter expression (e.g., "State eq 'Successful'")
+            orderby: OData $orderby expression (e.g., "CreationTime desc")
+            skip: Number of items to skip (default 0, max 10000)
+            top: Maximum items per page (default 100, max 1000)
+
+        Returns:
+            PagedResult[Job]: Page of jobs with pagination metadata
+
+        Raises:
+            ValueError: If skip or top parameters are invalid
+
+        Examples:
+            >>> result = sdk.jobs.list(top=100)
+            >>> for job in result.items:
+            ...     print(job.key, job.state)
+            >>> print(f"Has more: {result.has_more}")
+        """
+        validate_pagination_params(
+            skip=skip,
+            top=top,
+            max_skip=self.MAX_SKIP_OFFSET,
+            max_top=self.MAX_PAGE_SIZE,
+        )
+
+        spec = self._list_spec(
+            folder_path=folder_path,
+            folder_key=folder_key,
+            filter=filter,
+            orderby=orderby,
+            skip=skip,
+            top=top,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+
+        items = response.get("value", [])
+        jobs = [Job.model_validate(item) for item in items]
+
+        return PagedResult(
+            items=jobs,
+            has_more=len(items) == top,
+            skip=skip,
+            top=top,
+        )
+
+    @traced(name="jobs_list", run_type="uipath")
+    async def list_async(
+        self,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        filter: Optional[str] = None,
+        orderby: Optional[str] = None,
+        skip: int = 0,
+        top: int = 100,
+    ) -> PagedResult[Job]:
+        """Async version of list() with offset-based pagination."""
+        validate_pagination_params(
+            skip=skip,
+            top=top,
+            max_skip=self.MAX_SKIP_OFFSET,
+            max_top=self.MAX_PAGE_SIZE,
+        )
+
+        spec = self._list_spec(
+            folder_path=folder_path,
+            folder_key=folder_key,
+            filter=filter,
+            orderby=orderby,
+            skip=skip,
+            top=top,
+        )
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+
+        items = response.get("value", [])
+        jobs = [Job.model_validate(item) for item in items]
+
+        return PagedResult(
+            items=jobs,
+            has_more=len(items) == top,
+            skip=skip,
+            top=top,
+        )
+
+    @traced(name="jobs_stop", run_type="uipath")
+    def stop(
+        self,
+        *,
+        job_keys: List[str],
+        strategy: str = "SoftStop",
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> None:
+        """Stop one or more jobs with specified strategy.
+
+        This method uses bulk resolution to efficiently stop multiple jobs,
+        preventing N+1 query issues. Requests are automatically chunked for
+        large job lists to avoid URL length constraints.
+
+        Args:
+            job_keys: List of job UUID keys to stop
+            strategy: Stop strategy - "SoftStop" (graceful) or "Kill" (force)
+            folder_path: Folder path
+            folder_key: Folder key
+
+        Raises:
+            ValueError: If any job key is not a valid UUID format
+            LookupError: If any job keys are not found
+
+        Examples:
+            >>> sdk.jobs.stop(job_keys=["ee9327fd-237d-419e-86ef-9946b34461e3"])
+            >>> sdk.jobs.stop(job_keys=["key1", "key2"], strategy="Kill")
+
+        Note:
+            Large batches are automatically chunked (50 keys per request) to
+            avoid URL length limits. The method supports stopping hundreds of
+            jobs efficiently.
+        """
+        job_ids = self._resolve_job_identifiers(
+            job_keys=job_keys,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        spec = self._stop_spec(
+            job_ids=job_ids,
+            strategy=strategy,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        self.request(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+    @traced(name="jobs_stop", run_type="uipath")
+    async def stop_async(
+        self,
+        *,
+        job_keys: List[str],
+        strategy: str = "SoftStop",
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> None:
+        """Async version of stop()."""
+        job_ids = await self._resolve_job_identifiers_async(
+            job_keys=job_keys,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        spec = self._stop_spec(
+            job_ids=job_ids,
+            strategy=strategy,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+    @traced(name="jobs_restart", run_type="uipath")
+    def restart(
+        self,
+        *,
+        job_key: str,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> Job:
+        """Restart a completed or failed job.
+
+        Args:
+            job_key: Job UUID key to restart
+            folder_path: Folder path
+            folder_key: Folder key
+
+        Returns:
+            Job: The restarted job
+
+        Examples:
+            >>> restarted_job = sdk.jobs.restart(job_key="ee9327fd-237d-419e-86ef-9946b34461e3")
+            >>> print(restarted_job.state)
+        """
+        job_ids = self._resolve_job_identifiers(
+            job_keys=[job_key],
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        spec = self._restart_spec(
+            job_id=job_ids[0],
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return Job.model_validate(response.json())
+
+    @traced(name="jobs_restart", run_type="uipath")
+    async def restart_async(
+        self,
+        *,
+        job_key: str,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> Job:
+        """Async version of restart()."""
+        job_ids = await self._resolve_job_identifiers_async(
+            job_keys=[job_key],
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        spec = self._restart_spec(
+            job_id=job_ids[0],
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return Job.model_validate(response.json())
+
+    @traced(name="jobs_exists", run_type="uipath")
+    def exists(
+        self,
+        job_key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Check if job exists.
+
+        Args:
+            job_key: Job UUID key
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            bool: True if job exists, False otherwise
+
+        Examples:
+            >>> if sdk.jobs.exists(job_key="ee9327fd-237d-419e-86ef-9946b34461e3"):
+            ...     print("Job found")
+        """
+        try:
+            self.retrieve(
+                job_key=job_key, folder_key=folder_key, folder_path=folder_path
+            )
+            return True
+        except LookupError:
+            return False
+
+    @traced(name="jobs_exists", run_type="uipath")
+    async def exists_async(
+        self,
+        job_key: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Async version of exists()."""
+        try:
+            await self.retrieve_async(
+                job_key=job_key, folder_key=folder_key, folder_path=folder_path
+            )
+            return True
+        except LookupError:
+            return False
+
     @traced(name="jobs_retrieve", run_type="uipath")
     @resource_override(resource_type="process", resource_identifier="process_name")
     def retrieve(
@@ -168,6 +492,9 @@ class JobsService(FolderContext, BaseService):
         Returns:
             Job: The retrieved job.
 
+        Raises:
+            LookupError: If the job with the specified key is not found.
+
         Examples:
             ```python
             from uipath.platform import UiPath
@@ -179,13 +506,17 @@ class JobsService(FolderContext, BaseService):
         spec = self._retrieve_spec(
             job_key=job_key, folder_key=folder_key, folder_path=folder_path
         )
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            headers=spec.headers,
-        )
-
-        return Job.model_validate(response.json())
+        try:
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                headers=spec.headers,
+            )
+            return Job.model_validate(response.json())
+        except EnrichedException as e:
+            if e.status_code == 404:
+                raise LookupError(f"Job with key '{job_key}' not found") from e
+            raise
 
     @traced(name="jobs_retrieve_async", run_type="uipath")
     @resource_override(resource_type="process", resource_identifier="process_name")
@@ -208,6 +539,9 @@ class JobsService(FolderContext, BaseService):
         Returns:
             Job: The retrieved job.
 
+        Raises:
+            LookupError: If the job with the specified key is not found.
+
         Examples:
             ```python
             import asyncio
@@ -226,13 +560,17 @@ class JobsService(FolderContext, BaseService):
         spec = self._retrieve_spec(
             job_key=job_key, folder_key=folder_key, folder_path=folder_path
         )
-        response = await self.request_async(
-            spec.method,
-            url=spec.endpoint,
-            headers=spec.headers,
-        )
-
-        return Job.model_validate(response.json())
+        try:
+            response = await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                headers=spec.headers,
+            )
+            return Job.model_validate(response.json())
+        except EnrichedException as e:
+            if e.status_code == 404:
+                raise LookupError(f"Job with key '{job_key}' not found") from e
+            raise
 
     def _retrieve_inbox_id(
         self,
@@ -335,7 +673,7 @@ class JobsService(FolderContext, BaseService):
         if len(response["value"]) > 0:
             return response["value"][0]["ItemKey"]
         else:
-            raise Exception("No inbox found")
+            raise LookupError("No inbox found")
 
     def _retrieve_inbox_id_spec(
         self,
@@ -927,3 +1265,221 @@ class JobsService(FolderContext, BaseService):
 
             # Return only the UUID
             return attachment_id
+
+    def _list_spec(
+        self,
+        folder_path: Optional[str],
+        folder_key: Optional[str],
+        filter: Optional[str],
+        orderby: Optional[str],
+        skip: int,
+        top: int,
+    ) -> RequestSpec:
+        """Build OData request for listing jobs."""
+        params: Dict[str, Any] = {"$skip": skip, "$top": top}
+        if filter:
+            params["$filter"] = filter
+        if orderby:
+            params["$orderby"] = orderby
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/orchestrator_/odata/Jobs"),
+            params=params,
+            headers={**header_folder(folder_key, folder_path)},
+        )
+
+    def _stop_spec(
+        self,
+        job_ids: List[int],
+        strategy: str,
+        folder_key: Optional[str],
+        folder_path: Optional[str],
+    ) -> RequestSpec:
+        """Build request for stopping jobs with strategy.
+
+        Pure function - no HTTP calls, no side effects.
+
+        Args:
+            job_ids: List of job integer IDs (already resolved)
+            strategy: Stop strategy ("SoftStop" or "Kill")
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            RequestSpec: Request specification for StopJobs endpoint
+        """
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StopJobs"
+            ),
+            json={
+                "jobIds": job_ids,
+                "strategy": strategy,
+            },
+            headers={**header_folder(folder_key, folder_path)},
+        )
+
+    def _restart_spec(
+        self,
+        job_id: int,
+        folder_key: Optional[str],
+        folder_path: Optional[str],
+    ) -> RequestSpec:
+        """Build request for restarting a job."""
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.RestartJob"
+            ),
+            json={"jobId": job_id},
+            headers={**header_folder(folder_key, folder_path)},
+        )
+
+    def _resolve_job_identifiers(
+        self,
+        job_keys: List[str],
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[int]:
+        """Resolve job keys to job IDs in chunked bulk queries.
+
+        This method prevents N+1 query issues by fetching all job IDs using
+        OData $filter with 'in' operator. Requests are chunked to avoid URL
+        length limits (max 50 keys per request).
+
+        Args:
+            job_keys: List of job UUID keys to resolve
+            folder_key: Folder key
+            folder_path: Folder path
+
+        Returns:
+            List[int]: List of job integer IDs in same order as job_keys
+
+        Raises:
+            ValueError: If any job key is not a valid UUID
+            LookupError: If any job key is not found
+
+        Note:
+            Duplicate keys in input are allowed and will return corresponding IDs.
+        """
+        if not job_keys:
+            return []
+
+        for key in job_keys:
+            try:
+                uuid.UUID(key)
+            except ValueError as e:
+                raise ValueError(f"Invalid job key format: {key}") from e
+
+        unique_keys = []
+        seen = set()
+        for key in job_keys:
+            if key not in seen:
+                unique_keys.append(key)
+                seen.add(key)
+
+        CHUNK_SIZE = 50
+        all_key_to_id: Dict[str, int] = {}
+
+        for i in range(0, len(unique_keys), CHUNK_SIZE):
+            chunk = unique_keys[i : i + CHUNK_SIZE]
+            keys_formatted = "','".join(chunk)
+            filter_expr = f"Key in ('{keys_formatted}')"
+
+            spec = RequestSpec(
+                method="GET",
+                endpoint=Endpoint("/orchestrator_/odata/Jobs"),
+                params={
+                    "$filter": filter_expr,
+                    "$select": "Id,Key",
+                    "$top": len(chunk),
+                },
+                headers={**header_folder(folder_key, folder_path)},
+            )
+
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            ).json()
+
+            items = response.get("value", [])
+
+            # Accumulate mappings from this chunk
+            for item in items:
+                all_key_to_id[item["Key"]] = item["Id"]
+
+        # Verify all unique keys were found
+        if len(all_key_to_id) != len(unique_keys):
+            found_keys = set(all_key_to_id.keys())
+            missing_keys = set(unique_keys) - found_keys
+            raise LookupError(f"Jobs not found for keys: {', '.join(missing_keys)}")
+
+        # Build result preserving original order (including duplicates)
+        return [all_key_to_id[key] for key in job_keys]
+
+    async def _resolve_job_identifiers_async(
+        self,
+        job_keys: List[str],
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[int]:
+        """Async version of _resolve_job_identifiers()."""
+        if not job_keys:
+            return []
+
+        for key in job_keys:
+            try:
+                uuid.UUID(key)
+            except ValueError as e:
+                raise ValueError(f"Invalid job key format: {key}") from e
+
+        unique_keys = []
+        seen = set()
+        for key in job_keys:
+            if key not in seen:
+                unique_keys.append(key)
+                seen.add(key)
+
+        CHUNK_SIZE = 50
+        all_key_to_id: Dict[str, int] = {}
+
+        for i in range(0, len(unique_keys), CHUNK_SIZE):
+            chunk = unique_keys[i : i + CHUNK_SIZE]
+            keys_formatted = "','".join(chunk)
+            filter_expr = f"Key in ('{keys_formatted}')"
+
+            spec = RequestSpec(
+                method="GET",
+                endpoint=Endpoint("/orchestrator_/odata/Jobs"),
+                params={
+                    "$filter": filter_expr,
+                    "$select": "Id,Key",
+                    "$top": len(chunk),
+                },
+                headers={**header_folder(folder_key, folder_path)},
+            )
+
+            response = (
+                await self.request_async(
+                    spec.method,
+                    url=spec.endpoint,
+                    params=spec.params,
+                    headers=spec.headers,
+                )
+            ).json()
+
+            items = response.get("value", [])
+
+            for item in items:
+                all_key_to_id[item["Key"]] = item["Id"]
+
+        if len(all_key_to_id) != len(unique_keys):
+            found_keys = set(all_key_to_id.keys())
+            missing_keys = set(unique_keys) - found_keys
+            raise LookupError(f"Jobs not found for keys: {', '.join(missing_keys)}")
+
+        return [all_key_to_id[key] for key in job_keys]
