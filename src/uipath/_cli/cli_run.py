@@ -162,6 +162,7 @@ def run(
                             runtime = await factory.new_runtime(
                                 entrypoint, ctx.job_id or "default"
                             )
+
                             if ctx.job_id:
                                 trace_manager.add_span_exporter(LlmOpsHttpExporter())
                                 ctx.result = await execute_runtime(ctx, runtime)
