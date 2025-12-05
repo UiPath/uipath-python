@@ -72,6 +72,7 @@ async def create_resources(studio_client: StudioClient):
                 connection = await connections.retrieve_async(connection_key)
             except EnrichedException:
                 resources_not_found += 1
+                assert bindings_resource.metadata is not None
                 connector_name = bindings_resource.metadata.get("Connector")
                 console.warning(
                     f"Connection with key '{connection_key}' of type '{connector_name}' "
