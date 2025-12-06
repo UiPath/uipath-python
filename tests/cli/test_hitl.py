@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -12,12 +13,15 @@ from uipath.runtime import (
 )
 
 from uipath.platform.action_center import Task
+from uipath.platform.action_center.tasks import TaskStatus
 from uipath.platform.common import CreateTask, InvokeProcess, WaitJob, WaitTask
 from uipath.platform.orchestrator import (
     Job,
     JobErrorInfo,
 )
 from uipath.platform.resume_triggers import (
+    PropertyName,
+    TriggerMarker,
     UiPathResumeTriggerCreator,
     UiPathResumeTriggerReader,
 )
@@ -41,7 +45,7 @@ class TestHitlReader:
     """Tests for the HitlReader class."""
 
     @pytest.mark.anyio
-    async def test_read_action_trigger(
+    async def test_read_task_trigger(
         self,
         setup_test_env: None,
     ) -> None:
@@ -65,6 +69,41 @@ class TestHitlReader:
             reader = UiPathResumeTriggerReader()
             result = await reader.read_trigger(resume_trigger)
             assert result == action_data
+            mock_retrieve_async.assert_called_once_with(
+                action_key,
+                app_folder_key="test-folder",
+                app_folder_path="test-path",
+                app_name=None,
+            )
+
+    @pytest.mark.anyio
+    async def test_read_task_trigger_empty_response(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading an action trigger."""
+        action_key = "test-action-key"
+        action_data: dict[str, Any] = {}
+
+        mock_task = Task(key=action_key, data=action_data, status=2)
+        mock_retrieve_async = AsyncMock(return_value=mock_task)
+
+        with patch(
+            "uipath.platform.action_center._tasks_service.TasksService.retrieve_async",
+            new=mock_retrieve_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.TASK,
+                item_key=action_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+            )
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
+            assert result == {
+                "status": TaskStatus(2).name.lower(),
+                PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
+            }
             mock_retrieve_async.assert_called_once_with(
                 action_key,
                 app_folder_key="test-folder",
@@ -140,7 +179,10 @@ class TestHitlReader:
             )
             reader = UiPathResumeTriggerReader()
             result = await reader.read_trigger(resume_trigger)
-            assert result == {"state": job_state.lower()}
+            assert result == {
+                "state": job_state.lower(),
+                PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
+            }
             mock_retrieve_async.assert_called_once_with(
                 job_key,
                 folder_key="test-folder",

@@ -2477,7 +2477,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.2.24"
+version = "2.2.25"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2494,6 +2494,7 @@ dependencies = [
     { name = "rich" },
     { name = "tenacity" },
     { name = "truststore" },
+    { name = "uipath-core" },
     { name = "uipath-runtime" },
 ]
 
@@ -2540,6 +2541,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
+    { name = "uipath-core", specifier = ">=0.1.0,<0.2.0" },
     { name = "uipath-runtime", specifier = ">=0.2.3,<0.3.0" },
 ]
 
