@@ -25,7 +25,7 @@ class BindingResource(BaseModelWithDefaultConfig):
     resource: str = Field(..., alias="resource")
     key: str = Field(..., alias="key")
     value: dict[str, BindingResourceValue] = Field(..., alias="value")
-    metadata: Any = Field(..., alias="metadata")
+    metadata: dict[str, Any] | None = Field(alias="metadata", default=None)
 
 
 class Bindings(BaseModelWithDefaultConfig):
