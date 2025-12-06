@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import signal
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Any, Literal
@@ -75,6 +76,7 @@ class ConsoleDebugBridge:
             verbose: If True, show state updates. If False, only show breakpoints.
         """
         self.console = Console(force_terminal=True)
+        self.is_terminal = sys.stdout.isatty()
         self.verbose = verbose
         self.state = DebuggerState()
 
@@ -372,6 +374,20 @@ class ConsoleDebugBridge:
 
     def _print_json(self, data: dict[str, Any] | str, label: str = "data") -> None:
         """Print JSON data with enhanced hierarchy."""
+        # Check if output is being redirected
+        if not self.is_terminal:
+            # Plain text output for file redirection
+            try:
+                json_str = json.dumps(data, indent=2, default=str)
+                print(f"\n{label}:")
+                print(json_str)
+                print()
+            except Exception:
+                print(f"\n{label}:")
+                print(str(data))
+                print()
+            return
+
         try:
             # Create a tree for nested structure
             tree = Tree(f"[bold cyan]{label}[/bold cyan]")
