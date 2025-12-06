@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
 from enum import Enum
 from typing import Any, Iterator, Type
@@ -83,6 +84,13 @@ class ConsoleLogger:
             level: The log level (determines the emoji)
             fg: Optional foreground color for the message
         """
+        # Check if stdout is closed or broken
+        try:
+            if sys.stdout.closed:
+                return
+        except (AttributeError, ValueError, OSError):
+            return
+
         # Stop any active spinner before logging
         self._stop_spinner_if_active()
 
