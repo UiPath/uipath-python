@@ -9,15 +9,17 @@ from uipath.runtime import (
     UiPathRuntimeFactoryRegistry,
     UiPathRuntimeProtocol,
 )
+from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.debug import UiPathDebugBridgeProtocol, UiPathDebugRuntime
 
+from uipath._cli._chat._bridge import get_chat_bridge
+from uipath._cli._debug._bridge import get_debug_bridge
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.platform.common import UiPathConfig
 from uipath.tracing import LlmOpsHttpExporter
 
-from ._debug._bridge import get_debug_bridge
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -108,28 +110,36 @@ def debug(
                     command="debug",
                 ) as ctx:
                     runtime: UiPathRuntimeProtocol | None = None
+                    chat_runtime: UiPathRuntimeProtocol | None = None
                     debug_runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
 
                     try:
                         trigger_poll_interval: float = 5.0
 
+                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+
+                        runtime = await factory.new_runtime(
+                            entrypoint, ctx.conversation_id or ctx.job_id or "default"
+                        )
+
                         if ctx.job_id:
                             trace_manager.add_span_exporter(LlmOpsHttpExporter())
                             trigger_poll_interval = (
                                 0.0  # Polling disabled for production jobs
                             )
-
-                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
-
-                        runtime = await factory.new_runtime(
-                            entrypoint, ctx.job_id or "default"
-                        )
+                            if ctx.conversation_id and ctx.exchange_id:
+                                chat_bridge: UiPathChatProtocol = get_chat_bridge(
+                                    context=ctx
+                                )
+                                chat_runtime = UiPathChatRuntime(
+                                    delegate=runtime, chat_bridge=chat_bridge
+                                )
 
                         debug_bridge: UiPathDebugBridgeProtocol = get_debug_bridge(ctx)
 
                         debug_runtime = UiPathDebugRuntime(
-                            delegate=runtime,
+                            delegate=chat_runtime or runtime,
                             debug_bridge=debug_bridge,
                             trigger_poll_interval=trigger_poll_interval,
                         )
@@ -155,6 +165,8 @@ def debug(
                     finally:
                         if debug_runtime:
                             await debug_runtime.dispose()
+                        if chat_runtime:
+                            await chat_runtime.dispose()
                         if runtime:
                             await runtime.dispose()
                         if factory:

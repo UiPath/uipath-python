@@ -10,11 +10,13 @@ from uipath.runtime import (
     UiPathRuntimeResult,
     UiPathStreamOptions,
 )
+from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.context import UiPathRuntimeContext
 from uipath.runtime.debug import UiPathDebugBridgeProtocol
 from uipath.runtime.errors import UiPathRuntimeError
 from uipath.runtime.events import UiPathRuntimeStateEvent
 
+from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
@@ -122,6 +124,7 @@ def run(
                 ctx: UiPathRuntimeContext, runtime: UiPathRuntimeProtocol
             ) -> UiPathRuntimeResult | None:
                 debug_bridge: UiPathDebugBridgeProtocol = ConsoleDebugBridge()
+
                 await debug_bridge.emit_execution_started()
                 options = UiPathStreamOptions(resume=resume)
                 async for event in runtime.stream(ctx.get_input(), options=options):
@@ -156,19 +159,34 @@ def run(
                 ):
                     with ctx:
                         runtime: UiPathRuntimeProtocol | None = None
+                        chat_runtime: UiPathRuntimeProtocol | None = None
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         try:
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
                             runtime = await factory.new_runtime(
-                                entrypoint, ctx.job_id or "default"
+                                entrypoint,
+                                ctx.conversation_id or ctx.job_id or "default",
                             )
 
                             if ctx.job_id:
                                 trace_manager.add_span_exporter(LlmOpsHttpExporter())
-                                ctx.result = await execute_runtime(ctx, runtime)
+
+                                if ctx.conversation_id and ctx.exchange_id:
+                                    chat_bridge: UiPathChatProtocol = get_chat_bridge(
+                                        context=ctx
+                                    )
+                                    chat_runtime = UiPathChatRuntime(
+                                        delegate=runtime, chat_bridge=chat_bridge
+                                    )
+
+                                ctx.result = await execute_runtime(
+                                    ctx, chat_runtime or runtime
+                                )
                             else:
                                 ctx.result = await debug_runtime(ctx, runtime)
                         finally:
+                            if chat_runtime:
+                                await chat_runtime.dispose()
                             if runtime:
                                 await runtime.dispose()
                             if factory:
