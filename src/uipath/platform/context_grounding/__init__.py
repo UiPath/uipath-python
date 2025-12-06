@@ -1,7 +1,13 @@
 """Init file for context grounding module."""
 
 from ._context_grounding_service import ContextGroundingService
-from .context_grounding import ContextGroundingQueryResponse
+from .context_grounding import (
+    CitationMode,
+    ContextGroundingQueryResponse,
+    DeepRagCreationResponse,
+    DeepRagResponse,
+    DeepRagStatus,
+)
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
     BaseSourceConfig,
@@ -42,4 +48,8 @@ __all__ = [
     "OneDriveSourceConfig",
     "PreProcessing",
     "SourceConfig",
+    "CitationMode",
+    "DeepRagCreationResponse",
+    "DeepRagStatus",
+    "DeepRagResponse",
 ]

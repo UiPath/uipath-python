@@ -17,7 +17,12 @@ from ..errors import (
 )
 from ..orchestrator._buckets_service import BucketsService
 from ..orchestrator._folder_service import FolderService
-from .context_grounding import ContextGroundingQueryResponse
+from .context_grounding import (
+    CitationMode,
+    ContextGroundingQueryResponse,
+    DeepRagCreationResponse,
+    DeepRagResponse,
+)
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
     BucketDataSource,
@@ -437,6 +442,171 @@ class ContextGroundingService(FolderContext, BaseService):
         )
 
         return ContextGroundingIndex.model_validate(response.json())
+
+    @traced(name="contextgrounding_retrieve_deep_rag", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    def retrieve_deep_rag(
+        self,
+        id: str,
+        *,
+        index_name: str | None = None,
+    ) -> DeepRagResponse:
+        """Retrieves a Deep RAG task.
+
+        Args:
+            id (str): The id of the Deep RAG task.
+            index_name (Optional[str]): Index name hint for resource override.
+
+        Returns:
+            DeepRagResponse: The Deep RAG task response.
+        """
+        spec = self._deep_rag_retrieve_spec(
+            id=id,
+        )
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            headers=spec.headers,
+        )
+        return DeepRagResponse.model_validate(response.json())
+
+    @traced(name="contextgrounding_retrieve_deep_rag_async", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    async def retrieve_deep_rag_async(
+        self,
+        id: str,
+        *,
+        index_name: str | None = None,
+    ) -> DeepRagResponse:
+        """Asynchronously retrieves a Deep RAG task.
+
+        Args:
+            id (str): The id of the Deep RAG task.
+            index_name (Optional[str]): Index name hint for resource override.
+
+        Returns:
+            DeepRagResponse: The Deep RAG task response.
+        """
+        spec = self._deep_rag_retrieve_spec(
+            id=id,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return DeepRagResponse.model_validate(response.json())
+
+    @traced(name="contextgrounding_start_deep_rag", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    def start_deep_rag(
+        self,
+        name: str,
+        index_name: str,
+        prompt: str,
+        glob_pattern: str = "*",
+        citation_mode: CitationMode = CitationMode.SKIP,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> DeepRagCreationResponse:
+        """Starts a Deep RAG task on the targeted index.
+
+        Args:
+            name (str): The name of the Deep RAG task.
+            index_name (str): The name of the context index to search in.
+            prompt (str): Describe the task: what to research across documents, what to synthesize and how to cite sources.
+            glob_pattern (str): The glob pattern to search in the index. Defaults to "*".
+            citation_mode (CitationMode): The citation mode to use. Defaults to SKIP.
+            folder_key (str, optional): The folder key where the index resides. Defaults to None.
+            folder_path (str, optional): The folder path where the index resides. Defaults to None.
+
+        Returns:
+            DeepRagCreationResponse: The Deep RAG task creation response.
+        """
+        index = self.retrieve(
+            index_name, folder_key=folder_key, folder_path=folder_path
+        )
+        if index and index.in_progress_ingestion():
+            raise IngestionInProgressException(index_name=index_name)
+
+        spec = self._deep_rag_creation_spec(
+            index_id=index.id,
+            name=name,
+            glob_pattern=glob_pattern,
+            prompt=prompt,
+            citation_mode=citation_mode,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            params=spec.params,
+            headers=spec.headers,
+        )
+
+        return DeepRagCreationResponse.model_validate(response.json())
+
+    @traced(name="contextgrounding_start_deep_rag_async", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    async def start_deep_rag_async(
+        self,
+        name: str,
+        index_name: str,
+        prompt: str,
+        glob_pattern: str = "*",
+        citation_mode: CitationMode = CitationMode.SKIP,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> DeepRagCreationResponse:
+        """Asynchronously starts a Deep RAG task on the targeted index.
+
+        Args:
+            name (str): The name of the Deep RAG task.
+            index_name (str): The name of the context index to search in.
+            name (str): The name of the Deep RAG task.
+            prompt (str): Describe the task: what to research across documents, what to synthesize and how to cite sources.
+            glob_pattern (str): The glob pattern to search in the index. Defaults to "*".
+            citation_mode (CitationMode): The citation mode to use. Defaults to SKIP.
+            folder_key (str, optional): The folder key where the index resides. Defaults to None.
+            folder_path (str, optional): The folder path where the index resides. Defaults to None.
+
+        Returns:
+            DeepRagCreationResponse: The Deep RAG task creation response.
+        """
+        index = await self.retrieve_async(
+            index_name, folder_key=folder_key, folder_path=folder_path
+        )
+        if index and index.in_progress_ingestion():
+            raise IngestionInProgressException(index_name=index_name)
+
+        spec = self._deep_rag_creation_spec(
+            index_id=index.id,
+            name=name,
+            glob_pattern=glob_pattern,
+            prompt=prompt,
+            citation_mode=citation_mode,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return DeepRagCreationResponse.model_validate(response.json())
 
     @traced(name="contextgrounding_search", run_type="uipath")
     @resource_override(resource_type="index")
@@ -872,6 +1042,48 @@ class ContextGroundingService(FolderContext, BaseService):
             },
             headers={
                 **header_folder(folder_key, None),
+            },
+        )
+
+    def _deep_rag_creation_spec(
+        self,
+        index_id: str,
+        name: str,
+        glob_pattern: str,
+        prompt: str,
+        citation_mode: CitationMode,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> RequestSpec:
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(f"/ecs_/v2/indexes/{index_id}/createDeepRag"),
+            json={
+                "name": name,
+                "prompt": prompt,
+                "globPattern": glob_pattern,
+                "citationMode": citation_mode.value,
+            },
+            params={
+                "$select": "id,lastDeepRagStatus,createdDate",
+            },
+            headers={
+                **header_folder(folder_key, None),
+            },
+        )
+
+    def _deep_rag_retrieve_spec(
+        self,
+        id: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/ecs_/v2/deeprag/{id}"),
+            params={
+                "$expand": "content",
+                "$select": "content,name,createdDate,lastDeepRagStatus",
             },
         )
 

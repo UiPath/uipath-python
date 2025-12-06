@@ -9,9 +9,12 @@ from uipath._utils.constants import HEADER_USER_AGENT, LLMV3Mini_REQUEST
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.context_grounding import (
     BucketSourceConfig,
+    CitationMode,
     ConfluenceSourceConfig,
     ContextGroundingIndex,
     ContextGroundingQueryResponse,
+    DeepRagCreationResponse,
+    DeepRagResponse,
     DropboxSourceConfig,
     GoogleDriveSourceConfig,
     Indexer,
@@ -961,3 +964,297 @@ class TestContextGroundingService:
                 assert (
                     call_args[1]["headers"]["x-uipath-folderkey"] == "test-folder-key"
                 )
+
+    def test_retrieve_deep_rag(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=content,name,createdDate,lastDeepRagStatus",
+            status_code=200,
+            json={
+                "name": "test-deep-rag-task",
+                "createdDate": "2024-01-15T10:30:00Z",
+                "lastDeepRagStatus": "Successful",
+                "content": {
+                    "text": "This is the deep RAG response text.",
+                    "citations": ["source1.pdf", "source2.docx"],
+                },
+            },
+        )
+
+        response = service.retrieve_deep_rag(id="test-task-id")
+
+        assert isinstance(response, DeepRagResponse)
+        assert response.name == "test-deep-rag-task"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+        assert response.last_deep_rag_status == "Successful"
+        assert response.content is not None
+        assert response.content.text == "This is the deep RAG response text."
+        assert response.content.citations == ["source1.pdf", "source2.docx"]
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert (
+            sent_requests[0].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=content%2Cname%2CcreatedDate%2ClastDeepRagStatus"
+        )
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_deep_rag/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_retrieve_deep_rag_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=content,name,createdDate,lastDeepRagStatus",
+            status_code=200,
+            json={
+                "name": "test-deep-rag-task",
+                "createdDate": "2024-01-15T10:30:00Z",
+                "lastDeepRagStatus": "Successful",
+                "content": {
+                    "text": "This is the deep RAG response text.",
+                    "citations": ["source1.pdf", "source2.docx"],
+                },
+            },
+        )
+
+        response = await service.retrieve_deep_rag_async(id="test-task-id")
+
+        assert isinstance(response, DeepRagResponse)
+        assert response.name == "test-deep-rag-task"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+        assert response.last_deep_rag_status == "Successful"
+        assert response.content is not None
+        assert response.content.text == "This is the deep RAG response text."
+        assert response.content.citations == ["source1.pdf", "source2.docx"]
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert (
+            sent_requests[0].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=content%2Cname%2CcreatedDate%2ClastDeepRagStatus"
+        )
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_deep_rag_async/{version}"
+        )
+
+    def test_start_deep_rag(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createDeepRag?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "new-deep-rag-task-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = service.start_deep_rag(
+            index_name="test-index",
+            name="my-deep-rag-task",
+            prompt="Summarize all documents related to financial reports",
+            glob_pattern="*.pdf",
+            citation_mode=CitationMode.INLINE,
+        )
+
+        assert isinstance(response, DeepRagCreationResponse)
+        assert response.id == "new-deep-rag-task-id"
+        assert response.last_deep_rag_status == "Queued"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createDeepRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-deep-rag-task"
+        assert (
+            request_data["prompt"]
+            == "Summarize all documents related to financial reports"
+        )
+        assert request_data["globPattern"] == "*.pdf"
+        assert request_data["citationMode"] == "Inline"
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_deep_rag/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_start_deep_rag_task(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createDeepRag?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "new-deep-rag-task-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = await service.start_deep_rag_async(
+            index_name="test-index",
+            name="my-deep-rag-task",
+            prompt="Summarize all documents related to financial reports",
+            glob_pattern="*.pdf",
+            citation_mode=CitationMode.INLINE,
+        )
+
+        assert isinstance(response, DeepRagCreationResponse)
+        assert response.id == "new-deep-rag-task-id"
+        assert response.last_deep_rag_status == "Queued"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createDeepRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-deep-rag-task"
+        assert (
+            request_data["prompt"]
+            == "Summarize all documents related to financial reports"
+        )
+        assert request_data["globPattern"] == "*.pdf"
+        assert request_data["citationMode"] == "Inline"
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_deep_rag_async/{version}"
+        )
