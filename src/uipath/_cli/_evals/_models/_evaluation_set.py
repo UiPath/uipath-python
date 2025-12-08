@@ -261,6 +261,7 @@ class EvaluationStatus(IntEnum):
     PENDING = 0
     IN_PROGRESS = 1
     COMPLETED = 2
+    FAILED = 3
 
 
 def _discriminate_eval_set(

@@ -62,6 +62,7 @@ class EvalRunUpdatedEvent(BaseModel):
 class EvalSetRunUpdatedEvent(BaseModel):
     execution_id: str
     evaluator_scores: dict[str, float]
+    success: bool = True
 
 
 ProgressEvent = Union[
