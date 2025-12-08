@@ -1,0 +1,78 @@
+{
+  "version": "1.0",
+  "id": "CrashScenarios",
+  "name": "Crash Scenarios Evaluation",
+  "evaluatorRefs": [],
+  "evaluations": [
+    {
+      "id": "crash-string-input-a",
+      "name": "Crash when input 'a' is a string",
+      "inputs": {
+        "a": "not a number",
+        "b": 5,
+        "operator": "+"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "crash-string-input-b",
+      "name": "Crash when input 'b' is a string",
+      "inputs": {
+        "a": 10,
+        "b": "invalid",
+        "operator": "*"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "crash-both-inputs-strings",
+      "name": "Crash when both inputs are strings",
+      "inputs": {
+        "a": "hello",
+        "b": "world",
+        "operator": "-"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "crash-null-input-a",
+      "name": "Crash when input 'a' is null",
+      "inputs": {
+        "a": null,
+        "b": 25,
+        "operator": "/"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "crash-boolean-input",
+      "name": "Crash when input is a boolean",
+      "inputs": {
+        "a": true,
+        "b": 3,
+        "operator": "+"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "crash-array-input",
+      "name": "Crash when input is an array",
+      "inputs": {
+        "a": [1, 2, 3],
+        "b": 5,
+        "operator": "*"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "crash-object-input",
+      "name": "Crash when input is an object",
+      "inputs": {
+        "a": {"value": 10},
+        "b": 3,
+        "operator": "-"
+      },
+      "evaluationCriterias": {}
+    }
+  ]
+}

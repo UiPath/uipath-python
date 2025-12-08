@@ -476,6 +476,21 @@ class UiPathEvalRuntime:
                     )
                 )
 
+            exception_details = None
+            agent_output = agent_execution_output.result.output
+            if agent_execution_output.result.status == UiPathRuntimeStatus.FAULTED:
+                error = agent_execution_output.result.error
+                if error is not None:
+                    # we set the exception details for the run event
+                    # Convert error contract to exception
+                    error_exception = Exception(
+                        f"{error.title}: {error.detail} (code: {error.code})"
+                    )
+                    exception_details = EvalItemExceptionDetails(
+                        exception=error_exception
+                    )
+                    agent_output = error.model_dump()
+
             await event_bus.publish(
                 EvaluationEvents.UPDATE_EVAL_RUN,
                 EvalRunUpdatedEvent(
@@ -483,10 +498,11 @@ class UiPathEvalRuntime:
                     eval_item=eval_item,
                     eval_results=evaluation_item_results,
                     success=not agent_execution_output.result.error,
-                    agent_output=agent_execution_output.result.output,
+                    agent_output=agent_output,
                     agent_execution_time=agent_execution_output.execution_time,
                     spans=agent_execution_output.spans,
                     logs=agent_execution_output.logs,
+                    exception_details=exception_details,
                 ),
                 wait_for_completion=False,
             )
