@@ -98,3 +98,9 @@ For additional commands related to linting, formatting, and building, run `just 
 #### Update a Resource
 - **Method Name:** `update`
 - **Purpose:** Modify an existing resource
+
+## Pull Requests
+
+### General Rules
+- Please write informative description to the PRs for the reviewers to understand the context.
+- If you want to publish a `dev` build, please add a `build:dev` label to your PR.
