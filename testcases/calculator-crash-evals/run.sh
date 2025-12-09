@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+
+echo "Syncing dependencies..."
+uv sync
+
+echo "Authenticating with UiPath..."
+uv run uipath auth --client-id="$CLIENT_ID" --client-secret="$CLIENT_SECRET" --base-url="$BASE_URL"
+
+echo "Running evaluations with custom evaluator..."
+uv run uipath eval main ../../samples/calculator/evaluations/eval-sets/crash-scenarios.json --no-report
+
+echo "Test completed successfully!"
