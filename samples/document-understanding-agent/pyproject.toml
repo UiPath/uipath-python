@@ -1,0 +1,10 @@
+[project]
+name = "document-understanding-agent"
+version = "0.1.0"
+authors = [{ name = "John Doe" }]
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "uipath>=2.2.14, <2.3.0",
+]
