@@ -8,6 +8,10 @@ from pytest_httpx import HTTPXMock
 from uipath._utils.constants import HEADER_USER_AGENT, LLMV3Mini_REQUEST
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.context_grounding import (
+    BatchTransformCreationResponse,
+    BatchTransformOutputColumn,
+    BatchTransformResponse,
+    BatchTransformStatus,
     BucketSourceConfig,
     CitationMode,
     ConfluenceSourceConfig,
@@ -1257,4 +1261,447 @@ class TestContextGroundingService:
         assert (
             sent_requests[3].headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_deep_rag_async/{version}"
+        )
+
+    def test_start_batch_transform(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="summary",
+                description="A summary of the document",
+            )
+        ]
+
+        response = service.start_batch_transform(
+            name="my-batch-transform",
+            index_name="test-index",
+            prompt="Summarize all documents",
+            output_columns=output_columns,
+            storage_bucket_folder_path_prefix="data",
+            enable_web_search_grounding=False,
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-batch-transform"
+        assert request_data["prompt"] == "Summarize all documents"
+        assert request_data["targetFileGlobPattern"] == "data/*"
+        assert request_data["useWebSearchGrounding"] is False
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_start_batch_transform_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="summary",
+                description="A summary of the document",
+            )
+        ]
+
+        response = await service.start_batch_transform_async(
+            name="my-batch-transform",
+            index_name="test-index",
+            prompt="Summarize all documents",
+            output_columns=output_columns,
+            storage_bucket_folder_path_prefix="data",
+            enable_web_search_grounding=False,
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag"
+            in str(sent_requests[3].url)
+        )
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_async/{version}"
+        )
+
+    def test_retrieve_batch_transform(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = service.retrieve_batch_transform(id="test-batch-id")
+
+        assert isinstance(response, BatchTransformResponse)
+        assert response.id == "test-batch-id"
+        assert response.name == "test-batch-transform"
+        assert response.last_batch_rag_status == BatchTransformStatus.SUCCESSFUL
+        assert response.prompt == "Summarize documents"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert (
+            sent_requests[0].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id"
+        )
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_batch_transform/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_retrieve_batch_transform_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = await service.retrieve_batch_transform_async(id="test-batch-id")
+
+        assert isinstance(response, BatchTransformResponse)
+        assert response.id == "test-batch-id"
+        assert response.name == "test-batch-transform"
+        assert response.last_batch_rag_status == BatchTransformStatus.SUCCESSFUL
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert (
+            sent_requests[0].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id"
+        )
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_batch_transform_async/{version}"
+        )
+
+    def test_download_batch_transform_result(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+        tmp_path,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
+            status_code=200,
+            json={
+                "uri": "https://storage.example.com/result.csv",
+            },
+        )
+
+        httpx_mock.add_response(
+            url="https://storage.example.com/result.csv",
+            status_code=200,
+            content=b"col1,col2\nval1,val2",
+        )
+
+        destination = tmp_path / "result.csv"
+        service.download_batch_transform_result(
+            id="test-batch-id",
+            destination_path=str(destination),
+        )
+
+        assert destination.exists()
+        assert destination.read_bytes() == b"col1,col2\nval1,val2"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert (
+            sent_requests[0].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id"
+        )
+
+        assert sent_requests[1].method == "GET"
+        assert (
+            sent_requests[1].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri"
+        )
+
+        assert HEADER_USER_AGENT in sent_requests[1].headers
+        assert (
+            sent_requests[1].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.download_batch_transform_result/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_download_batch_transform_result_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+        tmp_path,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
+            status_code=200,
+            json={
+                "uri": "https://storage.example.com/result.csv",
+            },
+        )
+
+        httpx_mock.add_response(
+            url="https://storage.example.com/result.csv",
+            status_code=200,
+            content=b"col1,col2\nval1,val2",
+        )
+
+        destination = tmp_path / "result.csv"
+        await service.download_batch_transform_result_async(
+            id="test-batch-id",
+            destination_path=str(destination),
+        )
+
+        assert destination.exists()
+        assert destination.read_bytes() == b"col1,col2\nval1,val2"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert (
+            sent_requests[0].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id"
+        )
+
+        assert sent_requests[1].method == "GET"
+        assert (
+            sent_requests[1].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri"
+        )
+
+        assert HEADER_USER_AGENT in sent_requests[1].headers
+        assert (
+            sent_requests[1].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.download_batch_transform_result_async/{version}"
         )

@@ -2,6 +2,10 @@
 
 from ._context_grounding_service import ContextGroundingService
 from .context_grounding import (
+    BatchTransformCreationResponse,
+    BatchTransformOutputColumn,
+    BatchTransformResponse,
+    BatchTransformStatus,
     CitationMode,
     ContextGroundingQueryResponse,
     DeepRagCreationResponse,
@@ -29,16 +33,24 @@ from .context_grounding_payloads import (
 )
 
 __all__ = [
-    "ContextGroundingService",
-    "ContextGroundingQueryResponse",
-    "ContextGroundingIndex",
+    "BatchTransformCreationResponse",
+    "BatchTransformOutputColumn",
+    "BatchTransformResponse",
+    "BatchTransformStatus",
     "BaseSourceConfig",
     "BucketDataSource",
     "BucketSourceConfig",
+    "CitationMode",
     "ConfluenceDataSource",
     "ConfluenceSourceConfig",
     "ConnectionSourceConfig",
+    "ContextGroundingIndex",
+    "ContextGroundingQueryResponse",
+    "ContextGroundingService",
     "CreateIndexPayload",
+    "DeepRagCreationResponse",
+    "DeepRagResponse",
+    "DeepRagStatus",
     "DropboxDataSource",
     "DropboxSourceConfig",
     "GoogleDriveDataSource",
@@ -48,8 +60,4 @@ __all__ = [
     "OneDriveSourceConfig",
     "PreProcessing",
     "SourceConfig",
-    "CitationMode",
-    "DeepRagCreationResponse",
-    "DeepRagStatus",
-    "DeepRagResponse",
 ]
