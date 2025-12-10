@@ -28,6 +28,7 @@ class SocketIOChatBridge:
     def __init__(
         self,
         websocket_url: str,
+        websocket_path: str,
         conversation_id: str,
         exchange_id: str,
         headers: dict[str, str],
@@ -43,6 +44,7 @@ class SocketIOChatBridge:
             auth: Optional authentication data to send during connection
         """
         self.websocket_url = websocket_url
+        self.websocket_path = websocket_path
         self.conversation_id = conversation_id
         self.exchange_id = exchange_id
         self.auth = auth
@@ -85,11 +87,10 @@ class SocketIOChatBridge:
 
         try:
             # Attempt to connect with timeout
-            logger.info(f"Connecting to WebSocket server: {self.websocket_url}")
-
             await asyncio.wait_for(
                 self._client.connect(
                     url=self.websocket_url,
+                    socketio_path=self.websocket_path,
                     headers=self.headers,
                     auth=self.auth,
                     transports=["websocket"],
@@ -260,20 +261,22 @@ def get_chat_bridge(
     host = parsed.netloc
 
     # Construct WebSocket URL for CAS
-    websocket_url = f"wss://{host}/autopilotforeveryone_/websocket_/socket.io?conversationId={context.conversation_id}"
+    websocket_url = f"wss://{host}?conversationId={context.conversation_id}"
+    websocket_path = "autopilotforeveryone_/websocket_/socket.io"
 
     # Build headers from context
     headers = {
         "Authorization": f"Bearer {os.environ.get('UIPATH_ACCESS_TOKEN', '')}",
-        "X-UiPath-Internal-TenantId": context.tenant_id
+        "X-UiPath-Internal-TenantId": f"{context.tenant_id}"
         or os.environ.get("UIPATH_TENANT_ID", ""),
-        "X-UiPath-Internal-AccountId": context.org_id
+        "X-UiPath-Internal-AccountId": f"{context.org_id}"
         or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
         "X-UiPath-ConversationId": context.conversation_id,
     }
 
     return SocketIOChatBridge(
         websocket_url=websocket_url,
+        websocket_path=websocket_path,
         conversation_id=context.conversation_id,
         exchange_id=context.exchange_id,
         headers=headers,
