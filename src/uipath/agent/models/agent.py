@@ -75,6 +75,15 @@ class AgentGuardrailActionType(str, Enum):
     UNKNOWN = "unknown"  # fallback branch discriminator
 
 
+class AgentToolArgumentPropertiesVariant(str, Enum):
+    """Agent tool argument properties variant enumeration."""
+
+    DYNAMIC = "dynamic"
+    ARGUMENT = "argument"
+    STATIC = "static"
+    TEXT_BUILDER = "textBuilder"
+
+
 class TextTokenType(str, Enum):
     """Text token type enumeration."""
 
@@ -96,6 +105,52 @@ class TextToken(BaseCfg):
 
     type: TextTokenType
     raw_string: str = Field(alias="rawString")
+
+
+class BaseAgentToolArgumentProperties(BaseCfg):
+    """Base tool argument properties model."""
+
+    variant: AgentToolArgumentPropertiesVariant
+    is_sensitive: bool = Field(alias="isSensitive")
+
+
+class AgentToolStaticArgumentProperties(BaseAgentToolArgumentProperties):
+    """Static tool argument properties model."""
+
+    variant: Literal[AgentToolArgumentPropertiesVariant.STATIC] = Field(
+        default=AgentToolArgumentPropertiesVariant.STATIC, frozen=True
+    )
+    value: Optional[Any]
+
+
+class AgentToolArgumentArgumentProperties(BaseAgentToolArgumentProperties):
+    """Agent argument argument properties model."""
+
+    variant: Literal[AgentToolArgumentPropertiesVariant.ARGUMENT] = Field(
+        default=AgentToolArgumentPropertiesVariant.ARGUMENT,
+        frozen=True,
+    )
+    argument_path: str = Field(alias="argumentPath")
+
+
+class AgentToolTextBuilderArgumentProperties(BaseAgentToolArgumentProperties):
+    """Agent text builder argument properties model."""
+
+    variant: Literal[AgentToolArgumentPropertiesVariant.TEXT_BUILDER] = Field(
+        default=AgentToolArgumentPropertiesVariant.TEXT_BUILDER,
+        frozen=True,
+    )
+    tokens: List[TextToken]
+
+
+AgentToolArgumentProperties = Annotated[
+    Union[
+        AgentToolStaticArgumentProperties,
+        AgentToolArgumentArgumentProperties,
+        AgentToolTextBuilderArgumentProperties,
+    ],
+    Field(discriminator="variant"),
+]
 
 
 class BaseResourceProperties(BaseCfg):
@@ -204,6 +259,9 @@ class AgentMcpTool(BaseCfg):
     name: str = Field(..., alias="name")
     description: str = Field(..., alias="description")
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
 
 
 class AgentMcpResourceConfig(BaseAgentResourceConfig):
@@ -297,6 +355,9 @@ class AgentProcessToolProperties(BaseResourceProperties):
 
     folder_path: Optional[str] = Field(None, alias="folderPath")
     process_name: Optional[str] = Field(None, alias="processName")
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
 
 
 class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
