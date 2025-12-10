@@ -6,6 +6,25 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class BatchTransformOutputColumn(BaseModel):
+    """Model representing a batch transform output column."""
+
+    name: str = Field(
+        min_length=1,
+        max_length=500,
+        pattern=r"^[\w\s\.,!?-]+$",
+    )
+    description: str = Field(..., min_length=1, max_length=20000)
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+
 class CitationMode(str, Enum):
     """Enum representing possible citation modes."""
 
@@ -51,6 +70,60 @@ class DeepRagResponse(BaseModel):
     created_date: str = Field(alias="createdDate")
     last_deep_rag_status: DeepRagStatus = Field(alias="lastDeepRagStatus")
     content: DeepRagContent | None = Field(alias="content")
+
+
+class BatchTransformStatus(str, Enum):
+    """Enum representing possible batch transform status values."""
+
+    IN_PROGRESS = "InProgress"
+    SUCCESSFUL = "Successful"
+    QUEUED = "Queued"
+    FAILED = "Failed"
+
+
+class BatchTransformCreationResponse(BaseModel):
+    """Model representing a batch transform task creation response."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+    )
+    id: str
+    last_batch_rag_status: DeepRagStatus = Field(alias="lastBatchRagStatus")
+    error_message: str | None = Field(alias="errorMessage", default=None)
+
+
+class BatchTransformResponse(BaseModel):
+    """Model representing a batch transform task response."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+    )
+    id: str
+    name: str
+    last_batch_rag_status: BatchTransformStatus = Field(alias="lastBatchRagStatus")
+    prompt: str
+    target_file_glob_pattern: str = Field(alias="targetFileGlobPattern")
+    use_web_search_grounding: bool = Field(alias="useWebSearchGrounding")
+    output_columns: list[BatchTransformOutputColumn] = Field(alias="outputColumns")
+    created_date: str = Field(alias="createdDate")
+
+
+class BatchTransformReadUriResponse(BaseModel):
+    """Model representing a batch transform result file download URI response."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+    )
+    uri: str
 
 
 class DeepRagCreationResponse(BaseModel):

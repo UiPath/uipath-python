@@ -1,10 +1,11 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
 import httpx
-from pydantic import TypeAdapter
+from pydantic import Field, TypeAdapter
 from typing_extensions import deprecated
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import (
     LLMV4_REQUEST,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
@@ -12,12 +13,18 @@ from ..._utils.constants import (
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ..errors import (
+    BatchTransformNotCompleteException,
     IngestionInProgressException,
     UnsupportedDataSourceException,
 )
 from ..orchestrator._buckets_service import BucketsService
 from ..orchestrator._folder_service import FolderService
 from .context_grounding import (
+    BatchTransformCreationResponse,
+    BatchTransformOutputColumn,
+    BatchTransformReadUriResponse,
+    BatchTransformResponse,
+    BatchTransformStatus,
     CitationMode,
     ContextGroundingQueryResponse,
     DeepRagCreationResponse,
@@ -503,14 +510,274 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagResponse.model_validate(response.json())
 
+    @traced(name="contextgrounding_start_batch_transform", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    def start_batch_transform(
+        self,
+        name: str,
+        index_name: str,
+        prompt: Annotated[str, Field(max_length=250000)],
+        output_columns: list[BatchTransformOutputColumn],
+        storage_bucket_folder_path_prefix: Annotated[
+            str | None, Field(max_length=512)
+        ] = None,
+        enable_web_search_grounding: bool = False,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> BatchTransformCreationResponse:
+        """Starts a Batch Transform, task on the targeted index.
+
+        Batch Transform tasks are processing and transforming csv files from the index.
+
+        Args:
+            name (str): The name of the Deep RAG task.
+            index_name (str): The name of the context index to search in.
+            prompt (str): Describe the task: what to research, what to synthesize.
+            output_columns (list[BatchTransformOutputColumn]):  The output columns to add into the csv.
+            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket. Use "*" to include all files. Defaults to "*".
+            enable_web_search_grounding (Optional[bool]): Whether to enable web search. Defaults to False.
+            folder_key (str, optional): The folder key where the index resides. Defaults to None.
+            folder_path (str, optional): The folder path where the index resides. Defaults to None.
+
+        Returns:
+            BatchTransformCreationResponse: The batch transform task creation response.
+        """
+        index = self.retrieve(
+            index_name, folder_key=folder_key, folder_path=folder_path
+        )
+        if index and index.in_progress_ingestion():
+            raise IngestionInProgressException(index_name=index_name)
+
+        spec = self._batch_transform_creation_spec(
+            index_id=index.id,
+            name=name,
+            storage_bucket_folder_path_prefix=storage_bucket_folder_path_prefix,
+            prompt=prompt,
+            output_columns=output_columns,
+            enable_web_search_grounding=enable_web_search_grounding,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            params=spec.params,
+            headers=spec.headers,
+        )
+        return BatchTransformCreationResponse.model_validate(response.json())
+
+    @traced(name="contextgrounding_start_batch_transform_async", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    async def start_batch_transform_async(
+        self,
+        name: str,
+        index_name: str,
+        prompt: Annotated[str, Field(max_length=250000)],
+        output_columns: list[BatchTransformOutputColumn],
+        storage_bucket_folder_path_prefix: Annotated[
+            str | None, Field(max_length=512)
+        ] = None,
+        enable_web_search_grounding: bool = False,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> BatchTransformCreationResponse:
+        """Asynchronously starts a Batch Transform, task on the targeted index.
+
+        Batch Transform tasks are processing and transforming csv files from the index.
+
+        Args:
+            name (str): The name of the Deep RAG task.
+            index_name (str): The name of the context index to search in.
+            prompt (str): Describe the task: what to research, what to synthesize.
+            output_columns (list[BatchTransformOutputColumn]):  The output columns to add into the csv.
+            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket. Use "*" to include all files. Defaults to "*".
+            enable_web_search_grounding (Optional[bool]): Whether to enable web search. Defaults to False.
+            folder_key (str, optional): The folder key where the index resides. Defaults to None.
+            folder_path (str, optional): The folder path where the index resides. Defaults to None.
+
+        Returns:
+            BatchTransformCreationResponse: The batch transform task creation response.
+        """
+        index = await self.retrieve_async(
+            index_name, folder_key=folder_key, folder_path=folder_path
+        )
+        if index and index.in_progress_ingestion():
+            raise IngestionInProgressException(index_name=index_name)
+
+        spec = self._batch_transform_creation_spec(
+            index_id=index.id,
+            name=name,
+            storage_bucket_folder_path_prefix=storage_bucket_folder_path_prefix,
+            prompt=prompt,
+            output_columns=output_columns,
+            enable_web_search_grounding=enable_web_search_grounding,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            params=spec.params,
+            headers=spec.headers,
+        )
+        return BatchTransformCreationResponse.model_validate(response.json())
+
+    @traced(name="contextgrounding_retrieve_batch_transform", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    def retrieve_batch_transform(
+        self,
+        id: str,
+        *,
+        index_name: str | None = None,
+    ) -> BatchTransformResponse:
+        """Retrieves a Batch Transform task status.
+
+        Args:
+            id (str): The id of the Batch Transform task.
+            index_name (Optional[str]): Index name hint for resource override.
+
+        Returns:
+            BatchTransformResponse: The Batch Transform task response.
+        """
+        spec = self._batch_transform_retrieve_spec(id=id)
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
+        return BatchTransformResponse.model_validate(response.json())
+
+    @traced(name="contextgrounding_retrieve_batch_transform_async", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    async def retrieve_batch_transform_async(
+        self,
+        id: str,
+        *,
+        index_name: str | None = None,
+    ) -> BatchTransformResponse:
+        """Asynchronously retrieves a Batch Transform task status.
+
+        Args:
+            id (str): The id of the Batch Transform task.
+            index_name (Optional[str]): Index name hint for resource override.
+
+        Returns:
+            BatchTransformResponse: The Batch Transform task response.
+        """
+        spec = self._batch_transform_retrieve_spec(id=id)
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        )
+        return BatchTransformResponse.model_validate(response.json())
+
+    @traced(name="contextgrounding_download_batch_transform_result", run_type="uipath")
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    def download_batch_transform_result(
+        self,
+        id: str,
+        destination_path: str,
+        *,
+        validate_status: bool = True,
+        index_name: str | None = None,
+    ) -> None:
+        """Downloads the Batch Transform result file to the specified path.
+
+        Args:
+            id (str): The id of the Batch Transform task.
+            destination_path (str): The local file path where the result file will be saved.
+            validate_status (bool): Whether to validate the batch transform status before downloading. Defaults to True.
+            index_name (Optional[str]): Index name hint for resource override.
+
+        Raises:
+            BatchTransformNotCompleteException: If validate_status is True and the batch transform is not complete.
+        """
+        if validate_status:
+            batch_transform = self.retrieve_batch_transform(
+                id=id, index_name=index_name
+            )
+            if batch_transform.last_batch_rag_status != BatchTransformStatus.SUCCESSFUL:
+                raise BatchTransformNotCompleteException(
+                    batch_transform_id=id,
+                    status=batch_transform.last_batch_rag_status,
+                )
+
+        spec = self._batch_transform_get_read_uri_spec(id=id)
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            headers=spec.headers,
+        )
+        uri_response = BatchTransformReadUriResponse.model_validate(response.json())
+
+        with open(destination_path, "wb") as file:
+            with httpx.Client(**get_httpx_client_kwargs()) as client:
+                file_content = client.get(uri_response.uri).content
+            file.write(file_content)
+
+    @traced(
+        name="contextgrounding_download_batch_transform_result_async", run_type="uipath"
+    )
+    @resource_override(resource_type="index", resource_identifier="index_name")
+    async def download_batch_transform_result_async(
+        self,
+        id: str,
+        destination_path: str,
+        *,
+        validate_status: bool = True,
+        index_name: str | None = None,
+    ) -> None:
+        """Asynchronously downloads the Batch Transform result file to the specified path.
+
+        Args:
+            id (str): The id of the Batch Transform task.
+            destination_path (str): The local file path where the result file will be saved.
+            validate_status (bool): Whether to validate the batch transform status before downloading. Defaults to True.
+            index_name (Optional[str]): Index name hint for resource override.
+
+        Raises:
+            BatchTransformNotCompleteException: If validate_status is True and the batch transform is not complete.
+        """
+        if validate_status:
+            batch_transform = await self.retrieve_batch_transform_async(
+                id=id, index_name=index_name
+            )
+            if batch_transform.last_batch_rag_status != BatchTransformStatus.SUCCESSFUL:
+                raise BatchTransformNotCompleteException(
+                    batch_transform_id=id,
+                    status=batch_transform.last_batch_rag_status,
+                )
+
+        spec = self._batch_transform_get_read_uri_spec(id=id)
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            headers=spec.headers,
+        )
+        uri_response = BatchTransformReadUriResponse.model_validate(response.json())
+
+        async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
+            download_response = await client.get(uri_response.uri)
+            file_content = download_response.content
+
+        with open(destination_path, "wb") as file:
+            file.write(file_content)
+
     @traced(name="contextgrounding_start_deep_rag", run_type="uipath")
     @resource_override(resource_type="index", resource_identifier="index_name")
     def start_deep_rag(
         self,
         name: str,
-        index_name: str,
-        prompt: str,
-        glob_pattern: str = "*",
+        index_name: Annotated[str, Field(max_length=512)],
+        prompt: Annotated[str, Field(max_length=250000)],
+        glob_pattern: Annotated[str, Field(max_length=512, default="*")] = "**",
         citation_mode: CitationMode = CitationMode.SKIP,
         folder_key: str | None = None,
         folder_path: str | None = None,
@@ -521,7 +788,7 @@ class ContextGroundingService(FolderContext, BaseService):
             name (str): The name of the Deep RAG task.
             index_name (str): The name of the context index to search in.
             prompt (str): Describe the task: what to research across documents, what to synthesize and how to cite sources.
-            glob_pattern (str): The glob pattern to search in the index. Defaults to "*".
+            glob_pattern (str): The glob pattern to search in the index. Defaults to "**".
             citation_mode (CitationMode): The citation mode to use. Defaults to SKIP.
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
@@ -560,9 +827,9 @@ class ContextGroundingService(FolderContext, BaseService):
     async def start_deep_rag_async(
         self,
         name: str,
-        index_name: str,
-        prompt: str,
-        glob_pattern: str = "*",
+        index_name: Annotated[str, Field(max_length=512)],
+        prompt: Annotated[str, Field(max_length=250000)],
+        glob_pattern: Annotated[str, Field(max_length=512, default="*")] = "**",
         citation_mode: CitationMode = CitationMode.SKIP,
         folder_key: str | None = None,
         folder_path: str | None = None,
@@ -574,7 +841,7 @@ class ContextGroundingService(FolderContext, BaseService):
             index_name (str): The name of the context index to search in.
             name (str): The name of the Deep RAG task.
             prompt (str): Describe the task: what to research across documents, what to synthesize and how to cite sources.
-            glob_pattern (str): The glob pattern to search in the index. Defaults to "*".
+            glob_pattern (str): The glob pattern to search in the index. Defaults to "**".
             citation_mode (CitationMode): The citation mode to use. Defaults to SKIP.
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
@@ -1074,6 +1341,38 @@ class ContextGroundingService(FolderContext, BaseService):
             },
         )
 
+    def _batch_transform_creation_spec(
+        self,
+        index_id: str,
+        name: str,
+        enable_web_search_grounding: bool,
+        output_columns: list[BatchTransformOutputColumn],
+        storage_bucket_folder_path_prefix: str | None,
+        prompt: str,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> RequestSpec:
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(f"/ecs_/v2/indexes/{index_id}/createBatchRag"),
+            json={
+                "name": name,
+                "prompt": prompt,
+                "targetFileGlobPattern": f"{storage_bucket_folder_path_prefix}/*"
+                if storage_bucket_folder_path_prefix
+                else "**",
+                "useWebSearchGrounding": enable_web_search_grounding,
+                "outputColumns": [
+                    column.model_dump(by_alias=True) for column in output_columns
+                ],
+            },
+            headers={
+                **header_folder(folder_key, None),
+            },
+        )
+
     def _deep_rag_retrieve_spec(
         self,
         id: str,
@@ -1085,6 +1384,24 @@ class ContextGroundingService(FolderContext, BaseService):
                 "$expand": "content",
                 "$select": "content,name,createdDate,lastDeepRagStatus",
             },
+        )
+
+    def _batch_transform_retrieve_spec(
+        self,
+        id: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/ecs_/v2/batchRag/{id}"),
+        )
+
+    def _batch_transform_get_read_uri_spec(
+        self,
+        id: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/ecs_/v2/batchRag/{id}/GetReadUri"),
         )
 
     def _resolve_folder_key(self, folder_key, folder_path):
