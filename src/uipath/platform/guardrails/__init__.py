@@ -3,62 +3,28 @@
 This module contains models related to UiPath Guardrails service.
 """
 
+from uipath.core.guardrails import (
+    BaseGuardrail,
+    GuardrailScope,
+)
+from uipath.core.guardrails import (
+    DeterministicGuardrail as CustomGuardrail,
+)
+
 from ._guardrails_service import GuardrailsService
 from .guardrails import (
-    AllFieldsSelector,
-    ApplyTo,
-    BaseGuardrail,
-    BooleanOperator,
-    BooleanRule,
     BuiltInValidatorGuardrail,
-    CustomGuardrail,
-    EnumListParameterValue,
-    FieldReference,
-    FieldSelector,
-    FieldSource,
     Guardrail,
-    GuardrailScope,
-    GuardrailSelector,
     GuardrailType,
-    MapEnumParameterValue,
-    NumberOperator,
-    NumberParameterValue,
-    NumberRule,
-    Rule,
-    SelectorType,
-    SpecificFieldsSelector,
-    UniversalRule,
-    ValidatorParameter,
-    WordOperator,
-    WordRule,
 )
 
 __all__ = [
     "GuardrailsService",
-    "FieldSource",
-    "ApplyTo",
-    "FieldReference",
-    "SelectorType",
-    "AllFieldsSelector",
-    "SpecificFieldsSelector",
-    "FieldSelector",
-    "BaseGuardrail",
-    "GuardrailType",
-    "Guardrail",
     "BuiltInValidatorGuardrail",
-    "CustomGuardrail",
-    "WordOperator",
-    "WordRule",
-    "NumberOperator",
-    "NumberRule",
-    "BooleanOperator",
-    "BooleanRule",
-    "UniversalRule",
-    "Rule",
-    "ValidatorParameter",
-    "EnumListParameterValue",
-    "MapEnumParameterValue",
-    "NumberParameterValue",
+    "Guardrail",
+    "GuardrailType",
+    "BaseGuardrail",
     "GuardrailScope",
-    "GuardrailSelector",
+    "CustomGuardrail",
 ]
+"#2.3.0 remove"

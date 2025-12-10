@@ -1,169 +1,10 @@
 """Guardrails models for UiPath Platform."""
 
 from enum import Enum
-from typing import Annotated, Callable, Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-
-class GuardrailValidationResult(BaseModel):
-    """Result returned from validating input with a given guardrail.
-
-    Attributes:
-        validation_passed: Indicates whether the input data passed the guardrail validation.
-        reason: Textual explanation describing why the validation passed or failed.
-    """
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    validation_passed: bool = Field(
-        alias="validation_passed", description="Whether the input passed validation."
-    )
-    reason: str = Field(
-        alias="reason", description="Explanation for the validation result."
-    )
-
-
-class FieldSource(str, Enum):
-    """Field source enumeration."""
-
-    INPUT = "input"
-    OUTPUT = "output"
-
-
-class ApplyTo(str, Enum):
-    """Apply to enumeration."""
-
-    INPUT = "input"
-    INPUT_AND_OUTPUT = "inputAndOutput"
-    OUTPUT = "output"
-
-
-class FieldReference(BaseModel):
-    """Field reference model."""
-
-    path: str
-    source: FieldSource
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-class SelectorType(str, Enum):
-    """Selector type enumeration."""
-
-    ALL = "all"
-    SPECIFIC = "specific"
-
-
-class AllFieldsSelector(BaseModel):
-    """All fields selector."""
-
-    selector_type: Literal["all"] = Field(alias="$selectorType")
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-class SpecificFieldsSelector(BaseModel):
-    """Specific fields selector."""
-
-    selector_type: Literal["specific"] = Field(alias="$selectorType")
-    fields: list[FieldReference]
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-FieldSelector = Annotated[
-    AllFieldsSelector | SpecificFieldsSelector,
-    Field(discriminator="selector_type"),
-]
-
-
-class RuleType(str, Enum):
-    """Rule type enumeration."""
-
-    BOOLEAN = "boolean"
-    NUMBER = "number"
-    UNIVERSAL = "always"
-    WORD = "word"
-
-
-class WordOperator(str, Enum):
-    """Word operator enumeration."""
-
-    CONTAINS = "contains"
-    DOES_NOT_CONTAIN = "doesNotContain"
-    DOES_NOT_END_WITH = "doesNotEndWith"
-    DOES_NOT_EQUAL = "doesNotEqual"
-    DOES_NOT_START_WITH = "doesNotStartWith"
-    ENDS_WITH = "endsWith"
-    EQUALS = "equals"
-    IS_EMPTY = "isEmpty"
-    IS_NOT_EMPTY = "isNotEmpty"
-    MATCHES_REGEX = "matchesRegex"
-    STARTS_WITH = "startsWith"
-    FUNC = "func"
-
-
-class WordRule(BaseModel):
-    """Word rule model."""
-
-    rule_type: Literal["word"] = Field(alias="$ruleType")
-    field_selector: FieldSelector = Field(alias="fieldSelector")
-    operator: WordOperator
-    value: str | None = None
-    func: Callable[[str], bool] | None = Field(default=None, exclude=True)
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-class UniversalRule(BaseModel):
-    """Universal rule model."""
-
-    rule_type: Literal["always"] = Field(alias="$ruleType")
-    apply_to: ApplyTo = Field(alias="applyTo")
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-class NumberOperator(str, Enum):
-    """Number operator enumeration."""
-
-    DOES_NOT_EQUAL = "doesNotEqual"
-    EQUALS = "equals"
-    FUNC = "func"
-    GREATER_THAN = "greaterThan"
-    GREATER_THAN_OR_EQUAL = "greaterThanOrEqual"
-    LESS_THAN = "lessThan"
-    LESS_THAN_OR_EQUAL = "lessThanOrEqual"
-
-
-class NumberRule(BaseModel):
-    """Number rule model."""
-
-    rule_type: Literal["number"] = Field(alias="$ruleType")
-    field_selector: FieldSelector = Field(alias="fieldSelector")
-    operator: NumberOperator
-    value: float
-    func: Callable[[float], bool] | None = Field(default=None, exclude=True)
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-class BooleanOperator(str, Enum):
-    """Boolean operator enumeration."""
-
-    EQUALS = "equals"
-
-
-class BooleanRule(BaseModel):
-    """Boolean rule model."""
-
-    rule_type: Literal["boolean"] = Field(alias="$ruleType")
-    field_selector: FieldSelector = Field(alias="fieldSelector")
-    operator: BooleanOperator
-    value: bool
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
+from uipath.core.guardrails import BaseGuardrail, DeterministicGuardrail
 
 
 class EnumListParameterValue(BaseModel):
@@ -202,50 +43,6 @@ ValidatorParameter = Annotated[
 ]
 
 
-Rule = Annotated[
-    WordRule | NumberRule | BooleanRule | UniversalRule,
-    Field(discriminator="rule_type"),
-]
-
-
-class GuardrailScope(str, Enum):
-    """Guardrail scope enumeration."""
-
-    AGENT = "Agent"
-    LLM = "Llm"
-    TOOL = "Tool"
-
-
-class GuardrailSelector(BaseModel):
-    """Guardrail selector model."""
-
-    scopes: list[GuardrailScope] = Field(default=[GuardrailScope.TOOL])
-    match_names: list[str] | None = Field(None, alias="matchNames")
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-class BaseGuardrail(BaseModel):
-    """Base guardrail model."""
-
-    id: str
-    name: str
-    description: str | None = None
-    enabled_for_evals: bool = Field(True, alias="enabledForEvals")
-    selector: GuardrailSelector
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-class CustomGuardrail(BaseGuardrail):
-    """Custom guardrail model."""
-
-    guardrail_type: Literal["custom"] = Field(alias="$guardrailType")
-    rules: list[Rule]
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
 class BuiltInValidatorGuardrail(BaseGuardrail):
     """Built-in validator guardrail model."""
 
@@ -259,7 +56,7 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
 
 
 Guardrail = Annotated[
-    CustomGuardrail | BuiltInValidatorGuardrail,
+    DeterministicGuardrail | BuiltInValidatorGuardrail,
     Field(discriminator="guardrail_type"),
 ]
 

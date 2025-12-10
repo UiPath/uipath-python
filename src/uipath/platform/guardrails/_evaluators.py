@@ -4,22 +4,18 @@ This module provides functions for evaluating different types of guardrail rules
 against input and output data.
 """
 
-import re
 from enum import IntEnum
 from typing import Any
 
-from .guardrails import (
+from uipath.core.guardrails import (
     AllFieldsSelector,
     ApplyTo,
-    BooleanOperator,
     BooleanRule,
     FieldReference,
     FieldSource,
-    NumberOperator,
     NumberRule,
     SpecificFieldsSelector,
     UniversalRule,
-    WordOperator,
     WordRule,
 )
 
@@ -183,55 +179,23 @@ def evaluate_word_rule(
         if field_value is None:
             continue
 
-        # WordOperator should only be applied to string values
+        # Word rules should only be applied to string values
         # Skip non-string values (numbers, booleans, objects, arrays, etc.)
         if not isinstance(field_value, str):
             continue
 
         field_str = field_value
 
-        # If a custom function is provided, use it instead of operator-based logic
-        if rule.operator == WordOperator.FUNC and rule.func is not None:
-            try:
-                passed = rule.func(field_str)
-            except Exception:
-                # If function raises an exception, treat as failure
-                passed = False
-        elif rule.operator == WordOperator.EQUALS:
-            passed = field_str == (rule.value or "")
-        elif rule.operator == WordOperator.DOES_NOT_EQUAL:
-            passed = field_str != (rule.value or "")
-        elif rule.operator == WordOperator.CONTAINS:
-            passed = (rule.value or "") in field_str
-        elif rule.operator == WordOperator.DOES_NOT_CONTAIN:
-            passed = (rule.value or "") not in field_str
-        elif rule.operator == WordOperator.STARTS_WITH:
-            passed = field_str.startswith(rule.value or "")
-        elif rule.operator == WordOperator.DOES_NOT_START_WITH:
-            passed = not field_str.startswith(rule.value or "")
-        elif rule.operator == WordOperator.ENDS_WITH:
-            passed = field_str.endswith(rule.value or "")
-        elif rule.operator == WordOperator.DOES_NOT_END_WITH:
-            passed = not field_str.endswith(rule.value or "")
-        elif rule.operator == WordOperator.IS_EMPTY:
-            passed = len(field_str) == 0
-        elif rule.operator == WordOperator.IS_NOT_EMPTY:
-            passed = len(field_str) > 0
-        elif rule.operator == WordOperator.MATCHES_REGEX:
-            if rule.value:
-                try:
-                    passed = bool(re.search(rule.value, field_str))
-                except re.error:
-                    # Invalid regex pattern - treat as failure
-                    passed = False
-            else:
-                passed = False
-        else:
+        # Use the custom function to evaluate the rule
+        try:
+            passed = rule.func(field_str)
+        except Exception:
+            # If function raises an exception, treat as failure
             passed = False
 
         if not passed:
             reason = format_guardrail_error_message(
-                field_ref, rule.operator.value, rule.value
+                field_ref, "comparing function", None
             )
             return False, reason
 
@@ -248,7 +212,7 @@ def evaluate_number_rule(
         if field_value is None:
             continue
 
-        # NumberOperator should only be applied to numeric values
+        # Number rules should only be applied to numeric values
         # Skip non-numeric values (strings, booleans, objects, arrays, etc.)
         # Note: bool is a subclass of int in Python, so we must check for bool first
         if isinstance(field_value, bool) or not isinstance(field_value, (int, float)):
@@ -256,31 +220,16 @@ def evaluate_number_rule(
 
         field_num = float(field_value)
 
-        # If a custom function is provided, use it instead of operator-based logic
-        if rule.operator == NumberOperator.FUNC and rule.func is not None:
-            try:
-                passed = rule.func(field_num)
-            except Exception:
-                # If function raises an exception, treat as failure
-                passed = False
-        elif rule.operator == NumberOperator.EQUALS:
-            passed = field_num == rule.value
-        elif rule.operator == NumberOperator.DOES_NOT_EQUAL:
-            passed = field_num != rule.value
-        elif rule.operator == NumberOperator.GREATER_THAN:
-            passed = field_num > rule.value
-        elif rule.operator == NumberOperator.GREATER_THAN_OR_EQUAL:
-            passed = field_num >= rule.value
-        elif rule.operator == NumberOperator.LESS_THAN:
-            passed = field_num < rule.value
-        elif rule.operator == NumberOperator.LESS_THAN_OR_EQUAL:
-            passed = field_num <= rule.value
-        else:
+        # Use the custom function to evaluate the rule
+        try:
+            passed = rule.func(field_num)
+        except Exception:
+            # If function raises an exception, treat as failure
             passed = False
 
         if not passed:
             reason = format_guardrail_error_message(
-                field_ref, rule.operator.value, str(rule.value)
+                field_ref, "comparing function", None
             )
             return False, reason
 
@@ -299,21 +248,23 @@ def evaluate_boolean_rule(
         if field_value is None:
             continue
 
-        # BooleanOperator should only be applied to boolean values
+        # Boolean rules should only be applied to boolean values
         # Skip non-boolean values (strings, numbers, objects, arrays, etc.)
         if not isinstance(field_value, bool):
             continue
 
         field_bool = field_value
 
-        if rule.operator == BooleanOperator.EQUALS:
-            passed = field_bool == rule.value
-        else:
+        # Use the custom function to evaluate the rule
+        try:
+            passed = rule.func(field_bool)
+        except Exception:
+            # If function raises an exception, treat as failure
             passed = False
 
         if not passed:
             reason = format_guardrail_error_message(
-                field_ref, rule.operator.value, str(rule.value)
+                field_ref, "comparing function", None
             )
             return False, reason
 

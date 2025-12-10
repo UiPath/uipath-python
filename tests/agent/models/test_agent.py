@@ -20,11 +20,11 @@ from uipath.agent.models.agent import (
     AgentUnknownGuardrail,
     AgentUnknownResourceConfig,
     AgentUnknownToolResourceConfig,
+    AgentWordRule,
 )
-from uipath.platform.guardrails import (
+from uipath.platform.guardrails.guardrails import (
     EnumListParameterValue,
     MapEnumParameterValue,
-    WordRule,
 )
 
 
@@ -687,7 +687,7 @@ class TestAgentBuilderConfig:
 
         # Check rule
         rule = agent_custom_guardrail.rules[0]
-        assert isinstance(rule, WordRule), (
+        assert isinstance(rule, AgentWordRule), (
             "Rule should be WordRule based on $ruleType='word'"
         )
         assert rule.rule_type == "word"
