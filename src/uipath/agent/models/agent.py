@@ -92,6 +92,14 @@ class AgentGuardrailActionType(str, Enum):
     UNKNOWN = "unknown"  # fallback branch discriminator
 
 
+class TextTokenType(str, Enum):
+    """Text token type enumeration."""
+
+    SIMPLE_TEXT = "simpleText"
+    VARIABLE = "variable"
+    EXPRESSION = "expression"
+
+
 class BaseCfg(BaseModel):
     """Base configuration model with common settings."""
 
@@ -106,6 +114,13 @@ class ExampleCall(BaseCfg):
     id: str = Field(..., alias="id")
     input: str = Field(..., alias="input")
     output: str = Field(..., alias="output")
+
+
+class TextToken(BaseCfg):
+    """Text token model."""
+
+    type: TextTokenType
+    raw_string: str = Field(alias="rawString")
 
 
 class BaseResourceProperties(BaseCfg):
@@ -677,6 +692,7 @@ class AgentMessage(BaseCfg):
 
     role: Literal[AgentMessageRole.SYSTEM, AgentMessageRole.USER]
     content: str
+    content_tokens: Optional[List[TextToken]] = Field(None, alias="contentTokens")
 
     @field_validator("role", mode="before")
     @classmethod
