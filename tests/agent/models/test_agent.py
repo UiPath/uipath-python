@@ -42,10 +42,41 @@ class TestAgentBuilderConfig:
             "name": "Agent with All Tools",
             "metadata": {"isConversational": False, "storageVersion": "22.0.0"},
             "messages": [
-                {"role": "System", "content": "You are an agentic assistant."},
+                {
+                    "role": "System",
+                    "content": "You are an agentic assistant.",
+                    "contentTokens": [
+                        {
+                            "type": "simpleText",
+                            "rawString": "You are an agentic assistant.",
+                        }
+                    ],
+                },
                 {
                     "role": "User",
                     "content": "Use the provided tools. Execute {{task}} the number of {{times}}.",
+                    "contentTokens": [
+                        {
+                            "type": "simpleText",
+                            "rawString": "Use the provided tools. Execute ",
+                        },
+                        {
+                            "type": "variable",
+                            "rawString": "input.task",
+                        },
+                        {
+                            "type": "simpleText",
+                            "rawString": " the number of ",
+                        },
+                        {
+                            "type": "variable",
+                            "rawString": "input.times",
+                        },
+                        {
+                            "type": "simpleText",
+                            "rawString": ".",
+                        },
+                    ],
                 },
             ],
             "inputSchema": {
@@ -229,6 +260,13 @@ class TestAgentBuilderConfig:
                         "properties": {"output": {"type": "string"}},
                     },
                     "settings": {},
+                    "argumentProperties": {
+                        "task": {
+                            "variant": "argument",
+                            "argumentPath": "$['task']",
+                            "isSensitive": False,
+                        }
+                    },
                     "properties": {
                         "processName": "Basic RPA Process",
                         "folderPath": "TestFolder/Complete Solution 30 Sept",
@@ -273,6 +311,18 @@ class TestAgentBuilderConfig:
                                     }
                                 },
                                 "required": ["timezone"],
+                            },
+                            "argumentProperties": {
+                                "timezone": {
+                                    "variant": "textBuilder",
+                                    "tokens": [
+                                        {
+                                            "type": "simpleText",
+                                            "rawString": "Europe/London",
+                                        },
+                                    ],
+                                    "isSensitive": False,
+                                },
                             },
                         },
                         {
