@@ -214,11 +214,11 @@ class _SpanUtils:
         parent_id = None
         if otel_span.parent is not None:
             parent_id = _SpanUtils.span_id_to_uuid4(otel_span.parent.span_id)
-
-        parent_span_id_str = env.get("UIPATH_PARENT_SPAN_ID")
-
-        if parent_span_id_str:
-            parent_id = uuid.UUID(parent_span_id_str)
+        else:
+            # Only set UIPATH_PARENT_SPAN_ID for root spans (spans without a parent)
+            parent_span_id_str = env.get("UIPATH_PARENT_SPAN_ID")
+            if parent_span_id_str:
+                parent_id = uuid.UUID(parent_span_id_str)
 
         # Build attributes dict efficiently
         # Use the otel attributes as base - we only add new keys, don't modify existing
