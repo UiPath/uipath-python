@@ -4,7 +4,9 @@ version = "0.0.1"
 description = "agent"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
-     "uipath>=2.1.169.dev1009000000,<2.1.169.dev1009010000",
+     "uipath>=2.2.0",
+     "httpx>=0.27.0",
+     "python-dotenv>=1.0.0",
 ]
 requires-python = ">=3.11"
 

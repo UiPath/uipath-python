@@ -1,0 +1,124 @@
+name: E2E Tests
+
+on:
+  # Reusable workflow - called from publish-dev.yml
+  workflow_call:
+    inputs:
+      sdk_version_range:
+        description: 'SDK version range (e.g., ">=2.2.21.dev1001230000,<2.2.21.dev1001240000")'
+        required: true
+        type: string
+
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      sdk_version_range:
+        description: 'SDK version range (e.g., ">=2.2.21.dev1001230000,<2.2.21.dev1001240000")'
+        required: true
+        type: string
+
+jobs:
+  discover-e2e-testcases:
+    runs-on: ubuntu-latest
+    outputs:
+      testcases: ${{ steps.discover.outputs.testcases }}
+      has_testcases: ${{ steps.discover.outputs.has_testcases }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Discover E2E testcases
+        id: discover
+        run: |
+          # Find all testcase folders ending with -e2e
+          testcase_dirs=$(find testcases -maxdepth 1 -type d -name "*-e2e" | sed 's|testcases/||' | sort)
+
+          echo "Found E2E testcase directories:"
+          echo "$testcase_dirs"
+
+          if [ -z "$testcase_dirs" ]; then
+            echo "No E2E testcases found"
+            echo "has_testcases=false" >> $GITHUB_OUTPUT
+            echo "testcases=[]" >> $GITHUB_OUTPUT
+          else
+            # Convert to JSON array for matrix
+            testcases_json=$(echo "$testcase_dirs" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "testcases=$testcases_json" >> $GITHUB_OUTPUT
+            echo "has_testcases=true" >> $GITHUB_OUTPUT
+          fi
+
+  e2e-tests:
+    needs: [discover-e2e-testcases]
+    if: needs.discover-e2e-testcases.outputs.has_testcases == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/astral-sh/uv:python3.12-bookworm
+      env:
+        UIPATH_JOB_KEY: "e2e-test-${{ github.run_id }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        testcase: ${{ fromJson(needs.discover-e2e-testcases.outputs.testcases) }}
+        environment: [alpha, cloud, staging]
+
+    name: "${{ matrix.testcase }} / ${{ matrix.environment }}"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update SDK dependency to dev version
+        working-directory: testcases/${{ matrix.testcase }}
+        env:
+          SDK_VERSION_RANGE: ${{ inputs.sdk_version_range }}
+        run: |
+          echo "Setting uipath SDK version to: $SDK_VERSION_RANGE"
+
+          # Update the uipath dependency in pyproject.toml
+          sed -i "s/\"uipath>=.*\"/\"uipath$SDK_VERSION_RANGE\"/" pyproject.toml
+
+          # Ensure testpypi source is configured
+          if ! grep -q "\[tool.uv.sources\]" pyproject.toml; then
+            cat >> pyproject.toml << 'EOF'
+
+          [tool.uv.sources]
+          uipath = { index = "testpypi" }
+          EOF
+          fi
+
+          echo "Updated pyproject.toml:"
+          cat pyproject.toml
+
+      - name: Run E2E testcase
+        env:
+          CLIENT_ID:      ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_ID || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_ID || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_ID }}
+          CLIENT_SECRET:  ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_SECRET || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_SECRET || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_SECRET }}
+          BASE_URL:       ${{ matrix.environment == 'alpha' && secrets.ALPHA_BASE_URL || matrix.environment == 'staging' && secrets.STAGING_BASE_URL || matrix.environment == 'cloud' && secrets.CLOUD_BASE_URL }}
+          GITHUB_RUN_ID:  ${{ github.run_id }}
+        working-directory: testcases/${{ matrix.testcase }}
+        run: |
+          set -e
+
+          echo "Running E2E testcase: ${{ matrix.testcase }}"
+          echo "Environment: ${{ matrix.environment }}"
+          echo "SDK version range: ${{ inputs.sdk_version_range }}"
+
+          # Execute the testcase run script
+          bash run.sh
+          bash ../common/validate_output.sh
+
+  summarize-e2e-results:
+    needs: [e2e-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check E2E tests status
+        run: |
+          if [[ "${{ needs.e2e-tests.result }}" == "success" ]]; then
+            echo "✓ All E2E tests passed"
+          elif [[ "${{ needs.e2e-tests.result }}" == "skipped" ]]; then
+            echo "⊘ E2E tests were skipped (no testcases found)"
+          else
+            echo "✗ Some E2E tests failed"
+            exit 1
+          fi
