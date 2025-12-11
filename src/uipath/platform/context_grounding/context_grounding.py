@@ -41,11 +41,28 @@ class DeepRagStatus(str, Enum):
     FAILED = "Failed"
 
 
+class Citation(BaseModel):
+    """Model representing a deep RAG citation."""
+
+    ordinal: int
+    page_number: int = Field(alias="pageNumber")
+    source: str
+    reference: str
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+
 class DeepRagContent(BaseModel):
     """Model representing a deep RAG task content."""
 
     text: str
-    citations: list[str]
+    citations: list[Citation]
 
     model_config = ConfigDict(
         validate_by_name=True,

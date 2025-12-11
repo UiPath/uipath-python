@@ -11,9 +11,13 @@ from ._external_application_service import ExternalApplicationService
 from ._folder_context import FolderContext
 from .auth import TokenData
 from .interrupt_models import (
+    CreateBatchTransform,
+    CreateDeepRag,
     CreateEscalation,
     CreateTask,
     InvokeProcess,
+    WaitBatchTransform,
+    WaitDeepRag,
     WaitEscalation,
     WaitJob,
     WaitTask,
@@ -36,4 +40,8 @@ __all__ = [
     "WaitTask",
     "WaitJob",
     "PagedResult",
+    "CreateDeepRag",
+    "WaitDeepRag",
+    "CreateBatchTransform",
+    "WaitBatchTransform",
 ]

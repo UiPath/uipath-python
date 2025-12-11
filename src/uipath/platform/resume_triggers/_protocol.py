@@ -1,6 +1,7 @@
 """Implementation of UiPath resume trigger protocols."""
 
 import json
+import os
 import uuid
 from typing import Any
 
@@ -21,13 +22,19 @@ from uipath.platform import UiPath
 from uipath.platform.action_center import Task
 from uipath.platform.action_center.tasks import TaskStatus
 from uipath.platform.common import (
+    CreateBatchTransform,
+    CreateDeepRag,
     CreateEscalation,
     CreateTask,
     InvokeProcess,
+    WaitBatchTransform,
+    WaitDeepRag,
     WaitEscalation,
     WaitJob,
     WaitTask,
 )
+from uipath.platform.context_grounding import DeepRagStatus
+from uipath.platform.errors import BatchTransformNotCompleteException
 from uipath.platform.orchestrator.job import JobState
 from uipath.platform.resume_triggers._enums import PropertyName, TriggerMarker
 
@@ -55,7 +62,8 @@ class UiPathResumeTriggerReader:
     Implements UiPathResumeTriggerReaderProtocol.
     """
 
-    def _extract_name_hint(self, field_name: str, payload: Any) -> str | None:
+    def _extract_field(self, field_name: str, payload: Any) -> str | None:
+        """Extracts a field from the payload and returns it if it exists."""
         if not payload:
             return payload
 
@@ -100,7 +108,7 @@ class UiPathResumeTriggerReader:
                         trigger.item_key,
                         app_folder_key=trigger.folder_key,
                         app_folder_path=trigger.folder_path,
-                        app_name=self._extract_name_hint("app_name", trigger.payload),
+                        app_name=self._extract_field("app_name", trigger.payload),
                     )
                     pending_status = TaskStatus.PENDING.value
                     unassigned_status = TaskStatus.UNASSIGNED.value
@@ -137,7 +145,7 @@ class UiPathResumeTriggerReader:
                         trigger.item_key,
                         folder_key=trigger.folder_key,
                         folder_path=trigger.folder_path,
-                        process_name=self._extract_name_hint("name", trigger.payload),
+                        process_name=self._extract_field("name", trigger.payload),
                     )
                     job_state = (job.state or "").lower()
                     successful_state = JobState.SUCCESSFUL.value
@@ -177,6 +185,64 @@ class UiPathResumeTriggerReader:
                         }
 
                     return trigger_response
+            case UiPathResumeTriggerType.DEEP_RAG:
+                if trigger.item_key:
+                    deep_rag = await uipath.context_grounding.retrieve_deep_rag_async(
+                        trigger.item_key,
+                        index_name=self._extract_field("index_name", trigger.payload),
+                    )
+                    deep_rag_status = deep_rag.last_deep_rag_status
+
+                    if deep_rag_status in (
+                        DeepRagStatus.QUEUED,
+                        DeepRagStatus.IN_PROGRESS,
+                    ):
+                        raise UiPathPendingTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"DeepRag is not finished yet. Current status: {deep_rag_status}",
+                        )
+
+                    if deep_rag_status != DeepRagStatus.SUCCESSFUL:
+                        raise UiPathFaultedTriggerError(
+                            ErrorCategory.USER,
+                            f"DeepRag '{deep_rag.name}' did not finish successfully.",
+                        )
+
+                    trigger_response = deep_rag.content
+
+                    # if response is an empty dictionary, use Deep Rag state as placeholder value
+                    if not trigger_response:
+                        trigger_response = {
+                            "status": deep_rag_status,
+                            PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
+                        }
+                    else:
+                        trigger_response = trigger_response.model_dump()
+
+                    return trigger_response
+
+            case UiPathResumeTriggerType.BATCH_RAG:
+                if trigger.item_key:
+                    destination_path = self._extract_field(
+                        "destination_path", trigger.payload
+                    )
+                    assert destination_path is not None
+                    try:
+                        await uipath.context_grounding.download_batch_transform_result_async(
+                            trigger.item_key,
+                            destination_path,
+                            validate_status=True,
+                            index_name=self._extract_field(
+                                "index_name", trigger.payload
+                            ),
+                        )
+                    except BatchTransformNotCompleteException as e:
+                        raise UiPathPendingTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"{e.message}",
+                        ) from e
+
+                    return f"Batch transform completed. Modified file available at {os.path.abspath(destination_path)}"
 
             case UiPathResumeTriggerType.API:
                 if trigger.api_resume and trigger.api_resume.inbox_id:
@@ -190,6 +256,7 @@ class UiPathResumeTriggerReader:
                             f"Failed to get trigger payload"
                             f"Error fetching API trigger payload for inbox {trigger.api_resume.inbox_id}: {str(e)}",
                         ) from e
+
             case _:
                 raise UiPathFaultedTriggerError(
                     ErrorCategory.SYSTEM,
@@ -256,6 +323,15 @@ class UiPathResumeTriggerCreator:
                 case UiPathResumeTriggerType.API:
                     self._handle_api_trigger(suspend_value, resume_trigger)
 
+                case UiPathResumeTriggerType.DEEP_RAG:
+                    await self._handle_deep_rag_job_trigger(
+                        suspend_value, resume_trigger, uipath
+                    )
+                case UiPathResumeTriggerType.BATCH_RAG:
+                    await self._handle_batch_rag_job_trigger(
+                        suspend_value, resume_trigger, uipath
+                    )
+
                 case _:
                     raise UiPathFaultedTriggerError(
                         ErrorCategory.SYSTEM,
@@ -283,6 +359,10 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerType.TASK
         if isinstance(value, (InvokeProcess, WaitJob)):
             return UiPathResumeTriggerType.JOB
+        if isinstance(value, (CreateDeepRag, WaitDeepRag)):
+            return UiPathResumeTriggerType.DEEP_RAG
+        if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
+            return UiPathResumeTriggerType.BATCH_RAG
         # default to API trigger
         return UiPathResumeTriggerType.API
 
@@ -301,6 +381,10 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.TASK
         if isinstance(value, (InvokeProcess, WaitJob)):
             return UiPathResumeTriggerName.JOB
+        if isinstance(value, (CreateDeepRag, WaitDeepRag)):
+            return UiPathResumeTriggerName.DEEP_RAG
+        if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
+            return UiPathResumeTriggerName.BATCH_RAG
         # default to API trigger
         return UiPathResumeTriggerName.API
 
@@ -332,6 +416,63 @@ class UiPathResumeTriggerCreator:
             if not action:
                 raise Exception("Failed to create action")
             resume_trigger.item_key = action.key
+
+    async def _handle_deep_rag_job_trigger(
+        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+    ) -> None:
+        """Handle job-type resume triggers.
+
+        Args:
+            value: The suspend value (InvokeProcess or WaitJob)
+            resume_trigger: The resume trigger to populate
+            uipath: The UiPath client instance
+        """
+        resume_trigger.folder_path = value.index_folder_path
+        resume_trigger.folder_key = value.index_folder_key
+        if isinstance(value, WaitDeepRag):
+            resume_trigger.item_key = value.deep_rag.id
+        elif isinstance(value, CreateDeepRag):
+            deep_rag = await uipath.context_grounding.start_deep_rag_async(
+                name=value.name,
+                index_name=value.index_name,
+                prompt=value.prompt,
+                glob_pattern=value.glob_pattern,
+                citation_mode=value.citation_mode,
+                folder_path=value.index_folder_path,
+                folder_key=value.index_folder_key,
+            )
+            if not deep_rag:
+                raise Exception("Failed to start deep rag")
+            resume_trigger.item_key = deep_rag.id
+
+    async def _handle_batch_rag_job_trigger(
+        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+    ) -> None:
+        """Handle job-type resume triggers.
+
+        Args:
+            value: The suspend value (InvokeProcess or WaitJob)
+            resume_trigger: The resume trigger to populate
+            uipath: The UiPath client instance
+        """
+        resume_trigger.folder_path = value.index_folder_path
+        resume_trigger.folder_key = value.index_folder_key
+        if isinstance(value, WaitBatchTransform):
+            resume_trigger.item_key = value.batch_transform.id
+        elif isinstance(value, CreateBatchTransform):
+            batch_transform = await uipath.context_grounding.start_batch_transform_async(
+                name=value.name,
+                index_name=value.index_name,
+                prompt=value.prompt,
+                output_columns=value.output_columns,
+                storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
+                enable_web_search_grounding=value.enable_web_search_grounding,
+                folder_path=value.index_folder_path,
+                folder_key=value.index_folder_key,
+            )
+            if not batch_transform:
+                raise Exception("Failed to start batch transform")
+            resume_trigger.item_key = batch_transform.id
 
     async def _handle_job_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
