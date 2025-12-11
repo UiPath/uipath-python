@@ -10,7 +10,7 @@ from .context_grounding import (
     ContextGroundingQueryResponse,
     DeepRagCreationResponse,
     DeepRagResponse,
-    DeepRagStatus,
+    DeepRagStatus, Citation,
 )
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
@@ -60,4 +60,5 @@ __all__ = [
     "OneDriveSourceConfig",
     "PreProcessing",
     "SourceConfig",
+    "Citation"
 ]
