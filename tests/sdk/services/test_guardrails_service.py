@@ -6,10 +6,10 @@ from uipath.core.guardrails import (
 )
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.guardrails import BuiltInValidatorGuardrail
-from uipath.platform.guardrails._guardrails_service import GuardrailsService
-from uipath.platform.guardrails.guardrails import (
+from uipath.platform.guardrails import (
+    BuiltInValidatorGuardrail,
     EnumListParameterValue,
+    GuardrailsService,
     MapEnumParameterValue,
 )
 

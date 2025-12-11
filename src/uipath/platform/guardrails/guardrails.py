@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-from uipath.core.guardrails import BaseGuardrail, DeterministicGuardrail
+from uipath.core.guardrails import BaseGuardrail
 
 
 class EnumListParameterValue(BaseModel):
@@ -53,12 +53,6 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
     )
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-Guardrail = Annotated[
-    DeterministicGuardrail | BuiltInValidatorGuardrail,
-    Field(discriminator="guardrail_type"),
-]
 
 
 class GuardrailType(str, Enum):

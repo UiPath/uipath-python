@@ -22,7 +22,7 @@ from uipath.agent.models.agent import (
     AgentUnknownToolResourceConfig,
     AgentWordRule,
 )
-from uipath.platform.guardrails.guardrails import (
+from uipath.platform.guardrails import (
     EnumListParameterValue,
     MapEnumParameterValue,
 )

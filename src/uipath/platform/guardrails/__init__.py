@@ -3,28 +3,30 @@
 This module contains models related to UiPath Guardrails service.
 """
 
+# 2.3.0 remove
 from uipath.core.guardrails import (
     BaseGuardrail,
+    DeterministicGuardrail,
     GuardrailScope,
-)
-from uipath.core.guardrails import (
-    DeterministicGuardrail as CustomGuardrail,
+    GuardrailValidationResult,
 )
 
 from ._guardrails_service import GuardrailsService
 from .guardrails import (
     BuiltInValidatorGuardrail,
-    Guardrail,
+    EnumListParameterValue,
     GuardrailType,
+    MapEnumParameterValue,
 )
 
 __all__ = [
     "GuardrailsService",
     "BuiltInValidatorGuardrail",
-    "Guardrail",
     "GuardrailType",
     "BaseGuardrail",
     "GuardrailScope",
-    "CustomGuardrail",
+    "DeterministicGuardrail",
+    "GuardrailValidationResult",
+    "EnumListParameterValue",
+    "MapEnumParameterValue",
 ]
-"#2.3.0 remove"
