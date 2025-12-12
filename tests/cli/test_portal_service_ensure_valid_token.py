@@ -11,6 +11,7 @@ import time
 from unittest.mock import Mock, patch
 
 import pytest
+from click.testing import CliRunner
 from uipath.runtime.errors import UiPathRuntimeError
 
 from uipath._cli._auth._portal_service import PortalService
@@ -186,30 +187,32 @@ class TestPortalServiceEnsureValidToken:
         os.environ["UIPATH_URL"] = "https://test.example.com/org/tenant"
 
         try:
-            with (
-                patch(
-                    "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
-                    return_value=mock_auth_config,
-                ),
-                patch(
-                    "uipath._cli._auth._portal_service.get_auth_data",
-                    return_value=TokenData.model_validate(valid_auth_data),
-                ),
-                patch(
-                    "uipath._cli._auth._portal_service.get_parsed_token_data",
-                    return_value=valid_auth_data,
-                ),
-            ):
-                # Create PortalService instance
-                portal_service = PortalService("cloud")
-                mock_client = Mock()
-                portal_service._client = mock_client
+            runner = CliRunner()
+            with runner.isolated_filesystem():
+                with (
+                    patch(
+                        "uipath._cli._auth._oidc_utils.OidcUtils.get_auth_config",
+                        return_value=mock_auth_config,
+                    ),
+                    patch(
+                        "uipath._cli._auth._portal_service.get_auth_data",
+                        return_value=TokenData.model_validate(valid_auth_data),
+                    ),
+                    patch(
+                        "uipath._cli._auth._portal_service.get_parsed_token_data",
+                        return_value=valid_auth_data,
+                    ),
+                ):
+                    # Create PortalService instance
+                    portal_service = PortalService("cloud")
+                    mock_client = Mock()
+                    portal_service._client = mock_client
 
-                # Test ensure_valid_token
-                portal_service.ensure_valid_token()
+                    # Test ensure_valid_token
+                    portal_service.ensure_valid_token()
 
-                # Verify no refresh request was made (token is still valid)
-                mock_client.post.assert_not_called()
+                    # Verify no refresh request was made (token is still valid)
+                    mock_client.post.assert_not_called()
 
         finally:
             if "UIPATH_URL" in os.environ:
