@@ -6,6 +6,7 @@ from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
 from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 from ..errors import FolderNotFoundException
+from .folder import PersonalWorkspace
 
 
 class FolderService(BaseService):
@@ -167,3 +168,53 @@ class FolderService(BaseService):
                 "take": take,
             },
         )
+
+    @traced(name="folder_get_personal_workspace", run_type="uipath")
+    def get_personal_workspace(self) -> PersonalWorkspace:
+        """Retrieve the personal workspace folder for the current user.
+
+        Returns:
+            PersonalWorkspace: The personal workspace information.
+
+        Raises:
+            ValueError: If the user does not have a personal workspace.
+        """
+        response = self.request(
+            "GET",
+            url=Endpoint(
+                "orchestrator_/odata/Users/UiPath.Server.Configuration.OData.GetCurrentUserExtended"
+            ),
+            params={"$select": "PersonalWorkspace", "$expand": "PersonalWorkspace"},
+        ).json()
+
+        personal_workspace = response.get("PersonalWorkspace")
+        if personal_workspace is None:
+            raise ValueError("Failed to fetch personal workspace")
+
+        return PersonalWorkspace.model_validate(personal_workspace)
+
+    @traced(name="folder_get_personal_workspace_async", run_type="uipath")
+    async def get_personal_workspace_async(self) -> PersonalWorkspace:
+        """Asynchronously retrieve the personal workspace folder for the current user.
+
+        Returns:
+            PersonalWorkspace: The personal workspace information.
+
+        Raises:
+            ValueError: If the personal workspace cannot be fetched.
+        """
+        response = (
+            await self.request_async(
+                "GET",
+                url=Endpoint(
+                    "orchestrator_/odata/Users/UiPath.Server.Configuration.OData.GetCurrentUserExtended"
+                ),
+                params={"$select": "PersonalWorkspace", "$expand": "PersonalWorkspace"},
+            )
+        ).json()
+
+        personal_workspace = response.get("PersonalWorkspace")
+        if personal_workspace is None:
+            raise ValueError("Failed to fetch personal workspace")
+
+        return PersonalWorkspace.model_validate(personal_workspace)

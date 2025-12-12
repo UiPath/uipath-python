@@ -1,5 +1,7 @@
 # type: ignore # this is riddled with typing issues -- fix this later.
 import asyncio
+import mimetypes
+import os
 import time
 from contextlib import nullcontext
 from pathlib import Path
@@ -9,6 +11,9 @@ from uuid import UUID
 from ..._utils import Endpoint
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
+from ..errors import IxpExtractionNotCompleteException
+from ..orchestrator._attachments_service import AttachmentsService
+from ..orchestrator._folder_service import FolderService
 from .documents import (
     ActionPriority,
     ClassificationResponse,
@@ -16,6 +21,7 @@ from .documents import (
     ExtractionResponse,
     ExtractionResponseIXP,
     FileContent,
+    IxpExtractionStartResponse,
     ProjectType,
     ValidateClassificationAction,
     ValidateExtractionAction,
@@ -119,9 +125,15 @@ class DocumentsService(FolderContext, BaseService):
     """
 
     def __init__(
-        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        attachments_service: AttachmentsService,
+        folder_service: FolderService,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._attachments_service = attachments_service
+        self._folder_service = folder_service
 
     def _get_common_headers(self) -> Dict[str, str]:
         return {
@@ -363,6 +375,64 @@ class DocumentsService(FolderContext, BaseService):
             wait_statuses=["NotStarted", "Running"],
             success_status="Succeeded",
         )
+
+    def _start_digitization_from_attachment(
+        self,
+        project_id: str,
+        attachment_id: UUID,
+        file_name: str,
+        mime_type: str,
+    ) -> str:
+        folder_id = self._folder_key
+        if folder_id is None:
+            personal_workspace = self._folder_service.get_personal_workspace()
+            folder_id = str(personal_workspace.id)
+
+        response = self.request(
+            "POST",
+            url=Endpoint(
+                f"/du_/api/framework/projects/{project_id}/digitization/startFromJobAttachment"
+            ),
+            params={"api-version": "1.1"},
+            headers=self._get_common_headers(),
+            json={
+                "attachmentId": str(attachment_id),
+                "folderId": folder_id,
+                "mimeType": mime_type,
+                "fileName": file_name,
+            },
+        )
+        return response.json()["documentId"]
+
+    async def _start_digitization_from_attachment_async(
+        self,
+        project_id: str,
+        attachment_id: UUID,
+        file_name: str,
+        mime_type: str,
+    ) -> str:
+        folder_id = self._folder_key
+        if folder_id is None:
+            personal_workspace = (
+                await self._folder_service.get_personal_workspace_async()
+            )
+            folder_id = str(personal_workspace.id)
+
+        response = await self.request_async(
+            "POST",
+            url=Endpoint(
+                f"/du_/api/framework/projects/{project_id}/digitization/startFromJobAttachment"
+            ),
+            params={"api-version": "1.1"},
+            headers=self._get_common_headers(),
+            json={
+                "attachmentId": str(attachment_id),
+                "folderId": folder_id,
+                "mimeType": mime_type,
+                "fileName": file_name,
+            },
+        )
+        return response.json()["documentId"]
 
     def _get_document_type_id(
         self,
@@ -887,6 +957,236 @@ class DocumentsService(FolderContext, BaseService):
             tag=tag,
             operation_id=operation_id,
         )
+
+    @traced(name="documents_start_ixp_extraction", run_type="uipath")
+    def start_ixp_extraction(
+        self,
+        project_name: str,
+        tag: str,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+    ) -> IxpExtractionStartResponse:
+        """Start an IXP extraction process without waiting for results (non-blocking).
+
+        This method uploads the file as an attachment and starts the extraction process,
+        returning immediately without waiting for the extraction to complete.
+        Use this for async workflows where you want to receive results via callback/webhook.
+
+        Args:
+            project_name (str): Name of the IXP project.
+            tag (str): Tag of the published project version (e.g., "staging").
+            file (FileContent, optional): The document file to be processed.
+            file_path (str, optional): Path to the document file to be processed.
+
+        Note:
+            Either `file` or `file_path` must be provided, but not both.
+
+        Returns:
+            IxpExtractionStartResponse: Contains the operation_id, document_id, project_id, and tag
+            needed to poll for results or correlate with a callback.
+
+        Examples:
+            ```python
+            start_response = uipath.documents.start_ixp_extraction(
+                project_name="MyIXPProjectName",
+                tag="staging",
+                file_path="path/to/document.pdf",
+            )
+            # start_response.operation_id can be used to poll for results later
+            ```
+        """
+        _exactly_one_must_be_provided(file=file, file_path=file_path)
+
+        project_id = self._get_project_id_by_name(project_name, ProjectType.IXP)
+
+        if file_path:
+            file_name = os.path.basename(file_path)
+            mime_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+            attachment_id = self._attachments_service.upload(
+                name=file_name,
+                source_path=file_path,
+            )
+        else:
+            file_name = getattr(file, "name", "document")
+            mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+            attachment_id = self._attachments_service.upload(
+                name=file_name,
+                content=file,
+            )
+
+        document_id = self._start_digitization_from_attachment(
+            project_id=project_id,
+            attachment_id=attachment_id,
+            file_name=file_name,
+            mime_type=mime_type,
+        )
+
+        operation_id = self._start_extraction(
+            project_id=project_id,
+            project_type=ProjectType.IXP,
+            tag=tag,
+            document_type_id=str(UUID(int=0)),
+            document_id=document_id,
+        )
+
+        return IxpExtractionStartResponse(
+            operation_id=operation_id,
+            document_id=document_id,
+            project_id=project_id,
+            tag=tag,
+        )
+
+    @traced(name="documents_start_ixp_extraction_async", run_type="uipath")
+    async def start_ixp_extraction_async(
+        self,
+        project_name: str,
+        tag: str,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+    ) -> IxpExtractionStartResponse:
+        """Asynchronous version of the [`start_ixp_extraction`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction] method."""
+        _exactly_one_must_be_provided(file=file, file_path=file_path)
+
+        project_id = await self._get_project_id_by_name_async(
+            project_name, ProjectType.IXP
+        )
+
+        if file_path:
+            file_name = os.path.basename(file_path)
+            mime_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+            attachment_id = await self._attachments_service.upload_async(
+                name=file_name,
+                source_path=file_path,
+            )
+        else:
+            file_name = getattr(file, "name", "document")
+            mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+            attachment_id = await self._attachments_service.upload_async(
+                name=file_name,
+                content=file,
+            )
+
+        document_id = await self._start_digitization_from_attachment_async(
+            project_id=project_id,
+            attachment_id=attachment_id,
+            file_name=file_name,
+            mime_type=mime_type,
+        )
+
+        operation_id = await self._start_extraction_async(
+            project_id=project_id,
+            project_type=ProjectType.IXP,
+            tag=tag,
+            document_type_id=str(UUID(int=0)),
+            document_id=document_id,
+        )
+
+        return IxpExtractionStartResponse(
+            operation_id=operation_id,
+            document_id=document_id,
+            project_id=project_id,
+            tag=tag,
+        )
+
+    @traced(name="documents_retrieve_ixp_extraction_result", run_type="uipath")
+    def retrieve_ixp_extraction_result(
+        self,
+        project_id: str,
+        tag: str,
+        operation_id: str,
+    ) -> ExtractionResponseIXP:
+        """Retrieve the result of an IXP extraction operation (single-shot, non-blocking).
+
+        This method retrieves the result of an IXP extraction that was previously started
+        with `start_ixp_extraction`. It does not poll - it makes a single request and
+        returns the result if available, or raises an exception if not complete.
+
+        Args:
+            project_id (str): The ID of the IXP project.
+            tag (str): The tag of the published project version.
+            operation_id (str): The operation ID returned from `start_ixp_extraction`.
+
+        Returns:
+            ExtractionResponseIXP: The extraction response containing the extracted data.
+
+        Raises:
+            IxpExtractionNotCompleteException: If the extraction is not yet complete.
+
+        Examples:
+            ```python
+            # After receiving a callback/webhook that extraction is complete:
+            result = service.retrieve_ixp_extraction_result(
+                project_id=start_response.project_id,
+                tag=start_response.tag,
+                operation_id=start_response.operation_id,
+            )
+            ```
+        """
+        document_type_id = str(UUID(int=0))
+
+        url = Endpoint(
+            f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/result/{operation_id}"
+        )
+
+        result = self.request(
+            method="GET",
+            url=url,
+            params={"api-version": "1.1"},
+            headers=self._get_common_headers(),
+        ).json()
+
+        status = result.get("status")
+        if status != "Succeeded":
+            raise IxpExtractionNotCompleteException(
+                operation_id=operation_id,
+                status=status,
+            )
+
+        extraction_response = result.get("result")
+        extraction_response["projectId"] = project_id
+        extraction_response["tag"] = tag
+        extraction_response["documentTypeId"] = document_type_id
+        extraction_response["projectType"] = ProjectType.IXP
+
+        return ExtractionResponseIXP.model_validate(extraction_response)
+
+    @traced(name="documents_retrieve_ixp_extraction_result_async", run_type="uipath")
+    async def retrieve_ixp_extraction_result_async(
+        self,
+        project_id: str,
+        tag: str,
+        operation_id: str,
+    ) -> ExtractionResponseIXP:
+        """Asynchronous version of the [`retrieve_ixp_extraction_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_result] method."""
+        document_type_id = str(UUID(int=0))
+
+        url = Endpoint(
+            f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/result/{operation_id}"
+        )
+
+        result = (
+            await self.request_async(
+                method="GET",
+                url=url,
+                params={"api-version": "1.1"},
+                headers=self._get_common_headers(),
+            )
+        ).json()
+
+        status = result.get("status")
+        if status != "Succeeded":
+            raise IxpExtractionNotCompleteException(
+                operation_id=operation_id,
+                status=status,
+            )
+
+        extraction_response = result.get("result")
+        extraction_response["projectId"] = project_id
+        extraction_response["tag"] = tag
+        extraction_response["documentTypeId"] = document_type_id
+        extraction_response["projectType"] = ProjectType.IXP
+
+        return ExtractionResponseIXP.model_validate(extraction_response)
 
     @traced(name="documents_extract", run_type="uipath")
     def extract(

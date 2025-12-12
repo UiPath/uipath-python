@@ -16,6 +16,7 @@ from .documents import (
     FieldType,
     FieldValueProjection,
     FileContent,
+    IxpExtractionStartResponse,
     ProjectType,
     Reference,
     ValidateClassificationAction,
@@ -41,4 +42,5 @@ __all__ = [
     "ClassificationResult",
     "ClassificationResponse",
     "FileContent",
+    "IxpExtractionStartResponse",
 ]
