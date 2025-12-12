@@ -6,12 +6,16 @@ from enum import Enum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from uipath.core.guardrails import (
+    BaseGuardrail,
+    FieldReference,
+    FieldSelector,
+    UniversalRule,
+)
 
 from uipath.platform.connections import Connection
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
-    CustomGuardrail,
-    FieldReference,
 )
 
 
@@ -469,8 +473,83 @@ class AgentBuiltInValidatorGuardrail(BuiltInValidatorGuardrail):
     )
 
 
-class AgentCustomGuardrail(CustomGuardrail):
+class AgentWordOperator(str, Enum):
+    """Word operator enumeration."""
+
+    CONTAINS = "contains"
+    DOES_NOT_CONTAIN = "doesNotContain"
+    DOES_NOT_END_WITH = "doesNotEndWith"
+    DOES_NOT_EQUAL = "doesNotEqual"
+    DOES_NOT_START_WITH = "doesNotStartWith"
+    ENDS_WITH = "endsWith"
+    EQUALS = "equals"
+    IS_EMPTY = "isEmpty"
+    IS_NOT_EMPTY = "isNotEmpty"
+    MATCHES_REGEX = "matchesRegex"
+    STARTS_WITH = "startsWith"
+
+
+class AgentWordRule(BaseModel):
+    """Word rule model."""
+
+    rule_type: Literal["word"] = Field(alias="$ruleType")
+    field_selector: FieldSelector = Field(alias="fieldSelector")
+    operator: AgentWordOperator
+    value: str | None = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class AgentNumberOperator(str, Enum):
+    """Number operator enumeration."""
+
+    DOES_NOT_EQUAL = "doesNotEqual"
+    EQUALS = "equals"
+    GREATER_THAN = "greaterThan"
+    GREATER_THAN_OR_EQUAL = "greaterThanOrEqual"
+    LESS_THAN = "lessThan"
+    LESS_THAN_OR_EQUAL = "lessThanOrEqual"
+
+
+class AgentNumberRule(BaseModel):
+    """Number rule model."""
+
+    rule_type: Literal["number"] = Field(alias="$ruleType")
+    field_selector: FieldSelector = Field(alias="fieldSelector")
+    operator: AgentNumberOperator
+    value: float
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class AgentBooleanOperator(str, Enum):
+    """Boolean operator enumeration."""
+
+    EQUALS = "equals"
+
+
+class AgentBooleanRule(BaseModel):
+    """Boolean rule model."""
+
+    rule_type: Literal["boolean"] = Field(alias="$ruleType")
+    field_selector: FieldSelector = Field(alias="fieldSelector")
+    operator: AgentBooleanOperator
+    value: bool
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+AgentRule = Annotated[
+    AgentWordRule | AgentNumberRule | AgentBooleanRule | UniversalRule,
+    Field(discriminator="rule_type"),
+]
+
+
+class AgentCustomGuardrail(BaseGuardrail):
     """Agent custom guardrail with action capabilities."""
+
+    guardrail_type: Literal["custom"] = Field(alias="$guardrailType")
+    rules: list[AgentRule]
 
     action: GuardrailAction = Field(
         ..., description="Action to take when guardrail is triggered"

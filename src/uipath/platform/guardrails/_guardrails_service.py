@@ -1,9 +1,11 @@
 from typing import Any
 
+from uipath.core.guardrails import GuardrailValidationResult
+
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
 from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
-from .guardrails import BuiltInValidatorGuardrail, Guardrail, GuardrailValidationResult
+from .guardrails import BuiltInValidatorGuardrail
 
 
 class GuardrailsService(BaseService):
@@ -29,43 +31,34 @@ class GuardrailsService(BaseService):
     def evaluate_guardrail(
         self,
         input_data: str | dict[str, Any],
-        guardrail: Guardrail,
+        guardrail: BuiltInValidatorGuardrail,
     ) -> GuardrailValidationResult:
         """Validate input text using the provided guardrail.
 
         Args:
             input_data: The text or structured data to validate. Dictionaries will be converted to a string before validation.
-            guardrail: A guardrail instance used for validation. Must be an instance of ``BuiltInValidatorGuardrail``. Custom guardrails are not supported.
+            guardrail: A guardrail instance used for validation.
 
         Returns:
             BuiltInGuardrailValidationResult: The outcome of the guardrail evaluation, containing whether validation passed and the reason.
-
-        Raises:
-            NotImplementedError: If a non-built-in guardrail is provided.
         """
-        if isinstance(guardrail, BuiltInValidatorGuardrail):
-            parameters = [
-                param.model_dump(by_alias=True)
-                for param in guardrail.validator_parameters
-            ]
-            payload = {
-                "validator": guardrail.validator_type,
-                "input": input_data if isinstance(input_data, str) else str(input_data),
-                "parameters": parameters,
-            }
-            spec = RequestSpec(
-                method="POST",
-                endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
-                json=payload,
-            )
-            response = self.request(
-                spec.method,
-                url=spec.endpoint,
-                json=spec.json,
-                headers=spec.headers,
-            )
-            return GuardrailValidationResult.model_validate(response.json())
-        else:
-            raise NotImplementedError(
-                "Custom guardrail validation is not yet supported by the API."
-            )
+        parameters = [
+            param.model_dump(by_alias=True) for param in guardrail.validator_parameters
+        ]
+        payload = {
+            "validator": guardrail.validator_type,
+            "input": input_data if isinstance(input_data, str) else str(input_data),
+            "parameters": parameters,
+        }
+        spec = RequestSpec(
+            method="POST",
+            endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
+            json=payload,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+        return GuardrailValidationResult.model_validate(response.json())
