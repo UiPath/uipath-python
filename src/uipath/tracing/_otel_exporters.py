@@ -107,6 +107,8 @@ class LlmOpsHttpExporter(SpanExporter):
             span_filter: Optional filter function that takes a span dict and returns True
                         if the span should be filtered out (dropped). Children of filtered
                         spans will be reparented to the filtered span's parent.
+                        If not provided but UIPATH_FILTER_SPAN_NAMES is set, a default
+                        filter will be created to filter spans with those names.
         """
         super().__init__(**kwargs)
         self.base_url = self._get_base_url()
@@ -120,10 +122,34 @@ class LlmOpsHttpExporter(SpanExporter):
 
         self.http_client = httpx.Client(**client_kwargs, headers=self.headers)
         self.trace_id = trace_id
-        self.span_filter = span_filter
+
+        # Set up span filter - use provided filter or create from env var
+        if span_filter:
+            self.span_filter = span_filter
+        else:
+            # Check for default filter names via environment variable
+            # UIPATH_FILTER_SPAN_NAMES can be comma-separated list, e.g. "LangGraph,OtherName"
+            filter_names = os.environ.get("UIPATH_FILTER_SPAN_NAMES", "")
+            if filter_names:
+                names_set = frozenset(
+                    n.strip() for n in filter_names.split(",") if n.strip()
+                )
+                # Use default arg to capture names_set by value
+                self.span_filter = lambda span, ns=names_set: span.get("Name") in ns
+                logger.info(
+                    f"[Init] Created default span filter for names: {names_set}"
+                )
+            else:
+                self.span_filter = None
 
         # Track filtered span IDs across batches: filtered_id -> new_parent_id
         self._reparent_mapping: Dict[str, str] = {}
+        logger.info(
+            f"[Init] LlmOpsHttpExporter initialized, "
+            f"span_filter={'set' if self.span_filter else 'not set'}, "
+            f"UIPATH_FILTER_PARENT_SPAN={os.environ.get('UIPATH_FILTER_PARENT_SPAN', 'not set')}, "
+            f"UIPATH_PARENT_SPAN_ID={os.environ.get('UIPATH_PARENT_SPAN_ID', 'not set')}"
+        )
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to UiPath LLM Ops."""
@@ -131,8 +157,8 @@ class LlmOpsHttpExporter(SpanExporter):
             logger.warning("No spans to export")
             return SpanExportResult.SUCCESS
 
-        logger.debug(
-            f"Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
+        logger.info(
+            f"[Export] Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
         )
 
         # Use optimized path: keep attributes as dict for processing
@@ -144,10 +170,18 @@ class LlmOpsHttpExporter(SpanExporter):
             for span in spans
         ]
 
+        # Log span names for debugging
+        span_names = [s.get("Name") for s in span_list]
+        logger.info(f"[Export] Span names in batch: {span_names}")
+
         # Apply filtering and reparenting if filter is configured
         filter_enabled = os.environ.get("UIPATH_FILTER_PARENT_SPAN")
         if filter_enabled:
             span_list = self._filter_and_reparent_spans(span_list)
+        else:
+            logger.info(
+                "[Export] Filtering DISABLED (UIPATH_FILTER_PARENT_SPAN not set)"
+            )
 
         if len(span_list) == 0:
             logger.debug("No spans to export after filtering")
@@ -263,7 +297,10 @@ class LlmOpsHttpExporter(SpanExporter):
         )
 
         # Second pass: filter spans and reparent children
-        logger.info("[Filter] === SECOND PASS: Filtering and reparenting ===")
+        logger.info(
+            f"[Filter] === SECOND PASS: Filtering and reparenting === "
+            f"(mapping has {len(self._reparent_mapping)} entries)"
+        )
         filtered_spans = []
         for span in span_list:
             span_id = span.get("Id")
@@ -278,7 +315,13 @@ class LlmOpsHttpExporter(SpanExporter):
                 continue
 
             # Reparent if parent was filtered
-            if parent_id and parent_id in self._reparent_mapping:
+            parent_in_mapping = parent_id and parent_id in self._reparent_mapping
+            logger.info(
+                f"[Filter] Checking span: Id={span_id}, Name={span_name}, "
+                f"ParentId={parent_id}, parent_in_mapping={parent_in_mapping}"
+            )
+
+            if parent_in_mapping:
                 old_parent = parent_id
                 # Follow the chain for transitive reparenting
                 while parent_id in self._reparent_mapping:
