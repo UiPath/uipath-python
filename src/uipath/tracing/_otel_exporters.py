@@ -296,6 +296,10 @@ class LlmOpsHttpExporter(SpanExporter):
             f"{self._reparent_mapping}"
         )
 
+        # Build set of span IDs in current batch for orphan detection
+        batch_span_ids = {span.get("Id") for span in span_list}
+        logger.info(f"[Filter] Batch span IDs: {batch_span_ids}")
+
         # Second pass: filter spans and reparent children
         logger.info(
             f"[Filter] === SECOND PASS: Filtering and reparenting === "
@@ -316,9 +320,13 @@ class LlmOpsHttpExporter(SpanExporter):
 
             # Reparent if parent was filtered
             parent_in_mapping = parent_id and parent_id in self._reparent_mapping
+            parent_in_batch = parent_id and parent_id in batch_span_ids
+            parent_is_orphan = parent_id and not parent_in_mapping and not parent_in_batch
+
             logger.info(
                 f"[Filter] Checking span: Id={span_id}, Name={span_name}, "
-                f"ParentId={parent_id}, parent_in_mapping={parent_in_mapping}"
+                f"ParentId={parent_id}, parent_in_mapping={parent_in_mapping}, "
+                f"parent_in_batch={parent_in_batch}, parent_is_orphan={parent_is_orphan}"
             )
 
             if parent_in_mapping:
@@ -330,6 +338,16 @@ class LlmOpsHttpExporter(SpanExporter):
                 logger.info(
                     f"[Filter] REPARENTING span: Id={span_id}, Name={span_name}, "
                     f"ParentId: {old_parent} -> {parent_id}"
+                )
+            elif parent_is_orphan:
+                # Parent span was never seen - it was likely filtered externally or never exported
+                # Reparent to UIPATH_PARENT_SPAN_ID and add to mapping for future children
+                old_parent = parent_id
+                self._reparent_mapping[parent_id] = new_parent_id
+                span["ParentId"] = new_parent_id
+                logger.info(
+                    f"[Filter] REPARENTING ORPHAN span: Id={span_id}, Name={span_name}, "
+                    f"ParentId: {old_parent} -> {new_parent_id} (parent not in batch or mapping)"
                 )
             else:
                 logger.info(
