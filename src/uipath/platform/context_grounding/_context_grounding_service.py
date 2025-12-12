@@ -72,6 +72,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self._buckets_service = buckets_service
         super().__init__(config=config, execution_context=execution_context)
 
+    # 2.3.0 prefix trace name with contextgrounding
     @traced(name="add_to_index", run_type="uipath")
     @resource_override(resource_type="index")
     def add_to_index(
@@ -127,6 +128,7 @@ class ContextGroundingService(FolderContext, BaseService):
         if ingest_data:
             self.ingest_data(index, folder_key=folder_key, folder_path=folder_path)
 
+    # 2.3.0 prefix trace name with contextgrounding
     @traced(name="add_to_index", run_type="uipath")
     @resource_override(resource_type="index")
     async def add_to_index_async(

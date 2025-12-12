@@ -53,6 +53,8 @@ class FieldValueProjection(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     id: str
@@ -70,6 +72,8 @@ class FieldGroupValueProjection(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     field_group_name: str = Field(alias="fieldGroupName")
@@ -82,6 +86,8 @@ class ExtractionResult(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     document_id: str = Field(alias="DocumentId")
@@ -108,6 +114,8 @@ class ExtractionResponse(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     extraction_result: ExtractionResult = Field(alias="extractionResult")
@@ -141,6 +149,8 @@ class ValidationAction(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     action_data: dict[str, Any] = Field(alias="actionData")
@@ -169,6 +179,8 @@ class Reference(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     text_start_index: int = Field(alias="TextStartIndex")
@@ -182,6 +194,8 @@ class DocumentBounds(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     start_page: int = Field(alias="StartPage")
@@ -208,6 +222,8 @@ class ClassificationResult(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     document_id: str = Field(alias="DocumentId")
@@ -228,8 +244,34 @@ class ClassificationResponse(BaseModel):
     model_config = ConfigDict(
         serialize_by_alias=True,
         validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
 
     classification_results: List[ClassificationResult] = Field(
         alias="classificationResults"
     )
+
+
+class IxpExtractionStartResponse(BaseModel):
+    """A model representing the response from starting an IXP extraction process (non-blocking).
+
+    Attributes:
+        operation_id (str): The ID of the extraction operation, used to poll for results.
+        document_id (str): The ID of the digitized document.
+        project_id (str): The ID of the IXP project.
+        tag (str): The tag of the published project version.
+    """
+
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    operation_id: str = Field(alias="operationId")
+    document_id: str = Field(alias="documentId")
+    project_id: str = Field(alias="projectId")
+    tag: str

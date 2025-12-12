@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
+from typing import Any
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -18,11 +19,37 @@ from uipath.platform.documents import (
 from uipath.platform.documents._documents_service import (  # type: ignore[attr-defined]
     DocumentsService,
 )
+from uipath.platform.errors import IxpExtractionNotCompleteException
+from uipath.platform.orchestrator._attachments_service import AttachmentsService
 
 
 @pytest.fixture
-def service(config: UiPathApiConfig, execution_context: UiPathExecutionContext):
-    return DocumentsService(config=config, execution_context=execution_context)
+def attachments_service(
+    config: UiPathApiConfig, execution_context: UiPathExecutionContext
+):
+    return AttachmentsService(config=config, execution_context=execution_context)
+
+
+@pytest.fixture
+def folder_service(config: UiPathApiConfig, execution_context: UiPathExecutionContext):
+    from uipath.platform.orchestrator._folder_service import FolderService
+
+    return FolderService(config=config, execution_context=execution_context)
+
+
+@pytest.fixture
+def service(
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    attachments_service: AttachmentsService,
+    folder_service,
+):
+    return DocumentsService(
+        config=config,
+        execution_context=execution_context,
+        attachments_service=attachments_service,
+        folder_service=folder_service,
+    )
 
 
 @pytest.fixture
@@ -1836,3 +1863,186 @@ class TestDocumentsService:
                     wait_statuses=["NotStarted", "Running"],
                     success_status="Succeeded",
                 )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_start_ixp_extraction(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        document_id = str(uuid4())
+        operation_id = str(uuid4())
+        attachment_id = uuid4()
+        personal_workspace_id = 12345
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={
+                "projects": [
+                    {"id": project_id, "name": "TestProjectIXP"},
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Users/UiPath.Server.Configuration.OData.GetCurrentUserExtended?$select=PersonalWorkspace&$expand=PersonalWorkspace",
+            status_code=200,
+            json={
+                "PersonalWorkspace": {
+                    "FullyQualifiedName": "Personal/User",
+                    "Key": "personal-key",
+                    "Id": personal_workspace_id,
+                }
+            },
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/startFromJobAttachment?api-version=1.1",
+            status_code=200,
+            json={"documentId": document_id},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/start?api-version=1.1",
+            status_code=200,
+            json={"operationId": operation_id},
+        )
+
+        # Mock the attachments service upload methods
+        service._attachments_service.upload = Mock(return_value=attachment_id)
+        service._attachments_service.upload_async = AsyncMock(
+            return_value=attachment_id
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.start_ixp_extraction_async(
+                project_name="TestProjectIXP",
+                tag="staging",
+                file=b"test content",
+            )
+        else:
+            response = service.start_ixp_extraction(
+                project_name="TestProjectIXP",
+                tag="staging",
+                file=b"test content",
+            )
+
+        # ASSERT
+        assert response.operation_id == operation_id
+        assert response.document_id == document_id
+        assert response.project_id == project_id
+        assert response.tag == "staging"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_start_ixp_extraction_invalid_parameters(
+        self,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ACT & ASSERT
+        with pytest.raises(
+            ValueError,
+            match="Exactly one of `file, file_path` must be provided",
+        ):
+            if mode == "async":
+                await service.start_ixp_extraction_async(
+                    project_name="TestProject",
+                    tag="staging",
+                )
+            else:
+                service.start_ixp_extraction(
+                    project_name="TestProject",
+                    tag="staging",
+                )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_result_success(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ixp_extraction_response: dict[str, Any],
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Succeeded", "result": ixp_extraction_response},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.retrieve_ixp_extraction_result_async(
+                project_id=project_id,
+                tag="staging",
+                operation_id=operation_id,
+            )
+        else:
+            response = service.retrieve_ixp_extraction_result(
+                project_id=project_id,
+                tag="staging",
+                operation_id=operation_id,
+            )
+
+        # ASSERT
+        assert response.project_id == project_id
+        assert response.tag == "staging"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_result_not_complete(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Running"},
+        )
+
+        # ACT & ASSERT
+        with pytest.raises(IxpExtractionNotCompleteException) as exc_info:
+            if mode == "async":
+                await service.retrieve_ixp_extraction_result_async(
+                    project_id=project_id,
+                    tag="staging",
+                    operation_id=operation_id,
+                )
+            else:
+                service.retrieve_ixp_extraction_result(
+                    project_id=project_id,
+                    tag="staging",
+                    operation_id=operation_id,
+                )
+
+        assert exc_info.value.operation_id == operation_id
+        assert exc_info.value.status == "Running"
