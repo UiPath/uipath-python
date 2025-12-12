@@ -212,8 +212,13 @@ class _SpanUtils:
 
         # Get parent span ID if it exists
         parent_id = None
+        is_root = otel_span.parent is None
+        original_parent_id: Optional[str] = None
+
         if otel_span.parent is not None:
             parent_id = _SpanUtils.span_id_to_uuid4(otel_span.parent.span_id)
+            # Store original parent ID for potential reparenting later
+            original_parent_id = str(parent_id)
         else:
             # Only set UIPATH_PARENT_SPAN_ID for root spans (spans without a parent)
             parent_span_id_str = env.get("UIPATH_PARENT_SPAN_ID")
@@ -225,6 +230,12 @@ class _SpanUtils:
         otel_attrs = otel_span.attributes if otel_span.attributes else {}
         # Only copy if we need to modify - we'll build attributes_dict lazily
         attributes_dict: dict[str, Any] = dict(otel_attrs) if otel_attrs else {}
+
+        # Add markers for filtering/reparenting in the exporter
+        if is_root:
+            attributes_dict["uipath.is_root"] = True
+        if original_parent_id:
+            attributes_dict["uipath.original_parent_id"] = original_parent_id
 
         # Map status
         status = 1  # Default to OK
