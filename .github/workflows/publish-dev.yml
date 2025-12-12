@@ -71,9 +71,14 @@ jobs:
 
           Write-Output "Package version set to $DEV_VERSION"
 
+          $startMarker = "<!-- DEV_PACKAGE_START -->"
+          $endMarker = "<!-- DEV_PACKAGE_END -->"
+
           $dependencyMessage = @"
+          $startMarker
           ## Development Package
 
+          - Use ``uipath pack --nolock`` to get the latest dev build from this PR (requires version range).
           - Add this package as a dependency in your pyproject.toml:
 
           ``````toml
@@ -94,7 +99,13 @@ jobs:
 
           [tool.uv.sources]
           $PROJECT_NAME = { index = "testpypi" }
+
+          [tool.uv]
+          override-dependencies = [
+              "$PROJECT_NAME>=$MIN_VERSION,<$MAX_VERSION",
+          ]
           ``````
+          $endMarker
           "@
 
           # Get the owner and repo from the GitHub repository
@@ -112,10 +123,11 @@ jobs:
           $pr = Invoke-RestMethod -Uri $prUri -Method Get -Headers $headers
           $currentBody = $pr.body
 
-          # Check if there's already a development package section
-          if ($currentBody -match '## Development Package') {
-            # Replace the existing section with the new dependency message
-            $newBody = $currentBody -replace '## Development Package(\r?\n|.)*?(?=##|$)', $dependencyMessage
+          # Check if markers already exist in the PR description
+          $markerPattern = "(?s)$([regex]::Escape($startMarker)).*?$([regex]::Escape($endMarker))"
+          if ($currentBody -match $markerPattern) {
+            # Replace everything between markers (including markers)
+            $newBody = $currentBody -replace $markerPattern, $dependencyMessage
           } else {
             # Append the dependency message to the end of the description
             $newBody = if ($currentBody) { "$currentBody`n`n$dependencyMessage" } else { $dependencyMessage }
