@@ -7,6 +7,7 @@ This module contains models related to UiPath Guardrails service.
 from uipath.core.guardrails import (
     BaseGuardrail,
     DeterministicGuardrail,
+    DeterministicGuardrailsService,
     GuardrailScope,
     GuardrailValidationResult,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "BaseGuardrail",
     "GuardrailScope",
     "DeterministicGuardrail",
+    "DeterministicGuardrailsService",
     "GuardrailValidationResult",
     "EnumListParameterValue",
     "MapEnumParameterValue",
