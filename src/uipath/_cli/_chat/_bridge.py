@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import uuid
 from typing import Any
 from urllib.parse import urlparse
 
@@ -12,7 +13,11 @@ from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
+    UiPathConversationInterruptEvent,
+    UiPathConversationInterruptStartEvent,
+    UiPathConversationMessageEvent,
 )
+from uipath.runtime import UiPathRuntimeResult
 from uipath.runtime.chat import UiPathChatProtocol
 from uipath.runtime.context import UiPathRuntimeContext
 
@@ -51,6 +56,7 @@ class SocketIOChatBridge:
         self.headers = headers
         self._client: AsyncClient | None = None
         self._connected_event = asyncio.Event()
+        self._waiting_for_resume = False
 
     async def connect(self, timeout: float = 10.0) -> None:
         """Establish WebSocket connection to the server.
@@ -127,23 +133,7 @@ class SocketIOChatBridge:
             logger.warning("WebSocket client not connected")
             return
 
-        # Send exchange end event using stored IDs
-        if self._client and self._connected_event.is_set():
-            try:
-                end_event = UiPathConversationEvent(
-                    conversation_id=self.conversation_id,
-                    exchange=UiPathConversationExchangeEvent(
-                        exchange_id=self.exchange_id,
-                        end=UiPathConversationExchangeEndEvent(),
-                    ),
-                )
-                event_data = end_event.model_dump(
-                    mode="json", exclude_none=True, by_alias=True
-                )
-                await self._client.emit("ConversationEvent", event_data)
-                logger.info("Exchange end event sent")
-            except Exception as e:
-                logger.warning(f"Error sending exchange end event: {e}")
+        await self.emit_exchange_end_event()
 
         try:
             logger.info("Disconnecting from WebSocket server")
@@ -154,7 +144,9 @@ class SocketIOChatBridge:
         finally:
             await self._cleanup_client()
 
-    async def emit_message_event(self, message_event: Any) -> None:
+    async def emit_message_event(
+        self, message_event: UiPathConversationMessageEvent
+    ) -> None:
         """Wrap and send a message event to the WebSocket server.
 
         Args:
@@ -168,6 +160,9 @@ class SocketIOChatBridge:
 
         if not self._connected_event.is_set():
             raise RuntimeError("WebSocket client not in connected state")
+
+        # Store the current message ID, used for emitting interrupt events.
+        self._current_message_id = message_event.message_id
 
         try:
             # Wrap message event with conversation/exchange IDs
@@ -191,6 +186,84 @@ class SocketIOChatBridge:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send conversation event: {e}") from e
 
+    async def emit_exchange_end_event(self):
+        # Send exchange end event using stored IDs
+        if self._client and self._connected_event.is_set():
+            try:
+                end_event = UiPathConversationEvent(
+                    conversation_id=self.conversation_id,
+                    exchange=UiPathConversationExchangeEvent(
+                        exchange_id=self.exchange_id,
+                        end=UiPathConversationExchangeEndEvent(),
+                    ),
+                )
+                event_data = end_event.model_dump(
+                    mode="json", exclude_none=True, by_alias=True
+                )
+                await self._client.emit("ConversationEvent", event_data)
+                logger.info("Exchange end event sent")
+            except Exception as e:
+                logger.warning(f"Error sending exchange end event: {e}")
+
+    async def emit_interrupt_event(self, runtime_result: UiPathRuntimeResult):
+        # Send startInterrupt event using stored ID's
+        if self._client and self._connected_event.is_set():
+            try:
+
+                self._interrupt_id = str(uuid.uuid4())
+
+                interrupt_event = UiPathConversationEvent(
+                    conversation_id=self.conversation_id,
+                    exchange=UiPathConversationExchangeEvent(
+                        exchange_id=self.exchange_id,
+                        message=UiPathConversationMessageEvent(
+                            message_id=self._current_message_id,
+                            interrupt=UiPathConversationInterruptEvent(
+                                interrupt_id=self._interrupt_id,
+                                start=UiPathConversationInterruptStartEvent(
+                                    type="coded-agent-test", value=runtime_result.output
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+                event_data = interrupt_event.model_dump(
+                    mode="json", exclude_none=True, by_alias=True
+                )
+                await self._client.emit("ConversationEvent", event_data)
+                logger.info("Interrupt event sent")
+            except Exception as e:
+                logger.warning(f"Error sending interrupt event: {e}")
+
+    async def wait_for_resume(self) -> dict[str, Any]:
+        """Wait for the interrupt_end event to be received.
+
+        Returns:
+            Resume data from the interrupt end event
+        """
+        if self._client is None:
+            raise RuntimeError("WebSocket client not connected")
+
+        # Initialize resume event and data
+        self._resume_event = asyncio.Event()
+        self._resume_data = None
+        self._waiting_for_resume = True
+
+        # Register handler for interrupt events
+        self._client.on("ConversationEvent", self._handle_conversation_event)
+
+        try:
+            # Wait for the resume event to be signaled
+            await self._resume_event.wait()
+
+            # Return the resume data
+            resume_data = self._resume_data or {}
+
+            return resume_data
+        finally:
+            # Clear the waiting flag
+            self._waiting_for_resume = False
+
     @property
     def is_connected(self) -> bool:
         """Check if the WebSocket is currently connected.
@@ -213,6 +286,38 @@ class SocketIOChatBridge:
     async def _handle_connect_error(self, data: Any) -> None:
         """Handle connection error event."""
         logger.error(f"WebSocket connection error: {data}")
+
+    async def _handle_conversation_event(self, data: Any, *args: Any) -> None:
+        """Handle incoming conversation event from the server.
+
+        Args:
+            data: The incoming conversation event data (JSON)
+            *args: Additional arguments from Socket.IO
+        """
+        # Only process events when actively waiting for resume
+        if not self._waiting_for_resume:
+            return
+
+        try:
+            # Parse the incoming event as a UiPathConversationEvent
+            event = UiPathConversationEvent.model_validate(data)
+
+            if isinstance(event.exchange, UiPathConversationExchangeEvent):
+                message = event.exchange.message
+                if message and message.message_id == self._current_message_id:
+                    if message.interrupt:
+                        if (
+                            message.interrupt.interrupt_id
+                            == self._interrupt_id
+                        ):
+                            if message.interrupt.end:
+                                # Extract resume data from the end event
+                                # end is already a dict (typed as Any), no need to call model_dump
+                                self._resume_data = message.interrupt.end
+                                self._resume_event.set()
+                                logger.info("Resume event received")
+        except Exception as e:
+            logger.error(f"Error handling conversation event: {e}")
 
     async def _cleanup_client(self) -> None:
         """Clean up client resources."""

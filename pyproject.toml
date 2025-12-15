@@ -1,11 +1,11 @@
 [project]
 name = "uipath"
-version = "2.2.32"
+version = "2.2.33"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
-  "uipath-runtime>=0.2.5, <0.3.0",
+  "uipath-runtime==0.3.0.dev1000550171",
   "uipath-core>=0.1.3, <0.2.0",
   "click>=8.3.1",
   "httpx>=0.28.1",
@@ -144,3 +144,6 @@ name = "testpypi"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
+
+[tool.uv.sources]
+uipath-runtime = { index = "testpypi" }
