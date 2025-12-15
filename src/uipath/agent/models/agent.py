@@ -189,6 +189,7 @@ class AgentMcpTool(BaseCfg):
     name: str = Field(..., alias="name")
     description: str = Field(..., alias="description")
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
+    output_schema: Optional[Dict[str, Any]] = Field(None, alias="outputSchema")
 
 
 class AgentMcpResourceConfig(BaseAgentResourceConfig):
