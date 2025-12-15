@@ -205,11 +205,14 @@ uipath run main '{\"message\":\"test\"}'
 
 ///
 
+### Debugging and Evaluating within Studio Web
+TODO
+
 ### Packaging and Publishing
 
 Before packaging your project, add your details to the `pyproject.toml` file. Add the following line below the `description` field:
 ```toml
-authors = [{ name = "Your Name", email = "your.email@uipath.com" }]
+authors = [{ name = "Your Name", email = "your.email@example.com" }]
 ```
 
 Then, package your project:
