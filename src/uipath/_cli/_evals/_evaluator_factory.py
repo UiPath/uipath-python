@@ -17,7 +17,7 @@ from uipath._cli._evals._models._evaluator import (
     TrajectoryEvaluatorParams,
 )
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
-from uipath._cli._utils._constants import EVALS_DIRECTORY_NAME
+from uipath._utils.constants import EVALS_FOLDER
 from uipath.eval.evaluators import (
     BaseEvaluator,
     LegacyBaseEvaluator,
@@ -206,7 +206,7 @@ class EvaluatorFactory:
                     # Fall back to the old behavior
                     file_path = (
                         Path.cwd()
-                        / EVALS_DIRECTORY_NAME
+                        / EVALS_FOLDER
                         / "evaluators"
                         / "custom"
                         / file_path_str

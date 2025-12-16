@@ -6,8 +6,8 @@ from string import Template
 
 import click
 
+from .._utils.constants import EVALS_FOLDER
 from ._utils._console import ConsoleLogger
-from ._utils._constants import EVALS_DIRECTORY_NAME
 from ._utils._resources import Resources
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def generate_evaluator_template(evaluator_name: str) -> str:
 
 def create_evaluator(evaluator_name):
     cwd = Path.cwd()
-    custom_evaluators_dir = cwd / EVALS_DIRECTORY_NAME / "evaluators" / "custom"
+    custom_evaluators_dir = cwd / EVALS_FOLDER / "evaluators" / "custom"
 
     if not custom_evaluators_dir.exists():
         console.info(
@@ -69,7 +69,7 @@ def create_evaluator(evaluator_name):
     with open(file_path, "w") as f:
         f.write(template_content)
 
-    relative_path = f"evals/evaluators/custom/{filename}"
+    relative_path = f"{EVALS_FOLDER}/evaluators/custom/{filename}"
 
     console.success(f"Created new evaluator: {click.style(relative_path, fg='cyan')}")
     console.hint("Next steps:")

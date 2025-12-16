@@ -6,9 +6,6 @@ from typing import Any, Optional
 from httpx import Response
 from pydantic import TypeAdapter
 
-from uipath._cli._utils._constants import (
-    EVALS_DIRECTORY_NAME,
-)
 from uipath._cli._utils._eval_set import EvalHelpers
 from uipath._cli._utils._project_files import pull_project
 from uipath._cli._utils._studio_project import (
@@ -18,6 +15,7 @@ from uipath._cli._utils._studio_project import (
     StudioSolutionsClient,
     resolve_path,
 )
+from uipath._utils.constants import EVALS_FOLDER
 from uipath.agent.models.agent import (
     AgentDefinition,
 )
@@ -99,7 +97,7 @@ def load_agent_definition(
 
     # Load evaluators from downloaded files
     evaluators = []
-    evaluators_dir = target_project_dir / EVALS_DIRECTORY_NAME / "evaluators"
+    evaluators_dir = target_project_dir / EVALS_FOLDER / "evaluators"
     if evaluators_dir.exists() and evaluators_dir.is_dir():
         for file_path in evaluators_dir.glob("*.json"):
             try:
@@ -114,7 +112,7 @@ def load_agent_definition(
 
     # Load evaluation sets from downloaded files
     evaluation_sets = []
-    eval_sets_dir = target_project_dir / EVALS_DIRECTORY_NAME / "eval-sets"
+    eval_sets_dir = target_project_dir / EVALS_FOLDER / "eval-sets"
     if eval_sets_dir.exists() and eval_sets_dir.is_dir():
         for file_path in eval_sets_dir.glob("*.json"):
             evaluation_set, _ = EvalHelpers.load_eval_set(str(file_path))
