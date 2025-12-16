@@ -13,7 +13,7 @@ from opentelemetry.sdk.trace.export import (
 
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 
-from ._utils import _SpanUtils
+from ._utils import _SpanUtils, UiPathSpan
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +152,46 @@ class LlmOpsHttpExporter(SpanExporter):
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush the exporter."""
         return True
+
+    def upsert_spans(self, spans: List[UiPathSpan]) -> SpanExportResult:
+        """Directly upsert UiPathSpan objects (bypass OTel span lifecycle).
+
+        Used for resumable spans that need multiple updates with the same ID.
+        Unlike export(), this accepts UiPathSpan objects directly and can be
+        called multiple times with the same span ID to update it.
+
+        Args:
+            spans: List of UiPathSpan objects to upsert
+
+        Returns:
+            SpanExportResult indicating success or failure
+        """
+        if len(spans) == 0:
+            logger.warning("No spans to upsert")
+            return SpanExportResult.SUCCESS
+
+        logger.debug(
+            f"Upserting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
+        )
+
+        # Convert UiPathSpan to dict, keeping attributes as dict for processing
+        span_list = [span.to_dict(serialize_attributes=False) for span in spans]
+
+        url = self._build_url(span_list)
+
+        # Process spans in-place
+        for span_data in span_list:
+            self._process_span_attributes(span_data)
+
+        # Serialize attributes at the end
+        for span_data in span_list:
+            if isinstance(span_data.get("Attributes"), dict):
+                span_data["Attributes"] = json.dumps(span_data["Attributes"])
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Upsert payload: %s", json.dumps(span_list))
+
+        return self._send_with_retries(url, span_list)
 
     def _map_llm_call_attributes(self, attributes: Dict[str, Any]) -> Dict[str, Any]:
         """Maps attributes for LLM calls, handling flattened keys."""
