@@ -279,3 +279,29 @@ Open your browser and navigate to UiPath. Go to the specified folder, where you'
 ```
 [Echo]: Hello, World! Echo: Hello, World! Echo: Hello, World!
 ```
+## Integrating with the UiPath Studio Web
+
+You can synchronize your local Coded Agent project with UiPath Studio Web, enabling a dual run, debug, and evaluation experience, while code editing remains reserved for your local IDE.
+
+The link between the local and remote project files is done based on `UIPATH_PROJECT_ID` and requires prior authorisation using the `uipath auth` command. 
+
+It can be retrieved from new UiPath Studio Web as such: `Studio Web` -> `Create New Agent` -> `Coded Agent` Also, it can be copied from an existing Coded Agent project in Studio Web.
+ 
+The `UIPATH_PROJECT_ID=****` should be added to the coded agent environment, the `.env` file.  
+
+### Synchronize the local project to Studio Web
+
+Using the `uipath push` command you syncronize the local files to the remote Studio Web project
+
+<!-- termynal -->
+```shell
+> uipath push
+```
+### Synchronize the remote Studio Web Coded Agent project locally
+
+Using the `uipath pull` command you syncronize the remote Studio Web to your local project
+
+<!-- termynal -->
+```shell
+> uipath pull
+```
