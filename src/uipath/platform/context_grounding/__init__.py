@@ -6,6 +6,7 @@ from .context_grounding import (
     BatchTransformOutputColumn,
     BatchTransformResponse,
     BatchTransformStatus,
+    Citation,
     CitationMode,
     ContextGroundingQueryResponse,
     DeepRagCreationResponse,
@@ -60,4 +61,5 @@ __all__ = [
     "OneDriveSourceConfig",
     "PreProcessing",
     "SourceConfig",
+    "Citation",
 ]

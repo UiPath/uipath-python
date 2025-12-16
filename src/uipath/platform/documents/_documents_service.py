@@ -834,7 +834,6 @@ class DocumentsService(FolderContext, BaseService):
             tag=tag,
             document_id=document_id,
         )
-
         return self._wait_for_classification(
             project_id=project_id,
             project_type=project_type,

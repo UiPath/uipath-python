@@ -13,6 +13,7 @@ from uipath.platform.context_grounding import (
     BatchTransformResponse,
     BatchTransformStatus,
     BucketSourceConfig,
+    Citation,
     CitationMode,
     ConfluenceSourceConfig,
     ContextGroundingIndex,
@@ -978,6 +979,7 @@ class TestContextGroundingService:
         tenant: str,
         version: str,
     ) -> None:
+        citation = Citation(ordinal=1, page_number=1, source="abc", reference="abc")
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=content,name,createdDate,lastDeepRagStatus",
             status_code=200,
@@ -987,7 +989,7 @@ class TestContextGroundingService:
                 "lastDeepRagStatus": "Successful",
                 "content": {
                     "text": "This is the deep RAG response text.",
-                    "citations": ["source1.pdf", "source2.docx"],
+                    "citations": [citation.model_dump()],
                 },
             },
         )
@@ -1000,7 +1002,7 @@ class TestContextGroundingService:
         assert response.last_deep_rag_status == "Successful"
         assert response.content is not None
         assert response.content.text == "This is the deep RAG response text."
-        assert response.content.citations == ["source1.pdf", "source2.docx"]
+        assert response.content.citations == [citation]
 
         sent_requests = httpx_mock.get_requests()
         if sent_requests is None:
@@ -1028,6 +1030,8 @@ class TestContextGroundingService:
         tenant: str,
         version: str,
     ) -> None:
+        citation = Citation(ordinal=1, page_number=1, source="abc", reference="abc")
+
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=content,name,createdDate,lastDeepRagStatus",
             status_code=200,
@@ -1037,7 +1041,7 @@ class TestContextGroundingService:
                 "lastDeepRagStatus": "Successful",
                 "content": {
                     "text": "This is the deep RAG response text.",
-                    "citations": ["source1.pdf", "source2.docx"],
+                    "citations": [citation.model_dump()],
                 },
             },
         )
@@ -1050,7 +1054,7 @@ class TestContextGroundingService:
         assert response.last_deep_rag_status == "Successful"
         assert response.content is not None
         assert response.content.text == "This is the deep RAG response text."
-        assert response.content.citations == ["source1.pdf", "source2.docx"]
+        assert response.content.citations == [citation]
 
         sent_requests = httpx_mock.get_requests()
         if sent_requests is None:
