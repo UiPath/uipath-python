@@ -136,7 +136,7 @@ class TestTasksService:
         monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}/apps_/default/api/v1/default/deployed-action-apps-schemas?search=test-app",
+            url=f"{base_url}{org}/apps_/default/api/v1/default/deployed-action-apps-schemas?search=test-app&filterByDeploymentTitle=true",
             status_code=200,
             json={
                 "deployed": [

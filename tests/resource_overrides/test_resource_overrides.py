@@ -84,7 +84,7 @@ class TestResourceOverrides:
         # Mock Actions API - need to mock app retrieval first
         # First mock the app schema retrieval
         httpx_mock.add_response(
-            url=f"{org_scoped_base_url}/apps_/default/api/v1/default/deployed-action-apps-schemas?search=Overwritten App Name",
+            url=f"{org_scoped_base_url}/apps_/default/api/v1/default/deployed-action-apps-schemas?search=Overwritten App Name&filterByDeploymentTitle=true",
             method="GET",
             json={
                 "deployed": [

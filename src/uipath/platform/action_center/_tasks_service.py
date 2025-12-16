@@ -131,7 +131,7 @@ def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
     return RequestSpec(
         method="GET",
         endpoint=Endpoint("/apps_/default/api/v1/default/deployed-action-apps-schemas"),
-        params={"search": app_name},
+        params={"search": app_name, "filterByDeploymentTitle": "true"},
         headers={HEADER_TENANT_ID: tenant_id},
     )
 
