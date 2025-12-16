@@ -135,6 +135,91 @@ async def test_mockito_mockable_async():
     assert await foo(x=2) == "bar1"
 
 
+def test_mockito_mockable_anyargs_sync():
+    # Arrange
+    @mockable()
+    def foo(*args, **kwargs):
+        raise NotImplementedError()
+
+    evaluation_item: dict[str, Any] = {
+        "id": "evaluation-id",
+        "name": "Mock foo",
+        "inputs": {},
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
+        "mockingStrategy": {
+            "type": "mockito",
+            "behaviors": [
+                {
+                    "function": "foo",
+                    "arguments": {
+                        "args": [],
+                        "kwargs": {},
+                        "matchAnyAdditionalArgs": True,
+                        "matchAnyAdditionalKwargs": True,
+                    },
+                    "then": [
+                        {"type": "return", "value": "bar1"},
+                    ],
+                }
+            ],
+        },
+    }
+    evaluation = EvaluationItem(**evaluation_item)
+    assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
+
+    # Act & Assert
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    assert foo(x=1) == "bar1"
+    assert foo(x="x") == "bar1"
+    assert foo() == "bar1"
+    assert foo(1) == "bar1"
+
+
+@pytest.mark.asyncio
+async def test_mockito_mockable_anyargs_async():
+    # Arrange
+    @mockable()
+    async def foo(*args, **kwargs):
+        raise NotImplementedError()
+
+    evaluation_item: dict[str, Any] = {
+        "id": "evaluation-id",
+        "name": "Mock foo",
+        "inputs": {},
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
+        "mockingStrategy": {
+            "type": "mockito",
+            "behaviors": [
+                {
+                    "function": "foo",
+                    "arguments": {
+                        "args": [],
+                        "kwargs": {},
+                        "matchAnyAdditionalArgs": True,
+                        "matchAnyAdditionalKwargs": True,
+                    },
+                    "then": [
+                        {"type": "return", "value": "bar1"},
+                    ],
+                }
+            ],
+        },
+    }
+    evaluation = EvaluationItem(**evaluation_item)
+    assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
+
+    # Act & Assert
+    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    assert await foo(x=1) == "bar1"
+    assert await foo(x="x") == "bar1"
+    assert await foo() == "bar1"
+    assert await foo(1) == "bar1"
+
+
 @pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
 def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     monkeypatch.setenv("UIPATH_URL", "https://example.com")

@@ -103,6 +103,12 @@ class InputMockingStrategy(BaseModel):
 class MockingArgument(BaseModel):
     args: list[Any] = Field(default_factory=lambda: [], alias="args")
     kwargs: dict[str, Any] = Field(default_factory=lambda: {}, alias="kwargs")
+    match_any_additional_args: bool = Field(
+        default=False, alias="matchAnyAdditionalArgs"
+    )
+    match_any_additional_kwargs: bool = Field(
+        default=False, alias="matchAnyAdditionalKwargs"
+    )
 
 
 class MockingAnswerType(str, Enum):
