@@ -11,8 +11,7 @@ from typing import Any
 import click
 
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._cli._utils._constants import EVALS_DIRECTORY_NAME
-from uipath._utils.constants import CUSTOM_EVALUATOR_PREFIX
+from uipath._utils.constants import CUSTOM_EVALUATOR_PREFIX, EVALS_FOLDER
 
 logger = logging.getLogger(__name__)
 console = ConsoleLogger().get_instance()
@@ -37,7 +36,7 @@ def to_kebab_case(text: str) -> str:
 
 def find_evaluator_file(filename: str) -> Path | None:
     """Find the evaluator file in evals/evaluators/custom folder."""
-    custom_evaluators_path = Path.cwd() / EVALS_DIRECTORY_NAME / "evaluators" / "custom"
+    custom_evaluators_path = Path.cwd() / EVALS_FOLDER / "evaluators" / "custom"
 
     if not custom_evaluators_path.exists():
         return None
@@ -124,7 +123,9 @@ def register_evaluator(filename: str) -> tuple[str, str]:
         filename = filename + ".py"
     file_path = find_evaluator_file(filename)
     if file_path is None:
-        console.error(f"Could not find '{filename}' in evals/evaluators/custom folder")
+        console.error(
+            f"Could not find '{filename}' in {EVALS_FOLDER}/evaluators/custom folder"
+        )
 
     relative_path = f"evals/evaluators/custom/{filename}"
     console.info(
@@ -151,7 +152,7 @@ def register_evaluator(filename: str) -> tuple[str, str]:
     evaluator_config = generate_evaluator_config(evaluator_class, class_name)
     evaluator_json_type = evaluator_class.generate_json_type()
 
-    evaluators_dir = Path.cwd() / EVALS_DIRECTORY_NAME / "evaluators"
+    evaluators_dir = Path.cwd() / EVALS_FOLDER / "evaluators"
     evaluators_dir.mkdir(parents=True, exist_ok=True)
 
     evaluator_types_dir = evaluators_dir / "custom" / "types"
@@ -167,7 +168,7 @@ def register_evaluator(filename: str) -> tuple[str, str]:
         json.dump(evaluator_json_type, f, indent=2)
 
     relative_output_path = (
-        f"evals/evaluators/custom/types/{output_file_evaluator_types}"
+        f"{EVALS_FOLDER}/evaluators/custom/types/{output_file_evaluator_types}"
     )
     console.success(
         f"Generated evaluator types: {click.style(relative_output_path, fg='cyan')}"
