@@ -1,11 +1,11 @@
-import asyncio
 import json
 import logging
 import uuid
 from collections import defaultdict
+from contextlib import contextmanager
 from pathlib import Path
 from time import time
-from typing import Any, Sequence
+from typing import Any, Awaitable, Iterable, Iterator, Sequence, Tuple
 
 import coverage
 from opentelemetry import context as context_api
@@ -45,6 +45,7 @@ from ...eval.evaluators import BaseEvaluator
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
+from .._utils._parallelization import execute_parallel
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
@@ -201,53 +202,14 @@ class UiPathEvalRuntime:
             await temp_runtime.dispose()
         return self.schema
 
-    async def execute(self) -> UiPathRuntimeResult:
-        if self.context.eval_set is None:
-            raise ValueError("eval_set must be provided for evaluation runs")
-
-        event_bus = self.event_bus
-
+    @contextmanager
+    def _mocker_cache(self) -> Iterator[None]:
         # Create cache manager if enabled
         if self.context.enable_mocker_cache:
             cache_mgr = CacheManager()
             cache_manager_context.set(cache_mgr)
-
         try:
-            # Load eval set (path is already resolved in cli_eval.py)
-            evaluation_set, _ = EvalHelpers.load_eval_set(
-                self.context.eval_set, self.context.eval_ids
-            )
-            evaluators = self._load_evaluators(evaluation_set)
-
-            await event_bus.publish(
-                EvaluationEvents.CREATE_EVAL_SET_RUN,
-                EvalSetRunCreatedEvent(
-                    execution_id=self.execution_id,
-                    entrypoint=self.context.entrypoint or "",
-                    eval_set_run_id=self.context.eval_set_run_id,
-                    eval_set_id=evaluation_set.id,
-                    no_of_evals=len(evaluation_set.evaluations),
-                    evaluators=evaluators,
-                ),
-            )
-
-            # Check if parallel execution should be used
-            if (
-                self.context.workers
-                and self.context.workers > 1
-                and len(evaluation_set.evaluations) > 1
-            ):
-                eval_run_result_list = await self._execute_parallel(
-                    evaluation_set, evaluators, event_bus, self.context.workers
-                )
-            else:
-                eval_run_result_list = await self._execute_sequential(
-                    evaluation_set, evaluators, event_bus
-                )
-            results = UiPathEvalOutput(
-                evaluation_set_name=evaluation_set.name,
-                evaluation_set_results=eval_run_result_list,
-            )
+            yield
         finally:
             # Flush cache to disk at end of eval set and cleanup
             if self.context.enable_mocker_cache:
@@ -256,122 +218,102 @@ class UiPathEvalRuntime:
                     cache_manager.flush()
                 cache_manager_context.set(None)
 
-        # Computing evaluator averages
-        evaluator_averages: dict[str, float] = defaultdict(float)
-        evaluator_count: dict[str, int] = defaultdict(int)
+    async def initiate_evaluation(
+        self,
+    ) -> Tuple[
+        EvaluationSet,
+        list[BaseEvaluator[Any, Any, Any]],
+        Iterable[Awaitable[EvaluationRunResult]],
+    ]:
+        if self.context.eval_set is None:
+            raise ValueError("eval_set must be provided for evaluation runs")
 
-        # Check if any eval runs failed
-        any_failed = False
-        for eval_run_result in results.evaluation_set_results:
-            # Check if the agent execution had an error
-            if (
-                eval_run_result.agent_execution_output
-                and eval_run_result.agent_execution_output.result.error
-            ):
-                any_failed = True
+        # Load eval set (path is already resolved in cli_eval.py)
+        evaluation_set, _ = EvalHelpers.load_eval_set(
+            self.context.eval_set, self.context.eval_ids
+        )
+        evaluators = self._load_evaluators(evaluation_set)
 
-            for result_dto in eval_run_result.evaluation_run_results:
-                evaluator_averages[result_dto.evaluator_id] += result_dto.result.score
-                evaluator_count[result_dto.evaluator_id] += 1
-
-        for eval_id in evaluator_averages:
-            evaluator_averages[eval_id] = (
-                evaluator_averages[eval_id] / evaluator_count[eval_id]
-            )
-        await event_bus.publish(
-            EvaluationEvents.UPDATE_EVAL_SET_RUN,
-            EvalSetRunUpdatedEvent(
+        await self.event_bus.publish(
+            EvaluationEvents.CREATE_EVAL_SET_RUN,
+            EvalSetRunCreatedEvent(
                 execution_id=self.execution_id,
-                evaluator_scores=evaluator_averages,
-                success=not any_failed,
+                entrypoint=self.context.entrypoint or "",
+                eval_set_run_id=self.context.eval_set_run_id,
+                eval_set_id=evaluation_set.id,
+                no_of_evals=len(evaluation_set.evaluations),
+                evaluators=evaluators,
             ),
-            wait_for_completion=False,
         )
 
-        result = UiPathRuntimeResult(
-            output={**results.model_dump(by_alias=True)},
-            status=UiPathRuntimeStatus.SUCCESSFUL,
+        return (
+            evaluation_set,
+            evaluators,
+            (
+                self._execute_eval(eval_item, evaluators)
+                for eval_item in evaluation_set.evaluations
+            ),
         )
-        return result
 
-    async def _execute_sequential(
-        self,
-        evaluation_set: EvaluationSet,
-        evaluators: list[BaseEvaluator[Any, Any, Any]],
-        event_bus: EventBus,
-    ) -> list[EvaluationRunResult]:
-        all_eval_run_result: list[EvaluationRunResult] = []
-
-        for eval_item in evaluation_set.evaluations:
-            all_eval_run_result.append(
-                await self._execute_eval(eval_item, evaluators, event_bus)
+    async def execute(self) -> UiPathRuntimeResult:
+        with self._mocker_cache():
+            (
+                evaluation_set,
+                evaluators,
+                evaluation_iterable,
+            ) = await self.initiate_evaluation()
+            workers = self.context.workers or 1
+            assert workers >= 1
+            eval_run_result_list = await execute_parallel(evaluation_iterable, workers)
+            results = UiPathEvalOutput(
+                evaluation_set_name=evaluation_set.name,
+                evaluation_set_results=eval_run_result_list,
             )
 
-        return all_eval_run_result
+            # Computing evaluator averages
+            evaluator_averages: dict[str, float] = defaultdict(float)
+            evaluator_count: dict[str, int] = defaultdict(int)
 
-    async def _execute_parallel(
-        self,
-        evaluation_set: EvaluationSet,
-        evaluators: list[BaseEvaluator[Any, Any, Any]],
-        event_bus: EventBus,
-        workers: int,
-    ) -> list[EvaluationRunResult]:
-        # Create a queue with max concurrency
-        queue: asyncio.Queue[tuple[int, EvaluationItem] | None] = asyncio.Queue(
-            maxsize=workers
-        )
+            # Check if any eval runs failed
+            any_failed = False
+            for eval_run_result in results.evaluation_set_results:
+                # Check if the agent execution had an error
+                if (
+                    eval_run_result.agent_execution_output
+                    and eval_run_result.agent_execution_output.result.error
+                ):
+                    any_failed = True
 
-        # Dictionary to store results with their original indices
-        results_dict: dict[int, EvaluationRunResult] = {}
+                for result_dto in eval_run_result.evaluation_run_results:
+                    evaluator_averages[result_dto.evaluator_id] += (
+                        result_dto.result.score
+                    )
+                    evaluator_count[result_dto.evaluator_id] += 1
 
-        # Producer task to fill the queue
-        async def producer() -> None:
-            for index, eval_item in enumerate(evaluation_set.evaluations):
-                await queue.put((index, eval_item))
-            # Signal completion by putting None markers
-            for _ in range(workers):
-                await queue.put(None)
+            for eval_id in evaluator_averages:
+                evaluator_averages[eval_id] = (
+                    evaluator_averages[eval_id] / evaluator_count[eval_id]
+                )
+            await self.event_bus.publish(
+                EvaluationEvents.UPDATE_EVAL_SET_RUN,
+                EvalSetRunUpdatedEvent(
+                    execution_id=self.execution_id,
+                    evaluator_scores=evaluator_averages,
+                    success=not any_failed,
+                ),
+                wait_for_completion=False,
+            )
 
-        # Worker function to process items from the queue
-        async def worker(worker_id: int) -> None:
-            while True:
-                item = await queue.get()
-
-                # Check for termination signal
-                if item is None:
-                    queue.task_done()
-                    break
-
-                index, eval_item = item
-
-                try:
-                    # Execute the evaluation
-                    result = await self._execute_eval(eval_item, evaluators, event_bus)
-
-                    # Store result with its index to maintain order
-                    results_dict[index] = result
-                finally:
-                    # Mark the task as done
-                    queue.task_done()
-
-        # Start producer
-        producer_task = asyncio.create_task(producer())
-
-        # Create worker tasks based on workers
-        worker_tasks = [asyncio.create_task(worker(i)) for i in range(workers)]
-
-        # Wait for producer and all workers to complete
-        await producer_task
-        await asyncio.gather(*worker_tasks)
-
-        # Return results in the original order
-        return [results_dict[i] for i in range(len(evaluation_set.evaluations))]
+            result = UiPathRuntimeResult(
+                output={**results.model_dump(by_alias=True)},
+                status=UiPathRuntimeStatus.SUCCESSFUL,
+            )
+            return result
 
     async def _execute_eval(
         self,
         eval_item: EvaluationItem,
         evaluators: list[BaseEvaluator[Any, Any, Any]],
-        event_bus: EventBus,
     ) -> EvaluationRunResult:
         # Generate LLM-based input if input_mocking_strategy is defined
         if eval_item.input_mocking_strategy:
@@ -381,7 +323,7 @@ class UiPathEvalRuntime:
 
         set_execution_context(eval_item, self.span_collector, execution_id)
 
-        await event_bus.publish(
+        await self.event_bus.publish(
             EvaluationEvents.CREATE_EVAL_RUN,
             EvalRunCreatedEvent(
                 execution_id=execution_id,
@@ -491,7 +433,7 @@ class UiPathEvalRuntime:
                     )
                     agent_output = error.model_dump()
 
-            await event_bus.publish(
+            await self.event_bus.publish(
                 EvaluationEvents.UPDATE_EVAL_RUN,
                 EvalRunUpdatedEvent(
                     execution_id=execution_id,
@@ -539,7 +481,7 @@ class UiPathEvalRuntime:
                     )
                     eval_run_updated_event.exception_details.runtime_exception = True
 
-            await event_bus.publish(
+            await self.event_bus.publish(
                 EvaluationEvents.UPDATE_EVAL_RUN,
                 eval_run_updated_event,
                 wait_for_completion=False,
