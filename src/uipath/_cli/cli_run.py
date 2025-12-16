@@ -163,9 +163,13 @@ def run(
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         try:
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+                            runtime_id = ctx.conversation_id or ctx.job_id or "default"
+                            print(
+                                f"Starting run session for runtime ID: {runtime_id} resume: {resume}"
+                            )
                             runtime = await factory.new_runtime(
                                 entrypoint,
-                                ctx.conversation_id or ctx.job_id or "default",
+                                runtime_id,
                             )
 
                             if ctx.job_id:

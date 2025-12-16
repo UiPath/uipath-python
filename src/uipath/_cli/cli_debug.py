@@ -119,9 +119,11 @@ def debug(
 
                         factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
 
-                        runtime = await factory.new_runtime(
-                            entrypoint, ctx.conversation_id or ctx.job_id or "default"
+                        runtime_id = ctx.conversation_id or ctx.job_id or "default"
+                        print(
+                            f"Starting debug session for runtime ID: {runtime_id} resume: {resume}"
                         )
+                        runtime = await factory.new_runtime(entrypoint, runtime_id)
 
                         if ctx.job_id:
                             trace_manager.add_span_exporter(LlmOpsHttpExporter())
