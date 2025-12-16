@@ -4,6 +4,8 @@ import importlib
 from typing import Any, Callable
 
 from mockito import (  # type: ignore[import-untyped] # explicit ignore
+    ARGS,
+    KWARGS,
     invocation,
     mocking,
 )
@@ -77,6 +79,11 @@ class MockitoMocker(Mocker):
 
             args = resolved_args if resolved_args is not None else []
             kwargs = resolved_kwargs if resolved_kwargs is not None else {}
+
+            if behavior.arguments.match_any_additional_kwargs:
+                kwargs = kwargs | KWARGS
+            if behavior.arguments.match_any_additional_args:
+                args = args + ARGS
 
             stubbed = invocation.StubbedInvocation(mock_obj, behavior.function)(
                 *args,
