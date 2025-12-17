@@ -104,3 +104,5 @@ For additional commands related to linting, formatting, and building, run `just 
 ### General Rules
 - Please write informative description to the PRs for the reviewers to understand the context.
 - If you want to publish a `dev` build, please add a `build:dev` label to your PR.
+  - You can then use the published `dev` version from the PR description/comments to use as needed <img width="880" height="433" alt="image" src="https://github.com/user-attachments/assets/b670bb08-a469-454f-a5f6-10d60477c033" />
+
