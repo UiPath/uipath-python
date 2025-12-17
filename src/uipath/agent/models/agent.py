@@ -648,6 +648,22 @@ class AgentDefinition(BaseModel):
     )
 
     @staticmethod
+    def _normalize_recipient_type(recipient: Dict[str, Any]) -> None:
+        """Normalize recipient type from integer to enum string value."""
+        recipient_type = recipient.get("type")
+        if isinstance(recipient_type, int):
+            # Map integer to enum string value
+            type_mapping = {
+                1: AgentEscalationRecipientType.USER_ID,
+                2: AgentEscalationRecipientType.GROUP_ID,
+                3: AgentEscalationRecipientType.USER_EMAIL,
+                4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+            }
+            recipient["type"] = type_mapping.get(
+                recipient_type, str(recipient_type)
+            )
+
+    @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:
         guards = v.get("guardrails")
         if not isinstance(guards, list):
@@ -690,18 +706,7 @@ class AgentDefinition(BaseModel):
                         if at_lower == "escalate":
                             recipient = action.get("recipient")
                             if isinstance(recipient, dict):
-                                recipient_type = recipient.get("type")
-                                if isinstance(recipient_type, int):
-                                    # Map integer to enum string value
-                                    type_mapping = {
-                                        1: AgentEscalationRecipientType.USER_ID,
-                                        2: AgentEscalationRecipientType.GROUP_ID,
-                                        3: AgentEscalationRecipientType.USER_EMAIL,
-                                        4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
-                                    }
-                                    recipient["type"] = type_mapping.get(
-                                        recipient_type, str(recipient_type)
-                                    )
+                                AgentDefinition._normalize_recipient_type(recipient)
                     else:
                         # Unknown action type
                         g["action"] = {"$actionType": "unknown", "details": action}
@@ -777,18 +782,7 @@ class AgentDefinition(BaseModel):
                     for recipient in recipients:
                         if not isinstance(recipient, dict):
                             continue
-                        recipient_type = recipient.get("type")
-                        if isinstance(recipient_type, int):
-                            # Map integer to enum string value
-                            type_mapping = {
-                                1: AgentEscalationRecipientType.USER_ID,
-                                2: AgentEscalationRecipientType.GROUP_ID,
-                                3: AgentEscalationRecipientType.USER_EMAIL,
-                                4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
-                            }
-                            recipient["type"] = type_mapping.get(
-                                recipient_type, str(recipient_type)
-                            )
+                        AgentDefinition._normalize_recipient_type(recipient)
 
             out.append(res)
 
