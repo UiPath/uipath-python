@@ -434,6 +434,9 @@ class TestAgentBuilderConfig:
         assert len(mcp_resource.available_tools) == 2
         assert mcp_resource.available_tools[0].name == "get_current_time"
         assert mcp_resource.available_tools[1].name == "convert_time"
+        # Validate that outputSchema is None when not provided in JSON
+        assert mcp_resource.available_tools[0].output_schema is None
+        assert mcp_resource.available_tools[1].output_schema is None
 
         # Validate escalation resource with detailed properties
         escalation_resource = next(
@@ -1767,3 +1770,112 @@ class TestAgentBuilderConfig:
         assert (
             config.guardrails[2].action.action_type == AgentGuardrailActionType.UNKNOWN
         )
+
+    def test_mcp_resource_with_output_schema(self):
+        """Test that AgentDefinition can load MCP resources with outputSchema in tools"""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "test-mcp-output-schema",
+            "name": "Agent with MCP Output Schema",
+            "metadata": {"isConversational": False, "storageVersion": "36.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."}
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "mcp",
+                    "folderPath": "solution_folder",
+                    "slug": "tavily-mcp",
+                    "availableTools": [
+                        {
+                            "name": "tavily-search",
+                            "description": "Search the web using Tavily API",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "Search query",
+                                    }
+                                },
+                                "required": ["query"],
+                            },
+                            "outputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "results": {
+                                        "type": "array",
+                                        "description": "Search results",
+                                    }
+                                },
+                                "required": ["results"],
+                            },
+                        },
+                        {
+                            "name": "tavily-extract",
+                            "description": "Extract content from URLs",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "urls": {
+                                        "type": "array",
+                                        "description": "URLs to extract",
+                                    }
+                                },
+                                "required": ["urls"],
+                            },
+                            "outputSchema": {
+                                "type": "object",
+                                "properties": {"content": {"type": "string"}},
+                            },
+                        },
+                    ],
+                    "name": "tavily",
+                    "description": "Tavily search and extraction tools",
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+            "guardrails": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        # Validate MCP resource with outputSchema
+        mcp_resources = [
+            r for r in config.resources if r.resource_type == AgentResourceType.MCP
+        ]
+        assert len(mcp_resources) == 1
+        mcp_resource = mcp_resources[0]
+        assert isinstance(mcp_resource, AgentMcpResourceConfig)
+        assert mcp_resource.name == "tavily"
+        assert mcp_resource.slug == "tavily-mcp"
+        assert mcp_resource.description == "Tavily search and extraction tools"
+        assert mcp_resource.is_enabled is True
+        assert len(mcp_resource.available_tools) == 2
+
+        # Validate first tool with outputSchema
+        tool1 = mcp_resource.available_tools[0]
+        assert tool1.name == "tavily-search"
+        assert tool1.description == "Search the web using Tavily API"
+        assert tool1.input_schema is not None
+        assert tool1.output_schema is not None
+        assert "results" in tool1.output_schema["properties"]
+        assert tool1.output_schema["required"] == ["results"]
+
+        # Validate second tool with outputSchema
+        tool2 = mcp_resource.available_tools[1]
+        assert tool2.name == "tavily-extract"
+        assert tool2.output_schema is not None
+        assert "content" in tool2.output_schema["properties"]
