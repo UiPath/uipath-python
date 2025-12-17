@@ -2074,7 +2074,9 @@ class TestAgentBuilderConfig:
             (2, "group-456", "Group Name", AgentEscalationRecipientType.GROUP_ID),
         ],
     )
-    def test_standard_recipient_discrimination(self, recipient_type_int, value, display_name, expected_type):
+    def test_standard_recipient_discrimination(
+        self, recipient_type_int, value, display_name, expected_type
+    ):
         """Test that StandardRecipient is correctly discriminated for USER_ID, GROUP_ID."""
         from uipath.agent.models.agent import StandardRecipient
 
@@ -2134,7 +2136,6 @@ class TestAgentBuilderConfig:
         assert channel.recipients[0].type == expected_type
         assert channel.recipients[0].value == value
         assert channel.recipients[0].display_name == display_name
-
 
     def test_standard_recipient_discrimination_user_email(self):
         """Test that StandardRecipient is correctly discriminated for USER_EMAIL."""

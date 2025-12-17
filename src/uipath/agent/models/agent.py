@@ -659,9 +659,7 @@ class AgentDefinition(BaseModel):
                 3: AgentEscalationRecipientType.USER_EMAIL,
                 4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
             }
-            recipient["type"] = type_mapping.get(
-                recipient_type, str(recipient_type)
-            )
+            recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
 
     @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:
