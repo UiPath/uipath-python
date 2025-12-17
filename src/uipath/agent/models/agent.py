@@ -53,6 +53,7 @@ class AgentEscalationRecipientType(str, Enum):
     USER_ID = "UserId"
     GROUP_ID = "GroupId"
     USER_EMAIL = "UserEmail"
+    ASSET_USER_EMAIL = "AssetUserEmail"
 
 
 class AgentContextRetrievalMode(str, Enum):
@@ -219,25 +220,38 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
 
-class AgentEscalationRecipient(BaseCfg):
+class BaseEscalationRecipient(BaseCfg):
     """Agent escalation recipient model."""
 
     type: Union[AgentEscalationRecipientType, str] = Field(..., alias="type")
+
+
+class StandardRecipient(BaseEscalationRecipient):
+    """Standard recipient with value field (for UserId, GroupId, UserEmail)."""
+
+    type: Literal[
+        AgentEscalationRecipientType.USER_ID,
+        AgentEscalationRecipientType.GROUP_ID,
+        AgentEscalationRecipientType.USER_EMAIL,
+    ] = Field(..., alias="type")
     value: str = Field(..., alias="value")
     display_name: Optional[str] = Field(default=None, alias="displayName")
 
-    @field_validator("type", mode="before")
-    @classmethod
-    def normalize_type(cls, v: Any) -> Any:
-        """Normalize recipient type from int to enum/string."""
-        if isinstance(v, int):
-            mapping = {
-                1: AgentEscalationRecipientType.USER_ID,
-                2: AgentEscalationRecipientType.GROUP_ID,
-                3: AgentEscalationRecipientType.USER_EMAIL,
-            }
-            return mapping.get(v, str(v))
-        return v
+
+class AssetRecipient(BaseEscalationRecipient):
+    """Asset recipient with assetName and folderPath (for AssetUserEmail)."""
+
+    type: Literal[AgentEscalationRecipientType.ASSET_USER_EMAIL] = Field(
+        ..., alias="type"
+    )
+    asset_name: str = Field(..., alias="assetName")
+    folder_path: str = Field(..., alias="folderPath")
+
+
+AgentEscalationRecipient = Annotated[
+    Union[StandardRecipient, AssetRecipient],
+    Field(discriminator="type"),
+]
 
 
 class AgentEscalationChannelProperties(BaseResourceProperties):
@@ -706,6 +720,23 @@ class AgentDefinition(BaseModel):
                     if at_lower in {"block", "filter", "log", "escalate"}:
                         # Valid action type, keep as-is or normalize case if needed
                         g["action"]["$actionType"] = at_lower
+
+                        # Normalize recipient type in escalate actions
+                        if at_lower == "escalate":
+                            recipient = action.get("recipient")
+                            if isinstance(recipient, dict):
+                                recipient_type = recipient.get("type")
+                                if isinstance(recipient_type, int):
+                                    # Map integer to enum string value
+                                    type_mapping = {
+                                        1: AgentEscalationRecipientType.USER_ID,
+                                        2: AgentEscalationRecipientType.GROUP_ID,
+                                        3: AgentEscalationRecipientType.USER_EMAIL,
+                                        4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+                                    }
+                                    recipient["type"] = type_mapping.get(
+                                        recipient_type, str(recipient_type)
+                                    )
                     else:
                         # Unknown action type
                         g["action"] = {"$actionType": "unknown", "details": action}
@@ -771,6 +802,29 @@ class AgentDefinition(BaseModel):
                     else "Unknown"
                 )
                 res["settings"] = settings
+
+            if res["$resourceType"] == "escalation":
+                # Normalize recipient types from integers to strings
+                channels = res.get("channels", [])
+                for channel in channels:
+                    if not isinstance(channel, dict):
+                        continue
+                    recipients = channel.get("recipients", [])
+                    for recipient in recipients:
+                        if not isinstance(recipient, dict):
+                            continue
+                        recipient_type = recipient.get("type")
+                        if isinstance(recipient_type, int):
+                            # Map integer to enum string value
+                            type_mapping = {
+                                1: AgentEscalationRecipientType.USER_ID,
+                                2: AgentEscalationRecipientType.GROUP_ID,
+                                3: AgentEscalationRecipientType.USER_EMAIL,
+                                4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+                            }
+                            recipient["type"] = type_mapping.get(
+                                recipient_type, str(recipient_type)
+                            )
 
             out.append(res)
 
