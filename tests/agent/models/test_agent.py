@@ -22,6 +22,8 @@ from uipath.agent.models.agent import (
     AgentUnknownResourceConfig,
     AgentUnknownToolResourceConfig,
     AgentWordRule,
+    AssetRecipient,
+    StandardRecipient,
 )
 from uipath.platform.guardrails import (
     EnumListParameterValue,
@@ -2003,6 +2005,8 @@ class TestAgentBuilderConfig:
         channel = escalation.channels[0]
         assert len(channel.recipients) == 1
 
+        assert isinstance(channel.recipients[0], StandardRecipient)
+
         # Verify integer types were normalized to enum strings
         assert channel.recipients[0].type == expected_type
         assert channel.recipients[0].value == value
@@ -2059,8 +2063,12 @@ class TestAgentBuilderConfig:
         )
 
         escalation = config.resources[0]
+        assert isinstance(escalation, AgentEscalationResourceConfig)
+
         channel = escalation.channels[0]
+
         recipient = channel.recipients[0]
+        assert isinstance(recipient, AssetRecipient)
 
         # Verify integer type 4 was normalized to ASSET_USER_EMAIL enum
         assert recipient.type == AgentEscalationRecipientType.ASSET_USER_EMAIL
@@ -2078,7 +2086,6 @@ class TestAgentBuilderConfig:
         self, recipient_type_int, value, display_name, expected_type
     ):
         """Test that StandardRecipient is correctly discriminated for USER_ID, GROUP_ID."""
-        from uipath.agent.models.agent import StandardRecipient
 
         json_data = {
             "id": "test-standard-recipient",
@@ -2129,6 +2136,8 @@ class TestAgentBuilderConfig:
         )
 
         escalation = config.resources[0]
+        assert isinstance(escalation, AgentEscalationResourceConfig)
+
         channel = escalation.channels[0]
 
         # All should be StandardRecipient instances
@@ -2139,7 +2148,6 @@ class TestAgentBuilderConfig:
 
     def test_standard_recipient_discrimination_user_email(self):
         """Test that StandardRecipient is correctly discriminated for USER_EMAIL."""
-        from uipath.agent.models.agent import StandardRecipient
 
         json_data = {
             "id": "test-standard-recipient",
@@ -2189,6 +2197,8 @@ class TestAgentBuilderConfig:
         )
 
         escalation = config.resources[0]
+        assert isinstance(escalation, AgentEscalationResourceConfig)
+
         channel = escalation.channels[0]
 
         # All should be StandardRecipient instances
@@ -2198,7 +2208,6 @@ class TestAgentBuilderConfig:
 
     def test_asset_recipient_discrimination(self):
         """Test that AssetRecipient is correctly discriminated for ASSET_USER_EMAIL type."""
-        from uipath.agent.models.agent import AssetRecipient
 
         json_data = {
             "id": "test-asset-recipient-discrimination",
@@ -2249,11 +2258,14 @@ class TestAgentBuilderConfig:
         )
 
         escalation = config.resources[0]
+        assert isinstance(escalation, AgentEscalationResourceConfig)
+
         channel = escalation.channels[0]
+
         recipient = channel.recipients[0]
+        assert isinstance(recipient, AssetRecipient)
 
         # Should be AssetRecipient instance
-        assert isinstance(recipient, AssetRecipient)
         assert recipient.type == AgentEscalationRecipientType.ASSET_USER_EMAIL
         assert recipient.asset_name == "NotificationEmail"
         assert recipient.folder_path == "Production/Notifications"
