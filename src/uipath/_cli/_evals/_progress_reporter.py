@@ -110,17 +110,24 @@ class StudioWebProgressReporter:
         self._rich_console.print(f"    • \u26a0  [dim]{context}: {error}[/dim]")
 
     def _status_to_string(self, status: EvaluationStatus) -> str:
-        """Convert EvaluationStatus enum to PascalCase string for API.
+        """Convert EvaluationStatus enum to backend API string.
 
         Args:
             status: The EvaluationStatus enum value
 
         Returns:
-            PascalCase string representation (e.g., "InProgress", "Completed")
+            String representation matching backend C# enum names
         """
-        # Convert SNAKE_CASE enum name to PascalCase
-        components = status.name.split("_")
-        return "".join(x.title() for x in components)
+        # Map Python enum names to backend C# enum names
+        # Python: PENDING, IN_PROGRESS, COMPLETED, FAILED
+        # C#:     Pending, Running,     Completed, Failed
+        status_mapping = {
+            EvaluationStatus.PENDING: "Pending",
+            EvaluationStatus.IN_PROGRESS: "Running",  # Backend uses "Running" not "InProgress"
+            EvaluationStatus.COMPLETED: "Completed",
+            EvaluationStatus.FAILED: "Failed",
+        }
+        return status_mapping.get(status, "Pending")
 
     def _is_localhost(self) -> bool:
         """Check if the eval backend URL is localhost.
@@ -622,7 +629,7 @@ class StudioWebProgressReporter:
             )
             assertion_runs.append(
                 {
-                    "status": self._status_to_string(EvaluationStatus.COMPLETED),
+                    "status": EvaluationStatus.COMPLETED.value,
                     "evaluatorId": evaluator_id_value,
                     "completionMetrics": {
                         "duration": int(eval_result.result.evaluation_time)
@@ -680,7 +687,7 @@ class StudioWebProgressReporter:
             )
             evaluator_runs.append(
                 {
-                    "status": self._status_to_string(EvaluationStatus.COMPLETED),
+                    "status": EvaluationStatus.COMPLETED.value,
                     "evaluatorId": eval_result.evaluator_id,
                     "result": {
                         "score": {
@@ -721,7 +728,7 @@ class StudioWebProgressReporter:
         payload: dict[str, Any] = {
             "evalRunId": eval_run_id,
             # For coded evaluations, use integer status; for legacy, use string
-            "status": status.value if is_coded else self._status_to_string(status),
+            "status": status.value,
             "result": {
                 "output": dict(actual_output),
                 "evaluatorScores": evaluator_scores,
@@ -759,7 +766,7 @@ class StudioWebProgressReporter:
         payload: dict[str, Any] = {
             "evalRunId": eval_run_id,
             # For coded evaluations, use integer status; for legacy, use string
-            "status": status.value if is_coded else self._status_to_string(status),
+            "status": status.value,
             "result": {
                 "output": dict(actual_output),
                 "scores": evaluator_scores,
@@ -800,12 +807,22 @@ class StudioWebProgressReporter:
             "inputs": eval_item.inputs,
         }
 
-        # For new coded evaluators (EvaluationItem), use evaluationCriterias
-        # For legacy evaluators (LegacyEvaluationItem), use expectedOutput
-        if isinstance(eval_item, EvaluationItem):
+        # For coded evaluators, use evaluationCriterias directly
+        # For legacy evaluators, extract expectedOutput from the migrated evaluationCriterias
+        # (Legacy evals are migrated to EvaluationItem format with expectedOutput inside evaluationCriterias)
+        if is_coded:
             eval_snapshot["evaluationCriterias"] = eval_item.evaluation_criterias
         else:
-            eval_snapshot["expectedOutput"] = eval_item.expected_output
+            # Legacy backend endpoint expects expectedOutput directly in evalSnapshot
+            # Extract it from the first evaluator criteria (all criteria have the same expectedOutput)
+            expected_output = {}
+            if eval_item.evaluation_criterias:
+                first_criteria = next(
+                    iter(eval_item.evaluation_criterias.values()), None
+                )
+                if first_criteria and isinstance(first_criteria, dict):
+                    expected_output = first_criteria.get("expectedOutput", {})
+            eval_snapshot["expectedOutput"] = expected_output
 
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
@@ -813,10 +830,8 @@ class StudioWebProgressReporter:
         payload: dict[str, Any] = {
             "evalSetRunId": eval_set_run_id,
             "evalSnapshot": eval_snapshot,
-            # For coded evaluations, use integer status; for legacy, use string
-            "status": EvaluationStatus.IN_PROGRESS.value
-            if is_coded
-            else self._status_to_string(EvaluationStatus.IN_PROGRESS),
+            # Backend expects integer status (JsonStringEnumConverter is disabled)
+            "status": EvaluationStatus.IN_PROGRESS.value,
         }
 
         return RequestSpec(
@@ -855,15 +870,13 @@ class StudioWebProgressReporter:
             "agentId": self._project_id,
             "evalSetId": eval_set_id_value,
             "agentSnapshot": agent_snapshot.model_dump(by_alias=True),
-            # For coded evaluations, use integer status; for legacy, use string
-            "status": EvaluationStatus.IN_PROGRESS.value
-            if is_coded
-            else self._status_to_string(EvaluationStatus.IN_PROGRESS),
+            # Backend expects integer status (JsonStringEnumConverter is disabled)
+            # EvaluationStatus.IN_PROGRESS.value = 1 = Running in backend
+            "status": EvaluationStatus.IN_PROGRESS.value,
             "numberOfEvalsExecuted": no_of_evals,
+            # Source is required by backend - 0 = Manual (default)
+            "source": 0,
         }
-
-        if is_coded:
-            payload["source"] = 0
 
         return RequestSpec(
             method="POST",
@@ -910,7 +923,7 @@ class StudioWebProgressReporter:
         payload: dict[str, Any] = {
             "evalSetRunId": eval_set_run_id,
             # For coded evaluations, use integer status; for legacy, use string
-            "status": status.value if is_coded else self._status_to_string(status),
+            "status": status.value,
             "evaluatorScores": evaluator_scores_list,
         }
 

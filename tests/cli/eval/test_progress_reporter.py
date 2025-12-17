@@ -261,9 +261,9 @@ class TestRequestSpecGeneration:
 
         assert spec.method == "POST"
         assert "coded/" not in spec.endpoint
-        # Legacy should not have version or source field
+        # Legacy should not have version field but does need source field
         assert "version" not in spec.json
-        assert "source" not in spec.json
+        assert spec.json["source"] == 0  # Source field is required for legacy
         assert spec.json["numberOfEvalsExecuted"] == 5
 
     def test_update_coded_eval_run_spec(self, progress_reporter):
@@ -318,7 +318,7 @@ class TestRequestSpecGeneration:
         assert spec.json["assertionRuns"] == assertion_runs
         assert spec.json["result"]["evaluatorScores"] == evaluator_scores
         assert spec.json["completionMetrics"]["duration"] == 5
-        assert spec.json["status"] == "Completed"  # String format for legacy
+        assert spec.json["status"] == 2  # COMPLETED - integer format for backend
 
     def test_update_coded_eval_run_spec_with_failure(self, progress_reporter):
         """Test updating eval run spec for coded evaluators with failure."""
@@ -358,7 +358,7 @@ class TestRequestSpecGeneration:
         assert spec.method == "PUT"
         assert "coded/" not in spec.endpoint
         assert spec.json["evalRunId"] == "test-run-id"
-        assert spec.json["status"] == "Failed"  # String format for legacy
+        assert spec.json["status"] == 3  # FAILED - integer format for backend
 
 
 # Tests for custom eval set run ID handling
@@ -518,7 +518,7 @@ class TestEvalSetRunStatusUpdates:
         assert spec.method == "PUT"
         assert "coded/" not in spec.endpoint
         assert spec.json["evalSetRunId"] == "test-run-id"
-        assert spec.json["status"] == "Completed"  # String format for legacy
+        assert spec.json["status"] == 2  # COMPLETED - integer format for backend
 
     def test_update_eval_set_run_spec_with_failure_legacy(self, progress_reporter):
         """Test updating eval set run spec for legacy evaluators with success=False."""
@@ -534,4 +534,4 @@ class TestEvalSetRunStatusUpdates:
         assert spec.method == "PUT"
         assert "coded/" not in spec.endpoint
         assert spec.json["evalSetRunId"] == "test-run-id"
-        assert spec.json["status"] == "Failed"  # String format for legacy
+        assert spec.json["status"] == 3  # FAILED - integer format for backend
