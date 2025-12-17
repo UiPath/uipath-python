@@ -23,6 +23,7 @@ from uipath.runtime.events import UiPathRuntimeStateEvent
 from uipath.runtime.resumable import UiPathResumeTriggerType
 
 from uipath._cli._utils._common import serialize_object
+from uipath._utils import sanitize_string
 
 logger = logging.getLogger(__name__)
 
@@ -768,8 +769,9 @@ class SignalRDebugBridge:
                 else None
             )
             if node_name:
-                self.state.add_breakpoint(node_name)
-                logger.info(f"Breakpoint added: {node_name}")
+                sanitized_name = sanitize_string(node_name)
+                self.state.add_breakpoint(sanitized_name)
+                logger.info(f"Breakpoint added: {sanitized_name}")
             else:
                 logger.warning(f"Breakpoint without node name: {bp}")
 
