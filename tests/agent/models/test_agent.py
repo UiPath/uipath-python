@@ -1,3 +1,4 @@
+import pytest
 from pydantic import TypeAdapter
 
 from uipath.agent.models.agent import (
@@ -1938,8 +1939,17 @@ class TestAgentBuilderConfig:
         assert channel.recipients[0].type == AgentEscalationRecipientType.USER_ID
         assert channel.recipients[0].value == "user-123"
 
-
-    def test_escalation_recipient_type_normalization_from_int_for_group_id(self):
+    @pytest.mark.parametrize(
+        "recipient_type_int,value,expected_type",
+        [
+            (1, "user-123", AgentEscalationRecipientType.USER_ID),
+            (2, "group-456", AgentEscalationRecipientType.GROUP_ID),
+            (3, "user@example.com", AgentEscalationRecipientType.USER_EMAIL),
+        ],
+    )
+    def test_escalation_recipient_type_normalization_from_int(
+        self, recipient_type_int, value, expected_type
+    ):
         """Test that escalation recipient types are normalized from integers to enum strings."""
 
         json_data = {
@@ -1971,7 +1981,7 @@ class TestAgentBuilderConfig:
                                 "resourceKey": "test-key",
                             },
                             "recipients": [
-                                {"type": 2, "value": "group-456"},  # GROUP_ID
+                                {"type": recipient_type_int, "value": value},
                             ],
                         }
                     ],
@@ -1994,68 +2004,8 @@ class TestAgentBuilderConfig:
         assert len(channel.recipients) == 1
 
         # Verify integer types were normalized to enum strings
-        assert channel.recipients[0].type == AgentEscalationRecipientType.GROUP_ID
-        assert channel.recipients[0].value == "group-456"
-
-
-    def test_escalation_recipient_type_normalization_from_int_for_user_email(self):
-        """Test that escalation recipient types are normalized from integers to enum strings."""
-
-        json_data = {
-            "id": "test-recipient-normalization",
-            "name": "Agent with Integer Recipient Types",
-            "version": "1.0.0",
-            "settings": {
-                "model": "gpt-4o-2024-11-20",
-                "maxTokens": 16384,
-                "temperature": 0,
-                "engine": "basic-v1",
-            },
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {"type": "object", "properties": {}},
-            "resources": [
-                {
-                    "$resourceType": "escalation",
-                    "channels": [
-                        {
-                            "name": "Test Channel",
-                            "description": "Test escalation channel",
-                            "type": "ActionCenter",
-                            "inputSchema": {"type": "object", "properties": {}},
-                            "outputSchema": {"type": "object", "properties": {}},
-                            "properties": {
-                                "appName": "TestApp",
-                                "appVersion": 1,
-                                "folderName": "TestFolder",
-                                "resourceKey": "test-key",
-                            },
-                            "recipients": [
-                                {"type": 3, "value": "user@example.com"},  # USER_EMAIL
-                            ],
-                        }
-                    ],
-                    "name": "Test Escalation",
-                    "description": "Test escalation with integer recipient types",
-                }
-            ],
-            "messages": [{"role": "system", "content": "Test"}],
-        }
-
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-
-        escalation = config.resources[0]
-        assert isinstance(escalation, AgentEscalationResourceConfig)
-        assert len(escalation.channels) == 1
-
-        channel = escalation.channels[0]
-        assert len(channel.recipients) == 1
-
-        # Verify integer types were normalized to enum strings
-        assert channel.recipients[0].type == AgentEscalationRecipientType.USER_EMAIL
-        assert channel.recipients[0].value == "user@example.com"
-
+        assert channel.recipients[0].type == expected_type
+        assert channel.recipients[0].value == value
 
     def test_escalation_recipient_asset_type_normalization(self):
         """Test that AssetUserEmail recipient type (int 4) is normalized correctly."""
@@ -2117,8 +2067,15 @@ class TestAgentBuilderConfig:
         assert recipient.asset_name == "EmailAsset"
         assert recipient.folder_path == "Shared"
 
-    def test_standard_recipient_discrimination_user_id(self):
-        """Test that StandardRecipient is correctly discriminated for USER_ID, GROUP_ID, and USER_EMAIL."""
+    @pytest.mark.parametrize(
+        "recipient_type_int,value,display_name,expected_type",
+        [
+            (1, "user-123", "User Name", AgentEscalationRecipientType.USER_ID),
+            (2, "group-456", "Group Name", AgentEscalationRecipientType.GROUP_ID),
+        ],
+    )
+    def test_standard_recipient_discrimination(self, recipient_type_int, value, display_name, expected_type):
+        """Test that StandardRecipient is correctly discriminated for USER_ID, GROUP_ID."""
         from uipath.agent.models.agent import StandardRecipient
 
         json_data = {
@@ -2151,9 +2108,9 @@ class TestAgentBuilderConfig:
                             },
                             "recipients": [
                                 {
-                                    "type": 1,
-                                    "value": "user-123",
-                                    "displayName": "User Name",
+                                    "type": recipient_type_int,
+                                    "value": value,
+                                    "displayName": display_name,
                                 }
                             ],
                         }
@@ -2174,75 +2131,13 @@ class TestAgentBuilderConfig:
 
         # All should be StandardRecipient instances
         assert isinstance(channel.recipients[0], StandardRecipient)
-        assert channel.recipients[0].type == AgentEscalationRecipientType.USER_ID
-        assert channel.recipients[0].value == "user-123"
-        assert channel.recipients[0].display_name == "User Name"
-
-
-    def test_standard_recipient_discrimination_group_id(self):
-        """Test that StandardRecipient is correctly discriminated for USER_ID, GROUP_ID, and USER_EMAIL."""
-        from uipath.agent.models.agent import StandardRecipient
-
-        json_data = {
-            "id": "test-standard-recipient",
-            "name": "Agent with Standard Recipients",
-            "version": "1.0.0",
-            "settings": {
-                "model": "gpt-4o-2024-11-20",
-                "maxTokens": 16384,
-                "temperature": 0,
-                "engine": "basic-v1",
-            },
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {"type": "object", "properties": {}},
-            "resources": [
-                {
-                    "$resourceType": "escalation",
-                    "channels": [
-                        {
-                            "name": "Test Channel",
-                            "description": "Test",
-                            "type": "ActionCenter",
-                            "inputSchema": {"type": "object", "properties": {}},
-                            "outputSchema": {"type": "object", "properties": {}},
-                            "properties": {
-                                "appName": "TestApp",
-                                "appVersion": 1,
-                                "folderName": "TestFolder",
-                                "resourceKey": "test-key",
-                            },
-                            "recipients": [
-                                {
-                                    "type": 2,
-                                    "value": "group-456",
-                                    "displayName": "Group Name",
-                                }
-                            ],
-                        }
-                    ],
-                    "name": "Test Escalation",
-                    "description": "Test",
-                }
-            ],
-            "messages": [{"role": "system", "content": "Test"}],
-        }
-
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-
-        escalation = config.resources[0]
-        channel = escalation.channels[0]
-
-        # All should be StandardRecipient instances
-        assert isinstance(channel.recipients[0], StandardRecipient)
-        assert channel.recipients[0].type == AgentEscalationRecipientType.GROUP_ID
-        assert channel.recipients[0].value == "group-456"
-        assert channel.recipients[0].display_name == "Group Name"
+        assert channel.recipients[0].type == expected_type
+        assert channel.recipients[0].value == value
+        assert channel.recipients[0].display_name == display_name
 
 
     def test_standard_recipient_discrimination_user_email(self):
-        """Test that StandardRecipient is correctly discriminated for USER_ID, GROUP_ID, and USER_EMAIL."""
+        """Test that StandardRecipient is correctly discriminated for USER_EMAIL."""
         from uipath.agent.models.agent import StandardRecipient
 
         json_data = {
@@ -2299,7 +2194,6 @@ class TestAgentBuilderConfig:
         assert isinstance(channel.recipients[0], StandardRecipient)
         assert channel.recipients[0].type == AgentEscalationRecipientType.USER_EMAIL
         assert channel.recipients[0].value == "user@example.com"
-
 
     def test_asset_recipient_discrimination(self):
         """Test that AssetRecipient is correctly discriminated for ASSET_USER_EMAIL type."""
