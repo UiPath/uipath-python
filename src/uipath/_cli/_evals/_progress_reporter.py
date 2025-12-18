@@ -111,19 +111,6 @@ class StudioWebProgressReporter:
         """Helper method to format and display error messages consistently."""
         self._rich_console.print(f"    • \u26a0  [dim]{context}: {error}[/dim]")
 
-    def _status_to_string(self, status: EvaluationStatus) -> str:
-        """Convert EvaluationStatus enum to PascalCase string for API.
-
-        Args:
-            status: The EvaluationStatus enum value
-
-        Returns:
-            PascalCase string representation (e.g., "InProgress", "Completed")
-        """
-        # Convert SNAKE_CASE enum name to PascalCase
-        components = status.name.split("_")
-        return "".join(x.title() for x in components)
-
     def _is_localhost(self) -> bool:
         """Check if the eval backend URL is localhost.
 
