@@ -37,7 +37,14 @@ class AgentToolType(str, Enum):
     API = "Api"
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
     INTEGRATION = "Integration"
+    INTERNAL = "Internal"
     UNKNOWN = "Unknown"  # fallback branch discriminator
+
+
+class AgentInternalToolType(str, Enum):
+    """Agent internal tool type enumeration."""
+
+    ANALYZE_FILES = "analyze-attachments"
 
 
 class AgentEscalationRecipientType(str, Enum):
@@ -335,6 +342,14 @@ class AgentIntegrationToolProperties(BaseResourceProperties):
     )
 
 
+class AgentInternalToolProperties(BaseResourceProperties):
+    """Agent internal tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.ANALYZE_FILES] = Field(
+        ..., alias="toolType"
+    )
+
+
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
     """Agent integration tool resource configuration model."""
 
@@ -345,6 +360,17 @@ class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
     is_enabled: Optional[bool] = Field(None, alias="isEnabled")
     # is output schemas were only recently added so they will be missing in some resources
     output_schema: Optional[Dict[str, Any]] = Field(None, alias="outputSchema")
+
+
+class AgentInternalToolResourceConfig(BaseAgentToolResourceConfig):
+    """Agent internal tool resource configuration model."""
+
+    type: Literal[AgentToolType.INTERNAL] = AgentToolType.INTERNAL
+    properties: AgentInternalToolProperties
+    settings: Optional[AgentToolSettings] = Field(None)
+    arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
+    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
 
 
 class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
@@ -359,6 +385,7 @@ ToolResourceConfig = Annotated[
     Union[
         AgentProcessToolResourceConfig,
         AgentIntegrationToolResourceConfig,
+        AgentInternalToolResourceConfig,
         AgentUnknownToolResourceConfig,  # when parent sets type="Unknown"
     ],
     Field(discriminator="type"),
@@ -691,6 +718,7 @@ class AgentDefinition(BaseModel):
             "api": "Api",
             "processorchestration": "ProcessOrchestration",
             "integration": "Integration",
+            "internal": "Internal",
             "unknown": "Unknown",
         }
         CONTEXT_MODE_MAP = {
