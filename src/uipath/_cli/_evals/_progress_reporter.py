@@ -296,7 +296,6 @@ class StudioWebProgressReporter:
         evaluator_scores: list[dict[str, Any]] = []
 
         for k, v in evaluators.items():
-            # Check LegacyBaseEvaluator first since it inherits from BaseEvaluator
             if isinstance(v, LegacyBaseEvaluator):
                 legacy_evaluators[k] = v
             elif isinstance(v, BaseEvaluator):
