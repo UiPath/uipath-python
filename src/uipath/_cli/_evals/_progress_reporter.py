@@ -60,6 +60,8 @@ def gracefully_handle_errors(func):
         except Exception as e:
             if hasattr(self, "_console"):
                 error_type = type(e).__name__
+                # Log the full error message for debugging
+                logger.debug(f"Full error details: {e}")
                 logger.warning(
                     f"Cannot report progress to SW. "
                     f"Function: {func.__name__}, "
@@ -110,24 +112,17 @@ class StudioWebProgressReporter:
         self._rich_console.print(f"    • \u26a0  [dim]{context}: {error}[/dim]")
 
     def _status_to_string(self, status: EvaluationStatus) -> str:
-        """Convert EvaluationStatus enum to backend API string.
+        """Convert EvaluationStatus enum to PascalCase string for API.
 
         Args:
             status: The EvaluationStatus enum value
 
         Returns:
-            String representation matching backend C# enum names
+            PascalCase string representation (e.g., "InProgress", "Completed")
         """
-        # Map Python enum names to backend C# enum names
-        # Python: PENDING, IN_PROGRESS, COMPLETED, FAILED
-        # C#:     Pending, Running,     Completed, Failed
-        status_mapping = {
-            EvaluationStatus.PENDING: "Pending",
-            EvaluationStatus.IN_PROGRESS: "Running",  # Backend uses "Running" not "InProgress"
-            EvaluationStatus.COMPLETED: "Completed",
-            EvaluationStatus.FAILED: "Failed",
-        }
-        return status_mapping.get(status, "Pending")
+        # Convert SNAKE_CASE enum name to PascalCase
+        components = status.name.split("_")
+        return "".join(x.title() for x in components)
 
     def _is_localhost(self) -> bool:
         """Check if the eval backend URL is localhost.
@@ -301,10 +296,11 @@ class StudioWebProgressReporter:
         evaluator_scores: list[dict[str, Any]] = []
 
         for k, v in evaluators.items():
-            if isinstance(v, BaseEvaluator):
-                coded_evaluators[k] = v
-            elif isinstance(v, LegacyBaseEvaluator):
+            # Check LegacyBaseEvaluator first since it inherits from BaseEvaluator
+            if isinstance(v, LegacyBaseEvaluator):
                 legacy_evaluators[k] = v
+            elif isinstance(v, BaseEvaluator):
+                coded_evaluators[k] = v
 
         # Use coded evaluator format
         runs, scores = self._collect_coded_results(
@@ -725,9 +721,9 @@ class StudioWebProgressReporter:
         # Determine status based on success
         status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
 
-        payload: dict[str, Any] = {
+        inner_payload: dict[str, Any] = {
             "evalRunId": eval_run_id,
-            # For coded evaluations, use integer status; for legacy, use string
+            # Backend expects integer status
             "status": status.value,
             "result": {
                 "output": dict(actual_output),
@@ -736,6 +732,11 @@ class StudioWebProgressReporter:
             "completionMetrics": {"duration": int(execution_time)},
             "assertionRuns": assertion_runs,
         }
+
+        # Legacy backend expects payload wrapped in "request" field
+        # Coded backend accepts payload directly
+        # Both coded and legacy send payload directly at root level
+        payload = inner_payload
 
         return RequestSpec(
             method="PUT",
@@ -827,12 +828,17 @@ class StudioWebProgressReporter:
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
 
-        payload: dict[str, Any] = {
+        inner_payload: dict[str, Any] = {
             "evalSetRunId": eval_set_run_id,
             "evalSnapshot": eval_snapshot,
-            # Backend expects integer status (JsonStringEnumConverter is disabled)
+            # Backend expects integer status
             "status": EvaluationStatus.IN_PROGRESS.value,
         }
+
+        # Legacy backend expects payload wrapped in "request" field
+        # Coded backend accepts payload directly
+        # Both coded and legacy send payload directly at root level
+        payload = inner_payload
 
         return RequestSpec(
             method="POST",
@@ -866,17 +872,19 @@ class StudioWebProgressReporter:
                 # Generate deterministic UUID5 from string
                 eval_set_id_value = str(uuid.uuid5(uuid.NAMESPACE_DNS, eval_set_id))
 
-        payload = {
+        inner_payload: dict[str, Any] = {
             "agentId": self._project_id,
             "evalSetId": eval_set_id_value,
             "agentSnapshot": agent_snapshot.model_dump(by_alias=True),
-            # Backend expects integer status (JsonStringEnumConverter is disabled)
-            # EvaluationStatus.IN_PROGRESS.value = 1 = Running in backend
+            # Backend expects integer status
             "status": EvaluationStatus.IN_PROGRESS.value,
             "numberOfEvalsExecuted": no_of_evals,
-            # Source is required by backend - 0 = Manual (default)
+            # Source is required by the backend (0 = coded SDK)
             "source": 0,
         }
+
+        # Both coded and legacy send payload directly at root level
+        payload = inner_payload
 
         return RequestSpec(
             method="POST",
@@ -920,12 +928,17 @@ class StudioWebProgressReporter:
         # Determine status based on success
         status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
 
-        payload: dict[str, Any] = {
+        inner_payload: dict[str, Any] = {
             "evalSetRunId": eval_set_run_id,
-            # For coded evaluations, use integer status; for legacy, use string
+            # Backend expects integer status
             "status": status.value,
             "evaluatorScores": evaluator_scores_list,
         }
+
+        # Legacy backend expects payload wrapped in "request" field
+        # Coded backend accepts payload directly
+        # Both coded and legacy send payload directly at root level
+        payload = inner_payload
 
         return RequestSpec(
             method="PUT",
