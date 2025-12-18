@@ -1883,64 +1883,6 @@ class TestAgentBuilderConfig:
         assert tool2.output_schema is not None
         assert "content" in tool2.output_schema["properties"]
 
-    def test_escalation_recipient_type_normalization_from_int_for_user_id(self):
-        """Test that escalation recipient types are normalized from integers to enum strings."""
-
-        json_data = {
-            "id": "test-recipient-normalization",
-            "name": "Agent with Integer Recipient Types",
-            "version": "1.0.0",
-            "settings": {
-                "model": "gpt-4o-2024-11-20",
-                "maxTokens": 16384,
-                "temperature": 0,
-                "engine": "basic-v1",
-            },
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {"type": "object", "properties": {}},
-            "resources": [
-                {
-                    "$resourceType": "escalation",
-                    "channels": [
-                        {
-                            "name": "Test Channel",
-                            "description": "Test escalation channel",
-                            "type": "ActionCenter",
-                            "inputSchema": {"type": "object", "properties": {}},
-                            "outputSchema": {"type": "object", "properties": {}},
-                            "properties": {
-                                "appName": "TestApp",
-                                "appVersion": 1,
-                                "folderName": "TestFolder",
-                                "resourceKey": "test-key",
-                            },
-                            "recipients": [
-                                {"type": 1, "value": "user-123"},  # USER_ID
-                            ],
-                        }
-                    ],
-                    "name": "Test Escalation",
-                    "description": "Test escalation with integer recipient types",
-                }
-            ],
-            "messages": [{"role": "system", "content": "Test"}],
-        }
-
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-
-        escalation = config.resources[0]
-        assert isinstance(escalation, AgentEscalationResourceConfig)
-        assert len(escalation.channels) == 1
-
-        channel = escalation.channels[0]
-        assert len(channel.recipients) == 1
-
-        # Verify integer types were normalized to enum strings
-        assert channel.recipients[0].type == AgentEscalationRecipientType.USER_ID
-        assert channel.recipients[0].value == "user-123"
-
     @pytest.mark.parametrize(
         "recipient_type_int,value,expected_type",
         [
