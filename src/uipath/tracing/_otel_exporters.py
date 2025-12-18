@@ -363,10 +363,7 @@ class LlmOpsHttpExporter(SpanExporter):
         Other clients' OpenInference spans pass through unchanged.
         """
         resource = span.resource
-        if (
-            not resource
-            or resource.attributes.get("uipath.runtime") != "agents-python"
-        ):
+        if not resource or resource.attributes.get("uipath.runtime") != "agents-python":
             return False
 
         scope = span.instrumentation_scope
