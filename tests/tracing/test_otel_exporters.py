@@ -555,5 +555,125 @@ class TestLangchainExporter(unittest.TestCase):
         print(f"✓ Final attributes keys: {list(attributes.keys())}")
 
 
+class TestAgentsPythonOpenInferenceFiltering:
+    """Tests for filtering agents-python OpenInference spans."""
+
+    @pytest.fixture
+    def exporter_with_mocks(self, mock_env_vars):
+        """Create exporter with mocked HTTP client."""
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+            yield exporter
+
+    def _create_mock_span(
+        self,
+        runtime: str | None = None,
+        scope_name: str = "some.scope",
+    ) -> MagicMock:
+        """Helper to create mock span with resource and scope."""
+        span = MagicMock(spec=ReadableSpan)
+
+        # Setup resource
+        if runtime:
+            resource = MagicMock()
+            resource.attributes = {"uipath.runtime": runtime}
+            span.resource = resource
+        else:
+            span.resource = None
+
+        # Setup instrumentation scope
+        scope = MagicMock()
+        scope.name = scope_name
+        span.instrumentation_scope = scope
+
+        return span
+
+    def test_filters_agents_python_openinference_spans(self, exporter_with_mocks):
+        """agents-python + openinference scope → filtered out."""
+        span = self._create_mock_span(
+            runtime="agents-python",
+            scope_name="openinference.instrumentation.langchain",
+        )
+        assert exporter_with_mocks._is_agents_python_openinference(span) is True
+
+    def test_passes_agents_python_manual_spans(self, exporter_with_mocks):
+        """agents-python + non-openinference scope → passes through."""
+        span = self._create_mock_span(
+            runtime="agents-python",
+            scope_name="uipath.agents.tracing",
+        )
+        assert exporter_with_mocks._is_agents_python_openinference(span) is False
+
+    def test_passes_non_agents_python_openinference_spans(self, exporter_with_mocks):
+        """non-agents-python + openinference scope → passes through."""
+        span = self._create_mock_span(
+            runtime="other-runtime",
+            scope_name="openinference.instrumentation.langchain",
+        )
+        assert exporter_with_mocks._is_agents_python_openinference(span) is False
+
+    def test_passes_spans_without_resource(self, exporter_with_mocks):
+        """No resource → passes through."""
+        span = self._create_mock_span(runtime=None, scope_name="openinference.foo")
+        assert exporter_with_mocks._is_agents_python_openinference(span) is False
+
+    def test_passes_spans_without_runtime_attribute(self, exporter_with_mocks):
+        """Resource without uipath.runtime → passes through."""
+        span = MagicMock(spec=ReadableSpan)
+        resource = MagicMock()
+        resource.attributes = {"other.attr": "value"}
+        span.resource = resource
+        scope = MagicMock()
+        scope.name = "openinference.instrumentation.langchain"
+        span.instrumentation_scope = scope
+
+        assert exporter_with_mocks._is_agents_python_openinference(span) is False
+
+    def test_export_filters_agents_python_openinference(self, exporter_with_mocks):
+        """export() should filter out agents-python OpenInference spans."""
+        # Create mixed batch: 1 agents-python openinference, 1 manual span
+        openinference_span = self._create_mock_span(
+            runtime="agents-python",
+            scope_name="openinference.instrumentation.langchain",
+        )
+        manual_span = self._create_mock_span(
+            runtime="agents-python",
+            scope_name="uipath.agents.tracing",
+        )
+
+        mock_uipath_span = MagicMock()
+        mock_uipath_span.to_dict.return_value = {
+            "TraceId": "test-trace-id",
+            "Id": "span-id",
+        }
+
+        with patch(
+            "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
+            return_value=mock_uipath_span,
+        ) as mock_convert:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            exporter_with_mocks.http_client.post.return_value = mock_response
+
+            result = exporter_with_mocks.export([openinference_span, manual_span])
+
+            assert result == SpanExportResult.SUCCESS
+            # Only manual_span should be converted (openinference filtered)
+            assert mock_convert.call_count == 1
+
+    def test_export_all_filtered_returns_success(self, exporter_with_mocks):
+        """When all spans filtered, export returns SUCCESS without HTTP call."""
+        span = self._create_mock_span(
+            runtime="agents-python",
+            scope_name="openinference.instrumentation.langchain",
+        )
+
+        result = exporter_with_mocks.export([span])
+
+        assert result == SpanExportResult.SUCCESS
+        # No HTTP call should be made
+        exporter_with_mocks.http_client.post.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

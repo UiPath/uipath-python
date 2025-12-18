@@ -119,8 +119,19 @@ class LlmOpsHttpExporter(SpanExporter):
             logger.warning("No spans to export")
             return SpanExportResult.SUCCESS
 
+        # Filter out OpenInference spans from agents-python (they go to AppInsights)
+        filtered_spans = [
+            s for s in spans if not self._is_agents_python_openinference(s)
+        ]
+
+        if len(filtered_spans) == 0:
+            logger.debug(
+                "No spans to export after filtering agents-python OpenInference spans"
+            )
+            return SpanExportResult.SUCCESS
+
         logger.debug(
-            f"Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
+            f"Exporting {len(filtered_spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
         )
 
         # Use optimized path: keep attributes as dict for processing
@@ -129,7 +140,7 @@ class LlmOpsHttpExporter(SpanExporter):
             _SpanUtils.otel_span_to_uipath_span(
                 span, custom_trace_id=self.trace_id, serialize_attributes=False
             ).to_dict(serialize_attributes=False)
-            for span in spans
+            for span in filtered_spans
         ]
 
         url = self._build_url(span_list)
@@ -344,6 +355,22 @@ class LlmOpsHttpExporter(SpanExporter):
         uipath_url = uipath_url.rstrip("/")
 
         return uipath_url
+
+    def _is_agents_python_openinference(self, span: ReadableSpan) -> bool:
+        """Check if span is OpenInference AND from agents-python runtime.
+
+        These spans are filtered out because they go to AppInsights instead.
+        Other clients' OpenInference spans pass through unchanged.
+        """
+        resource = span.resource
+        if (
+            not resource
+            or resource.attributes.get("uipath.runtime") != "agents-python"
+        ):
+            return False
+
+        scope = span.instrumentation_scope
+        return scope is not None and scope.name.startswith("openinference.")
 
 
 class JsonLinesFileExporter(SpanExporter):
