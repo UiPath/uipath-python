@@ -357,17 +357,13 @@ class LlmOpsHttpExporter(SpanExporter):
         return uipath_url
 
     def _is_agents_python_openinference(self, span: ReadableSpan) -> bool:
-        """Check if span is OpenInference AND from agents-python runtime.
+        """Check if span is marked as OpenInference from agents-python.
 
         These spans are filtered out because they go to AppInsights instead.
-        Other clients' OpenInference spans pass through unchanged.
+        The marker is added by SourceMarkerProcessor in uipath-agents.
         """
-        resource = span.resource
-        if not resource or resource.attributes.get("uipath.runtime") != "agents-python":
-            return False
-
-        scope = span.instrumentation_scope
-        return scope is not None and scope.name.startswith("openinference.")
+        attrs = span.attributes or {}
+        return bool(attrs.get("uipath.agents.is_openinference"))
 
 
 class JsonLinesFileExporter(SpanExporter):
