@@ -38,6 +38,8 @@ def mock_env_vars():
 def mock_span():
     """Create a mock ReadableSpan for testing."""
     span = MagicMock(spec=ReadableSpan)
+    # Ensure span doesn't get filtered by _is_agents_python_openinference
+    span.attributes = {}
     return span
 
 
@@ -567,79 +569,51 @@ class TestAgentsPythonOpenInferenceFiltering:
 
     def _create_mock_span(
         self,
-        runtime: str | None = None,
-        scope_name: str = "some.scope",
+        is_openinference: bool | None = None,
     ) -> MagicMock:
-        """Helper to create mock span with resource and scope."""
+        """Helper to create mock span with span attributes.
+
+        Args:
+            is_openinference: If True, sets uipath.agents.is_openinference=True.
+                             If False or None, attribute is not set.
+        """
         span = MagicMock(spec=ReadableSpan)
 
-        # Setup resource
-        if runtime:
-            resource = MagicMock()
-            resource.attributes = {"uipath.runtime": runtime}
-            span.resource = resource
+        # Setup span attributes (used by SourceMarkerProcessor in agents-python)
+        if is_openinference:
+            span.attributes = {"uipath.agents.is_openinference": True}
         else:
-            span.resource = None
-
-        # Setup instrumentation scope
-        scope = MagicMock()
-        scope.name = scope_name
-        span.instrumentation_scope = scope
+            span.attributes = {}
 
         return span
 
-    def test_filters_agents_python_openinference_spans(self, exporter_with_mocks):
-        """agents-python + openinference scope → filtered out."""
-        span = self._create_mock_span(
-            runtime="agents-python",
-            scope_name="openinference.instrumentation.langchain",
-        )
+    def test_filters_marked_openinference_spans(self, exporter_with_mocks):
+        """Span with uipath.agents.is_openinference=True → filtered out."""
+        span = self._create_mock_span(is_openinference=True)
         assert exporter_with_mocks._is_agents_python_openinference(span) is True
 
-    def test_passes_agents_python_manual_spans(self, exporter_with_mocks):
-        """agents-python + non-openinference scope → passes through."""
-        span = self._create_mock_span(
-            runtime="agents-python",
-            scope_name="uipath.agents.tracing",
-        )
+    def test_passes_unmarked_spans(self, exporter_with_mocks):
+        """Span without marker attribute → passes through."""
+        span = self._create_mock_span(is_openinference=False)
         assert exporter_with_mocks._is_agents_python_openinference(span) is False
 
-    def test_passes_non_agents_python_openinference_spans(self, exporter_with_mocks):
-        """non-agents-python + openinference scope → passes through."""
-        span = self._create_mock_span(
-            runtime="other-runtime",
-            scope_name="openinference.instrumentation.langchain",
-        )
-        assert exporter_with_mocks._is_agents_python_openinference(span) is False
-
-    def test_passes_spans_without_resource(self, exporter_with_mocks):
-        """No resource → passes through."""
-        span = self._create_mock_span(runtime=None, scope_name="openinference.foo")
-        assert exporter_with_mocks._is_agents_python_openinference(span) is False
-
-    def test_passes_spans_without_runtime_attribute(self, exporter_with_mocks):
-        """Resource without uipath.runtime → passes through."""
+    def test_passes_spans_with_no_attributes(self, exporter_with_mocks):
+        """Span with None attributes → passes through."""
         span = MagicMock(spec=ReadableSpan)
-        resource = MagicMock()
-        resource.attributes = {"other.attr": "value"}
-        span.resource = resource
-        scope = MagicMock()
-        scope.name = "openinference.instrumentation.langchain"
-        span.instrumentation_scope = scope
-
+        span.attributes = None
         assert exporter_with_mocks._is_agents_python_openinference(span) is False
 
-    def test_export_filters_agents_python_openinference(self, exporter_with_mocks):
-        """export() should filter out agents-python OpenInference spans."""
-        # Create mixed batch: 1 agents-python openinference, 1 manual span
-        openinference_span = self._create_mock_span(
-            runtime="agents-python",
-            scope_name="openinference.instrumentation.langchain",
-        )
-        manual_span = self._create_mock_span(
-            runtime="agents-python",
-            scope_name="uipath.agents.tracing",
-        )
+    def test_passes_spans_with_empty_attributes(self, exporter_with_mocks):
+        """Span with empty attributes dict → passes through."""
+        span = MagicMock(spec=ReadableSpan)
+        span.attributes = {}
+        assert exporter_with_mocks._is_agents_python_openinference(span) is False
+
+    def test_export_filters_marked_openinference(self, exporter_with_mocks):
+        """export() should filter out spans marked as OpenInference."""
+        # Create mixed batch: 1 marked openinference, 1 unmarked (manual)
+        openinference_span = self._create_mock_span(is_openinference=True)
+        manual_span = self._create_mock_span(is_openinference=False)
 
         mock_uipath_span = MagicMock()
         mock_uipath_span.to_dict.return_value = {
@@ -663,10 +637,7 @@ class TestAgentsPythonOpenInferenceFiltering:
 
     def test_export_all_filtered_returns_success(self, exporter_with_mocks):
         """When all spans filtered, export returns SUCCESS without HTTP call."""
-        span = self._create_mock_span(
-            runtime="agents-python",
-            scope_name="openinference.instrumentation.langchain",
-        )
+        span = self._create_mock_span(is_openinference=True)
 
         result = exporter_with_mocks.export([span])
 
