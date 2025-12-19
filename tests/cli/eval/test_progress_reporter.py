@@ -261,10 +261,11 @@ class TestRequestSpecGeneration:
 
         assert spec.method == "POST"
         assert "coded/" not in spec.endpoint
-        # Both coded and legacy now send payload directly at root level
+        # Both legacy and coded APIs accept payload directly at root level (no wrapper)
+        assert "request" not in spec.json
         # Legacy should not have version field
         assert "version" not in spec.json
-        # Source field is now required by backend for all evaluations
+        # Source field is required for both legacy and coded
         assert spec.json["source"] == 0
         assert spec.json["numberOfEvalsExecuted"] == 5
         # Backend expects integer status
@@ -281,7 +282,8 @@ class TestRequestSpecGeneration:
         ]
         evaluator_scores = [{"evaluatorId": "test-1", "value": 0.9}]
 
-        spec = progress_reporter._update_coded_eval_run_spec(
+        # Now uses unified _update_eval_run_spec with is_coded=True
+        spec = progress_reporter._update_eval_run_spec(
             evaluator_runs=evaluator_runs,
             evaluator_scores=evaluator_scores,
             eval_run_id="test-run-id",
@@ -301,13 +303,14 @@ class TestRequestSpecGeneration:
 
     def test_update_legacy_eval_run_spec(self, progress_reporter):
         """Test updating eval run spec for legacy evaluators."""
-        assertion_runs = [
+        # Note: unified method uses evaluator_runs param, strategy outputs assertionRuns
+        evaluator_runs = [
             {"evaluatorId": "test-1", "status": "completed", "assertionSnapshot": {}}
         ]
         evaluator_scores = [{"evaluatorId": "test-1", "value": 0.9}]
 
         spec = progress_reporter._update_eval_run_spec(
-            assertion_runs=assertion_runs,
+            evaluator_runs=evaluator_runs,
             evaluator_scores=evaluator_scores,
             eval_run_id="test-run-id",
             actual_output={"result": "success"},
@@ -318,10 +321,11 @@ class TestRequestSpecGeneration:
 
         assert spec.method == "PUT"
         assert "coded/" not in spec.endpoint
-        # Both coded and legacy now send payload directly at root level
+        # Both legacy and coded APIs accept payload directly at root level (no wrapper)
         assert "request" not in spec.json
         assert spec.json["evalRunId"] == "test-run-id"
-        assert spec.json["assertionRuns"] == assertion_runs
+        # Legacy strategy outputs assertionRuns in payload
+        assert spec.json["assertionRuns"] == evaluator_runs
         assert spec.json["result"]["evaluatorScores"] == evaluator_scores
         assert spec.json["completionMetrics"]["duration"] == 5
         # Backend expects integer status
@@ -332,7 +336,8 @@ class TestRequestSpecGeneration:
         evaluator_runs: list[dict[str, Any]] = []
         evaluator_scores: list[dict[str, Any]] = []
 
-        spec = progress_reporter._update_coded_eval_run_spec(
+        # Now uses unified _update_eval_run_spec with is_coded=True
+        spec = progress_reporter._update_eval_run_spec(
             evaluator_runs=evaluator_runs,
             evaluator_scores=evaluator_scores,
             eval_run_id="test-run-id",
@@ -349,11 +354,11 @@ class TestRequestSpecGeneration:
 
     def test_update_legacy_eval_run_spec_with_failure(self, progress_reporter):
         """Test updating eval run spec for legacy evaluators with failure."""
-        assertion_runs: list[dict[str, Any]] = []
+        evaluator_runs: list[dict[str, Any]] = []
         evaluator_scores: list[dict[str, Any]] = []
 
         spec = progress_reporter._update_eval_run_spec(
-            assertion_runs=assertion_runs,
+            evaluator_runs=evaluator_runs,
             evaluator_scores=evaluator_scores,
             eval_run_id="test-run-id",
             actual_output={},
@@ -364,7 +369,7 @@ class TestRequestSpecGeneration:
 
         assert spec.method == "PUT"
         assert "coded/" not in spec.endpoint
-        # Both coded and legacy now send payload directly at root level
+        # Both legacy and coded APIs accept payload directly at root level (no wrapper)
         assert "request" not in spec.json
         assert spec.json["evalRunId"] == "test-run-id"
         # Backend expects integer status
@@ -527,7 +532,7 @@ class TestEvalSetRunStatusUpdates:
 
         assert spec.method == "PUT"
         assert "coded/" not in spec.endpoint
-        # Both coded and legacy now send payload directly at root level
+        # Both legacy and coded APIs accept payload directly at root level (no wrapper)
         assert "request" not in spec.json
         assert spec.json["evalSetRunId"] == "test-run-id"
         # Backend expects integer status
@@ -546,7 +551,7 @@ class TestEvalSetRunStatusUpdates:
 
         assert spec.method == "PUT"
         assert "coded/" not in spec.endpoint
-        # Both coded and legacy now send payload directly at root level
+        # Both legacy and coded APIs accept payload directly at root level (no wrapper)
         assert "request" not in spec.json
         assert spec.json["evalSetRunId"] == "test-run-id"
         # Backend expects integer status

@@ -1,17 +1,17 @@
 {
-  "fileName": "default.json",
-  "id": "default-eval-set-id",
-  "name": "Basic Calculator Evaluation Set",
+  "fileName": "legacy.json",
+  "id": "a1b2c3d4-e5f6-4a89-abcd-ef0123456789",
+  "name": "Basic Calculator Evaluation Set (Legacy)",
   "batchSize": 10,
   "evaluatorRefs": [
-    "equality",
-    "llm-as-a-judge",
-    "json-similarity",
-    "trajectory"
+    "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+    "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+    "cccccccc-cccc-4ccc-cccc-cccccccccccc",
+    "dddddddd-dddd-4ddd-dddd-dddddddddddd"
   ],
   "evaluations": [
     {
-      "id": "test-addition",
+      "id": "11111111-1111-4111-8111-111111111111",
       "name": "Test Addition",
       "inputs": {
         "a": 1,
@@ -22,12 +22,12 @@
         "result": 2.0
       },
       "expectedAgentBehavior": "The operation should produce the right output.",
-      "evalSetId": "default-eval-set-id",
+      "evalSetId": "a1b2c3d4-e5f6-4a89-abcd-ef0123456789",
       "createdAt": "2025-09-04T18:54:58.378Z",
       "updatedAt": "2025-09-04T18:55:55.416Z"
     },
     {
-      "id": "test-random-addition-using-llm",
+      "id": "22222222-2222-4222-8222-222222222222",
       "name": "Test Random Addition Using LLM",
       "inputs": {
         "a": 1,
@@ -45,12 +45,12 @@
             "name": "get_random_operator"
           }
       ],
-      "evalSetId": "default-eval-set-id",
+      "evalSetId": "a1b2c3d4-e5f6-4a89-abcd-ef0123456789",
       "createdAt": "2025-09-04T18:54:58.378Z",
       "updatedAt": "2025-09-04T18:55:55.416Z"
     },
     {
-      "id": "test-with-llm-input-mocking",
+      "id": "33333333-3333-4333-8333-333333333333",
       "name": "Test with LLM input mocking",
       "inputs": {},
       "expectedOutput": {
@@ -59,7 +59,7 @@
       "expectedAgentBehavior": "The operation should produce the right output.",
       "simulateInput": true,
       "inputGenerationInstructions": "Generate a multiplication calculation where the first number is 5 and the second number is 7",
-      "evalSetId": "default-eval-set-id",
+      "evalSetId": "a1b2c3d4-e5f6-4a89-abcd-ef0123456789",
       "createdAt": "2025-09-04T18:54:58.378Z",
       "updatedAt": "2025-09-04T18:55:55.416Z"
     }
