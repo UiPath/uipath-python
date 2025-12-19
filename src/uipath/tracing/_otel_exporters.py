@@ -119,13 +119,11 @@ class LlmOpsHttpExporter(SpanExporter):
             logger.warning("No spans to export")
             return SpanExportResult.SUCCESS
 
-        # Filter out spans marked for dropping (e.g., OpenInference spans go to AppInsights)
+        # Filter out spans marked for dropping
         filtered_spans = [s for s in spans if not self._should_drop_span(s)]
 
         if len(filtered_spans) == 0:
-            logger.debug(
-                "No spans to export after filtering agents-python OpenInference spans"
-            )
+            logger.debug("No spans to export after filtering dropped spans")
             return SpanExportResult.SUCCESS
 
         logger.debug(
@@ -358,7 +356,6 @@ class LlmOpsHttpExporter(SpanExporter):
         """Check if span is marked for dropping.
 
         Spans with telemetry.filter="drop" are skipped by this exporter.
-        Used by uipath-agents to route OpenInference spans to AppInsights.
         """
         attrs = span.attributes or {}
         return attrs.get("telemetry.filter") == "drop"
