@@ -119,8 +119,15 @@ class LlmOpsHttpExporter(SpanExporter):
             logger.warning("No spans to export")
             return SpanExportResult.SUCCESS
 
+        # Filter out spans marked for dropping
+        filtered_spans = [s for s in spans if not self._should_drop_span(s)]
+
+        if len(filtered_spans) == 0:
+            logger.debug("No spans to export after filtering dropped spans")
+            return SpanExportResult.SUCCESS
+
         logger.debug(
-            f"Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
+            f"Exporting {len(filtered_spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
         )
 
         # Use optimized path: keep attributes as dict for processing
@@ -129,7 +136,7 @@ class LlmOpsHttpExporter(SpanExporter):
             _SpanUtils.otel_span_to_uipath_span(
                 span, custom_trace_id=self.trace_id, serialize_attributes=False
             ).to_dict(serialize_attributes=False)
-            for span in spans
+            for span in filtered_spans
         ]
 
         url = self._build_url(span_list)
@@ -344,6 +351,14 @@ class LlmOpsHttpExporter(SpanExporter):
         uipath_url = uipath_url.rstrip("/")
 
         return uipath_url
+
+    def _should_drop_span(self, span: ReadableSpan) -> bool:
+        """Check if span is marked for dropping.
+
+        Spans with telemetry.filter="drop" are skipped by this exporter.
+        """
+        attrs = span.attributes or {}
+        return attrs.get("telemetry.filter") == "drop"
 
 
 class JsonLinesFileExporter(SpanExporter):
