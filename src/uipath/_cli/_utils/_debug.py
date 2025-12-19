@@ -26,7 +26,7 @@ def setup_debugging(debug: bool, debug_port: int = 5678) -> bool:
 
     # Try to import debugpy, log warning if not available
     try:
-        import debugpy  # type: ignore[import-not-found] # explicit ignore
+        import debugpy  # type: ignore[import-not-found]
     except ImportError:
         console.warning(
             "debugpy not found, please install it and retry: '[uv] pip install debugpy'"

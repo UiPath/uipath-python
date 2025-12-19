@@ -3,7 +3,7 @@
 import importlib
 from typing import Any, Callable
 
-from mockito import (  # type: ignore[import-untyped] # explicit ignore
+from mockito import (  # type: ignore[import-untyped]
     invocation,
     mocking,
 )
