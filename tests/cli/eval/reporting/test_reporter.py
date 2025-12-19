@@ -15,11 +15,11 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 
-from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
+from uipath._cli._evals._reporting import StudioWebProgressReporter
 from uipath._events._events import EvalSetRunCreatedEvent
 from uipath.tracing import LlmOpsHttpExporter
 
-# Test fixtures - simple mocks without full evaluator instantiation
+# Test fixtures
 
 
 @pytest.fixture
@@ -213,10 +213,6 @@ class TestUsageMetricsExtraction:
         assert usage["promptTokens"] is None
         assert usage["completionTokens"] is None
         assert usage["cost"] is None
-
-
-# Result collection tests removed - complex to test without real evaluator instances
-# The core functionality is tested indirectly through the request spec generation tests
 
 
 # Tests for request spec generation
