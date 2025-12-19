@@ -83,10 +83,18 @@ class BaseCfg(BaseModel):
     )
 
 
+class ExampleCall(BaseCfg):
+    """Example call for a resource containing resource I/O."""
+
+    id: str = Field(..., alias="id")
+    input: str = Field(..., alias="input")
+    output: str = Field(..., alias="output")
+
+
 class BaseResourceProperties(BaseCfg):
     """Base resource properties model."""
 
-    pass
+    example_calls: Optional[list[ExampleCall]] = Field(None, alias="exampleCalls")
 
 
 class AgentToolSettings(BaseCfg):
