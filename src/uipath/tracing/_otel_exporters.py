@@ -119,10 +119,8 @@ class LlmOpsHttpExporter(SpanExporter):
             logger.warning("No spans to export")
             return SpanExportResult.SUCCESS
 
-        # Filter out OpenInference spans from agents-python (they go to AppInsights)
-        filtered_spans = [
-            s for s in spans if not self._is_agents_python_openinference(s)
-        ]
+        # Filter out spans marked for dropping (e.g., OpenInference spans go to AppInsights)
+        filtered_spans = [s for s in spans if not self._should_drop_span(s)]
 
         if len(filtered_spans) == 0:
             logger.debug(
@@ -356,14 +354,14 @@ class LlmOpsHttpExporter(SpanExporter):
 
         return uipath_url
 
-    def _is_agents_python_openinference(self, span: ReadableSpan) -> bool:
-        """Check if span is marked as OpenInference from agents-python.
+    def _should_drop_span(self, span: ReadableSpan) -> bool:
+        """Check if span is marked for dropping.
 
-        These spans are filtered out because they go to AppInsights instead.
-        The marker is added by SourceMarkerProcessor in uipath-agents.
+        Spans with telemetry.filter="drop" are skipped by this exporter.
+        Used by uipath-agents to route OpenInference spans to AppInsights.
         """
         attrs = span.attributes or {}
-        return bool(attrs.get("uipath.agents.is_openinference"))
+        return attrs.get("telemetry.filter") == "drop"
 
 
 class JsonLinesFileExporter(SpanExporter):

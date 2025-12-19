@@ -38,7 +38,7 @@ def mock_env_vars():
 def mock_span():
     """Create a mock ReadableSpan for testing."""
     span = MagicMock(spec=ReadableSpan)
-    # Ensure span doesn't get filtered by _is_agents_python_openinference
+    # Ensure span doesn't get filtered by _should_drop_span
     span.attributes = {}
     return span
 
@@ -557,8 +557,8 @@ class TestLangchainExporter(unittest.TestCase):
         print(f"✓ Final attributes keys: {list(attributes.keys())}")
 
 
-class TestAgentsPythonOpenInferenceFiltering:
-    """Tests for filtering agents-python OpenInference spans."""
+class TestSpanFiltering:
+    """Tests for filtering spans marked with telemetry.filter=drop."""
 
     @pytest.fixture
     def exporter_with_mocks(self, mock_env_vars):
@@ -569,51 +569,55 @@ class TestAgentsPythonOpenInferenceFiltering:
 
     def _create_mock_span(
         self,
-        is_openinference: bool | None = None,
+        should_drop: bool = False,
     ) -> MagicMock:
         """Helper to create mock span with span attributes.
 
         Args:
-            is_openinference: If True, sets uipath.agents.is_openinference=True.
-                             If False or None, attribute is not set.
+            should_drop: If True, sets telemetry.filter="drop".
         """
         span = MagicMock(spec=ReadableSpan)
 
-        # Setup span attributes (used by SourceMarkerProcessor in agents-python)
-        if is_openinference:
-            span.attributes = {"uipath.agents.is_openinference": True}
+        if should_drop:
+            span.attributes = {"telemetry.filter": "drop"}
         else:
             span.attributes = {}
 
         return span
 
-    def test_filters_marked_openinference_spans(self, exporter_with_mocks):
-        """Span with uipath.agents.is_openinference=True → filtered out."""
-        span = self._create_mock_span(is_openinference=True)
-        assert exporter_with_mocks._is_agents_python_openinference(span) is True
+    def test_filters_spans_marked_for_drop(self, exporter_with_mocks):
+        """Span with telemetry.filter=drop → filtered out."""
+        span = self._create_mock_span(should_drop=True)
+        assert exporter_with_mocks._should_drop_span(span) is True
 
     def test_passes_unmarked_spans(self, exporter_with_mocks):
         """Span without marker attribute → passes through."""
-        span = self._create_mock_span(is_openinference=False)
-        assert exporter_with_mocks._is_agents_python_openinference(span) is False
+        span = self._create_mock_span(should_drop=False)
+        assert exporter_with_mocks._should_drop_span(span) is False
 
     def test_passes_spans_with_no_attributes(self, exporter_with_mocks):
         """Span with None attributes → passes through."""
         span = MagicMock(spec=ReadableSpan)
         span.attributes = None
-        assert exporter_with_mocks._is_agents_python_openinference(span) is False
+        assert exporter_with_mocks._should_drop_span(span) is False
 
     def test_passes_spans_with_empty_attributes(self, exporter_with_mocks):
         """Span with empty attributes dict → passes through."""
         span = MagicMock(spec=ReadableSpan)
         span.attributes = {}
-        assert exporter_with_mocks._is_agents_python_openinference(span) is False
+        assert exporter_with_mocks._should_drop_span(span) is False
 
-    def test_export_filters_marked_openinference(self, exporter_with_mocks):
-        """export() should filter out spans marked as OpenInference."""
-        # Create mixed batch: 1 marked openinference, 1 unmarked (manual)
-        openinference_span = self._create_mock_span(is_openinference=True)
-        manual_span = self._create_mock_span(is_openinference=False)
+    def test_passes_spans_with_other_filter_values(self, exporter_with_mocks):
+        """Span with telemetry.filter=keep → passes through."""
+        span = MagicMock(spec=ReadableSpan)
+        span.attributes = {"telemetry.filter": "keep"}
+        assert exporter_with_mocks._should_drop_span(span) is False
+
+    def test_export_filters_marked_spans(self, exporter_with_mocks):
+        """export() should filter out spans marked for drop."""
+        # Create mixed batch: 1 marked for drop, 1 unmarked
+        drop_span = self._create_mock_span(should_drop=True)
+        keep_span = self._create_mock_span(should_drop=False)
 
         mock_uipath_span = MagicMock()
         mock_uipath_span.to_dict.return_value = {
@@ -629,15 +633,15 @@ class TestAgentsPythonOpenInferenceFiltering:
             mock_response.status_code = 200
             exporter_with_mocks.http_client.post.return_value = mock_response
 
-            result = exporter_with_mocks.export([openinference_span, manual_span])
+            result = exporter_with_mocks.export([drop_span, keep_span])
 
             assert result == SpanExportResult.SUCCESS
-            # Only manual_span should be converted (openinference filtered)
+            # Only keep_span should be converted (drop_span filtered)
             assert mock_convert.call_count == 1
 
     def test_export_all_filtered_returns_success(self, exporter_with_mocks):
         """When all spans filtered, export returns SUCCESS without HTTP call."""
-        span = self._create_mock_span(is_openinference=True)
+        span = self._create_mock_span(should_drop=True)
 
         result = exporter_with_mocks.export([span])
 
