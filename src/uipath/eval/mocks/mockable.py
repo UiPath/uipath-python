@@ -8,7 +8,7 @@ import threading
 from typing import Any, List, Optional
 
 from pydantic import TypeAdapter
-from pydantic_function_models import (  # type: ignore[import-untyped] # explicit ignore
+from pydantic_function_models import (  # type: ignore[import-untyped]
     ValidatedFunction,
 )
 
