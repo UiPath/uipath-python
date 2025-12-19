@@ -38,6 +38,8 @@ def mock_env_vars():
 def mock_span():
     """Create a mock ReadableSpan for testing."""
     span = MagicMock(spec=ReadableSpan)
+    # Ensure span doesn't get filtered by _should_drop_span
+    span.attributes = {}
     return span
 
 
@@ -553,6 +555,99 @@ class TestLangchainExporter(unittest.TestCase):
 
         print("✓ UNKNOWN span preserved and processed correctly")
         print(f"✓ Final attributes keys: {list(attributes.keys())}")
+
+
+class TestSpanFiltering:
+    """Tests for filtering spans marked with telemetry.filter=drop."""
+
+    @pytest.fixture
+    def exporter_with_mocks(self, mock_env_vars):
+        """Create exporter with mocked HTTP client."""
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+            yield exporter
+
+    def _create_mock_span(
+        self,
+        should_drop: bool = False,
+    ) -> MagicMock:
+        """Helper to create mock span with span attributes.
+
+        Args:
+            should_drop: If True, sets telemetry.filter="drop".
+        """
+        span = MagicMock(spec=ReadableSpan)
+
+        if should_drop:
+            span.attributes = {"telemetry.filter": "drop"}
+        else:
+            span.attributes = {}
+
+        return span
+
+    def test_filters_spans_marked_for_drop(self, exporter_with_mocks):
+        """Span with telemetry.filter=drop → filtered out."""
+        span = self._create_mock_span(should_drop=True)
+        assert exporter_with_mocks._should_drop_span(span) is True
+
+    def test_passes_unmarked_spans(self, exporter_with_mocks):
+        """Span without marker attribute → passes through."""
+        span = self._create_mock_span(should_drop=False)
+        assert exporter_with_mocks._should_drop_span(span) is False
+
+    def test_passes_spans_with_no_attributes(self, exporter_with_mocks):
+        """Span with None attributes → passes through."""
+        span = MagicMock(spec=ReadableSpan)
+        span.attributes = None
+        assert exporter_with_mocks._should_drop_span(span) is False
+
+    def test_passes_spans_with_empty_attributes(self, exporter_with_mocks):
+        """Span with empty attributes dict → passes through."""
+        span = MagicMock(spec=ReadableSpan)
+        span.attributes = {}
+        assert exporter_with_mocks._should_drop_span(span) is False
+
+    def test_passes_spans_with_other_filter_values(self, exporter_with_mocks):
+        """Span with telemetry.filter=keep → passes through."""
+        span = MagicMock(spec=ReadableSpan)
+        span.attributes = {"telemetry.filter": "keep"}
+        assert exporter_with_mocks._should_drop_span(span) is False
+
+    def test_export_filters_marked_spans(self, exporter_with_mocks):
+        """export() should filter out spans marked for drop."""
+        # Create mixed batch: 1 marked for drop, 1 unmarked
+        drop_span = self._create_mock_span(should_drop=True)
+        keep_span = self._create_mock_span(should_drop=False)
+
+        mock_uipath_span = MagicMock()
+        mock_uipath_span.to_dict.return_value = {
+            "TraceId": "test-trace-id",
+            "Id": "span-id",
+        }
+
+        with patch(
+            "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
+            return_value=mock_uipath_span,
+        ) as mock_convert:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            exporter_with_mocks.http_client.post.return_value = mock_response
+
+            result = exporter_with_mocks.export([drop_span, keep_span])
+
+            assert result == SpanExportResult.SUCCESS
+            # Only keep_span should be converted (drop_span filtered)
+            assert mock_convert.call_count == 1
+
+    def test_export_all_filtered_returns_success(self, exporter_with_mocks):
+        """When all spans filtered, export returns SUCCESS without HTTP call."""
+        span = self._create_mock_span(should_drop=True)
+
+        result = exporter_with_mocks.export([span])
+
+        assert result == SpanExportResult.SUCCESS
+        # No HTTP call should be made
+        exporter_with_mocks.http_client.post.assert_not_called()
 
 
 if __name__ == "__main__":
