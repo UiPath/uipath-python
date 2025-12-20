@@ -206,13 +206,57 @@ class StudioWebProgressReporter:
             "cost": total_cost if total_cost > 0 else None,
         }
 
-    def _extract_agent_snapshot(self, entrypoint: str) -> StudioWebAgentSnapshot:
-        """Extract agent snapshot from entry points configuration."""
+    def _extract_agent_snapshot(self, entrypoint: str | None) -> StudioWebAgentSnapshot:
+        """Extract agent snapshot from entry points configuration or low-code agent file.
+
+        For coded agents, reads from entry-points.json configuration file.
+        For low-code agents (*.json files like agent.json), reads inputSchema
+        and outputSchema directly from the agent file.
+
+        Args:
+            entrypoint: The entrypoint file path to look up
+
+        Returns:
+            StudioWebAgentSnapshot with input and output schemas
+        """
+        if not entrypoint:
+            logger.warning(
+                "Entrypoint not provided - falling back to empty inputSchema "
+                "and outputSchema"
+            )
+            return StudioWebAgentSnapshot(input_schema={}, output_schema={})
+
         try:
+            # Check if entrypoint is a low-code agent JSON file (e.g., agent.json)
+            if entrypoint.endswith(".json"):
+                agent_file_path = os.path.join(os.getcwd(), entrypoint)
+                if os.path.exists(agent_file_path):
+                    with open(agent_file_path, "r") as f:
+                        agent_data = json.load(f)
+
+                    # Low-code agent files have inputSchema and outputSchema at root
+                    input_schema = agent_data.get("inputSchema", {})
+                    output_schema = agent_data.get("outputSchema", {})
+
+                    logger.debug(
+                        f"Extracted agent snapshot from low-code agent '{entrypoint}': "
+                        f"inputSchema={json.dumps(input_schema)}, "
+                        f"outputSchema={json.dumps(output_schema)}"
+                    )
+
+                    return StudioWebAgentSnapshot(
+                        input_schema=input_schema, output_schema=output_schema
+                    )
+
+            # Fall back to entry-points.json for coded agents
             entry_points_file_path = os.path.join(
                 os.getcwd(), str(UiPathConfig.entry_points_file_path)
             )
             if not os.path.exists(entry_points_file_path):
+                logger.debug(
+                    f"Entry points file not found at {entry_points_file_path}, "
+                    "using empty schemas"
+                )
                 return StudioWebAgentSnapshot(input_schema={}, output_schema={})
 
             with open(entry_points_file_path, "r") as f:
@@ -232,6 +276,12 @@ class StudioWebProgressReporter:
 
             input_schema = ep.get("input", {})
             output_schema = ep.get("output", {})
+
+            logger.debug(
+                f"Extracted agent snapshot for entrypoint '{entrypoint}': "
+                f"inputSchema={json.dumps(input_schema)}, "
+                f"outputSchema={json.dumps(output_schema)}"
+            )
 
             return StudioWebAgentSnapshot(
                 input_schema=input_schema, output_schema=output_schema
@@ -257,6 +307,17 @@ class StudioWebProgressReporter:
         payload = strategy.create_eval_set_run_payload(
             eval_set_id, agent_snapshot, no_of_evals, self._project_id
         )
+
+        # Log the payload for debugging eval set run reporting
+        agent_type = "coded" if is_coded else "low-code"
+        logger.info(
+            f"Creating eval set run (type={agent_type}): "
+            f"evalSetId={eval_set_id}, "
+            f"inputSchema={json.dumps(payload.get('agentSnapshot', {}).get('inputSchema', {}))}, "
+            f"outputSchema={json.dumps(payload.get('agentSnapshot', {}).get('outputSchema', {}))}"
+        )
+        logger.debug(f"Full eval set run payload: {json.dumps(payload, indent=2)}")
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
@@ -273,6 +334,15 @@ class StudioWebProgressReporter:
         """Create request spec for creating an eval run."""
         strategy = self._get_strategy(is_coded)
         payload = strategy.create_eval_run_payload(eval_item, eval_set_run_id)
+
+        # Log the payload for debugging eval run reporting
+        agent_type = "coded" if is_coded else "low-code"
+        logger.debug(
+            f"Creating eval run (type={agent_type}): "
+            f"evalSetRunId={eval_set_run_id}, evalItemId={eval_item.id}"
+        )
+        logger.debug(f"Full eval run payload: {json.dumps(payload, indent=2)}")
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
@@ -303,6 +373,15 @@ class StudioWebProgressReporter:
             execution_time,
             success,
         )
+
+        # Log the payload for debugging eval run updates
+        agent_type = "coded" if is_coded else "low-code"
+        logger.debug(
+            f"Updating eval run (type={agent_type}): "
+            f"evalRunId={eval_run_id}, success={success}"
+        )
+        logger.debug(f"Full eval run update payload: {json.dumps(payload, indent=2)}")
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
@@ -325,6 +404,18 @@ class StudioWebProgressReporter:
         payload = strategy.create_update_eval_set_run_payload(
             eval_set_run_id, evaluator_scores, success
         )
+
+        # Log the payload for debugging eval set run updates
+        agent_type = "coded" if is_coded else "low-code"
+        logger.info(
+            f"Updating eval set run (type={agent_type}): "
+            f"evalSetRunId={eval_set_run_id}, success={success}, "
+            f"evaluatorScores={json.dumps(payload.get('evaluatorScores', []))}"
+        )
+        logger.debug(
+            f"Full eval set run update payload: {json.dumps(payload, indent=2)}"
+        )
+
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(

@@ -552,3 +552,171 @@ class TestEvalSetRunStatusUpdates:
         assert spec.json["evalSetRunId"] == "test-run-id"
         # Backend expects integer status
         assert spec.json["status"] == 3  # FAILED
+
+
+# Tests for agent snapshot extraction
+class TestAgentSnapshotExtraction:
+    """Tests for extracting agent snapshot with proper schema handling."""
+
+    def test_extract_agent_snapshot_reads_from_entry_points(
+        self, progress_reporter, tmp_path, monkeypatch
+    ):
+        """Test that agent snapshot reads schemas from entry points file."""
+        import os
+
+        # Create a temporary entry points file with full schemas
+        entry_points_data = {
+            "entryPoints": [
+                {
+                    "filePath": "test_agent",
+                    "uniqueId": "test-uuid",
+                    "type": "agent",
+                    "input": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string"}},
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {"response": {"type": "string"}},
+                    },
+                }
+            ]
+        }
+
+        entry_points_file = tmp_path / "entry-points.json"
+        with open(entry_points_file, "w") as f:
+            json.dump(entry_points_data, f)
+
+        # Change to the temp directory so the reporter finds the file
+        original_cwd = os.getcwd()
+        os.chdir(tmp_path)
+
+        try:
+            snapshot = progress_reporter._extract_agent_snapshot(
+                entrypoint="test_agent"
+            )
+
+            # Should read full schemas from entry points
+            assert snapshot.input_schema == {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+            }
+            assert snapshot.output_schema == {
+                "type": "object",
+                "properties": {"response": {"type": "string"}},
+            }
+        finally:
+            os.chdir(original_cwd)
+
+    def test_extract_agent_snapshot_returns_empty_when_no_file(self, progress_reporter):
+        """Test that empty schemas are returned when entry points file doesn't exist."""
+        snapshot = progress_reporter._extract_agent_snapshot(
+            entrypoint="nonexistent_agent"
+        )
+
+        assert snapshot.input_schema == {}
+        assert snapshot.output_schema == {}
+
+    def test_extract_agent_snapshot_warns_when_entrypoint_is_none(
+        self, progress_reporter, caplog
+    ):
+        """Test that a warning is logged when entrypoint is None."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            snapshot = progress_reporter._extract_agent_snapshot(entrypoint=None)
+
+        assert snapshot.input_schema == {}
+        assert snapshot.output_schema == {}
+        assert "Entrypoint not provided" in caplog.text
+        assert "falling back to empty inputSchema" in caplog.text
+
+    def test_extract_agent_snapshot_warns_when_entrypoint_is_empty(
+        self, progress_reporter, caplog
+    ):
+        """Test that a warning is logged when entrypoint is empty string."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            snapshot = progress_reporter._extract_agent_snapshot(entrypoint="")
+
+        assert snapshot.input_schema == {}
+        assert snapshot.output_schema == {}
+        assert "Entrypoint not provided" in caplog.text
+
+    def test_extract_agent_snapshot_returns_empty_when_entrypoint_not_found(
+        self, progress_reporter, tmp_path
+    ):
+        """Test that empty schemas are returned when entrypoint is not in file."""
+        import os
+
+        # Create entry points file without the requested entrypoint
+        entry_points_data = {
+            "entryPoints": [
+                {
+                    "filePath": "other_agent",
+                    "uniqueId": "test-uuid",
+                    "type": "agent",
+                    "input": {"type": "object"},
+                    "output": {"type": "object"},
+                }
+            ]
+        }
+
+        entry_points_file = tmp_path / "entry-points.json"
+        with open(entry_points_file, "w") as f:
+            json.dump(entry_points_data, f)
+
+        original_cwd = os.getcwd()
+        os.chdir(tmp_path)
+
+        try:
+            snapshot = progress_reporter._extract_agent_snapshot(
+                entrypoint="nonexistent_agent"
+            )
+
+            assert snapshot.input_schema == {}
+            assert snapshot.output_schema == {}
+        finally:
+            os.chdir(original_cwd)
+
+    def test_agent_snapshot_serializes_with_camel_case(
+        self, progress_reporter, tmp_path
+    ):
+        """Test that agent snapshot serializes to correct JSON format with camelCase."""
+        import os
+
+        entry_points_data = {
+            "entryPoints": [
+                {
+                    "filePath": "test_agent",
+                    "uniqueId": "test-uuid",
+                    "type": "agent",
+                    "input": {"type": "object", "properties": {}},
+                    "output": {"type": "object", "properties": {}},
+                }
+            ]
+        }
+
+        entry_points_file = tmp_path / "entry-points.json"
+        with open(entry_points_file, "w") as f:
+            json.dump(entry_points_data, f)
+
+        original_cwd = os.getcwd()
+        os.chdir(tmp_path)
+
+        try:
+            snapshot = progress_reporter._extract_agent_snapshot(
+                entrypoint="test_agent"
+            )
+
+            # Serialize using pydantic
+            serialized = snapshot.model_dump(by_alias=True)
+
+            # Should have camelCase keys
+            assert "inputSchema" in serialized
+            assert "outputSchema" in serialized
+            assert serialized["inputSchema"] == {"type": "object", "properties": {}}
+            assert serialized["outputSchema"] == {"type": "object", "properties": {}}
+        finally:
+            os.chdir(original_cwd)
