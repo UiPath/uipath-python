@@ -1,6 +1,6 @@
 {
-    "fileName": "equality.json",
-    "id": "equality",
+    "fileName": "legacy-equality.json",
+    "id": "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
     "name": "Equality Evaluator",
     "description": "An evaluator that judges the agent based on expected output.",
     "category": 0,

@@ -1,6 +1,6 @@
 {
-  "fileName": "trajectory.json",
-  "id": "trajectory",
+  "fileName": "legacy-trajectory.json",
+  "id": "dddddddd-dddd-4ddd-dddd-dddddddddddd",
   "name": "Trajectory Evaluator",
   "description": "An evaluator that analyzes the execution trajectory and decision sequence taken by the agent.",
   "category": 3,

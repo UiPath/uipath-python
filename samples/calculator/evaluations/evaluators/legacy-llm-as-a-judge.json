@@ -1,6 +1,6 @@
 {
-  "fileName": "llm-as-a-judge.json",
-  "id": "llm-as-a-judge",
+  "fileName": "legacy-llm-as-a-judge.json",
+  "id": "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
   "name": "LLMAsAJudge Evaluator",
   "description": "An evaluator that judges the agent based on it's run history and expected behavior",
   "category": 3,
