@@ -26,15 +26,20 @@ from uipath.platform.common import (
     CreateDeepRag,
     CreateEscalation,
     CreateTask,
+    DocumentExtraction,
     InvokeProcess,
     WaitBatchTransform,
     WaitDeepRag,
+    WaitDocumentExtraction,
     WaitEscalation,
     WaitJob,
     WaitTask,
 )
 from uipath.platform.context_grounding import DeepRagStatus
-from uipath.platform.errors import BatchTransformNotCompleteException
+from uipath.platform.errors import (
+    BatchTransformNotCompleteException,
+    ExtractionNotCompleteException,
+)
 from uipath.platform.orchestrator.job import JobState
 from uipath.platform.resume_triggers._enums import PropertyName, TriggerMarker
 
@@ -244,6 +249,28 @@ class UiPathResumeTriggerReader:
 
                     return f"Batch transform completed. Modified file available at {os.path.abspath(destination_path)}"
 
+            case UiPathResumeTriggerType.IXP_EXTRACTION:
+                if trigger.item_key:
+                    project_id = self._extract_field("project_id", trigger.payload)
+                    tag = self._extract_field("tag", trigger.payload)
+
+                    assert project_id is not None
+                    assert tag is not None
+
+                    try:
+                        extraction_response = (
+                            await uipath.documents.retrieve_ixp_extraction_result_async(
+                                project_id, tag, trigger.item_key
+                            )
+                        )
+                    except ExtractionNotCompleteException as e:
+                        raise UiPathPendingTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"{e.message}",
+                        ) from e
+
+                    return extraction_response.model_dump()
+
             case UiPathResumeTriggerType.API:
                 if trigger.api_resume and trigger.api_resume.inbox_id:
                     try:
@@ -331,7 +358,10 @@ class UiPathResumeTriggerCreator:
                     await self._handle_batch_rag_job_trigger(
                         suspend_value, resume_trigger, uipath
                     )
-
+                case UiPathResumeTriggerType.IXP_EXTRACTION:
+                    await self._handle_ixp_extraction_trigger(
+                        suspend_value, resume_trigger, uipath
+                    )
                 case _:
                     raise UiPathFaultedTriggerError(
                         ErrorCategory.SYSTEM,
@@ -363,6 +393,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerType.DEEP_RAG
         if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
             return UiPathResumeTriggerType.BATCH_RAG
+        if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
+            return UiPathResumeTriggerType.IXP_EXTRACTION
         # default to API trigger
         return UiPathResumeTriggerType.API
 
@@ -385,6 +417,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.DEEP_RAG
         if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
             return UiPathResumeTriggerName.BATCH_RAG
+        if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
+            return UiPathResumeTriggerName.EXTRACTION
         # default to API trigger
         return UiPathResumeTriggerName.API
 
@@ -420,10 +454,10 @@ class UiPathResumeTriggerCreator:
     async def _handle_deep_rag_job_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
     ) -> None:
-        """Handle job-type resume triggers.
+        """Handle Deep RAG resume triggers.
 
         Args:
-            value: The suspend value (InvokeProcess or WaitJob)
+            value: The suspend value (CreateDeepRag or WaitDeepRag)
             resume_trigger: The resume trigger to populate
             uipath: The UiPath client instance
         """
@@ -448,10 +482,10 @@ class UiPathResumeTriggerCreator:
     async def _handle_batch_rag_job_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
     ) -> None:
-        """Handle job-type resume triggers.
+        """Handle batch transform resume triggers.
 
         Args:
-            value: The suspend value (InvokeProcess or WaitJob)
+            value: The suspend value (CreateBatchTransform or WaitBatchTransform)
             resume_trigger: The resume trigger to populate
             uipath: The UiPath client instance
         """
@@ -473,6 +507,38 @@ class UiPathResumeTriggerCreator:
             if not batch_transform:
                 raise Exception("Failed to start batch transform")
             resume_trigger.item_key = batch_transform.id
+
+    async def _handle_ixp_extraction_trigger(
+        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+    ) -> None:
+        """Handle IXP Extraction resume triggers.
+
+        Args:
+            value: The suspend value (DocumentExtraction or WaitDocumentExtraction)
+            resume_trigger: The resume trigger to populate
+            uipath: The UiPath client instance
+        """
+        resume_trigger.folder_path = resume_trigger.folder_key = None
+
+        if isinstance(value, WaitDocumentExtraction):
+            resume_trigger.item_key = value.extraction.operation_id
+        elif isinstance(value, DocumentExtraction):
+            document_extraction = await uipath.documents.start_ixp_extraction_async(
+                project_name=value.project_name,
+                tag=value.tag,
+                file=value.file,
+                file_path=value.file_path,
+            )
+            if not document_extraction:
+                raise Exception("Failed to start document extraction")
+            resume_trigger.item_key = document_extraction.operation_id
+
+            # add project_id and tag to the payload dict (needed when reading the trigger)
+            assert isinstance(resume_trigger.payload, dict)
+            resume_trigger.payload.setdefault(
+                "project_id", document_extraction.project_id
+            )
+            resume_trigger.payload.setdefault("tag", document_extraction.tag)
 
     async def _handle_job_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
