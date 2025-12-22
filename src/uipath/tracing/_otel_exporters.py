@@ -18,6 +18,17 @@ from ._utils import _SpanUtils
 logger = logging.getLogger(__name__)
 
 
+class SpanStatus:
+    """Span status values matching LLMOps StatusEnum."""
+
+    UNSET = 0
+    OK = 1
+    ERROR = 2
+    RUNNING = 3
+    RESTRICTED = 4
+    CANCELLED = 5
+
+
 def _safe_parse_json(s: Any) -> Any:
     """Safely parse a JSON string, returning the original if not a string or on error."""
     if not isinstance(s, str):
@@ -159,6 +170,43 @@ class LlmOpsHttpExporter(SpanExporter):
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush the exporter."""
         return True
+
+    def upsert_span(
+        self,
+        span: ReadableSpan,
+        status_override: Optional[int] = None,
+    ) -> SpanExportResult:
+        """Upsert a single span to LLMOps for real-time state updates.
+
+        Unlike export(), can be called multiple times with the same span ID.
+        Used for resumable spans that need state updates (RUNNING → OK).
+
+        Args:
+            span: OTel Span (live or ReadableSpan)
+            status_override: Override status (e.g., SpanStatus.RUNNING)
+
+        Returns:
+            SpanExportResult indicating success or failure
+        """
+        span_data = _SpanUtils.otel_span_to_uipath_span(
+            span, custom_trace_id=self.trace_id, serialize_attributes=False
+        ).to_dict(serialize_attributes=False)
+
+        url = self._build_url([span_data])
+
+        self._process_span_attributes(span_data)
+
+        # Apply status override after processing (which may set status from error)
+        if status_override is not None:
+            span_data["Status"] = status_override
+
+        if isinstance(span_data.get("Attributes"), dict):
+            span_data["Attributes"] = json.dumps(span_data["Attributes"])
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Upsert payload: %s", json.dumps([span_data]))
+
+        return self._send_with_retries(url, [span_data])
 
     def _map_llm_call_attributes(self, attributes: Dict[str, Any]) -> Dict[str, Any]:
         """Maps attributes for LLM calls, handling flattened keys."""

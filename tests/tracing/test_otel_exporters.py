@@ -7,7 +7,7 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExportResult
 
-from uipath.tracing._otel_exporters import LlmOpsHttpExporter
+from uipath.tracing._otel_exporters import LlmOpsHttpExporter, SpanStatus
 
 
 @pytest.fixture
@@ -648,6 +648,94 @@ class TestSpanFiltering:
         assert result == SpanExportResult.SUCCESS
         # No HTTP call should be made
         exporter_with_mocks.http_client.post.assert_not_called()
+
+
+class TestUpsertSpan:
+    """Tests for upsert_span method."""
+
+    @pytest.fixture
+    def exporter_with_mocks(self, mock_env_vars):
+        """Create exporter with mocked HTTP client."""
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+            exporter._build_url = MagicMock(  # type: ignore
+                return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=Robots"
+            )
+            yield exporter
+
+    def test_upsert_span_success(self, exporter_with_mocks, mock_span):
+        """Test successful upsert of a span."""
+        mock_uipath_span = MagicMock()
+        mock_uipath_span.to_dict.return_value = {
+            "TraceId": "test-trace-id",
+            "Id": "span-id",
+            "Attributes": {},
+        }
+
+        with patch(
+            "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
+            return_value=mock_uipath_span,
+        ):
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            exporter_with_mocks.http_client.post.return_value = mock_response
+
+            result = exporter_with_mocks.upsert_span(mock_span)
+
+            assert result == SpanExportResult.SUCCESS
+            exporter_with_mocks.http_client.post.assert_called_once()
+
+    def test_upsert_span_with_status_override(self, exporter_with_mocks, mock_span):
+        """Test upsert_span applies status_override correctly."""
+        mock_uipath_span = MagicMock()
+        mock_uipath_span.to_dict.return_value = {
+            "TraceId": "test-trace-id",
+            "Id": "span-id",
+            "Status": SpanStatus.OK,
+            "Attributes": {},
+        }
+
+        with patch(
+            "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
+            return_value=mock_uipath_span,
+        ):
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            exporter_with_mocks.http_client.post.return_value = mock_response
+
+            result = exporter_with_mocks.upsert_span(
+                mock_span, status_override=SpanStatus.RUNNING
+            )
+
+            assert result == SpanExportResult.SUCCESS
+            # Verify payload has overridden status
+            call_args = exporter_with_mocks.http_client.post.call_args
+            payload = call_args.kwargs["json"]
+            assert payload[0]["Status"] == SpanStatus.RUNNING
+
+    def test_upsert_span_failure_retries(self, exporter_with_mocks, mock_span):
+        """Test upsert_span retries on failure."""
+        mock_uipath_span = MagicMock()
+        mock_uipath_span.to_dict.return_value = {
+            "TraceId": "test-trace-id",
+            "Id": "span-id",
+            "Attributes": {},
+        }
+
+        with patch(
+            "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
+            return_value=mock_uipath_span,
+        ):
+            mock_response = MagicMock()
+            mock_response.status_code = 500
+            mock_response.text = "Internal Server Error"
+            exporter_with_mocks.http_client.post.return_value = mock_response
+
+            with patch("uipath.tracing._otel_exporters.time.sleep"):
+                result = exporter_with_mocks.upsert_span(mock_span)
+
+            assert result == SpanExportResult.FAILURE
+            assert exporter_with_mocks.http_client.post.call_count == 4  # max_retries=4
 
 
 if __name__ == "__main__":
