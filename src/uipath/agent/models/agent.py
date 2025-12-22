@@ -5,7 +5,14 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 from uipath.core.guardrails import (
     BaseGuardrail,
     FieldReference,
@@ -53,6 +60,7 @@ class AgentEscalationRecipientType(str, Enum):
     USER_ID = "UserId"
     GROUP_ID = "GroupId"
     USER_EMAIL = "UserEmail"
+    ASSET_USER_EMAIL = "AssetUserEmail"
 
 
 class AgentContextRetrievalMode(str, Enum):
@@ -219,25 +227,57 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
 
-class AgentEscalationRecipient(BaseCfg):
-    """Agent escalation recipient model."""
+def _normalize_recipient_type(recipient: Any) -> Any:
+    """Normalize recipient type from integer to enum before discrimination."""
+    if not isinstance(recipient, dict):
+        return recipient
+
+    recipient_type = recipient.get("type")
+    if isinstance(recipient_type, int):
+        type_mapping = {
+            1: AgentEscalationRecipientType.USER_ID,
+            2: AgentEscalationRecipientType.GROUP_ID,
+            3: AgentEscalationRecipientType.USER_EMAIL,
+            4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+        }
+        recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
+
+    return recipient
+
+
+class BaseEscalationRecipient(BaseCfg):
+    """Base class for escalation recipients."""
 
     type: Union[AgentEscalationRecipientType, str] = Field(..., alias="type")
+
+
+class StandardRecipient(BaseEscalationRecipient):
+    """Standard recipient with value field (for UserId, GroupId, UserEmail)."""
+
+    type: Literal[
+        AgentEscalationRecipientType.USER_ID,
+        AgentEscalationRecipientType.GROUP_ID,
+        AgentEscalationRecipientType.USER_EMAIL,
+    ] = Field(..., alias="type")
     value: str = Field(..., alias="value")
     display_name: Optional[str] = Field(default=None, alias="displayName")
 
-    @field_validator("type", mode="before")
-    @classmethod
-    def normalize_type(cls, v: Any) -> Any:
-        """Normalize recipient type from int to enum/string."""
-        if isinstance(v, int):
-            mapping = {
-                1: AgentEscalationRecipientType.USER_ID,
-                2: AgentEscalationRecipientType.GROUP_ID,
-                3: AgentEscalationRecipientType.USER_EMAIL,
-            }
-            return mapping.get(v, str(v))
-        return v
+
+class AssetRecipient(BaseEscalationRecipient):
+    """Asset recipient with assetName and folderPath (for AssetUserEmail)."""
+
+    type: Literal[AgentEscalationRecipientType.ASSET_USER_EMAIL] = Field(
+        ..., alias="type"
+    )
+    asset_name: str = Field(..., alias="assetName")
+    folder_path: str = Field(..., alias="folderPath")
+
+
+AgentEscalationRecipient = Annotated[
+    Union[StandardRecipient, AssetRecipient],
+    Field(discriminator="type"),
+    BeforeValidator(_normalize_recipient_type),
+]
 
 
 class AgentEscalationChannelProperties(BaseResourceProperties):
