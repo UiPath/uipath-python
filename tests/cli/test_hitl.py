@@ -17,6 +17,7 @@ from uipath.platform.action_center.tasks import TaskStatus
 from uipath.platform.common import (
     CreateBatchTransform,
     CreateDeepRag,
+    CreateDocumentExtraction,
     CreateTask,
     InvokeProcess,
     WaitBatchTransform,
@@ -776,3 +777,58 @@ class TestHitlProcessor:
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.BATCH_RAG
         assert resume_trigger.item_key == batch_transform_id
+
+
+class TestDocumentExtractionModels:
+    """Tests for document extraction models."""
+
+    def test_create_document_extraction_with_file(self) -> None:
+        """Test CreateDocumentExtraction with file provided."""
+        file_content = b"test content"
+        extraction = CreateDocumentExtraction(
+            project_name="test_project",
+            tag="test_tag",
+            file=file_content,
+        )
+
+        assert extraction.project_name == "test_project"
+        assert extraction.tag == "test_tag"
+        assert extraction.file == file_content
+        assert extraction.file_path is None
+
+    def test_create_document_extraction_with_file_path(self) -> None:
+        """Test CreateDocumentExtraction with file_path provided."""
+        extraction = CreateDocumentExtraction(
+            project_name="test_project",
+            tag="test_tag",
+            file_path="/path/to/file.pdf",
+        )
+
+        assert extraction.project_name == "test_project"
+        assert extraction.tag == "test_tag"
+        assert extraction.file is None
+        assert extraction.file_path == "/path/to/file.pdf"
+
+    def test_create_document_extraction_with_both_raises_error(self) -> None:
+        """Test CreateDocumentExtraction with both file and file_path raises ValueError."""
+        file_content = b"test content"
+
+        with pytest.raises(ValueError) as exc_info:
+            CreateDocumentExtraction(
+                project_name="test_project",
+                tag="test_tag",
+                file=file_content,
+                file_path="/path/to/file.pdf",
+            )
+
+        assert "not both or neither" in str(exc_info.value)
+
+    def test_create_document_extraction_with_neither_raises_error(self) -> None:
+        """Test CreateDocumentExtraction with neither file nor file_path raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            CreateDocumentExtraction(
+                project_name="test_project",
+                tag="test_tag",
+            )
+
+        assert "not both or neither" in str(exc_info.value)
