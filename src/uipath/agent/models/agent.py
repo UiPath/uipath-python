@@ -700,7 +700,7 @@ class AgentDefinition(BaseModel):
     messages: List[AgentMessage]
 
     version: str = "1.0.0"
-    resources: List[AgentResourceConfig]
+    resources: List[AgentResourceConfig] = Field(default_factory=list)
     features: List[Any] = Field(default_factory=list)
     settings: AgentSettings
 
