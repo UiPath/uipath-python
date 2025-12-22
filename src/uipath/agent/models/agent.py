@@ -283,10 +283,10 @@ AgentEscalationRecipient = Annotated[
 class AgentEscalationChannelProperties(BaseResourceProperties):
     """Agent escalation channel properties model."""
 
-    app_name: str = Field(..., alias="appName")
+    app_name: str | None = Field(..., alias="appName")
     app_version: int = Field(..., alias="appVersion")
     folder_name: Optional[str] = Field(None, alias="folderName")
-    resource_key: str = Field(..., alias="resourceKey")
+    resource_key: str | None = Field(..., alias="resourceKey")
     is_actionable_message_enabled: Optional[bool] = Field(
         None, alias="isActionableMessageEnabled"
     )
