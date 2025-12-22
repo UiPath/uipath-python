@@ -5,7 +5,14 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 from uipath.core.guardrails import (
     BaseGuardrail,
     FieldReference,
@@ -220,8 +227,26 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
 
+def _normalize_recipient_type(recipient: Any) -> Any:
+    """Normalize recipient type from integer to enum before discrimination."""
+    if not isinstance(recipient, dict):
+        return recipient
+
+    recipient_type = recipient.get("type")
+    if isinstance(recipient_type, int):
+        type_mapping = {
+            1: AgentEscalationRecipientType.USER_ID,
+            2: AgentEscalationRecipientType.GROUP_ID,
+            3: AgentEscalationRecipientType.USER_EMAIL,
+            4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+        }
+        recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
+
+    return recipient
+
+
 class BaseEscalationRecipient(BaseCfg):
-    """Agent escalation recipient model."""
+    """Base class for escalation recipients."""
 
     type: Union[AgentEscalationRecipientType, str] = Field(..., alias="type")
 
@@ -251,6 +276,7 @@ class AssetRecipient(BaseEscalationRecipient):
 AgentEscalationRecipient = Annotated[
     Union[StandardRecipient, AssetRecipient],
     Field(discriminator="type"),
+    BeforeValidator(_normalize_recipient_type),
 ]
 
 
@@ -683,20 +709,6 @@ class AgentDefinition(BaseModel):
     )
 
     @staticmethod
-    def _normalize_recipient_type(recipient: Dict[str, Any]) -> None:
-        """Normalize recipient type from integer to enum string value."""
-        recipient_type = recipient.get("type")
-        if isinstance(recipient_type, int):
-            # Map integer to enum string value
-            type_mapping = {
-                1: AgentEscalationRecipientType.USER_ID,
-                2: AgentEscalationRecipientType.GROUP_ID,
-                3: AgentEscalationRecipientType.USER_EMAIL,
-                4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
-            }
-            recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
-
-    @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:
         guards = v.get("guardrails")
         if not isinstance(guards, list):
@@ -734,12 +746,6 @@ class AgentDefinition(BaseModel):
                     if at_lower in {"block", "filter", "log", "escalate"}:
                         # Valid action type, keep as-is or normalize case if needed
                         g["action"]["$actionType"] = at_lower
-
-                        # Normalize recipient type in escalate actions
-                        if at_lower == "escalate":
-                            recipient = action.get("recipient")
-                            if isinstance(recipient, dict):
-                                AgentDefinition._normalize_recipient_type(recipient)
                     else:
                         # Unknown action type
                         g["action"] = {"$actionType": "unknown", "details": action}
@@ -805,18 +811,6 @@ class AgentDefinition(BaseModel):
                     else "Unknown"
                 )
                 res["settings"] = settings
-
-            if res["$resourceType"] == "escalation":
-                # Normalize recipient types from integers to strings
-                channels = res.get("channels", [])
-                for channel in channels:
-                    if not isinstance(channel, dict):
-                        continue
-                    recipients = channel.get("recipients", [])
-                    for recipient in recipients:
-                        if not isinstance(recipient, dict):
-                            continue
-                        AgentDefinition._normalize_recipient_type(recipient)
 
             out.append(res)
 

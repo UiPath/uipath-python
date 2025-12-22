@@ -7,6 +7,7 @@ from uipath.agent.models.agent import (
     AgentContextRetrievalMode,
     AgentCustomGuardrail,
     AgentDefinition,
+    AgentEscalationRecipient,
     AgentEscalationRecipientType,
     AgentEscalationResourceConfig,
     AgentGuardrailActionType,
@@ -2211,3 +2212,43 @@ class TestAgentBuilderConfig:
         assert recipient.type == AgentEscalationRecipientType.ASSET_USER_EMAIL
         assert recipient.asset_name == "NotificationEmail"
         assert recipient.folder_path == "Production/Notifications"
+
+    @pytest.mark.parametrize(
+        "recipient_data,expected_type,recipient_class",
+        [
+            (
+                {"type": 1, "value": "user-123"},
+                AgentEscalationRecipientType.USER_ID,
+                StandardRecipient,
+            ),
+            (
+                {"type": 2, "value": "group-456"},
+                AgentEscalationRecipientType.GROUP_ID,
+                StandardRecipient,
+            ),
+            (
+                {"type": 3, "value": "user@example.com"},
+                AgentEscalationRecipientType.USER_EMAIL,
+                StandardRecipient,
+            ),
+            (
+                {"type": 4, "assetName": "EmailAsset", "folderPath": "Shared"},
+                AgentEscalationRecipientType.ASSET_USER_EMAIL,
+                AssetRecipient,
+            ),
+        ],
+    )
+    def test_direct_recipient_instantiation(
+        self, recipient_data, expected_type, recipient_class
+    ):
+        """Test direct recipient instantiation with integer types.
+
+        Regression test for BeforeValidator on AgentEscalationRecipient working
+        with direct instantiation, not just through AgentDefinition normalization.
+        """
+        recipient: StandardRecipient | AssetRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(recipient_data)
+
+        assert isinstance(recipient, recipient_class)
+        assert recipient.type == expected_type
