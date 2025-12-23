@@ -146,8 +146,9 @@ class AgentUnknownResourceConfig(BaseAgentResourceConfig):
 class AgentContextQuerySetting(BaseCfg):
     """Agent context query setting model."""
 
-    description: Optional[str] = Field(None)
-    variant: Optional[str] = Field(None)
+    value: str | None = Field(None)
+    description: str | None = Field(None)
+    variant: str | None = Field(None)
 
 
 class AgentContextValueSetting(BaseCfg):
