@@ -5,7 +5,16 @@ from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from time import time
-from typing import Any, Awaitable, Iterable, Iterator, Sequence, Tuple
+from typing import (
+    Any,
+    Awaitable,
+    Iterable,
+    Iterator,
+    Protocol,
+    Sequence,
+    Tuple,
+    runtime_checkable,
+)
 
 import coverage
 from opentelemetry import context as context_api
@@ -66,6 +75,27 @@ from .mocks.mocks import (
     clear_execution_context,
     set_execution_context,
 )
+
+logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class LLMAgentFactoryProtocol(Protocol):
+    """Protocol for factories that can provide agent model information.
+
+    Runtime factories that implement this protocol can be queried for
+    the agent's configured LLM model, enabling features like 'same-as-agent'
+    model resolution for evaluators.
+    """
+
+    def get_agent_model(self) -> str | None:
+        """Return the agent's configured LLM model name.
+
+        Returns:
+            The model name from agent settings (e.g., 'gpt-4o-2024-11-20'),
+            or None if no model is configured.
+        """
+        ...
 
 
 class ExecutionSpanExporter(SpanExporter):
@@ -602,15 +632,23 @@ class UiPathEvalRuntime:
         return result
 
     def _get_agent_model(self) -> str | None:
-        """Load agent model from agent.json.
+        """Get agent model from factory or agent.json fallback.
 
-        Uses the entrypoint from context if available, otherwise falls back
-        to looking for agent.json in the current working directory.
+        First checks if the runtime factory implements LLMAgentFactoryProtocol
+        and can provide the model directly. Falls back to reading agent.json
+        from disk if the protocol is not implemented.
 
         Returns:
             The model name from agent settings, or None if not found.
         """
-        # Use entrypoint from context if available (handles explicit paths)
+        # Prefer getting model from factory if it implements the protocol
+        if isinstance(self.factory, LLMAgentFactoryProtocol):
+            model = self.factory.get_agent_model()
+            if model:
+                logger.debug(f"Got agent model from factory: {model}")
+                return model
+
+        # Fallback: read from agent.json file
         if self.context.entrypoint:
             agent_json = Path(self.context.entrypoint)
         else:
@@ -620,7 +658,10 @@ class UiPathEvalRuntime:
             try:
                 with open(agent_json, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                return data.get("settings", {}).get("model")
+                model = data.get("settings", {}).get("model")
+                if model:
+                    logger.debug(f"Got agent model from file: {model}")
+                return model
             except (json.JSONDecodeError, OSError):
                 return None
         return None
