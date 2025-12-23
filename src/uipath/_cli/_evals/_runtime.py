@@ -601,6 +601,30 @@ class UiPathEvalRuntime:
 
         return result
 
+    def _get_agent_model(self) -> str | None:
+        """Load agent model from agent.json.
+
+        Uses the entrypoint from context if available, otherwise falls back
+        to looking for agent.json in the current working directory.
+
+        Returns:
+            The model name from agent settings, or None if not found.
+        """
+        # Use entrypoint from context if available (handles explicit paths)
+        if self.context.entrypoint:
+            agent_json = Path(self.context.entrypoint)
+        else:
+            agent_json = Path.cwd() / "agent.json"
+
+        if agent_json.exists():
+            try:
+                with open(agent_json, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                return data.get("settings", {}).get("model")
+            except (json.JSONDecodeError, OSError):
+                return None
+        return None
+
     def _load_evaluators(
         self, evaluation_set: EvaluationSet
     ) -> list[BaseEvaluator[Any, Any, Any]]:
@@ -610,6 +634,9 @@ class UiPathEvalRuntime:
         if eval_set is None:
             raise ValueError("eval_set cannot be None")
         evaluators_dir = Path(eval_set).parent.parent / "evaluators"
+
+        # Load agent model for 'same-as-agent' resolution in legacy evaluators
+        agent_model = self._get_agent_model()
 
         # If evaluatorConfigs is specified, use that (new field with weights)
         # Otherwise, fall back to evaluatorRefs (old field without weights)
@@ -638,7 +665,9 @@ class UiPathEvalRuntime:
             try:
                 evaluator_id = data.get("id")
                 if evaluator_id in evaluator_ref_ids:
-                    evaluator = EvaluatorFactory.create_evaluator(data, evaluators_dir)
+                    evaluator = EvaluatorFactory.create_evaluator(
+                        data, evaluators_dir, agent_model=agent_model
+                    )
                     evaluators.append(evaluator)
                     found_evaluator_ids.add(evaluator_id)
             except Exception as e:
