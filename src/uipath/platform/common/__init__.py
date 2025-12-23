@@ -13,11 +13,13 @@ from .auth import TokenData
 from .interrupt_models import (
     CreateBatchTransform,
     CreateDeepRag,
+    CreateDocumentExtraction,
     CreateEscalation,
     CreateTask,
     InvokeProcess,
     WaitBatchTransform,
     WaitDeepRag,
+    WaitDocumentExtraction,
     WaitEscalation,
     WaitJob,
     WaitTask,
@@ -44,4 +46,6 @@ __all__ = [
     "WaitDeepRag",
     "CreateBatchTransform",
     "WaitBatchTransform",
+    "CreateDocumentExtraction",
+    "WaitDocumentExtraction",
 ]
