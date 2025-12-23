@@ -15,7 +15,7 @@ from ..._utils import Endpoint, RequestSpec, header_folder
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import TEMP_ATTACHMENTS_FOLDER
 from ...tracing import traced
-from ..attachments import Attachment, AttachmentMode
+from ..attachments import Attachment, AttachmentMode, BlobFileAccessInfo
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 
 
@@ -708,6 +708,124 @@ class AttachmentsService(FolderContext, BaseService):
                     client.put(upload_uri, headers=headers, content=content)
 
         return attachment_key
+
+    @traced(name="attachments_get_blob_uri", run_type="uipath")
+    def get_blob_file_access_uri(
+        self,
+        *,
+        key: uuid.UUID,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> BlobFileAccessInfo:
+        """Get the BlobFileAccess information for an attachment.
+
+        This method retrieves the blob storage URI and filename for downloading
+        an attachment without actually downloading the file.
+
+        Args:
+            key (uuid.UUID): The key of the attachment.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            BlobFileAccessInfo: Object containing the blob storage URI and attachment name.
+
+        Raises:
+            Exception: If the attachment is not found or the request fails.
+
+        Examples:
+            ```python
+            from uipath.platform import UiPath
+
+            client = UiPath()
+
+            info = client.attachments.get_blob_file_access_uri(
+                key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
+            )
+            print(f"Attachment ID: {info.id}")
+            print(f"Blob URI: {info.uri}")
+            print(f"File name: {info.name}")
+            ```
+        """
+        spec = self._retrieve_download_uri_spec(
+            key=key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        result = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+
+        return BlobFileAccessInfo(
+            id=key,
+            uri=result["BlobFileAccess"]["Uri"],
+            name=result["Name"],
+        )
+
+    @traced(name="attachments_get_blob_uri", run_type="uipath")
+    async def get_blob_file_access_uri_async(
+        self,
+        *,
+        key: uuid.UUID,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> BlobFileAccessInfo:
+        """Get the BlobFileAccess information for an attachment asynchronously.
+
+        This method asynchronously retrieves the blob storage URI and filename
+        for downloading an attachment without actually downloading the file.
+
+        Args:
+            key (uuid.UUID): The key of the attachment.
+            folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            BlobFileAccessInfo: Object containing the blob storage URI and attachment name.
+
+        Raises:
+            Exception: If the attachment is not found or the request fails.
+
+        Examples:
+            ```python
+            import asyncio
+            from uipath.platform import UiPath
+
+            client = UiPath()
+
+            async def main():
+                info = await client.attachments.get_blob_file_access_uri_async(
+                    key=uuid.UUID("123e4567-e89b-12d3-a456-426614174000")
+                )
+                print(f"Attachment ID: {info.id}")
+                print(f"Blob URI: {info.uri}")
+                print(f"File name: {info.name}")
+            ```
+        """
+        spec = self._retrieve_download_uri_spec(
+            key=key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        result = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+
+        return BlobFileAccessInfo(
+            id=key,
+            uri=result["BlobFileAccess"]["Uri"],
+            name=result["Name"],
+        )
 
     @traced(name="attachments_delete", run_type="uipath")
     def delete(
