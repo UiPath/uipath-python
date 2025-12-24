@@ -1709,3 +1709,104 @@ class TestContextGroundingService:
             sent_requests[1].headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.download_batch_transform_result_async/{version}"
         )
+
+    def test_download_batch_transform_result_creates_nested_directories(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        tmp_path,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
+            status_code=200,
+            json={
+                "uri": "https://storage.example.com/result.csv",
+            },
+        )
+
+        httpx_mock.add_response(
+            url="https://storage.example.com/result.csv",
+            status_code=200,
+            content=b"col1,col2\nval1,val2",
+        )
+
+        destination = tmp_path / "output" / "nested" / "result.csv"
+        service.download_batch_transform_result(
+            id="test-batch-id",
+            destination_path=str(destination),
+        )
+
+        assert destination.exists()
+        assert destination.read_bytes() == b"col1,col2\nval1,val2"
+        assert destination.parent.exists()
+
+    @pytest.mark.anyio
+    async def test_download_batch_transform_result_async_creates_nested_directories(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        tmp_path,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
+            status_code=200,
+            json={
+                "uri": "https://storage.example.com/result.csv",
+            },
+        )
+
+        httpx_mock.add_response(
+            url="https://storage.example.com/result.csv",
+            status_code=200,
+            content=b"col1,col2\nval1,val2",
+        )
+
+        destination = tmp_path / "output" / "nested" / "result.csv"
+        await service.download_batch_transform_result_async(
+            id="test-batch-id",
+            destination_path=str(destination),
+        )
+
+        assert destination.exists()
+        assert destination.read_bytes() == b"col1,col2\nval1,val2"
+        assert destination.parent.exists()

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
 import httpx
@@ -719,6 +720,8 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         uri_response = BatchTransformReadUriResponse.model_validate(response.json())
 
+        Path(destination_path).parent.mkdir(parents=True, exist_ok=True)
+
         with open(destination_path, "wb") as file:
             with httpx.Client(**get_httpx_client_kwargs()) as client:
                 file_content = client.get(uri_response.uri).content
@@ -768,6 +771,8 @@ class ContextGroundingService(FolderContext, BaseService):
         async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
             download_response = await client.get(uri_response.uri)
             file_content = download_response.content
+
+        Path(destination_path).parent.mkdir(parents=True, exist_ok=True)
 
         with open(destination_path, "wb") as file:
             file.write(file_content)
