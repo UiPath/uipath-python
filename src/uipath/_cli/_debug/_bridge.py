@@ -18,7 +18,7 @@ from uipath.runtime import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
-from uipath.runtime.debug import UiPathDebugBridgeProtocol, UiPathDebugQuitError
+from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugQuitError
 from uipath.runtime.events import UiPathRuntimeStateEvent
 from uipath.runtime.resumable import UiPathResumeTriggerType
 
@@ -846,7 +846,7 @@ class SignalRDebugBridge:
         logger.error(f"SignalR error: {error}")
 
 
-def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridgeProtocol:
+def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugProtocol:
     """Factory to get SignalR debug bridge for remote debugging."""
     uipath_url = os.environ.get("UIPATH_URL")
     if not uipath_url or not context.job_id:
@@ -869,7 +869,7 @@ def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugBridgeP
 
 def get_debug_bridge(
     context: UiPathRuntimeContext, verbose: bool = True
-) -> UiPathDebugBridgeProtocol:
+) -> UiPathDebugProtocol:
     """Factory to get appropriate debug bridge based on context.
 
     Args:

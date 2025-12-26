@@ -10,7 +10,7 @@ from uipath.runtime import (
     UiPathRuntimeProtocol,
 )
 from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
-from uipath.runtime.debug import UiPathDebugBridgeProtocol, UiPathDebugRuntime
+from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import get_debug_bridge
@@ -136,7 +136,7 @@ def debug(
                                     delegate=runtime, chat_bridge=chat_bridge
                                 )
 
-                        debug_bridge: UiPathDebugBridgeProtocol = get_debug_bridge(ctx)
+                        debug_bridge: UiPathDebugProtocol = get_debug_bridge(ctx)
 
                         debug_runtime = UiPathDebugRuntime(
                             delegate=chat_runtime or runtime,
