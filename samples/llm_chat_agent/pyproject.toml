@@ -4,20 +4,10 @@ version = "0.0.1"
 description = "Sample agent demonstrating actual LLM calls with UiPath LLM Gateway"
 requires-python = ">=3.11"
 dependencies = [
-    "uipath>=2.2.8, <2.3.0",
+    "uipath>=2.3.0, <2.4.0",
 ]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-]
-
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
 
 [dependency-groups]
 dev = [
-    "uipath-dev>=0.0.5",
+    "uipath-dev>=0.0.14",
 ]

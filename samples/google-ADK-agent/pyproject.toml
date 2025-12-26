@@ -7,10 +7,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "google-adk>=1.4.2",
-    "uipath>=2.2.8, <2.3.0",
+    "uipath>=2.3.0, <2.4.0",
 ]
 
 [dependency-groups]
 dev = [
-    "uipath-dev>=0.0.5",
+    "uipath-dev>=0.0.14",
 ]
