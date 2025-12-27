@@ -5,7 +5,16 @@ from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from time import time
-from typing import Any, Awaitable, Iterable, Iterator, Sequence, Tuple
+from typing import (
+    Any,
+    Awaitable,
+    Iterable,
+    Iterator,
+    Protocol,
+    Sequence,
+    Tuple,
+    runtime_checkable,
+)
 
 import coverage
 from opentelemetry import context as context_api
@@ -66,6 +75,27 @@ from .mocks.mocks import (
     clear_execution_context,
     set_execution_context,
 )
+
+logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class LLMAgentFactoryProtocol(Protocol):
+    """Protocol for factories that can provide agent model information.
+
+    Runtime factories that implement this protocol can be queried for
+    the agent's configured LLM model, enabling features like 'same-as-agent'
+    model resolution for evaluators.
+    """
+
+    def get_agent_model(self) -> str | None:
+        """Return the agent's configured LLM model name.
+
+        Returns:
+            The model name from agent settings (e.g., 'gpt-4o-2024-11-20'),
+            or None if no model is configured.
+        """
+        ...
 
 
 class ExecutionSpanExporter(SpanExporter):
@@ -601,6 +631,41 @@ class UiPathEvalRuntime:
 
         return result
 
+    def _get_agent_model(self) -> str | None:
+        """Get agent model from factory or agent.json fallback.
+
+        First checks if the runtime factory implements LLMAgentFactoryProtocol
+        and can provide the model directly. Falls back to reading agent.json
+        from disk if the protocol is not implemented.
+
+        Returns:
+            The model name from agent settings, or None if not found.
+        """
+        # Prefer getting model from factory if it implements the protocol
+        if isinstance(self.factory, LLMAgentFactoryProtocol):
+            model = self.factory.get_agent_model()
+            if model:
+                logger.debug(f"Got agent model from factory: {model}")
+                return model
+
+        # Fallback: read from agent.json file
+        if self.context.entrypoint:
+            agent_json = Path(self.context.entrypoint)
+        else:
+            agent_json = Path.cwd() / "agent.json"
+
+        if agent_json.exists():
+            try:
+                with open(agent_json, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                model = data.get("settings", {}).get("model")
+                if model:
+                    logger.debug(f"Got agent model from file: {model}")
+                return model
+            except (json.JSONDecodeError, OSError):
+                return None
+        return None
+
     def _load_evaluators(
         self, evaluation_set: EvaluationSet
     ) -> list[BaseEvaluator[Any, Any, Any]]:
@@ -610,6 +675,9 @@ class UiPathEvalRuntime:
         if eval_set is None:
             raise ValueError("eval_set cannot be None")
         evaluators_dir = Path(eval_set).parent.parent / "evaluators"
+
+        # Load agent model for 'same-as-agent' resolution in legacy evaluators
+        agent_model = self._get_agent_model()
 
         # If evaluatorConfigs is specified, use that (new field with weights)
         # Otherwise, fall back to evaluatorRefs (old field without weights)
@@ -638,7 +706,9 @@ class UiPathEvalRuntime:
             try:
                 evaluator_id = data.get("id")
                 if evaluator_id in evaluator_ref_ids:
-                    evaluator = EvaluatorFactory.create_evaluator(data, evaluators_dir)
+                    evaluator = EvaluatorFactory.create_evaluator(
+                        data, evaluators_dir, agent_model=agent_model
+                    )
                     evaluators.append(evaluator)
                     found_evaluator_ids.add(evaluator_id)
             except Exception as e:
