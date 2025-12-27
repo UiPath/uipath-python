@@ -92,6 +92,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     default=False,
     help="Report evaluation coverage",
 )
+@click.option(
+    "--model-settings-id",
+    type=str,
+    default="default",
+    help="Model settings ID from evaluation set to override agent settings (default: 'default')",
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -102,6 +108,7 @@ def eval(
     output_file: str | None,
     enable_mocker_cache: bool,
     report_coverage: bool,
+    model_settings_id: str,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -114,6 +121,7 @@ def eval(
         no_report: Do not report the evaluation results
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
+        model_settings_id: Model settings ID to override agent settings
     """
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
@@ -148,6 +156,7 @@ def eval(
         eval_context.eval_set = resolved_eval_set_path
         eval_context.eval_ids = eval_ids
         eval_context.report_coverage = report_coverage
+        eval_context.model_settings_id = model_settings_id
 
         try:
 
