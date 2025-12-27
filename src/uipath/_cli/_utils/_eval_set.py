@@ -149,7 +149,6 @@ class EvalHelpers:
                         migrate_evaluation_item(evaluation, eval_set.evaluator_refs)
                         for evaluation in eval_set.evaluations
                     ],
-                    model_settings=eval_set.model_settings,  # Preserve model settings
                 )
         except ValidationError as e:
             raise ValueError(
