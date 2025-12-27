@@ -9,38 +9,9 @@ from pydantic import Field
 
 from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._models._evaluator import Evaluator
-from uipath._cli._evals._models._mocks import ExampleCall
 from uipath.agent.models.agent import (
     AgentDefinition,
-    AgentEscalationChannelProperties,
-    AgentIntegrationToolProperties,
-    AgentProcessToolProperties,
-    BaseResourceProperties,
 )
-
-
-class AgentEvalResourceProperties(BaseResourceProperties):
-    """Resource properties with simulation support."""
-
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
-
-
-class AgentEvalProcessToolProperties(AgentProcessToolProperties):
-    """Process tool properties with simulation support."""
-
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
-
-
-class AgentEvalIntegrationToolProperties(AgentIntegrationToolProperties):
-    """Integration tool properties with simulation support."""
-
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
-
-
-class AgentEvalEscalationChannelProperties(AgentEscalationChannelProperties):
-    """Escalation channel properties with simulation support."""
-
-    example_calls: Optional[List[ExampleCall]] = Field(None, alias="exampleCalls")
 
 
 class AgentEvalsDefinition(AgentDefinition):

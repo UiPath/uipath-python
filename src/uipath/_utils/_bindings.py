@@ -57,7 +57,6 @@ class GenericResourceOverwrite(ResourceOverwrite):
 class ConnectionResourceOverwrite(ResourceOverwrite):
     resource_type: Literal["connection"]
     connection_id: str = Field(alias="connectionId")
-    element_instance_id: str = Field(alias="elementInstanceId")
     folder_key: str = Field(alias="folderKey")
 
     model_config = ConfigDict(

@@ -12,7 +12,7 @@ from uipath.runtime import (
 )
 from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.context import UiPathRuntimeContext
-from uipath.runtime.debug import UiPathDebugBridgeProtocol
+from uipath.runtime.debug import UiPathDebugProtocol
 from uipath.runtime.errors import UiPathRuntimeError
 from uipath.runtime.events import UiPathRuntimeStateEvent
 
@@ -123,7 +123,7 @@ def run(
             async def debug_runtime(
                 ctx: UiPathRuntimeContext, runtime: UiPathRuntimeProtocol
             ) -> UiPathRuntimeResult | None:
-                debug_bridge: UiPathDebugBridgeProtocol = ConsoleDebugBridge()
+                debug_bridge: UiPathDebugProtocol = ConsoleDebugBridge()
 
                 await debug_bridge.emit_execution_started()
                 options = UiPathStreamOptions(resume=resume)

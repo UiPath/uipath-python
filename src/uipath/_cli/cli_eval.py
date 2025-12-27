@@ -41,7 +41,7 @@ def setup_reporting_prereq(no_report: bool) -> bool:
 
     if not UiPathConfig.is_studio_project:
         console.warning(
-            "UIPATH_PROJECT_ID environment variable not set. Results will no be reported to Studio Web."
+            "UIPATH_PROJECT_ID environment variable not set. Results will not be reported to Studio Web."
         )
         return False
 

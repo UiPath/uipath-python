@@ -5,7 +5,14 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 from uipath.core.guardrails import (
     BaseGuardrail,
     FieldReference,
@@ -37,7 +44,14 @@ class AgentToolType(str, Enum):
     API = "Api"
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
     INTEGRATION = "Integration"
+    INTERNAL = "Internal"
     UNKNOWN = "Unknown"  # fallback branch discriminator
+
+
+class AgentInternalToolType(str, Enum):
+    """Agent internal tool type enumeration."""
+
+    ANALYZE_FILES = "analyze-attachments"
 
 
 class AgentEscalationRecipientType(str, Enum):
@@ -46,6 +60,7 @@ class AgentEscalationRecipientType(str, Enum):
     USER_ID = "UserId"
     GROUP_ID = "GroupId"
     USER_EMAIL = "UserEmail"
+    ASSET_USER_EMAIL = "AssetUserEmail"
 
 
 class AgentContextRetrievalMode(str, Enum):
@@ -83,10 +98,18 @@ class BaseCfg(BaseModel):
     )
 
 
+class ExampleCall(BaseCfg):
+    """Example call for a resource containing resource I/O."""
+
+    id: str = Field(..., alias="id")
+    input: str = Field(..., alias="input")
+    output: str = Field(..., alias="output")
+
+
 class BaseResourceProperties(BaseCfg):
     """Base resource properties model."""
 
-    pass
+    example_calls: Optional[list[ExampleCall]] = Field(None, alias="exampleCalls")
 
 
 class AgentToolSettings(BaseCfg):
@@ -123,8 +146,9 @@ class AgentUnknownResourceConfig(BaseAgentResourceConfig):
 class AgentContextQuerySetting(BaseCfg):
     """Agent context query setting model."""
 
-    description: Optional[str] = Field(None)
-    variant: Optional[str] = Field(None)
+    value: str | None = Field(None)
+    description: str | None = Field(None)
+    variant: str | None = Field(None)
 
 
 class AgentContextValueSetting(BaseCfg):
@@ -204,34 +228,66 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
 
-class AgentEscalationRecipient(BaseCfg):
-    """Agent escalation recipient model."""
+def _normalize_recipient_type(recipient: Any) -> Any:
+    """Normalize recipient type from integer to enum before discrimination."""
+    if not isinstance(recipient, dict):
+        return recipient
+
+    recipient_type = recipient.get("type")
+    if isinstance(recipient_type, int):
+        type_mapping = {
+            1: AgentEscalationRecipientType.USER_ID,
+            2: AgentEscalationRecipientType.GROUP_ID,
+            3: AgentEscalationRecipientType.USER_EMAIL,
+            4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+        }
+        recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
+
+    return recipient
+
+
+class BaseEscalationRecipient(BaseCfg):
+    """Base class for escalation recipients."""
 
     type: Union[AgentEscalationRecipientType, str] = Field(..., alias="type")
+
+
+class StandardRecipient(BaseEscalationRecipient):
+    """Standard recipient with value field (for UserId, GroupId, UserEmail)."""
+
+    type: Literal[
+        AgentEscalationRecipientType.USER_ID,
+        AgentEscalationRecipientType.GROUP_ID,
+        AgentEscalationRecipientType.USER_EMAIL,
+    ] = Field(..., alias="type")
     value: str = Field(..., alias="value")
     display_name: Optional[str] = Field(default=None, alias="displayName")
 
-    @field_validator("type", mode="before")
-    @classmethod
-    def normalize_type(cls, v: Any) -> Any:
-        """Normalize recipient type from int to enum/string."""
-        if isinstance(v, int):
-            mapping = {
-                1: AgentEscalationRecipientType.USER_ID,
-                2: AgentEscalationRecipientType.GROUP_ID,
-                3: AgentEscalationRecipientType.USER_EMAIL,
-            }
-            return mapping.get(v, str(v))
-        return v
+
+class AssetRecipient(BaseEscalationRecipient):
+    """Asset recipient with assetName and folderPath (for AssetUserEmail)."""
+
+    type: Literal[AgentEscalationRecipientType.ASSET_USER_EMAIL] = Field(
+        ..., alias="type"
+    )
+    asset_name: str = Field(..., alias="assetName")
+    folder_path: str = Field(..., alias="folderPath")
+
+
+AgentEscalationRecipient = Annotated[
+    Union[StandardRecipient, AssetRecipient],
+    Field(discriminator="type"),
+    BeforeValidator(_normalize_recipient_type),
+]
 
 
 class AgentEscalationChannelProperties(BaseResourceProperties):
     """Agent escalation channel properties model."""
 
-    app_name: str = Field(..., alias="appName")
+    app_name: str | None = Field(..., alias="appName")
     app_version: int = Field(..., alias="appVersion")
     folder_name: Optional[str] = Field(None, alias="folderName")
-    resource_key: str = Field(..., alias="resourceKey")
+    resource_key: str | None = Field(..., alias="resourceKey")
     is_actionable_message_enabled: Optional[bool] = Field(
         None, alias="isActionableMessageEnabled"
     )
@@ -335,6 +391,14 @@ class AgentIntegrationToolProperties(BaseResourceProperties):
     )
 
 
+class AgentInternalToolProperties(BaseResourceProperties):
+    """Agent internal tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.ANALYZE_FILES] = Field(
+        ..., alias="toolType"
+    )
+
+
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
     """Agent integration tool resource configuration model."""
 
@@ -345,6 +409,17 @@ class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
     is_enabled: Optional[bool] = Field(None, alias="isEnabled")
     # is output schemas were only recently added so they will be missing in some resources
     output_schema: Optional[Dict[str, Any]] = Field(None, alias="outputSchema")
+
+
+class AgentInternalToolResourceConfig(BaseAgentToolResourceConfig):
+    """Agent internal tool resource configuration model."""
+
+    type: Literal[AgentToolType.INTERNAL] = AgentToolType.INTERNAL
+    properties: AgentInternalToolProperties
+    settings: Optional[AgentToolSettings] = Field(None)
+    arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
+    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
 
 
 class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
@@ -359,6 +434,7 @@ ToolResourceConfig = Annotated[
     Union[
         AgentProcessToolResourceConfig,
         AgentIntegrationToolResourceConfig,
+        AgentInternalToolResourceConfig,
         AgentUnknownToolResourceConfig,  # when parent sets type="Unknown"
     ],
     Field(discriminator="type"),
@@ -625,7 +701,7 @@ class AgentDefinition(BaseModel):
     messages: List[AgentMessage]
 
     version: str = "1.0.0"
-    resources: List[AgentResourceConfig]
+    resources: List[AgentResourceConfig] = Field(default_factory=list)
     features: List[Any] = Field(default_factory=list)
     settings: AgentSettings
 
@@ -691,6 +767,7 @@ class AgentDefinition(BaseModel):
             "api": "Api",
             "processorchestration": "ProcessOrchestration",
             "integration": "Integration",
+            "internal": "Internal",
             "unknown": "Unknown",
         }
         CONTEXT_MODE_MAP = {
