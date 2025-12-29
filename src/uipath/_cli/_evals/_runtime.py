@@ -80,10 +80,10 @@ logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
-class LLMAgentFactoryProtocol(Protocol):
-    """Protocol for factories that can provide agent model information.
+class LLMAgentRuntimeProtocol(Protocol):
+    """Protocol for runtimes that can provide agent model information.
 
-    Runtime factories that implement this protocol can be queried for
+    Runtimes that implement this protocol can be queried for
     the agent's configured LLM model, enabling features like 'same-as-agent'
     model resolution for evaluators.
     """
@@ -262,7 +262,7 @@ class UiPathEvalRuntime:
         evaluation_set, _ = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
-        evaluators = self._load_evaluators(evaluation_set)
+        evaluators = await self._load_evaluators(evaluation_set)
 
         await self.event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
@@ -631,42 +631,58 @@ class UiPathEvalRuntime:
 
         return result
 
-    def _get_agent_model(self) -> str | None:
-        """Get agent model from factory or agent.json fallback.
+    async def _get_agent_model(self) -> str | None:
+        """Get agent model from the runtime.
 
-        First checks if the runtime factory implements LLMAgentFactoryProtocol
-        and can provide the model directly. Falls back to reading agent.json
-        from disk if the protocol is not implemented.
+        Creates a temporary runtime to query the agent's configured LLM model.
+        The runtime (or one of its delegates) implements LLMAgentRuntimeProtocol
+        which provides the model.
 
         Returns:
             The model name from agent settings, or None if not found.
         """
-        # Prefer getting model from factory if it implements the protocol
-        if isinstance(self.factory, LLMAgentFactoryProtocol):
-            model = self.factory.get_agent_model()
-            if model:
-                logger.debug(f"Got agent model from factory: {model}")
-                return model
-
-        # Fallback: read from agent.json file
-        if self.context.entrypoint:
-            agent_json = Path(self.context.entrypoint)
-        else:
-            agent_json = Path.cwd() / "agent.json"
-
-        if agent_json.exists():
+        try:
+            temp_runtime = await self.factory.new_runtime(
+                entrypoint=self.context.entrypoint or "",
+                runtime_id="model-query",
+            )
             try:
-                with open(agent_json, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                model = data.get("settings", {}).get("model")
+                model = self._find_agent_model_in_runtime(temp_runtime)
                 if model:
-                    logger.debug(f"Got agent model from file: {model}")
+                    logger.debug(f"Got agent model from runtime: {model}")
                 return model
-            except (json.JSONDecodeError, OSError):
-                return None
+            finally:
+                await temp_runtime.dispose()
+        except Exception:
+            return None
+
+    def _find_agent_model_in_runtime(self, runtime: Any) -> str | None:
+        """Recursively search for get_agent_model in runtime and its delegates.
+
+        Runtimes may be wrapped (e.g., ResumableRuntime wraps TelemetryWrapper
+        which wraps the base runtime). This method traverses the wrapper chain
+        to find a runtime that implements LLMAgentRuntimeProtocol.
+
+        Args:
+            runtime: The runtime to check (may be a wrapper)
+
+        Returns:
+            The model name if found, None otherwise.
+        """
+        # Check if this runtime implements the protocol
+        if isinstance(runtime, LLMAgentRuntimeProtocol):
+            return runtime.get_agent_model()
+
+        # Check for delegate property (used by UiPathResumableRuntime, TelemetryRuntimeWrapper)
+        delegate = getattr(runtime, "delegate", None) or getattr(
+            runtime, "_delegate", None
+        )
+        if delegate is not None:
+            return self._find_agent_model_in_runtime(delegate)
+
         return None
 
-    def _load_evaluators(
+    async def _load_evaluators(
         self, evaluation_set: EvaluationSet
     ) -> list[BaseEvaluator[Any, Any, Any]]:
         """Load evaluators referenced by the evaluation set."""
@@ -677,7 +693,7 @@ class UiPathEvalRuntime:
         evaluators_dir = Path(eval_set).parent.parent / "evaluators"
 
         # Load agent model for 'same-as-agent' resolution in legacy evaluators
-        agent_model = self._get_agent_model()
+        agent_model = await self._get_agent_model()
 
         # If evaluatorConfigs is specified, use that (new field with weights)
         # Otherwise, fall back to evaluatorRefs (old field without weights)
