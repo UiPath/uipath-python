@@ -26,6 +26,7 @@ from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
 from uipath.runtime import (
     UiPathExecutionRuntime,
     UiPathRuntimeFactoryProtocol,
+    UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
@@ -209,9 +210,6 @@ class UiPathEvalRuntime:
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
-        self.schema: UiPathRuntimeSchema | None = None
-        self._agent_model: str | None = None
-        self._metadata_loaded: bool = False
         self.coverage = coverage.Coverage(branch=True)
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
@@ -224,34 +222,11 @@ class UiPathEvalRuntime:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
 
-    async def _ensure_metadata_loaded(self) -> None:
-        """Load metadata (schema, agent model) from a single temporary runtime.
-
-        This method creates one temporary runtime to fetch both schema and agent
-        model, avoiding the overhead of creating multiple runtimes for metadata
-        queries. Results are cached for subsequent access.
-        """
-        if self._metadata_loaded:
-            return
-
-        temp_runtime = await self.factory.new_runtime(
-            entrypoint=self.context.entrypoint or "",
-            runtime_id="metadata-query",
-        )
-        try:
-            self.schema = await temp_runtime.get_schema()
-            self._agent_model = self._find_agent_model_in_runtime(temp_runtime)
-            if self._agent_model:
-                logger.debug(f"Got agent model from runtime: {self._agent_model}")
-            self._metadata_loaded = True
-        finally:
-            await temp_runtime.dispose()
-
-    async def get_schema(self) -> UiPathRuntimeSchema:
-        await self._ensure_metadata_loaded()
-        if self.schema is None:
+    async def get_schema(self, runtime: UiPathRuntimeProtocol) -> UiPathRuntimeSchema:
+        schema = await runtime.get_schema()
+        if schema is None:
             raise ValueError("Schema could not be loaded")
-        return self.schema
+        return schema
 
     @contextmanager
     def _mocker_cache(self) -> Iterator[None]:
@@ -271,6 +246,7 @@ class UiPathEvalRuntime:
 
     async def initiate_evaluation(
         self,
+        runtime: UiPathRuntimeProtocol,
     ) -> Tuple[
         EvaluationSet,
         list[BaseEvaluator[Any, Any, Any]],
@@ -283,7 +259,7 @@ class UiPathEvalRuntime:
         evaluation_set, _ = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
-        evaluators = await self._load_evaluators(evaluation_set)
+        evaluators = await self._load_evaluators(evaluation_set, runtime)
 
         await self.event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
@@ -301,74 +277,84 @@ class UiPathEvalRuntime:
             evaluation_set,
             evaluators,
             (
-                self._execute_eval(eval_item, evaluators)
+                self._execute_eval(eval_item, evaluators, runtime)
                 for eval_item in evaluation_set.evaluations
             ),
         )
 
     async def execute(self) -> UiPathRuntimeResult:
-        with self._mocker_cache():
-            (
-                evaluation_set,
-                evaluators,
-                evaluation_iterable,
-            ) = await self.initiate_evaluation()
-            workers = self.context.workers or 1
-            assert workers >= 1
-            eval_run_result_list = await execute_parallel(evaluation_iterable, workers)
-            results = UiPathEvalOutput(
-                evaluation_set_name=evaluation_set.name,
-                evaluation_set_results=eval_run_result_list,
-            )
-
-            # Computing evaluator averages
-            evaluator_averages: dict[str, float] = defaultdict(float)
-            evaluator_count: dict[str, int] = defaultdict(int)
-
-            # Check if any eval runs failed
-            any_failed = False
-            for eval_run_result in results.evaluation_set_results:
-                # Check if the agent execution had an error
-                if (
-                    eval_run_result.agent_execution_output
-                    and eval_run_result.agent_execution_output.result.error
-                ):
-                    any_failed = True
-
-                for result_dto in eval_run_result.evaluation_run_results:
-                    evaluator_averages[result_dto.evaluator_id] += (
-                        result_dto.result.score
-                    )
-                    evaluator_count[result_dto.evaluator_id] += 1
-
-            for eval_id in evaluator_averages:
-                evaluator_averages[eval_id] = (
-                    evaluator_averages[eval_id] / evaluator_count[eval_id]
+        runtime = await self.factory.new_runtime(
+            entrypoint=self.context.entrypoint or "",
+            runtime_id=self.execution_id,
+        )
+        try:
+            with self._mocker_cache():
+                (
+                    evaluation_set,
+                    evaluators,
+                    evaluation_iterable,
+                ) = await self.initiate_evaluation(runtime)
+                workers = self.context.workers or 1
+                assert workers >= 1
+                eval_run_result_list = await execute_parallel(
+                    evaluation_iterable, workers
                 )
-            await self.event_bus.publish(
-                EvaluationEvents.UPDATE_EVAL_SET_RUN,
-                EvalSetRunUpdatedEvent(
-                    execution_id=self.execution_id,
-                    evaluator_scores=evaluator_averages,
-                    success=not any_failed,
-                ),
-                wait_for_completion=False,
-            )
+                results = UiPathEvalOutput(
+                    evaluation_set_name=evaluation_set.name,
+                    evaluation_set_results=eval_run_result_list,
+                )
 
-            result = UiPathRuntimeResult(
-                output={**results.model_dump(by_alias=True)},
-                status=UiPathRuntimeStatus.SUCCESSFUL,
-            )
-            return result
+                # Computing evaluator averages
+                evaluator_averages: dict[str, float] = defaultdict(float)
+                evaluator_count: dict[str, int] = defaultdict(int)
+
+                # Check if any eval runs failed
+                any_failed = False
+                for eval_run_result in results.evaluation_set_results:
+                    # Check if the agent execution had an error
+                    if (
+                        eval_run_result.agent_execution_output
+                        and eval_run_result.agent_execution_output.result.error
+                    ):
+                        any_failed = True
+
+                    for result_dto in eval_run_result.evaluation_run_results:
+                        evaluator_averages[result_dto.evaluator_id] += (
+                            result_dto.result.score
+                        )
+                        evaluator_count[result_dto.evaluator_id] += 1
+
+                for eval_id in evaluator_averages:
+                    evaluator_averages[eval_id] = (
+                        evaluator_averages[eval_id] / evaluator_count[eval_id]
+                    )
+                await self.event_bus.publish(
+                    EvaluationEvents.UPDATE_EVAL_SET_RUN,
+                    EvalSetRunUpdatedEvent(
+                        execution_id=self.execution_id,
+                        evaluator_scores=evaluator_averages,
+                        success=not any_failed,
+                    ),
+                    wait_for_completion=False,
+                )
+
+                result = UiPathRuntimeResult(
+                    output={**results.model_dump(by_alias=True)},
+                    status=UiPathRuntimeStatus.SUCCESSFUL,
+                )
+                return result
+        finally:
+            await runtime.dispose()
 
     async def _execute_eval(
         self,
         eval_item: EvaluationItem,
         evaluators: list[BaseEvaluator[Any, Any, Any]],
+        runtime: UiPathRuntimeProtocol,
     ) -> EvaluationRunResult:
         # Generate LLM-based input if input_mocking_strategy is defined
         if eval_item.input_mocking_strategy:
-            eval_item = await self._generate_input_for_eval(eval_item)
+            eval_item = await self._generate_input_for_eval(eval_item, runtime)
 
         execution_id = str(uuid.uuid4())
 
@@ -389,7 +375,7 @@ class UiPathEvalRuntime:
         try:
             try:
                 agent_execution_output = await self.execute_runtime(
-                    eval_item, execution_id
+                    eval_item, execution_id, runtime
                 )
             except Exception as e:
                 if self.context.verbose:
@@ -543,11 +529,11 @@ class UiPathEvalRuntime:
         return evaluation_run_results
 
     async def _generate_input_for_eval(
-        self, eval_item: EvaluationItem
+        self, eval_item: EvaluationItem, runtime: UiPathRuntimeProtocol
     ) -> EvaluationItem:
         """Use LLM to generate a mock input for an evaluation item."""
         generated_input = await generate_llm_input(
-            eval_item, (await self.get_schema()).input
+            eval_item, (await self.get_schema(runtime)).input
         )
         updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
         return updated_eval_item
@@ -565,12 +551,11 @@ class UiPathEvalRuntime:
         return spans, logs
 
     async def execute_runtime(
-        self, eval_item: EvaluationItem, execution_id: str
+        self,
+        eval_item: EvaluationItem,
+        execution_id: str,
+        runtime: UiPathRuntimeProtocol,
     ) -> UiPathEvalRunExecutionOutput:
-        runtime = await self.factory.new_runtime(
-            entrypoint=self.context.entrypoint or "",
-            runtime_id=execution_id,
-        )
         log_handler = self._setup_execution_logging(execution_id)
         attributes = {
             "evalId": eval_item.id,
@@ -599,9 +584,6 @@ class UiPathEvalRuntime:
                 root_exception=e,
                 execution_time=end_time - start_time,
             ) from e
-
-        finally:
-            await runtime.dispose()
 
         end_time = time()
         spans, logs = self._get_and_clear_execution_data(execution_id)
@@ -652,22 +634,23 @@ class UiPathEvalRuntime:
 
         return result
 
-    async def _get_agent_model(self) -> str | None:
+    async def _get_agent_model(self, runtime: UiPathRuntimeProtocol) -> str | None:
         """Get agent model from the runtime.
-
-        Uses the cached metadata from _ensure_metadata_loaded(), which creates
-        a single temporary runtime to fetch both schema and agent model.
 
         Returns:
             The model name from agent settings, or None if not found.
         """
         try:
-            await self._ensure_metadata_loaded()
-            return self._agent_model
+            model = self._find_agent_model_in_runtime(runtime)
+            if model:
+                logger.debug(f"Got agent model from runtime: {model}")
+            return model
         except Exception:
             return None
 
-    def _find_agent_model_in_runtime(self, runtime: Any) -> str | None:
+    def _find_agent_model_in_runtime(
+        self, runtime: UiPathRuntimeProtocol
+    ) -> str | None:
         """Recursively search for get_agent_model in runtime and its delegates.
 
         Runtimes may be wrapped (e.g., ResumableRuntime wraps TelemetryWrapper
@@ -694,7 +677,7 @@ class UiPathEvalRuntime:
         return None
 
     async def _load_evaluators(
-        self, evaluation_set: EvaluationSet
+        self, evaluation_set: EvaluationSet, runtime: UiPathRuntimeProtocol
     ) -> list[BaseEvaluator[Any, Any, Any]]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
@@ -704,7 +687,7 @@ class UiPathEvalRuntime:
         evaluators_dir = Path(eval_set).parent.parent / "evaluators"
 
         # Load agent model for 'same-as-agent' resolution in legacy evaluators
-        agent_model = await self._get_agent_model()
+        agent_model = await self._get_agent_model(runtime)
 
         # If evaluatorConfigs is specified, use that (new field with weights)
         # Otherwise, fall back to evaluatorRefs (old field without weights)
