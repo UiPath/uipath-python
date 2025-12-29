@@ -210,6 +210,8 @@ class UiPathEvalRuntime:
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
         self.schema: UiPathRuntimeSchema | None = None
+        self._agent_model: str | None = None
+        self._metadata_loaded: bool = False
         self.coverage = coverage.Coverage(branch=True)
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
@@ -222,14 +224,33 @@ class UiPathEvalRuntime:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
 
-    async def get_schema(self) -> UiPathRuntimeSchema:
-        if not self.schema:
-            temp_runtime = await self.factory.new_runtime(
-                entrypoint=self.context.entrypoint or "",
-                runtime_id="default",
-            )
+    async def _ensure_metadata_loaded(self) -> None:
+        """Load metadata (schema, agent model) from a single temporary runtime.
+
+        This method creates one temporary runtime to fetch both schema and agent
+        model, avoiding the overhead of creating multiple runtimes for metadata
+        queries. Results are cached for subsequent access.
+        """
+        if self._metadata_loaded:
+            return
+
+        temp_runtime = await self.factory.new_runtime(
+            entrypoint=self.context.entrypoint or "",
+            runtime_id="metadata-query",
+        )
+        try:
             self.schema = await temp_runtime.get_schema()
+            self._agent_model = self._find_agent_model_in_runtime(temp_runtime)
+            if self._agent_model:
+                logger.debug(f"Got agent model from runtime: {self._agent_model}")
+            self._metadata_loaded = True
+        finally:
             await temp_runtime.dispose()
+
+    async def get_schema(self) -> UiPathRuntimeSchema:
+        await self._ensure_metadata_loaded()
+        if self.schema is None:
+            raise ValueError("Schema could not be loaded")
         return self.schema
 
     @contextmanager
@@ -634,25 +655,15 @@ class UiPathEvalRuntime:
     async def _get_agent_model(self) -> str | None:
         """Get agent model from the runtime.
 
-        Creates a temporary runtime to query the agent's configured LLM model.
-        The runtime (or one of its delegates) implements LLMAgentRuntimeProtocol
-        which provides the model.
+        Uses the cached metadata from _ensure_metadata_loaded(), which creates
+        a single temporary runtime to fetch both schema and agent model.
 
         Returns:
             The model name from agent settings, or None if not found.
         """
         try:
-            temp_runtime = await self.factory.new_runtime(
-                entrypoint=self.context.entrypoint or "",
-                runtime_id="model-query",
-            )
-            try:
-                model = self._find_agent_model_in_runtime(temp_runtime)
-                if model:
-                    logger.debug(f"Got agent model from runtime: {model}")
-                return model
-            finally:
-                await temp_runtime.dispose()
+            await self._ensure_metadata_loaded()
+            return self._agent_model
         except Exception:
             return None
 
