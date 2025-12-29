@@ -124,8 +124,12 @@ class DocumentsService(FolderContext, BaseService):
         self,
         config: UiPathApiConfig,
         execution_context: UiPathExecutionContext,
+        polling_interval: float = POLLING_INTERVAL,
+        polling_timeout: float = POLLING_TIMEOUT,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self.polling_interval = polling_interval
+        self.polling_timeout = polling_timeout
 
     def _get_common_headers(self) -> Dict[str, str]:
         return {
@@ -479,12 +483,14 @@ class DocumentsService(FolderContext, BaseService):
                 f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/start"
             )
 
-        operation_id = self.request(
-            "POST",
-            url=url,
-            params={"api-version": 1.1},
-            headers=self._get_common_headers(),
-            json={"documentId": document_id},
+        operation_id = (
+            await self.request_async(
+                "POST",
+                url=url,
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+                json={"documentId": document_id},
+            )
         ).json()["operationId"]
 
         return StartExtractionResponse(
@@ -506,13 +512,13 @@ class DocumentsService(FolderContext, BaseService):
 
         while (
             status in wait_statuses
-            and (time.monotonic() - start_time) < POLLING_TIMEOUT
+            and (time.monotonic() - start_time) < self.polling_timeout
         ):
             status, error, result = result_getter()
-            time.sleep(POLLING_INTERVAL)
+            time.sleep(self.polling_interval)
 
         if status != success_status:
-            if time.monotonic() - start_time >= POLLING_TIMEOUT:
+            if time.monotonic() - start_time >= self.polling_timeout:
                 raise TimeoutError("Operation timed out.")
             raise RuntimeError(
                 f"Operation failed with status: {status}, error: {error}"
@@ -534,13 +540,13 @@ class DocumentsService(FolderContext, BaseService):
 
         while (
             status in wait_statuses
-            and (time.monotonic() - start_time) < POLLING_TIMEOUT
+            and (time.monotonic() - start_time) < self.polling_timeout
         ):
             status, error, result = await result_getter()
-            await asyncio.sleep(POLLING_INTERVAL)
+            await asyncio.sleep(self.polling_interval)
 
         if status != success_status:
-            if time.monotonic() - start_time >= POLLING_TIMEOUT:
+            if time.monotonic() - start_time >= self.polling_timeout:
                 raise TimeoutError("Operation timed out.")
             raise RuntimeError(
                 f"Operation failed with status: {status}, error: {error}"
