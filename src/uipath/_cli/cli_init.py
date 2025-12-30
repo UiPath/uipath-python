@@ -132,11 +132,46 @@ def generate_agent_md_files(target_directory: str, no_agents_md_override: bool) 
         if generate_agent_md_file(agent_dir, file_name, no_agents_md_override):
             any_overridden = True
 
+    # Generate Claude Code skills in .claude/commands/
+    if generate_claude_code_skills(target_directory, no_agents_md_override):
+        any_overridden = True
+
     if any_overridden:
-        console.success(f"Updated {click.style('AGENTS.md', fg='cyan')} related files.")
+        console.success(
+            f"Updated {click.style('AGENTS.md', fg='cyan')} and Claude Code skills."
+        )
         return
 
-    console.success(f"Created {click.style('AGENTS.md', fg='cyan')} related files.")
+    console.success(
+        f"Created {click.style('AGENTS.md', fg='cyan')} and Claude Code skills."
+    )
+
+
+def generate_claude_code_skills(
+    target_directory: str, no_agents_md_override: bool
+) -> bool:
+    """Generate Claude Code skill files in .claude/commands/.
+
+    Args:
+        target_directory: The directory where the .claude folder should be created.
+        no_agents_md_override: Whether to override existing files.
+
+    Returns:
+        True if any file was overridden, False otherwise.
+    """
+    claude_commands_dir = os.path.join(target_directory, ".claude", "commands")
+    os.makedirs(claude_commands_dir, exist_ok=True)
+
+    skill_files = ["new-agent.md", "eval.md"]
+
+    any_overridden = False
+    for file_name in skill_files:
+        if generate_agent_md_file(
+            claude_commands_dir, file_name, no_agents_md_override
+        ):
+            any_overridden = True
+
+    return any_overridden
 
 
 def write_bindings_file(bindings: Bindings) -> Path:
