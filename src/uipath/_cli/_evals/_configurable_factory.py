@@ -7,9 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-    UiPathRuntimeFactoryProtocol,
-    UiPathRuntimeProtocol,
-)
+from uipath.runtime import UiPathRuntimeFactoryProtocol, UiPathRuntimeProtocol
 
 from ._models._evaluation_set import EvaluationSetModelSettings
 
