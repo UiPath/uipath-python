@@ -1,7 +1,5 @@
 import json
 import logging
-import os
-import tempfile
 import uuid
 from collections import defaultdict
 from contextlib import contextmanager
@@ -55,15 +53,16 @@ from ..._events._events import (
 from ...eval.evaluators import BaseEvaluator
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
-from .._utils._console import ConsoleLogger
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
     EvaluationSet,
+    EvaluationSetModelSettings,
     LegacyEvaluationSet,
 )
+from ._configurable_factory import ConfigurableRuntimeFactory
 from ._models._exceptions import EvaluationRuntimeException
 from ._models._output import (
     EvaluationResultDto,
@@ -200,7 +199,8 @@ class UiPathEvalRuntime:
         event_bus: EventBus,
     ):
         self.context: UiPathEvalContext = context
-        self.factory: UiPathRuntimeFactoryProtocol = factory
+        # Wrap the factory to support model settings overrides
+        self.factory = ConfigurableRuntimeFactory(factory)
         self.event_bus: EventBus = event_bus
         self.trace_manager: UiPathTraceManager = trace_manager
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
@@ -227,6 +227,10 @@ class UiPathEvalRuntime:
         if self.context.report_coverage:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
+
+        # Clean up any temporary files created by the factory
+        if hasattr(self.factory, 'dispose'):
+            await self.factory.dispose()
 
     async def _ensure_metadata_loaded(self) -> None:
         """Load metadata (schema, agent model) from a single temporary runtime.
@@ -568,24 +572,17 @@ class UiPathEvalRuntime:
 
         return spans, logs
 
-    async def _apply_model_settings_override(self) -> str | None:
-        """Apply model settings override if specified.
-
-        Returns:
-            Modified entrypoint path if settings were overridden, otherwise None
-        """
-        console = ConsoleLogger()
-        console.info(f"Checking model settings override with ID: '{self.context.model_settings_id}'")
-
+    async def _configure_model_settings_override(self) -> None:
+        """Configure the factory with model settings override if specified."""
         # Skip if no model settings ID specified
         if not self.context.model_settings_id or self.context.model_settings_id == "default":
-            return None
+            return
 
         # Load evaluation set to get model settings
         evaluation_set, _ = EvalHelpers.load_eval_set(self.context.eval_set or "")
         if not hasattr(evaluation_set, 'model_settings') or not evaluation_set.model_settings:
-            console.warning("No model settings available in evaluation set")
-            return None
+            logger.warning("No model settings available in evaluation set")
+            return
 
         # Find the specified model settings
         target_model_settings = next(
@@ -595,70 +592,24 @@ class UiPathEvalRuntime:
 
         if not target_model_settings:
             logger.warning(f"Model settings ID '{self.context.model_settings_id}' not found in evaluation set")
-            return None
+            return
 
-        console.info(f"Found model settings: model='{target_model_settings.model_name}', temperature='{target_model_settings.temperature}'")
+        logger.info(
+            f"Configuring model settings override: id='{target_model_settings.id}', "
+            f"model='{target_model_settings.model}', temperature='{target_model_settings.temperature}'"
+        )
 
-        # Early exit: if both values are "same-as-agent", no override needed
-        if (target_model_settings.model_name == "same-as-agent" and
-            target_model_settings.temperature == "same-as-agent"):
-            console.info("Both model and temperature are 'same-as-agent', no override needed")
-            return None
-
-        # Load the original entrypoint file
-        entrypoint_path = Path(self.context.entrypoint or "agent.json")
-        if not entrypoint_path.exists():
-            console.warning(f"Entrypoint file '{entrypoint_path}' not found, model settings override not applicable")
-            return None
-
-        with open(entrypoint_path, 'r') as f:
-            agent_data = json.load(f)
-
-        # Apply model settings overrides
-        settings = agent_data.get("settings", {})
-        original_model = settings.get("model", "")
-        original_temperature = settings.get("temperature", 0.0)
-
-        console.info(f"Original agent settings: model='{original_model}', temperature={original_temperature}")
-
-        # Override model if not "same-as-agent"
-        if target_model_settings.model_name != "same-as-agent":
-            settings["model"] = target_model_settings.model_name
-
-        # Override temperature if not "same-as-agent"
-        if target_model_settings.temperature != "same-as-agent":
-            try:
-                settings["temperature"] = float(target_model_settings.temperature)
-            except ValueError:
-                logger.warning(f"Invalid temperature value: '{target_model_settings.temperature}', keeping original")
-
-        agent_data["settings"] = settings
-
-        # Create a temporary file with the modified agent definition
-        temp_fd, temp_path = tempfile.mkstemp(suffix=".json", prefix="agent_override_")
-        try:
-            with os.fdopen(temp_fd, 'w') as temp_file:
-                json.dump(agent_data, temp_file, indent=2)
-
-            console.info(f"Applied model settings override: model='{settings.get('model', '')}', temperature={settings.get('temperature', 0.0)}")
-            return temp_path
-        except Exception as e:
-            logger.error(f"Failed to create temporary agent file: {e}")
-            try:
-                os.unlink(temp_path)
-            except:
-                pass
-            return None
+        # Configure the factory with the override settings
+        self.factory.set_model_settings_override(target_model_settings)
 
     async def execute_runtime(
         self, eval_item: EvaluationItem, execution_id: str
     ) -> UiPathEvalRunExecutionOutput:
-        # Apply model settings override if needed
-        overridden_entrypoint = await self._apply_model_settings_override()
-        entrypoint_to_use = overridden_entrypoint or self.context.entrypoint
+        # Apply model settings override if specified
+        await self._configure_model_settings_override()
 
         runtime = await self.factory.new_runtime(
-            entrypoint=entrypoint_to_use or "",
+            entrypoint=self.context.entrypoint or "",
             runtime_id=execution_id,
         )
         log_handler = self._setup_execution_logging(execution_id)
@@ -692,12 +643,6 @@ class UiPathEvalRuntime:
 
         finally:
             await runtime.dispose()
-            # Clean up temporary file if it was created
-            if overridden_entrypoint and overridden_entrypoint != (self.context.entrypoint or ""):
-                try:
-                    os.unlink(overridden_entrypoint)
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temporary agent file: {e}")
 
         end_time = time()
         spans, logs = self._get_and_clear_execution_data(execution_id)

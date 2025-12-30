@@ -78,12 +78,18 @@ class ModelSettings(BaseModel):
     max_tokens: int | None = Field(default=None, alias="maxTokens")
 
 
-class EvaluationSetModelSettings(BaseModel):
-    """Model settings configuration for evaluation sets."""
+class EvaluationSetModelSettings(ModelSettings):
+    """Model settings configuration for evaluation sets with ID and special values support.
+
+    Extends ModelSettings to add an ID field and support for "same-as-agent" special value
+    in model and temperature fields for evaluation-specific overrides.
+    """
 
     id: str = Field(..., alias="id")
-    model_name: str = Field(..., alias="modelName")
-    temperature: str = Field(..., alias="temperature")  # Can be "same-as-agent" or numeric string
+    # Override model to keep it required and support "same-as-agent"
+    model: str = Field(..., alias="model")  # Can be "same-as-agent" or actual model name
+    # Override temperature to support "same-as-agent" as string
+    temperature: float | str | None = Field(default=None, alias="temperature")  # Can be "same-as-agent", float, or None
 
 
 class LLMMockingStrategy(BaseMockingStrategy):
