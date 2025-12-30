@@ -4,7 +4,6 @@ from os import environ as env
 from pathlib import Path
 from typing import Optional
 
-from ..platform.common import ExternalApplicationService
 from .constants import (
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
@@ -55,6 +54,8 @@ def resolve_config(
 ):
     if _has_valid_client_credentials(client_id, client_secret):
         assert client_id and client_secret
+        from ..platform.common import ExternalApplicationService
+
         external_app_service = ExternalApplicationService(base_url)
         token_data = external_app_service.get_token_data(
             client_id,

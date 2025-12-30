@@ -1,13 +1,15 @@
 import logging
 from enum import Enum
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, SkipValidation, model_validator
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import EvalItemResult
+
+if TYPE_CHECKING:
+    from uipath._cli._evals._models._evaluation_set import EvaluationItem
 
 
 class EvaluationEvents(str, Enum):
@@ -29,7 +31,7 @@ class EvalSetRunCreatedEvent(BaseModel):
 
 class EvalRunCreatedEvent(BaseModel):
     execution_id: str
-    eval_item: EvaluationItem
+    eval_item: "EvaluationItem"
 
 
 class EvalItemExceptionDetails(BaseModel):
@@ -43,7 +45,7 @@ class EvalRunUpdatedEvent(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     execution_id: str
-    eval_item: EvaluationItem
+    eval_item: "EvaluationItem"
     eval_results: list[EvalItemResult]
     success: bool
     agent_output: Any
