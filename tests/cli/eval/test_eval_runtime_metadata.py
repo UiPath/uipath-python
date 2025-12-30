@@ -207,84 +207,6 @@ class TestFindAgentModelInRuntime:
         assert result is None
 
 
-class TestEnsureMetadataLoaded:
-    """Tests for _ensure_metadata_loaded caching behavior."""
-
-    @pytest.fixture
-    def context(self):
-        """Create eval context."""
-        context = UiPathEvalContext()
-        context.eval_set = str(
-            Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-        )
-        return context
-
-    async def test_loads_both_schema_and_model(self, context):
-        """Test that _ensure_metadata_loaded fetches both schema and agent model."""
-
-        async def create_runtime():
-            return AgentModelRuntime("gpt-4o-mini")
-
-        factory = MockFactory(create_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
-
-        # Initially not loaded
-        assert eval_runtime._metadata_loaded is False
-        assert eval_runtime.schema is None
-        assert eval_runtime._agent_model is None
-
-        await eval_runtime._ensure_metadata_loaded()
-
-        # Both should now be loaded
-        assert eval_runtime._metadata_loaded is True
-        assert eval_runtime.schema is not None
-        assert eval_runtime._agent_model == "gpt-4o-mini"
-
-    async def test_creates_only_one_runtime(self, context):
-        """Test that only one temporary runtime is created for metadata."""
-
-        async def create_runtime():
-            return AgentModelRuntime("test-model")
-
-        factory = MockFactory(create_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
-
-        # Call multiple times
-        await eval_runtime._ensure_metadata_loaded()
-        await eval_runtime._ensure_metadata_loaded()
-        await eval_runtime._ensure_metadata_loaded()
-
-        # Factory should only have been called once
-        assert factory.new_runtime_call_count == 1
-
-    async def test_caches_results(self, context):
-        """Test that results are cached after first load."""
-        call_count = 0
-
-        async def create_runtime():
-            nonlocal call_count
-            call_count += 1
-            return AgentModelRuntime(f"model-{call_count}")
-
-        factory = MockFactory(create_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
-
-        await eval_runtime._ensure_metadata_loaded()
-        first_model = eval_runtime._agent_model
-
-        await eval_runtime._ensure_metadata_loaded()
-        second_model = eval_runtime._agent_model
-
-        # Should be the same cached value
-        assert first_model == second_model == "model-1"
-
-
 class TestGetAgentModel:
     """Tests for _get_agent_model method."""
 
@@ -308,7 +230,8 @@ class TestGetAgentModel:
         trace_manager = UiPathTraceManager()
         eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
-        model = await eval_runtime._get_agent_model()
+        runtime = await create_runtime()
+        model = await eval_runtime._get_agent_model(runtime)
         assert model == "gpt-4o-2024-11-20"
 
     async def test_returns_none_when_no_model(self, context):
@@ -322,40 +245,47 @@ class TestGetAgentModel:
         trace_manager = UiPathTraceManager()
         eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
-        model = await eval_runtime._get_agent_model()
+        runtime = await create_runtime()
+        model = await eval_runtime._get_agent_model(runtime)
         assert model is None
 
-    async def test_returns_cached_model(self, context):
-        """Test that _get_agent_model uses cached value."""
+    async def test_returns_model_consistently(self, context):
+        """Test that _get_agent_model returns consistent results."""
 
         async def create_runtime():
-            return AgentModelRuntime("cached-model")
+            return AgentModelRuntime("consistent-model")
 
         factory = MockFactory(create_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
         eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
-        # First call loads metadata
-        model1 = await eval_runtime._get_agent_model()
-        # Second call should use cache
-        model2 = await eval_runtime._get_agent_model()
+        runtime = await create_runtime()
 
-        assert model1 == model2 == "cached-model"
-        assert factory.new_runtime_call_count == 1
+        # Multiple calls should return the same value
+        model1 = await eval_runtime._get_agent_model(runtime)
+        model2 = await eval_runtime._get_agent_model(runtime)
+
+        assert model1 == model2 == "consistent-model"
 
     async def test_handles_exception_gracefully(self, context):
         """Test that _get_agent_model returns None on exception."""
 
-        async def create_runtime():
-            raise RuntimeError("Factory error")
+        async def create_good_runtime():
+            return AgentModelRuntime("model")
 
-        factory = MockFactory(create_runtime)
+        factory = MockFactory(create_good_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
         eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
-        model = await eval_runtime._get_agent_model()
+        # Create a bad runtime that raises during get_agent_model
+        class BadRuntime(BaseTestRuntime):
+            def get_agent_model(self):
+                raise RuntimeError("Get model error")
+
+        bad_runtime = BadRuntime()
+        model = await eval_runtime._get_agent_model(bad_runtime)
         assert model is None
 
 
@@ -382,12 +312,13 @@ class TestGetSchema:
         trace_manager = UiPathTraceManager()
         eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
-        schema = await eval_runtime.get_schema()
+        runtime = await create_runtime()
+        schema = await eval_runtime.get_schema(runtime)
         assert schema is not None
         assert schema.file_path == "test.py"
 
-    async def test_returns_cached_schema(self, context):
-        """Test that get_schema uses cached value."""
+    async def test_returns_schema_consistently(self, context):
+        """Test that get_schema returns consistent results."""
 
         async def create_runtime():
             return BaseTestRuntime()
@@ -397,16 +328,17 @@ class TestGetSchema:
         trace_manager = UiPathTraceManager()
         eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
-        # First call loads metadata
-        schema1 = await eval_runtime.get_schema()
-        # Second call should use cache
-        schema2 = await eval_runtime.get_schema()
+        runtime = await create_runtime()
 
-        assert schema1 is schema2
-        assert factory.new_runtime_call_count == 1
+        # Multiple calls should return equivalent values
+        schema1 = await eval_runtime.get_schema(runtime)
+        schema2 = await eval_runtime.get_schema(runtime)
 
-    async def test_schema_and_model_share_runtime(self, context):
-        """Test that get_schema and _get_agent_model share the same runtime creation."""
+        # Should have the same properties
+        assert schema1.file_path == schema2.file_path == "test.py"
+
+    async def test_schema_and_model_work_with_same_runtime(self, context):
+        """Test that get_schema and _get_agent_model work with the same runtime."""
 
         async def create_runtime():
             return AgentModelRuntime("shared-model")
@@ -416,13 +348,15 @@ class TestGetSchema:
         trace_manager = UiPathTraceManager()
         eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
-        # Call both methods
-        schema = await eval_runtime.get_schema()
-        model = await eval_runtime._get_agent_model()
+        runtime = await create_runtime()
 
-        # Should only create one runtime
-        assert factory.new_runtime_call_count == 1
+        # Call both methods with the same runtime
+        schema = await eval_runtime.get_schema(runtime)
+        model = await eval_runtime._get_agent_model(runtime)
+
+        # Both should work correctly
         assert schema is not None
+        assert schema.file_path == "test.py"
         assert model == "shared-model"
 
 
@@ -461,5 +395,5 @@ class TestWrappedRuntimeModelResolution:
         trace_manager = UiPathTraceManager()
         eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
 
-        model = await eval_runtime._get_agent_model()
+        model = await eval_runtime._get_agent_model(resumable_runtime)
         assert model == "gpt-4o-from-agent-json"
