@@ -109,7 +109,7 @@ def generate_agent_md_file(
 
 
 def generate_agent_md_files(target_directory: str, no_agents_md_override: bool) -> None:
-    """Generate an agent-specific file from the packaged resource.
+    """Generate AGENTS.md related files and Claude Code skills.
 
     Args:
         target_directory: The directory where the files should be created.
@@ -117,26 +117,30 @@ def generate_agent_md_files(target_directory: str, no_agents_md_override: bool) 
     """
     agent_dir = os.path.join(target_directory, ".agent")
     os.makedirs(agent_dir, exist_ok=True)
+    claude_commands_dir = os.path.join(target_directory, ".claude", "commands")
+    os.makedirs(claude_commands_dir, exist_ok=True)
 
-    root_files = ["AGENTS.md", "CLAUDE.md"]
-
-    agent_files = ["CLI_REFERENCE.md", "REQUIRED_STRUCTURE.md", "SDK_REFERENCE.md"]
+    files_to_create = {
+        target_directory: ["AGENTS.md", "CLAUDE.md"],
+        agent_dir: ["CLI_REFERENCE.md", "REQUIRED_STRUCTURE.md", "SDK_REFERENCE.md"],
+        claude_commands_dir: ["new-agent.md", "eval.md"],
+    }
 
     any_overridden = False
-
-    for file_name in root_files:
-        if generate_agent_md_file(target_directory, file_name, no_agents_md_override):
-            any_overridden = True
-
-    for file_name in agent_files:
-        if generate_agent_md_file(agent_dir, file_name, no_agents_md_override):
-            any_overridden = True
+    for directory, filenames in files_to_create.items():
+        for filename in filenames:
+            if generate_agent_md_file(directory, filename, no_agents_md_override):
+                any_overridden = True
 
     if any_overridden:
-        console.success(f"Updated {click.style('AGENTS.md', fg='cyan')} related files.")
+        console.success(
+            f"Updated {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
+        )
         return
 
-    console.success(f"Created {click.style('AGENTS.md', fg='cyan')} related files.")
+    console.success(
+        f"Created {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
+    )
 
 
 def write_bindings_file(bindings: Bindings) -> Path:
