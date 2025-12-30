@@ -47,6 +47,8 @@ class AgentEscalationRecipientType(str, Enum):
     GROUP_ID = "GroupId"
     USER_EMAIL = "UserEmail"
     ASSET_USER_EMAIL = "AssetUserEmail"
+    GROUP_NAME = "GroupName"
+    ASSET_GROUP_NAME = "AssetGroupName"
 
 
 class AgentContextRetrievalMode(str, Enum):
@@ -218,17 +220,19 @@ class StandardRecipient(BaseEscalationRecipient):
         AgentEscalationRecipientType.USER_ID,
         AgentEscalationRecipientType.GROUP_ID,
         AgentEscalationRecipientType.USER_EMAIL,
+        AgentEscalationRecipientType.GROUP_NAME,
     ] = Field(..., alias="type")
     value: str = Field(..., alias="value")
     display_name: Optional[str] = Field(default=None, alias="displayName")
 
 
 class AssetRecipient(BaseEscalationRecipient):
-    """Asset recipient with assetName and folderPath (for AssetUserEmail)."""
+    """Asset recipient with assetName and folderPath (for AssetUserEmail/AssetGroupName)."""
 
-    type: Literal[AgentEscalationRecipientType.ASSET_USER_EMAIL] = Field(
-        ..., alias="type"
-    )
+    type: Literal[
+        AgentEscalationRecipientType.ASSET_USER_EMAIL,
+        AgentEscalationRecipientType.ASSET_GROUP_NAME,
+    ] = Field(..., alias="type")
     asset_name: str = Field(..., alias="assetName")
     folder_path: str = Field(..., alias="folderPath")
 
@@ -658,6 +662,8 @@ class AgentDefinition(BaseModel):
                 2: AgentEscalationRecipientType.GROUP_ID,
                 3: AgentEscalationRecipientType.USER_EMAIL,
                 4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+                5: AgentEscalationRecipientType.GROUP_NAME,
+                6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
             }
             recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
 
