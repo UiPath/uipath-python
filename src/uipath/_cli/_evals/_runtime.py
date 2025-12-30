@@ -7,7 +7,16 @@ from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from time import time
-from typing import Any, Awaitable, Iterable, Iterator, Sequence, Tuple
+from typing import (
+    Any,
+    Awaitable,
+    Iterable,
+    Iterator,
+    Protocol,
+    Sequence,
+    Tuple,
+    runtime_checkable,
+)
 
 import coverage
 from opentelemetry import context as context_api
@@ -72,6 +81,25 @@ from .mocks.mocks import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class LLMAgentRuntimeProtocol(Protocol):
+    """Protocol for runtimes that can provide agent model information.
+
+    Runtimes that implement this protocol can be queried for
+    the agent's configured LLM model, enabling features like 'same-as-agent'
+    model resolution for evaluators.
+    """
+
+    def get_agent_model(self) -> str | None:
+        """Return the agent's configured LLM model name.
+
+        Returns:
+            The model name from agent settings (e.g., 'gpt-4o-2024-11-20'),
+            or None if no model is configured.
+        """
+        ...
 
 class ExecutionSpanExporter(SpanExporter):
     """Custom exporter that stores spans grouped by execution ids."""
@@ -186,6 +214,8 @@ class UiPathEvalRuntime:
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
         self.schema: UiPathRuntimeSchema | None = None
+        self._agent_model: str | None = None
+        self._metadata_loaded: bool = False
         self.coverage = coverage.Coverage(branch=True)
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
@@ -198,14 +228,33 @@ class UiPathEvalRuntime:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
 
-    async def get_schema(self) -> UiPathRuntimeSchema:
-        if not self.schema:
-            temp_runtime = await self.factory.new_runtime(
-                entrypoint=self.context.entrypoint or "",
-                runtime_id="default",
-            )
+    async def _ensure_metadata_loaded(self) -> None:
+        """Load metadata (schema, agent model) from a single temporary runtime.
+
+        This method creates one temporary runtime to fetch both schema and agent
+        model, avoiding the overhead of creating multiple runtimes for metadata
+        queries. Results are cached for subsequent access.
+        """
+        if self._metadata_loaded:
+            return
+
+        temp_runtime = await self.factory.new_runtime(
+            entrypoint=self.context.entrypoint or "",
+            runtime_id="metadata-query",
+        )
+        try:
             self.schema = await temp_runtime.get_schema()
+            self._agent_model = self._find_agent_model_in_runtime(temp_runtime)
+            if self._agent_model:
+                logger.debug(f"Got agent model from runtime: {self._agent_model}")
+            self._metadata_loaded = True
+        finally:
             await temp_runtime.dispose()
+
+    async def get_schema(self) -> UiPathRuntimeSchema:
+        await self._ensure_metadata_loaded()
+        if self.schema is None:
+            raise ValueError("Schema could not be loaded")
         return self.schema
 
     @contextmanager
@@ -238,7 +287,7 @@ class UiPathEvalRuntime:
         evaluation_set, _ = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
-        evaluators = self._load_evaluators(evaluation_set)
+        evaluators = await self._load_evaluators(evaluation_set)
 
         await self.event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
@@ -699,7 +748,48 @@ class UiPathEvalRuntime:
 
         return result
 
-    def _load_evaluators(
+    async def _get_agent_model(self) -> str | None:
+        """Get agent model from the runtime.
+
+        Uses the cached metadata from _ensure_metadata_loaded(), which creates
+        a single temporary runtime to fetch both schema and agent model.
+
+        Returns:
+            The model name from agent settings, or None if not found.
+        """
+        try:
+            await self._ensure_metadata_loaded()
+            return self._agent_model
+        except Exception:
+            return None
+
+    def _find_agent_model_in_runtime(self, runtime: Any) -> str | None:
+        """Recursively search for get_agent_model in runtime and its delegates.
+
+        Runtimes may be wrapped (e.g., ResumableRuntime wraps TelemetryWrapper
+        which wraps the base runtime). This method traverses the wrapper chain
+        to find a runtime that implements LLMAgentRuntimeProtocol.
+
+        Args:
+            runtime: The runtime to check (may be a wrapper)
+
+        Returns:
+            The model name if found, None otherwise.
+        """
+        # Check if this runtime implements the protocol
+        if isinstance(runtime, LLMAgentRuntimeProtocol):
+            return runtime.get_agent_model()
+
+        # Check for delegate property (used by UiPathResumableRuntime, TelemetryRuntimeWrapper)
+        delegate = getattr(runtime, "delegate", None) or getattr(
+            runtime, "_delegate", None
+        )
+        if delegate is not None:
+            return self._find_agent_model_in_runtime(delegate)
+
+        return None
+
+    async def _load_evaluators(
         self, evaluation_set: EvaluationSet
     ) -> list[BaseEvaluator[Any, Any, Any]]:
         """Load evaluators referenced by the evaluation set."""
@@ -708,6 +798,9 @@ class UiPathEvalRuntime:
         if eval_set is None:
             raise ValueError("eval_set cannot be None")
         evaluators_dir = Path(eval_set).parent.parent / "evaluators"
+
+        # Load agent model for 'same-as-agent' resolution in legacy evaluators
+        agent_model = await self._get_agent_model()
 
         # If evaluatorConfigs is specified, use that (new field with weights)
         # Otherwise, fall back to evaluatorRefs (old field without weights)
@@ -736,7 +829,9 @@ class UiPathEvalRuntime:
             try:
                 evaluator_id = data.get("id")
                 if evaluator_id in evaluator_ref_ids:
-                    evaluator = EvaluatorFactory.create_evaluator(data, evaluators_dir)
+                    evaluator = EvaluatorFactory.create_evaluator(
+                        data, evaluators_dir, agent_model=agent_model
+                    )
                     evaluators.append(evaluator)
                     found_evaluator_ids.add(evaluator_id)
             except Exception as e:
