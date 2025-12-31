@@ -1,6 +1,5 @@
 """Configurable runtime factory that supports model settings overrides."""
 
-import inspect
 import json
 import logging
 import os
@@ -27,7 +26,9 @@ class ConfigurableRuntimeFactory:
         self.model_settings_override: EvaluationSetModelSettings | None = None
         self._temp_files: list[str] = []
 
-    def set_model_settings_override(self, settings: EvaluationSetModelSettings | None) -> None:
+    def set_model_settings_override(
+        self, settings: EvaluationSetModelSettings | None
+    ) -> None:
         """Set model settings to override when creating runtimes.
 
         Args:
@@ -35,7 +36,9 @@ class ConfigurableRuntimeFactory:
         """
         self.model_settings_override = settings
 
-    async def new_runtime(self, entrypoint: str, runtime_id: str) -> UiPathRuntimeProtocol:
+    async def new_runtime(
+        self, entrypoint: str, runtime_id: str
+    ) -> UiPathRuntimeProtocol:
         """Create a new runtime with optional model settings overrides.
 
         If model settings override is configured, creates a temporary modified
@@ -53,7 +56,9 @@ class ConfigurableRuntimeFactory:
             return await self.base_factory.new_runtime(entrypoint, runtime_id)
 
         # Apply overrides by creating modified entrypoint
-        modified_entrypoint = self._apply_overrides(entrypoint, self.model_settings_override)
+        modified_entrypoint = self._apply_overrides(
+            entrypoint, self.model_settings_override
+        )
         if modified_entrypoint:
             # Track temp file for cleanup
             self._temp_files.append(modified_entrypoint)
@@ -62,7 +67,9 @@ class ConfigurableRuntimeFactory:
         # If override failed, fall back to original
         return await self.base_factory.new_runtime(entrypoint, runtime_id)
 
-    def _apply_overrides(self, entrypoint: str, settings: EvaluationSetModelSettings) -> str | None:
+    def _apply_overrides(
+        self, entrypoint: str, settings: EvaluationSetModelSettings
+    ) -> str | None:
         """Apply model settings overrides to an agent entrypoint.
 
         Creates a temporary modified version of the entrypoint file with
@@ -75,8 +82,13 @@ class ConfigurableRuntimeFactory:
         Returns:
             Path to temporary modified entrypoint, or None if override not needed/failed
         """
-        if settings.model == "same-as-agent" and settings.temperature == "same-as-agent":
-            logger.debug("Both model and temperature are 'same-as-agent', no override needed")
+        if (
+            settings.model == "same-as-agent"
+            and settings.temperature == "same-as-agent"
+        ):
+            logger.debug(
+                "Both model and temperature are 'same-as-agent', no override needed"
+            )
             return None
 
         entrypoint_path = Path(entrypoint)
@@ -85,7 +97,7 @@ class ConfigurableRuntimeFactory:
             return None
 
         try:
-            with open(entrypoint_path, 'r') as f:
+            with open(entrypoint_path, "r") as f:
                 agent_data = json.load(f)
         except (json.JSONDecodeError, IOError) as e:
             logger.error(f"Failed to load entrypoint file: {e}")
@@ -97,7 +109,9 @@ class ConfigurableRuntimeFactory:
         # Override model if not "same-as-agent"
         if settings.model != "same-as-agent":
             modified_settings["model"] = settings.model
-            logger.debug(f"Overriding model: {original_settings.get('model')} -> {settings.model}")
+            logger.debug(
+                f"Overriding model: {original_settings.get('model')} -> {settings.model}"
+            )
 
         # Override temperature if not "same-as-agent"
         if settings.temperature not in ["same-as-agent", None]:
@@ -107,7 +121,9 @@ class ConfigurableRuntimeFactory:
                 try:
                     modified_settings["temperature"] = float(settings.temperature)
                 except ValueError:
-                    logger.warning(f"Invalid temperature value: '{settings.temperature}'")
+                    logger.warning(
+                        f"Invalid temperature value: '{settings.temperature}'"
+                    )
 
             if "temperature" in modified_settings:
                 logger.debug(
@@ -122,8 +138,10 @@ class ConfigurableRuntimeFactory:
 
         # Create a temporary file with the modified agent definition
         try:
-            temp_fd, temp_path = tempfile.mkstemp(suffix=".json", prefix="agent_override_")
-            with os.fdopen(temp_fd, 'w') as temp_file:
+            temp_fd, temp_path = tempfile.mkstemp(
+                suffix=".json", prefix="agent_override_"
+            )
+            with os.fdopen(temp_fd, "w") as temp_file:
                 json.dump(agent_data, temp_file, indent=2)
 
             logger.info(f"Created temporary entrypoint with overrides: {temp_path}")
@@ -145,5 +163,5 @@ class ConfigurableRuntimeFactory:
         self._temp_files.clear()
 
         # Delegate disposal to base factory
-        if hasattr(self.base_factory, 'dispose'):
+        if hasattr(self.base_factory, "dispose"):
             await self.base_factory.dispose()

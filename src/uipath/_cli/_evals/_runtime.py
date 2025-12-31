@@ -56,14 +56,12 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
+from ._configurable_factory import ConfigurableRuntimeFactory
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
     EvaluationSet,
-    EvaluationSetModelSettings,
-    LegacyEvaluationSet,
 )
-from ._configurable_factory import ConfigurableRuntimeFactory
 from ._models._exceptions import EvaluationRuntimeException
 from ._models._output import (
     EvaluationResultDto,
@@ -100,6 +98,7 @@ class LLMAgentRuntimeProtocol(Protocol):
             or None if no model is configured.
         """
         ...
+
 
 class ExecutionSpanExporter(SpanExporter):
     """Custom exporter that stores spans grouped by execution ids."""
@@ -227,7 +226,7 @@ class UiPathEvalRuntime:
             self.coverage.report(include=["./*"], show_missing=True)
 
         # Clean up any temporary files created by the factory
-        if hasattr(self.factory, 'dispose'):
+        if hasattr(self.factory, "dispose"):
             await self.factory.dispose()
 
     async def get_schema(self, runtime: UiPathRuntimeProtocol) -> UiPathRuntimeSchema:
@@ -561,23 +560,35 @@ class UiPathEvalRuntime:
     async def _configure_model_settings_override(self) -> None:
         """Configure the factory with model settings override if specified."""
         # Skip if no model settings ID specified
-        if not self.context.model_settings_id or self.context.model_settings_id == "default":
+        if (
+            not self.context.model_settings_id
+            or self.context.model_settings_id == "default"
+        ):
             return
 
         # Load evaluation set to get model settings
         evaluation_set, _ = EvalHelpers.load_eval_set(self.context.eval_set or "")
-        if not hasattr(evaluation_set, 'model_settings') or not evaluation_set.model_settings:
+        if (
+            not hasattr(evaluation_set, "model_settings")
+            or not evaluation_set.model_settings
+        ):
             logger.warning("No model settings available in evaluation set")
             return
 
         # Find the specified model settings
         target_model_settings = next(
-            (ms for ms in evaluation_set.model_settings if ms.id == self.context.model_settings_id),
-            None
+            (
+                ms
+                for ms in evaluation_set.model_settings
+                if ms.id == self.context.model_settings_id
+            ),
+            None,
         )
 
         if not target_model_settings:
-            logger.warning(f"Model settings ID '{self.context.model_settings_id}' not found in evaluation set")
+            logger.warning(
+                f"Model settings ID '{self.context.model_settings_id}' not found in evaluation set"
+            )
             return
 
         logger.info(

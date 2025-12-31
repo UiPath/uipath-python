@@ -2,9 +2,10 @@
 
 import json
 import tempfile
-import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from uipath._cli._evals._configurable_factory import ConfigurableRuntimeFactory
 from uipath._cli._evals._models._evaluation_set import EvaluationSetModelSettings
@@ -29,14 +30,9 @@ async def test_configurable_factory_no_override():
 async def test_configurable_factory_with_model_override():
     """Test factory with model override."""
     # Create a temporary agent.json file
-    test_agent = {
-        "settings": {
-            "model": "gpt-4",
-            "temperature": 0.7
-        }
-    }
+    test_agent = {"settings": {"model": "gpt-4", "temperature": 0.7}}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(test_agent, f)
         temp_path = f.name
 
@@ -49,9 +45,7 @@ async def test_configurable_factory_with_model_override():
 
         # Set model override
         settings = EvaluationSetModelSettings(
-            id="test-settings",
-            model="gpt-3.5-turbo",
-            temperature="same-as-agent"
+            id="test-settings", model="gpt-3.5-turbo", temperature="same-as-agent"
         )
         factory.set_model_settings_override(settings)
 
@@ -79,14 +73,9 @@ async def test_configurable_factory_with_model_override():
 async def test_configurable_factory_same_as_agent():
     """Test factory when both settings are 'same-as-agent'."""
     # Create a temporary agent.json file
-    test_agent = {
-        "settings": {
-            "model": "gpt-4",
-            "temperature": 0.7
-        }
-    }
+    test_agent = {"settings": {"model": "gpt-4", "temperature": 0.7}}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(test_agent, f)
         temp_path = f.name
 
@@ -99,9 +88,7 @@ async def test_configurable_factory_same_as_agent():
 
         # Set "same-as-agent" for both
         settings = EvaluationSetModelSettings(
-            id="test-settings",
-            model="same-as-agent",
-            temperature="same-as-agent"
+            id="test-settings", model="same-as-agent", temperature="same-as-agent"
         )
         factory.set_model_settings_override(settings)
 
@@ -119,14 +106,9 @@ async def test_configurable_factory_same_as_agent():
 async def test_configurable_factory_temperature_override():
     """Test factory with temperature override."""
     # Create a temporary agent.json file
-    test_agent = {
-        "settings": {
-            "model": "gpt-4",
-            "temperature": 0.7
-        }
-    }
+    test_agent = {"settings": {"model": "gpt-4", "temperature": 0.7}}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(test_agent, f)
         temp_path = f.name
 
@@ -139,9 +121,7 @@ async def test_configurable_factory_temperature_override():
 
         # Set temperature override
         settings = EvaluationSetModelSettings(
-            id="test-settings",
-            model="same-as-agent",
-            temperature=0.2
+            id="test-settings", model="same-as-agent", temperature=0.2
         )
         factory.set_model_settings_override(settings)
 
@@ -166,14 +146,9 @@ async def test_configurable_factory_temperature_override():
 @pytest.mark.asyncio
 async def test_configurable_factory_cleanup():
     """Test that temporary files are cleaned up."""
-    test_agent = {
-        "settings": {
-            "model": "gpt-4",
-            "temperature": 0.7
-        }
-    }
+    test_agent = {"settings": {"model": "gpt-4", "temperature": 0.7}}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(test_agent, f)
         temp_path = f.name
 
@@ -185,9 +160,7 @@ async def test_configurable_factory_cleanup():
         factory = ConfigurableRuntimeFactory(mock_base_factory)
 
         settings = EvaluationSetModelSettings(
-            id="test-settings",
-            model="gpt-3.5-turbo",
-            temperature=0.5
+            id="test-settings", model="gpt-3.5-turbo", temperature=0.5
         )
         factory.set_model_settings_override(settings)
 

@@ -79,7 +79,7 @@ class ModelSettings(BaseModel):
 
 
 class EvaluationSetModelSettings(ModelSettings):
-    """Model setting overrides within evaluation sets with ID"""
+    """Model setting overrides within evaluation sets with ID."""
 
     id: str = Field(..., alias="id")
 
