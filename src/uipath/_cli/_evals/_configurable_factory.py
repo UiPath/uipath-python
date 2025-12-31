@@ -1,11 +1,11 @@
 """Configurable runtime factory that supports model settings overrides."""
 
+import inspect
 import json
+import logging
 import os
 import tempfile
-import logging
 from pathlib import Path
-from typing import Any
 
 from uipath.runtime import UiPathRuntimeFactoryProtocol, UiPathRuntimeProtocol
 
@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigurableRuntimeFactory:
-    """
-    Wrapper factory that supports model settings overrides for evaluation runs.
+    """Wrapper factory that supports model settings overrides for evaluation runs.
 
     This factory wraps an existing UiPathRuntimeFactoryProtocol implementation
     and allows applying model settings overrides when creating runtimes.
@@ -29,8 +28,7 @@ class ConfigurableRuntimeFactory:
         self._temp_files: list[str] = []
 
     def set_model_settings_override(self, settings: EvaluationSetModelSettings | None) -> None:
-        """
-        Set model settings to override when creating runtimes.
+        """Set model settings to override when creating runtimes.
 
         Args:
             settings: The model settings to apply, or None to clear overrides
@@ -38,8 +36,7 @@ class ConfigurableRuntimeFactory:
         self.model_settings_override = settings
 
     async def new_runtime(self, entrypoint: str, runtime_id: str) -> UiPathRuntimeProtocol:
-        """
-        Create a new runtime with optional model settings overrides.
+        """Create a new runtime with optional model settings overrides.
 
         If model settings override is configured, creates a temporary modified
         entrypoint file with the overridden settings.
@@ -66,8 +63,7 @@ class ConfigurableRuntimeFactory:
         return await self.base_factory.new_runtime(entrypoint, runtime_id)
 
     def _apply_overrides(self, entrypoint: str, settings: EvaluationSetModelSettings) -> str | None:
-        """
-        Apply model settings overrides to an agent entrypoint.
+        """Apply model settings overrides to an agent entrypoint.
 
         Creates a temporary modified version of the entrypoint file with
         the specified model settings overrides applied.
@@ -151,16 +147,3 @@ class ConfigurableRuntimeFactory:
         # Delegate disposal to base factory
         if hasattr(self.base_factory, 'dispose'):
             await self.base_factory.dispose()
-
-    # Delegate other factory protocol methods to base factory
-    async def discover_entrypoints(self) -> list[str]:
-        """Discover available entrypoints from the base factory."""
-        if hasattr(self.base_factory, 'discover_entrypoints'):
-            return await self.base_factory.discover_entrypoints()
-        return []
-
-    async def discover_runtimes(self) -> list[UiPathRuntimeProtocol]:
-        """Discover available runtimes from the base factory."""
-        if hasattr(self.base_factory, 'discover_runtimes'):
-            return await self.base_factory.discover_runtimes()
-        return []
