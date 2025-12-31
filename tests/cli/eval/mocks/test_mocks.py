@@ -216,7 +216,7 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
         "type": "json_schema",
         "json_schema": {
             "name": "OutputSchema",
-            "strict": True,
+            "strict": False,
             "schema": {"type": "string"},
         },
     }
@@ -317,7 +317,7 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
         "type": "json_schema",
         "json_schema": {
             "name": "OutputSchema",
-            "strict": True,
+            "strict": False,
             "schema": {"type": "string"},
         },
     }
@@ -416,7 +416,7 @@ def test_llm_mockable_with_output_schema_sync(
         "type": "json_schema",
         "json_schema": {
             "name": "OutputSchema",
-            "strict": True,
+            "strict": False,
             "schema": {
                 "required": ["content"],
                 "type": "object",
@@ -509,7 +509,7 @@ async def test_llm_mockable_with_output_schema_async(
         "type": "json_schema",
         "json_schema": {
             "name": "OutputSchema",
-            "strict": True,
+            "strict": False,
             "schema": {
                 "required": ["content"],
                 "type": "object",
