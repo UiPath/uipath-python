@@ -292,7 +292,7 @@ class UiPathEvalRuntime:
     async def execute(self) -> UiPathRuntimeResult:
         # Configure model settings override before creating runtime
         await self._configure_model_settings_override()
-        
+
         runtime = await self.factory.new_runtime(
             entrypoint=self.context.entrypoint or "",
             runtime_id=self.execution_id,
