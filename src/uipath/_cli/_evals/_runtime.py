@@ -56,6 +56,7 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
+from ._configurable_factory import ConfigurableRuntimeFactory
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
@@ -184,6 +185,7 @@ class UiPathEvalContext:
     verbose: bool = False
     enable_mocker_cache: bool = False
     report_coverage: bool = False
+    model_settings_id: str = "default"
 
 
 class UiPathEvalRuntime:
@@ -197,7 +199,8 @@ class UiPathEvalRuntime:
         event_bus: EventBus,
     ):
         self.context: UiPathEvalContext = context
-        self.factory: UiPathRuntimeFactoryProtocol = factory
+        # Wrap the factory to support model settings overrides
+        self.factory = ConfigurableRuntimeFactory(factory)
         self.event_bus: EventBus = event_bus
         self.trace_manager: UiPathTraceManager = trace_manager
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
@@ -221,6 +224,10 @@ class UiPathEvalRuntime:
         if self.context.report_coverage:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
+
+        # Clean up any temporary files created by the factory
+        if hasattr(self.factory, "dispose"):
+            await self.factory.dispose()
 
     async def get_schema(self, runtime: UiPathRuntimeProtocol) -> UiPathRuntimeSchema:
         schema = await runtime.get_schema()
@@ -283,6 +290,9 @@ class UiPathEvalRuntime:
         )
 
     async def execute(self) -> UiPathRuntimeResult:
+        # Configure model settings override before creating runtime
+        await self._configure_model_settings_override()
+
         runtime = await self.factory.new_runtime(
             entrypoint=self.context.entrypoint or "",
             runtime_id=self.execution_id,
@@ -549,6 +559,48 @@ class UiPathEvalRuntime:
         self.logs_exporter.clear(execution_id)
 
         return spans, logs
+
+    async def _configure_model_settings_override(self) -> None:
+        """Configure the factory with model settings override if specified."""
+        # Skip if no model settings ID specified
+        if (
+            not self.context.model_settings_id
+            or self.context.model_settings_id == "default"
+        ):
+            return
+
+        # Load evaluation set to get model settings
+        evaluation_set, _ = EvalHelpers.load_eval_set(self.context.eval_set or "")
+        if (
+            not hasattr(evaluation_set, "model_settings")
+            or not evaluation_set.model_settings
+        ):
+            logger.warning("No model settings available in evaluation set")
+            return
+
+        # Find the specified model settings
+        target_model_settings = next(
+            (
+                ms
+                for ms in evaluation_set.model_settings
+                if ms.id == self.context.model_settings_id
+            ),
+            None,
+        )
+
+        if not target_model_settings:
+            logger.warning(
+                f"Model settings ID '{self.context.model_settings_id}' not found in evaluation set"
+            )
+            return
+
+        logger.info(
+            f"Configuring model settings override: id='{target_model_settings.id}', "
+            f"model='{target_model_settings.model}', temperature='{target_model_settings.temperature}'"
+        )
+
+        # Configure the factory with the override settings
+        self.factory.set_model_settings_override(target_model_settings)
 
     async def execute_runtime(
         self,

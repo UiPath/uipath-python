@@ -70,12 +70,18 @@ class ModelSettings(BaseModel):
     """Model Generation Parameters."""
 
     model: str = Field(..., alias="model")
-    temperature: float | None = Field(default=None, alias="temperature")
+    temperature: float | str | None = Field(default=None, alias="temperature")
     top_p: float | None = Field(default=None, alias="topP")
     top_k: int | None = Field(default=None, alias="topK")
     frequency_penalty: float | None = Field(default=None, alias="frequencyPenalty")
     presence_penalty: float | None = Field(default=None, alias="presencePenalty")
     max_tokens: int | None = Field(default=None, alias="maxTokens")
+
+
+class EvaluationSetModelSettings(ModelSettings):
+    """Model setting overrides within evaluation sets with ID."""
+
+    id: str = Field(..., alias="id")
 
 
 class LLMMockingStrategy(BaseMockingStrategy):
@@ -211,6 +217,9 @@ class EvaluationSet(BaseModel):
         default_factory=list, alias="evaluatorConfigs"
     )
     evaluations: list[EvaluationItem] = Field(default_factory=list)
+    model_settings: list[EvaluationSetModelSettings] = Field(
+        default_factory=list, alias="modelSettings"
+    )
 
     def extract_selected_evals(self, eval_ids) -> None:
         selected_evals: list[EvaluationItem] = []
@@ -239,7 +248,7 @@ class LegacyEvaluationSet(BaseModel):
     name: str
     batch_size: int = Field(10, alias="batchSize")
     timeout_minutes: int = Field(default=20, alias="timeoutMinutes")
-    model_settings: list[dict[str, Any]] = Field(
+    model_settings: list[EvaluationSetModelSettings] = Field(
         default_factory=list, alias="modelSettings"
     )
     created_at: str = Field(alias="createdAt")
