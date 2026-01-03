@@ -56,10 +56,12 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
+from ._configurable_factory import ConfigurableRuntimeFactory
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
     EvaluationSet,
+    EvaluationSetModelSettings,
 )
 from ._models._exceptions import EvaluationRuntimeException
 from ._models._output import (
@@ -212,6 +214,8 @@ class UiPathEvalRuntime:
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
         self.coverage = coverage.Coverage(branch=True)
+        # Factory wrapper used for fallback when runtime doesn't support kwargs
+        self._configurable_factory: ConfigurableRuntimeFactory | None = None
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
         if self.context.report_coverage:
@@ -222,6 +226,10 @@ class UiPathEvalRuntime:
         if self.context.report_coverage:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
+
+        # Clean up configurable factory wrapper if used for fallback
+        if self._configurable_factory:
+            await self._configurable_factory.dispose()
 
         # Clean up any temporary files created by the factory
         if hasattr(self.factory, "dispose"):
@@ -609,7 +617,8 @@ class UiPathEvalRuntime:
 
         This method tries to pass settings to the factory's new_runtime() method.
         If the factory doesn't support the settings kwarg (older uipath-runtime),
-        it falls back to creating the runtime without settings.
+        it falls back to using ConfigurableRuntimeFactory which modifies the
+        agent.json entrypoint file directly.
 
         Args:
             settings_override: Model settings dict to pass to factory, or None.
@@ -628,15 +637,48 @@ class UiPathEvalRuntime:
                     settings=settings_override,
                 )
             except TypeError:
-                logger.warning(
-                    "Factory does not support settings override. "
-                    "Upgrade uipath-runtime to >=0.4.0 for model settings override."
+                # Factory doesn't support kwargs - use ConfigurableRuntimeFactory
+                # as fallback (modifies agent.json with temp file approach)
+                logger.info(
+                    "Factory does not support settings kwargs. "
+                    "Using ConfigurableRuntimeFactory fallback for model override."
+                )
+                return await self._create_runtime_with_configurable_factory(
+                    entrypoint, runtime_id, settings_override
                 )
 
         return await self.factory.new_runtime(
             entrypoint=entrypoint,
             runtime_id=runtime_id,
         )
+
+    async def _create_runtime_with_configurable_factory(
+        self,
+        entrypoint: str,
+        runtime_id: str,
+        settings_override: dict[str, Any],
+    ) -> UiPathRuntimeProtocol:
+        """Create runtime using ConfigurableRuntimeFactory for older runtime versions.
+
+        This fallback approach wraps the factory and creates a modified temp
+        agent.json file with the settings overrides applied.
+
+        Args:
+            entrypoint: Path to agent.json entrypoint
+            runtime_id: Unique runtime identifier
+            settings_override: Model settings dict to apply
+
+        Returns:
+            The created runtime instance with settings applied.
+        """
+        # Create EvaluationSetModelSettings from the dict
+        model_settings = EvaluationSetModelSettings(**settings_override)
+
+        # Create and store the configurable factory wrapper
+        self._configurable_factory = ConfigurableRuntimeFactory(self.factory)
+        self._configurable_factory.set_model_settings_override(model_settings)
+
+        return await self._configurable_factory.new_runtime(entrypoint, runtime_id)
 
     async def execute_runtime(
         self,
