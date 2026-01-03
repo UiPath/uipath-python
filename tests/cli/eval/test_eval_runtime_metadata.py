@@ -118,7 +118,7 @@ class MockFactory:
         return [await self.runtime_creator()]
 
     async def new_runtime(
-        self, entrypoint: str, runtime_id: str
+        self, entrypoint: str, runtime_id: str, **kwargs
     ) -> UiPathRuntimeProtocol:
         self.new_runtime_call_count += 1
         return await self.runtime_creator()
