@@ -49,7 +49,7 @@ class UiPathFunctionsRuntimeFactory:
         return [self._create_runtime(ep) for ep in self.discover_entrypoints()]
 
     async def new_runtime(
-        self, entrypoint: str, runtime_id: str
+        self, entrypoint: str, runtime_id: str, **kwargs
     ) -> UiPathRuntimeProtocol:
         """Create a new runtime instance for the given entrypoint."""
         return self._create_runtime(entrypoint)
