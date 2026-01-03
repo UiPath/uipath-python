@@ -56,7 +56,6 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
-from ._configurable_factory import ConfigurableRuntimeFactory
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
@@ -199,8 +198,7 @@ class UiPathEvalRuntime:
         event_bus: EventBus,
     ):
         self.context: UiPathEvalContext = context
-        # Wrap the factory to support model settings overrides
-        self.factory = ConfigurableRuntimeFactory(factory)
+        self.factory: UiPathRuntimeFactoryProtocol = factory
         self.event_bus: EventBus = event_bus
         self.trace_manager: UiPathTraceManager = trace_manager
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
@@ -290,13 +288,11 @@ class UiPathEvalRuntime:
         )
 
     async def execute(self) -> UiPathRuntimeResult:
-        # Configure model settings override before creating runtime
-        await self._configure_model_settings_override()
+        # Get model settings override from eval set if specified
+        settings_override = self._get_model_settings_override()
 
-        runtime = await self.factory.new_runtime(
-            entrypoint=self.context.entrypoint or "",
-            runtime_id=self.execution_id,
-        )
+        # Create runtime, passing settings override via kwargs (uipath-runtime>=0.4.0)
+        runtime = await self._create_runtime_with_settings(settings_override)
         try:
             with self._mocker_cache():
                 (
@@ -560,14 +556,18 @@ class UiPathEvalRuntime:
 
         return spans, logs
 
-    async def _configure_model_settings_override(self) -> None:
-        """Configure the factory with model settings override if specified."""
-        # Skip if no model settings ID specified
+    def _get_model_settings_override(self) -> dict[str, Any] | None:
+        """Get model settings override from evaluation set if specified.
+
+        Returns:
+            Model settings dict to pass via kwargs, or None if using defaults.
+        """
+        # Skip if no model settings ID specified or using default
         if (
             not self.context.model_settings_id
             or self.context.model_settings_id == "default"
         ):
-            return
+            return None
 
         # Load evaluation set to get model settings
         evaluation_set, _ = EvalHelpers.load_eval_set(self.context.eval_set or "")
@@ -576,7 +576,7 @@ class UiPathEvalRuntime:
             or not evaluation_set.model_settings
         ):
             logger.warning("No model settings available in evaluation set")
-            return
+            return None
 
         # Find the specified model settings
         target_model_settings = next(
@@ -592,15 +592,51 @@ class UiPathEvalRuntime:
             logger.warning(
                 f"Model settings ID '{self.context.model_settings_id}' not found in evaluation set"
             )
-            return
+            return None
 
         logger.info(
-            f"Configuring model settings override: id='{target_model_settings.id}', "
+            f"Using model settings override: id='{target_model_settings.id}', "
             f"model='{target_model_settings.model}', temperature='{target_model_settings.temperature}'"
         )
 
-        # Configure the factory with the override settings
-        self.factory.set_model_settings_override(target_model_settings)
+        # Return settings as dict for kwargs
+        return target_model_settings.model_dump(exclude_none=True)
+
+    async def _create_runtime_with_settings(
+        self, settings_override: dict[str, Any] | None
+    ) -> UiPathRuntimeProtocol:
+        """Create runtime, passing settings override if factory supports kwargs.
+
+        This method tries to pass settings to the factory's new_runtime() method.
+        If the factory doesn't support the settings kwarg (older uipath-runtime),
+        it falls back to creating the runtime without settings.
+
+        Args:
+            settings_override: Model settings dict to pass to factory, or None.
+
+        Returns:
+            The created runtime instance.
+        """
+        entrypoint = self.context.entrypoint or ""
+        runtime_id = self.execution_id
+
+        if settings_override:
+            try:
+                return await self.factory.new_runtime(
+                    entrypoint=entrypoint,
+                    runtime_id=runtime_id,
+                    settings=settings_override,
+                )
+            except TypeError:
+                logger.warning(
+                    "Factory does not support settings override. "
+                    "Upgrade uipath-runtime to >=0.4.0 for model settings override."
+                )
+
+        return await self.factory.new_runtime(
+            entrypoint=entrypoint,
+            runtime_id=runtime_id,
+        )
 
     async def execute_runtime(
         self,
