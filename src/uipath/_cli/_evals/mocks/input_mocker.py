@@ -89,7 +89,7 @@ async def generate_llm_input(
             "type": "json_schema",
             "json_schema": {
                 "name": "agent_input",
-                "strict": True,
+                "strict": False,
                 "schema": input_schema,
             },
         }
