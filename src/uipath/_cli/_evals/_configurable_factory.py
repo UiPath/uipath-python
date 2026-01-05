@@ -83,7 +83,7 @@ class ConfigurableRuntimeFactory:
             Path to temporary modified entrypoint, or None if override not needed/failed
         """
         if (
-            settings.model == "same-as-agent"
+            settings.model_name == "same-as-agent"
             and settings.temperature == "same-as-agent"
         ):
             logger.debug(
@@ -107,10 +107,10 @@ class ConfigurableRuntimeFactory:
         modified_settings = original_settings.copy()
 
         # Override model if not "same-as-agent"
-        if settings.model != "same-as-agent":
-            modified_settings["model"] = settings.model
+        if settings.model_name != "same-as-agent":
+            modified_settings["model"] = settings.model_name
             logger.debug(
-                f"Overriding model: {original_settings.get('model')} -> {settings.model}"
+                f"Overriding model: {original_settings.get('model')} -> {settings.model_name}"
             )
 
         # Override temperature if not "same-as-agent"

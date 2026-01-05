@@ -78,10 +78,14 @@ class ModelSettings(BaseModel):
     max_tokens: int | None = Field(default=None, alias="maxTokens")
 
 
-class EvaluationSetModelSettings(ModelSettings):
+class EvaluationSetModelSettings(BaseModel):
     """Model setting overrides within evaluation sets with ID."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(..., alias="id")
+    model_name: str = Field(..., alias="modelName")
+    temperature: float | str | None = Field(default=None, alias="temperature")
 
 
 class LLMMockingStrategy(BaseMockingStrategy):
