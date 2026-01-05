@@ -113,7 +113,7 @@ class LLMMocker(Mocker):
                 "type": "json_schema",
                 "json_schema": {
                     "name": "OutputSchema",
-                    "strict": True,
+                    "strict": False,
                     "schema": _cleanup_schema(output_schema),
                 },
             }
