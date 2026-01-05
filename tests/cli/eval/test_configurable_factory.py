@@ -45,7 +45,7 @@ async def test_configurable_factory_with_model_override():
 
         # Set model override
         settings = EvaluationSetModelSettings(
-            id="test-settings", model="gpt-3.5-turbo", temperature="same-as-agent"
+            id="test-settings", model_name="gpt-3.5-turbo", temperature="same-as-agent"
         )
         factory.set_model_settings_override(settings)
 
@@ -88,7 +88,7 @@ async def test_configurable_factory_same_as_agent():
 
         # Set "same-as-agent" for both
         settings = EvaluationSetModelSettings(
-            id="test-settings", model="same-as-agent", temperature="same-as-agent"
+            id="test-settings", model_name="same-as-agent", temperature="same-as-agent"
         )
         factory.set_model_settings_override(settings)
 
@@ -121,7 +121,7 @@ async def test_configurable_factory_temperature_override():
 
         # Set temperature override
         settings = EvaluationSetModelSettings(
-            id="test-settings", model="same-as-agent", temperature=0.2
+            id="test-settings", model_name="same-as-agent", temperature=0.2
         )
         factory.set_model_settings_override(settings)
 
@@ -160,7 +160,7 @@ async def test_configurable_factory_cleanup():
         factory = ConfigurableRuntimeFactory(mock_base_factory)
 
         settings = EvaluationSetModelSettings(
-            id="test-settings", model="gpt-3.5-turbo", temperature=0.5
+            id="test-settings", model_name="gpt-3.5-turbo", temperature=0.5
         )
         factory.set_model_settings_override(settings)
 

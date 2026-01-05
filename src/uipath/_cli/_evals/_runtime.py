@@ -596,7 +596,7 @@ class UiPathEvalRuntime:
 
         logger.info(
             f"Configuring model settings override: id='{target_model_settings.id}', "
-            f"model='{target_model_settings.model}', temperature='{target_model_settings.temperature}'"
+            f"model_name='{target_model_settings.model_name}', temperature='{target_model_settings.temperature}'"
         )
 
         # Configure the factory with the override settings
