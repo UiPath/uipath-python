@@ -613,42 +613,54 @@ class UiPathEvalRuntime:
             "evalId": eval_item.id,
             "span_type": "eval",
         }
-        execution_runtime = UiPathExecutionRuntime(
-            delegate=runtime,
-            trace_manager=self.trace_manager,
-            log_handler=log_handler,
-            execution_id=execution_id,
-            span_attributes=attributes,
+
+        # Create a new runtime with unique runtime_id for this eval execution.
+        # This ensures each eval has its own LangGraph thread_id (clean state),
+        # preventing message accumulation across eval runs.
+        eval_runtime = await self.factory.new_runtime(
+            entrypoint=self.context.entrypoint or "",
+            runtime_id=execution_id,
         )
 
-        start_time = time()
         try:
-            result = await execution_runtime.execute(
-                input=eval_item.inputs,
+            execution_runtime = UiPathExecutionRuntime(
+                delegate=eval_runtime,
+                trace_manager=self.trace_manager,
+                log_handler=log_handler,
+                execution_id=execution_id,
+                span_attributes=attributes,
             )
-        except Exception as e:
+
+            start_time = time()
+            try:
+                result = await execution_runtime.execute(
+                    input=eval_item.inputs,
+                )
+            except Exception as e:
+                end_time = time()
+                spans, logs = self._get_and_clear_execution_data(execution_id)
+
+                raise EvaluationRuntimeException(
+                    spans=spans,
+                    logs=logs,
+                    root_exception=e,
+                    execution_time=end_time - start_time,
+                ) from e
+
             end_time = time()
             spans, logs = self._get_and_clear_execution_data(execution_id)
 
-            raise EvaluationRuntimeException(
+            if result is None:
+                raise ValueError("Execution result cannot be None for eval runs")
+
+            return UiPathEvalRunExecutionOutput(
+                execution_time=end_time - start_time,
                 spans=spans,
                 logs=logs,
-                root_exception=e,
-                execution_time=end_time - start_time,
-            ) from e
-
-        end_time = time()
-        spans, logs = self._get_and_clear_execution_data(execution_id)
-
-        if result is None:
-            raise ValueError("Execution result cannot be None for eval runs")
-
-        return UiPathEvalRunExecutionOutput(
-            execution_time=end_time - start_time,
-            spans=spans,
-            logs=logs,
-            result=result,
-        )
+                result=result,
+            )
+        finally:
+            await eval_runtime.dispose()
 
     def _setup_execution_logging(
         self, eval_item_id: str
