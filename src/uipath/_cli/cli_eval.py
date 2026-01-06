@@ -19,7 +19,7 @@ from uipath._events._event_bus import EventBus
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.platform.common import UiPathConfig
-from uipath.tracing import LlmOpsHttpExporter
+from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 
 from ._utils._console import ConsoleLogger
 from ._utils._eval_set import EvalHelpers
@@ -98,6 +98,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     default="default",
     help="Model settings ID from evaluation set to override agent settings (default: 'default')",
 )
+@click.option(
+    "--trace-file",
+    required=False,
+    type=click.Path(exists=False),
+    help="File path where the trace data will be exported for local testing",
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -109,6 +115,7 @@ def eval(
     enable_mocker_cache: bool,
     report_coverage: bool,
     model_settings_id: str,
+    trace_file: str | None,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -122,6 +129,7 @@ def eval(
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
         model_settings_id: Model settings ID to override agent settings
+        trace_file: File path where the trace data will be exported for local testing
     """
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
@@ -179,6 +187,9 @@ def eval(
                 ) as ctx:
                     if ctx.job_id:
                         trace_manager.add_span_exporter(LlmOpsHttpExporter())
+                    
+                    if trace_file:
+                        trace_manager.add_span_exporter(JsonLinesFileExporter(trace_file))
 
                     project_id = UiPathConfig.project_id
 
