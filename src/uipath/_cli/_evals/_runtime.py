@@ -617,12 +617,12 @@ class UiPathEvalRuntime:
         # Create a new runtime with unique runtime_id for this eval execution.
         # This ensures each eval has its own LangGraph thread_id (clean state),
         # preventing message accumulation across eval runs.
-        eval_runtime = await self.factory.new_runtime(
-            entrypoint=self.context.entrypoint or "",
-            runtime_id=execution_id,
-        )
-
+        eval_runtime = None
         try:
+            eval_runtime = await self.factory.new_runtime(
+                entrypoint=self.context.entrypoint or "",
+                runtime_id=execution_id,
+            )
             execution_runtime = UiPathExecutionRuntime(
                 delegate=eval_runtime,
                 trace_manager=self.trace_manager,
@@ -660,7 +660,8 @@ class UiPathEvalRuntime:
                 result=result,
             )
         finally:
-            await eval_runtime.dispose()
+            if eval_runtime is not None:
+                await eval_runtime.dispose()
 
     def _setup_execution_logging(
         self, eval_item_id: str
