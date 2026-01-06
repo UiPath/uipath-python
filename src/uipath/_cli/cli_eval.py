@@ -19,6 +19,7 @@ from uipath._cli.middlewares import Middlewares
 from uipath._events._event_bus import EventBus
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
+from uipath.platform.chat import set_llm_concurrency
 from uipath.platform.common import UiPathConfig
 from uipath.telemetry._track import flush_events
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
@@ -106,6 +107,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     type=click.Path(exists=False),
     help="File path where traces will be written in JSONL format",
 )
+@click.option(
+    "--max-llm-concurrency",
+    type=int,
+    default=20,
+    help="Maximum concurrent LLM requests (default: 20)",
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -118,6 +125,7 @@ def eval(
     report_coverage: bool,
     model_settings_id: str,
     trace_file: str | None,
+    max_llm_concurrency: int,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -131,7 +139,11 @@ def eval(
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
         model_settings_id: Model settings ID to override agent settings
+        trace_file: File path where traces will be written in JSONL format
+        max_llm_concurrency: Maximum concurrent LLM requests
     """
+    set_llm_concurrency(max_llm_concurrency)
+
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
     result = Middlewares.next(
