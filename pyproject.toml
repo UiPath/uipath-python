@@ -21,6 +21,7 @@ dependencies = [
   "python-socketio>=5.15.0, <6.0.0",
   "coverage>=7.8.2",
   "mermaid-builder==0.0.3",
+  "applicationinsights>=0.11.10",
 ]
 classifiers = [
   "Intended Audience :: Developers",

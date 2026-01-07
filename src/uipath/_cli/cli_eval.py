@@ -16,6 +16,7 @@ from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
 from uipath._events._event_bus import EventBus
+from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.platform.common import UiPathConfig
@@ -169,6 +170,9 @@ def eval(
 
                 console_reporter = ConsoleProgressReporter()
                 await console_reporter.subscribe_to_eval_runtime_events(event_bus)
+
+                telemetry_subscriber = EvalTelemetrySubscriber()
+                await telemetry_subscriber.subscribe_to_eval_runtime_events(event_bus)
 
                 trace_manager = UiPathTraceManager()
 
