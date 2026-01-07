@@ -33,13 +33,18 @@ from ._constants import (
 )
 
 # Try to import Application Insights client for custom events
+# Note: applicationinsights is not typed, as it was deprecated in favor of the
+# OpenTelemetry SDK. We still use it because it's the only way to send custom
+# events to the Application Insights customEvents table.
 try:
-    from applicationinsights import TelemetryClient as AppInsightsTelemetryClient
+    from applicationinsights import (  # type: ignore[import-untyped]
+        TelemetryClient as AppInsightsTelemetryClient,
+    )
 
     _HAS_APPINSIGHTS = True
 except ImportError:
     _HAS_APPINSIGHTS = False
-    AppInsightsTelemetryClient = None  # type: ignore[misc, assignment]
+    AppInsightsTelemetryClient = None
 
 
 def _parse_connection_string(connection_string: str) -> Optional[str]:
@@ -60,6 +65,7 @@ def _parse_connection_string(connection_string: str) -> Optional[str]:
         return parts.get("InstrumentationKey")
     except Exception:
         return None
+
 
 _logger = getLogger(__name__)
 _logger.propagate = False
