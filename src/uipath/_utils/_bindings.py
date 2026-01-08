@@ -139,11 +139,29 @@ def resource_override(
     resource_identifier: str = "name",
     folder_identifier: str = "folder_path",
 ) -> Callable[..., Any]:
+    """Decorator for applying resource overrides for an overridable resource.
+
+    It checks the current ContextVar to identify the requested overrides and, if any key matches, it invokes the decorated function
+    with the extracted resource and folder identifiers.
+
+    Args:
+        resource_type: Type of resource to check for overrides (e.g., "asset", "bucket")
+        resource_identifier: Key name for the resource ID in override data (default: "name")
+        folder_identifier: Key name for the folder path in override data (default: "folder_path")
+
+    Returns:
+        Decorated function that receives overridden resource identifiers when applicable
+
+    Note:
+        Must be applied BEFORE the @traced decorator to ensure proper execution order.
+    """
+
     def decorator(func: Callable[..., Any]):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        sig = inspect.signature(func)
+
+        def process_args(args, kwargs) -> dict[str, Any]:
+            """Process arguments and apply resource overrides if applicable."""
             # convert both args and kwargs to single dict
-            sig = inspect.signature(func)
             bound = sig.bind_partial(*args, **kwargs)
             bound.apply_defaults()
             all_args = dict(bound.arguments)
@@ -177,22 +195,23 @@ def resource_override(
                             matched_overwrite.folder_identifier
                         )
 
-            return func(**all_args)
+            return all_args
 
-        wrapper._should_infer_bindings = True  # type: ignore[attr-defined] # probably a better way to do this
-        wrapper._infer_bindings_mappings = {  # type: ignore[attr-defined] # probably a better way to do this
-            "name": resource_identifier,
-            "folder_path": folder_identifier,
-        }
-        return wrapper
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                all_args = process_args(args, kwargs)
+                return await func(**all_args)
+
+            return async_wrapper
+        else:
+
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                all_args = process_args(args, kwargs)
+                return func(**all_args)
+
+            return wrapper
 
     return decorator
-
-
-def get_inferred_bindings_names(cls: T):
-    inferred_bindings = {}
-    for name, method in inspect.getmembers(cls, inspect.isfunction):
-        if hasattr(method, "_should_infer_bindings") and method._should_infer_bindings:
-            inferred_bindings[name] = method._infer_bindings_mappings  # type: ignore # probably a better way to do this
-
-    return inferred_bindings

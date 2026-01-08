@@ -166,12 +166,12 @@ class TasksService(FolderContext, BaseService):
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="tasks_create", run_type="uipath")
     @resource_override(
         resource_type="app",
         resource_identifier="app_name",
         folder_identifier="app_folder_path",
     )
+    @traced(name="tasks_create", run_type="uipath")
     async def create_async(
         self,
         title: str,
@@ -234,12 +234,12 @@ class TasksService(FolderContext, BaseService):
             )
         return Task.model_validate(json_response)
 
-    @traced(name="tasks_create", run_type="uipath")
     @resource_override(
         resource_type="app",
         resource_identifier="app_name",
         folder_identifier="app_folder_path",
     )
+    @traced(name="tasks_create", run_type="uipath")
     def create(
         self,
         title: str,
@@ -302,12 +302,12 @@ class TasksService(FolderContext, BaseService):
             )
         return Task.model_validate(json_response)
 
-    @traced(name="tasks_retrieve", run_type="uipath")
     @resource_override(
         resource_type="app",
         resource_identifier="app_name",
         folder_identifier="app_folder_path",
     )
+    @traced(name="tasks_retrieve", run_type="uipath")
     def retrieve(
         self,
         action_key: str,
@@ -336,12 +336,12 @@ class TasksService(FolderContext, BaseService):
 
         return Task.model_validate(response.json())
 
-    @traced(name="tasks_retrieve", run_type="uipath")
     @resource_override(
         resource_type="app",
         resource_identifier="app_name",
         folder_identifier="app_folder_path",
     )
+    @traced(name="tasks_retrieve", run_type="uipath")
     async def retrieve_async(
         self,
         action_key: str,

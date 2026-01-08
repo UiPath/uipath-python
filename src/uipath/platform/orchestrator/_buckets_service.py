@@ -329,8 +329,8 @@ class BucketsService(FolderContext, BaseService):
         bucket = Bucket.model_validate(response)
         return bucket
 
-    @traced(name="buckets_delete", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_delete", run_type="uipath")
     def delete(
         self,
         *,
@@ -364,8 +364,8 @@ class BucketsService(FolderContext, BaseService):
             headers={**self.folder_headers},
         )
 
-    @traced(name="buckets_delete", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_delete", run_type="uipath")
     async def delete_async(
         self,
         *,
@@ -385,8 +385,8 @@ class BucketsService(FolderContext, BaseService):
             headers={**self.folder_headers},
         )
 
-    @traced(name="buckets_download", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_download", run_type="uipath")
     def download(
         self,
         *,
@@ -440,8 +440,8 @@ class BucketsService(FolderContext, BaseService):
                 file_content = self.custom_client.get(read_uri, headers=headers).content
             file.write(file_content)
 
-    @traced(name="buckets_download", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_download", run_type="uipath")
     async def download_async(
         self,
         *,
@@ -501,8 +501,8 @@ class BucketsService(FolderContext, BaseService):
 
         await asyncio.to_thread(Path(destination_path).write_bytes, file_content)
 
-    @traced(name="buckets_upload", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_upload", run_type="uipath")
     def upload(
         self,
         *,
@@ -593,8 +593,8 @@ class BucketsService(FolderContext, BaseService):
                         write_uri, headers=headers, content=file_content
                     )
 
-    @traced(name="buckets_upload", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_upload", run_type="uipath")
     async def upload_async(
         self,
         *,
@@ -690,8 +690,8 @@ class BucketsService(FolderContext, BaseService):
                     write_uri, headers=headers, content=file_content
                 )
 
-    @traced(name="buckets_retrieve", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_retrieve", run_type="uipath")
     def retrieve(
         self,
         *,
@@ -764,8 +764,8 @@ class BucketsService(FolderContext, BaseService):
         bucket = Bucket.model_validate(bucket_data)
         return bucket
 
-    @traced(name="buckets_retrieve", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_retrieve", run_type="uipath")
     async def retrieve_async(
         self,
         *,
@@ -842,8 +842,8 @@ class BucketsService(FolderContext, BaseService):
         bucket = Bucket.model_validate(bucket_data)
         return bucket
 
-    @traced(name="buckets_list_files", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_list_files", run_type="uipath")
     def list_files(
         self,
         *,
@@ -955,8 +955,8 @@ class BucketsService(FolderContext, BaseService):
             has_more=next_token is not None,
         )
 
-    @traced(name="buckets_list_files", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_list_files", run_type="uipath")
     async def list_files_async(
         self,
         *,
@@ -1042,8 +1042,8 @@ class BucketsService(FolderContext, BaseService):
             has_more=next_token is not None,
         )
 
-    @traced(name="buckets_exists_file", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_exists_file", run_type="uipath")
     def exists_file(
         self,
         *,
@@ -1125,8 +1125,8 @@ class BucketsService(FolderContext, BaseService):
 
         return False
 
-    @traced(name="buckets_exists_file", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_exists_file", run_type="uipath")
     async def exists_file_async(
         self,
         *,
@@ -1199,8 +1199,8 @@ class BucketsService(FolderContext, BaseService):
 
         return False
 
-    @traced(name="buckets_delete_file", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_delete_file", run_type="uipath")
     def delete_file(
         self,
         *,
@@ -1235,8 +1235,8 @@ class BucketsService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-    @traced(name="buckets_delete_file", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_delete_file", run_type="uipath")
     async def delete_file_async(
         self,
         *,
@@ -1271,8 +1271,8 @@ class BucketsService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-    @traced(name="buckets_get_files", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_get_files", run_type="uipath")
     def get_files(
         self,
         *,
@@ -1436,8 +1436,8 @@ class BucketsService(FolderContext, BaseService):
             top=top,
         )
 
-    @traced(name="buckets_get_files", run_type="uipath")
     @resource_override(resource_type="bucket")
+    @traced(name="buckets_get_files", run_type="uipath")
     async def get_files_async(
         self,
         *,
