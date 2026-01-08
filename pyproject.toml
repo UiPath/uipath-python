@@ -1,12 +1,12 @@
 [project]
 name = "uipath"
-version = "2.7.11"
+version = "2.7.99"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
-  "uipath-core>=0.2.3, <0.3.0",
-  "uipath-runtime>=0.6.2, <0.7.0",
+  "uipath-core>=0.3.0, <0.4.0",
+  "uipath-runtime==0.6.3.dev1000780255", #will change after merging the changes from the runtime repo
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
@@ -18,8 +18,8 @@ dependencies = [
   "mockito>=1.5.4",
   "pydantic-function-models>=0.1.11",
   "pysignalr==1.3.0",
-  "python-socketio>=5.15.0, <6.0.0",
   "coverage>=7.8.2",
+  "python-socketio>=5.15.0, <6.0.0",
   "mermaid-builder==0.0.3",
   "applicationinsights>=0.11.10",
 ]
