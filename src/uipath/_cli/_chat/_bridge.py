@@ -1,10 +1,13 @@
 """Chat bridge implementations for conversational agents."""
 
 import asyncio
+import datetime
 import json
 import logging
 import os
+import time
 import uuid
+from datetime import timezone, datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,8 +16,10 @@ from uipath.core.chat import (
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
     UiPathConversationInterruptEvent,
-    UiPathConversationInterruptStartEvent,
+    UiPathConversationInterruptEndEvent,
     UiPathConversationMessageEvent,
+    UiPathConversationToolCallConfirmationInterruptStart,
+    UiPathConversationToolCallConfirmationValue
 )
 from uipath.runtime import UiPathRuntimeResult
 from uipath.runtime.chat import UiPathChatProtocol
@@ -55,6 +60,11 @@ class SocketIOChatBridge:
         self.headers = headers
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
+
+        # Interrupt handling
+        self._interrupt_id: str | None = None
+        self._interrupt_end_event = asyncio.Event()
+        self._interrupt_end_data: UiPathConversationInterruptEndEvent | None = None
 
         # Set CAS_WEBSOCKET_DISABLED when using the debugger to prevent websocket errors from
         # interrupting the debugging session. Events will be logged instead of being sent.
@@ -242,7 +252,10 @@ class SocketIOChatBridge:
     async def emit_interrupt_event(self, runtime_result: UiPathRuntimeResult):
         if self._client and self._connected_event.is_set():
             try:
+                # Clear previous interrupt state and generate new interrupt_id
                 self._interrupt_id = str(uuid.uuid4())
+                self._interrupt_end_event.clear()
+                self._interrupt_end_data = None
 
                 interrupt_event = UiPathConversationEvent(
                     conversation_id=self.conversation_id,
@@ -252,9 +265,9 @@ class SocketIOChatBridge:
                             message_id=self._current_message_id,
                             interrupt=UiPathConversationInterruptEvent(
                                 interrupt_id=self._interrupt_id,
-                                start=UiPathConversationInterruptStartEvent(
-                                    type="coded-agent-interrupt",
-                                    value=runtime_result.output,
+                                start= UiPathConversationToolCallConfirmationInterruptStart(
+                                    type="uipath_cas_tool_call_confirmation",
+                                    value=UiPathConversationToolCallConfirmationValue(**runtime_result.triggers[0].api_resume.request),
                                 ),
                             ),
                         ),
@@ -268,9 +281,10 @@ class SocketIOChatBridge:
                         f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
                     )
                 else:
+                    await asyncio.sleep(1)
                     await self._client.emit("ConversationEvent", event_data)
             except Exception as e:
-                logger.warning(f"Error sending interrupt event: {e}")
+                logger.error(f"Error sending interrupt event: {e}", exc_info=True)
 
     async def wait_for_resume(self) -> dict[str, Any]:
         """Wait for the interrupt_end event to be received.
@@ -278,7 +292,18 @@ class SocketIOChatBridge:
         Returns:
             Resume data from the interrupt end event
         """
-        return {}
+        # Wait for the end interrupt event (with timeout)
+        await asyncio.wait_for(self._interrupt_end_event.wait(), timeout=15 * 10)
+
+        if self._interrupt_end_data is None:
+            return {"confirmed": False}
+
+        # Extract approved status from the end event value
+        approved = False
+        if hasattr(self._interrupt_end_data, 'value') and hasattr(self._interrupt_end_data.value, 'approved'):
+            approved = self._interrupt_end_data.value.approved
+
+        return {"confirmed": approved}
 
     @property
     def is_connected(self) -> bool:
@@ -310,6 +335,25 @@ class SocketIOChatBridge:
         error_event = event.get("conversationError")
         if error_event:
             logger.error(f"Conversation error: {json.dumps(error_event)}")
+            return
+
+        # Check for endInterrupt events
+        try:
+            parsed_event = UiPathConversationEvent(**event)
+            if (
+                parsed_event.exchange
+                and parsed_event.exchange.message
+                and parsed_event.exchange.message.interrupt
+                and parsed_event.exchange.message.interrupt.end
+            ):
+                interrupt = parsed_event.exchange.message.interrupt
+                # Check if this is the interrupt we're waiting for
+                if interrupt.interrupt_id == self._interrupt_id:
+                    logger.info(f"Received endInterrupt for interrupt_id: {self._interrupt_id}")
+                    self._interrupt_end_data = interrupt.end
+                    self._interrupt_end_event.set()
+        except Exception as e:
+            logger.warning(f"Error parsing conversation event: {e}")
 
     async def _cleanup_client(self) -> None:
         """Clean up client resources."""
