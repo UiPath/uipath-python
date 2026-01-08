@@ -1,487 +1,541 @@
 """Integration tests for eval tracing flow.
 
-These tests verify the end-to-end span creation and hierarchy in the eval runtime.
+These tests verify that the eval runtime code correctly creates spans
+with the expected attributes by mocking the tracer.
 """
 
-import uuid
-from typing import Any, Dict, List, Optional
+from contextlib import contextmanager
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.models import NumericEvaluationResult
 
 
 class MockSpan:
-    """Mock span that captures attributes for testing."""
+    """Mock span that captures attributes."""
 
-    def __init__(self, name: str, attributes: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, attributes: dict[str, Any] | None = None):
         self.name = name
         self.attributes = attributes or {}
         self._status = None
 
-    def set_status(self, status):
+    def set_status(self, status: Any) -> None:
         self._status = status
 
+    def __enter__(self) -> "MockSpan":
+        return self
 
-class SpanRecorder:
-    """Records all spans created during test execution."""
+    def __exit__(self, *args: Any) -> None:
+        pass
 
-    def __init__(self):
-        self.spans: List[Dict[str, Any]] = []
-        self._span_stack: List[MockSpan] = []
 
+class SpanCapturingTracer:
+    """A tracer that captures all created spans for verification."""
+
+    def __init__(self) -> None:
+        self.captured_spans: list[dict[str, Any]] = []
+
+    @contextmanager
     def start_as_current_span(
-        self, name: str, attributes: Optional[Dict[str, Any]] = None
+        self, name: str, attributes: dict[str, Any] | None = None
     ):
-        """Mock tracer method that records span creation."""
-        span_info = {
-            "name": name,
-            "attributes": dict(attributes) if attributes else {},
-            "parent": self._span_stack[-1].name if self._span_stack else None,
-        }
-        self.spans.append(span_info)
+        """Capture span creation and yield a mock span."""
+        span_info = {"name": name, "attributes": dict(attributes) if attributes else {}}
+        self.captured_spans.append(span_info)
+        yield MockSpan(name, attributes)
 
-        mock_span = MockSpan(name, attributes)
-        return _SpanContextManager(mock_span, self._span_stack)
+    def get_spans_by_type(self, span_type: str) -> list[dict[str, Any]]:
+        """Get all captured spans with the given span_type."""
+        return [
+            s
+            for s in self.captured_spans
+            if s["attributes"].get("span_type") == span_type
+        ]
 
-    def get_spans_by_type(self, span_type: str) -> List[Dict[str, Any]]:
-        """Get all spans with the given span_type attribute."""
-        return [s for s in self.spans if s["attributes"].get("span_type") == span_type]
-
-    def get_span_by_name(self, name: str) -> Dict[str, Any] | None:
+    def get_span_by_name(self, name: str) -> dict[str, Any] | None:
         """Get the first span with the given name."""
-        for span in self.spans:
+        for span in self.captured_spans:
             if span["name"] == name:
                 return span
         return None
 
 
-class _SpanContextManager:
-    """Context manager for mock spans."""
-
-    def __init__(self, span: MockSpan, stack: List[MockSpan]):
-        self.span = span
-        self.stack = stack
-
-    def __enter__(self):
-        self.stack.append(self.span)
-        return self.span
-
-    def __exit__(self, *args):
-        self.stack.pop()
+def create_eval_context(**kwargs: Any) -> UiPathEvalContext:
+    """Helper to create UiPathEvalContext with specific attribute values."""
+    context = UiPathEvalContext()
+    for key, value in kwargs.items():
+        setattr(context, key, value)
+    return context
 
 
-class TestEvalSetRunSpanIntegration:
-    """Integration tests for Evaluation Set Run span."""
+class TestEvalSetRunSpanCreation:
+    """Tests that verify EvalSetRun span is created correctly by the runtime."""
 
-    def test_eval_set_run_span_created_first(self):
-        """Test that Evaluation Set Run span is created as the root span."""
-        recorder = SpanRecorder()
+    @pytest.fixture
+    def mock_trace_manager(self) -> MagicMock:
+        """Create a mock trace manager with a capturing tracer."""
+        trace_manager = MagicMock()
+        self.capturing_tracer = SpanCapturingTracer()
+        trace_manager.tracer_provider.get_tracer.return_value = self.capturing_tracer
+        trace_manager.tracer_span_processors = []
+        return trace_manager
 
-        # Simulate the span creation from _runtime.py:315-317
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run"},
+    @pytest.fixture
+    def mock_factory(self) -> MagicMock:
+        """Create a mock runtime factory."""
+        factory = MagicMock()
+        mock_runtime = AsyncMock()
+        mock_runtime.get_schema = AsyncMock(return_value=MagicMock())
+        factory.new_runtime = AsyncMock(return_value=mock_runtime)
+        return factory
+
+    @pytest.fixture
+    def mock_event_bus(self) -> MagicMock:
+        """Create a mock event bus."""
+        event_bus = MagicMock()
+        event_bus.publish = AsyncMock()
+        return event_bus
+
+    @pytest.mark.asyncio
+    async def test_execute_creates_eval_set_run_span(
+        self,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """Test that execute() creates the Evaluation Set Run span."""
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
+        # Mock initiate_evaluation to return empty results
+        mock_eval_set = MagicMock()
+        mock_eval_set.name = "Test Eval Set"
+        mock_eval_set.evaluations = []
+
+        with patch.object(
+            runtime,
+            "initiate_evaluation",
+            new=AsyncMock(return_value=(mock_eval_set, [], iter([]))),
         ):
-            pass
+            try:
+                await runtime.execute()
+            except Exception:
+                pass  # We just want to verify span creation
 
-        assert len(recorder.spans) == 1
-        span = recorder.spans[0]
+        # Verify the span was created
+        eval_set_run_spans = self.capturing_tracer.get_spans_by_type("eval_set_run")
+        assert len(eval_set_run_spans) >= 1
+
+        span = eval_set_run_spans[0]
         assert span["name"] == "Evaluation Set Run"
         assert span["attributes"]["span_type"] == "eval_set_run"
-        assert span["parent"] is None
 
-    def test_eval_set_run_span_with_run_id(self):
-        """Test that eval_set_run_id is included when provided."""
-        recorder = SpanRecorder()
-        eval_set_run_id = "custom-run-123"
+    @pytest.mark.asyncio
+    async def test_execute_includes_eval_set_run_id_when_provided(
+        self,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """Test that eval_set_run_id is included in span when provided."""
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+            eval_set_run_id="custom-run-123",
+        )
 
-        span_attributes: Dict[str, str] = {"span_type": "eval_set_run"}
-        span_attributes["eval_set_run_id"] = eval_set_run_id
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
 
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes=span_attributes,
+        mock_eval_set = MagicMock()
+        mock_eval_set.name = "Test Eval Set"
+        mock_eval_set.evaluations = []
+
+        with patch.object(
+            runtime,
+            "initiate_evaluation",
+            new=AsyncMock(return_value=(mock_eval_set, [], iter([]))),
         ):
-            pass
+            try:
+                await runtime.execute()
+            except Exception:
+                pass
 
-        span = recorder.spans[0]
+        span = self.capturing_tracer.get_spans_by_type("eval_set_run")[0]
         assert span["attributes"]["eval_set_run_id"] == "custom-run-123"
 
 
-class TestEvaluationSpanIntegration:
-    """Integration tests for Evaluation span."""
+class TestEvaluationSpanCreation:
+    """Tests that verify Evaluation span is created correctly."""
 
-    def test_evaluation_span_is_child_of_eval_set_run(self):
-        """Test that Evaluation span is a child of Evaluation Set Run."""
-        recorder = SpanRecorder()
-        execution_id = str(uuid.uuid4())
+    @pytest.fixture
+    def capturing_tracer(self) -> SpanCapturingTracer:
+        return SpanCapturingTracer()
 
-        # Simulate the nested span creation
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run"},
+    @pytest.fixture
+    def mock_trace_manager(self, capturing_tracer: SpanCapturingTracer) -> MagicMock:
+        trace_manager = MagicMock()
+        trace_manager.tracer_provider.get_tracer.return_value = capturing_tracer
+        trace_manager.tracer_span_processors = []
+        return trace_manager
+
+    @pytest.fixture
+    def mock_factory(self) -> MagicMock:
+        factory = MagicMock()
+        mock_runtime = AsyncMock()
+        mock_runtime.get_schema = AsyncMock(return_value=MagicMock())
+        factory.new_runtime = AsyncMock(return_value=mock_runtime)
+        return factory
+
+    @pytest.fixture
+    def mock_event_bus(self) -> MagicMock:
+        event_bus = MagicMock()
+        event_bus.publish = AsyncMock()
+        return event_bus
+
+    @pytest.fixture
+    def mock_eval_item(self) -> Any:
+        """Create a real EvaluationItem instance for testing."""
+        from uipath._cli._evals._models._evaluation_set import EvaluationItem
+
+        return EvaluationItem(
+            id="item-123",
+            name="Test Evaluation",
+            inputs={},
+            evaluation_criterias={},
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_eval_creates_evaluation_span(
+        self,
+        capturing_tracer: SpanCapturingTracer,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+        mock_eval_item: Any,
+    ) -> None:
+        """Test that _execute_eval creates an Evaluation span with correct attributes."""
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
+        # Mock execute_runtime to return a successful result
+        mock_execution_output = MagicMock()
+        mock_execution_output.result.output = {"result": 42}
+        mock_execution_output.result.status = "successful"
+        mock_execution_output.result.error = None
+        mock_execution_output.spans = []
+        mock_execution_output.logs = []
+
+        mock_runtime = AsyncMock()
+
+        with patch.object(
+            runtime,
+            "execute_runtime",
+            new=AsyncMock(return_value=mock_execution_output),
         ):
-            with recorder.start_as_current_span(
-                "Evaluation",
-                attributes={
-                    "execution.id": execution_id,
-                    "span_type": "evaluation",
-                    "eval_item_id": "item-1",
-                    "eval_item_name": "Test Item",
-                },
-            ):
-                pass
+            await runtime._execute_eval(mock_eval_item, [], mock_runtime)
 
-        assert len(recorder.spans) == 2
+        # Verify Evaluation span was created
+        evaluation_spans = capturing_tracer.get_spans_by_type("evaluation")
+        assert len(evaluation_spans) == 1
 
-        eval_set_run_span = recorder.get_span_by_name("Evaluation Set Run")
-        evaluation_span = recorder.get_span_by_name("Evaluation")
-
-        assert eval_set_run_span is not None
-        assert evaluation_span is not None
-        assert evaluation_span["parent"] == "Evaluation Set Run"
-
-    def test_multiple_evaluation_spans_share_parent(self):
-        """Test that multiple Evaluation spans share the same parent."""
-        recorder = SpanRecorder()
-
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run"},
-        ):
-            for i in range(3):
-                with recorder.start_as_current_span(
-                    "Evaluation",
-                    attributes={
-                        "execution.id": str(uuid.uuid4()),
-                        "span_type": "evaluation",
-                        "eval_item_id": f"item-{i}",
-                        "eval_item_name": f"Test Item {i}",
-                    },
-                ):
-                    pass
-
-        evaluation_spans = recorder.get_spans_by_type("evaluation")
-        assert len(evaluation_spans) == 3
-
-        for span in evaluation_spans:
-            assert span["parent"] == "Evaluation Set Run"
+        span = evaluation_spans[0]
+        assert span["name"] == "Evaluation"
+        assert span["attributes"]["span_type"] == "evaluation"
+        assert span["attributes"]["eval_item_id"] == "item-123"
+        assert span["attributes"]["eval_item_name"] == "Test Evaluation"
+        assert "execution.id" in span["attributes"]
 
 
-class TestEvaluatorSpanIntegration:
-    """Integration tests for Evaluator span."""
+class TestEvaluatorSpanCreation:
+    """Tests that verify Evaluator span is created correctly."""
 
-    def test_evaluator_span_is_child_of_evaluation(self):
-        """Test that Evaluator span is a child of Evaluation."""
-        recorder = SpanRecorder()
+    @pytest.fixture
+    def capturing_tracer(self) -> SpanCapturingTracer:
+        return SpanCapturingTracer()
 
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run"},
-        ):
-            with recorder.start_as_current_span(
-                "Evaluation",
-                attributes={
-                    "execution.id": str(uuid.uuid4()),
-                    "span_type": "evaluation",
-                    "eval_item_id": "item-1",
-                    "eval_item_name": "Test Item",
-                },
-            ):
-                with recorder.start_as_current_span(
-                    "Evaluator: AccuracyEvaluator",
-                    attributes={
-                        "span_type": "evaluator",
-                        "evaluator_id": "accuracy-1",
-                        "evaluator_name": "AccuracyEvaluator",
-                        "eval_item_id": "item-1",
-                    },
-                ):
-                    pass
+    @pytest.fixture
+    def mock_trace_manager(self, capturing_tracer: SpanCapturingTracer) -> MagicMock:
+        trace_manager = MagicMock()
+        trace_manager.tracer_provider.get_tracer.return_value = capturing_tracer
+        trace_manager.tracer_span_processors = []
+        return trace_manager
 
-        evaluator_span = recorder.spans[-1]
-        assert evaluator_span["name"] == "Evaluator: AccuracyEvaluator"
-        assert evaluator_span["parent"] == "Evaluation"
+    @pytest.fixture
+    def mock_factory(self) -> MagicMock:
+        factory = MagicMock()
+        return factory
 
-    def test_multiple_evaluator_spans_per_evaluation(self):
-        """Test that multiple Evaluator spans can be children of one Evaluation."""
-        recorder = SpanRecorder()
+    @pytest.fixture
+    def mock_event_bus(self) -> MagicMock:
+        event_bus = MagicMock()
+        event_bus.publish = AsyncMock()
+        return event_bus
+
+    @pytest.fixture
+    def mock_evaluator(self) -> MagicMock:
+        evaluator = MagicMock(spec=BaseEvaluator)
+        evaluator.id = "accuracy-evaluator"
+        evaluator.name = "AccuracyEvaluator"
+        evaluator.validate_and_evaluate_criteria = AsyncMock(
+            return_value=NumericEvaluationResult(score=0.95, details="Good accuracy")
+        )
+        return evaluator
+
+    @pytest.fixture
+    def mock_eval_item(self) -> MagicMock:
+        eval_item = MagicMock()
+        eval_item.id = "eval-item-456"
+        eval_item.name = "Test Item"
+        eval_item.inputs = {"input": "test"}
+        eval_item.expected_agent_behavior = None
+        return eval_item
+
+    @pytest.fixture
+    def mock_execution_output(self) -> MagicMock:
+        output = MagicMock()
+        output.result.output = {"result": 42}
+        output.spans = []
+        return output
+
+    @pytest.mark.asyncio
+    async def test_run_evaluator_creates_evaluator_span(
+        self,
+        capturing_tracer: SpanCapturingTracer,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+        mock_evaluator: MagicMock,
+        mock_eval_item: MagicMock,
+        mock_execution_output: MagicMock,
+    ) -> None:
+        """Test that run_evaluator creates an Evaluator span with correct attributes."""
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
+        await runtime.run_evaluator(
+            evaluator=mock_evaluator,
+            execution_output=mock_execution_output,
+            eval_item=mock_eval_item,
+            evaluation_criteria=None,
+        )
+
+        # Verify Evaluator span was created
+        evaluator_spans = capturing_tracer.get_spans_by_type("evaluator")
+        assert len(evaluator_spans) == 1
+
+        span = evaluator_spans[0]
+        assert span["name"] == "Evaluator: AccuracyEvaluator"
+        assert span["attributes"]["span_type"] == "evaluator"
+        assert span["attributes"]["evaluator_id"] == "accuracy-evaluator"
+        assert span["attributes"]["evaluator_name"] == "AccuracyEvaluator"
+        assert span["attributes"]["eval_item_id"] == "eval-item-456"
+
+    @pytest.mark.asyncio
+    async def test_multiple_evaluators_create_multiple_spans(
+        self,
+        capturing_tracer: SpanCapturingTracer,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+        mock_eval_item: MagicMock,
+        mock_execution_output: MagicMock,
+    ) -> None:
+        """Test that running multiple evaluators creates multiple spans."""
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
         evaluator_names = ["Accuracy", "Relevance", "Fluency"]
+        for name in evaluator_names:
+            evaluator = MagicMock(spec=BaseEvaluator)
+            evaluator.id = f"{name.lower()}-id"
+            evaluator.name = name
+            evaluator.validate_and_evaluate_criteria = AsyncMock(
+                return_value=NumericEvaluationResult(score=0.9)
+            )
 
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run"},
-        ):
-            with recorder.start_as_current_span(
-                "Evaluation",
-                attributes={
-                    "execution.id": str(uuid.uuid4()),
-                    "span_type": "evaluation",
-                    "eval_item_id": "item-1",
-                    "eval_item_name": "Test Item",
-                },
-            ):
-                for name in evaluator_names:
-                    with recorder.start_as_current_span(
-                        f"Evaluator: {name}",
-                        attributes={
-                            "span_type": "evaluator",
-                            "evaluator_id": f"{name.lower()}-1",
-                            "evaluator_name": name,
-                            "eval_item_id": "item-1",
-                        },
-                    ):
-                        pass
+            await runtime.run_evaluator(
+                evaluator=evaluator,
+                execution_output=mock_execution_output,
+                eval_item=mock_eval_item,
+                evaluation_criteria=None,
+            )
 
-        evaluator_spans = recorder.get_spans_by_type("evaluator")
+        evaluator_spans = capturing_tracer.get_spans_by_type("evaluator")
         assert len(evaluator_spans) == 3
 
-        for span in evaluator_spans:
-            assert span["parent"] == "Evaluation"
+        span_names = [s["name"] for s in evaluator_spans]
+        assert "Evaluator: Accuracy" in span_names
+        assert "Evaluator: Relevance" in span_names
+        assert "Evaluator: Fluency" in span_names
 
 
-class TestFullSpanHierarchy:
-    """Integration tests for the complete span hierarchy."""
+class TestSpanAttributeValues:
+    """Tests for verifying specific span attribute values."""
 
-    def test_complete_hierarchy_structure(self):
-        """Test the complete span hierarchy: EvalSetRun > Evaluation > Evaluator."""
-        recorder = SpanRecorder()
+    @pytest.fixture
+    def capturing_tracer(self) -> SpanCapturingTracer:
+        return SpanCapturingTracer()
 
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run", "eval_set_run_id": "run-1"},
-        ):
-            for i in range(2):
-                with recorder.start_as_current_span(
-                    "Evaluation",
-                    attributes={
-                        "execution.id": str(uuid.uuid4()),
-                        "span_type": "evaluation",
-                        "eval_item_id": f"item-{i}",
-                        "eval_item_name": f"Test Item {i}",
-                    },
-                ):
-                    with recorder.start_as_current_span(
-                        "Evaluator: TestEvaluator",
-                        attributes={
-                            "span_type": "evaluator",
-                            "evaluator_id": "test-eval",
-                            "evaluator_name": "TestEvaluator",
-                            "eval_item_id": f"item-{i}",
-                        },
-                    ):
-                        pass
+    @pytest.fixture
+    def mock_trace_manager(self, capturing_tracer: SpanCapturingTracer) -> MagicMock:
+        trace_manager = MagicMock()
+        trace_manager.tracer_provider.get_tracer.return_value = capturing_tracer
+        trace_manager.tracer_span_processors = []
+        return trace_manager
 
-        # Should have: 1 EvalSetRun + 2 Evaluation + 2 Evaluator = 5 spans
-        assert len(recorder.spans) == 5
+    @pytest.fixture
+    def mock_factory(self) -> MagicMock:
+        factory = MagicMock()
+        return factory
 
-        eval_set_run_spans = recorder.get_spans_by_type("eval_set_run")
-        evaluation_spans = recorder.get_spans_by_type("evaluation")
-        evaluator_spans = recorder.get_spans_by_type("evaluator")
+    @pytest.fixture
+    def mock_event_bus(self) -> MagicMock:
+        event_bus = MagicMock()
+        event_bus.publish = AsyncMock()
+        return event_bus
 
-        assert len(eval_set_run_spans) == 1
-        assert len(evaluation_spans) == 2
-        assert len(evaluator_spans) == 2
-
-    def test_span_attributes_are_complete(self):
-        """Test that all spans have the required attributes."""
-        recorder = SpanRecorder()
-
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run", "eval_set_run_id": "run-123"},
-        ):
-            with recorder.start_as_current_span(
-                "Evaluation",
-                attributes={
-                    "execution.id": "exec-456",
-                    "span_type": "evaluation",
-                    "eval_item_id": "item-789",
-                    "eval_item_name": "My Test",
-                },
-            ):
-                with recorder.start_as_current_span(
-                    "Evaluator: Accuracy",
-                    attributes={
-                        "span_type": "evaluator",
-                        "evaluator_id": "acc-1",
-                        "evaluator_name": "Accuracy",
-                        "eval_item_id": "item-789",
-                    },
-                ):
-                    pass
-
-        # Verify EvalSetRun span
-        eval_set_run = recorder.get_spans_by_type("eval_set_run")[0]
-        assert eval_set_run["attributes"]["eval_set_run_id"] == "run-123"
-
-        # Verify Evaluation span
-        evaluation = recorder.get_spans_by_type("evaluation")[0]
-        assert evaluation["attributes"]["execution.id"] == "exec-456"
-        assert evaluation["attributes"]["eval_item_id"] == "item-789"
-        assert evaluation["attributes"]["eval_item_name"] == "My Test"
-
-        # Verify Evaluator span
-        evaluator = recorder.get_spans_by_type("evaluator")[0]
-        assert evaluator["attributes"]["evaluator_id"] == "acc-1"
-        assert evaluator["attributes"]["evaluator_name"] == "Accuracy"
-        assert evaluator["attributes"]["eval_item_id"] == "item-789"
-
-
-class TestSpanNaming:
-    """Tests for span naming conventions."""
-
-    def test_eval_set_run_span_name(self):
-        """Test that EvalSetRun span has correct name."""
-        recorder = SpanRecorder()
-
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run"},
-        ):
-            pass
-
-        assert recorder.spans[0]["name"] == "Evaluation Set Run"
-
-    def test_evaluation_span_name(self):
-        """Test that Evaluation span has correct name."""
-        recorder = SpanRecorder()
-
-        with recorder.start_as_current_span(
-            "Evaluation",
-            attributes={"span_type": "evaluation"},
-        ):
-            pass
-
-        assert recorder.spans[0]["name"] == "Evaluation"
-
-    def test_evaluator_span_name_format(self):
-        """Test that Evaluator span name follows the pattern 'Evaluator: {name}'."""
-        recorder = SpanRecorder()
-        evaluator_name = "MyCustomEvaluator"
-
-        with recorder.start_as_current_span(
-            f"Evaluator: {evaluator_name}",
-            attributes={
-                "span_type": "evaluator",
-                "evaluator_name": evaluator_name,
-            },
-        ):
-            pass
-
-        span = recorder.spans[0]
-        assert span["name"] == "Evaluator: MyCustomEvaluator"
-        assert span["name"].startswith("Evaluator: ")
-
-
-class TestExecutionIdTracking:
-    """Tests for execution.id tracking in spans."""
-
-    def test_each_evaluation_has_unique_execution_id(self):
+    @pytest.mark.asyncio
+    async def test_evaluation_span_has_unique_execution_id(
+        self,
+        capturing_tracer: SpanCapturingTracer,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
         """Test that each Evaluation span gets a unique execution.id."""
-        recorder = SpanRecorder()
-        execution_ids = []
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
 
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run"},
-        ):
-            for i in range(3):
-                exec_id = str(uuid.uuid4())
-                execution_ids.append(exec_id)
-                with recorder.start_as_current_span(
-                    "Evaluation",
-                    attributes={
-                        "execution.id": exec_id,
-                        "span_type": "evaluation",
-                        "eval_item_id": f"item-{i}",
-                        "eval_item_name": f"Item {i}",
-                    },
-                ):
-                    pass
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
 
-        # Verify all execution IDs are unique
+        mock_runtime = AsyncMock()
+        mock_execution_output = MagicMock()
+        mock_execution_output.result.output = {}
+        mock_execution_output.result.status = "successful"
+        mock_execution_output.result.error = None
+        mock_execution_output.spans = []
+        mock_execution_output.logs = []
+
+        from uipath._cli._evals._models._evaluation_set import EvaluationItem
+
+        for i in range(3):
+            eval_item = EvaluationItem(
+                id=f"item-{i}",
+                name=f"Test {i}",
+                inputs={},
+                evaluation_criterias={},
+            )
+
+            with patch.object(
+                runtime,
+                "execute_runtime",
+                new=AsyncMock(return_value=mock_execution_output),
+            ):
+                await runtime._execute_eval(eval_item, [], mock_runtime)
+
+        # Get execution IDs from spans
+        evaluation_spans = capturing_tracer.get_spans_by_type("evaluation")
+        execution_ids = [s["attributes"]["execution.id"] for s in evaluation_spans]
+
+        # All execution IDs should be unique
         assert len(set(execution_ids)) == 3
 
-        # Verify each evaluation span has its execution.id
-        evaluation_spans = recorder.get_spans_by_type("evaluation")
-        for i, span in enumerate(evaluation_spans):
-            assert span["attributes"]["execution.id"] == execution_ids[i]
-
-    def test_eval_set_run_does_not_have_execution_id(self):
-        """Test that EvalSetRun span does NOT have execution.id.
-
-        This is intentional to prevent ID propagation to child spans.
-        """
-        recorder = SpanRecorder()
-
-        with recorder.start_as_current_span(
-            "Evaluation Set Run",
-            attributes={"span_type": "eval_set_run"},
-        ):
-            pass
-
-        eval_set_run = recorder.spans[0]
-        assert "execution.id" not in eval_set_run["attributes"]
-
-
-class TestEvaluatorSpanEvalItemId:
-    """Tests for eval_item_id in evaluator spans."""
-
-    def test_evaluator_span_has_eval_item_id(self):
-        """Test that Evaluator span includes the eval_item_id."""
-        recorder = SpanRecorder()
-        eval_item_id = "item-specific-123"
-
-        with recorder.start_as_current_span(
-            "Evaluation",
-            attributes={
-                "execution.id": str(uuid.uuid4()),
-                "span_type": "evaluation",
-                "eval_item_id": eval_item_id,
-                "eval_item_name": "Test",
-            },
-        ):
-            with recorder.start_as_current_span(
-                "Evaluator: Test",
-                attributes={
-                    "span_type": "evaluator",
-                    "evaluator_id": "test-1",
-                    "evaluator_name": "Test",
-                    "eval_item_id": eval_item_id,
-                },
-            ):
-                pass
-
-        evaluator_span = recorder.get_spans_by_type("evaluator")[0]
-        assert evaluator_span["attributes"]["eval_item_id"] == eval_item_id
-
-    def test_evaluator_and_evaluation_share_eval_item_id(self):
-        """Test that Evaluator and Evaluation spans share the same eval_item_id."""
-        recorder = SpanRecorder()
-        eval_item_id = "shared-item-456"
-
-        with recorder.start_as_current_span(
-            "Evaluation",
-            attributes={
-                "execution.id": str(uuid.uuid4()),
-                "span_type": "evaluation",
-                "eval_item_id": eval_item_id,
-                "eval_item_name": "Test",
-            },
-        ):
-            with recorder.start_as_current_span(
-                "Evaluator: Test",
-                attributes={
-                    "span_type": "evaluator",
-                    "evaluator_id": "test-1",
-                    "evaluator_name": "Test",
-                    "eval_item_id": eval_item_id,
-                },
-            ):
-                pass
-
-        evaluation_span = recorder.get_spans_by_type("evaluation")[0]
-        evaluator_span = recorder.get_spans_by_type("evaluator")[0]
-
-        assert (
-            evaluation_span["attributes"]["eval_item_id"]
-            == evaluator_span["attributes"]["eval_item_id"]
+    @pytest.mark.asyncio
+    async def test_evaluator_span_inherits_eval_item_id(
+        self,
+        capturing_tracer: SpanCapturingTracer,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """Test that Evaluator span contains the same eval_item_id as its parent Evaluation."""
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
         )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
+        eval_item = MagicMock()
+        eval_item.id = "shared-item-id-789"
+        eval_item.name = "Test"
+        eval_item.inputs = {}
+        eval_item.expected_agent_behavior = None
+
+        mock_execution_output = MagicMock()
+        mock_execution_output.result.output = {}
+        mock_execution_output.spans = []
+
+        evaluator = MagicMock(spec=BaseEvaluator)
+        evaluator.id = "test-evaluator"
+        evaluator.name = "TestEvaluator"
+        evaluator.validate_and_evaluate_criteria = AsyncMock(
+            return_value=NumericEvaluationResult(score=1.0)
+        )
+
+        await runtime.run_evaluator(
+            evaluator=evaluator,
+            execution_output=mock_execution_output,
+            eval_item=eval_item,
+            evaluation_criteria=None,
+        )
+
+        evaluator_span = capturing_tracer.get_spans_by_type("evaluator")[0]
+        assert evaluator_span["attributes"]["eval_item_id"] == "shared-item-id-789"
