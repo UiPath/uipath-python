@@ -98,6 +98,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     default="default",
     help="Model settings ID from evaluation set to override agent settings (default: 'default')",
 )
+@click.option(
+    "--max-llm-concurrency",
+    type=int,
+    default=20,
+    help="Maximum concurrent LLM requests (default: 20)",
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -109,6 +115,7 @@ def eval(
     enable_mocker_cache: bool,
     report_coverage: bool,
     model_settings_id: str,
+    max_llm_concurrency: int,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -122,7 +129,12 @@ def eval(
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
         model_settings_id: Model settings ID to override agent settings
+        max_llm_concurrency: Maximum concurrent LLM requests
     """
+    from uipath.platform.chat import set_llm_concurrency
+
+    set_llm_concurrency(max_llm_concurrency)
+
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
     result = Middlewares.next(
