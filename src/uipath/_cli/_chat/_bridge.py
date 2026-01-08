@@ -1,10 +1,13 @@
 """Chat bridge implementations for conversational agents."""
 
 import asyncio
+import datetime
 import json
 import logging
 import os
+import time
 import uuid
+from datetime import timezone, datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -14,7 +17,7 @@ from uipath.core.chat import (
     UiPathConversationExchangeEvent,
     UiPathConversationInterruptEvent,
     UiPathConversationInterruptStartEvent,
-    UiPathConversationMessageEvent,
+    UiPathConversationMessageEvent, UiPathConversationMessageStartEvent,
 )
 from uipath.runtime import UiPathRuntimeResult
 from uipath.runtime.chat import UiPathChatProtocol
@@ -244,12 +247,21 @@ class SocketIOChatBridge:
             try:
                 self._interrupt_id = str(uuid.uuid4())
 
+                value = {
+                    "toolCallId": str(uuid.uuid4()),
+                    "toolName": "test-tool",
+                    "inputSchema": {"type": "object", "properties": {"test-property": {"type":"string"}}},
+                    "inputValue": {"test-property": "test-input-value"},
+                }
+
                 interrupt_event = UiPathConversationEvent(
                     conversation_id=self.conversation_id,
                     exchange=UiPathConversationExchangeEvent(
                         exchange_id=self.exchange_id,
                         message=UiPathConversationMessageEvent(
-                            message_id=self._current_message_id,
+                            start=UiPathConversationMessageStartEvent(
+                                role="assistant", timestamp= (datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"))),
+                            message_id=str(uuid.uuid4()),
                             interrupt=UiPathConversationInterruptEvent(
                                 interrupt_id=self._interrupt_id,
                                 start=UiPathConversationInterruptStartEvent(
@@ -278,6 +290,8 @@ class SocketIOChatBridge:
         Returns:
             Resume data from the interrupt end event
         """
+        #return {"decisions": [{"type": "approve"}]}
+        time.sleep(15 * 60)
         return {}
 
     @property
