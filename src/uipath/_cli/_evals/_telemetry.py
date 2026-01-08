@@ -7,7 +7,7 @@ events to Application Insights for monitoring and analytics.
 import logging
 import os
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
@@ -17,17 +17,17 @@ from uipath._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from uipath.telemetry import is_telemetry_enabled, track_event
+from uipath.telemetry._track import is_telemetry_enabled, track_event
 
 logger = logging.getLogger(__name__)
 
 # Telemetry event names for Application Insights
-EVAL_SET_RUN_STARTED = "EvalSetRun.Start"
-EVAL_SET_RUN_COMPLETED = "EvalSetRun.End"
-EVAL_SET_RUN_FAILED = "EvalSetRun.Failed"
-EVAL_RUN_STARTED = "EvalRun.Start"
-EVAL_RUN_COMPLETED = "EvalRun.End"
-EVAL_RUN_FAILED = "EvalRun.Failed"
+EVAL_SET_RUN_STARTED = "EvalSetRun.Start.URT"
+EVAL_SET_RUN_COMPLETED = "EvalSetRun.End.URT"
+EVAL_SET_RUN_FAILED = "EvalSetRun.Failed.URT"
+EVAL_RUN_STARTED = "EvalRun.Start.URT"
+EVAL_RUN_COMPLETED = "EvalRun.End.URT"
+EVAL_RUN_FAILED = "EvalRun.Failed.URT"
 
 
 class EvalTelemetrySubscriber:
@@ -52,6 +52,8 @@ class EvalTelemetrySubscriber:
         self._eval_run_start_times: Dict[str, float] = {}
         self._eval_set_info: Dict[str, Dict[str, Any]] = {}
         self._eval_run_info: Dict[str, Dict[str, Any]] = {}
+        self._current_eval_set_run_id: Optional[str] = None
+        self._current_agent_id: Optional[str] = None
 
     async def subscribe_to_eval_runtime_events(self, event_bus: EventBus) -> None:
         """Subscribe to evaluation runtime events.
@@ -82,23 +84,31 @@ class EvalTelemetrySubscriber:
         """
         try:
             self._eval_set_start_times[event.execution_id] = time.time()
+
+            eval_set_run_id = event.eval_set_run_id or event.execution_id
+
             self._eval_set_info[event.execution_id] = {
                 "eval_set_id": event.eval_set_id,
-                "eval_set_run_id": event.eval_set_run_id,
+                "eval_set_run_id": eval_set_run_id,
                 "entrypoint": event.entrypoint,
                 "no_of_evals": event.no_of_evals,
                 "evaluator_count": len(event.evaluators),
             }
 
+            # Store for child events
+            self._current_eval_set_run_id = eval_set_run_id
+            self._current_agent_id = event.entrypoint
+
             properties: Dict[str, Any] = {
                 "EvalSetId": event.eval_set_id,
+                "EvalSetRunId": eval_set_run_id,
                 "Entrypoint": event.entrypoint,
                 "EvalCount": event.no_of_evals,
                 "EvaluatorCount": len(event.evaluators),
             }
 
-            if event.eval_set_run_id:
-                properties["EvalSetRunId"] = event.eval_set_run_id
+            if event.entrypoint:
+                properties["AgentId"] = event.entrypoint
 
             self._enrich_properties(properties)
 
@@ -124,7 +134,16 @@ class EvalTelemetrySubscriber:
             properties: Dict[str, Any] = {
                 "EvalItemId": event.eval_item.id,
                 "EvalItemName": event.eval_item.name,
+                "EvalRunId": event.execution_id,
             }
+
+            # Add eval set run id from parent
+            if self._current_eval_set_run_id:
+                properties["EvalSetRunId"] = self._current_eval_set_run_id
+
+            # Add agent id
+            if self._current_agent_id:
+                properties["AgentId"] = self._current_agent_id
 
             self._enrich_properties(properties)
 
@@ -154,12 +173,31 @@ class EvalTelemetrySubscriber:
             ]
             avg_score = sum(scores) / len(scores) if scores else None
 
+            # Try to get trace ID from spans
+            trace_id: Optional[str] = None
+            if event.spans:
+                for span in event.spans:
+                    if span.context and span.context.trace_id:
+                        # Format trace ID as hex string
+                        trace_id = format(span.context.trace_id, "032x")
+                        break
+
             properties: Dict[str, Any] = {
                 "EvalItemId": run_info.get("eval_item_id", event.eval_item.id),
                 "EvalItemName": run_info.get("eval_item_name", event.eval_item.name),
+                "EvalRunId": event.execution_id,
                 "Success": event.success,
                 "EvaluatorCount": len(event.eval_results),
             }
+
+            if self._current_eval_set_run_id:
+                properties["EvalSetRunId"] = self._current_eval_set_run_id
+
+            if self._current_agent_id:
+                properties["AgentId"] = self._current_agent_id
+
+            if trace_id:
+                properties["TraceId"] = trace_id
 
             if duration_ms is not None:
                 properties["DurationMs"] = duration_ms
@@ -223,6 +261,7 @@ class EvalTelemetrySubscriber:
 
             if set_info.get("entrypoint"):
                 properties["Entrypoint"] = set_info["entrypoint"]
+                properties["AgentId"] = set_info["entrypoint"]
 
             if set_info.get("no_of_evals"):
                 properties["EvalCount"] = set_info["no_of_evals"]
@@ -248,6 +287,9 @@ class EvalTelemetrySubscriber:
             logger.debug(
                 f"Tracked eval set run {'completed' if event.success else 'failed'}"
             )
+
+            self._current_eval_set_run_id = None
+            self._current_agent_id = None
 
         except Exception as e:
             logger.debug(f"Error tracking eval set run updated: {e}")

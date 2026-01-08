@@ -8,7 +8,6 @@ from typing import Any, Callable, Dict, Mapping, Optional, Union
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.util.types import AnyValue
 
-from .._cli._utils._common import get_claim_from_token
 from .._utils.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
@@ -102,6 +101,9 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
         attributes[_APP_NAME] = "UiPath.Sdk"
         attributes[_SDK_VERSION] = version("uipath")
         try:
+            # Lazy import to avoid circular dependency
+            from .._cli._utils._common import get_claim_from_token
+
             cloud_user_id = get_claim_from_token("sub")
         except Exception:
             cloud_user_id = _UNKNOWN

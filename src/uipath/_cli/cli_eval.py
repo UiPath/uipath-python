@@ -20,6 +20,7 @@ from uipath._events._event_bus import EventBus
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.platform.common import UiPathConfig
+from uipath.telemetry._track import flush_events
 from uipath.tracing import LlmOpsHttpExporter
 
 from ._utils._console import ConsoleLogger
@@ -216,6 +217,8 @@ def eval(
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True
             )
+        finally:
+            flush_events()
 
 
 if __name__ == "__main__":
