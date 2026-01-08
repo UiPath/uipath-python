@@ -4,13 +4,13 @@ These tests verify the end-to-end span creation and hierarchy in the eval runtim
 """
 
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class MockSpan:
     """Mock span that captures attributes for testing."""
 
-    def __init__(self, name: str, attributes: Dict[str, Any] = None):
+    def __init__(self, name: str, attributes: Optional[Dict[str, Any]] = None):
         self.name = name
         self.attributes = attributes or {}
         self._status = None
@@ -26,7 +26,9 @@ class SpanRecorder:
         self.spans: List[Dict[str, Any]] = []
         self._span_stack: List[MockSpan] = []
 
-    def start_as_current_span(self, name: str, attributes: Dict[str, Any] = None):
+    def start_as_current_span(
+        self, name: str, attributes: Optional[Dict[str, Any]] = None
+    ):
         """Mock tracer method that records span creation."""
         span_info = {
             "name": name,

@@ -21,7 +21,7 @@ from uipath.eval.evaluators import BaseEvaluator
 class MockSpanContext:
     """Mock span context manager for testing span creation."""
 
-    def __init__(self, name: str, attributes: Dict[str, Any]):
+    def __init__(self, name: str, attributes: dict[str, Any] | None):
         self.name = name
         self.attributes = attributes or {}
         self.span = MagicMock(spec=Span)
@@ -40,7 +40,9 @@ class SpanCapturingTracer:
     def __init__(self):
         self.created_spans: List[Dict[str, Any]] = []
 
-    def start_as_current_span(self, name: str, attributes: Dict[str, Any] = None):
+    def start_as_current_span(
+        self, name: str, attributes: dict[str, Any] | None = None
+    ):
         """Capture span creation and return a mock context manager."""
         span_info = {"name": name, "attributes": attributes or {}}
         self.created_spans.append(span_info)
@@ -415,7 +417,7 @@ class TestSpanTypeConsistency:
             "Evaluator": "evaluator",
         }
 
-        for span_name, span_type in expected_span_types.items():
+        for _, span_type in expected_span_types.items():
             assert isinstance(span_type, str)
             assert span_type.islower() or "_" in span_type
 

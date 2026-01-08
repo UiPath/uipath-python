@@ -1,6 +1,7 @@
 """Tests for EvalTelemetrySubscriber functionality."""
 
 import os
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -93,7 +94,7 @@ class TestEvalSetRunCreated:
         eval_set_run_id: str | None = "run-456",
         entrypoint: str = "agent.py",
         no_of_evals: int = 5,
-        evaluators: list = None,
+        evaluators: list[Any] | None = None,
     ) -> EvalSetRunCreatedEvent:
         """Helper to create EvalSetRunCreatedEvent."""
         return EvalSetRunCreatedEvent(
@@ -212,7 +213,7 @@ class TestEvalRunUpdated:
         eval_item_name: str = "Test Eval",
         success: bool = True,
         agent_execution_time: float = 1.5,
-        eval_results: list = None,
+        eval_results: list[Any] | None = None,
         exception_details: EvalItemExceptionDetails | None = None,
     ) -> EvalRunUpdatedEvent:
         """Helper to create EvalRunUpdatedEvent."""
@@ -327,7 +328,7 @@ class TestEvalSetRunUpdated:
     def _create_eval_set_run_updated_event(
         self,
         execution_id: str = "exec-123",
-        evaluator_scores: dict = None,
+        evaluator_scores: dict[str, Any] | None = None,
         success: bool = True,
     ) -> EvalSetRunUpdatedEvent:
         """Helper to create EvalSetRunUpdatedEvent."""
@@ -409,7 +410,7 @@ class TestEnrichProperties:
     def test_enrich_properties_adds_source(self):
         """Test that source and application name are always added."""
         subscriber = EvalTelemetrySubscriber()
-        properties = {}
+        properties: dict[str, Any] = {}
 
         subscriber._enrich_properties(properties)
 
@@ -419,7 +420,7 @@ class TestEnrichProperties:
     def test_enrich_properties_adds_env_vars(self):
         """Test that environment variables are added when present."""
         subscriber = EvalTelemetrySubscriber()
-        properties = {}
+        properties: dict[str, Any] = {}
 
         with patch.dict(
             os.environ,
@@ -440,7 +441,7 @@ class TestEnrichProperties:
     def test_enrich_properties_skips_missing_env_vars(self):
         """Test that missing environment variables are not added."""
         subscriber = EvalTelemetrySubscriber()
-        properties = {}
+        properties: dict[str, Any] = {}
 
         with patch.dict(os.environ, {}, clear=True):
             # Remove env vars if they exist
