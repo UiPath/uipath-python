@@ -22,7 +22,9 @@ from uipath._utils.constants import EVALS_FOLDER
 from uipath.eval.evaluators import (
     BaseEvaluator,
     LegacyBaseEvaluator,
+    LegacyContextPrecisionEvaluator,
     LegacyExactMatchEvaluator,
+    LegacyFaithfulnessEvaluator,
     LegacyJsonSimilarityEvaluator,
     LegacyLlmAsAJudgeEvaluator,
     LegacyTrajectoryEvaluator,
@@ -68,6 +70,7 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluator,
     ToolCallOutputEvaluatorConfig,
 )
+from uipath.eval.models import LegacyEvaluatorType
 
 logger = logging.getLogger(__name__)
 
@@ -428,11 +431,8 @@ class EvaluatorFactory:
     def _create_legacy_llm_as_judge_evaluator(
         params: LLMEvaluatorParams,
         agent_model: str | None = None,
-    ) -> LegacyLlmAsAJudgeEvaluator:
-        """Create an LLM-as-a-judge evaluator."""
-        if not params.prompt:
-            raise ValueError("LLM evaluator must include 'prompt' field")
-
+    ) -> LegacyBaseEvaluator[Any]:
+        """Create an LLM-as-a-judge evaluator or context precision evaluator based on type."""
         if not params.model:
             raise ValueError("LLM evaluator must include 'model' field")
 
@@ -449,10 +449,16 @@ class EvaluatorFactory:
             )
             params = params.model_copy(update={"model": agent_model})
 
-        logger.info(
-            f"Creating LLM-as-judge evaluator '{params.name}' with model: {params.model}"
-        )
-        return LegacyLlmAsAJudgeEvaluator(**params.model_dump(), config={})
+        # Check evaluator type to determine which evaluator to create
+        if params.evaluator_type == LegacyEvaluatorType.ContextPrecision:
+            return LegacyContextPrecisionEvaluator(**params.model_dump(), config={})
+        elif params.evaluator_type == LegacyEvaluatorType.Faithfulness:
+            return LegacyFaithfulnessEvaluator(**params.model_dump(), config={})
+        else:
+            if not params.prompt:
+                raise ValueError("LLM evaluator must include 'prompt' field")
+
+            return LegacyLlmAsAJudgeEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_trajectory_evaluator(
