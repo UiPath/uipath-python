@@ -1,3 +1,8 @@
-from ._track import track  # noqa: D104
+from ._track import (  # noqa: D104
+    flush_events,
+    is_telemetry_enabled,
+    track,
+    track_event,
+)
 
-__all__ = ["track"]
+__all__ = ["track", "track_event", "is_telemetry_enabled", "flush_events"]

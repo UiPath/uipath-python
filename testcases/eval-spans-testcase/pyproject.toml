@@ -1,0 +1,11 @@
+[project]
+name = "eval-spans-testcase"
+version = "0.1.0"
+description = "E2E test for verifying eval spans (Evaluation Set Run, Evaluation, Evaluator)"
+requires-python = ">=3.11"
+dependencies = [
+    "uipath",
+]
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }

@@ -26,9 +26,9 @@ debug_print_uipath_output() {
 run_assertions() {
     echo "Running assertions..."
     if [ -f "src/assert.py" ]; then
-        # Use the Python from the virtual environment
+        # Use uv run to ensure testcase dependencies are available
         # Prepend the common directory to the python path so it can be resolved
-        PYTHONPATH="../common:$PYTHONPATH" python src/assert.py
+        PYTHONPATH="../common:$PYTHONPATH" uv run python src/assert.py
     else
         echo "assert.py not found in src directory!"
         exit 1
