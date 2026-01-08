@@ -5,7 +5,7 @@ description = "Python SDK and CLI for UiPath Platform, enabling programmatic int
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
-  "uipath-core>=0.1.4, <0.2.0",
+  "uipath-core>=0.1.4,<0.2.0",
   "uipath-runtime>=0.4.0,<0.5.0",
   "click>=8.3.1",
   "httpx>=0.28.1",
@@ -147,3 +147,4 @@ explicit = true
 
 [tool.uv.sources]
 uipath-runtime = { path = "../uipath-runtime-python", editable = true }
+uipath-core = { path = "../uipath-core-python", editable = true }

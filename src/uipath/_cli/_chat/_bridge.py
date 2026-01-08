@@ -150,8 +150,9 @@ class SocketIOChatBridge:
         if self._client is None:
             raise RuntimeError("WebSocket client not connected. Call connect() first.")
 
-        if not self._connected_event.is_set():
-            raise RuntimeError("WebSocket client not in connected state")
+        # FIXME
+        # if not self._connected_event.is_set():
+        #     raise RuntimeError("WebSocket client not in connected state")
 
         try:
             # Wrap message event with conversation/exchange IDs
@@ -168,7 +169,6 @@ class SocketIOChatBridge:
             )
 
             logger.error(f">>>> emit ConversationEvent disabled!!!! {json.dumps(event_data)}")
-
             # await self._client.emit("ConversationEvent", event_data)
 
             # Store the current message ID, used for emitting interrupt events.
