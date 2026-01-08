@@ -211,6 +211,13 @@ class SocketIOChatBridge:
             try:
                 self._interrupt_id = str(uuid.uuid4())
 
+                value = {
+                    "toolCallId": str(uuid.uuid4()),
+                    "toolName": "test-tool",
+                    "inputSchema": {"type": "object", "properties": {"test-property": {"type":"string"}}},
+                    "inputValue": {"test-property": "test-input-value"},
+                }
+
                 interrupt_event = UiPathConversationEvent(
                     conversation_id=self.conversation_id,
                     exchange=UiPathConversationExchangeEvent(
@@ -220,8 +227,8 @@ class SocketIOChatBridge:
                             interrupt=UiPathConversationInterruptEvent(
                                 interrupt_id=self._interrupt_id,
                                 start=UiPathConversationInterruptStartEvent(
-                                    type="coded-agent-interrupt",
-                                    value=runtime_result.output,
+                                    type="uipath_cas_tool_call_confirmation",
+                                    value=value,
                                 ),
                             ),
                         ),
