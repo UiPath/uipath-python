@@ -37,12 +37,12 @@ class ConnectionsService(BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
 
+    @resource_override("connection", resource_identifier="key")
     @traced(
         name="connections_retrieve",
         run_type="uipath",
         hide_output=True,
     )
-    @resource_override("connection", resource_identifier="key")
     def retrieve(self, key: str) -> Connection:
         """Retrieve connection details by its key.
 
@@ -248,12 +248,12 @@ class ConnectionsService(BaseService):
 
         return self._parse_and_validate_list_response(response)
 
+    @resource_override("connection", resource_identifier="key")
     @traced(
         name="connections_retrieve",
         run_type="uipath",
         hide_output=True,
     )
-    @resource_override("connection", resource_identifier="key")
     async def retrieve_async(self, key: str) -> Connection:
         """Asynchronously retrieve connection details by its key.
 

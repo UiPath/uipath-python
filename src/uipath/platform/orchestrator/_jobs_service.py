@@ -471,8 +471,8 @@ class JobsService(FolderContext, BaseService):
         except LookupError:
             return False
 
-    @traced(name="jobs_retrieve", run_type="uipath")
     @resource_override(resource_type="process", resource_identifier="process_name")
+    @traced(name="jobs_retrieve", run_type="uipath")
     def retrieve(
         self,
         job_key: str,
@@ -518,8 +518,8 @@ class JobsService(FolderContext, BaseService):
                 raise LookupError(f"Job with key '{job_key}' not found") from e
             raise
 
-    @traced(name="jobs_retrieve_async", run_type="uipath")
     @resource_override(resource_type="process", resource_identifier="process_name")
+    @traced(name="jobs_retrieve_async", run_type="uipath")
     async def retrieve_async(
         self,
         job_key: str,

@@ -28,8 +28,8 @@ class ProcessesService(FolderContext, BaseService):
         self._attachments_service = attachment_service
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="processes_invoke", run_type="uipath")
     @resource_override(resource_type="process")
+    @traced(name="processes_invoke", run_type="uipath")
     def invoke(
         self,
         name: str,
@@ -92,8 +92,8 @@ class ProcessesService(FolderContext, BaseService):
 
         return Job.model_validate(response.json()["value"][0])
 
-    @traced(name="processes_invoke", run_type="uipath")
     @resource_override(resource_type="process")
+    @traced(name="processes_invoke", run_type="uipath")
     async def invoke_async(
         self,
         name: str,
