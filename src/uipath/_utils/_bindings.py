@@ -13,7 +13,7 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, TypeAdapter
 
 T = TypeVar("T")
 
@@ -56,7 +56,11 @@ class GenericResourceOverwrite(ResourceOverwrite):
 
 class ConnectionResourceOverwrite(ResourceOverwrite):
     resource_type: Literal["connection"]
-    connection_id: str = Field(alias="connectionId")
+    # In eval context, studio web provides "ConnectionId".
+    connection_id: str = Field(
+        alias="connectionId",
+        validation_alias=AliasChoices("connectionId", "ConnectionId"),
+    )
     folder_key: str = Field(alias="folderKey")
 
     model_config = ConfigDict(
