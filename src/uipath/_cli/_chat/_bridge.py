@@ -1,6 +1,7 @@
 """Chat bridge implementations for conversational agents."""
 
 import asyncio
+import json
 import logging
 import os
 import uuid
@@ -166,7 +167,9 @@ class SocketIOChatBridge:
                 mode="json", exclude_none=True, by_alias=True
             )
 
-            await self._client.emit("ConversationEvent", event_data)
+            logger.error(f">>>> emit ConversationEvent disabled!!!! {json.dumps(event_data)}")
+
+            # await self._client.emit("ConversationEvent", event_data)
 
             # Store the current message ID, used for emitting interrupt events.
             self._current_message_id = message_event.message_id
@@ -314,6 +317,12 @@ def get_chat_bridge(
     # Construct WebSocket URL for CAS
     websocket_url = f"wss://{host}?conversationId={context.conversation_id}"
     websocket_path = "autopilotforeveryone_/websocket_/socket.io"
+
+    if os.environ.get("USE_CAS_LOCALHOST"):
+        websocket_url = f"ws://localhost:8080?conversationId={context.conversation_id}"
+        websocket_path = "/socket.io"
+        logger.warning(f"USE_CAS_LOCALHOST is set. Using websocket_url '{websocket_url}{websocket_path}'.")
+        print(f"USE_CAS_LOCALHOST is set. Using websocket_url '{websocket_url}{websocket_path}'.")
 
     # Build headers from context
     headers = {
