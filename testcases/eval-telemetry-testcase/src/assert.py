@@ -132,17 +132,32 @@ def verify_output(output_file: str) -> bool:
         return False
 
     output_data = load_output(output_file)
-    status = output_data.get("status")
 
-    if status != "successful":
-        print(f"  Eval failed with status: {status}")
-        return False
+    # The eval output can have two formats:
+    # 1. Direct results: {"evaluationSetName": "...", "evaluationSetResults": [...]}
+    # 2. Wrapped results: {"status": "successful", "output": {...}}
+    if "status" in output_data:
+        status = output_data.get("status")
+        if status != "successful":
+            print(f"  Eval failed with status: {status}")
+            return False
+        print(f"  Status: {status}")
+        output = output_data.get("output", {})
+        evaluation_results = output.get("evaluationSetResults", [])
+    else:
+        # Direct format - check for evaluationSetResults
+        evaluation_results = output_data.get("evaluationSetResults", [])
+        if not evaluation_results:
+            print("  No evaluationSetResults found in output")
+            return False
+        print("  Status: completed (direct output format)")
 
-    print(f"  Status: {status}")
-
-    output = output_data.get("output", {})
-    evaluation_results = output.get("evaluationSetResults", [])
     print(f"  Evaluation results: {len(evaluation_results)}")
+
+    # Verify we have results with scores
+    if len(evaluation_results) == 0:
+        print("  No evaluation results found")
+        return False
 
     return True
 
