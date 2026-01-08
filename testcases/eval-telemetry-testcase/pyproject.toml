@@ -1,0 +1,12 @@
+[project]
+name = "eval-telemetry-testcase"
+version = "0.1.0"
+description = "E2E test for verifying eval telemetry events in Application Insights"
+requires-python = ">=3.11"
+dependencies = [
+    "uipath",
+    "httpx",
+]
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }
