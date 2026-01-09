@@ -52,6 +52,8 @@ class AgentInternalToolType(str, Enum):
     """Agent internal tool type enumeration."""
 
     ANALYZE_FILES = "analyze-attachments"
+    DEEP_RAG = "deep-rag"
+    BATCH_TRANSFORM = "batch-transform"
 
 
 class AgentEscalationRecipientType(str, Enum):
@@ -397,12 +399,75 @@ class AgentIntegrationToolProperties(BaseResourceProperties):
     )
 
 
-class AgentInternalToolProperties(BaseResourceProperties):
-    """Agent internal tool properties model."""
+class AgentInternalDeepRagSettings(BaseCfg):
+    """Agent internal DeepRAG tool settings model."""
+
+    context_type: str = Field(..., alias="contextType")
+    index_name: Optional[str] = Field(None, alias="indexName")
+    folder_path: Optional[str] = Field(None, alias="folderPath")
+    query: Optional[AgentContextQuerySetting] = Field(None)
+    folder_path_prefix: Optional[AgentContextQuerySetting] = Field(
+        None, alias="folderPathPrefix"
+    )
+    citation_mode: Optional[AgentContextValueSetting] = Field(
+        None, alias="citationMode"
+    )
+    file_extension: Optional[AgentContextValueSetting] = Field(
+        None, alias="fileExtension"
+    )
+
+
+class AgentInternalBatchTransformSettings(BaseCfg):
+    """Agent internal BatchTransform tool settings model."""
+
+    context_type: str = Field(..., alias="contextType")
+    index_name: Optional[str] = Field(None, alias="indexName")
+    folder_path: Optional[str] = Field(None, alias="folderPath")
+    query: Optional[str] = Field(None)
+    folder_path_prefix: Optional[str] = Field(None, alias="folderPathPrefix")
+    file_extension: Optional[str] = Field(None, alias="fileExtension")
+    use_web_search_grounding: bool = Field(
+        default=False, alias="useWebSearchGrounding"
+    )
+    output_columns: Optional[List[AgentContextOutputColumn]] = Field(
+        None, alias="outputColumns"
+    )
+
+
+class AgentInternalAnalyzeFilesToolProperties(BaseResourceProperties):
+    """Agent internal analyze files tool properties model."""
 
     tool_type: Literal[AgentInternalToolType.ANALYZE_FILES] = Field(
-        ..., alias="toolType"
+        alias="toolType", default=AgentInternalToolType.ANALYZE_FILES, frozen=True
     )
+
+
+class AgentInternalDeepRagToolProperties(BaseResourceProperties):
+    """Agent internal DeepRAG tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.DEEP_RAG] = Field(
+        alias="toolType", default=AgentInternalToolType.DEEP_RAG, frozen=True
+    )
+    settings: AgentInternalDeepRagSettings = Field(..., alias="settings")
+
+
+class AgentInternalBatchTransformToolProperties(BaseResourceProperties):
+    """Agent internal BatchTransform tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.BATCH_TRANSFORM] = Field(
+        alias="toolType", default=AgentInternalToolType.BATCH_TRANSFORM, frozen=True
+    )
+    settings: AgentInternalBatchTransformSettings = Field(..., alias="settings")
+
+
+AgentInternalToolProperties = Annotated[
+    Union[
+        AgentInternalAnalyzeFilesToolProperties,
+        AgentInternalDeepRagToolProperties,
+        AgentInternalBatchTransformToolProperties,
+    ],
+    Field(discriminator="tool_type"),
+]
 
 
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
