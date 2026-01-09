@@ -65,6 +65,69 @@ class TestEvalSetRunSpan:
         span_attributes = {"span_type": "eval_set_run"}
         assert span_attributes["span_type"] == "eval_set_run"
 
+    def test_span_has_output_attribute(self):
+        """Test that span has output attribute with score."""
+        import json
+
+        # Simulate the output attribute set by configure_eval_set_run_span
+        output_data = {"score": 85}
+        output_json = json.dumps(output_data)
+
+        span_attributes = {
+            "span_type": "eval_set_run",
+            "output": output_json,
+        }
+
+        assert "output" in span_attributes
+        parsed_output = json.loads(span_attributes["output"])
+        assert parsed_output["score"] == 85
+        assert isinstance(parsed_output["score"], int)
+
+    def test_span_has_agent_id(self):
+        """Test that span has agentId metadata attribute."""
+        execution_id = "exec-123"
+        span_attributes = {
+            "span_type": "eval_set_run",
+            "agentId": execution_id,
+        }
+        assert "agentId" in span_attributes
+        assert span_attributes["agentId"] == "exec-123"
+
+    def test_span_has_agent_name(self):
+        """Test that span has agentName metadata attribute."""
+        span_attributes = {
+            "span_type": "eval_set_run",
+            "agentName": "N/A",
+        }
+        assert "agentName" in span_attributes
+        assert span_attributes["agentName"] == "N/A"
+
+    def test_span_has_input_schema(self):
+        """Test that span has inputSchema metadata attribute."""
+        import json
+
+        input_schema = {"type": "object", "properties": {"x": {"type": "number"}}}
+        span_attributes = {
+            "span_type": "eval_set_run",
+            "inputSchema": json.dumps(input_schema),
+        }
+        assert "inputSchema" in span_attributes
+        parsed_schema = json.loads(span_attributes["inputSchema"])
+        assert parsed_schema["type"] == "object"
+
+    def test_span_has_output_schema(self):
+        """Test that span has outputSchema metadata attribute."""
+        import json
+
+        output_schema = {"type": "string"}
+        span_attributes = {
+            "span_type": "eval_set_run",
+            "outputSchema": json.dumps(output_schema),
+        }
+        assert "outputSchema" in span_attributes
+        parsed_schema = json.loads(span_attributes["outputSchema"])
+        assert parsed_schema["type"] == "string"
+
     def test_span_includes_eval_set_run_id_when_present(self):
         """Test that eval_set_run_id is included when context has it."""
         eval_set_run_id = str(uuid.uuid4())
@@ -145,6 +208,69 @@ class TestEvaluationSpan:
         required_attrs = ["execution.id", "span_type", "eval_item_id", "eval_item_name"]
         for attr in required_attrs:
             assert attr in span_attributes, f"Missing required attribute: {attr}"
+
+    def test_span_has_output_attribute(self):
+        """Test that span has output attribute with score."""
+        import json
+
+        # Simulate the output attribute set by configure_evaluation_span
+        output_data = {"score": 90}
+        output_json = json.dumps(output_data)
+
+        span_attributes = {
+            "span_type": "evaluation",
+            "output": output_json,
+        }
+
+        assert "output" in span_attributes
+        parsed_output = json.loads(span_attributes["output"])
+        assert parsed_output["score"] == 90
+        assert isinstance(parsed_output["score"], int)
+
+    def test_span_has_agent_id(self):
+        """Test that span has agentId metadata attribute."""
+        execution_id = "eval-exec-456"
+        span_attributes = {
+            "span_type": "evaluation",
+            "agentId": execution_id,
+        }
+        assert "agentId" in span_attributes
+        assert span_attributes["agentId"] == "eval-exec-456"
+
+    def test_span_has_agent_name(self):
+        """Test that span has agentName metadata attribute."""
+        span_attributes = {
+            "span_type": "evaluation",
+            "agentName": "N/A",
+        }
+        assert "agentName" in span_attributes
+        assert span_attributes["agentName"] == "N/A"
+
+    def test_span_has_input_schema(self):
+        """Test that span has inputSchema metadata attribute."""
+        import json
+
+        input_schema = {"type": "object"}
+        span_attributes = {
+            "span_type": "evaluation",
+            "inputSchema": json.dumps(input_schema),
+        }
+        assert "inputSchema" in span_attributes
+        parsed_schema = json.loads(span_attributes["inputSchema"])
+        assert parsed_schema["type"] == "object"
+
+    def test_span_has_output_schema(self):
+        """Test that span has outputSchema metadata attribute."""
+        import json
+
+        output_schema = {"type": "object"}
+        span_attributes = {
+            "span_type": "evaluation",
+            "outputSchema": json.dumps(output_schema),
+        }
+        assert "outputSchema" in span_attributes
+        parsed_schema = json.loads(span_attributes["outputSchema"])
+        assert parsed_schema["type"] == "object"
 
 
 class TestEvaluatorSpan:
@@ -571,6 +697,64 @@ class TestEvaluationOutputSpan:
             "span.type": "evalOutput",
         }
         assert span_attributes["openinference.span.kind"] == "CHAIN"
+
+    def test_span_has_output_attribute_with_type_value_justification(self):
+        """Test that span has output attribute with type, value, and justification."""
+        import json
+
+        # Simulate the output attribute set by set_evaluation_output_span_output
+        output_data = {
+            "type": 1,
+            "value": 0.92,
+            "justification": "The outputs are semantically equivalent",
+        }
+        output_json = json.dumps(output_data)
+
+        span_attributes = {
+            "span.type": "evalOutput",
+            "output": output_json,
+        }
+
+        assert "output" in span_attributes
+        parsed_output = json.loads(span_attributes["output"])
+        assert parsed_output["type"] == 1
+        assert parsed_output["value"] == 0.92
+        assert (
+            parsed_output["justification"] == "The outputs are semantically equivalent"
+        )
+
+    def test_span_output_type_is_always_one(self):
+        """Test that output type field is always 1."""
+        import json
+
+        output_data = {"type": 1, "value": 0.5}
+        output_json = json.dumps(output_data)
+
+        span_attributes = {
+            "span.type": "evalOutput",
+            "output": output_json,
+        }
+
+        parsed_output = json.loads(span_attributes["output"])
+        assert parsed_output["type"] == 1
+
+    def test_span_output_without_justification(self):
+        """Test that output can be set without justification field."""
+        import json
+
+        # When justification is None, it should be excluded from output
+        output_data = {"type": 1, "value": 0.75}
+        output_json = json.dumps(output_data)
+
+        span_attributes = {
+            "span.type": "evalOutput",
+            "output": output_json,
+        }
+
+        parsed_output = json.loads(span_attributes["output"])
+        assert parsed_output["type"] == 1
+        assert parsed_output["value"] == 0.75
+        assert "justification" not in parsed_output
 
 
 class TestEvaluationOutputSpanHierarchy:

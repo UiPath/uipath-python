@@ -38,6 +38,11 @@ from uipath.runtime.errors import (
 from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
+from uipath._cli._evals._span_utils import (
+    configure_eval_set_run_span,
+    configure_evaluation_span,
+    set_evaluation_output_span_output,
+)
 from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.input_mocker import (
     generate_llm_input,
@@ -355,6 +360,17 @@ class UiPathEvalRuntime:
                             evaluator_averages[eval_id] = (
                                 evaluator_averages[eval_id] / evaluator_count[eval_id]
                             )
+
+                        # Configure span with output and metadata
+                        await configure_eval_set_run_span(
+                            span=span,
+                            evaluator_averages=evaluator_averages,
+                            execution_id=self.execution_id,
+                            runtime=runtime,
+                            get_schema_func=self.get_schema,
+                            success=not any_failed,
+                        )
+
                         await self.event_bus.publish(
                             EvaluationEvents.UPDATE_EVAL_SET_RUN,
                             EvalSetRunUpdatedEvent(
@@ -422,7 +438,7 @@ class UiPathEvalRuntime:
                 "eval_item_id": eval_item.id,
                 "eval_item_name": eval_item.name,
             },
-        ):
+        ) as span:
             evaluation_run_results = EvaluationRunResult(
                 evaluation_name=eval_item.name, evaluation_run_results=[]
             )
@@ -582,6 +598,18 @@ class UiPathEvalRuntime:
                 )
             finally:
                 clear_execution_context()
+
+            # Configure span with output and metadata
+            await configure_evaluation_span(
+                span=span,
+                evaluation_run_results=evaluation_run_results,
+                execution_id=execution_id,
+                runtime=runtime,
+                get_schema_func=self.get_schema,
+                agent_execution_output=agent_execution_output
+                if "agent_execution_output" in locals()
+                else None,
+            )
 
             return evaluation_run_results
 
@@ -766,6 +794,7 @@ class UiPathEvalRuntime:
             }
 
             # Add justification if available
+            justification = None
             if result.details:
                 if isinstance(result.details, BaseModel):
                     details_dict = result.details.model_dump()
@@ -779,8 +808,13 @@ class UiPathEvalRuntime:
             with tracer.start_as_current_span(
                 "Evaluation output",
                 attributes=eval_output_attrs,
-            ):
-                pass  # Span just records the output, no work needed
+            ) as span:
+                # Set output using utility function
+                set_evaluation_output_span_output(
+                    span=span,
+                    score=result.score,
+                    justification=justification,
+                )
 
             return result
 
