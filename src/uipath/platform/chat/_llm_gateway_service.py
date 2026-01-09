@@ -199,7 +199,7 @@ class UiPathOpenAIService(BaseService):
 
         return TextEmbedding.model_validate(response.json())
 
-    @traced(name="llm_chat_completions", run_type="uipath")
+    @traced(name="LLM call", run_type="uipath")
     async def chat_completions(
         self,
         messages: list[dict[str, str]],
@@ -343,7 +343,7 @@ class UiPathLlmChatService(BaseService):
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="llm_chat_completions", run_type="uipath")
+    @traced(name="LLM call", run_type="uipath")
     async def chat_completions(
         self,
         messages: list[dict[str, str]] | list[tuple[str, str]],

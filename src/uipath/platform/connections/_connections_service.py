@@ -638,7 +638,7 @@ class ConnectionsService(BaseService):
         )
 
     @traced(
-        name="activity_invoke",
+        name="Activity invoke",
         run_type="uipath",
     )
     def invoke_activity(
@@ -677,7 +677,7 @@ class ConnectionsService(BaseService):
         return response.json()
 
     @traced(
-        name="activity_invoke",
+        name="Activity invoke",
         run_type="uipath",
     )
     async def invoke_activity_async(
