@@ -23,6 +23,11 @@ from uipath.runtime.errors import (
     UiPathRuntimeError,
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
+from uipath.runtime.resumable.trigger import (
+    UiPathResumeTrigger,
+    UiPathResumeTriggerType,
+    UiPathResumeTriggerName,
+)
 
 from .schema_gen import get_type_schema
 from .type_conversion import (
@@ -124,6 +129,71 @@ class UiPathFunctionsRuntime:
 
         return convert_from_class(result) if result is not None else {}
 
+    def _detect_langgraph_interrupt(
+        self, output: dict[str, Any]
+    ) -> UiPathResumeTrigger | None:
+        """Detect LangGraph __interrupt__ field and extract InvokeProcess trigger.
+
+        LangGraph's interrupt() creates an __interrupt__ field in the output dict:
+        {
+            "query": "...",
+            "final_result": "",
+            "__interrupt__": [Interrupt(value=InvokeProcess(...), id="...")]
+        }
+
+        We extract the InvokeProcess from the interrupt and convert it to a UiPath trigger.
+        """
+        try:
+            if not isinstance(output, dict):
+                return None
+
+            # Check for LangGraph's __interrupt__ field
+            if "__interrupt__" not in output:
+                return None
+
+            interrupts = output["__interrupt__"]
+            if not interrupts or not isinstance(interrupts, list):
+                logger.warning("__interrupt__ field exists but is not a list")
+                return None
+
+            # Extract first interrupt
+            interrupt_obj = interrupts[0]
+            if not hasattr(interrupt_obj, "value"):
+                logger.warning("Interrupt object missing 'value' attribute")
+                return None
+
+            invoke_process = interrupt_obj.value
+
+            # Check if it's an InvokeProcess object (has name and input_arguments)
+            if not (
+                hasattr(invoke_process, "name")
+                and hasattr(invoke_process, "input_arguments")
+            ):
+                logger.warning(
+                    f"Interrupt value is not InvokeProcess (type: {type(invoke_process)})"
+                )
+                return None
+
+            logger.info(
+                f"Detected LangGraph interrupt - suspending execution for process: {invoke_process.name}"
+            )
+
+            # Convert InvokeProcess to UiPath trigger
+            return UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.JOB,
+                trigger_name=UiPathResumeTriggerName.JOB,
+                item_key=f"job-{uuid.uuid4()}",  # Generate unique job key
+                folder_path=getattr(invoke_process, "process_folder_path", "Shared"),
+                payload={
+                    "process_name": invoke_process.name,
+                    "input_arguments": invoke_process.input_arguments or {},
+                    "folder_key": getattr(invoke_process, "process_folder_key", None),
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Failed to detect LangGraph interrupt: {e}")
+            return None
+
     async def execute(
         self,
         input: dict[str, Any] | None = None,
@@ -133,6 +203,21 @@ class UiPathFunctionsRuntime:
         try:
             func = self._load_function()
             output = await self._execute_function(func, input or {})
+
+            logger.info(f"Output type: {type(output)}, has __interrupt__: {'__interrupt__' in output if isinstance(output, dict) else False}")
+
+            # Check if output represents a LangGraph interrupt (suspend)
+            trigger = self._detect_langgraph_interrupt(output)
+            logger.info(f"Trigger detected: {trigger}")
+            if trigger:
+                logger.info(
+                    f"Detected LangGraph interrupt - suspending execution with trigger: {trigger.item_key}"
+                )
+                return UiPathRuntimeResult(
+                    output=None,  # No final output yet (suspended)
+                    status=UiPathRuntimeStatus.SUSPENDED,
+                    trigger=trigger,
+                )
 
             return UiPathRuntimeResult(
                 output=output,

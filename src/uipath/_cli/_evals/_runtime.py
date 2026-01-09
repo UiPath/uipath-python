@@ -432,6 +432,14 @@ class UiPathEvalRuntime:
                     agent_execution_output = await self.execute_runtime(
                         eval_item, execution_id, runtime
                     )
+
+                    logger.info(
+                        f"DEBUG: Agent execution result status: {agent_execution_output.result.status}"
+                    )
+                    logger.info(
+                        f"DEBUG: Agent execution result trigger: {agent_execution_output.result.trigger}"
+                    )
+
                 except Exception as e:
                     if self.context.verbose:
                         if isinstance(e, EvaluationRuntimeException):
@@ -466,6 +474,58 @@ class UiPathEvalRuntime:
                             )
                         )
                     raise
+
+                # Check if execution was suspended (e.g., waiting for RPA job completion)
+                if (
+                    agent_execution_output.result.status
+                    == UiPathRuntimeStatus.SUSPENDED
+                ):
+                    # For suspended executions, we don't run evaluators yet
+                    # The serverless executor should save the triggers and resume later
+                    logger.info(
+                        f"Evaluation execution suspended for eval '{eval_item.name}' (id: {eval_item.id})"
+                    )
+
+                    # Extract triggers from result
+                    triggers = []
+                    if agent_execution_output.result.trigger:
+                        triggers.append(agent_execution_output.result.trigger)
+                    if agent_execution_output.result.triggers:
+                        triggers.extend(agent_execution_output.result.triggers)
+
+                    # IMPORTANT: Always include execution output with triggers when suspended
+                    # This ensures triggers are visible in the output JSON for serverless executor
+                    evaluation_run_results.agent_execution_output = (
+                        convert_eval_execution_output_to_serializable(
+                            agent_execution_output
+                        )
+                    )
+
+                    # Publish suspended status event
+                    await self.event_bus.publish(
+                        EvaluationEvents.UPDATE_EVAL_RUN,
+                        EvalRunUpdatedEvent(
+                            execution_id=execution_id,
+                            eval_item=eval_item,
+                            eval_results=[],
+                            success=True,  # Not failed, just suspended
+                            agent_output={
+                                "status": "suspended",
+                                "triggers": [
+                                    t.model_dump(by_alias=True) for t in triggers
+                                ],
+                            },
+                            agent_execution_time=agent_execution_output.execution_time,
+                            spans=agent_execution_output.spans,
+                            logs=agent_execution_output.logs,
+                            exception_details=None,
+                        ),
+                        wait_for_completion=False,
+                    )
+
+                    # Return partial results with trigger information
+                    # The evaluation will be completed when resumed
+                    return evaluation_run_results
 
                 if self.context.verbose:
                     evaluation_run_results.agent_execution_output = (
