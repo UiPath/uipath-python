@@ -3,8 +3,7 @@
 import json
 from typing import Any, Dict, Optional
 
-from opentelemetry.sdk.trace import Span
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import Span, Status, StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 
 # Type hint for runtime protocol (avoids circular imports)

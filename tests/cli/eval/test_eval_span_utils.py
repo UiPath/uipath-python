@@ -1,7 +1,7 @@
 """Unit tests for evaluation span utility functions."""
 
 import json
-from typing import Any
+from typing import Any, Dict, Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,9 +24,9 @@ from uipath._cli._evals._span_utils import (
 class MockSpan:
     """Mock span for testing."""
 
-    def __init__(self):
-        self.attributes = {}
-        self._status = None
+    def __init__(self) -> None:
+        self.attributes: Dict[str, Any] = {}
+        self._status: Optional[Status] = None
 
     def set_attribute(self, key: str, value: Any) -> None:
         self.attributes[key] = value
@@ -135,7 +135,7 @@ class TestSetSpanAttributeFunctions:
         span = MockSpan()
 
         set_eval_set_run_output_and_metadata(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             overall_score=82.5,
             execution_id="exec-123",
             input_schema={"type": "object"},
@@ -168,7 +168,7 @@ class TestSetSpanAttributeFunctions:
         span = MockSpan()
 
         set_eval_set_run_output_and_metadata(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             overall_score=75.0,
             execution_id="exec-456",
             input_schema=None,
@@ -188,7 +188,7 @@ class TestSetSpanAttributeFunctions:
         span = MockSpan()
 
         set_evaluation_output_and_metadata(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             avg_score=88.3,
             execution_id="eval-789",
             input_schema={"properties": {}},
@@ -215,7 +215,7 @@ class TestSetSpanAttributeFunctions:
         span = MockSpan()
 
         set_evaluation_output_and_metadata(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             avg_score=0.0,
             execution_id="eval-error",
             input_schema={},
@@ -227,6 +227,7 @@ class TestSetSpanAttributeFunctions:
         # Check status is ERROR
         assert span._status is not None
         assert span._status.status_code == StatusCode.ERROR
+        assert span._status.description is not None
         assert "Runtime error occurred" in span._status.description
 
     def test_set_evaluation_output_span_output_with_justification(self):
@@ -234,7 +235,7 @@ class TestSetSpanAttributeFunctions:
         span = MockSpan()
 
         set_evaluation_output_span_output(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             score=92.7,
             justification="The answer is correct and well-formatted",
         )
@@ -254,7 +255,7 @@ class TestSetSpanAttributeFunctions:
         span = MockSpan()
 
         set_evaluation_output_span_output(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             score=85.0,
             justification=None,
         )
@@ -294,7 +295,7 @@ class TestHighLevelConfigurationFunctions:
             return mock_schema
 
         await configure_eval_set_run_span(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             evaluator_averages=evaluator_averages,
             execution_id="exec-complete",
             runtime=mock_runtime,
@@ -316,6 +317,7 @@ class TestHighLevelConfigurationFunctions:
         assert input_schema_data["properties"]["x"]["type"] == "number"
 
         # Verify status
+        assert span._status is not None
         assert span._status.status_code == StatusCode.OK
 
     @pytest.mark.asyncio
@@ -330,7 +332,7 @@ class TestHighLevelConfigurationFunctions:
             raise Exception("Schema not found")
 
         await configure_eval_set_run_span(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             evaluator_averages=evaluator_averages,
             execution_id="exec-no-schema",
             runtime=MagicMock(),
@@ -377,7 +379,7 @@ class TestHighLevelConfigurationFunctions:
         mock_agent_output.result.error = None
 
         await configure_evaluation_span(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             evaluation_run_results=mock_evaluation_run_results,
             execution_id="eval-complete",
             runtime=mock_runtime,
@@ -393,6 +395,7 @@ class TestHighLevelConfigurationFunctions:
         assert span.attributes["agentId"] == "eval-complete"
 
         # Verify status is OK (no error)
+        assert span._status is not None
         assert span._status.status_code == StatusCode.OK
 
     @pytest.mark.asyncio
@@ -414,11 +417,12 @@ class TestHighLevelConfigurationFunctions:
         # Mock agent execution output with error
         mock_agent_output = MagicMock()
         mock_error = MagicMock()
-        mock_error.__str__ = lambda self: "Agent failed"
+        # Configure __str__ to return "Agent failed"
+        mock_error.configure_mock(__str__=lambda self: "Agent failed")
         mock_agent_output.result.error = mock_error
 
         await configure_evaluation_span(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             evaluation_run_results=mock_evaluation_run_results,
             execution_id="eval-error",
             runtime=mock_runtime,
@@ -427,7 +431,9 @@ class TestHighLevelConfigurationFunctions:
         )
 
         # Verify status is ERROR
+        assert span._status is not None
         assert span._status.status_code == StatusCode.ERROR
+        assert span._status.description is not None
         assert "Agent failed" in span._status.description
 
     @pytest.mark.asyncio
@@ -450,7 +456,7 @@ class TestHighLevelConfigurationFunctions:
             return mock_schema
 
         await configure_evaluation_span(
-            span=span,
+            span=span,  # type: ignore[arg-type]
             evaluation_run_results=mock_evaluation_run_results,
             execution_id="eval-no-output",
             runtime=mock_runtime,
@@ -459,4 +465,5 @@ class TestHighLevelConfigurationFunctions:
         )
 
         # Verify it doesn't crash and sets OK status
+        assert span._status is not None
         assert span._status.status_code == StatusCode.OK
