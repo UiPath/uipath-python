@@ -382,8 +382,9 @@ class StudioWebProgressReporter:
             if current_span.is_recording():
                 current_span.set_attribute("eval_set_run_id", eval_set_run_id)
 
-            # Create and send parent trace for the evaluation set run
+            # Set trace_id and send parent trace for the evaluation set run
             if eval_set_run_id:
+                self.spans_exporter.trace_id = eval_set_run_id
                 await self._send_parent_trace(eval_set_run_id, payload.eval_set_id)
 
             logger.debug(
