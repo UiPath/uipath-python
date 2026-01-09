@@ -4,6 +4,7 @@ This script validates that the new eval spans are created correctly:
 1. "Evaluation Set Run" span with span_type: "eval_set_run"
 2. "Evaluation" spans with span_type: "evaluation"
 3. "Evaluator: {name}" spans with span_type: "evaluator"
+4. "Evaluation output" spans with span.type: "evalOutput"
 """
 
 import json
@@ -33,6 +34,15 @@ def find_spans_by_type(
     """Find all spans with the given span_type attribute."""
     return [
         trace for trace in traces if get_attributes(trace).get("span_type") == span_type
+    ]
+
+
+def find_spans_by_span_dot_type(
+    traces: list[dict[str, Any]], span_type: str
+) -> list[dict[str, Any]]:
+    """Find all spans with the given span.type attribute."""
+    return [
+        trace for trace in traces if get_attributes(trace).get("span.type") == span_type
     ]
 
 
@@ -180,6 +190,65 @@ def assert_evaluator_spans(traces: list[dict[str, Any]]) -> None:
     print("\nEvaluator spans assertion passed")
 
 
+def assert_evaluation_output_spans(traces: list[dict[str, Any]]) -> None:
+    """Assert that Evaluation output spans exist with correct attributes."""
+    print("\n--- Checking 'Evaluation output' spans ---")
+
+    # Find by span.type (note: different attribute name than span_type)
+    eval_output_spans = find_spans_by_span_dot_type(traces, "evalOutput")
+
+    assert len(eval_output_spans) >= 1, (
+        "Expected at least 1 'evalOutput' span, found 0. "
+        "Spans with span.type attribute: "
+        f"{[get_attributes(t).get('span.type') for t in traces if get_attributes(t).get('span.type')]}"
+    )
+
+    print(f"  Found {len(eval_output_spans)} evalOutput span(s)")
+
+    for i, span in enumerate(eval_output_spans):
+        name = span.get("name")
+        attrs = get_attributes(span)
+
+        print(f"\n  Evaluation output span {i + 1}:")
+
+        # Check span name
+        assert name == "Evaluation output", (
+            f"Expected span name 'Evaluation output', got '{name}'"
+        )
+        print(f"    Name: {name}")
+
+        # Check span.type attribute
+        assert attrs.get("span.type") == "evalOutput", (
+            f"Expected span.type 'evalOutput', got '{attrs.get('span.type')}'"
+        )
+        print(f"    span.type: {attrs.get('span.type')}")
+
+        # Check openinference.span.kind attribute
+        assert attrs.get("openinference.span.kind") == "CHAIN", (
+            f"Expected openinference.span.kind 'CHAIN', got '{attrs.get('openinference.span.kind')}'"
+        )
+        print(f"    openinference.span.kind: {attrs.get('openinference.span.kind')}")
+
+        # Check required attributes
+        assert "value" in attrs, "Expected 'value' attribute in Evaluation output span"
+        print(f"    value: {attrs.get('value')}")
+
+        assert "evaluatorId" in attrs, (
+            "Expected 'evaluatorId' attribute in Evaluation output span"
+        )
+        print(f"    evaluatorId: {attrs.get('evaluatorId')}")
+
+        # justification is optional but log it if present
+        if "justification" in attrs:
+            justification = attrs.get("justification")
+            # Truncate long justifications for display
+            if isinstance(justification, str) and len(justification) > 100:
+                justification = justification[:100] + "..."
+            print(f"    justification: {justification}")
+
+    print("\nEvaluation output spans assertion passed")
+
+
 def assert_span_hierarchy(traces: list[dict[str, Any]]) -> None:
     """Assert the span hierarchy is correct."""
     print("\n--- Checking span hierarchy ---")
@@ -237,6 +306,7 @@ def main() -> None:
         assert_eval_set_run_span(traces)
         assert_evaluation_spans(traces)
         assert_evaluator_spans(traces)
+        assert_evaluation_output_spans(traces)
         assert_span_hierarchy(traces)
 
         print("\n" + "=" * 60)

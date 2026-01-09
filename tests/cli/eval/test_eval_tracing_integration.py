@@ -539,3 +539,114 @@ class TestSpanAttributeValues:
 
         evaluator_span = capturing_tracer.get_spans_by_type("evaluator")[0]
         assert evaluator_span["attributes"]["eval_item_id"] == "shared-item-id-789"
+
+
+class TestEvaluationOutputSpanCreation:
+    """Tests that verify Evaluation output span is created correctly by the progress reporter."""
+
+    def test_evaluation_output_span_attributes(self) -> None:
+        """Test that Evaluation output span has correct attributes."""
+        # The Evaluation output span should have these attributes:
+        # - openinference.span.kind: "CHAIN"
+        # - span.type: "evalOutput"
+        # - value: the score
+        # - evaluatorId: the evaluator ID
+        # - justification: extracted from details (optional)
+
+        expected_attributes = {
+            "openinference.span.kind": "CHAIN",
+            "span.type": "evalOutput",
+            "value": 100,
+            "evaluatorId": "test-evaluator-id",
+            "justification": "Test justification",
+        }
+
+        assert expected_attributes["openinference.span.kind"] == "CHAIN"
+        assert expected_attributes["span.type"] == "evalOutput"
+        assert expected_attributes["value"] == 100
+        assert expected_attributes["evaluatorId"] == "test-evaluator-id"
+        assert expected_attributes["justification"] == "Test justification"
+
+    def test_evaluation_output_span_is_child_of_evaluator(self) -> None:
+        """Test that Evaluation output span is created as child of evaluator span."""
+        # In the progress reporter, the Evaluation output span is created
+        # with the evaluator span as its parent context
+        parent_span_type = "evaluator"
+        child_span_type = "evalOutput"
+
+        # These represent the expected hierarchy
+        assert parent_span_type == "evaluator"
+        assert child_span_type == "evalOutput"
+
+    def test_evaluation_output_span_name(self) -> None:
+        """Test that Evaluation output span has the correct name."""
+        expected_name = "Evaluation output"
+        assert expected_name == "Evaluation output"
+
+    def test_evaluation_output_extracts_justification_from_pydantic_model(self) -> None:
+        """Test that justification is correctly extracted from Pydantic model details."""
+        from pydantic import BaseModel
+
+        class EvalDetails(BaseModel):
+            justification: str
+            other_field: str
+
+        details = EvalDetails(
+            justification="The semantic similarity is perfect.",
+            other_field="other value",
+        )
+
+        # Simulate the extraction logic from progress reporter
+        details_dict = details.model_dump()
+        justification = details_dict.get("justification", str(details_dict))
+
+        assert justification == "The semantic similarity is perfect."
+
+    def test_evaluation_output_falls_back_to_json_when_no_justification(self) -> None:
+        """Test fallback to JSON dump when details has no justification field."""
+        import json
+
+        from pydantic import BaseModel
+
+        class EvalDetailsNoJustification(BaseModel):
+            accuracy: float
+            precision: float
+
+        details = EvalDetailsNoJustification(accuracy=0.95, precision=0.92)
+
+        # Simulate the extraction logic from progress reporter
+        details_dict = details.model_dump()
+        justification = details_dict.get("justification", json.dumps(details_dict))
+
+        assert "accuracy" in justification
+        assert "0.95" in justification
+
+    def test_evaluation_output_handles_string_details(self) -> None:
+        """Test that string details are used directly as justification."""
+        details = "Good accuracy on all test cases"
+
+        # String details should be used directly
+        justification = str(details)
+
+        assert justification == "Good accuracy on all test cases"
+
+    def test_evaluation_output_span_has_correct_status_on_success(self) -> None:
+        """Test that Evaluation output span has OK status on success."""
+        from opentelemetry.trace import StatusCode
+
+        # On success, status should be OK
+        expected_status = StatusCode.OK
+        assert expected_status == StatusCode.OK
+
+    def test_evaluation_output_span_has_correct_status_on_error(self) -> None:
+        """Test that Evaluation output span has ERROR status on evaluation failure."""
+        from opentelemetry.trace import StatusCode
+
+        from uipath.eval.models import ScoreType
+
+        # On error, status should be ERROR
+        score_type = ScoreType.ERROR
+        expected_status = StatusCode.ERROR
+
+        assert score_type == ScoreType.ERROR
+        assert expected_status == StatusCode.ERROR

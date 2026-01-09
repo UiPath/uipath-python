@@ -757,6 +757,31 @@ class UiPathEvalRuntime:
                 evaluation_criteria=evaluation_criteria,
             )
 
+            # Create "Evaluation output" child span with the result
+            eval_output_attrs: dict[str, Any] = {
+                "span.type": "evalOutput",
+                "openinference.span.kind": "CHAIN",
+                "value": result.score,
+                "evaluatorId": evaluator.id,
+            }
+
+            # Add justification if available
+            if result.details:
+                if isinstance(result.details, BaseModel):
+                    details_dict = result.details.model_dump()
+                    justification = details_dict.get(
+                        "justification", json.dumps(details_dict)
+                    )
+                else:
+                    justification = str(result.details)
+                eval_output_attrs["justification"] = justification
+
+            with tracer.start_as_current_span(
+                "Evaluation output",
+                attributes=eval_output_attrs,
+            ):
+                pass  # Span just records the output, no work needed
+
             return result
 
     async def _get_agent_model(self, runtime: UiPathRuntimeProtocol) -> str | None:
