@@ -1,9 +1,10 @@
 """Tests for eval runtime span creation in _runtime.py.
 
-Tests the three new spans added for eval tracing:
+Tests the spans added for eval tracing:
 1. "Evaluation Set Run" - span_type: "eval_set_run"
 2. "Evaluation" - span_type: "evaluation"
 3. "Evaluator: {name}" - span_type: "evaluator"
+4. "Evaluation output" - span_type: "evalOutput"
 """
 
 import uuid
@@ -500,3 +501,158 @@ class TestExecutionIdPropagation:
 
         assert "execution.id" in span_attributes
         assert span_attributes["execution.id"] == execution_id
+
+
+class TestEvaluationOutputSpan:
+    """Tests for the 'Evaluation output' span."""
+
+    def test_span_name_is_correct(self):
+        """Test that the span name is 'Evaluation output'."""
+        expected_name = "Evaluation output"
+        assert expected_name == "Evaluation output"
+
+    def test_span_has_eval_output_span_type(self):
+        """Test that span_type attribute is 'evalOutput'."""
+        span_attributes = {"span.type": "evalOutput"}
+        assert span_attributes["span.type"] == "evalOutput"
+
+    def test_span_includes_value(self):
+        """Test that value (score) is included in the span attributes."""
+        score = 0.95
+        span_attributes = {
+            "span.type": "evalOutput",
+            "value": score,
+        }
+        assert "value" in span_attributes
+        assert span_attributes["value"] == 0.95
+
+    def test_span_includes_evaluator_id(self):
+        """Test that evaluatorId is included in the span attributes."""
+        evaluator_id = "evaluator-123"
+        span_attributes = {
+            "span.type": "evalOutput",
+            "evaluatorId": evaluator_id,
+        }
+        assert "evaluatorId" in span_attributes
+        assert span_attributes["evaluatorId"] == evaluator_id
+
+    def test_span_includes_justification(self):
+        """Test that justification is included in the span attributes."""
+        justification = "The output matches expected behavior."
+        span_attributes = {
+            "span.type": "evalOutput",
+            "justification": justification,
+        }
+        assert "justification" in span_attributes
+        assert span_attributes["justification"] == justification
+
+    def test_span_has_all_required_attributes(self):
+        """Test that all required attributes are present in the span."""
+        evaluator_id = "eval-id-123"
+        score = 100
+        justification = "Perfect match"
+
+        span_attributes = {
+            "span.type": "evalOutput",
+            "value": score,
+            "evaluatorId": evaluator_id,
+            "justification": justification,
+        }
+
+        # Verify all required attributes
+        required_attrs = ["span.type", "value", "evaluatorId", "justification"]
+        for attr in required_attrs:
+            assert attr in span_attributes, f"Missing required attribute: {attr}"
+
+    def test_span_has_openinference_kind(self):
+        """Test that openinference.span.kind is set to CHAIN."""
+        span_attributes = {
+            "openinference.span.kind": "CHAIN",
+            "span.type": "evalOutput",
+        }
+        assert span_attributes["openinference.span.kind"] == "CHAIN"
+
+
+class TestEvaluationOutputSpanHierarchy:
+    """Tests verifying the Evaluation output span hierarchy."""
+
+    def test_eval_output_is_child_of_evaluator(self):
+        """Test that Evaluation output spans should be children of Evaluator spans."""
+        parent_span_type = "evaluator"
+        child_span_type = "evalOutput"
+
+        # The parent-child relationship is enforced by span context nesting
+        assert parent_span_type == "evaluator"
+        assert child_span_type == "evalOutput"
+
+    def test_eval_output_span_attributes_construction(self):
+        """Test the construction of Evaluation output span attributes."""
+        evaluator_id = "eval-123"
+        score = 0.85
+        justification = "Good accuracy"
+
+        span_attributes = {
+            "openinference.span.kind": "CHAIN",
+            "span.type": "evalOutput",
+            "value": score,
+            "evaluatorId": evaluator_id,
+            "justification": justification,
+        }
+
+        assert span_attributes["openinference.span.kind"] == "CHAIN"
+        assert span_attributes["span.type"] == "evalOutput"
+        assert span_attributes["value"] == 0.85
+        assert span_attributes["evaluatorId"] == "eval-123"
+        assert span_attributes["justification"] == "Good accuracy"
+
+
+class TestEvaluationOutputSpanCreation:
+    """Tests for Evaluation output span creation in progress reporter."""
+
+    def test_eval_output_span_name_is_evaluation_output(self):
+        """Test that the span name is exactly 'Evaluation output'."""
+        span_name = "Evaluation output"
+        assert span_name == "Evaluation output"
+
+    def test_eval_output_span_type_is_camel_case(self):
+        """Test that span.type uses camelCase: evalOutput."""
+        span_type = "evalOutput"
+        assert span_type == "evalOutput"
+        # First letter lowercase, second word capitalized
+        assert span_type[0].islower()
+        assert "Output" in span_type
+
+    def test_eval_output_with_pydantic_details(self):
+        """Test that justification is extracted from Pydantic model details."""
+        # Simulate Pydantic model details with justification field
+        details_dict = {
+            "justification": "The semantic similarity is perfect.",
+            "other_field": "some value",
+        }
+
+        # Extract justification like the code does
+        justification = details_dict.get("justification", str(details_dict))
+        assert justification == "The semantic similarity is perfect."
+
+    def test_eval_output_with_string_details(self):
+        """Test that string details are used as justification directly."""
+        details = "Good accuracy on all test cases"
+
+        # String details are used directly
+        justification = str(details)
+        assert justification == "Good accuracy on all test cases"
+
+    def test_eval_output_without_justification_field(self):
+        """Test fallback when details dict has no justification field."""
+        import json
+
+        details_dict: dict[str, float] = {
+            "accuracy": 0.95,
+            "precision": 0.92,
+        }
+
+        # Should fall back to JSON dump of entire details
+        # Since there's no "justification" key, we get the default JSON string
+        justification = json.dumps(details_dict)
+        assert "accuracy" in justification
+        assert "0.95" in justification

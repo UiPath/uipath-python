@@ -14,10 +14,189 @@ from uipath._cli._evals._models._evaluation_set import (
 )
 from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.mocker import UiPathMockResponseGenerationError
-from uipath._cli._evals.mocks.mocks import set_execution_context
+from uipath._cli._evals.mocks.mocks import (
+    _normalize_tool_name,
+    clear_execution_context,
+    is_tool_simulated,
+    set_execution_context,
+)
 from uipath.eval.mocks import mockable
 
 _mock_span_collector = MagicMock()
+
+
+class TestNormalizeToolName:
+    """Tests for the _normalize_tool_name helper function."""
+
+    def test_replaces_underscores_with_spaces(self):
+        assert _normalize_tool_name("my_tool_name") == "my tool name"
+
+    def test_handles_no_underscores(self):
+        assert _normalize_tool_name("mytool") == "mytool"
+
+    def test_handles_empty_string(self):
+        assert _normalize_tool_name("") == ""
+
+    def test_handles_multiple_consecutive_underscores(self):
+        assert _normalize_tool_name("my__tool") == "my  tool"
+
+    def test_handles_leading_and_trailing_underscores(self):
+        assert _normalize_tool_name("_tool_") == " tool "
+
+
+class TestIsToolSimulated:
+    """Tests for the is_tool_simulated function."""
+
+    def test_returns_false_when_no_evaluation_context(self):
+        clear_execution_context()
+        assert is_tool_simulated("any_tool") is False
+
+    def test_returns_false_when_mocking_strategy_is_none(self):
+        clear_execution_context()
+        evaluation_item: dict[str, Any] = {
+            "id": "evaluation-id",
+            "name": "Test evaluation",
+            "inputs": {},
+            "evaluationCriterias": {"ExactMatchEvaluator": None},
+            "mockingStrategy": None,
+        }
+        evaluation = EvaluationItem(**evaluation_item)
+        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+        assert is_tool_simulated("any_tool") is False
+        clear_execution_context()
+
+    def test_returns_true_for_llm_strategy_simulated_tool(self):
+        clear_execution_context()
+        evaluation_item: dict[str, Any] = {
+            "id": "evaluation-id",
+            "name": "Test evaluation",
+            "inputs": {},
+            "evaluationCriterias": {"ExactMatchEvaluator": None},
+            "mockingStrategy": {
+                "type": "llm",
+                "prompt": "test prompt",
+                "toolsToSimulate": [{"name": "my_tool"}, {"name": "other_tool"}],
+            },
+        }
+        evaluation = EvaluationItem(**evaluation_item)
+        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+        assert is_tool_simulated("my_tool") is True
+        assert is_tool_simulated("other_tool") is True
+        clear_execution_context()
+
+    def test_returns_false_for_llm_strategy_non_simulated_tool(self):
+        clear_execution_context()
+        evaluation_item: dict[str, Any] = {
+            "id": "evaluation-id",
+            "name": "Test evaluation",
+            "inputs": {},
+            "evaluationCriterias": {"ExactMatchEvaluator": None},
+            "mockingStrategy": {
+                "type": "llm",
+                "prompt": "test prompt",
+                "toolsToSimulate": [{"name": "my_tool"}],
+            },
+        }
+        evaluation = EvaluationItem(**evaluation_item)
+        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+        assert is_tool_simulated("not_simulated_tool") is False
+        clear_execution_context()
+
+    def test_returns_true_for_mockito_strategy_simulated_tool(self):
+        clear_execution_context()
+        evaluation_item: dict[str, Any] = {
+            "id": "evaluation-id",
+            "name": "Test evaluation",
+            "inputs": {},
+            "evaluationCriterias": {"ExactMatchEvaluator": None},
+            "mockingStrategy": {
+                "type": "mockito",
+                "behaviors": [
+                    {
+                        "function": "my_tool",
+                        "arguments": {"args": [], "kwargs": {}},
+                        "then": [{"type": "return", "value": "result"}],
+                    }
+                ],
+            },
+        }
+        evaluation = EvaluationItem(**evaluation_item)
+        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+        assert is_tool_simulated("my_tool") is True
+        clear_execution_context()
+
+    def test_returns_false_for_mockito_strategy_non_simulated_tool(self):
+        clear_execution_context()
+        evaluation_item: dict[str, Any] = {
+            "id": "evaluation-id",
+            "name": "Test evaluation",
+            "inputs": {},
+            "evaluationCriterias": {"ExactMatchEvaluator": None},
+            "mockingStrategy": {
+                "type": "mockito",
+                "behaviors": [
+                    {
+                        "function": "my_tool",
+                        "arguments": {"args": [], "kwargs": {}},
+                        "then": [{"type": "return", "value": "result"}],
+                    }
+                ],
+            },
+        }
+        evaluation = EvaluationItem(**evaluation_item)
+        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+        assert is_tool_simulated("not_simulated_tool") is False
+        clear_execution_context()
+
+    def test_handles_underscore_space_normalization_llm(self):
+        """Tool names with underscores should match config with spaces."""
+        clear_execution_context()
+        evaluation_item: dict[str, Any] = {
+            "id": "evaluation-id",
+            "name": "Test evaluation",
+            "inputs": {},
+            "evaluationCriterias": {"ExactMatchEvaluator": None},
+            "mockingStrategy": {
+                "type": "llm",
+                "prompt": "test prompt",
+                "toolsToSimulate": [{"name": "my tool"}],
+            },
+        }
+        evaluation = EvaluationItem(**evaluation_item)
+        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+        assert is_tool_simulated("my_tool") is True
+        clear_execution_context()
+
+    def test_handles_underscore_space_normalization_mockito(self):
+        """Tool names with underscores should match config with spaces."""
+        clear_execution_context()
+        evaluation_item: dict[str, Any] = {
+            "id": "evaluation-id",
+            "name": "Test evaluation",
+            "inputs": {},
+            "evaluationCriterias": {"ExactMatchEvaluator": None},
+            "mockingStrategy": {
+                "type": "mockito",
+                "behaviors": [
+                    {
+                        "function": "my tool",
+                        "arguments": {"args": [], "kwargs": {}},
+                        "then": [{"type": "return", "value": "result"}],
+                    }
+                ],
+            },
+        }
+        evaluation = EvaluationItem(**evaluation_item)
+        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+
+        assert is_tool_simulated("my_tool") is True
+        clear_execution_context()
 
 
 def test_mockito_mockable_sync():
