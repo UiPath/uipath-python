@@ -90,24 +90,30 @@ def set_eval_set_run_output_and_metadata(
         output_schema: The output schema from the runtime
         success: Whether the evaluation set run was successful
     """
-    # Set span output with overall score using Pydantic model
+    # Set span output with overall score using Pydantic model (formatted for UI rendering)
     output = EvalSetRunOutput(score=int(overall_score))
-    span.set_attribute("output", output.model_dump_json(by_alias=True))
+    span.set_attribute("output", output.model_dump_json(by_alias=True, indent=2))
 
     # Set metadata attributes
     span.set_attribute("agentId", execution_id)
     span.set_attribute("agentName", "N/A")
 
-    # Safely serialize schemas to JSON
-    try:
-        span.set_attribute("inputSchema", json.dumps(input_schema or {}))
-    except (TypeError, ValueError):
-        span.set_attribute("inputSchema", json.dumps({}))
+    # Set schemas as formatted JSON strings for proper rendering in UI
+    if input_schema:
+        try:
+            span.set_attribute("inputSchema", json.dumps(input_schema, indent=2))
+        except (TypeError, ValueError):
+            span.set_attribute("inputSchema", "{}")
+    else:
+        span.set_attribute("inputSchema", "{}")
 
-    try:
-        span.set_attribute("outputSchema", json.dumps(output_schema or {}))
-    except (TypeError, ValueError):
-        span.set_attribute("outputSchema", json.dumps({}))
+    if output_schema:
+        try:
+            span.set_attribute("outputSchema", json.dumps(output_schema, indent=2))
+        except (TypeError, ValueError):
+            span.set_attribute("outputSchema", "{}")
+    else:
+        span.set_attribute("outputSchema", "{}")
 
     # Set span status
     if success:
@@ -132,16 +138,16 @@ def set_evaluation_output_and_metadata(
         has_error: Whether the evaluation had an error
         error_message: Optional error message if has_error is True
     """
-    # Set span output with average score using Pydantic model
+    # Set span output with average score using Pydantic model (formatted for UI rendering)
     output = EvaluationOutput(score=int(avg_score))
-    span.set_attribute("output", output.model_dump_json(by_alias=True))
+    span.set_attribute("output", output.model_dump_json(by_alias=True, indent=2))
 
-    # Set input data if provided
+    # Set input data if provided (formatted JSON for UI rendering)
     if input_data is not None:
         try:
-            span.set_attribute("input", json.dumps(input_data))
+            span.set_attribute("input", json.dumps(input_data, indent=2))
         except (TypeError, ValueError):
-            span.set_attribute("input", json.dumps({}))
+            span.set_attribute("input", "{}")
 
     # Set metadata attributes
     span.set_attribute("agentId", execution_id)
@@ -168,14 +174,14 @@ def set_evaluation_output_span_output(
         evaluator_id: The ID of the evaluator that produced this score
         justification: Optional justification text for the score
     """
-    # Set output using Pydantic model
+    # Set output using Pydantic model (formatted for UI rendering)
     output = EvaluationOutputSpanOutput(
         value=score,
         evaluator_id=evaluator_id,
         justification=justification,
     )
     span.set_attribute(
-        "output", output.model_dump_json(by_alias=True, exclude_none=True)
+        "output", output.model_dump_json(by_alias=True, exclude_none=True, indent=2)
     )
 
 
