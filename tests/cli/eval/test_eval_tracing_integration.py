@@ -788,11 +788,11 @@ class TestSpanOutputAttributes:
         # Mock the runtime
         mock_runtime = AsyncMock()
         mock_schema = MagicMock()
-        mock_schema.input_schema = {
+        mock_schema.input = {
             "type": "object",
             "properties": {"x": {"type": "number"}},
         }
-        mock_schema.output_schema = {"type": "string"}
+        mock_schema.output = {"type": "string"}
         mock_runtime.get_schema = AsyncMock(return_value=mock_schema)
         mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)
 

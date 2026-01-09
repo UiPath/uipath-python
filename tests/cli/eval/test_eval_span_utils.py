@@ -59,23 +59,27 @@ class TestPydanticModels:
     def test_evaluation_output_span_output_model_with_justification(self):
         """Test EvaluationOutputSpanOutput model with justification."""
         output = EvaluationOutputSpanOutput(
-            value=75.5, justification="The output is semantically similar"
+            value=75.5,
+            evaluator_id="eval-123",
+            justification="The output is semantically similar",
         )
         json_str = output.model_dump_json(by_alias=True, exclude_none=True)
         data = json.loads(json_str)
 
         assert data["type"] == 1
         assert data["value"] == 75.5
+        assert data["evaluatorId"] == "eval-123"
         assert data["justification"] == "The output is semantically similar"
 
     def test_evaluation_output_span_output_model_without_justification(self):
         """Test EvaluationOutputSpanOutput model without justification."""
-        output = EvaluationOutputSpanOutput(value=75.5)
+        output = EvaluationOutputSpanOutput(value=75.5, evaluator_id="eval-456")
         json_str = output.model_dump_json(by_alias=True, exclude_none=True)
         data = json.loads(json_str)
 
         assert data["type"] == 1
         assert data["value"] == 75.5
+        assert data["evaluatorId"] == "eval-456"
         assert "justification" not in data
 
 
@@ -237,6 +241,7 @@ class TestSetSpanAttributeFunctions:
         set_evaluation_output_span_output(
             span=span,  # type: ignore[arg-type]
             score=92.7,
+            evaluator_id="evaluator-xyz",
             justification="The answer is correct and well-formatted",
         )
 
@@ -246,6 +251,7 @@ class TestSetSpanAttributeFunctions:
 
         assert output_data["type"] == 1
         assert output_data["value"] == 92.7
+        assert output_data["evaluatorId"] == "evaluator-xyz"
         assert (
             output_data["justification"] == "The answer is correct and well-formatted"
         )
@@ -257,6 +263,7 @@ class TestSetSpanAttributeFunctions:
         set_evaluation_output_span_output(
             span=span,  # type: ignore[arg-type]
             score=85.0,
+            evaluator_id="evaluator-abc",
             justification=None,
         )
 
@@ -266,6 +273,7 @@ class TestSetSpanAttributeFunctions:
 
         assert output_data["type"] == 1
         assert output_data["value"] == 85.0
+        assert output_data["evaluatorId"] == "evaluator-abc"
         assert "justification" not in output_data
 
 
@@ -285,11 +293,11 @@ class TestHighLevelConfigurationFunctions:
         # Mock runtime and get_schema_func
         mock_runtime = MagicMock()
         mock_schema = MagicMock()
-        mock_schema.input_schema = {
+        mock_schema.input = {
             "type": "object",
             "properties": {"x": {"type": "number"}},
         }
-        mock_schema.output_schema = {"type": "string"}
+        mock_schema.output = {"type": "string"}
 
         async def mock_get_schema(runtime):
             return mock_schema
@@ -368,8 +376,8 @@ class TestHighLevelConfigurationFunctions:
         # Mock runtime and schema
         mock_runtime = MagicMock()
         mock_schema = MagicMock()
-        mock_schema.input_schema = {"type": "object"}
-        mock_schema.output_schema = {"type": "object"}
+        mock_schema.input = {"type": "object"}
+        mock_schema.output = {"type": "object"}
 
         async def mock_get_schema(runtime):
             return mock_schema
@@ -410,8 +418,8 @@ class TestHighLevelConfigurationFunctions:
 
         async def mock_get_schema(runtime):
             mock_schema = MagicMock()
-            mock_schema.input_schema = {}
-            mock_schema.output_schema = {}
+            mock_schema.input = {}
+            mock_schema.output = {}
             return mock_schema
 
         # Mock agent execution output with error
@@ -451,8 +459,8 @@ class TestHighLevelConfigurationFunctions:
 
         async def mock_get_schema(runtime):
             mock_schema = MagicMock()
-            mock_schema.input_schema = {}
-            mock_schema.output_schema = {}
+            mock_schema.input = {}
+            mock_schema.output = {}
             return mock_schema
 
         await configure_evaluation_span(
@@ -467,3 +475,73 @@ class TestHighLevelConfigurationFunctions:
         # Verify it doesn't crash and sets OK status
         assert span._status is not None
         assert span._status.status_code == StatusCode.OK
+
+    @pytest.mark.asyncio
+    async def test_configure_evaluation_span_with_input_data(self):
+        """Test configuring evaluation span with input data."""
+        span = MockSpan()
+
+        mock_result = MagicMock()
+        mock_result.result.score = 75.0
+
+        mock_evaluation_run_results = MagicMock()
+        mock_evaluation_run_results.evaluation_run_results = [mock_result]
+
+        mock_runtime = MagicMock()
+
+        async def mock_get_schema(runtime):
+            mock_schema = MagicMock()
+            mock_schema.input = {"type": "object"}
+            mock_schema.output = {"type": "object"}
+            return mock_schema
+
+        input_data = {"a": 5, "b": 3, "operator": "+"}
+
+        await configure_evaluation_span(
+            span=span,  # type: ignore[arg-type]
+            evaluation_run_results=mock_evaluation_run_results,
+            execution_id="eval-with-input",
+            runtime=mock_runtime,
+            get_schema_func=mock_get_schema,
+            input_data=input_data,
+            agent_execution_output=None,
+        )
+
+        # Verify input data is set
+        assert "input" in span.attributes
+        input_data_parsed = json.loads(span.attributes["input"])
+        assert input_data_parsed == {"a": 5, "b": 3, "operator": "+"}
+
+        # Verify other attributes are also set
+        assert "output" in span.attributes
+        assert span.attributes["agentId"] == "eval-with-input"
+        assert span._status is not None
+        assert span._status.status_code == StatusCode.OK
+
+    def test_set_evaluation_output_and_metadata_with_input_data(self):
+        """Test setting evaluation span attributes with input data."""
+        span = MockSpan()
+
+        input_data = {"query": "test", "context": "example"}
+
+        set_evaluation_output_and_metadata(
+            span=span,  # type: ignore[arg-type]
+            avg_score=92.0,
+            execution_id="eval-input-test",
+            input_schema={"type": "object"},
+            output_schema={"type": "string"},
+            input_data=input_data,
+            has_error=False,
+        )
+
+        # Verify input is set
+        assert "input" in span.attributes
+        input_parsed = json.loads(span.attributes["input"])
+        assert input_parsed == {"query": "test", "context": "example"}
+
+        # Verify output is set
+        output_data = json.loads(span.attributes["output"])
+        assert output_data == {"score": 92}
+
+        # Verify other attributes
+        assert span.attributes["agentId"] == "eval-input-test"

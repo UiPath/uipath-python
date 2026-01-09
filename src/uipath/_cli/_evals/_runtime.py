@@ -606,6 +606,7 @@ class UiPathEvalRuntime:
                 execution_id=execution_id,
                 runtime=runtime,
                 get_schema_func=self.get_schema,
+                input_data=eval_item.inputs,
                 agent_execution_output=agent_execution_output
                 if "agent_execution_output" in locals()
                 else None,
@@ -813,6 +814,7 @@ class UiPathEvalRuntime:
                 set_evaluation_output_span_output(
                     span=span,
                     score=result.score,
+                    evaluator_id=evaluator.id,
                     justification=justification,
                 )
 

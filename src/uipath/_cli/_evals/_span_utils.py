@@ -36,6 +36,7 @@ class EvaluationOutputSpanOutput(BaseModel):
 
     type: int = Field(1, alias="type")
     value: float = Field(..., alias="value")
+    evaluator_id: Optional[str] = Field(None, alias="evaluatorId")
     justification: Optional[str] = Field(None, alias="justification")
 
 
@@ -119,6 +120,7 @@ def set_evaluation_output_and_metadata(
     execution_id: str,
     input_schema: Optional[Dict[str, Any]],
     output_schema: Optional[Dict[str, Any]],
+    input_data: Optional[Dict[str, Any]] = None,
     has_error: bool = False,
     error_message: Optional[str] = None,
 ) -> None:
@@ -130,12 +132,20 @@ def set_evaluation_output_and_metadata(
         execution_id: The execution ID for this evaluation
         input_schema: The input schema from the runtime
         output_schema: The output schema from the runtime
+        input_data: The input data for this evaluation
         has_error: Whether the evaluation had an error
         error_message: Optional error message if has_error is True
     """
     # Set span output with average score using Pydantic model
     output = EvaluationOutput(score=int(avg_score))
     span.set_attribute("output", output.model_dump_json(by_alias=True))
+
+    # Set input data if provided
+    if input_data is not None:
+        try:
+            span.set_attribute("input", json.dumps(input_data))
+        except (TypeError, ValueError):
+            span.set_attribute("input", json.dumps({}))
 
     # Set metadata attributes
     span.set_attribute("agentId", execution_id)
@@ -162,6 +172,7 @@ def set_evaluation_output_and_metadata(
 def set_evaluation_output_span_output(
     span: Span,
     score: float,
+    evaluator_id: Optional[str] = None,
     justification: Optional[str] = None,
 ) -> None:
     """Set output attribute for Evaluation output span.
@@ -169,11 +180,13 @@ def set_evaluation_output_span_output(
     Args:
         span: The OpenTelemetry span to set attributes on
         score: The evaluation score
+        evaluator_id: The ID of the evaluator that produced this score
         justification: Optional justification text for the score
     """
     # Set output using Pydantic model
     output = EvaluationOutputSpanOutput(
         value=score,
+        evaluator_id=evaluator_id,
         justification=justification,
     )
     span.set_attribute(
@@ -213,8 +226,8 @@ async def configure_eval_set_run_span(
     # Get runtime schemas
     try:
         schema = await get_schema_func(runtime)
-        input_schema = schema.input_schema
-        output_schema = schema.output_schema
+        input_schema = schema.input
+        output_schema = schema.output
     except Exception:
         input_schema = None
         output_schema = None
@@ -236,6 +249,7 @@ async def configure_evaluation_span(
     execution_id: str,
     runtime: Any,
     get_schema_func: Any,
+    input_data: Optional[Dict[str, Any]] = None,
     agent_execution_output: Optional[Any] = None,
 ) -> None:
     """Configure Evaluation span with output and metadata.
@@ -252,6 +266,7 @@ async def configure_evaluation_span(
         execution_id: The execution ID for this evaluation
         runtime: The runtime instance
         get_schema_func: Async function to get schema from runtime
+        input_data: The input data for this evaluation
         agent_execution_output: Optional agent execution output for error checking
     """
     # Calculate average score
@@ -260,9 +275,13 @@ async def configure_evaluation_span(
     # Get runtime schemas
     try:
         schema = await get_schema_func(runtime)
-        input_schema = schema.input_schema
-        output_schema = schema.output_schema
-    except Exception:
+        input_schema = schema.input
+        output_schema = schema.output
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+
+        logging.warning(f"Failed to get schema for evaluation span: {e}")
         input_schema = None
         output_schema = None
 
@@ -284,6 +303,7 @@ async def configure_evaluation_span(
         execution_id=execution_id,
         input_schema=input_schema,
         output_schema=output_schema,
+        input_data=input_data,
         has_error=has_error,
         error_message=error_message,
     )
