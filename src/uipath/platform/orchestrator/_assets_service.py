@@ -21,10 +21,10 @@ class AssetsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._base_url = "assets"
 
+    @resource_override(resource_type="asset")
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
     )
-    @resource_override(resource_type="asset")
     def retrieve(
         self,
         name: str,
@@ -77,10 +77,10 @@ class AssetsService(FolderContext, BaseService):
         else:
             return Asset.model_validate(response.json()["value"][0])
 
+    @resource_override(resource_type="asset")
     @traced(
         name="assets_retrieve", run_type="uipath", hide_input=True, hide_output=True
     )
-    @resource_override(resource_type="asset")
     async def retrieve_async(
         self,
         name: str,
@@ -124,10 +124,10 @@ class AssetsService(FolderContext, BaseService):
         else:
             return Asset.model_validate(response.json()["value"][0])
 
+    @resource_override(resource_type="asset")
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
     )
-    @resource_override(resource_type="asset")
     def retrieve_credential(
         self,
         name: str,
@@ -179,10 +179,10 @@ class AssetsService(FolderContext, BaseService):
 
         return user_asset.credential_password
 
+    @resource_override(resource_type="asset")
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
     )
-    @resource_override(resource_type="asset")
     async def retrieve_credential_async(
         self,
         name: str,

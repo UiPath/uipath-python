@@ -30,6 +30,8 @@ def service(
     return DocumentsService(
         config=config,
         execution_context=execution_context,
+        polling_interval=0.001,  # 1ms for fast tests
+        polling_timeout=10,  # 10 seconds for tests
     )
 
 

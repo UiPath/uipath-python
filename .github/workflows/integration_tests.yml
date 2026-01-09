@@ -62,6 +62,11 @@ jobs:
         BASE_URL:       ${{ matrix.environment == 'alpha' && secrets.ALPHA_BASE_URL || matrix.environment == 'staging' && secrets.STAGING_BASE_URL || matrix.environment == 'cloud' && secrets.CLOUD_BASE_URL }}
 
         USE_AZURE_CHAT: ${{ matrix.use_azure_chat }}
+
+        # App Insights for telemetry testing
+        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        APP_INSIGHTS_APP_ID: ${{ secrets.APP_INSIGHTS_APP_ID }}
+        APP_INSIGHTS_API_KEY: ${{ secrets.APP_INSIGHTS_API_KEY }}
       working-directory: testcases/${{ matrix.testcase }}
       run: |
         # If any errors occur execution will stop with exit code

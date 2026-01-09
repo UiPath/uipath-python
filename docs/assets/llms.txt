@@ -21,6 +21,7 @@ A Python SDK for programmatic interaction with UiPath Cloud Platform services, f
 - https://uipath.github.io/uipath-python/core/buckets - Cloud storage buckets
 - https://uipath.github.io/uipath-python/core/attachments - File attachments
 - https://uipath.github.io/uipath-python/core/actions - Action Center integration
+- https://uipath.github.io/uipath-python/core/entities - Data Service integration
 - https://uipath.github.io/uipath-python/core/connections - External connections
 - https://uipath.github.io/uipath-python/core/documents - Document handling
 - https://uipath.github.io/uipath-python/core/documents_models - Document data models

@@ -1890,9 +1890,10 @@ class TestAgentBuilderConfig:
             (1, "user-123", AgentEscalationRecipientType.USER_ID),
             (2, "group-456", AgentEscalationRecipientType.GROUP_ID),
             (3, "user@example.com", AgentEscalationRecipientType.USER_EMAIL),
+            (5, "Test Group", AgentEscalationRecipientType.GROUP_NAME),
         ],
     )
-    def test_escalation_recipient_type_normalization_from_int(
+    def test_escalation_standard_recipient_type_normalization(
         self, recipient_type_int, value, expected_type
     ):
         """Test that escalation recipient types are normalized from integers to enum strings."""
@@ -1954,8 +1955,17 @@ class TestAgentBuilderConfig:
         assert channel.recipients[0].type == expected_type
         assert channel.recipients[0].value == value
 
-    def test_escalation_recipient_asset_type_normalization(self):
-        """Test that AssetUserEmail recipient type (int 4) is normalized correctly."""
+    @pytest.mark.parametrize(
+        "recipient_type_int,asset_name,folder_path,expected_type",
+        [
+            (4, "email_asset", "Shared", AgentEscalationRecipientType.ASSET_USER_EMAIL),
+            (6, "group_asset", "Shared", AgentEscalationRecipientType.ASSET_GROUP_NAME),
+        ],
+    )
+    def test_escalation_asset_recipient_type_normalization_from_int(
+        self, recipient_type_int, asset_name, folder_path, expected_type
+    ):
+        """Test that escalation asset recipient types are normalized from integers to enum strings."""
 
         json_data = {
             "id": "test-asset-recipient",
@@ -1987,9 +1997,9 @@ class TestAgentBuilderConfig:
                             },
                             "recipients": [
                                 {
-                                    "type": 4,  # ASSET_USER_EMAIL as integer
-                                    "assetName": "EmailAsset",
-                                    "folderPath": "Shared",
+                                    "type": recipient_type_int,
+                                    "assetName": asset_name,
+                                    "folderPath": folder_path,
                                 }
                             ],
                         }
@@ -2013,22 +2023,24 @@ class TestAgentBuilderConfig:
         recipient = channel.recipients[0]
         assert isinstance(recipient, AssetRecipient)
 
-        # Verify integer type 4 was normalized to ASSET_USER_EMAIL enum
-        assert recipient.type == AgentEscalationRecipientType.ASSET_USER_EMAIL
-        assert recipient.asset_name == "EmailAsset"
-        assert recipient.folder_path == "Shared"
+        # Verify integer types were normalized to enum strings
+        assert recipient.type == expected_type
+        assert recipient.asset_name == asset_name
+        assert recipient.folder_path == folder_path
 
     @pytest.mark.parametrize(
-        "recipient_type_int,value,display_name,expected_type",
+        "recipient_type_int,value,expected_type",
         [
-            (1, "user-123", "User Name", AgentEscalationRecipientType.USER_ID),
-            (2, "group-456", "Group Name", AgentEscalationRecipientType.GROUP_ID),
+            (1, "user-123", AgentEscalationRecipientType.USER_ID),
+            (2, "group-456", AgentEscalationRecipientType.GROUP_ID),
+            (3, "user@example.com", AgentEscalationRecipientType.USER_EMAIL),
+            (5, "Test Group", AgentEscalationRecipientType.GROUP_NAME),
         ],
     )
     def test_standard_recipient_discrimination(
-        self, recipient_type_int, value, display_name, expected_type
+        self, recipient_type_int, value, expected_type
     ):
-        """Test that StandardRecipient is correctly discriminated for USER_ID, GROUP_ID."""
+        """Test that StandardRecipient is correctly discriminated."""
 
         json_data = {
             "id": "test-standard-recipient",
@@ -2062,7 +2074,6 @@ class TestAgentBuilderConfig:
                                 {
                                     "type": recipient_type_int,
                                     "value": value,
-                                    "displayName": display_name,
                                 }
                             ],
                         }
@@ -2087,70 +2098,18 @@ class TestAgentBuilderConfig:
         assert isinstance(channel.recipients[0], StandardRecipient)
         assert channel.recipients[0].type == expected_type
         assert channel.recipients[0].value == value
-        assert channel.recipients[0].display_name == display_name
 
-    def test_standard_recipient_discrimination_user_email(self):
-        """Test that StandardRecipient is correctly discriminated for USER_EMAIL."""
-
-        json_data = {
-            "id": "test-standard-recipient",
-            "name": "Agent with Standard Recipients",
-            "version": "1.0.0",
-            "settings": {
-                "model": "gpt-4o-2024-11-20",
-                "maxTokens": 16384,
-                "temperature": 0,
-                "engine": "basic-v1",
-            },
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {"type": "object", "properties": {}},
-            "resources": [
-                {
-                    "$resourceType": "escalation",
-                    "channels": [
-                        {
-                            "name": "Test Channel",
-                            "description": "Test",
-                            "type": "ActionCenter",
-                            "inputSchema": {"type": "object", "properties": {}},
-                            "outputSchema": {"type": "object", "properties": {}},
-                            "properties": {
-                                "appName": "TestApp",
-                                "appVersion": 1,
-                                "folderName": "TestFolder",
-                                "resourceKey": "test-key",
-                            },
-                            "recipients": [
-                                {
-                                    "type": 3,
-                                    "value": "user@example.com",
-                                }
-                            ],
-                        }
-                    ],
-                    "name": "Test Escalation",
-                    "description": "Test",
-                }
-            ],
-            "messages": [{"role": "system", "content": "Test"}],
-        }
-
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-
-        escalation = config.resources[0]
-        assert isinstance(escalation, AgentEscalationResourceConfig)
-
-        channel = escalation.channels[0]
-
-        # All should be StandardRecipient instances
-        assert isinstance(channel.recipients[0], StandardRecipient)
-        assert channel.recipients[0].type == AgentEscalationRecipientType.USER_EMAIL
-        assert channel.recipients[0].value == "user@example.com"
-
-    def test_asset_recipient_discrimination(self):
-        """Test that AssetRecipient is correctly discriminated for ASSET_USER_EMAIL type."""
+    @pytest.mark.parametrize(
+        "recipient_type_int,asset_name,folder_path,expected_type",
+        [
+            (4, "email_asset", "Shared", AgentEscalationRecipientType.ASSET_USER_EMAIL),
+            (6, "group_asset", "Shared", AgentEscalationRecipientType.ASSET_GROUP_NAME),
+        ],
+    )
+    def test_asset_recipient_discrimination(
+        self, recipient_type_int, asset_name, folder_path, expected_type
+    ):
+        """Test that AssetRecipient is correctly discriminated."""
 
         json_data = {
             "id": "test-asset-recipient-discrimination",
@@ -2182,9 +2141,9 @@ class TestAgentBuilderConfig:
                             },
                             "recipients": [
                                 {
-                                    "type": 4,
-                                    "assetName": "NotificationEmail",
-                                    "folderPath": "Production/Notifications",
+                                    "type": recipient_type_int,
+                                    "assetName": asset_name,
+                                    "folderPath": folder_path,
                                 }
                             ],
                         }
@@ -2209,9 +2168,9 @@ class TestAgentBuilderConfig:
         assert isinstance(recipient, AssetRecipient)
 
         # Should be AssetRecipient instance
-        assert recipient.type == AgentEscalationRecipientType.ASSET_USER_EMAIL
-        assert recipient.asset_name == "NotificationEmail"
-        assert recipient.folder_path == "Production/Notifications"
+        assert recipient.type == expected_type
+        assert recipient.asset_name == asset_name
+        assert recipient.folder_path == folder_path
 
     @pytest.mark.parametrize(
         "recipient_data,expected_type,recipient_class",
@@ -2234,6 +2193,16 @@ class TestAgentBuilderConfig:
             (
                 {"type": 4, "assetName": "EmailAsset", "folderPath": "Shared"},
                 AgentEscalationRecipientType.ASSET_USER_EMAIL,
+                AssetRecipient,
+            ),
+            (
+                {"type": 5, "value": "User Test Group"},
+                AgentEscalationRecipientType.GROUP_NAME,
+                StandardRecipient,
+            ),
+            (
+                {"type": 6, "assetName": "GroupAsset", "folderPath": "Shared"},
+                AgentEscalationRecipientType.ASSET_GROUP_NAME,
                 AssetRecipient,
             ),
         ],

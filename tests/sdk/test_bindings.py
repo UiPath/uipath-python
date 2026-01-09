@@ -4,7 +4,9 @@ import pytest
 
 from uipath._utils import resource_override
 from uipath._utils._bindings import (
+    ConnectionResourceOverwrite,
     GenericResourceOverwrite,
+    ResourceOverwriteParser,
     ResourceOverwritesContext,
     _resource_overwrites,
 )
@@ -335,3 +337,57 @@ class TestResourceOverwritesContext:
         # Verify context was cleaned up despite the exception
         result_after = get_asset("test", "original")
         assert result_after == ("test", "original")
+
+
+class TestConnectionResourceOverwriteAliases:
+    """Test that ConnectionResourceOverwrite accepts both connectionId and ConnectionId aliases."""
+
+    def test_connection_resource_overwrite_with_lowercase_alias(self):
+        """Test that connectionId alias works."""
+        overwrite = ConnectionResourceOverwrite(
+            resource_type="connection",
+            connectionId="conn-123",
+            folderKey="folder1",
+        )
+        assert overwrite.connection_id == "conn-123"
+        assert overwrite.folder_key == "folder1"
+
+    def test_connection_resource_overwrite_with_capitalized_alias(self):
+        """Test that ConnectionId alias works."""
+        overwrite = ConnectionResourceOverwrite(
+            resource_type="connection",
+            ConnectionId="conn-456",
+            folderKey="folder2",
+        )
+        assert overwrite.connection_id == "conn-456"
+        assert overwrite.folder_key == "folder2"
+
+    def test_connection_resource_overwrite_with_field_name(self):
+        """Test that the actual field name connection_id also works."""
+        overwrite = ConnectionResourceOverwrite(
+            resource_type="connection",
+            connection_id="conn-789",
+            folder_key="folder3",
+        )
+        assert overwrite.connection_id == "conn-789"
+        assert overwrite.folder_key == "folder3"
+
+    def test_parse_connection_with_lowercase_alias(self):
+        """Test parsing a connection resource with lowercase connectionId alias."""
+        overwrite = ResourceOverwriteParser.parse(
+            key="connection.conn-123",
+            value={"connectionId": "conn-123", "folderKey": "folder1"},
+        )
+        assert isinstance(overwrite, ConnectionResourceOverwrite)
+        assert overwrite.connection_id == "conn-123"
+        assert overwrite.folder_key == "folder1"
+
+    def test_parse_connection_with_capitalized_alias(self):
+        """Test parsing a connection resource with capitalized ConnectionId alias."""
+        overwrite = ResourceOverwriteParser.parse(
+            key="connection.conn-456",
+            value={"ConnectionId": "conn-456", "folderKey": "folder2"},
+        )
+        assert isinstance(overwrite, ConnectionResourceOverwrite)
+        assert overwrite.connection_id == "conn-456"
+        assert overwrite.folder_key == "folder2"

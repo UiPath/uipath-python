@@ -1,8 +1,8 @@
 """Models for interrupt operations in UiPath platform."""
 
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..action_center import Task
 from ..context_grounding import (
@@ -11,6 +11,7 @@ from ..context_grounding import (
     CitationMode,
     DeepRagCreationResponse,
 )
+from ..documents import FileContent, StartExtractionResponse
 from ..orchestrator import Job
 
 
@@ -18,29 +19,29 @@ class InvokeProcess(BaseModel):
     """Model representing a process invocation."""
 
     name: str
-    process_folder_path: Optional[str] = None
-    process_folder_key: Optional[str] = None
-    input_arguments: Optional[Dict[str, Any]]
+    process_folder_path: str | None = None
+    process_folder_key: str | None = None
+    input_arguments: dict[str, Any] | None
 
 
 class WaitJob(BaseModel):
     """Model representing a wait job operation."""
 
     job: Job
-    process_folder_path: Optional[str] = None
-    process_folder_key: Optional[str] = None
+    process_folder_path: str | None = None
+    process_folder_key: str | None = None
 
 
 class CreateTask(BaseModel):
     """Model representing an action creation."""
 
     title: str
-    data: Optional[Dict[str, Any]] = None
-    assignee: Optional[str] = ""
-    app_name: Optional[str] = None
-    app_folder_path: Optional[str] = None
-    app_folder_key: Optional[str] = None
-    app_key: Optional[str] = None
+    data: dict[str, Any] | None = None
+    assignee: str | None = ""
+    app_name: str | None = None
+    app_folder_path: str | None = None
+    app_folder_key: str | None = None
+    app_key: str | None = None
 
 
 class CreateEscalation(CreateTask):
@@ -53,8 +54,8 @@ class WaitTask(BaseModel):
     """Model representing a wait action operation."""
 
     action: Task
-    app_folder_path: Optional[str] = None
-    app_folder_key: Optional[str] = None
+    app_folder_path: str | None = None
+    app_folder_key: str | None = None
 
 
 class WaitEscalation(WaitTask):
@@ -79,8 +80,8 @@ class WaitDeepRag(BaseModel):
     """Model representing a wait Deep RAG task."""
 
     deep_rag: DeepRagCreationResponse
-    index_folder_path: Optional[str] = None
-    index_folder_key: Optional[str] = None
+    index_folder_path: str | None = None
+    index_folder_key: str | None = None
 
 
 class CreateBatchTransform(BaseModel):
@@ -103,5 +104,33 @@ class WaitBatchTransform(BaseModel):
     """Model representing a wait Batch Transform task."""
 
     batch_transform: BatchTransformCreationResponse
-    index_folder_path: Optional[str] = None
-    index_folder_key: Optional[str] = None
+    index_folder_path: str | None = None
+    index_folder_key: str | None = None
+
+
+class DocumentExtraction(BaseModel):
+    """Model representing a document extraction task creation."""
+
+    project_name: str
+    tag: str
+    file: FileContent | None = None
+    file_path: str | None = None
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
+
+    @model_validator(mode="after")
+    def validate_exactly_one_file_source(self) -> "DocumentExtraction":
+        """Validate that exactly one of file or file_path is provided."""
+        if (self.file is None) == (self.file_path is None):
+            raise ValueError(
+                "Exactly one of 'file' or 'file_path' must be provided, not both or neither"
+            )
+        return self
+
+
+class WaitDocumentExtraction(BaseModel):
+    """Model representing a wait document extraction task creation."""
+
+    extraction: StartExtractionResponse

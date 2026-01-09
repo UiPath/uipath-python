@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from click.testing import CliRunner
+from opentelemetry.sdk.trace.export import SpanExporter
 from pytest_httpx import HTTPXMock
 
 from uipath._cli import cli
@@ -47,6 +48,44 @@ def uipath_json_with_overwrites(overwrites_data):
         }
 
     return _make_config
+
+
+@pytest.fixture()
+def tracer_provider_with_memory_exporter():
+    """Create a TracerProvider with in-memory span exporter."""
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExportResult
+
+    original_provider = trace.get_tracer_provider()
+    captured_spans = []
+
+    class InMemorySpanExporter(SpanExporter):
+        def export(self, spans):
+            captured_spans.extend(spans)
+            return SpanExportResult.SUCCESS
+
+        def force_flush(self, timeout_millis=30000):
+            return True
+
+        def shutdown(self):
+            pass
+
+    provider = TracerProvider()
+    span_processor = SimpleSpanProcessor(InMemorySpanExporter())
+    provider.add_span_processor(span_processor)
+
+    trace._TRACER_PROVIDER_SET_ONCE._done = False
+    trace._TRACER_PROVIDER = None
+    trace.set_tracer_provider(provider)
+
+    yield provider, captured_spans
+
+    span_processor.shutdown()
+    provider.shutdown()
+    trace._TRACER_PROVIDER_SET_ONCE._done = False
+    trace._TRACER_PROVIDER = None
+    trace.set_tracer_provider(original_provider)
 
 
 class TestResourceOverrides:
@@ -335,3 +374,58 @@ class TestResourceOverrides:
                     os.chdir(current_dir_copy)
 
                     self._assert(result, httpx_mock)
+
+
+class TestResourceOverrideWithTracing:
+    """Tests for resource_override decorator integration with tracing."""
+
+    @pytest.mark.anyio
+    async def test_traced_span_shows_overridden_resource_name(
+        self, tracer_provider_with_memory_exporter
+    ):
+        """Verify that spans show the overridden resource name, not the original value."""
+
+        from uipath._utils import resource_override
+        from uipath._utils._bindings import (
+            GenericResourceOverwrite,
+            ResourceOverwritesContext,
+        )
+        from uipath.tracing import traced
+
+        provider, captured_spans = tracer_provider_with_memory_exporter
+
+        @resource_override(resource_type="bucket")
+        @traced(name="test_bucket_operation", run_type="uipath")
+        async def retrieve_resource(name: str, folder_path: str):
+            return {"resource_name": name, "folder": folder_path}
+
+        async def get_overwrites():
+            return {
+                "bucket.original_bucket.original_folder": GenericResourceOverwrite(
+                    resource_type="bucket",
+                    name="overridden_resource",
+                    folder_path="overridden_folder",
+                )
+            }
+
+        async with ResourceOverwritesContext(get_overwrites):
+            result = await retrieve_resource("original_bucket", "original_folder")
+
+        provider.force_flush()
+
+        assert result["resource_name"] == "overridden_resource"
+        assert result["folder"] == "overridden_folder"
+
+        assert len(captured_spans) > 0
+
+        span = captured_spans[-1]
+        attrs = dict(span.attributes) if span.attributes else {}
+
+        assert span.name == "test_bucket_operation"
+
+        input_attrs_dict = json.loads((attrs["input.value"]))
+        output_attrs_dict = json.loads((attrs["output.value"]))
+        assert input_attrs_dict["name"] == "overridden_resource"
+        assert input_attrs_dict["folder_path"] == "overridden_folder"
+        assert output_attrs_dict["resource_name"] == "overridden_resource"
+        assert output_attrs_dict["folder"] == "overridden_folder"

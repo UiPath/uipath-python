@@ -79,7 +79,7 @@ async def test_evaluate():
             return [TestRuntime(self.executor)]
 
         async def new_runtime(
-            self, entrypoint: str, runtime_id: str
+            self, entrypoint: str, runtime_id: str, **kwargs
         ) -> UiPathRuntimeProtocol:
             return TestRuntime(self.executor)
 
@@ -175,7 +175,7 @@ async def test_eval_runtime_generates_uuid_when_no_custom_id():
             return [TestRuntime(self.executor)]
 
         async def new_runtime(
-            self, entrypoint: str, runtime_id: str
+            self, entrypoint: str, runtime_id: str, **kwargs
         ) -> UiPathRuntimeProtocol:
             return TestRuntime(self.executor)
 

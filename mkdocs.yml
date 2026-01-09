@@ -67,6 +67,7 @@ nav:
             - Buckets: core/buckets.md
             - Connections: core/connections.md
             - Context Grounding: core/context_grounding.md
+            - Data Service: core/entities_service.md
             - Documents: core/documents.md
             - Jobs: core/jobs.md
             - Guardrails: core/guardrails.md

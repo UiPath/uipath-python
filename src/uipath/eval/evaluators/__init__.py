@@ -10,7 +10,9 @@ from .json_similarity_evaluator import JsonSimilarityEvaluator
 
 # Legacy evaluators
 from .legacy_base_evaluator import LegacyBaseEvaluator
+from .legacy_context_precision_evaluator import LegacyContextPrecisionEvaluator
 from .legacy_exact_match_evaluator import LegacyExactMatchEvaluator
+from .legacy_faithfulness_evaluator import LegacyFaithfulnessEvaluator
 from .legacy_json_similarity_evaluator import LegacyJsonSimilarityEvaluator
 from .legacy_llm_as_judge_evaluator import LegacyLlmAsAJudgeEvaluator
 from .legacy_trajectory_evaluator import LegacyTrajectoryEvaluator
@@ -46,7 +48,9 @@ EVALUATORS: list[type[BaseEvaluator[Any, Any, Any]]] = [
 __all__ = [
     # Legacy evaluators
     "LegacyBaseEvaluator",
+    "LegacyContextPrecisionEvaluator",
     "LegacyExactMatchEvaluator",
+    "LegacyFaithfulnessEvaluator",
     "LegacyJsonSimilarityEvaluator",
     "LegacyLlmAsAJudgeEvaluator",
     "LegacyTrajectoryEvaluator",

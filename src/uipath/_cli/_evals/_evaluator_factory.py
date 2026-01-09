@@ -1,4 +1,5 @@
 import importlib.util
+import logging
 import sys
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,9 @@ from uipath._utils.constants import EVALS_FOLDER
 from uipath.eval.evaluators import (
     BaseEvaluator,
     LegacyBaseEvaluator,
+    LegacyContextPrecisionEvaluator,
     LegacyExactMatchEvaluator,
+    LegacyFaithfulnessEvaluator,
     LegacyJsonSimilarityEvaluator,
     LegacyLlmAsAJudgeEvaluator,
     LegacyTrajectoryEvaluator,
@@ -67,6 +70,9 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluator,
     ToolCallOutputEvaluatorConfig,
 )
+from uipath.eval.models import LegacyEvaluatorType
+
+logger = logging.getLogger(__name__)
 
 
 class EvaluatorFactory:
@@ -106,12 +112,15 @@ class EvaluatorFactory:
 
     @classmethod
     def create_evaluator(
-        cls, data: dict[str, Any], evaluators_dir: Path | None = None
+        cls,
+        data: dict[str, Any],
+        evaluators_dir: Path | None = None,
+        agent_model: str | None = None,
     ) -> BaseEvaluator[Any, Any, Any]:
         if data.get("version", None) == "1.0":
             return cls._create_evaluator_internal(data, evaluators_dir)
         else:
-            return cls._create_legacy_evaluator_internal(data)
+            return cls._create_legacy_evaluator_internal(data, agent_model)
 
     @staticmethod
     def _create_evaluator_internal(
@@ -371,11 +380,14 @@ class EvaluatorFactory:
     @staticmethod
     def _create_legacy_evaluator_internal(
         data: dict[str, Any],
+        agent_model: str | None = None,
     ) -> LegacyBaseEvaluator[Any]:
         """Create an evaluator instance from configuration data.
 
         Args:
             data: Dictionary containing evaluator configuration from JSON file
+            agent_model: Optional model name from agent settings for resolving
+                'same-as-agent' model configuration
 
         Returns:
             Appropriate evaluator instance based on category
@@ -391,9 +403,13 @@ class EvaluatorFactory:
             case JsonSimilarityEvaluatorParams():
                 return EvaluatorFactory._create_legacy_json_similarity_evaluator(params)
             case LLMEvaluatorParams():
-                return EvaluatorFactory._create_legacy_llm_as_judge_evaluator(params)
+                return EvaluatorFactory._create_legacy_llm_as_judge_evaluator(
+                    params, agent_model
+                )
             case TrajectoryEvaluatorParams():
-                return EvaluatorFactory._create_legacy_trajectory_evaluator(params)
+                return EvaluatorFactory._create_legacy_trajectory_evaluator(
+                    params, agent_model
+                )
             case _:
                 raise ValueError(f"Unknown evaluator category: {params}")
 
@@ -414,33 +430,62 @@ class EvaluatorFactory:
     @staticmethod
     def _create_legacy_llm_as_judge_evaluator(
         params: LLMEvaluatorParams,
-    ) -> LegacyLlmAsAJudgeEvaluator:
-        """Create an LLM-as-a-judge evaluator."""
-        if not params.prompt:
-            raise ValueError("LLM evaluator must include 'prompt' field")
-
+        agent_model: str | None = None,
+    ) -> LegacyBaseEvaluator[Any]:
+        """Create an LLM-as-a-judge evaluator or context precision evaluator based on type."""
         if not params.model:
             raise ValueError("LLM evaluator must include 'model' field")
-        if params.model == "same-as-agent":
-            raise ValueError(
-                "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
-            )
 
-        return LegacyLlmAsAJudgeEvaluator(**params.model_dump(), config={})
+        # Resolve 'same-as-agent' to actual agent model
+        if params.model == "same-as-agent":
+            if not agent_model:
+                raise ValueError(
+                    "'same-as-agent' model option requires agent settings. "
+                    "Ensure agent.json contains valid model settings."
+                )
+            logger.info(
+                f"Resolving 'same-as-agent' to agent model: {agent_model} "
+                f"for evaluator '{params.name}'"
+            )
+            params = params.model_copy(update={"model": agent_model})
+
+        # Check evaluator type to determine which evaluator to create
+        if params.evaluator_type == LegacyEvaluatorType.ContextPrecision:
+            return LegacyContextPrecisionEvaluator(**params.model_dump(), config={})
+        elif params.evaluator_type == LegacyEvaluatorType.Faithfulness:
+            return LegacyFaithfulnessEvaluator(**params.model_dump(), config={})
+        else:
+            if not params.prompt:
+                raise ValueError("LLM evaluator must include 'prompt' field")
+
+            return LegacyLlmAsAJudgeEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_trajectory_evaluator(
         params: TrajectoryEvaluatorParams,
+        agent_model: str | None = None,
     ) -> LegacyTrajectoryEvaluator:
         """Create a trajectory evaluator."""
         if not params.prompt:
             raise ValueError("Trajectory evaluator must include 'prompt' field")
 
         if not params.model:
-            raise ValueError("LLM evaluator must include 'model' field")
-        if params.model == "same-as-agent":
-            raise ValueError(
-                "'same-as-agent' model option is not supported by coded agents evaluations. Please select a specific model for the evaluator."
-            )
+            raise ValueError("Trajectory evaluator must include 'model' field")
 
+        # Resolve 'same-as-agent' to actual agent model
+        if params.model == "same-as-agent":
+            if not agent_model:
+                raise ValueError(
+                    "'same-as-agent' model option requires agent settings. "
+                    "Ensure agent.json contains valid model settings."
+                )
+            logger.info(
+                f"Resolving 'same-as-agent' to agent model: {agent_model} "
+                f"for evaluator '{params.name}'"
+            )
+            params = params.model_copy(update={"model": agent_model})
+
+        logger.info(
+            f"Creating trajectory evaluator '{params.name}' with model: {params.model}"
+        )
         return LegacyTrajectoryEvaluator(**params.model_dump(), config={})

@@ -12,6 +12,7 @@ from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
     UiPathEvalContext,
 )
+from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
@@ -19,7 +20,8 @@ from uipath._events._event_bus import EventBus
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
 from uipath.platform.common import UiPathConfig
-from uipath.tracing import LlmOpsHttpExporter
+from uipath.telemetry._track import flush_events
+from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 
 from ._utils._console import ConsoleLogger
 from ._utils._eval_set import EvalHelpers
@@ -92,6 +94,18 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     default=False,
     help="Report evaluation coverage",
 )
+@click.option(
+    "--model-settings-id",
+    type=str,
+    default="default",
+    help="Model settings ID from evaluation set to override agent settings (default: 'default')",
+)
+@click.option(
+    "--trace-file",
+    required=False,
+    type=click.Path(exists=False),
+    help="File path where traces will be written in JSONL format",
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -102,6 +116,8 @@ def eval(
     output_file: str | None,
     enable_mocker_cache: bool,
     report_coverage: bool,
+    model_settings_id: str,
+    trace_file: str | None,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -114,6 +130,7 @@ def eval(
         no_report: Do not report the evaluation results
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
+        model_settings_id: Model settings ID to override agent settings
     """
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
@@ -148,6 +165,7 @@ def eval(
         eval_context.eval_set = resolved_eval_set_path
         eval_context.eval_ids = eval_ids
         eval_context.report_coverage = report_coverage
+        eval_context.model_settings_id = model_settings_id
 
         try:
 
@@ -161,6 +179,9 @@ def eval(
                 console_reporter = ConsoleProgressReporter()
                 await console_reporter.subscribe_to_eval_runtime_events(event_bus)
 
+                telemetry_subscriber = EvalTelemetrySubscriber()
+                await telemetry_subscriber.subscribe_to_eval_runtime_events(event_bus)
+
                 trace_manager = UiPathTraceManager()
 
                 with UiPathRuntimeContext.with_defaults(
@@ -170,6 +191,11 @@ def eval(
                 ) as ctx:
                     if ctx.job_id:
                         trace_manager.add_span_exporter(LlmOpsHttpExporter())
+
+                    if trace_file:
+                        trace_manager.add_span_exporter(
+                            JsonLinesFileExporter(trace_file)
+                        )
 
                     project_id = UiPathConfig.project_id
 
@@ -203,6 +229,8 @@ def eval(
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True
             )
+        finally:
+            flush_events()
 
 
 if __name__ == "__main__":

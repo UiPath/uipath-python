@@ -15,9 +15,11 @@ from .interrupt_models import (
     CreateDeepRag,
     CreateEscalation,
     CreateTask,
+    DocumentExtraction,
     InvokeProcess,
     WaitBatchTransform,
     WaitDeepRag,
+    WaitDocumentExtraction,
     WaitEscalation,
     WaitJob,
     WaitTask,
@@ -44,4 +46,6 @@ __all__ = [
     "WaitDeepRag",
     "CreateBatchTransform",
     "WaitBatchTransform",
+    "DocumentExtraction",
+    "WaitDocumentExtraction",
 ]
