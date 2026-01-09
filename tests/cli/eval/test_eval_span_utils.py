@@ -195,8 +195,6 @@ class TestSetSpanAttributeFunctions:
             span=span,  # type: ignore[arg-type]
             avg_score=88.3,
             execution_id="eval-789",
-            input_schema={"properties": {}},
-            output_schema={"properties": {}},
             has_error=False,
             error_message=None,
         )
@@ -222,8 +220,6 @@ class TestSetSpanAttributeFunctions:
             span=span,  # type: ignore[arg-type]
             avg_score=0.0,
             execution_id="eval-error",
-            input_schema={},
-            output_schema={},
             has_error=True,
             error_message="Runtime error occurred",
         )
@@ -373,15 +369,6 @@ class TestHighLevelConfigurationFunctions:
             mock_result2,
         ]
 
-        # Mock runtime and schema
-        mock_runtime = MagicMock()
-        mock_schema = MagicMock()
-        mock_schema.input = {"type": "object"}
-        mock_schema.output = {"type": "object"}
-
-        async def mock_get_schema(runtime):
-            return mock_schema
-
         # Mock agent execution output (no error)
         mock_agent_output = MagicMock()
         mock_agent_output.result.error = None
@@ -390,8 +377,6 @@ class TestHighLevelConfigurationFunctions:
             span=span,  # type: ignore[arg-type]
             evaluation_run_results=mock_evaluation_run_results,
             execution_id="eval-complete",
-            runtime=mock_runtime,
-            get_schema_func=mock_get_schema,
             agent_execution_output=mock_agent_output,
         )
 
@@ -414,14 +399,6 @@ class TestHighLevelConfigurationFunctions:
         mock_evaluation_run_results = MagicMock()
         mock_evaluation_run_results.evaluation_run_results = []
 
-        mock_runtime = MagicMock()
-
-        async def mock_get_schema(runtime):
-            mock_schema = MagicMock()
-            mock_schema.input = {}
-            mock_schema.output = {}
-            return mock_schema
-
         # Mock agent execution output with error
         mock_agent_output = MagicMock()
         mock_error = MagicMock()
@@ -433,8 +410,6 @@ class TestHighLevelConfigurationFunctions:
             span=span,  # type: ignore[arg-type]
             evaluation_run_results=mock_evaluation_run_results,
             execution_id="eval-error",
-            runtime=mock_runtime,
-            get_schema_func=mock_get_schema,
             agent_execution_output=mock_agent_output,
         )
 
@@ -455,20 +430,10 @@ class TestHighLevelConfigurationFunctions:
         mock_evaluation_run_results = MagicMock()
         mock_evaluation_run_results.evaluation_run_results = [mock_result]
 
-        mock_runtime = MagicMock()
-
-        async def mock_get_schema(runtime):
-            mock_schema = MagicMock()
-            mock_schema.input = {}
-            mock_schema.output = {}
-            return mock_schema
-
         await configure_evaluation_span(
             span=span,  # type: ignore[arg-type]
             evaluation_run_results=mock_evaluation_run_results,
             execution_id="eval-no-output",
-            runtime=mock_runtime,
-            get_schema_func=mock_get_schema,
             agent_execution_output=None,
         )
 
@@ -487,22 +452,12 @@ class TestHighLevelConfigurationFunctions:
         mock_evaluation_run_results = MagicMock()
         mock_evaluation_run_results.evaluation_run_results = [mock_result]
 
-        mock_runtime = MagicMock()
-
-        async def mock_get_schema(runtime):
-            mock_schema = MagicMock()
-            mock_schema.input = {"type": "object"}
-            mock_schema.output = {"type": "object"}
-            return mock_schema
-
         input_data = {"a": 5, "b": 3, "operator": "+"}
 
         await configure_evaluation_span(
             span=span,  # type: ignore[arg-type]
             evaluation_run_results=mock_evaluation_run_results,
             execution_id="eval-with-input",
-            runtime=mock_runtime,
-            get_schema_func=mock_get_schema,
             input_data=input_data,
             agent_execution_output=None,
         )
@@ -528,8 +483,6 @@ class TestHighLevelConfigurationFunctions:
             span=span,  # type: ignore[arg-type]
             avg_score=92.0,
             execution_id="eval-input-test",
-            input_schema={"type": "object"},
-            output_schema={"type": "string"},
             input_data=input_data,
             has_error=False,
         )

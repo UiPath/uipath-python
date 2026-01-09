@@ -118,8 +118,6 @@ def set_evaluation_output_and_metadata(
     span: Span,
     avg_score: float,
     execution_id: str,
-    input_schema: Optional[Dict[str, Any]],
-    output_schema: Optional[Dict[str, Any]],
     input_data: Optional[Dict[str, Any]] = None,
     has_error: bool = False,
     error_message: Optional[str] = None,
@@ -130,8 +128,6 @@ def set_evaluation_output_and_metadata(
         span: The OpenTelemetry span to set attributes on
         avg_score: The average score for this evaluation across all evaluators
         execution_id: The execution ID for this evaluation
-        input_schema: The input schema from the runtime
-        output_schema: The output schema from the runtime
         input_data: The input data for this evaluation
         has_error: Whether the evaluation had an error
         error_message: Optional error message if has_error is True
@@ -150,17 +146,6 @@ def set_evaluation_output_and_metadata(
     # Set metadata attributes
     span.set_attribute("agentId", execution_id)
     span.set_attribute("agentName", "N/A")
-
-    # Safely serialize schemas to JSON
-    try:
-        span.set_attribute("inputSchema", json.dumps(input_schema or {}))
-    except (TypeError, ValueError):
-        span.set_attribute("inputSchema", json.dumps({}))
-
-    try:
-        span.set_attribute("outputSchema", json.dumps(output_schema or {}))
-    except (TypeError, ValueError):
-        span.set_attribute("outputSchema", json.dumps({}))
 
     # Set span status based on success
     if has_error and error_message:
@@ -247,8 +232,6 @@ async def configure_evaluation_span(
     span: Span,
     evaluation_run_results: Any,
     execution_id: str,
-    runtime: Any,
-    get_schema_func: Any,
     input_data: Optional[Dict[str, Any]] = None,
     agent_execution_output: Optional[Any] = None,
 ) -> None:
@@ -256,7 +239,6 @@ async def configure_evaluation_span(
 
     This high-level function handles:
     - Calculating average score from evaluation results
-    - Getting runtime schemas
     - Determining error status
     - Setting all span attributes
 
@@ -264,26 +246,11 @@ async def configure_evaluation_span(
         span: The OpenTelemetry span to configure
         evaluation_run_results: EvaluationRunResult object containing evaluation results
         execution_id: The execution ID for this evaluation
-        runtime: The runtime instance
-        get_schema_func: Async function to get schema from runtime
         input_data: The input data for this evaluation
         agent_execution_output: Optional agent execution output for error checking
     """
     # Calculate average score
     avg_score = calculate_evaluation_average_score(evaluation_run_results)
-
-    # Get runtime schemas
-    try:
-        schema = await get_schema_func(runtime)
-        input_schema = schema.input
-        output_schema = schema.output
-    except Exception as e:
-        # Log the error for debugging
-        import logging
-
-        logging.warning(f"Failed to get schema for evaluation span: {e}")
-        input_schema = None
-        output_schema = None
 
     # Determine error status
     has_error = False
@@ -301,8 +268,6 @@ async def configure_evaluation_span(
         span=span,
         avg_score=avg_score,
         execution_id=execution_id,
-        input_schema=input_schema,
-        output_schema=output_schema,
         input_data=input_data,
         has_error=has_error,
         error_message=error_message,

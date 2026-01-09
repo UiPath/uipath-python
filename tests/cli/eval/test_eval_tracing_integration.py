@@ -840,18 +840,9 @@ class TestSpanOutputAttributes:
         assert "agentName" in eval_span["attributes"]
         assert eval_span["attributes"]["agentName"] == "N/A"
 
-        # Check inputSchema
-        assert "inputSchema" in eval_span["attributes"]
-        import json
-
-        input_schema = json.loads(eval_span["attributes"]["inputSchema"])
-        assert input_schema["type"] == "object"
-        assert "properties" in input_schema
-
-        # Check outputSchema
-        assert "outputSchema" in eval_span["attributes"]
-        output_schema = json.loads(eval_span["attributes"]["outputSchema"])
-        assert output_schema["type"] == "string"
+        # Schemas are not included in Evaluation span (only in Evaluation Set Run span)
+        assert "inputSchema" not in eval_span["attributes"]
+        assert "outputSchema" not in eval_span["attributes"]
 
     @pytest.mark.asyncio
     async def test_evaluation_output_span_has_output_with_type_and_value(
