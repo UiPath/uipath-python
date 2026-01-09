@@ -26,6 +26,9 @@ class MockSpan:
     def set_status(self, status: Any) -> None:
         self._status = status
 
+    def set_attribute(self, key: str, value: Any) -> None:
+        self.attributes[key] = value
+
     def __enter__(self) -> "MockSpan":
         return self
 
@@ -44,9 +47,12 @@ class SpanCapturingTracer:
         self, name: str, attributes: dict[str, Any] | None = None
     ):
         """Capture span creation and yield a mock span."""
-        span_info = {"name": name, "attributes": dict(attributes) if attributes else {}}
+        # Create MockSpan first so we can reference its attributes
+        mock_span = MockSpan(name, attributes)
+        # Store reference to mock_span.attributes so we capture any later set_attribute() calls
+        span_info = {"name": name, "attributes": mock_span.attributes}
         self.captured_spans.append(span_info)
-        yield MockSpan(name, attributes)
+        yield mock_span
 
     def get_spans_by_type(self, span_type: str) -> list[dict[str, Any]]:
         """Get all captured spans with the given span_type."""
@@ -650,3 +656,281 @@ class TestEvaluationOutputSpanCreation:
 
         assert score_type == ScoreType.ERROR
         assert expected_status == StatusCode.ERROR
+
+
+class TestSpanOutputAttributes:
+    """Integration tests that verify output attributes are set correctly on spans."""
+
+    @pytest.fixture
+    def mock_trace_manager(self) -> MagicMock:
+        """Create a mock trace manager with a capturing tracer."""
+        trace_manager = MagicMock()
+        self.capturing_tracer = SpanCapturingTracer()
+        trace_manager.tracer_provider.get_tracer.return_value = self.capturing_tracer
+        trace_manager.tracer_span_processors = []
+        return trace_manager
+
+    @pytest.fixture
+    def mock_factory(self) -> MagicMock:
+        """Create a mock runtime factory."""
+        factory = MagicMock()
+        mock_runtime = AsyncMock()
+        mock_runtime.get_schema = AsyncMock(return_value=MagicMock())
+        factory.new_runtime = AsyncMock(return_value=mock_runtime)
+        return factory
+
+    @pytest.fixture
+    def mock_event_bus(self) -> MagicMock:
+        """Create a mock event bus."""
+        event_bus = MagicMock()
+        event_bus.publish = AsyncMock()
+        return event_bus
+
+    @pytest.mark.asyncio
+    async def test_evaluation_set_run_span_has_output_attribute(
+        self,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """Test that Evaluation Set Run span has output attribute with score."""
+        from uipath._cli._evals._models._evaluation_set import EvaluationItem
+
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
+        # Mock the runtime and evaluator
+        mock_runtime = AsyncMock()
+        mock_schema = MagicMock()
+        mock_schema.input_schema = {"type": "object"}
+        mock_schema.output_schema = {"type": "object"}
+        mock_runtime.get_schema = AsyncMock(return_value=mock_schema)
+        mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)
+
+        # Mock execute_runtime to return success
+        mock_execution_output = MagicMock()
+        mock_execution_output.result.output = {"result": "success"}
+        mock_execution_output.result.status = "successful"
+        mock_execution_output.result.error = None
+        mock_execution_output.spans = []
+        mock_execution_output.logs = []
+
+        # Create simple evaluator that returns 0.85
+        evaluator = MagicMock()
+        evaluator.id = "test-evaluator"
+        evaluator.name = "Test Evaluator"
+
+        with patch.object(
+            runtime,
+            "execute_runtime",
+            new=AsyncMock(return_value=mock_execution_output),
+        ):
+            with patch.object(
+                runtime,
+                "run_evaluator",
+                new=AsyncMock(return_value=NumericEvaluationResult(score=0.85)),
+            ):
+                eval_item = EvaluationItem(
+                    id="item-1",
+                    name="Test",
+                    inputs={"x": 1},
+                    evaluation_criterias={"test-evaluator": {}},
+                )
+
+                # Execute evaluation
+                await runtime._execute_eval(eval_item, [evaluator], mock_runtime)
+
+        # Check that Evaluation span has output attribute
+        eval_spans = self.capturing_tracer.get_spans_by_type("evaluation")
+        assert len(eval_spans) > 0
+
+        eval_span = eval_spans[0]
+        assert "output" in eval_span["attributes"]
+
+        # Parse and verify output JSON
+        import json
+
+        output_data = json.loads(eval_span["attributes"]["output"])
+        assert "score" in output_data
+        assert isinstance(output_data["score"], int)
+
+    @pytest.mark.asyncio
+    async def test_evaluation_span_has_metadata_attributes(
+        self,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """Test that Evaluation span has metadata attributes (agentId, agentName, schemas)."""
+        from uipath._cli._evals._models._evaluation_set import EvaluationItem
+
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
+        # Mock the runtime
+        mock_runtime = AsyncMock()
+        mock_schema = MagicMock()
+        mock_schema.input = {
+            "type": "object",
+            "properties": {"x": {"type": "number"}},
+        }
+        mock_schema.output = {"type": "string"}
+        mock_runtime.get_schema = AsyncMock(return_value=mock_schema)
+        mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)
+
+        # Mock execute_runtime
+        mock_execution_output = MagicMock()
+        mock_execution_output.result.output = {"result": "success"}
+        mock_execution_output.result.status = "successful"
+        mock_execution_output.result.error = None
+        mock_execution_output.spans = []
+        mock_execution_output.logs = []
+
+        evaluator = MagicMock()
+        evaluator.id = "test-evaluator"
+        evaluator.name = "Test Evaluator"
+
+        with patch.object(
+            runtime,
+            "execute_runtime",
+            new=AsyncMock(return_value=mock_execution_output),
+        ):
+            with patch.object(
+                runtime,
+                "run_evaluator",
+                new=AsyncMock(return_value=NumericEvaluationResult(score=0.90)),
+            ):
+                eval_item = EvaluationItem(
+                    id="item-metadata",
+                    name="Test Metadata",
+                    inputs={"x": 42},
+                    evaluation_criterias={"test-evaluator": {}},
+                )
+
+                await runtime._execute_eval(eval_item, [evaluator], mock_runtime)
+
+        # Check metadata attributes on Evaluation span
+        eval_spans = self.capturing_tracer.get_spans_by_type("evaluation")
+        assert len(eval_spans) > 0
+
+        eval_span = eval_spans[0]
+
+        # Check agentId
+        assert "agentId" in eval_span["attributes"]
+
+        # Check agentName
+        assert "agentName" in eval_span["attributes"]
+        assert eval_span["attributes"]["agentName"] == "N/A"
+
+        # Schemas are not included in Evaluation span (only in Evaluation Set Run span)
+        assert "inputSchema" not in eval_span["attributes"]
+        assert "outputSchema" not in eval_span["attributes"]
+
+    @pytest.mark.asyncio
+    async def test_evaluation_output_span_has_output_with_type_and_value(
+        self,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """Test that Evaluation output span has output with type, value, and justification."""
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
+        # Mock execution output
+        mock_execution_output = MagicMock()
+        mock_execution_output.result.output = {"answer": "42"}
+        mock_execution_output.spans = []
+        mock_execution_output.logs = []
+        mock_execution_output.execution_time = 1.5
+
+        # Create evaluator with details
+        evaluator = MagicMock()
+        evaluator.id = "similarity-evaluator"
+        evaluator.name = "Similarity Evaluator"
+
+        from pydantic import BaseModel
+
+        from uipath.eval.models import NumericEvaluationResult
+
+        class EvaluationDetails(BaseModel):
+            justification: str
+
+        eval_result = NumericEvaluationResult(
+            score=0.92,
+            details=EvaluationDetails(
+                justification="The outputs are semantically equivalent"
+            ),
+        )
+
+        with patch.object(
+            evaluator,
+            "validate_and_evaluate_criteria",
+            new=AsyncMock(return_value=eval_result),
+        ):
+            from uipath._cli._evals._models._evaluation_set import EvaluationItem
+
+            eval_item = EvaluationItem(
+                id="item-with-justification",
+                name="Test Output Format",
+                inputs={"question": "What is the answer?"},
+                evaluation_criterias={},
+            )
+
+            await runtime.run_evaluator(
+                evaluator=evaluator,
+                execution_output=mock_execution_output,
+                eval_item=eval_item,
+                evaluation_criteria=None,
+            )
+
+        # Check Evaluation output span
+        eval_output_spans = [
+            span
+            for span in self.capturing_tracer.captured_spans
+            if span["attributes"].get("span.type") == "evalOutput"
+        ]
+
+        assert len(eval_output_spans) > 0
+        eval_output_span = eval_output_spans[0]
+
+        # Verify output attribute exists and has correct structure
+        assert "output" in eval_output_span["attributes"]
+
+        import json
+
+        output_data = json.loads(eval_output_span["attributes"]["output"])
+
+        # Check structure matches EvaluationOutputSpanOutput model
+        assert output_data["type"] == 1
+        assert "value" in output_data
+        assert output_data["value"] == 0.92
+        assert "justification" in output_data
+        assert output_data["justification"] == "The outputs are semantically equivalent"
