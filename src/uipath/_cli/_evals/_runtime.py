@@ -729,7 +729,10 @@ class UiPathEvalRuntime:
         # Use tracer from trace_manager's provider to ensure spans go through
         # the ExecutionSpanProcessor
         tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
-        with tracer.start_as_current_span(
+
+        # Use start_as_current_span which automatically attaches to current context
+        # and makes the span current for child spans
+        evaluator_span = tracer.start_span(
             f"Evaluator: {evaluator.name}",
             attributes={
                 "span_type": "evaluator",
@@ -737,7 +740,14 @@ class UiPathEvalRuntime:
                 "evaluator_name": evaluator.name,
                 "eval_item_id": eval_item.id,
             },
-        ):
+        )
+
+        # Explicitly attach the span to context and make it current
+        # This ensures @traced decorators see it as the parent
+        from opentelemetry import context, trace as otel_trace
+
+        token = context.attach(otel_trace.set_span_in_context(evaluator_span))
+        try:
             output_data: dict[str, Any] | str = {}
             if execution_output.result.output:
                 if isinstance(execution_output.result.output, BaseModel):
@@ -783,6 +793,10 @@ class UiPathEvalRuntime:
                 pass  # Span just records the output, no work needed
 
             return result
+        finally:
+            # End the evaluator span and detach the context
+            evaluator_span.end()
+            context.detach(token)
 
     async def _get_agent_model(self, runtime: UiPathRuntimeProtocol) -> str | None:
         """Get agent model from the runtime.
