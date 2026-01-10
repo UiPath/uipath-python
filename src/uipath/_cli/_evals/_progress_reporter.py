@@ -384,7 +384,7 @@ class StudioWebProgressReporter:
 
             # Set trace_id and send parent trace for the evaluation set run
             if eval_set_run_id:
-                self.spans_exporter.trace_id = eval_set_run_id
+                # self.spans_exporter.trace_id = eval_set_run_id
                 await self._send_parent_trace(eval_set_run_id, payload.eval_set_id)
 
             logger.debug(
@@ -425,13 +425,13 @@ class StudioWebProgressReporter:
             # Use evalRunId as the trace_id for agent execution spans
             # This makes all agent spans children of the eval run trace
             if eval_run_id:
-                self.spans_exporter.trace_id = eval_run_id
+               self.spans_exporter.trace_id = eval_run_id
             else:
-                # Fallback to evalSetRunId if eval_run_id not available yet
-                if self.eval_set_execution_id:
-                    self.spans_exporter.trace_id = self.eval_set_run_ids.get(
-                        self.eval_set_execution_id
-                    )
+            # Fallback to evalSetRunId if eval_run_id not available yet
+               if self.eval_set_execution_id:
+                   self.spans_exporter.trace_id = self.eval_set_run_ids.get(
+                       self.eval_set_execution_id
+                   )
 
             self.spans_exporter.export(payload.spans)
 
