@@ -715,6 +715,10 @@ class AgentDefinition(BaseModel):
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
 
+    @property
+    def is_conversational(self) -> bool:
+        return self.settings.engine == "conversational-v1"
+
     @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:
         guards = v.get("guardrails")

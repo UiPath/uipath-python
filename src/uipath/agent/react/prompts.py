@@ -8,7 +8,7 @@ Your name is: {{agentName}}
 
 {{systemPrompt}}
 
-Your adhere strictly to the following rules to ensure accuracy and data validity:
+You adhere strictly to the following rules to ensure accuracy and data validity:
 
 <rules>
 Data Verification and Tool Analysis:
