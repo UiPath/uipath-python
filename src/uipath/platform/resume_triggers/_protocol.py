@@ -10,6 +10,7 @@ from uipath.core.errors import (
     UiPathFaultedTriggerError,
     UiPathPendingTriggerError,
 )
+from uipath.platform.common.interrupt_models import UserMessageWait
 from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
@@ -362,6 +363,10 @@ class UiPathResumeTriggerCreator:
                     await self._handle_ixp_extraction_trigger(
                         suspend_value, resume_trigger, uipath
                     )
+                case UiPathResumeTriggerType.USER_MESSAGE_WAIT:
+                    self._handle_user_message_wait_trigger(
+                        suspend_value, resume_trigger, uipath
+                    )                    
                 case _:
                     raise UiPathFaultedTriggerError(
                         ErrorCategory.SYSTEM,
@@ -395,6 +400,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerType.BATCH_RAG
         if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
             return UiPathResumeTriggerType.IXP_EXTRACTION
+        if isinstance(value, UserMessageWait):
+            return UiPathResumeTriggerType.USER_MESSAGE_WAIT
         # default to API trigger
         return UiPathResumeTriggerType.API
 
@@ -419,6 +426,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.BATCH_RAG
         if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
             return UiPathResumeTriggerName.EXTRACTION
+        if isinstance(value, UserMessageWait):
+            return UiPathResumeTriggerName.USER_MESSAGE_WAIT
         # default to API trigger
         return UiPathResumeTriggerName.API
 
@@ -579,7 +588,17 @@ class UiPathResumeTriggerCreator:
             inbox_id=str(uuid.uuid4()), request=serialize_object(value)
         )
 
+    def _handle_user_message_wait_trigger(
+        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+    ) -> None:
+        """Handle user message wait resume triggers.
 
+        Args:
+            value: The suspend value
+            resume_trigger: The resume trigger to populate
+        """
+        # Nothing to do?
+        
 class UiPathResumeTriggerHandler:
     """Combined handler for creating and reading resume triggers.
 

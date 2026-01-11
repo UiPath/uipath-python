@@ -134,3 +134,7 @@ class WaitDocumentExtraction(BaseModel):
     """Model representing a wait document extraction task creation."""
 
     extraction: StartExtractionResponse
+
+class UserMessageWait(BaseModel):
+    """Model representing a wait for a new user input message."""
+    

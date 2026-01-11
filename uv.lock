@@ -2613,7 +2613,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "uipath-core", specifier = ">=0.1.1,<0.2.0" }]
+requires-dist = [{ name = "uipath-core", editable = "../uipath-core-python" }]
 
 [package.metadata.requires-dev]
 dev = [
