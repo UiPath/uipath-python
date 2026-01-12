@@ -44,7 +44,9 @@ class ResourceOverwrite(BaseModel, ABC):
 
 
 class GenericResourceOverwrite(ResourceOverwrite):
-    resource_type: Literal["process", "index", "app", "asset", "bucket", "mcpServer"]
+    resource_type: Literal[
+        "process", "index", "app", "asset", "bucket", "mcpServer", "queue"
+    ]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
 
