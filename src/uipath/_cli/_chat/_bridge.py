@@ -95,7 +95,7 @@ class SocketIOChatBridge:
         self._connected_event.clear()
 
         if self._debug_mode:
-            logger.warning(f"SocketIOChatBridge is in debug mode. Not connecting websocket.")
+            logger.warning("SocketIOChatBridge is in debug mode. Not connecting websocket.")
         else:
             try:
                 # Attempt to connect with timeout

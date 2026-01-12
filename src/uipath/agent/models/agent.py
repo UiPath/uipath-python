@@ -717,6 +717,7 @@ class AgentDefinition(BaseModel):
 
     @property
     def is_conversational(self) -> bool:
+        """Checks the settings.engine property to determine if the agent is conversational."""
         return self.settings.engine == "conversational-v1"
 
     @staticmethod

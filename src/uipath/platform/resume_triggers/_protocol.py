@@ -10,7 +10,6 @@ from uipath.core.errors import (
     UiPathFaultedTriggerError,
     UiPathPendingTriggerError,
 )
-from uipath.platform.common.interrupt_models import UserMessageWait
 from uipath.runtime import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
@@ -36,6 +35,7 @@ from uipath.platform.common import (
     WaitJob,
     WaitTask,
 )
+from uipath.platform.common.interrupt_models import UserMessageWait
 from uipath.platform.context_grounding import DeepRagStatus
 from uipath.platform.errors import (
     BatchTransformNotCompleteException,
