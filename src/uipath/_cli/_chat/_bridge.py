@@ -247,7 +247,7 @@ class SocketIOChatBridge:
         Returns:
             Resume data from the interrupt end event
         """
-        return {}
+        return {"decisions": [{"type": "approve"}]}
 
     @property
     def is_connected(self) -> bool:
