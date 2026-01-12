@@ -147,3 +147,7 @@ name = "testpypi"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
+
+[tool.uv.sources]
+uipath-runtime = { path = "../uipath-runtime-python", editable = true }
+uipath-core = { path = "../uipath-core-python", editable = true }

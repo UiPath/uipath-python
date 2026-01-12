@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11"
 
 [[package]]
@@ -2559,8 +2559,8 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
-    { name = "uipath-core", specifier = ">=0.2.0,<0.3.0" },
-    { name = "uipath-runtime", specifier = ">=0.6.2,<0.7.0" },
+    { name = "uipath-core", editable = "../uipath-core-python" },
+    { name = "uipath-runtime", editable = "../uipath-runtime-python" },
 ]
 
 [package.metadata.requires-dev]
@@ -2594,28 +2594,60 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.2.1"
+source = { editable = "../uipath-core-python" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/4f/9bf150a21b6af8b56edf7fbca46827806570eab5b37f90c2b76180cf1e79/uipath_core-0.2.0.tar.gz", hash = "sha256:950427fe7921a67468416856faf63192cf717d8adce092d706b070c487f0c076", size = 103072, upload-time = "2026-01-25T11:59:10.871Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/43/f61f6aace058d61dfa11e3c2116b06f0bc15c45d9d201bf432902f54018f/uipath_core-0.2.0-py3-none-any.whl", hash = "sha256:bb5366bfca7ec4611f91a0035df194a56eef11f447313491557e131e6090f5e6", size = 32826, upload-time = "2026-01-25T11:59:09.203Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "opentelemetry-instrumentation", specifier = ">=0.60b0,<1.0.0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.39.0,<2.0.0" },
+    { name = "pydantic", specifier = ">=2.12.5,<3.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "bandit", specifier = ">=1.8.2" },
+    { name = "mypy", specifier = ">=1.14.1" },
+    { name = "pre-commit", specifier = ">=4.1.0" },
+    { name = "pytest", specifier = ">=7.4.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-httpx", specifier = ">=0.35.0" },
+    { name = "pytest-mock", specifier = ">=3.11.1" },
+    { name = "pytest-trio", specifier = ">=0.8.0" },
+    { name = "ruff", specifier = ">=0.9.4" },
+    { name = "rust-just", specifier = ">=1.39.0" },
 ]
 
 [[package]]
 name = "uipath-runtime"
 version = "0.6.2"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../uipath-runtime-python" }
 dependencies = [
     { name = "uipath-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d9/74/d141f84d845a6ecc8ede56ca1ce7aca5f56031895be9e6546c6ffd046ce3/uipath_runtime-0.6.2.tar.gz", hash = "sha256:f838e1e5e20cc7c070475c8f839ba6d0615a2e12750a7275bc4669fed15c26c6", size = 103641, upload-time = "2026-01-27T12:48:41.039Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4d/1c/20f1aa6a194c1e21557943d08c1a23dc3d55558d4f69644ccbfa62ddbc43/uipath_runtime-0.6.2-py3-none-any.whl", hash = "sha256:b33511f9a29269677049ab5dd54419aab302a5ae3a5820d8a86c7f060bd9fc62", size = 40770, upload-time = "2026-01-27T12:48:38.674Z" },
+
+[package.metadata]
+requires-dist = [{ name = "uipath-core", editable = "../uipath-core-python" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "bandit", specifier = ">=1.8.2" },
+    { name = "mypy", specifier = ">=1.14.1" },
+    { name = "pre-commit", specifier = ">=4.1.0" },
+    { name = "pytest", specifier = ">=7.4.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-httpx", specifier = ">=0.35.0" },
+    { name = "pytest-mock", specifier = ">=3.11.1" },
+    { name = "pytest-trio", specifier = ">=0.8.0" },
+    { name = "ruff", specifier = ">=0.9.4" },
+    { name = "rust-just", specifier = ">=1.39.0" },
 ]
 
 [[package]]
