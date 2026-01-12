@@ -78,6 +78,12 @@ class ConfigurationManager:
         return os.getenv(ENV_UIPATH_PROCESS_VERSION, None)
 
     @property
+    def is_debug(self) -> bool:
+        from uipath._utils.constants import ENV_UIPATH_IS_DEBUG
+
+        return os.getenv(ENV_UIPATH_IS_DEBUG, "").lower() == "true"
+
+    @property
     def is_studio_project(self) -> bool:
         return self.project_id is not None
 

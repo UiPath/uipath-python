@@ -212,3 +212,150 @@ class TestSpanUtils:
 
         # Verify the trace ID is taken from environment
         assert str(uipath_span.trace_id) == "00000000-0000-4000-8000-000000000000"
+
+    @patch.dict(os.environ, {"UIPATH_PROCESS_VERSION": "1.0.0"})
+    def test_uipath_span_agent_version_from_env(self):
+        """Test that AgentVersion is populated from UIPATH_PROCESS_VERSION env variable."""
+        # Create a UiPathSpan
+        span = UiPathSpan(
+            id=uuid.uuid4(),
+            trace_id=uuid.uuid4(),
+            name="test-span",
+            attributes="{}",
+        )
+
+        # Verify the agent_version is taken from environment
+        assert span.agent_version == "1.0.0"
+
+        # Verify it's included in the dict output
+        span_dict = span.to_dict()
+        assert span_dict["AgentVersion"] == "1.0.0"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_uipath_span_agent_version_missing(self):
+        """Test that AgentVersion is None when env variable is not set."""
+        # Create a UiPathSpan
+        span = UiPathSpan(
+            id=uuid.uuid4(),
+            trace_id=uuid.uuid4(),
+            name="test-span",
+            attributes="{}",
+        )
+
+        # Verify the agent_version is None
+        assert span.agent_version is None
+
+        # Verify it's included in the dict output as None
+        span_dict = span.to_dict()
+        assert span_dict["AgentVersion"] is None
+
+    @patch.dict(os.environ, {"UIPATH_IS_DEBUG": "true"})
+    def test_uipath_span_execution_type_debug_mode(self):
+        """Test that ExecutionType is 0 when UIPATH_IS_DEBUG is true."""
+        # Create a UiPathSpan
+        span = UiPathSpan(
+            id=uuid.uuid4(),
+            trace_id=uuid.uuid4(),
+            name="test-span",
+            attributes="{}",
+        )
+
+        # Verify execution_type is 0 (debug mode)
+        assert span.execution_type == 0
+
+        # Verify it's included in the dict output
+        span_dict = span.to_dict()
+        assert span_dict["ExecutionType"] == 0
+
+    @patch.dict(os.environ, {"UIPATH_IS_DEBUG": "True"})
+    def test_uipath_span_execution_type_debug_mode_uppercase(self):
+        """Test that ExecutionType is 0 when UIPATH_IS_DEBUG is True (case-insensitive)."""
+        # Create a UiPathSpan
+        span = UiPathSpan(
+            id=uuid.uuid4(),
+            trace_id=uuid.uuid4(),
+            name="test-span",
+            attributes="{}",
+        )
+
+        # Verify execution_type is 0 (debug mode)
+        assert span.execution_type == 0
+
+    @patch.dict(os.environ, {"UIPATH_IS_DEBUG": "false"})
+    def test_uipath_span_execution_type_production_mode(self):
+        """Test that ExecutionType is 1 when UIPATH_IS_DEBUG is false."""
+        # Create a UiPathSpan
+        span = UiPathSpan(
+            id=uuid.uuid4(),
+            trace_id=uuid.uuid4(),
+            name="test-span",
+            attributes="{}",
+        )
+
+        # Verify execution_type is 1 (production mode)
+        assert span.execution_type == 1
+
+        # Verify it's included in the dict output
+        span_dict = span.to_dict()
+        assert span_dict["ExecutionType"] == 1
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_uipath_span_execution_type_default(self):
+        """Test that ExecutionType defaults to 1 when UIPATH_IS_DEBUG is not set."""
+        # Create a UiPathSpan
+        span = UiPathSpan(
+            id=uuid.uuid4(),
+            trace_id=uuid.uuid4(),
+            name="test-span",
+            attributes="{}",
+        )
+
+        # Verify execution_type is 1 (production mode, default)
+        assert span.execution_type == 1
+
+        # Verify it's included in the dict output
+        span_dict = span.to_dict()
+        assert span_dict["ExecutionType"] == 1
+
+    @patch.dict(
+        os.environ,
+        {
+            "UIPATH_PROCESS_VERSION": "2.1.5",
+            "UIPATH_IS_DEBUG": "true",
+        },
+    )
+    def test_otel_span_to_uipath_span_includes_new_fields(self):
+        """Test that converting OTel span includes AgentVersion and ExecutionType."""
+        # Create a mock OTel span
+        mock_span = Mock(spec=OTelSpan)
+
+        # Set span context
+        trace_id = 0x123456789ABCDEF0123456789ABCDEF0
+        span_id = 0x0123456789ABCDEF
+        mock_context = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=False)
+        mock_span.get_span_context.return_value = mock_context
+
+        # Set span properties
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {}
+        mock_span.events = []
+        mock_span.links = []
+
+        # Set times
+        current_time_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = current_time_ns
+        mock_span.end_time = current_time_ns + 1000000
+
+        # Convert to UiPath span
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        # Verify new fields are populated from environment
+        assert uipath_span.agent_version == "2.1.5"
+        assert uipath_span.execution_type == 0
+
+        # Verify they're included in the dict output
+        span_dict = uipath_span.to_dict()
+        assert span_dict["AgentVersion"] == "2.1.5"
+        assert span_dict["ExecutionType"] == 0

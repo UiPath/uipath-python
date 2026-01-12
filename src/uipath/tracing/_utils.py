@@ -98,6 +98,14 @@ class UiPathSpan:
     )
 
     job_key: Optional[str] = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
+    agent_version: Optional[str] = field(
+        default_factory=lambda: env.get("UIPATH_PROCESS_VERSION")
+    )
+    execution_type: int = field(
+        default_factory=lambda: 0
+        if env.get("UIPATH_IS_DEBUG", "").lower() == "true"
+        else 1
+    )
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
         """Convert the Span to a dictionary suitable for JSON serialization.
@@ -137,6 +145,8 @@ class UiPathSpan:
             "ProcessKey": self.process_key,
             "JobKey": self.job_key,
             "ReferenceId": self.reference_id,
+            "AgentVersion": self.agent_version,
+            "ExecutionType": self.execution_type,
         }
 
 
