@@ -502,6 +502,9 @@ class AgentInternalToolResourceConfig(BaseAgentToolResourceConfig):
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
     is_enabled: Optional[bool] = Field(None, alias="isEnabled")
     output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
 
 
 class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
