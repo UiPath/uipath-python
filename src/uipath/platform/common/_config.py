@@ -42,10 +42,40 @@ class ConfigurationManager:
         return os.getenv(ENV_UIPATH_PROJECT_ID, None)
 
     @property
+    def organization_id(self) -> str | None:
+        from uipath._utils.constants import ENV_ORGANIZATION_ID
+
+        return os.getenv(ENV_ORGANIZATION_ID, None)
+
+    @property
+    def base_url(self) -> str | None:
+        from uipath._utils.constants import ENV_BASE_URL
+
+        return os.getenv(ENV_BASE_URL, None)
+
+    @property
     def folder_key(self) -> str | None:
         from uipath._utils.constants import ENV_FOLDER_KEY
 
         return os.getenv(ENV_FOLDER_KEY, None)
+
+    @property
+    def process_uuid(self) -> str | None:
+        from uipath._utils.constants import ENV_UIPATH_PROCESS_UUID
+
+        return os.getenv(ENV_UIPATH_PROCESS_UUID, None)
+
+    @property
+    def trace_id(self) -> str | None:
+        from uipath._utils.constants import ENV_UIPATH_TRACE_ID
+
+        return os.getenv(ENV_UIPATH_TRACE_ID, None)
+
+    @property
+    def process_version(self) -> str | None:
+        from uipath._utils.constants import ENV_UIPATH_PROCESS_VERSION
+
+        return os.getenv(ENV_UIPATH_PROCESS_VERSION, None)
 
     @property
     def is_studio_project(self) -> bool:
