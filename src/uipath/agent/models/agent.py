@@ -45,6 +45,7 @@ class AgentToolType(str, Enum):
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
     INTEGRATION = "Integration"
     INTERNAL = "Internal"
+    IXP = "ixp"
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
@@ -195,7 +196,6 @@ class AgentContextSettings(BaseCfg):
     output_columns: Optional[List[AgentContextOutputColumn]] = Field(
         None, alias="outputColumns"
     )
-
 
 class AgentContextResourceConfig(BaseAgentResourceConfig):
     """Agent context resource configuration model."""
@@ -360,6 +360,20 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     properties: AgentProcessToolProperties
     settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
     arguments: Dict[str, Any] = Field(default_factory=dict)
+
+class AgentIxpExtractionToolProperties(BaseResourceProperties):
+    """Agent process tool properties model."""
+
+    project_name: str | None = Field(None, alias="projectName")
+    version_tag: str | None = Field(None, alias="versionTag")
+
+class AgentIxpExtractionResourceConfig(BaseAgentToolResourceConfig):
+    """Agent ixp extraction tool resource configuration model."""
+
+    type: Literal[AgentToolType.IXP] = AgentToolType.IXP
+    output_schema: dict[str, Any] = Field(..., alias="outputSchema")
+    settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
+    properties: AgentIxpExtractionToolProperties
 
 
 class AgentIntegrationToolParameter(BaseCfg):
