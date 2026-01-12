@@ -16,8 +16,8 @@ class TestBuildStringFromTokens:
     def test_simple_text_tokens(self):
         """Test simple text tokens are joined correctly."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Hello "),
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="World"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Hello "),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="World"),
         ]
         result = build_string_from_tokens(tokens, {})
         assert result == "Hello World"
@@ -26,10 +26,11 @@ class TestBuildStringFromTokens:
         """Test input.* variable tokens are replaced with input values."""
         tokens = [
             TextToken(
-                type=TextTokenType.SIMPLE_TEXT, rawString="What is the weather like in "
+                type=TextTokenType.SIMPLE_TEXT,
+                raw_string="What is the weather like in ",
             ),
-            TextToken(type=TextTokenType.VARIABLE, rawString="input.city"),
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="?"),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.city"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="?"),
         ]
         result = build_string_from_tokens(tokens, {"city": "London"})
         assert result == "What is the weather like in London?"
@@ -37,8 +38,8 @@ class TestBuildStringFromTokens:
     def test_with_output_variable(self):
         """Test output.* variable tokens return the path."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Put the results in "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="output.weather"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Put the results in "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="output.weather"),
         ]
         result = build_string_from_tokens(tokens, {})
         assert result == "Put the results in weather"
@@ -47,16 +48,17 @@ class TestBuildStringFromTokens:
         """Test the spec example without tool names (tools.weather remains unresolved)."""
         tokens = [
             TextToken(
-                type=TextTokenType.SIMPLE_TEXT, rawString="What is the weather like in "
+                type=TextTokenType.SIMPLE_TEXT,
+                raw_string="What is the weather like in ",
             ),
-            TextToken(type=TextTokenType.VARIABLE, rawString="input.city"),
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="?\nUse the "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="tools.weather"),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.city"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="?\nUse the "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.weather"),
             TextToken(
                 type=TextTokenType.SIMPLE_TEXT,
-                rawString=" tool and put the results in ",
+                raw_string=" tool and put the results in ",
             ),
-            TextToken(type=TextTokenType.VARIABLE, rawString="output.weather"),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="output.weather"),
         ]
         result = build_string_from_tokens(tokens, {"city": "London"})
         # tools.weather is not resolved (returns raw string), output.weather returns "weather"
@@ -69,16 +71,17 @@ class TestBuildStringFromTokens:
         """Test the spec example with tool names resolves correctly."""
         tokens = [
             TextToken(
-                type=TextTokenType.SIMPLE_TEXT, rawString="What is the weather like in "
+                type=TextTokenType.SIMPLE_TEXT,
+                raw_string="What is the weather like in ",
             ),
-            TextToken(type=TextTokenType.VARIABLE, rawString="input.city"),
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="?\nUse the "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="tools.weather"),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.city"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="?\nUse the "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.weather"),
             TextToken(
                 type=TextTokenType.SIMPLE_TEXT,
-                rawString=" tool and put the results in ",
+                raw_string=" tool and put the results in ",
             ),
-            TextToken(type=TextTokenType.VARIABLE, rawString="output.weather"),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="output.weather"),
         ]
         result = build_string_from_tokens(
             tokens, {"city": "London"}, tool_names=["weather"]
@@ -91,9 +94,9 @@ class TestBuildStringFromTokens:
     def test_with_nested_input_object(self):
         """Test nested input objects are replaced correctly."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="The person is "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="input.person.age"),
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString=" years old"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="The person is "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.person.age"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string=" years old"),
         ]
         result = build_string_from_tokens(
             tokens, {"person": {"age": 25, "name": "John"}}
@@ -103,8 +106,8 @@ class TestBuildStringFromTokens:
     def test_expression_token_copies_raw_string(self):
         """Test expression tokens are copied as-is."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Result: "),
-            TextToken(type=TextTokenType.EXPRESSION, rawString="{{some.expression}}"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Result: "),
+            TextToken(type=TextTokenType.EXPRESSION, raw_string="{{some.expression}}"),
         ]
         result = build_string_from_tokens(tokens, {})
         assert result == "Result: {{some.expression}}"
@@ -112,8 +115,8 @@ class TestBuildStringFromTokens:
     def test_input_variable_returns_entire_input_as_json(self):
         """Test 'input' variable returns entire input as JSON."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Input: "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="input"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Input: "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input"),
         ]
         result = build_string_from_tokens(tokens, {"city": "London", "temp": 20})
         assert result == 'Input: {"city": "London", "temp": 20}'
@@ -129,15 +132,15 @@ class TestBuildStringFromTokens:
     )
     def test_unknown_variable_patterns_return_raw_string(self, raw_string, expected):
         """Test unknown variable patterns return the raw string."""
-        tokens = [TextToken(type=TextTokenType.VARIABLE, rawString=raw_string)]
+        tokens = [TextToken(type=TextTokenType.VARIABLE, raw_string=raw_string)]
         result = build_string_from_tokens(tokens, {"some": "value"})
         assert result == expected
 
     def test_missing_input_value_returns_raw_string(self):
         """Test missing input values return the raw variable string."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Value: "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="input.missing"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Value: "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.missing"),
         ]
         result = build_string_from_tokens(tokens, {"other": "value"})
         assert result == "Value: input.missing"
@@ -145,9 +148,9 @@ class TestBuildStringFromTokens:
     def test_tool_reference_resolves_to_tool_name(self):
         """Test tools.* variable resolves to tool name."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Use the "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="tools.weather"),
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString=" tool"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Use the "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.weather"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string=" tool"),
         ]
         result = build_string_from_tokens(
             tokens, {}, tool_names=["weather", "calculator"]
@@ -157,7 +160,7 @@ class TestBuildStringFromTokens:
     def test_tool_reference_case_insensitive(self):
         """Test tools.* variable resolution is case-insensitive."""
         tokens = [
-            TextToken(type=TextTokenType.VARIABLE, rawString="tools.WEATHER"),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.WEATHER"),
         ]
         result = build_string_from_tokens(tokens, {}, tool_names=["weather"])
         assert result == "weather"
@@ -165,7 +168,7 @@ class TestBuildStringFromTokens:
     def test_tool_reference_not_found_returns_raw_string(self):
         """Test unknown tool reference returns raw string."""
         tokens = [
-            TextToken(type=TextTokenType.VARIABLE, rawString="tools.unknown"),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.unknown"),
         ]
         result = build_string_from_tokens(tokens, {}, tool_names=["weather"])
         assert result == "tools.unknown"
@@ -173,8 +176,8 @@ class TestBuildStringFromTokens:
     def test_escalation_reference_resolves_to_escalation_name(self):
         """Test escalations.* variable resolves to escalation name."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Escalate to "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="escalations.support"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Escalate to "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="escalations.support"),
         ]
         result = build_string_from_tokens(tokens, {}, escalation_names=["support"])
         assert result == "Escalate to support"
@@ -182,8 +185,8 @@ class TestBuildStringFromTokens:
     def test_context_reference_resolves_to_context_name(self):
         """Test contexts.* variable resolves to context name."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Search in "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="contexts.docs"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Search in "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="contexts.docs"),
         ]
         result = build_string_from_tokens(tokens, {}, context_names=["docs"])
         assert result == "Search in docs"
@@ -191,12 +194,12 @@ class TestBuildStringFromTokens:
     def test_multiple_resource_types_together(self):
         """Test using multiple resource types in one prompt."""
         tokens = [
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString="Use "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="tools.weather"),
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString=" with "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="contexts.docs"),
-            TextToken(type=TextTokenType.SIMPLE_TEXT, rawString=" or escalate to "),
-            TextToken(type=TextTokenType.VARIABLE, rawString="escalations.support"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Use "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.weather"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string=" with "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="contexts.docs"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string=" or escalate to "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="escalations.support"),
         ]
         result = build_string_from_tokens(
             tokens,
