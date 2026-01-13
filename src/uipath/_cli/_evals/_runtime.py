@@ -262,6 +262,7 @@ class UiPathEvalContext:
     verbose: bool = False
     enable_mocker_cache: bool = False
     report_coverage: bool = False
+    input_overrides: dict[str, Any] | None = None
     model_settings_id: str = "default"
 
 
@@ -375,6 +376,8 @@ class UiPathEvalRuntime:
     async def execute(self) -> UiPathRuntimeResult:
         # Configure model settings override before creating runtime
         await self._configure_model_settings_override()
+        # Configure input overrides before creating runtime
+        await self._configure_input_overrides()
 
         runtime = await self.factory.new_runtime(
             entrypoint=self.context.entrypoint or "",
@@ -754,6 +757,17 @@ class UiPathEvalRuntime:
         # Configure the factory with the override settings
         self.factory.set_model_settings_override(target_model_settings)
 
+    async def _configure_input_overrides(self) -> None:
+        """Configure the factory with input overrides if available."""
+        if not self.context.input_overrides:
+            logger.debug("No input overrides available")
+            return
+
+        logger.info(f"Configuring input overrides: {self.context.input_overrides}")
+
+        # Configure the factory with the input overrides from CLI
+        self.factory.set_input_overrides(self.context.input_overrides)
+
     async def execute_runtime(
         self,
         eval_item: EvaluationItem,
@@ -785,8 +799,12 @@ class UiPathEvalRuntime:
 
             start_time = time()
             try:
+                # Apply input overrides to inputs if configured
+                inputs_with_overrides = self.factory.apply_input_overrides(
+                    eval_item.inputs, eval_id=eval_item.id
+                )
                 result = await execution_runtime.execute(
-                    input=eval_item.inputs,
+                    input=inputs_with_overrides,
                 )
             except Exception as e:
                 end_time = time()

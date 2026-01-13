@@ -181,3 +181,160 @@ async def test_configurable_factory_cleanup():
 
     finally:
         Path(temp_path).unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_input_override_simple_direct_field():
+    """Test input override with simple direct field override."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    # Set input overrides - per-evaluation format
+    overrides = {
+        "eval-1": {
+            "a": 10,
+            "operator": "*",
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    # Test inputs
+    inputs = {
+        "a": 5,
+        "b": 3,
+        "operator": "+",
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    assert result["a"] == 10  # Overridden
+    assert result["operator"] == "*"  # Overridden
+    assert result["b"] == 3  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_input_override_deep_merge():
+    """Test input override with deep merge for nested objects."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {"eval-1": {"filePath": {"ID": "new-id-123", "NewField": "added"}}}
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "filePath": {
+            "ID": "old-id",
+            "FullName": "test.pdf",
+            "MimeType": "application/pdf",
+        },
+        "other": "value",
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Deep merge: overridden fields updated, existing fields preserved
+    assert result["filePath"]["ID"] == "new-id-123"  # Overridden
+    assert result["filePath"]["NewField"] == "added"  # Added
+    assert result["filePath"]["FullName"] == "test.pdf"  # Preserved
+    assert result["filePath"]["MimeType"] == "application/pdf"  # Preserved
+    assert result["other"] == "value"  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_input_override_no_overrides():
+    """Test input override when no overrides are configured."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    inputs = {"file_id": "attachment-123", "data": {"nested": "value"}}
+
+    result = factory.apply_input_overrides(inputs)
+
+    # Should return the same inputs unchanged
+    assert result == inputs
+
+
+@pytest.mark.asyncio
+async def test_input_override_new_fields():
+    """Test input override adding new fields."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "newField": "new-value",
+            "c": 7,
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {"a": 5, "b": 3}
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # New fields should be added
+    assert result["a"] == 5  # Unchanged
+    assert result["b"] == 3  # Unchanged
+    assert result["newField"] == "new-value"  # Added
+    assert result["c"] == 7  # Added
+
+
+@pytest.mark.asyncio
+async def test_input_override_multimodal():
+    """Test input override with multimodal inputs (images, files)."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    # Override image attachment ID using per-evaluation format
+    overrides = {
+        "eval-1": {
+            "image": "job-attachment-xyz789",
+            "filePath": {"ID": "document-id-current"},
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    # Simulate a multimodal evaluation input with image and file references
+    inputs = {
+        "prompt": "Analyze this screenshot",
+        "image": "job-attachment-abc123",
+        "filePath": {
+            "ID": "document-id-legacy",
+            "FullName": "doc.pdf",
+            "MimeType": "application/pdf",
+        },
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Verify overrides
+    assert result["prompt"] == "Analyze this screenshot"  # Text unchanged
+    assert result["image"] == "job-attachment-xyz789"  # Overridden
+    assert result["filePath"]["ID"] == "document-id-current"  # Overridden
+    assert result["filePath"]["FullName"] == "doc.pdf"  # Preserved
+    assert result["filePath"]["MimeType"] == "application/pdf"  # Preserved
+
+
+@pytest.mark.asyncio
+async def test_input_override_calculator_example():
+    """Test input override with calculator-style inputs."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    # Override calculator inputs using per-evaluation format
+    overrides = {
+        "eval-1": {
+            "a": 10,
+            "operator": "*",
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {"a": 5, "b": 3, "operator": "+"}
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Direct field override
+    assert result["a"] == 10  # Overridden
+    assert result["operator"] == "*"  # Overridden
+    assert result["b"] == 3  # Unchanged
