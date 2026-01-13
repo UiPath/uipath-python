@@ -204,7 +204,9 @@ class ConfigurableRuntimeFactory:
         )
 
         # Apply direct field overrides with recursive deep merge
-        def deep_merge(base: dict, override: dict) -> dict:
+        def deep_merge(
+            base: dict[str, Any], override: dict[str, Any]
+        ) -> dict[str, Any]:
             """Recursively merge override into base dictionary."""
             result = copy.deepcopy(base)
             for key, value in override.items():

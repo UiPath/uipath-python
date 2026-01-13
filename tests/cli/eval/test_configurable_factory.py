@@ -3,6 +3,7 @@
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -634,7 +635,7 @@ async def test_deep_merge_does_not_mutate_original():
     overrides = {"eval-1": {"nested": {"field": "new-value"}}}
     factory.set_input_overrides(overrides)
 
-    original_inputs = {
+    original_inputs: dict[str, Any] = {
         "nested": {"field": "original", "other": "data"},
         "top": "level",
     }
