@@ -8,7 +8,7 @@
 {
     "Code": "Serverless.PythonCodedAgent.PrepareEnvironmentError",
     "Title": "Failed to prepare environment",
-    "Detail": "An error occurred while installing the package dependencies. Please try again. If the error persists, please contact support.",
+    "Detail": "An error occurred while installing the package dependencies. Please try again. If the error persists, please contact support. bla",
     "Category": "System",
     "Status": null
 }
