@@ -2486,7 +2486,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.5"
+version = "2.5.1"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2554,7 +2554,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
-    { name = "uipath-core", specifier = ">=0.1.4,<0.2.0" },
+    { name = "uipath-core", specifier = ">=0.1.6,<0.2.0" },
     { name = "uipath-runtime", specifier = ">=0.5,<0.6.0" },
 ]
 
@@ -2589,16 +2589,16 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.1.4"
+version = "0.1.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/db/ef/44b9b0adb378e0e988b621b72af55008dbfb166179412cba1fe54ab4b692/uipath_core-0.1.4.tar.gz", hash = "sha256:6100eb5299b30b145e557e3dbc716141bbaa92cd37633d36257c7e3f90ce578f", size = 96025, upload-time = "2025-12-16T14:25:01.62Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/da/842e9cbc70ce396fa8369803174d6ce58f9c85d1c9b57e1b96440d86ed77/uipath_core-0.1.6.tar.gz", hash = "sha256:0d1e2f305326d58e655c236bdd2755b6855cbeed2a8acf61e30bab3d056c83dd", size = 97409, upload-time = "2026-01-15T08:10:07.806Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/09/c3/e64ea37ba8aa56cfae4a15589652a9dc4f66889e4d19788ca5e1b034b46f/uipath_core-0.1.4-py3-none-any.whl", hash = "sha256:574d6fe0314f70c12de8b6a3c5ab05a6191f6a8b9087c1d1a6352e67765f2f72", size = 30431, upload-time = "2025-12-16T14:25:00.174Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/2f/611e5443d0bb4b570768db60c80df8a9fba197205a646ca2c0b67b3f236d/uipath_core-0.1.6-py3-none-any.whl", hash = "sha256:fb514a9b15d57ea9464e62c04f83e86e1b21cb0865012ecca947d2a458805a4a", size = 31238, upload-time = "2026-01-15T08:10:06.289Z" },
 ]
 
 [[package]]
