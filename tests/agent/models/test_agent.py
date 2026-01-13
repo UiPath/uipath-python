@@ -100,6 +100,10 @@ class TestAgentBuilderConfig:
                 "maxTokens": 16384,
                 "temperature": 0,
                 "engine": "basic-v1",
+                "byomProperties": {
+                    "connectionId": "test-byom-connection-id",
+                    "connectorKey": "uipath-openai-openai",
+                },
             },
             "resources": [
                 {
@@ -455,6 +459,11 @@ class TestAgentBuilderConfig:
         assert len(config.resources) == 8  # All tool types + escalation + context + mcp
         assert config.settings.engine == "basic-v1"
         assert config.settings.max_tokens == 16384
+        assert config.settings.byom_properties is not None
+        assert (
+            config.settings.byom_properties.connection_id == "test-byom-connection-id"
+        )
+        assert config.settings.byom_properties.connector_key == "uipath-openai-openai"
 
         # Validate resource types
         resource_types = [resource.resource_type for resource in config.resources]
