@@ -1,11 +1,14 @@
 from typing import Any
 
-from uipath.core.guardrails import GuardrailValidationResult
+from uipath.core.guardrails import (
+    GuardrailValidationResult,
+    GuardrailValidationResultType,
+)
 
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
 from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
-from .guardrails import BuiltInValidatorGuardrail, GuardrailValidationResultType
+from .guardrails import BuiltInValidatorGuardrail
 
 
 class GuardrailsService(BaseService):
@@ -63,23 +66,36 @@ class GuardrailsService(BaseService):
         )
         response_data = response.json()
 
-        # Map API response to populate result enum and details field
-        # Handle skip case for entitlements checks
-        skip = response_data.get("skip", False)
-        validation_passed = response_data.get("validation_passed", False)
-        reason = response_data.get("reason", "")
-
-        # Determine result enum value based on skip and validation_passed
-        if skip:
-            result = GuardrailValidationResultType.SKIPPED
-        elif validation_passed:
-            result = GuardrailValidationResultType.PASSED
+        # Handle new API format: check if result field exists
+        result_str = response_data.get("result")
+        if result_str:
+            # Try to get enum by name first (e.g., "VALIDATION_FAILED")
+            try:
+                result = GuardrailValidationResultType[result_str]
+            except KeyError:
+                # If not found by name, try by value (e.g., "validation_failed")
+                try:
+                    result = GuardrailValidationResultType(result_str)
+                except ValueError:
+                    # If both fail, fall back to old logic
+                    result = None
         else:
-            result = GuardrailValidationResultType.FAILED
+            result = None
 
-        # Add result and details to response data
-        # Convert enum to string value for JSON serialization
-        response_data["result"] = result.value
-        response_data["details"] = reason
+        # Old format: backwards compatibility - determine result from validation_passed and skip
+        if result is None:
+            validation_passed = response_data.get("validation_passed", False)
 
-        return GuardrailValidationResult.model_validate(response_data)
+            if validation_passed:
+                result = GuardrailValidationResultType.PASSED
+            else:
+                result = GuardrailValidationResultType.VALIDATION_FAILED
+
+        # Prepare model data with only the fields needed by GuardrailValidationResult
+        # (result and reason; ignore old fields like details, validation_passed, skip)
+        model_data = {
+            "result": result.value,
+            "reason": response_data.get("reason", ""),
+        }
+
+        return GuardrailValidationResult.model_validate(model_data)

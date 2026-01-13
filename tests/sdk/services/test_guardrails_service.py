@@ -6,6 +6,7 @@ from pytest_httpx import HTTPXMock
 from uipath.core.guardrails import (
     GuardrailScope,
     GuardrailSelector,
+    GuardrailValidationResultType,
 )
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
@@ -82,13 +83,8 @@ class TestGuardrailsService:
 
             result = service.evaluate_guardrail(test_input, pii_guardrail)
 
-            assert result.validation_passed is True
+            assert result.result == GuardrailValidationResultType.PASSED
             assert result.reason == "Validation passed"
-            # If skip field exists, new API is deployed - check result and details
-            if hasattr(result, "skip"):
-                assert result.skip is False
-                assert result.result == "passed"
-                assert result.details == "Validation passed"
 
         def test_evaluate_guardrail_validation_failed(
             self,
@@ -126,13 +122,8 @@ class TestGuardrailsService:
 
             result = service.evaluate_guardrail(test_input, pii_guardrail)
 
-            assert result.validation_passed is False
+            assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
             assert result.reason == "PII detected: Email found"
-            # If skip field exists, new API is deployed - check result and details
-            if hasattr(result, "skip"):
-                assert result.skip is False
-                assert result.result == "failed"
-                assert result.details == "PII detected: Email found"
 
         def test_evaluate_guardrail_entitlements_skip(
             self,
@@ -147,9 +138,8 @@ class TestGuardrailsService:
                 url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
                 status_code=200,
                 json={
-                    "validation_passed": True,
+                    "result": "feature_disabled",
                     "reason": "Guardrail feature is disabled",
-                    "skip": True,
                 },
             )
 
@@ -170,13 +160,8 @@ class TestGuardrailsService:
 
             result = service.evaluate_guardrail(test_input, pii_guardrail)
 
-            assert result.validation_passed is True
+            assert result.result == GuardrailValidationResultType.FEATURE_DISABLED
             assert result.reason == "Guardrail feature is disabled"
-            # If skip field exists, new API is deployed - check result and details
-            if hasattr(result, "skip"):
-                assert result.skip is True
-                assert result.result == "skipped"
-                assert result.details == "Guardrail feature is disabled"
 
         def test_evaluate_guardrail_entitlements_missing(
             self,
@@ -191,9 +176,8 @@ class TestGuardrailsService:
                 url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
                 status_code=200,
                 json={
-                    "validation_passed": True,
+                    "result": "entitlements_missing",
                     "reason": "Guardrail entitlement is missing",
-                    "skip": True,
                 },
             )
 
@@ -214,13 +198,8 @@ class TestGuardrailsService:
 
             result = service.evaluate_guardrail(test_input, pii_guardrail)
 
-            assert result.validation_passed is True
+            assert result.result == GuardrailValidationResultType.ENTITLEMENTS_MISSING
             assert result.reason == "Guardrail entitlement is missing"
-            # If skip field exists, new API is deployed - check result and details
-            if hasattr(result, "skip"):
-                assert result.skip is True
-                assert result.result == "skipped"
-                assert result.details == "Guardrail entitlement is missing"
 
         def test_evaluate_guardrail_request_payload_structure(
             self,
@@ -320,9 +299,5 @@ class TestGuardrailsService:
             assert thresholds_param["value"] == {"Email": 1, "Address": 0.7}
 
             # Verify result fields
-            assert result.validation_passed is True
-            # If skip field exists, new API is deployed - check result and details
-            if hasattr(result, "skip"):
-                assert result.skip is False
-                assert result.result == "passed"
-                assert result.details == "Validation passed"
+            assert result.result == GuardrailValidationResultType.PASSED
+            assert result.reason == "Validation passed"

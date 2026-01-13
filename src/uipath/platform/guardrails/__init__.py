@@ -10,6 +10,7 @@ from uipath.core.guardrails import (
     DeterministicGuardrailsService,
     GuardrailScope,
     GuardrailValidationResult,
+    GuardrailValidationResultType,
 )
 
 from ._guardrails_service import GuardrailsService
@@ -17,7 +18,6 @@ from .guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
     GuardrailType,
-    GuardrailValidationResultType,
     MapEnumParameterValue,
 )
 
