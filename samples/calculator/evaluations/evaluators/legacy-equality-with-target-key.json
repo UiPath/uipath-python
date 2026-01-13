@@ -1,0 +1,11 @@
+{
+    "fileName": "equality-with-target-key.json",
+    "id": "equality-with-target-key",
+    "name": "Legacy Equality Evaluator With Target Key",
+    "description": "An evaluator that judges the agent based on expected output under \"result\" key.",
+    "category": 0,
+    "type": 1,
+    "targetOutputKey": "result",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}
