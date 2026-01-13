@@ -765,6 +765,13 @@ class AgentMessage(BaseCfg):
         return v.lower() if isinstance(v, str) else v
 
 
+class AgentByomProperties(BaseCfg):
+    """Agent byom properties model."""
+
+    connection_id: str = Field(alias="connectionId")
+    connector_key: str = Field(alias="connectorKey")
+
+
 class AgentSettings(BaseCfg):
     """Agent settings model."""
 
@@ -772,6 +779,7 @@ class AgentSettings(BaseCfg):
     model: str
     max_tokens: int = Field(..., alias="maxTokens")
     temperature: float
+    byom_properties: Optional[AgentByomProperties] = Field(None, alias="byomProperties")
 
 
 class AgentDefinition(BaseModel):
