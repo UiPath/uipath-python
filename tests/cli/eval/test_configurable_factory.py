@@ -338,3 +338,317 @@ async def test_input_override_calculator_example():
     assert result["a"] == 10  # Overridden
     assert result["operator"] == "*"  # Overridden
     assert result["b"] == 3  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_multiple_levels():
+    """Test deep merge with multiple levels of nesting."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "config": {
+                "database": {
+                    "connection": {
+                        "host": "new-host",
+                        "timeout": 5000,
+                    }
+                }
+            }
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "config": {
+            "database": {
+                "connection": {
+                    "host": "localhost",
+                    "port": 5432,
+                    "ssl": True,
+                },
+                "pool_size": 10,
+            },
+            "logging": {"level": "INFO"},
+        }
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Verify deep merge at multiple levels
+    assert (
+        result["config"]["database"]["connection"]["host"] == "new-host"
+    )  # Overridden
+    assert result["config"]["database"]["connection"]["timeout"] == 5000  # Added
+    assert result["config"]["database"]["connection"]["port"] == 5432  # Preserved
+    assert result["config"]["database"]["connection"]["ssl"] is True  # Preserved
+    assert result["config"]["database"]["pool_size"] == 10  # Preserved
+    assert result["config"]["logging"]["level"] == "INFO"  # Preserved
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_replace_dict_with_primitive():
+    """Test deep merge when replacing a dict value with a primitive."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "config": "simple-string",  # Replace entire dict with string
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "config": {
+            "database": "postgres",
+            "port": 5432,
+        },
+        "other": "value",
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Dict should be replaced with primitive
+    assert result["config"] == "simple-string"  # Completely replaced
+    assert result["other"] == "value"  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_replace_primitive_with_dict():
+    """Test deep merge when replacing a primitive value with a dict."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "setting": {
+                "enabled": True,
+                "mode": "advanced",
+            }
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "setting": "default",
+        "other": "value",
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Primitive should be replaced with dict
+    assert isinstance(result["setting"], dict)
+    assert result["setting"]["enabled"] is True
+    assert result["setting"]["mode"] == "advanced"
+    assert result["other"] == "value"  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_empty_dict():
+    """Test deep merge with empty dictionaries."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "empty": {},
+            "populated": {"key": "value"},
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "empty": {"existing": "data"},
+        "populated": {},
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Empty dict override should preserve existing fields
+    assert result["empty"]["existing"] == "data"
+    # Override with populated dict should add fields to empty base
+    assert result["populated"]["key"] == "value"
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_list_values():
+    """Test deep merge with list values (should replace, not merge)."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "tags": ["new", "tags"],
+            "nested": {"items": [3, 4, 5]},
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "tags": ["old", "values"],
+        "nested": {"items": [1, 2], "other": "value"},
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Lists should be replaced entirely, not merged
+    assert result["tags"] == ["new", "tags"]
+    assert result["nested"]["items"] == [3, 4, 5]
+    assert result["nested"]["other"] == "value"  # Other keys preserved
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_complex_nested_structure():
+    """Test deep merge with a complex nested structure."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "api": {
+                "endpoints": {
+                    "auth": {
+                        "url": "https://new-auth.api.com",
+                        "timeout": 3000,
+                    }
+                }
+            }
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "api": {
+            "version": "v2",
+            "endpoints": {
+                "auth": {
+                    "url": "https://old-auth.api.com",
+                    "method": "POST",
+                    "retries": 3,
+                },
+                "data": {
+                    "url": "https://data.api.com",
+                },
+            },
+            "headers": {"Authorization": "Bearer token"},
+        }
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Verify deep merge preserves structure
+    assert result["api"]["version"] == "v2"  # Top-level preserved
+    assert (
+        result["api"]["endpoints"]["auth"]["url"] == "https://new-auth.api.com"
+    )  # Overridden
+    assert result["api"]["endpoints"]["auth"]["timeout"] == 3000  # Added
+    assert result["api"]["endpoints"]["auth"]["method"] == "POST"  # Preserved
+    assert result["api"]["endpoints"]["auth"]["retries"] == 3  # Preserved
+    assert (
+        result["api"]["endpoints"]["data"]["url"] == "https://data.api.com"
+    )  # Sibling preserved
+    assert (
+        result["api"]["headers"]["Authorization"] == "Bearer token"
+    )  # Sibling preserved
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_none_values():
+    """Test deep merge with None values."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "nullable": None,
+            "nested": {"field": None},
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "nullable": "original-value",
+        "nested": {"field": "original", "other": "preserved"},
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # None values should override existing values
+    assert result["nullable"] is None
+    assert result["nested"]["field"] is None
+    assert result["nested"]["other"] == "preserved"
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_numeric_and_boolean_types():
+    """Test deep merge with various primitive types."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {
+        "eval-1": {
+            "count": 100,
+            "ratio": 0.75,
+            "enabled": False,
+            "config": {
+                "max_retries": 5,
+                "timeout": 30.5,
+                "debug": True,
+            },
+        }
+    }
+    factory.set_input_overrides(overrides)
+
+    inputs = {
+        "count": 10,
+        "ratio": 0.5,
+        "enabled": True,
+        "config": {
+            "max_retries": 3,
+            "timeout": 10.0,
+            "debug": False,
+            "log_level": "INFO",
+        },
+    }
+
+    result = factory.apply_input_overrides(inputs, eval_id="eval-1")
+
+    # Verify all primitive types are handled correctly
+    assert result["count"] == 100
+    assert result["ratio"] == 0.75
+    assert result["enabled"] is False
+    assert result["config"]["max_retries"] == 5
+    assert result["config"]["timeout"] == 30.5
+    assert result["config"]["debug"] is True
+    assert result["config"]["log_level"] == "INFO"  # Preserved
+
+
+@pytest.mark.asyncio
+async def test_deep_merge_does_not_mutate_original():
+    """Test that deep merge does not mutate the original inputs."""
+    mock_base_factory = AsyncMock()
+    factory = ConfigurableRuntimeFactory(mock_base_factory)
+
+    overrides = {"eval-1": {"nested": {"field": "new-value"}}}
+    factory.set_input_overrides(overrides)
+
+    original_inputs = {
+        "nested": {"field": "original", "other": "data"},
+        "top": "level",
+    }
+
+    # Create a deep copy to compare later
+    import copy
+
+    inputs_before = copy.deepcopy(original_inputs)
+
+    result = factory.apply_input_overrides(original_inputs, eval_id="eval-1")
+
+    # Verify result has overrides
+    assert result["nested"]["field"] == "new-value"
+
+    # Verify original inputs are unchanged
+    assert original_inputs == inputs_before
+    assert original_inputs["nested"]["field"] == "original"

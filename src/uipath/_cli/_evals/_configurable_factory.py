@@ -203,17 +203,31 @@ class ConfigurableRuntimeFactory:
             f"Applying overrides for eval_id='{eval_id}': {overrides_to_apply}"
         )
 
-        # Apply direct field overrides with deep merge
+        # Apply direct field overrides with recursive deep merge
+        def deep_merge(base: dict, override: dict) -> dict:
+            """Recursively merge override into base dictionary."""
+            result = copy.deepcopy(base)
+            for key, value in override.items():
+                if (
+                    key in result
+                    and isinstance(result[key], dict)
+                    and isinstance(value, dict)
+                ):
+                    # Recursively merge nested dicts
+                    result[key] = deep_merge(result[key], value)
+                else:
+                    # Direct replacement for non-dict or new keys
+                    result[key] = value
+            return result
+
         for key, value in overrides_to_apply.items():
             if (
                 key in result
                 and isinstance(result[key], dict)
                 and isinstance(value, dict)
             ):
-                # Deep merge for dict values
-                merged = copy.deepcopy(result[key])
-                merged.update(value)
-                result[key] = merged
+                # Recursive deep merge for dict values
+                result[key] = deep_merge(result[key], value)
             else:
                 # Direct replacement for non-dict or new keys
                 result[key] = value
