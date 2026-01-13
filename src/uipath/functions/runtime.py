@@ -22,7 +22,7 @@ from uipath.runtime.errors import (
     UiPathErrorContract,
     UiPathRuntimeError,
 )
-from uipath.runtime.schema import UiPathRuntimeSchema
+from uipath.runtime.schema import UiPathRuntimeSchema, transform_attachments
 
 from .schema_gen import get_type_schema
 from .type_conversion import (
@@ -174,7 +174,8 @@ class UiPathFunctionsRuntime:
             input_schema = {}
         else:
             input_param_name = next(iter(sig.parameters))
-            input_schema = get_type_schema(hints.get(input_param_name))
+            schema = get_type_schema(hints.get(input_param_name))
+            input_schema = transform_attachments(schema)
 
         # Determine output schema
         output_schema = get_type_schema(hints.get("return"))

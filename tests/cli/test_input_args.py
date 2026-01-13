@@ -37,82 +37,78 @@ class SimpleDataClass:
     value: int = 42
 
 
-def test_pydantic_model_with_aliases():
-    """Test that Pydantic model schemas use field aliases when defined."""
-    schema = get_type_schema(EventArguments)
+class TestInputArgs:
+    def test_pydantic_model_with_aliases(self):
+        """Test that Pydantic model schemas use field aliases when defined."""
+        schema = get_type_schema(EventArguments)
 
-    assert schema["type"] == "object"
-    assert "properties" in schema
+        assert schema["type"] == "object"
+        assert "properties" in schema
 
-    # Check that aliases are used in property names
-    expected_properties = {
-        "UiPathEventConnector",
-        "UiPathEvent",
-        "UiPathEventObjectType",
-        "UiPathEventObjectId",
-        "UiPathAdditionalEventData",
-    }
-    actual_properties = set(schema["properties"].keys())
-    assert actual_properties == expected_properties
+        # Check that aliases are used in property names
+        expected_properties = {
+            "UiPathEventConnector",
+            "UiPathEvent",
+            "UiPathEventObjectType",
+            "UiPathEventObjectId",
+            "UiPathAdditionalEventData",
+        }
+        actual_properties = set(schema["properties"].keys())
+        assert actual_properties == expected_properties
 
-    # All fields have defaults, so none should be required
-    assert schema["required"] == []
+        # All fields have defaults, so none should be required
+        assert schema["required"] == []
 
+    def test_pydantic_model_required_fields(self):
+        """Test that required fields are correctly identified in Pydantic models."""
+        schema = get_type_schema(RequiredFieldsModel)
 
-def test_pydantic_model_required_fields():
-    """Test that required fields are correctly identified in Pydantic models."""
-    schema = get_type_schema(RequiredFieldsModel)
+        assert schema["type"] == "object"
+        assert "properties" in schema
 
-    assert schema["type"] == "object"
-    assert "properties" in schema
+        # Check properties include both field names and aliases
+        expected_properties = {
+            "required_field",  # field name (no alias)
+            "optional_field",  # field name (no alias)
+            "AliasedRequired",  # alias
+            "AliasedOptional",  # alias
+        }
+        actual_properties = set(schema["properties"].keys())
+        assert actual_properties == expected_properties
 
-    # Check properties include both field names and aliases
-    expected_properties = {
-        "required_field",  # field name (no alias)
-        "optional_field",  # field name (no alias)
-        "AliasedRequired",  # alias
-        "AliasedOptional",  # alias
-    }
-    actual_properties = set(schema["properties"].keys())
-    assert actual_properties == expected_properties
+        # Check required fields (using aliases where defined)
+        expected_required = {"required_field", "AliasedRequired"}
+        actual_required = set(schema["required"])
+        assert actual_required == expected_required
 
-    # Check required fields (using aliases where defined)
-    expected_required = {"required_field", "AliasedRequired"}
-    actual_required = set(schema["required"])
-    assert actual_required == expected_required
+    def test_dataclass_still_works(self):
+        """Test that dataclass functionality is not broken."""
+        schema = get_type_schema(SimpleDataClass)
 
+        assert schema["type"] == "object"
+        assert "properties" in schema
 
-def test_dataclass_still_works():
-    """Test that dataclass functionality is not broken."""
-    schema = get_type_schema(SimpleDataClass)
+        # Dataclass should use field names (no alias support)
+        expected_properties = {"name", "value"}
+        actual_properties = set(schema["properties"].keys())
+        assert actual_properties == expected_properties
 
-    assert schema["type"] == "object"
-    assert "properties" in schema
+        # Field with default should not be required
+        assert schema["required"] == ["name"]
 
-    # Dataclass should use field names (no alias support)
-    expected_properties = {"name", "value"}
-    actual_properties = set(schema["properties"].keys())
-    assert actual_properties == expected_properties
+    def test_primitive_types(self):
+        """Test that primitive type handling still works."""
+        assert get_type_schema(str) == {"type": "string"}
+        assert get_type_schema(int) == {"type": "integer"}
+        assert get_type_schema(float) == {"type": "number"}
+        assert get_type_schema(bool) == {"type": "boolean"}
 
-    # Field with default should not be required
-    assert schema["required"] == ["name"]
+    def test_optional_types(self):
+        """Test handling of Optional types."""
+        response = get_type_schema(Optional[str])
+        assert response == {"type": "string"}  # Should unwrap Optional
 
-
-def test_primitive_types():
-    """Test that primitive type handling still works."""
-    assert get_type_schema(str) == {"type": "string"}
-    assert get_type_schema(int) == {"type": "integer"}
-    assert get_type_schema(float) == {"type": "number"}
-    assert get_type_schema(bool) == {"type": "boolean"}
-
-
-def test_optional_types():
-    """Test handling of Optional types."""
-    schema = get_type_schema(Optional[str])
-    assert schema == {"type": "string"}  # Should unwrap Optional
-
-
-def test_optional_union_types():
-    """Test handling of Optional types."""
-    schema = get_type_schema(str | None)
-    assert schema == {"type": "string"}  # Should unwrap Optional
+    def test_optional_union_types(self):
+        """Test handling of Optional types."""
+        response = get_type_schema(str | None)
+        assert response == {"type": "string"}  # Should unwrap Optional

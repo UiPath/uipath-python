@@ -2,6 +2,7 @@ import json
 import os
 from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner
 
 from uipath._cli import cli
@@ -362,3 +363,102 @@ def main(input: Input) -> Output:
                 config = json.load(f)
                 assert "functions" in config
                 assert config["functions"]["main"] == "main.py:main"
+
+    @pytest.mark.parametrize(
+        ("input_model", "verify_other_field"),
+        [
+            (
+                """
+# pydantic BaseModel
+
+from pydantic import BaseModel, Field
+class InputModel(BaseModel):
+    input_file: Attachment
+    other_field: int | None = Field(default=None)""",
+                True,
+            ),
+            (
+                """
+# dataclass
+
+from dataclasses import dataclass
+@dataclass
+class InputModel:
+    input_file: Attachment
+    other_field: int | None = None""",
+                True,
+            ),
+            (
+                """
+# regular class
+
+class InputModel:
+    input_file: Attachment
+    other_field: int | None = None
+
+    def __init__(self, input_file: Attachment, other_field: int | None = None):
+        self.input_file = input_file
+        self.other_field = other_field""",
+                True,
+            ),
+            (
+                """
+# attachment class itself
+
+
+from typing import TypeAlias
+InputModel: TypeAlias = Attachment
+""",
+                False,
+            ),
+        ],
+    )
+    def test_schema_generation_resolves_attachments_pydantic_dataclass(
+        self, runner: CliRunner, temp_dir: str, input_model: str, verify_other_field
+    ) -> None:
+        """Test that attachments are resolved in entry-points schema"""
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write(f"""
+from uipath.platform.attachments import Attachment
+{input_model}
+def main(input: InputModel) -> InputModel: return input""")
+
+            uipath_config = {"functions": {"main": "main.py:main"}}
+            with open("uipath.json", "w") as f:
+                json.dump(uipath_config, f)
+
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 0
+            assert "Created 'bindings.json' file" in result.output
+            assert "Created 'entry-points.json' file" in result.output
+
+            # Verify entry-points.json contains attachments definition
+            with open("entry-points.json", "r") as f:
+                entrypoints = json.load(f)
+                input_schema = entrypoints["entryPoints"][0]["input"]
+                assert "definitions" in input_schema
+                assert "job-attachment" in input_schema["definitions"]
+                assert input_schema["definitions"]["job-attachment"]["type"] == "object"
+                assert (
+                    input_schema["definitions"]["job-attachment"][
+                        "x-uipath-resource-kind"
+                    ]
+                    == "JobAttachment"
+                )
+                assert all(
+                    prop_name
+                    in input_schema["definitions"]["job-attachment"]["properties"]
+                    for prop_name in ["ID", "FullName", "MimeType", "Metadata"]
+                )
+                if not verify_other_field:
+                    return
+
+                assert len(input_schema["properties"]) == 2
+                assert all(
+                    prop_name in input_schema["properties"]
+                    for prop_name in ["input_file", "other_field"]
+                )
+                assert input_schema["required"] == ["input_file"]
