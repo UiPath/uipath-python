@@ -17,6 +17,7 @@ from .guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
     GuardrailType,
+    GuardrailValidationResultType,
     MapEnumParameterValue,
 )
 
@@ -24,6 +25,7 @@ __all__ = [
     "GuardrailsService",
     "BuiltInValidatorGuardrail",
     "GuardrailType",
+    "GuardrailValidationResultType",
     "BaseGuardrail",
     "GuardrailScope",
     "DeterministicGuardrail",

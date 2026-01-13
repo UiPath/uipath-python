@@ -5,7 +5,7 @@ from uipath.core.guardrails import GuardrailValidationResult
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
 from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
-from .guardrails import BuiltInValidatorGuardrail
+from .guardrails import BuiltInValidatorGuardrail, GuardrailValidationResultType
 
 
 class GuardrailsService(BaseService):
@@ -40,7 +40,7 @@ class GuardrailsService(BaseService):
             guardrail: A guardrail instance used for validation.
 
         Returns:
-            BuiltInGuardrailValidationResult: The outcome of the guardrail evaluation, containing whether validation passed and the reason.
+            GuardrailValidationResult: The outcome of the guardrail evaluation.
         """
         parameters = [
             param.model_dump(by_alias=True) for param in guardrail.validator_parameters
@@ -61,4 +61,25 @@ class GuardrailsService(BaseService):
             json=spec.json,
             headers=spec.headers,
         )
-        return GuardrailValidationResult.model_validate(response.json())
+        response_data = response.json()
+
+        # Map API response to populate result enum and details field
+        # Handle skip case for entitlements checks
+        skip = response_data.get("skip", False)
+        validation_passed = response_data.get("validation_passed", False)
+        reason = response_data.get("reason", "")
+
+        # Determine result enum value based on skip and validation_passed
+        if skip:
+            result = GuardrailValidationResultType.SKIPPED
+        elif validation_passed:
+            result = GuardrailValidationResultType.PASSED
+        else:
+            result = GuardrailValidationResultType.FAILED
+
+        # Add result and details to response data
+        # Convert enum to string value for JSON serialization
+        response_data["result"] = result.value
+        response_data["details"] = reason
+
+        return GuardrailValidationResult.model_validate(response_data)
