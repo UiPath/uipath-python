@@ -2303,6 +2303,64 @@ class TestContextGroundingService:
         assert destination.parent.exists()
 
     @pytest.mark.anyio
+    async def test_start_deep_rag_ephemeral_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/ephemeral-index-id/createDeepRag?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "new-deep-rag-task-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = await service.start_deep_rag_ephemeral_async(
+            name="my-ephemeral-deep-rag-task",
+            prompt="Summarize all documents related to financial reports",
+            glob_pattern="*.pdf",
+            citation_mode=CitationMode.INLINE,
+            index_id="ephemeral-index-id",
+        )
+
+        assert isinstance(response, DeepRagCreationResponse)
+        assert response.id == "new-deep-rag-task-id"
+        assert response.last_deep_rag_status == "Queued"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/ephemeral-index-id/createDeepRag"
+            in str(sent_requests[0].url)
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["name"] == "my-ephemeral-deep-rag-task"
+        assert (
+            request_data["prompt"]
+            == "Summarize all documents related to financial reports"
+        )
+        assert request_data["globPattern"] == "*.pdf"
+        assert request_data["citationMode"] == "Inline"
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_deep_rag_ephemeral_async/{version}"
+        )
+
+    @pytest.mark.anyio
     async def test_download_batch_transform_result_async_encrypted(
         self,
         httpx_mock: HTTPXMock,

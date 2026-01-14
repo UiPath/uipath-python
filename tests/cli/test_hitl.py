@@ -1027,6 +1027,7 @@ class TestHitlProcessor:
             mock_start_deep_rag_async.assert_called_once_with(
                 name=create_deep_rag.name,
                 index_name=create_deep_rag.index_name,
+                index_id=None,
                 prompt=create_deep_rag.prompt,
                 glob_pattern=create_deep_rag.glob_pattern,
                 citation_mode=create_deep_rag.citation_mode,
@@ -1093,6 +1094,7 @@ class TestHitlProcessor:
             mock_start_batch_transform.assert_called_once_with(
                 name=create_batch_transform.name,
                 index_name=create_batch_transform.index_name,
+                index_id=None,
                 prompt=create_batch_transform.prompt,
                 output_columns=create_batch_transform.output_columns,
                 storage_bucket_folder_path_prefix=create_batch_transform.storage_bucket_folder_path_prefix,
