@@ -297,6 +297,7 @@ class TestLiveTrackingSpanProcessor:
 
     def test_on_start_does_not_block(self, mock_exporter):
         """Test that on_start returns immediately even if upsert is slow."""
+
         # Create a mock that simulates a slow API call
         def slow_upsert(*args, **kwargs):
             time.sleep(2)
@@ -314,6 +315,7 @@ class TestLiveTrackingSpanProcessor:
 
     def test_on_end_does_not_block(self, mock_exporter):
         """Test that on_end returns immediately even if upsert is slow."""
+
         # Create a mock that simulates a slow API call
         def slow_upsert(*args, **kwargs):
             time.sleep(2)
@@ -354,9 +356,7 @@ class TestLiveTrackingSpanProcessor:
     def test_on_start_auth_error_does_not_block(self, mock_exporter):
         """Test that 401 auth errors don't block execution."""
         # Simulate 401 Unauthorized error
-        mock_exporter.upsert_span = Mock(
-            side_effect=Exception("401 Unauthorized")
-        )
+        mock_exporter.upsert_span = Mock(side_effect=Exception("401 Unauthorized"))
         processor = LiveTrackingSpanProcessor(mock_exporter)
         span = self.create_mock_span({"span_type": "eval"})
 
@@ -370,9 +370,7 @@ class TestLiveTrackingSpanProcessor:
     def test_on_end_auth_error_does_not_block(self, mock_exporter):
         """Test that 401 auth errors don't block execution."""
         # Simulate 401 Unauthorized error
-        mock_exporter.upsert_span = Mock(
-            side_effect=Exception("401 Unauthorized")
-        )
+        mock_exporter.upsert_span = Mock(side_effect=Exception("401 Unauthorized"))
         processor = LiveTrackingSpanProcessor(mock_exporter)
         span = self.create_mock_readable_span({"span_type": "eval"})
 
@@ -385,6 +383,7 @@ class TestLiveTrackingSpanProcessor:
 
     def test_on_start_network_timeout_does_not_block(self, mock_exporter):
         """Test that network timeouts don't block execution."""
+
         # Simulate network timeout
         def timeout_upsert(*args, **kwargs):
             time.sleep(10)  # Simulate very slow network

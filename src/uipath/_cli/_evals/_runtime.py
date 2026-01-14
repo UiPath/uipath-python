@@ -181,6 +181,7 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         self, span: Span | ReadableSpan, status_override: int | None = None
     ) -> None:
         """Run upsert_span in a background thread with timeout."""
+
         def _upsert():
             try:
                 if status_override:
