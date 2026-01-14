@@ -5,12 +5,11 @@ from typing import Literal
 from urllib.parse import urlparse
 
 import click
-from dotenv import load_dotenv
 
 from uipath.platform.common import UiPathConfig
 
 from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
-from ..._utils.constants import DOTENV_FILE, ENV_UIPATH_ACCESS_TOKEN
+from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
 from ..spinner import Spinner
 from ._console import ConsoleLogger
 from ._studio_project import (
@@ -28,14 +27,6 @@ def get_claim_from_token(claim_name: str) -> str | None:
         raise Exception("JWT token not available")
     decoded_token = jwt.decode(token, options={"verify_signature": False})
     return decoded_token.get(claim_name)
-
-
-def add_cwd_to_path():
-    import sys
-
-    cwd = os.getcwd()
-    if cwd not in sys.path:
-        sys.path.insert(0, cwd)
 
 
 def environment_options(function):
@@ -132,10 +123,6 @@ def clean_directory(directory: str) -> None:
 
         if os.path.isfile(file_path) and file_name.endswith(".py"):
             os.remove(file_path)
-
-
-def load_environment_variables():
-    load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
 
 
 async def ensure_coded_agent_project(studio_client: StudioClient):

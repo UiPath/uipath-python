@@ -1,14 +1,34 @@
 import importlib.metadata
+import os
 import sys
 
 import click
+from dotenv import load_dotenv
 
+from uipath._cli._utils._context import CliContext
+from uipath._cli.runtimes import load_runtime_factories
+from uipath._utils._logs import setup_logging
+from uipath._utils.constants import DOTENV_FILE
 from uipath.functions import register_default_runtime_factory
 
-from .._utils._logs import setup_logging
-from ._utils._common import add_cwd_to_path, load_environment_variables
-from ._utils._context import CliContext
-from .runtimes import load_runtime_factories
+# DO NOT ADD HEAVY IMPORTS HERE
+#
+# Every import at the top of this file runs on EVERY command.
+# Yes, even `--version`. Yes, even `--help`.
+#
+# We spent hours getting startup from 1.7s → 0.5s.
+# If you add `import pandas` here, I will find you.
+
+
+def add_cwd_to_path():
+    cwd = os.getcwd()
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+
+
+def load_environment_variables():
+    load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
+
 
 load_environment_variables()
 add_cwd_to_path()

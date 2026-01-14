@@ -4,7 +4,6 @@ from os import environ as env
 from pathlib import Path
 from typing import Optional
 
-from ..platform.common import ExternalApplicationService
 from .constants import (
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
@@ -36,40 +35,15 @@ def update_env_file(env_contents):
         f.writelines(lines)
 
 
-def _has_valid_client_credentials(
-    client_id: Optional[str], client_secret: Optional[str]
-) -> bool:
-    if bool(client_id) != bool(client_secret):
-        raise ValueError(
-            "Both client_id and client_secret must be provided together for Client Credentials Authentication."
-        )
-    return bool(client_id and client_secret)
-
-
-def resolve_config(
+def resolve_config_from_env(
     base_url: Optional[str],
     secret: Optional[str],
-    client_id: Optional[str],
-    client_secret: Optional[str],
-    scope: Optional[str],
 ):
-    if _has_valid_client_credentials(client_id, client_secret):
-        assert client_id and client_secret
-        external_app_service = ExternalApplicationService(base_url)
-        token_data = external_app_service.get_token_data(
-            client_id,
-            client_secret,
-            scope,
-        )
-
-        return external_app_service._base_url, token_data.access_token
-
+    """Simple config resolution from environment variables."""
     base_url_value = base_url or env.get(ENV_BASE_URL)
-
     secret_value = (
         secret
         or env.get(ENV_UNATTENDED_USER_ACCESS_TOKEN)
         or env.get(ENV_UIPATH_ACCESS_TOKEN)
     )
-
     return base_url_value, secret_value
