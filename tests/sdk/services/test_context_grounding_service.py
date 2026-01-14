@@ -1921,3 +1921,123 @@ class TestContextGroundingService:
         assert destination.exists()
         assert destination.read_bytes() == b"col1,col2\nval1,val2"
         assert destination.parent.exists()
+
+    @pytest.mark.anyio
+    async def test_start_batch_transform_ephemeral_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/ephemeral-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="summary",
+                description="A summary of the document",
+            )
+        ]
+
+        response = await service.start_batch_transform_ephemeral_async(
+            name="my-ephemeral-batch-transform",
+            prompt="Summarize all documents",
+            output_columns=output_columns,
+            storage_bucket_folder_path_prefix="data",
+            enable_web_search_grounding=False,
+            index_id="ephemeral-index-id",
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/ephemeral-index-id/createBatchRag"
+            in str(sent_requests[0].url)
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["name"] == "my-ephemeral-batch-transform"
+        assert request_data["prompt"] == "Summarize all documents"
+        assert request_data["targetFileGlobPattern"] == "data/*"
+        assert request_data["useWebSearchGrounding"] is False
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_ephemeral_async/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_start_deep_rag_ephemeral_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/ephemeral-index-id/createDeepRag?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "new-deep-rag-task-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = await service.start_deep_rag_ephemeral_async(
+            name="my-ephemeral-deep-rag-task",
+            prompt="Summarize all documents related to financial reports",
+            glob_pattern="*.pdf",
+            citation_mode=CitationMode.INLINE,
+            index_id="ephemeral-index-id",
+        )
+
+        assert isinstance(response, DeepRagCreationResponse)
+        assert response.id == "new-deep-rag-task-id"
+        assert response.last_deep_rag_status == "Queued"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/ephemeral-index-id/createDeepRag"
+            in str(sent_requests[0].url)
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["name"] == "my-ephemeral-deep-rag-task"
+        assert (
+            request_data["prompt"]
+            == "Summarize all documents related to financial reports"
+        )
+        assert request_data["globPattern"] == "*.pdf"
+        assert request_data["citationMode"] == "Inline"
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_deep_rag_ephemeral_async/{version}"
+        )
