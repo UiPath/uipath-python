@@ -101,9 +101,8 @@ class LegacyContextPrecisionEvaluator(
     llm: Optional[UiPathLlmChatService] = None
 
     def model_post_init(self, __context: Any):
-        """Initialize the LLM service after model creation."""
+        """Initialize the evaluator after model creation."""
         super().model_post_init(__context)
-        self._initialize_llm()
 
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
@@ -127,6 +126,10 @@ class LegacyContextPrecisionEvaluator(
         Returns:
             NumericEvaluationResult with normalized score (0-1) and detailed justification
         """
+        # Lazily initialize the LLM on first evaluation call
+        if self.llm is None:
+            self._initialize_llm()
+
         # Extract context grounding spans from the trace
         context_groundings = self._extract_context_groundings(
             agent_execution.agent_trace

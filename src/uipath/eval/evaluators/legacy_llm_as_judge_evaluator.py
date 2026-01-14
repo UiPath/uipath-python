@@ -43,9 +43,8 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorC
         return v
 
     def model_post_init(self, __context: Any):
-        """Initialize the LLM service after model creation."""
+        """Initialize the evaluator after model creation."""
         super().model_post_init(__context)
-        self._initialize_llm()
 
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
@@ -73,6 +72,10 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorC
         Returns:
             EvaluationResult: Numerical score with LLM justification as details
         """
+        # Lazily initialize the LLM on first evaluation call
+        if self.llm is None:
+            self._initialize_llm()
+
         # Create the evaluation prompt
         evaluation_prompt = self._create_evaluation_prompt(
             expected_output=evaluation_criteria.expected_output,

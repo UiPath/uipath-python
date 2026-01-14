@@ -410,21 +410,7 @@ class UiPathEvalRuntime:
         evaluators: list[BaseEvaluator[Any, Any, Any]],
         runtime: UiPathRuntimeProtocol,
     ) -> EvaluationRunResult:
-        # Generate LLM-based input if input_mocking_strategy is defined
-        if eval_item.input_mocking_strategy:
-            eval_item = await self._generate_input_for_eval(eval_item, runtime)
-
         execution_id = str(uuid.uuid4())
-
-        set_execution_context(eval_item, self.span_collector, execution_id)
-
-        await self.event_bus.publish(
-            EvaluationEvents.CREATE_EVAL_RUN,
-            EvalRunCreatedEvent(
-                execution_id=execution_id,
-                eval_item=eval_item,
-            ),
-        )
 
         # Create the "Evaluation" span for this eval item
         # Use tracer from trace_manager's provider to ensure spans go through
@@ -445,6 +431,21 @@ class UiPathEvalRuntime:
 
             try:
                 try:
+                    # Generate LLM-based input if input_mocking_strategy is defined
+                    if eval_item.input_mocking_strategy:
+                        eval_item = await self._generate_input_for_eval(
+                            eval_item, runtime
+                        )
+
+                    set_execution_context(eval_item, self.span_collector, execution_id)
+
+                    await self.event_bus.publish(
+                        EvaluationEvents.CREATE_EVAL_RUN,
+                        EvalRunCreatedEvent(
+                            execution_id=execution_id,
+                            eval_item=eval_item,
+                        ),
+                    )
                     agent_execution_output = await self.execute_runtime(
                         eval_item, execution_id, runtime
                     )
