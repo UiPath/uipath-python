@@ -418,6 +418,28 @@ InputModel: TypeAlias = Attachment
     ) -> None:
         """Test that attachments are resolved in entry-points schema"""
 
+        def verify_attachment_schema(schema, verify_other_field):
+            assert "definitions" in schema
+            assert "job-attachment" in schema["definitions"]
+            assert schema["definitions"]["job-attachment"]["type"] == "object"
+            assert (
+                schema["definitions"]["job-attachment"]["x-uipath-resource-kind"]
+                == "JobAttachment"
+            )
+            assert all(
+                prop_name in schema["definitions"]["job-attachment"]["properties"]
+                for prop_name in ["ID", "FullName", "MimeType", "Metadata"]
+            )
+            if not verify_other_field:
+                return
+
+            assert len(schema["properties"]) == 2
+            assert all(
+                prop_name in schema["properties"]
+                for prop_name in ["input_file", "other_field"]
+            )
+            assert schema["required"] == ["input_file"]
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("main.py", "w") as f:
                 f.write(f"""
@@ -435,30 +457,10 @@ def main(input: InputModel) -> InputModel: return input""")
             assert "Created 'bindings.json' file" in result.output
             assert "Created 'entry-points.json' file" in result.output
 
-            # Verify entry-points.json contains attachments definition
             with open("entry-points.json", "r") as f:
                 entrypoints = json.load(f)
                 input_schema = entrypoints["entryPoints"][0]["input"]
-                assert "definitions" in input_schema
-                assert "job-attachment" in input_schema["definitions"]
-                assert input_schema["definitions"]["job-attachment"]["type"] == "object"
-                assert (
-                    input_schema["definitions"]["job-attachment"][
-                        "x-uipath-resource-kind"
-                    ]
-                    == "JobAttachment"
-                )
-                assert all(
-                    prop_name
-                    in input_schema["definitions"]["job-attachment"]["properties"]
-                    for prop_name in ["ID", "FullName", "MimeType", "Metadata"]
-                )
-                if not verify_other_field:
-                    return
+                output_schema = entrypoints["entryPoints"][0]["output"]
 
-                assert len(input_schema["properties"]) == 2
-                assert all(
-                    prop_name in input_schema["properties"]
-                    for prop_name in ["input_file", "other_field"]
-                )
-                assert input_schema["required"] == ["input_file"]
+            verify_attachment_schema(input_schema, verify_other_field)
+            verify_attachment_schema(output_schema, verify_other_field)

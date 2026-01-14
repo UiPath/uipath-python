@@ -174,12 +174,12 @@ class UiPathFunctionsRuntime:
             input_schema = {}
         else:
             input_param_name = next(iter(sig.parameters))
-            schema = get_type_schema(hints.get(input_param_name))
-            input_schema = transform_attachments(schema)
+            raw_input_schema = get_type_schema(hints.get(input_param_name))
+            input_schema = transform_attachments(raw_input_schema)
 
         # Determine output schema
-        output_schema = get_type_schema(hints.get("return"))
-
+        raw_output_schema = get_type_schema(hints.get("return"))
+        output_schema = transform_attachments(raw_output_schema)
         return UiPathRuntimeSchema(
             filePath=self.entrypoint_name,
             uniqueId=str(uuid.uuid4()),
