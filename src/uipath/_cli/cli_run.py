@@ -69,6 +69,11 @@ console = ConsoleLogger()
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
+@click.option(
+    "--keep-state-file",
+    is_flag=True,
+    help="Keep the state file even when not resuming and no job id is provided",
+)
 def run(
     entrypoint: str | None,
     input: str | None,
@@ -79,6 +84,7 @@ def run(
     trace_file: str | None,
     debug: bool,
     debug_port: int,
+    keep_state_file: bool,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -147,6 +153,7 @@ def run(
                     resume=resume,
                     command="run",
                     trace_manager=trace_manager,
+                    keep_state_file=keep_state_file,
                 )
 
                 if ctx.trace_file:
