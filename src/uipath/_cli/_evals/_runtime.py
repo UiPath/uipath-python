@@ -18,8 +18,11 @@ from typing import (
 
 import coverage
 from opentelemetry import context as context_api
-from opentelemetry.sdk.trace import ReadableSpan, Span
-from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
+from opentelemetry.sdk.trace.export import (
+    SpanExporter,
+    SpanExportResult,
+)
 from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 from uipath.core.tracing import UiPathTraceManager
@@ -47,6 +50,7 @@ from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.input_mocker import (
     generate_llm_input,
 )
+from uipath.tracing import LlmOpsHttpExporter, SpanStatus
 
 from ..._events._event_bus import EventBus
 from ..._events._events import (
@@ -155,6 +159,73 @@ class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
                 self.collector.add_span(span, exec_id)
 
 
+class LiveTrackingSpanProcessor(SpanProcessor):
+    """Span processor for live span tracking using upsert_span API.
+
+    Sends real-time span updates:
+    - On span start: Upsert with RUNNING status
+    - On span end: Upsert with final status (OK/ERROR)
+    """
+
+    def __init__(self, exporter: LlmOpsHttpExporter):
+        self.exporter = exporter
+        self.span_status = SpanStatus
+
+    def on_start(
+        self, span: Span, parent_context: context_api.Context | None = None
+    ) -> None:
+        """Called when span starts - upsert with RUNNING status."""
+        # Only track evaluation-related spans
+        if span.attributes and self._is_eval_span(span):
+            try:
+                self.exporter.upsert_span(
+                    span, status_override=self.span_status.RUNNING
+                )
+            except Exception as e:
+                logger.debug(f"Failed to upsert span on start: {e}")
+
+    def on_end(self, span: ReadableSpan) -> None:
+        """Called when span ends - upsert with final status."""
+        # Only track evaluation-related spans
+        if span.attributes and self._is_eval_span(span):
+            try:
+                self.exporter.upsert_span(span)
+            except Exception as e:
+                logger.debug(f"Failed to upsert span on end: {e}")
+
+    def _is_eval_span(self, span: Span | ReadableSpan) -> bool:
+        """Check if span is evaluation-related."""
+        if not span.attributes:
+            return False
+
+        span_type = span.attributes.get("span_type")
+        # Track eval-related span types
+        eval_span_types = {
+            "eval",
+            "evaluator",
+            "evaluation",
+            "eval_set_run",
+            "evalOutput",
+        }
+
+        if span_type in eval_span_types:
+            return True
+
+        # Also track spans with execution.id (eval executions)
+        if "execution.id" in span.attributes:
+            return True
+
+        return False
+
+    def shutdown(self) -> None:
+        """Shutdown the processor."""
+        pass
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        """Force flush - no-op for live tracking."""
+        return True
+
+
 class ExecutionLogsExporter:
     """Custom exporter that stores multiple execution log handlers."""
 
@@ -216,6 +287,12 @@ class UiPathEvalRuntime:
         span_processor = ExecutionSpanProcessor(self.span_exporter, self.span_collector)
         self.trace_manager.tracer_span_processors.append(span_processor)
         self.trace_manager.tracer_provider.add_span_processor(span_processor)
+
+        # Live tracking processor for real-time span updates
+        live_tracking_exporter = LlmOpsHttpExporter()
+        live_tracking_processor = LiveTrackingSpanProcessor(live_tracking_exporter)
+        self.trace_manager.tracer_span_processors.append(live_tracking_processor)
+        self.trace_manager.tracer_provider.add_span_processor(live_tracking_processor)
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         self.execution_id = str(uuid.uuid4())
