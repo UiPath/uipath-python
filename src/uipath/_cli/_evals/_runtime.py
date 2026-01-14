@@ -67,6 +67,7 @@ from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
 from ._configurable_factory import ConfigurableRuntimeFactory
+from ._eval_util import apply_input_overrides
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
