@@ -1,5 +1,6 @@
 import json
 import logging
+import threading
 import uuid
 from collections import defaultdict
 from contextlib import contextmanager
@@ -166,33 +167,47 @@ class LiveTrackingSpanProcessor(SpanProcessor):
     Sends real-time span updates:
     - On span start: Upsert with RUNNING status
     - On span end: Upsert with final status (OK/ERROR)
+
+    All upsert calls run in background threads with 5-second timeout
+    to avoid blocking evaluation execution.
     """
 
-    def __init__(self, exporter: LlmOpsHttpExporter):
+    def __init__(self, exporter: LlmOpsHttpExporter, timeout: float = 5.0):
         self.exporter = exporter
         self.span_status = SpanStatus
+        self.timeout = timeout
+
+    def _upsert_span_async(
+        self, span: Span | ReadableSpan, status_override: str | None = None
+    ) -> None:
+        """Run upsert_span in a background thread with timeout."""
+        def _upsert():
+            try:
+                if status_override:
+                    self.exporter.upsert_span(span, status_override=status_override)
+                else:
+                    self.exporter.upsert_span(span)
+            except Exception as e:
+                logger.debug(f"Failed to upsert span: {e}")
+
+        thread = threading.Thread(target=_upsert, daemon=True)
+        thread.start()
+        # Don't wait for thread to complete - let it run in background
+        # This ensures span processing doesn't block evaluation execution
 
     def on_start(
         self, span: Span, parent_context: context_api.Context | None = None
     ) -> None:
-        """Called when span starts - upsert with RUNNING status."""
+        """Called when span starts - upsert with RUNNING status (non-blocking)."""
         # Only track evaluation-related spans
         if span.attributes and self._is_eval_span(span):
-            try:
-                self.exporter.upsert_span(
-                    span, status_override=self.span_status.RUNNING
-                )
-            except Exception as e:
-                logger.debug(f"Failed to upsert span on start: {e}")
+            self._upsert_span_async(span, status_override=self.span_status.RUNNING)
 
     def on_end(self, span: ReadableSpan) -> None:
-        """Called when span ends - upsert with final status."""
+        """Called when span ends - upsert with final status (non-blocking)."""
         # Only track evaluation-related spans
         if span.attributes and self._is_eval_span(span):
-            try:
-                self.exporter.upsert_span(span)
-            except Exception as e:
-                logger.debug(f"Failed to upsert span on end: {e}")
+            self._upsert_span_async(span)
 
     def _is_eval_span(self, span: Span | ReadableSpan) -> bool:
         """Check if span is evaluation-related."""
