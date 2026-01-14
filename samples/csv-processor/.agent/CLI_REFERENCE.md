@@ -14,19 +14,12 @@ The UiPath Python SDK provides a comprehensive CLI for managing coded agents and
 
 ### `uipath init`
 
-**Description:** Create uipath.json with input/output schemas and bindings.
-
-**Arguments:**
-
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `entrypoint` | No | N/A |
+**Description:** Initialize the project.
 
 **Options:**
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--infer-bindings` | flag | false | Infer bindings from the script. |
 | `--no-agents-md-override` | flag | false | Won't override existing .agent files and AGENTS.md file. |
 
 **Usage Examples:**
@@ -103,6 +96,11 @@ uv run uipath run --resume
         eval_set_run_id: Custom evaluation set run ID (optional, will generate UUID if not specified)
         workers: Number of parallel workers for running evaluations
         no_report: Do not report the evaluation results
+        enable_mocker_cache: Enable caching for LLM mocker responses
+        report_coverage: Report evaluation coverage
+        model_settings_id: Model settings ID to override agent settings
+        trace_file: File path where traces will be written in JSONL format
+        max_llm_concurrency: Maximum concurrent LLM requests
     
 
 **Arguments:**
@@ -120,6 +118,11 @@ uv run uipath run --resume
 | `--no-report` | flag | false | Do not report the evaluation results |
 | `--workers` | value | `1` | Number of parallel workers for running evaluations (default: 1) |
 | `--output-file` | value | `Sentinel.UNSET` | File path where the output will be written |
+| `--enable-mocker-cache` | flag | false | Enable caching for LLM mocker responses |
+| `--report-coverage` | flag | false | Report evaluation coverage |
+| `--model-settings-id` | value | `"default"` | Model settings ID from evaluation set to override agent settings (default: 'default') |
+| `--trace-file` | value | `Sentinel.UNSET` | File path where traces will be written in JSONL format |
+| `--max-llm-concurrency` | value | `20` | Maximum concurrent LLM requests (default: 20) |
 
 **Usage Examples:**
 
@@ -230,64 +233,65 @@ The UiPath CLI provides commands for interacting with UiPath platform services. 
 
 Manage UiPath storage buckets and files.
 
-    Buckets are cloud storage containers for files used by automation processes.
+Buckets are cloud storage containers for files used by automation processes.
 
+
+Bucket Operations:
+    list      - List all buckets
+    create    - Create a new bucket
+    delete    - Delete a bucket
+    retrieve  - Get bucket details
+    exists    - Check if bucket exists
+
+
+File Operations (use 'buckets files' subcommand):
+    files list     - List files in a bucket
+    files search   - Search files using glob patterns
+    files upload   - Upload a file to a bucket
+    files download - Download a file from a bucket
+    files delete   - Delete a file from a bucket
+    files exists   - Check if a file exists
+
+
+Examples:
     
-    Bucket Operations:
-        list      - List all buckets
-        create    - Create a new bucket
-        delete    - Delete a bucket
-        retrieve  - Get bucket details
-        exists    - Check if bucket exists
-
+    # Bucket operations with explicit folder
+    uipath buckets list --folder-path "Shared"
+    uipath buckets create my-bucket --description "Data storage"
+    uipath buckets exists my-bucket
+    uipath buckets delete my-bucket --confirm
     
-    File Operations (use 'buckets files' subcommand):
-        files list     - List files in a bucket
-        files search   - Search files using glob patterns
-        files upload   - Upload a file to a bucket
-        files download - Download a file from a bucket
-        files delete   - Delete a file from a bucket
-        files exists   - Check if a file exists
-
+    # Using environment variable for folder context
+    export UIPATH_FOLDER_PATH="Shared"
+    uipath buckets list
+    uipath buckets create my-bucket --description "Data storage"
     
-    Examples:
-        # Bucket operations
-        uipath buckets list --folder-path "Shared"
-        uipath buckets create my-bucket --description "Data storage"
-        uipath buckets exists my-bucket
-        uipath buckets delete my-bucket --confirm
+    # File operations
+    uipath buckets files list my-bucket
+    uipath buckets files search my-bucket "*.pdf"
+    uipath buckets files upload my-bucket ./data.csv remote/data.csv
+    uipath buckets files download my-bucket data.csv ./local.csv
+    uipath buckets files delete my-bucket old-data.csv --confirm
+    uipath buckets files exists my-bucket data.csv
 
-        # File operations
-        uipath buckets files list my-bucket
-        uipath buckets files search my-bucket "*.pdf"
-        uipath buckets files upload my-bucket ./data.csv remote/data.csv
-        uipath buckets files download my-bucket data.csv ./local.csv
-        uipath buckets files delete my-bucket old-data.csv --confirm
-        uipath buckets files exists my-bucket data.csv
-    
 
 **Subcommands:**
 
 **`uipath buckets create`**
 
-Create a new bucket.
+Create a new Bucket.
 
-    
-    Arguments:
-        NAME: Name of the bucket to create
+Examples:
+    uipath buckets create my-resource
+    uipath buckets create my-resource --folder-path Shared
 
-    
-    Examples:
-        uipath buckets create my-bucket
-        uipath buckets create reports --description "Monthly reports storage"
-    
 
 Arguments:
 - `name` (required): N/A
 
 Options:
-- `--description`: Bucket description (default: `Sentinel.UNSET`)
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--description`: Bucket description
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
@@ -297,13 +301,9 @@ Options:
 Delete a bucket.
 
     
-    Arguments:
-        NAME: Name of the bucket to delete
-
-    
     Examples:
-        uipath buckets delete old-bucket --confirm
-        uipath buckets delete test-bucket --dry-run
+        uipath buckets delete my-bucket --confirm
+        uipath buckets delete my-bucket --dry-run
     
 
 Arguments:
@@ -311,31 +311,26 @@ Arguments:
 
 Options:
 - `--confirm`: Skip confirmation prompt
-- `--dry-run`: Show what would be deleted
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--dry-run`: Show what would be deleted without deleting
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
 
 **`uipath buckets exists`**
 
-Check if a bucket exists.
+Check if a Bucket exists.
 
-    
-    Arguments:
-        NAME: Name of the bucket to check
+Examples:
+    uipath buckets exists my-resource
+    uipath buckets exists my-resource --folder-path Shared
 
-    
-    Examples:
-        uipath buckets exists my-bucket
-        uipath buckets exists reports --folder-path "Production"
-    
 
 Arguments:
 - `name` (required): N/A
 
 Options:
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
@@ -346,21 +341,22 @@ Manage files within buckets.
 
     
     Examples:
+        
         # List files in a bucket
         uipath buckets files list my-bucket
-
+        
         # Search for files with glob pattern
         uipath buckets files search my-bucket "*.pdf"
-
+        
         # Upload a file
         uipath buckets files upload my-bucket ./data.csv remote/data.csv
-
+        
         # Download a file
         uipath buckets files download my-bucket data.csv ./local.csv
-
+        
         # Delete a file
         uipath buckets files delete my-bucket old-data.csv --confirm
-
+        
         # Check if file exists
         uipath buckets files exists my-bucket data.csv
     
@@ -387,7 +383,7 @@ Arguments:
 Options:
 - `--confirm`: Skip confirmation prompt
 - `--dry-run`: Show what would be deleted
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
@@ -414,7 +410,7 @@ Arguments:
 - `local_path` (required): N/A
 
 Options:
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
@@ -439,7 +435,7 @@ Arguments:
 - `file_path` (required): N/A
 
 Options:
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
@@ -468,7 +464,7 @@ Options:
 - `--limit`: Maximum number of files to return (default: `Sentinel.UNSET`)
 - `--offset`: Number of files to skip (default: `0`)
 - `--all`: Fetch all files (auto-paginate)
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
@@ -499,7 +495,7 @@ Options:
 - `--prefix`: Directory path to search in (default: ``)
 - `--recursive`: Search subdirectories recursively
 - `--limit`: Maximum number of files to return (default: `Sentinel.UNSET`)
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
@@ -526,32 +522,24 @@ Arguments:
 - `remote_path` (required): N/A
 
 Options:
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
 
 **`uipath buckets list`**
 
-List all buckets in a folder.
+List all Buckets.
 
-    The SDK provides an auto-paginating iterator over all buckets.
-    The CLI applies client-side slicing using --limit and --offset to control
-    which results are displayed.
+Examples:
+    uipath buckets list
+    uipath buckets list --folder-path Shared
 
-    
-    Examples:
-        uipath buckets list
-        uipath buckets list --folder-path "Production"
-        uipath buckets list --limit 10 --format json
-        uipath buckets list --all  # Fetch all buckets with auto-pagination
-    
 
 Options:
 - `--limit`: Maximum number of items to return (default: `Sentinel.UNSET`)
 - `--offset`: Number of items to skip (default: `0`)
-- `--all`: Fetch all items (auto-paginate)
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
@@ -569,7 +557,7 @@ Retrieve a bucket by name or key.
 Options:
 - `--name`: Bucket name (default: `Sentinel.UNSET`)
 - `--key`: Bucket key (UUID) (default: `Sentinel.UNSET`)
-- `--folder-path`: Folder path (e.g., "Shared") (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
