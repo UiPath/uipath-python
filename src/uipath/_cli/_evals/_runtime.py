@@ -67,6 +67,7 @@ from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
 from ._configurable_factory import ConfigurableRuntimeFactory
+from ._eval_util import apply_input_overrides
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
@@ -262,6 +263,7 @@ class UiPathEvalContext:
     verbose: bool = False
     enable_mocker_cache: bool = False
     report_coverage: bool = False
+    input_overrides: dict[str, Any] | None = None
     model_settings_id: str = "default"
 
 
@@ -524,7 +526,10 @@ class UiPathEvalRuntime:
                         ),
                     )
                     agent_execution_output = await self.execute_runtime(
-                        eval_item, execution_id, runtime
+                        eval_item,
+                        execution_id,
+                        runtime,
+                        input_overrides=self.context.input_overrides,
                     )
                 except Exception as e:
                     if self.context.verbose:
@@ -759,6 +764,7 @@ class UiPathEvalRuntime:
         eval_item: EvaluationItem,
         execution_id: str,
         runtime: UiPathRuntimeProtocol,
+        input_overrides: dict[str, Any] | None = None,
     ) -> UiPathEvalRunExecutionOutput:
         log_handler = self._setup_execution_logging(execution_id)
         attributes = {
@@ -785,8 +791,14 @@ class UiPathEvalRuntime:
 
             start_time = time()
             try:
+                # Apply input overrides to inputs if configured
+                inputs_with_overrides = apply_input_overrides(
+                    eval_item.inputs,
+                    input_overrides or {},
+                    eval_id=eval_item.id,
+                )
                 result = await execution_runtime.execute(
-                    input=eval_item.inputs,
+                    input=inputs_with_overrides,
                 )
             except Exception as e:
                 end_time = time()

@@ -1,6 +1,7 @@
 import ast
 import asyncio
 import os
+from typing import Any
 
 import click
 from uipath.core.tracing import UiPathTraceManager
@@ -113,6 +114,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     default=20,
     help="Maximum concurrent LLM requests (default: 20)",
 )
+@click.option(
+    "--input-overrides",
+    cls=LiteralOption,
+    default="{}",
+    help='Input field overrides per evaluation ID: \'{"eval-1": {"operator": "*"}, "eval-2": {"a": 100}}\'. Supports deep merge for nested objects.',
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -126,6 +133,7 @@ def eval(
     model_settings_id: str,
     trace_file: str | None,
     max_llm_concurrency: int,
+    input_overrides: dict[str, Any],
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -141,6 +149,7 @@ def eval(
         model_settings_id: Model settings ID to override agent settings
         trace_file: File path where traces will be written in JSONL format
         max_llm_concurrency: Maximum concurrent LLM requests
+        input_overrides: Input field overrides mapping (direct field override with deep merge)
     """
     set_llm_concurrency(max_llm_concurrency)
 
@@ -178,6 +187,7 @@ def eval(
         eval_context.eval_ids = eval_ids
         eval_context.report_coverage = report_coverage
         eval_context.model_settings_id = model_settings_id
+        eval_context.input_overrides = input_overrides
 
         try:
 

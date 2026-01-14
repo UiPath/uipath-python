@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "id": "InputOverridesEvalSet",
+  "name": "Input Overrides Integration Test",
+  "evaluatorRefs": [],
+  "evaluations": [
+    {
+      "id": "test-simple-override",
+      "name": "Simple Field Override",
+      "inputs": {
+        "a": 5,
+        "b": 3,
+        "operator": "+"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "test-operator-override",
+      "name": "Operator Override Only",
+      "inputs": {
+        "a": 8,
+        "b": 2,
+        "operator": "+"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "test-multiple-overrides",
+      "name": "Multiple Field Overrides",
+      "inputs": {
+        "a": 1,
+        "b": 1,
+        "operator": "+"
+      },
+      "evaluationCriterias": {}
+    },
+    {
+      "id": "test-no-override",
+      "name": "No Override - Use Original Values",
+      "inputs": {
+        "a": 6,
+        "b": 7,
+        "operator": "*"
+      },
+      "evaluationCriterias": {}
+    }
+  ]
+}

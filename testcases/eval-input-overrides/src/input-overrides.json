@@ -1,0 +1,14 @@
+{
+  "test-simple-override": {
+    "a": 10,
+    "operator": "*"
+  },
+  "test-operator-override": {
+    "operator": "/"
+  },
+  "test-multiple-overrides": {
+    "a": 7,
+    "b": 3,
+    "operator": "*"
+  }
+}
