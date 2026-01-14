@@ -1,0 +1,14 @@
+[project]
+name = "hello-world"
+version = "0.0.1"
+description = "hello-world"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "py-spy>=0.4.1",
+    "uipath>=2.4.0, <2.5.0",
+]
+requires-python = ">=3.11"
+[dependency-groups]
+dev = [
+    "uipath-dev>=0.0.15",
+]

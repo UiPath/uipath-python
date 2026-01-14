@@ -8,21 +8,6 @@ from uipath.functions import register_default_runtime_factory
 from .._utils._logs import setup_logging
 from ._utils._common import add_cwd_to_path, load_environment_variables
 from ._utils._context import CliContext
-from .cli_add import add as add
-from .cli_auth import auth as auth
-from .cli_debug import debug as debug
-from .cli_deploy import deploy as deploy
-from .cli_dev import dev as dev
-from .cli_eval import eval as eval
-from .cli_init import init as init
-from .cli_invoke import invoke as invoke
-from .cli_new import new as new
-from .cli_pack import pack as pack
-from .cli_publish import publish as publish
-from .cli_pull import pull as pull
-from .cli_push import push as push
-from .cli_register import register as register
-from .cli_run import run as run
 from .runtimes import load_runtime_factories
 
 load_environment_variables()
@@ -40,7 +25,42 @@ def _get_safe_version() -> str:
         return "unknown"
 
 
-@click.group(invoke_without_command=True)
+class LazyGroup(click.Group):
+    """Lazy-load commands only when invoked."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._lazy_commands = {
+            "new": "cli_new",
+            "init": "cli_init",
+            "pack": "cli_pack",
+            "publish": "cli_publish",
+            "run": "cli_run",
+            "deploy": "cli_deploy",
+            "auth": "cli_auth",
+            "invoke": "cli_invoke",
+            "push": "cli_push",
+            "pull": "cli_pull",
+            "eval": "cli_eval",
+            "dev": "cli_dev",
+            "add": "cli_add",
+            "register": "cli_register",
+            "debug": "cli_debug",
+            "buckets": "services.cli_buckets",
+        }
+
+    def list_commands(self, ctx):
+        return sorted(self._lazy_commands.keys())
+
+    def get_command(self, ctx, cmd_name):
+        if cmd_name in self._lazy_commands:
+            module_name = self._lazy_commands[cmd_name]
+            mod = __import__(f"uipath._cli.{module_name}", fromlist=[cmd_name])
+            return getattr(mod, cmd_name)
+        return None
+
+
+@click.command(cls=LazyGroup, invoke_without_command=True)
 @click.version_option(
     _get_safe_version(),
     prog_name="uipath",
@@ -109,24 +129,3 @@ def cli(
     # Show help if no command was provided (matches docker, kubectl, git behavior)
     if ctx.invoked_subcommand is None and not lv and not v:
         click.echo(ctx.get_help())
-
-
-cli.add_command(new)
-cli.add_command(init)
-cli.add_command(pack)
-cli.add_command(publish)
-cli.add_command(run)
-cli.add_command(deploy)
-cli.add_command(auth)
-cli.add_command(invoke)
-cli.add_command(push)
-cli.add_command(pull)
-cli.add_command(eval)
-cli.add_command(dev)
-cli.add_command(add)
-cli.add_command(register)
-cli.add_command(debug)
-
-from .services import register_service_commands  # noqa: E402
-
-register_service_commands(cli)
