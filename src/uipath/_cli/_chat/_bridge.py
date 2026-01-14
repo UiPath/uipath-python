@@ -7,8 +7,6 @@ import uuid
 from typing import Any
 from urllib.parse import urlparse
 
-import socketio  # type: ignore[import-untyped]
-from socketio import AsyncClient
 from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
@@ -54,7 +52,7 @@ class SocketIOChatBridge:
         self.exchange_id = exchange_id
         self.auth = auth
         self.headers = headers
-        self._client: AsyncClient | None = None
+        self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
     async def connect(self, timeout: float = 10.0) -> None:
@@ -77,7 +75,10 @@ class SocketIOChatBridge:
             return
 
         # Create new SocketIO client
-        self._client = socketio.AsyncClient(
+        # Lazy import to avoid dependency if not used, improve startup time
+        from socketio import AsyncClient  # type: ignore[import-untyped]
+
+        self._client = AsyncClient(
             logger=logger,
             engineio_logger=logger,
         )
