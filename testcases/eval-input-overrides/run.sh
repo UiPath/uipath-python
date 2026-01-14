@@ -1,9 +1,6 @@
 #!/bin/bash
 set -e
 
-echo "===== Input Overrides Integration Test ====="
-echo ""
-
 echo "Syncing dependencies..."
 uv sync
 
