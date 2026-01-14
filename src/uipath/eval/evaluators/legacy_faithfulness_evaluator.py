@@ -41,9 +41,8 @@ class LegacyFaithfulnessEvaluator(
     llm: Optional[UiPathLlmChatService] = None
 
     def model_post_init(self, __context: Any):
-        """Initialize the LLM service after model creation."""
+        """Initialize the evaluator after model creation."""
         super().model_post_init(__context)
-        self._initialize_llm()
 
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
@@ -67,6 +66,10 @@ class LegacyFaithfulnessEvaluator(
         Returns:
             NumericEvaluationResult with normalized score (0-100) and detailed justification
         """
+        # Lazily initialize the LLM on first evaluation call
+        if self.llm is None:
+            self._initialize_llm()
+
         # Extract agent output
         agent_output = str(evaluation_criteria.expected_output or "")
         if not agent_output or not agent_output.strip():
