@@ -803,6 +803,15 @@ class AgentDefinition(BaseModel):
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
 
+    @property
+    def is_conversational(self) -> bool:
+        """Checks the settings.engine property to determine if the agent is conversational."""
+        if hasattr(self, "metadata") and self.metadata:
+            metadata = self.metadata
+            if hasattr(metadata, "is_conversational"):
+                return metadata.is_conversational
+        return False
+
     @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:
         guards = v.get("guardrails")

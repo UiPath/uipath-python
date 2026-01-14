@@ -59,6 +59,12 @@ console = ConsoleLogger()
     help="File path where the trace spans will be written (JSON Lines format)",
 )
 @click.option(
+    "--state-file",
+    required=False,
+    type=click.Path(exists=True),
+    help="File path where the state file is stored for persisting execution state. If not provided, a temporary file will be used.",
+)
+@click.option(
     "--debug",
     is_flag=True,
     help="Enable debugging with debugpy. The process will wait for a debugger to attach.",
@@ -69,6 +75,11 @@ console = ConsoleLogger()
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
+@click.option(
+    "--keep-state-file",
+    is_flag=True,
+    help="Keep the temporary state file even when not resuming and no job id is provided",
+)
 def run(
     entrypoint: str | None,
     input: str | None,
@@ -77,8 +88,10 @@ def run(
     input_file: str | None,
     output_file: str | None,
     trace_file: str | None,
+    state_file: str | None,
     debug: bool,
     debug_port: int,
+    keep_state_file: bool,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -95,8 +108,10 @@ def run(
         input_file=input_file,
         output_file=output_file,
         trace_file=trace_file,
+        state_file=state_file,
         debug=debug,
         debug_port=debug_port,
+        keep_state_file=keep_state_file,
     )
 
     if result.error_message:
@@ -144,6 +159,8 @@ def run(
                     input_file=file or input_file,
                     output_file=output_file,
                     trace_file=trace_file,
+                    state_file_path=state_file,
+                    keep_state_file=keep_state_file,
                     resume=resume,
                     command="run",
                     trace_manager=trace_manager,

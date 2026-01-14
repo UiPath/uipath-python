@@ -2280,3 +2280,109 @@ class TestAgentBuilderConfig:
 
         assert isinstance(recipient, recipient_class)
         assert recipient.type == expected_type
+
+
+class TestAgentDefinitionIsConversational:
+    """Tests for AgentDefinition.is_conversational property."""
+
+    def test_is_conversational_true_when_metadata_set(self):
+        """Returns True when metadata.is_conversational is True."""
+        json_data = {
+            "id": "test-conversational",
+            "name": "Conversational Agent",
+            "version": "1.0.0",
+            "metadata": {"isConversational": True, "storageVersion": "1.0.0"},
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0.7,
+                "engine": "conversational-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [
+                {"role": "system", "content": "You are a conversational agent."}
+            ],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.is_conversational is True
+
+    def test_is_conversational_false_when_metadata_set_false(self):
+        """Returns False when metadata.is_conversational is False."""
+        json_data = {
+            "id": "test-non-conversational",
+            "name": "Non-Conversational Agent",
+            "version": "1.0.0",
+            "metadata": {"isConversational": False, "storageVersion": "1.0.0"},
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0.7,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [{"role": "system", "content": "You are an agent."}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.is_conversational is False
+
+    def test_is_conversational_false_when_no_metadata(self):
+        """Returns False when agent has no metadata."""
+        json_data = {
+            "id": "test-no-metadata",
+            "name": "Agent Without Metadata",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0.7,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [{"role": "system", "content": "You are an agent."}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.metadata is None
+        assert config.is_conversational is False
+
+    def test_is_conversational_false_by_default(self):
+        """Default agent definition returns False."""
+        # Minimal agent definition without conversational settings
+        json_data = {
+            "id": "test-default",
+            "name": "Default Agent",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [{"role": "system", "content": "Default system prompt."}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.is_conversational is False
