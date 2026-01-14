@@ -88,15 +88,6 @@ async def test_input_overrides_e2e_direct_override():
         assert original_input["b"] == 3
         assert original_input["operator"] == "+"
 
-        # Test that ConfigurableRuntimeFactory applies overrides
-        # This simulates what happens during eval execution
-        from unittest.mock import AsyncMock
-
-        from uipath._cli._evals._configurable_factory import ConfigurableRuntimeFactory
-
-        mock_base_factory = AsyncMock()
-        factory = ConfigurableRuntimeFactory(mock_base_factory)
-
         # Per-evaluation overrides
         overrides = {
             "test-eval-1": {
@@ -161,13 +152,6 @@ async def test_input_overrides_e2e_direct_field():
         loaded_eval_set, _ = EvalHelpers.load_eval_set(str(eval_file))
         original_input = loaded_eval_set.evaluations[0].inputs
 
-        from unittest.mock import AsyncMock
-
-        from uipath._cli._evals._configurable_factory import ConfigurableRuntimeFactory
-
-        mock_base_factory = AsyncMock()
-        factory = ConfigurableRuntimeFactory(mock_base_factory)
-
         # Per-evaluation overrides
         overrides = {
             "test-eval-1": {
@@ -231,13 +215,6 @@ async def test_input_overrides_e2e_nested_objects():
         loaded_eval_set, _ = EvalHelpers.load_eval_set(str(eval_file))
         original_input = loaded_eval_set.evaluations[0].inputs
 
-        from unittest.mock import AsyncMock
-
-        from uipath._cli._evals._configurable_factory import ConfigurableRuntimeFactory
-
-        mock_base_factory = AsyncMock()
-        factory = ConfigurableRuntimeFactory(mock_base_factory)
-
         # Per-evaluation overrides with deep merge for nested objects
         overrides = {
             "test-eval-1": {
@@ -277,13 +254,6 @@ async def test_input_overrides_context_field():
 @pytest.mark.asyncio
 async def test_input_overrides_per_evaluation():
     """E2E test: per-evaluation input overrides."""
-    from unittest.mock import AsyncMock
-
-    from uipath._cli._evals._configurable_factory import ConfigurableRuntimeFactory
-
-    mock_base_factory = AsyncMock()
-    factory = ConfigurableRuntimeFactory(mock_base_factory)
-
     # Per-evaluation overrides
     overrides = {
         "eval-1": {"operator": "*", "a": 10},
