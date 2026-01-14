@@ -104,11 +104,12 @@ async def test_input_overrides_e2e_direct_override():
                 "operator": "*",
             }
         }
-        factory.set_input_overrides(overrides)
 
         # Apply overrides to the inputs with eval_id
-        modified_inputs = factory.apply_input_overrides(
-            original_input, eval_id="test-eval-1"
+        from uipath._cli._evals._eval_util import apply_input_overrides
+
+        modified_inputs = apply_input_overrides(
+            original_input, overrides, eval_id="test-eval-1"
         )
 
         # Verify overrides were applied
@@ -175,10 +176,11 @@ async def test_input_overrides_e2e_direct_field():
                 "count": 10,
             }
         }
-        factory.set_input_overrides(overrides)
 
-        modified_inputs = factory.apply_input_overrides(
-            original_input, eval_id="test-eval-1"
+        from uipath._cli._evals._eval_util import apply_input_overrides
+
+        modified_inputs = apply_input_overrides(
+            original_input, overrides, eval_id="test-eval-1"
         )
 
         # Verify direct field override worked
@@ -243,10 +245,11 @@ async def test_input_overrides_e2e_nested_objects():
                 "config": {"threshold": 0.95},
             }
         }
-        factory.set_input_overrides(overrides)
 
-        modified_inputs = factory.apply_input_overrides(
-            original_input, eval_id="test-eval-1"
+        from uipath._cli._evals._eval_util import apply_input_overrides
+
+        modified_inputs = apply_input_overrides(
+            original_input, overrides, eval_id="test-eval-1"
         )
 
         # Verify deep merge - overridden fields updated, others preserved
@@ -286,25 +289,32 @@ async def test_input_overrides_per_evaluation():
         "eval-1": {"operator": "*", "a": 10},
         "eval-2": {"operator": "/", "b": 5},
     }
-    factory.set_input_overrides(overrides)
+
+    from uipath._cli._evals._eval_util import apply_input_overrides
 
     # Test eval-1
     eval_1_inputs = {"a": 5, "b": 3, "operator": "+"}
-    modified_inputs_1 = factory.apply_input_overrides(eval_1_inputs, eval_id="eval-1")
+    modified_inputs_1 = apply_input_overrides(
+        eval_1_inputs, overrides, eval_id="eval-1"
+    )
     assert modified_inputs_1["a"] == 10  # Overridden
     assert modified_inputs_1["operator"] == "*"  # Overridden
     assert modified_inputs_1["b"] == 3  # Preserved
 
     # Test eval-2
     eval_2_inputs = {"a": 20, "b": 10, "operator": "+"}
-    modified_inputs_2 = factory.apply_input_overrides(eval_2_inputs, eval_id="eval-2")
+    modified_inputs_2 = apply_input_overrides(
+        eval_2_inputs, overrides, eval_id="eval-2"
+    )
     assert modified_inputs_2["a"] == 20  # Preserved
     assert modified_inputs_2["b"] == 5  # Overridden
     assert modified_inputs_2["operator"] == "/"  # Overridden
 
     # Test eval-3 (no overrides)
     eval_3_inputs = {"a": 7, "b": 4, "operator": "-"}
-    modified_inputs_3 = factory.apply_input_overrides(eval_3_inputs, eval_id="eval-3")
+    modified_inputs_3 = apply_input_overrides(
+        eval_3_inputs, overrides, eval_id="eval-3"
+    )
     assert modified_inputs_3["a"] == 7  # Unchanged
     assert modified_inputs_3["b"] == 4  # Unchanged
     assert modified_inputs_3["operator"] == "-"  # Unchanged

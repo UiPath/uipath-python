@@ -5,7 +5,6 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
 
 from uipath.runtime import UiPathRuntimeFactoryProtocol, UiPathRuntimeProtocol
 
@@ -25,7 +24,6 @@ class ConfigurableRuntimeFactory:
         """Initialize with a base factory to wrap."""
         self.base_factory = base_factory
         self.model_settings_override: EvaluationSetModelSettings | None = None
-        self.input_overrides: dict[str, Any] = {}
         self._temp_files: list[str] = []
 
     def set_model_settings_override(
@@ -37,16 +35,6 @@ class ConfigurableRuntimeFactory:
             settings: The model settings to apply, or None to clear overrides
         """
         self.model_settings_override = settings
-
-    def set_input_overrides(self, overrides: dict[str, Any]) -> None:
-        """Set input overrides per evaluation ID.
-
-        Args:
-            overrides: Dictionary mapping evaluation IDs to their override values.
-                Format: {"eval-1": {"operator": "*"}, "eval-2": {"a": 100}}
-                Supports deep merge for nested objects.
-        """
-        self.input_overrides = overrides
 
     async def new_runtime(
         self, entrypoint: str, runtime_id: str
@@ -161,80 +149,6 @@ class ConfigurableRuntimeFactory:
         except Exception as e:
             logger.error(f"Failed to create temporary entrypoint file: {e}")
             return None
-
-    def apply_input_overrides(
-        self, inputs: dict[str, Any], eval_id: str | None = None
-    ) -> dict[str, Any]:
-        """Apply input overrides to inputs using direct field override.
-
-        Format: Per-evaluation overrides (keys are evaluation IDs):
-           {"eval-1": {"operator": "*"}, "eval-2": {"a": 100}}
-
-        Deep merge is supported for nested objects:
-        - {"filePath": {"ID": "new-id"}} - deep merges inputs["filePath"] with {"ID": "new-id"}
-
-        Args:
-            inputs: The original inputs dictionary
-            eval_id: The evaluation ID (required)
-
-        Returns:
-            A new dictionary with overrides applied
-        """
-        if not self.input_overrides:
-            return inputs
-
-        if not eval_id:
-            logger.warning(
-                "eval_id not provided, cannot apply input overrides. Input overrides require eval_id."
-            )
-            return inputs
-
-        import copy
-
-        result = copy.deepcopy(inputs)
-
-        # Check if there are overrides for this specific eval_id
-        if eval_id not in self.input_overrides:
-            logger.debug(f"No overrides found for eval_id='{eval_id}'")
-            return result
-
-        overrides_to_apply = self.input_overrides[eval_id]
-        logger.debug(
-            f"Applying overrides for eval_id='{eval_id}': {overrides_to_apply}"
-        )
-
-        # Apply direct field overrides with recursive deep merge
-        def deep_merge(
-            base: dict[str, Any], override: dict[str, Any]
-        ) -> dict[str, Any]:
-            """Recursively merge override into base dictionary."""
-            result = copy.deepcopy(base)
-            for key, value in override.items():
-                if (
-                    key in result
-                    and isinstance(result[key], dict)
-                    and isinstance(value, dict)
-                ):
-                    # Recursively merge nested dicts
-                    result[key] = deep_merge(result[key], value)
-                else:
-                    # Direct replacement for non-dict or new keys
-                    result[key] = value
-            return result
-
-        for key, value in overrides_to_apply.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
-                # Recursive deep merge for dict values
-                result[key] = deep_merge(result[key], value)
-            else:
-                # Direct replacement for non-dict or new keys
-                result[key] = value
-
-        return result
 
     async def dispose(self) -> None:
         """Dispose resources and clean up temporary files."""
