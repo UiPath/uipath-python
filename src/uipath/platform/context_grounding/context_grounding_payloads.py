@@ -1,6 +1,7 @@
 """Payload models for context grounding index creation and configuration."""
 
 import re
+import uuid
 from typing import Any, Dict, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -82,6 +83,10 @@ class ConfluenceDataSource(DataSourceBase):
     space_id: str = Field(alias="spaceId", description="Space ID")
 
 
+class AttachmentsDataSource(BaseModel):
+    attachments: list[uuid.UUID] = Field(description="List of attachment ids")
+
+
 class Indexer(BaseModel):
     """Configuration for periodic indexing of data sources."""
 
@@ -131,6 +136,17 @@ class CreateIndexPayload(BaseModel):
     )
     pre_processing: Optional[PreProcessing] = Field(
         default=None, alias="preProcessing", description="Preprocessing configuration"
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CreateJitIndexPayload(BaseModel):
+    """ """
+
+    usage: str = Field(description="Index usage")
+    data_source: Dict[str, Any] = Field(
+        alias="dataSource", description="Data source configuration"
     )
 
     model_config = ConfigDict(populate_by_name=True)

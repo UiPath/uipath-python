@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
@@ -33,11 +34,13 @@ from .context_grounding import (
 )
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
+    AttachmentsDataSource,
     BucketDataSource,
     BucketSourceConfig,
     ConfluenceDataSource,
     ConfluenceSourceConfig,
     CreateIndexPayload,
+    CreateJitIndexPayload,
     DropboxDataSource,
     DropboxSourceConfig,
     GoogleDriveDataSource,
@@ -385,6 +388,32 @@ class ContextGroundingService(FolderContext, BaseService):
             if advanced_ingestion is not None
             else True,
             preprocessing_request=preprocessing_request or LLMV4_REQUEST,
+            folder_path=folder_path,
+            folder_key=folder_key,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return ContextGroundingIndex.model_validate(response.json())
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_create_jit_index", run_type="uipath")
+    def create_jit_index(
+        self,
+        usage: str,
+        attachments: list[uuid.UUID],
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> ContextGroundingIndex:
+        """Create a new context jit grounding index."""
+        spec = self._create_jit_spec(
+            usage,
+            attachments,
             folder_path=folder_path,
             folder_key=folder_key,
         )
@@ -1195,6 +1224,41 @@ class ContextGroundingService(FolderContext, BaseService):
             headers={
                 **header_folder(folder_key, None),
             },
+        )
+
+    def _create_jit_spec(
+        self,
+        usage: str,
+        attachments: list[uuid.UUID] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        """Create request spec for index creation."""
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
+        data_source_dict = self._build_jit_data_source(attachments)
+
+        payload = CreateJitIndexPayload(
+            usage=usage,
+            data_source=data_source_dict,
+        )
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint("/ecs_/v2/indexes/createephemeral"),
+            json=payload.model_dump(by_alias=True, exclude_none=True),
+            headers={
+                **header_folder(folder_key, None),
+            },
+        )
+
+    def _build_jit_data_source(self, attachments: list[uuid.UUID]) -> Dict[str, Any]:
+        data_source: AttachmentsDataSource
+        data_source = AttachmentsDataSource(attachments=attachments)
+        return data_source.model_dump(
+            by_alias=True,
+            exclude_none=True,
+            mode="json",
         )
 
     def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:
