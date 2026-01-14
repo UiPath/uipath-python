@@ -19,7 +19,7 @@ resources:
     - repository: fossa
       type: github
       name: UiPath/AzurePipelinesTemplates
-      ref: refs/tags/uipath.security.fossa.3.0.15
+      ref: refs/tags/uipath.security.fossa.3.0.17
       endpoint: UiPath
 
 variables:
