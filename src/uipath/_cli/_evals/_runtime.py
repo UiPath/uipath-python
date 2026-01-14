@@ -168,20 +168,18 @@ class LiveTrackingSpanProcessor(SpanProcessor):
     - On span start: Upsert with RUNNING status
     - On span end: Upsert with final status (OK/ERROR)
 
-    All upsert calls run in background threads with 5-second timeout
-    to avoid blocking evaluation execution. Uses a thread pool to cap
-    the maximum number of concurrent threads and avoid resource exhaustion.
+    All upsert calls run in background threads without blocking evaluation
+    execution. Uses a thread pool to cap the maximum number of concurrent
+    threads and avoid resource exhaustion.
     """
 
     def __init__(
         self,
         exporter: LlmOpsHttpExporter,
-        timeout: float = 5.0,
         max_workers: int = 10,
     ):
         self.exporter = exporter
         self.span_status = SpanStatus
-        self.timeout = timeout
         self.executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="span-upsert"
         )
@@ -248,11 +246,11 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         return False
 
     def shutdown(self) -> None:
-        """Shutdown the processor and wait for pending tasks with timeout."""
+        """Shutdown the processor and wait for pending tasks to complete."""
         try:
-            self.executor.shutdown(wait=True, timeout=self.timeout)
+            self.executor.shutdown(wait=True)
         except Exception as e:
-            logger.debug(f"Executor shutdown timed out or failed: {e}")
+            logger.debug(f"Executor shutdown failed: {e}")
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush - no-op for live tracking."""

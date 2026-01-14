@@ -352,10 +352,10 @@ class TestLiveTrackingSpanProcessor:
 
         mock_exporter.upsert_span.assert_called_once_with(span)
 
-    def test_processor_with_custom_timeout(self, mock_exporter):
-        """Test processor can be initialized with custom timeout."""
-        processor = LiveTrackingSpanProcessor(mock_exporter, timeout=10.0)
-        assert processor.timeout == 10.0
+    def test_processor_initialization_with_custom_max_workers(self, mock_exporter):
+        """Test processor can be initialized with custom max_workers."""
+        processor = LiveTrackingSpanProcessor(mock_exporter, max_workers=15)
+        assert processor.executor._max_workers == 15
 
     def test_exception_in_background_thread_does_not_crash(self, mock_exporter):
         """Test that exceptions in background threads don't crash the main thread."""
@@ -374,9 +374,7 @@ class TestLiveTrackingSpanProcessor:
 
     def test_processor_with_custom_max_workers(self, mock_exporter):
         """Test processor can be initialized with custom max_workers."""
-        processor = LiveTrackingSpanProcessor(
-            mock_exporter, timeout=5.0, max_workers=20
-        )
+        processor = LiveTrackingSpanProcessor(mock_exporter, max_workers=20)
         assert processor.executor._max_workers == 20
 
     def test_processor_default_max_workers(self, mock_exporter):
@@ -418,7 +416,7 @@ class TestLiveTrackingSpanProcessor:
 
     def test_shutdown_waits_for_pending_tasks(self, mock_exporter):
         """Test that shutdown properly cleans up the thread pool."""
-        processor = LiveTrackingSpanProcessor(mock_exporter, timeout=5.0, max_workers=2)
+        processor = LiveTrackingSpanProcessor(mock_exporter, max_workers=2)
 
         # Submit some tasks
         for i in range(3):
@@ -430,28 +428,6 @@ class TestLiveTrackingSpanProcessor:
 
         # Verify executor is shutdown (calling shutdown multiple times should be safe)
         processor.shutdown()  # Should not raise
-
-    def test_timeout_with_thread_pool_shutdown(self, mock_exporter):
-        """Test that shutdown timeout works with ThreadPoolExecutor."""
-
-        def slow_upsert(*args, **kwargs):
-            time.sleep(10)  # Very slow operation
-
-        mock_exporter.upsert_span = Mock(side_effect=slow_upsert)
-        processor = LiveTrackingSpanProcessor(mock_exporter, timeout=0.5, max_workers=2)
-
-        # Submit tasks that will take 10 seconds each
-        for i in range(3):
-            span = self.create_mock_span({"span_type": "eval", "id": str(i)})
-            processor.on_start(span, None)
-
-        # Shutdown with short timeout should not wait 10+ seconds
-        start_time = time.time()
-        processor.shutdown()
-        elapsed = time.time() - start_time
-
-        # Should timeout after ~0.5 seconds, not wait 10+ seconds
-        assert elapsed < 2.0, f"Shutdown took {elapsed} seconds, expected < 2.0"
 
     def test_multiple_processors_independent_thread_pools(self, mock_exporter):
         """Test that multiple processors have independent thread pools."""
