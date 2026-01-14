@@ -19,6 +19,39 @@ from uipath.functions import register_default_runtime_factory
 # We spent hours getting startup from 1.7s → 0.5s.
 # If you add `import pandas` here, I will find you.
 
+_LAZY_COMMANDS = {
+    "new": "cli_new",
+    "init": "cli_init",
+    "pack": "cli_pack",
+    "publish": "cli_publish",
+    "run": "cli_run",
+    "deploy": "cli_deploy",
+    "auth": "cli_auth",
+    "invoke": "cli_invoke",
+    "push": "cli_push",
+    "pull": "cli_pull",
+    "eval": "cli_eval",
+    "dev": "cli_dev",
+    "add": "cli_add",
+    "register": "cli_register",
+    "debug": "cli_debug",
+    "buckets": "services.cli_buckets",
+}
+
+
+def _load_command(name: str):
+    """Load a CLI command by name."""
+    if name not in _LAZY_COMMANDS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name = _LAZY_COMMANDS[name]
+    mod = __import__(f"uipath._cli.{module_name}", fromlist=[name])
+    return getattr(mod, name)
+
+
+def __getattr__(name: str):
+    """Lazy load CLI commands for mkdocs-click compatibility."""
+    return _load_command(name)
+
 
 def add_cwd_to_path():
     cwd = os.getcwd()
@@ -48,35 +81,12 @@ def _get_safe_version() -> str:
 class LazyGroup(click.Group):
     """Lazy-load commands only when invoked."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._lazy_commands = {
-            "new": "cli_new",
-            "init": "cli_init",
-            "pack": "cli_pack",
-            "publish": "cli_publish",
-            "run": "cli_run",
-            "deploy": "cli_deploy",
-            "auth": "cli_auth",
-            "invoke": "cli_invoke",
-            "push": "cli_push",
-            "pull": "cli_pull",
-            "eval": "cli_eval",
-            "dev": "cli_dev",
-            "add": "cli_add",
-            "register": "cli_register",
-            "debug": "cli_debug",
-            "buckets": "services.cli_buckets",
-        }
-
     def list_commands(self, ctx):
-        return sorted(self._lazy_commands.keys())
+        return sorted(_LAZY_COMMANDS.keys())
 
     def get_command(self, ctx, cmd_name):
-        if cmd_name in self._lazy_commands:
-            module_name = self._lazy_commands[cmd_name]
-            mod = __import__(f"uipath._cli.{module_name}", fromlist=[cmd_name])
-            return getattr(mod, cmd_name)
+        if cmd_name in _LAZY_COMMANDS:
+            return _load_command(cmd_name)
         return None
 
 
