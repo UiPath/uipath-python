@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
@@ -385,6 +386,32 @@ class ContextGroundingService(FolderContext, BaseService):
             if advanced_ingestion is not None
             else True,
             preprocessing_request=preprocessing_request or LLMV4_REQUEST,
+            folder_path=folder_path,
+            folder_key=folder_key,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return ContextGroundingIndex.model_validate(response.json())
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_create_jit_index", run_type="uipath")
+    def create_jit_index(
+        self,
+        usage: str,
+        attachments: list[uuid.UUID],
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> ContextGroundingIndex:
+        """Create a new context jit grounding index."""
+        spec = self._create_jit_spec(
+            usage,
+            attachments,
             folder_path=folder_path,
             folder_key=folder_key,
         )
