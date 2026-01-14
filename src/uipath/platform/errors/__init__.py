@@ -9,7 +9,8 @@ Available exceptions:
 - UnsupportedDataSourceException: Raised when an operation is attempted on an unsupported data source type
 - IngestionInProgressException: Raised when a search is attempted on an index during ingestion
 - BatchTransformNotCompleteException: Raised when attempting to get results from an incomplete batch transform
-- IxpExtractionNotCompleteException: Raised when attempting to get results from an incomplete IXP extraction
+- OperationNotCompleteException: Raised when attempting to get results from an incomplete operation
+- OperationFailedException: Raised when an operation has failed
 - EnrichedException: Enriched HTTP error with detailed request/response information
 """
 
@@ -18,7 +19,8 @@ from ._batch_transform_not_complete_exception import BatchTransformNotCompleteEx
 from ._enriched_exception import EnrichedException
 from ._folder_not_found_exception import FolderNotFoundException
 from ._ingestion_in_progress_exception import IngestionInProgressException
-from ._ixp_extraction_not_complete_exception import ExtractionNotCompleteException
+from ._operation_failed_exception import OperationFailedException
+from ._operation_not_complete_exception import OperationNotCompleteException
 from ._secret_missing_error import SecretMissingError
 from ._unsupported_data_source_exception import UnsupportedDataSourceException
 
@@ -28,7 +30,8 @@ __all__ = [
     "EnrichedException",
     "FolderNotFoundException",
     "IngestionInProgressException",
-    "ExtractionNotCompleteException",
     "SecretMissingError",
+    "OperationNotCompleteException",
+    "OperationFailedException",
     "UnsupportedDataSourceException",
 ]

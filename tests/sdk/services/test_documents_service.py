@@ -11,15 +11,16 @@ from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.documents import (
     ActionPriority,
     ClassificationResult,
+    DocumentsService,
     ExtractionResponse,
     ProjectType,
     ValidateClassificationAction,
     ValidateExtractionAction,
 )
-from uipath.platform.documents._documents_service import (  # type: ignore[attr-defined]
-    DocumentsService,
+from uipath.platform.errors import (
+    OperationFailedException,
+    OperationNotCompleteException,
 )
-from uipath.platform.errors import ExtractionNotCompleteException
 
 
 @pytest.fixture
@@ -61,7 +62,20 @@ def modern_extraction_response(documents_tests_data_path: Path) -> dict:  # type
 @pytest.fixture
 def create_validation_action_response(documents_tests_data_path: Path) -> dict:  # type: ignore
     with open(
-        documents_tests_data_path / "create_validation_action_response.json",
+        documents_tests_data_path
+        / "extraction_validation_action_response_unassigned.json",
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def extraction_validation_action_response_completed(
+    documents_tests_data_path: Path,
+) -> dict:  # type: ignore
+    with open(
+        documents_tests_data_path
+        / "extraction_validation_action_response_completed.json",
         "r",
     ) as f:
         return json.load(f)
@@ -1424,6 +1438,8 @@ class TestDocumentsService:
         create_validation_action_response["tag"] = tag
         create_validation_action_response["documentTypeId"] = document_type_id
         create_validation_action_response["operationId"] = operation_id
+        create_validation_action_response["validatedExtractionResults"] = None
+        create_validation_action_response["dataProjection"] = None
         assert response.model_dump() == create_validation_action_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -1526,6 +1542,8 @@ class TestDocumentsService:
         create_validation_action_response["tag"] = tag
         create_validation_action_response["documentTypeId"] = document_type_id
         create_validation_action_response["operationId"] = operation_id
+        create_validation_action_response["validatedExtractionResults"] = None
+        create_validation_action_response["dataProjection"] = None
         assert response.model_dump() == create_validation_action_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -1997,7 +2015,10 @@ class TestDocumentsService:
         )
 
         # ACT & ASSERT
-        with pytest.raises(ExtractionNotCompleteException) as exc_info:
+        with pytest.raises(
+            OperationNotCompleteException,
+            match=f"IXP extraction '{operation_id}' is not complete. Current status: Running",
+        ) as exc_info:
             if mode == "async":
                 await service.retrieve_ixp_extraction_result_async(
                     project_id=project_id,
@@ -2013,3 +2034,309 @@ class TestDocumentsService:
 
         assert exc_info.value.operation_id == operation_id
         assert exc_info.value.status == "Running"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_result_failed(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Failed", "error": "Dummy extraction error"},
+        )
+
+        # ACT & ASSERT
+        with pytest.raises(
+            OperationFailedException,
+            match=f"IXP extraction '{operation_id}' failed with status: Failed error: Dummy extraction error",
+        ):
+            if mode == "async":
+                await service.retrieve_ixp_extraction_result_async(
+                    project_id=project_id,
+                    tag="staging",
+                    operation_id=operation_id,
+                )
+            else:
+                service.retrieve_ixp_extraction_result(
+                    project_id=project_id,
+                    tag="staging",
+                    operation_id=operation_id,
+                )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_start_ixp_extraction_validation(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ixp_extraction_response: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        tag = "live"
+        action_title = "TestAction"
+        action_priority = ActionPriority.HIGH
+        action_catalog = "TestCatalog"
+        action_folder = "TestFolder"
+        storage_bucket_name = "TestBucket"
+        storage_bucket_directory_path = "Test/Directory/Path"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/start?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            match_json={
+                "extractionResult": ixp_extraction_response["extractionResult"],
+                "documentId": ixp_extraction_response["extractionResult"]["DocumentId"],
+                "actionTitle": action_title,
+                "actionPriority": action_priority,
+                "actionCatalog": action_catalog,
+                "actionFolder": action_folder,
+                "storageBucketName": storage_bucket_name,
+                "allowChangeOfDocumentType": True,
+                "storageBucketDirectoryPath": storage_bucket_directory_path,
+            },
+            json={"operationId": operation_id},
+        )
+
+        ixp_extraction_response["projectId"] = project_id
+        ixp_extraction_response["projectType"] = ProjectType.IXP.value
+        ixp_extraction_response["tag"] = tag
+        ixp_extraction_response["documentTypeId"] = str(UUID(int=0))
+
+        # ACT
+        if mode == "async":
+            response = await service.start_ixp_extraction_validation_async(
+                action_title=action_title,
+                action_priority=action_priority,
+                action_catalog=action_catalog,
+                action_folder=action_folder,
+                storage_bucket_name=storage_bucket_name,
+                storage_bucket_directory_path=storage_bucket_directory_path,
+                extraction_response=ExtractionResponse.model_validate(
+                    ixp_extraction_response
+                ),
+            )
+        else:
+            response = service.start_ixp_extraction_validation(
+                action_title=action_title,
+                action_priority=action_priority,
+                action_catalog=action_catalog,
+                action_folder=action_folder,
+                storage_bucket_name=storage_bucket_name,
+                storage_bucket_directory_path=storage_bucket_directory_path,
+                extraction_response=ExtractionResponse.model_validate(
+                    ixp_extraction_response
+                ),
+            )
+
+        # ASSERT
+        assert response.model_dump() == {
+            "projectId": project_id,
+            "tag": tag,
+            "documentId": ixp_extraction_response["extractionResult"]["DocumentId"],
+            "operationId": operation_id,
+        }
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_validation_result_unassigned(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        create_validation_action_response: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        tag = "live"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Succeeded", "result": create_validation_action_response},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.retrieve_ixp_extraction_validation_result_async(
+                project_id=project_id,
+                tag=tag,
+                operation_id=operation_id,
+            )
+        else:
+            response = service.retrieve_ixp_extraction_validation_result(
+                project_id=project_id,
+                tag=tag,
+                operation_id=operation_id,
+            )
+
+        # ASSERT
+        create_validation_action_response["projectId"] = project_id
+        create_validation_action_response["projectType"] = ProjectType.IXP.value
+        create_validation_action_response["tag"] = tag
+        create_validation_action_response["documentTypeId"] = str(UUID(int=0))
+        create_validation_action_response["operationId"] = operation_id
+        create_validation_action_response["validatedExtractionResults"] = None
+        create_validation_action_response["dataProjection"] = None
+        assert response.model_dump() == create_validation_action_response
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_validation_result_completed(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+        extraction_validation_action_response_completed: dict,  # type: ignore
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        tag = "live"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={
+                "status": "Succeeded",
+                "result": extraction_validation_action_response_completed,
+            },
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.retrieve_ixp_extraction_validation_result_async(
+                project_id=project_id,
+                tag=tag,
+                operation_id=operation_id,
+            )
+        else:
+            response = service.retrieve_ixp_extraction_validation_result(
+                project_id=project_id,
+                tag=tag,
+                operation_id=operation_id,
+            )
+
+        # ASSERT
+        extraction_validation_action_response_completed["projectId"] = project_id
+        extraction_validation_action_response_completed["projectType"] = (
+            ProjectType.IXP.value
+        )
+        extraction_validation_action_response_completed["tag"] = tag
+        extraction_validation_action_response_completed["documentTypeId"] = str(
+            UUID(int=0)
+        )
+        extraction_validation_action_response_completed["operationId"] = operation_id
+        assert response.model_dump() == extraction_validation_action_response_completed
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_validation_result_not_complete(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        tag = "live"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Running"},
+        )
+
+        # ACT & ASSERT
+        with pytest.raises(
+            OperationNotCompleteException,
+            match=f"IXP Create Validate Extraction Action '{operation_id}' is not complete. Current status: Running",
+        ) as exc_info:
+            if mode == "async":
+                await service.retrieve_ixp_extraction_validation_result_async(
+                    project_id=project_id,
+                    tag=tag,
+                    operation_id=operation_id,
+                )
+            else:
+                service.retrieve_ixp_extraction_validation_result(
+                    project_id=project_id,
+                    tag=tag,
+                    operation_id=operation_id,
+                )
+
+        assert exc_info.value.operation_id == operation_id
+        assert exc_info.value.status == "Running"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_validation_result_failed(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        tag = "live"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Failed", "error": "Dummy error"},
+        )
+
+        # ACT & ASSERT
+        with pytest.raises(
+            OperationFailedException,
+            match=f"IXP Create Validate Extraction Action '{operation_id}' failed with status: Failed error: Dummy error",
+        ):
+            if mode == "async":
+                await service.retrieve_ixp_extraction_validation_result_async(
+                    project_id=project_id,
+                    tag=tag,
+                    operation_id=operation_id,
+                )
+            else:
+                service.retrieve_ixp_extraction_validation_result(
+                    project_id=project_id,
+                    tag=tag,
+                    operation_id=operation_id,
+                )

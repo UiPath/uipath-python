@@ -166,6 +166,12 @@ class ValidateExtractionAction(ValidationAction):
     """A model representing a validation action for document extraction."""
 
     document_type_id: str = Field(alias="documentTypeId")
+    validated_extraction_result: Optional[ExtractionResult] = Field(
+        alias="validatedExtractionResults", default=None
+    )
+    data_projection: Optional[List[FieldGroupValueProjection]] = Field(
+        alias="dataProjection", default=None
+    )
 
 
 class Reference(BaseModel):
@@ -244,8 +250,8 @@ class ClassificationResponse(BaseModel):
     )
 
 
-class StartExtractionResponse(BaseModel):
-    """A model representing the response from starting an extraction process.
+class StartOperationResponse(BaseModel):
+    """A model representing the response from starting an operation.
 
     Attributes:
         operation_id (str): The ID of the extraction operation, used to poll for results.
@@ -264,3 +270,7 @@ class StartExtractionResponse(BaseModel):
     document_id: str = Field(alias="documentId")
     project_id: str = Field(alias="projectId")
     tag: str | None = Field(default=None)
+
+
+class StartExtractionResponse(StartOperationResponse):
+    """A model representing the response from starting an extraction operation."""
