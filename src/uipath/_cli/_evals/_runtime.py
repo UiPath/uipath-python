@@ -178,7 +178,7 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         self.timeout = timeout
 
     def _upsert_span_async(
-        self, span: Span | ReadableSpan, status_override: str | None = None
+        self, span: Span | ReadableSpan, status_override: int | None = None
     ) -> None:
         """Run upsert_span in a background thread with timeout."""
         def _upsert():
