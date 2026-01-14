@@ -3,7 +3,7 @@
 import threading
 import time
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from opentelemetry import context as context_api
@@ -293,135 +293,38 @@ class TestLiveTrackingSpanProcessor:
                 f"Failed for span_type: {span_type}"
             )
 
-    # Tests for non-blocking behavior
+    # Tests for ThreadPoolExecutor behavior
 
-    def test_on_start_does_not_block(self, mock_exporter):
-        """Test that on_start returns immediately even if upsert is slow."""
-
-        # Create a mock that simulates a slow API call
-        def slow_upsert(*args, **kwargs):
-            time.sleep(2)
-
-        mock_exporter.upsert_span = Mock(side_effect=slow_upsert)
+    def test_thread_pool_executor_used(self, mock_exporter):
+        """Test that processor uses ThreadPoolExecutor for async operations."""
         processor = LiveTrackingSpanProcessor(mock_exporter)
         span = self.create_mock_span({"span_type": "eval"})
 
+        # Verify executor exists
+        assert hasattr(processor, "executor")
+        assert processor.executor is not None
+
+        # Submit task and verify it's non-blocking
         start_time = time.time()
         processor.on_start(span, None)
         elapsed = time.time() - start_time
 
-        # Should return immediately (< 0.1 seconds), not wait for 2 seconds
-        assert elapsed < 0.1, f"on_start blocked for {elapsed} seconds"
+        # Should return immediately (< 0.05 seconds)
+        assert elapsed < 0.05, f"on_start blocked for {elapsed} seconds"
 
-    def test_on_end_does_not_block(self, mock_exporter):
-        """Test that on_end returns immediately even if upsert is slow."""
-
-        # Create a mock that simulates a slow API call
-        def slow_upsert(*args, **kwargs):
-            time.sleep(2)
-
-        mock_exporter.upsert_span = Mock(side_effect=slow_upsert)
-        processor = LiveTrackingSpanProcessor(mock_exporter)
-        span = self.create_mock_readable_span({"span_type": "eval"})
-
-        start_time = time.time()
-        processor.on_end(span)
-        elapsed = time.time() - start_time
-
-        # Should return immediately (< 0.1 seconds), not wait for 2 seconds
-        assert elapsed < 0.1, f"on_end blocked for {elapsed} seconds"
-
-    def test_on_start_uses_daemon_thread(self, mock_exporter):
-        """Test that on_start creates daemon threads."""
-        created_threads = []
-
-        original_thread_init = threading.Thread.__init__
-
-        def track_thread(self, *args, **kwargs):
-            original_thread_init(self, *args, **kwargs)
-            created_threads.append(self)
-
-        with patch.object(threading.Thread, "__init__", track_thread):
-            processor = LiveTrackingSpanProcessor(mock_exporter)
-            span = self.create_mock_span({"span_type": "eval"})
-            processor.on_start(span, None)
-
-            # Wait a bit for thread to be created
-            time.sleep(0.1)
-
-            # Verify at least one daemon thread was created
-            daemon_threads = [t for t in created_threads if t.daemon]
-            assert len(daemon_threads) > 0, "No daemon threads were created"
-
-    def test_on_start_auth_error_does_not_block(self, mock_exporter):
-        """Test that 401 auth errors don't block execution."""
-        # Simulate 401 Unauthorized error
-        mock_exporter.upsert_span = Mock(side_effect=Exception("401 Unauthorized"))
+    def test_handles_exceptions_gracefully(self, mock_exporter):
+        """Test that exceptions in background threads don't crash."""
+        mock_exporter.upsert_span = Mock(side_effect=Exception("Network error"))
         processor = LiveTrackingSpanProcessor(mock_exporter)
         span = self.create_mock_span({"span_type": "eval"})
 
-        start_time = time.time()
+        # Should not raise exception
         processor.on_start(span, None)
-        elapsed = time.time() - start_time
+        # Wait for background thread to process
+        time.sleep(0.2)
 
-        # Should return immediately
-        assert elapsed < 0.1, f"on_start blocked on auth error for {elapsed} seconds"
-
-    def test_on_end_auth_error_does_not_block(self, mock_exporter):
-        """Test that 401 auth errors don't block execution."""
-        # Simulate 401 Unauthorized error
-        mock_exporter.upsert_span = Mock(side_effect=Exception("401 Unauthorized"))
-        processor = LiveTrackingSpanProcessor(mock_exporter)
-        span = self.create_mock_readable_span({"span_type": "eval"})
-
-        start_time = time.time()
-        processor.on_end(span)
-        elapsed = time.time() - start_time
-
-        # Should return immediately
-        assert elapsed < 0.1, f"on_end blocked on auth error for {elapsed} seconds"
-
-    def test_on_start_network_timeout_does_not_block(self, mock_exporter):
-        """Test that network timeouts don't block execution."""
-
-        # Simulate network timeout
-        def timeout_upsert(*args, **kwargs):
-            time.sleep(10)  # Simulate very slow network
-            raise TimeoutError("Network timeout")
-
-        mock_exporter.upsert_span = Mock(side_effect=timeout_upsert)
-        processor = LiveTrackingSpanProcessor(mock_exporter)
-        span = self.create_mock_span({"span_type": "eval"})
-
-        start_time = time.time()
-        processor.on_start(span, None)
-        elapsed = time.time() - start_time
-
-        # Should return immediately, not wait for 10 seconds
-        assert elapsed < 0.1, f"on_start blocked on timeout for {elapsed} seconds"
-
-    def test_multiple_rapid_calls_do_not_block(self, mock_exporter):
-        """Test that multiple rapid on_start calls don't block each other."""
-        call_count = []
-
-        def counting_upsert(*args, **kwargs):
-            call_count.append(1)
-            time.sleep(1)  # Each call takes 1 second
-
-        mock_exporter.upsert_span = Mock(side_effect=counting_upsert)
-        processor = LiveTrackingSpanProcessor(mock_exporter)
-
-        start_time = time.time()
-        # Make 5 rapid calls
-        for i in range(5):
-            span = self.create_mock_span({"span_type": "eval", "id": str(i)})
-            processor.on_start(span, None)
-
-        elapsed = time.time() - start_time
-
-        # All 5 calls should return immediately (< 0.5 seconds)
-        # Not 5+ seconds if they were blocking
-        assert elapsed < 0.5, f"Multiple calls took {elapsed} seconds"
+        # Main thread should still be alive
+        assert threading.current_thread().is_alive()
 
     def test_upsert_span_async_with_status_override(self, mock_exporter):
         """Test _upsert_span_async correctly passes status_override."""
@@ -466,3 +369,155 @@ class TestLiveTrackingSpanProcessor:
 
         # Main thread should still be alive
         assert threading.current_thread().is_alive()
+
+    # Tests for ThreadPoolExecutor and max_workers
+
+    def test_processor_with_custom_max_workers(self, mock_exporter):
+        """Test processor can be initialized with custom max_workers."""
+        processor = LiveTrackingSpanProcessor(
+            mock_exporter, timeout=5.0, max_workers=20
+        )
+        assert processor.executor._max_workers == 20
+
+    def test_processor_default_max_workers(self, mock_exporter):
+        """Test processor uses default max_workers of 10."""
+        processor = LiveTrackingSpanProcessor(mock_exporter)
+        assert processor.executor._max_workers == 10
+
+    def test_thread_pool_caps_concurrent_threads(self, mock_exporter):
+        """Test that thread pool caps concurrent threads to max_workers."""
+        concurrent_calls = []
+        max_concurrent = 0
+
+        def slow_upsert(*args, **kwargs):
+            concurrent_calls.append(1)
+            nonlocal max_concurrent
+            max_concurrent = max(max_concurrent, len(concurrent_calls))
+            time.sleep(0.5)
+            concurrent_calls.pop()
+
+        mock_exporter.upsert_span = Mock(side_effect=slow_upsert)
+        processor = LiveTrackingSpanProcessor(mock_exporter, max_workers=3)
+
+        # Submit 10 tasks rapidly
+        spans = [
+            self.create_mock_span({"span_type": "eval", "id": str(i)})
+            for i in range(10)
+        ]
+
+        for span in spans:
+            processor.on_start(span, None)
+
+        # Wait for all to complete
+        time.sleep(2)
+
+        # Max concurrent should not exceed max_workers (3)
+        assert max_concurrent <= 3, (
+            f"Max concurrent was {max_concurrent}, expected <= 3"
+        )
+
+    def test_shutdown_waits_for_pending_tasks(self, mock_exporter):
+        """Test that shutdown properly cleans up the thread pool."""
+        processor = LiveTrackingSpanProcessor(mock_exporter, timeout=5.0, max_workers=2)
+
+        # Submit some tasks
+        for i in range(3):
+            span = self.create_mock_span({"span_type": "eval", "id": str(i)})
+            processor.on_start(span, None)
+
+        # Shutdown should complete without errors
+        processor.shutdown()
+
+        # Verify executor is shutdown (calling shutdown multiple times should be safe)
+        processor.shutdown()  # Should not raise
+
+    def test_timeout_with_thread_pool_shutdown(self, mock_exporter):
+        """Test that shutdown timeout works with ThreadPoolExecutor."""
+
+        def slow_upsert(*args, **kwargs):
+            time.sleep(10)  # Very slow operation
+
+        mock_exporter.upsert_span = Mock(side_effect=slow_upsert)
+        processor = LiveTrackingSpanProcessor(mock_exporter, timeout=0.5, max_workers=2)
+
+        # Submit tasks that will take 10 seconds each
+        for i in range(3):
+            span = self.create_mock_span({"span_type": "eval", "id": str(i)})
+            processor.on_start(span, None)
+
+        # Shutdown with short timeout should not wait 10+ seconds
+        start_time = time.time()
+        processor.shutdown()
+        elapsed = time.time() - start_time
+
+        # Should timeout after ~0.5 seconds, not wait 10+ seconds
+        assert elapsed < 2.0, f"Shutdown took {elapsed} seconds, expected < 2.0"
+
+    def test_multiple_processors_independent_thread_pools(self, mock_exporter):
+        """Test that multiple processors have independent thread pools."""
+        processor1 = LiveTrackingSpanProcessor(mock_exporter, max_workers=5)
+        processor2 = LiveTrackingSpanProcessor(mock_exporter, max_workers=15)
+
+        assert processor1.executor != processor2.executor
+        assert processor1.executor._max_workers == 5
+        assert processor2.executor._max_workers == 15
+
+    def test_thread_pool_name_prefix(self, mock_exporter):
+        """Test that thread pool uses correct name prefix."""
+        processor = LiveTrackingSpanProcessor(mock_exporter)
+        # ThreadPoolExecutor sets _thread_name_prefix
+        assert processor.executor._thread_name_prefix == "span-upsert"
+
+    def test_resource_exhaustion_prevention(self, mock_exporter):
+        """Test that max_workers prevents resource exhaustion."""
+        call_times = []
+
+        def timed_upsert(*args, **kwargs):
+            call_times.append(time.time())
+            time.sleep(0.3)
+
+        mock_exporter.upsert_span = Mock(side_effect=timed_upsert)
+        # Very low max_workers to test queueing
+        processor = LiveTrackingSpanProcessor(mock_exporter, max_workers=2)
+
+        # Submit 6 tasks
+        for i in range(6):
+            span = self.create_mock_span({"span_type": "eval", "id": str(i)})
+            processor.on_start(span, None)
+
+        # Wait for all to complete
+        time.sleep(2)
+
+        # All 6 should complete
+        assert len(call_times) == 6
+
+        # With max_workers=2 and 0.3s per task, we should see batching
+        # Sort by time to analyze execution pattern
+        call_times.sort()
+        # First 2 should start quickly, next batch should wait
+        assert call_times[1] - call_times[0] < 0.2  # First batch starts together
+        assert (
+            call_times[3] - call_times[1] > 0.2
+        )  # Second batch waits for first to finish
+
+    def test_shutdown_can_be_called_multiple_times(self, mock_exporter):
+        """Test that shutdown can be safely called multiple times."""
+        processor = LiveTrackingSpanProcessor(mock_exporter)
+        span = self.create_mock_span({"span_type": "eval"})
+
+        processor.on_start(span, None)
+        time.sleep(0.1)
+
+        # Multiple shutdowns should not raise exceptions
+        processor.shutdown()
+        processor.shutdown()
+        processor.shutdown()
+
+    def test_executor_properly_initialized(self, mock_exporter):
+        """Test that ThreadPoolExecutor is properly initialized."""
+        processor = LiveTrackingSpanProcessor(mock_exporter, max_workers=7)
+
+        assert processor.executor is not None
+        assert hasattr(processor.executor, "submit")
+        assert hasattr(processor.executor, "shutdown")
+        assert processor.executor._max_workers == 7

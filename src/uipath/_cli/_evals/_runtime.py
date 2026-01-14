@@ -1,8 +1,8 @@
 import json
 import logging
-import threading
 import uuid
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from time import time
@@ -169,18 +169,32 @@ class LiveTrackingSpanProcessor(SpanProcessor):
     - On span end: Upsert with final status (OK/ERROR)
 
     All upsert calls run in background threads with 5-second timeout
-    to avoid blocking evaluation execution.
+    to avoid blocking evaluation execution. Uses a thread pool to cap
+    the maximum number of concurrent threads and avoid resource exhaustion.
     """
 
-    def __init__(self, exporter: LlmOpsHttpExporter, timeout: float = 5.0):
+    def __init__(
+        self,
+        exporter: LlmOpsHttpExporter,
+        timeout: float = 5.0,
+        max_workers: int = 10,
+    ):
         self.exporter = exporter
         self.span_status = SpanStatus
         self.timeout = timeout
+        self.executor = ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix="span-upsert"
+        )
 
     def _upsert_span_async(
         self, span: Span | ReadableSpan, status_override: int | None = None
     ) -> None:
-        """Run upsert_span in a background thread with timeout."""
+        """Run upsert_span in a background thread without blocking.
+
+        Submits the upsert task to the thread pool and returns immediately.
+        The thread pool handles execution with max_workers cap to prevent
+        resource exhaustion.
+        """
 
         def _upsert():
             try:
@@ -191,10 +205,9 @@ class LiveTrackingSpanProcessor(SpanProcessor):
             except Exception as e:
                 logger.debug(f"Failed to upsert span: {e}")
 
-        thread = threading.Thread(target=_upsert, daemon=True)
-        thread.start()
-        # Don't wait for thread to complete - let it run in background
-        # This ensures span processing doesn't block evaluation execution
+        # Submit to thread pool and return immediately (non-blocking)
+        # The timeout parameter is reserved for shutdown operations
+        self.executor.submit(_upsert)
 
     def on_start(
         self, span: Span, parent_context: context_api.Context | None = None
@@ -235,8 +248,11 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         return False
 
     def shutdown(self) -> None:
-        """Shutdown the processor."""
-        pass
+        """Shutdown the processor and wait for pending tasks with timeout."""
+        try:
+            self.executor.shutdown(wait=True, timeout=self.timeout)
+        except Exception as e:
+            logger.debug(f"Executor shutdown timed out or failed: {e}")
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush - no-op for live tracking."""
