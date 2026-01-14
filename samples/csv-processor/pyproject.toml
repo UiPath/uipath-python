@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "csv-processor"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
-  "uipath>=2.4.0, <2.5.0",
+  "uipath>=2.4.15, <2.5.0",
   "pandas>=2.3.3",
 ]
 requires-python = ">=3.11"
