@@ -154,15 +154,6 @@ wheels = [
 ]
 
 [[package]]
-name = "applicationinsights"
-version = "0.11.10"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d3/f2/46a75ac6096d60da0e71a068015b610206e697de01fa2fb5bba8564b0798/applicationinsights-0.11.10.tar.gz", hash = "sha256:0b761f3ef0680acf4731906dfc1807faa6f2a57168ae74592db0084a6099f7b3", size = 44722, upload-time = "2021-04-22T23:22:45.71Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/0d/cb6b23164eb55eebaa5f9f302dfe557cfa751bd7b2779863f1abd0343b6b/applicationinsights-0.11.10-py2.py3-none-any.whl", hash = "sha256:e89a890db1c6906b6a7d0bcfd617dac83974773c64573147c8d6654f9cf2a6ea", size = 55068, upload-time = "2021-04-22T23:22:44.451Z" },
-]
-
-[[package]]
 name = "attrs"
 version = "25.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -314,7 +305,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "pandas", specifier = ">=2.3.3" },
-    { name = "uipath", specifier = ">=2.4.15,<2.5.0" },
+    { name = "uipath", specifier = ">=2.4.0,<2.5.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1445,10 +1436,9 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.4.15"
+version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "applicationinsights" },
     { name = "click" },
     { name = "coverage" },
     { name = "httpx" },
@@ -1466,9 +1456,9 @@ dependencies = [
     { name = "uipath-core" },
     { name = "uipath-runtime" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/c5/e3082fa705af20049047b64ff4152ba813e5bb2077e80a968d1a9d3f079f/uipath-2.4.15.tar.gz", hash = "sha256:6b255aa876fe8e329a373ca3327a50c63edb1bf151e1732c53ee7f381963a5e6", size = 3655879, upload-time = "2026-01-13T23:19:43.427Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/d1/939761d99f8f4a85bf25e5bcd2649ff6e52d1703f7911ef135633fbeaa16/uipath-2.4.0.tar.gz", hash = "sha256:1eacb14c53a7dad2505baf05e73482667681d53253691ddafa20d316898a20b3", size = 3410258, upload-time = "2026-01-03T06:17:23.776Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/55/6aa07ec3b558040ad7616a28727c6d83ed70fef232d3fa6900ec24acdeaa/uipath-2.4.15-py3-none-any.whl", hash = "sha256:0fd4e7526414857ffad8c9506ee39e21005adfa060f92b06653ddac74b799064", size = 431775, upload-time = "2026-01-13T23:19:41.368Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/da/f722c3320262e9a13fda0d381608e36683bc09c19a07490be3697d28f4c8/uipath-2.4.0-py3-none-any.whl", hash = "sha256:deef0dca5fde9f6a48651f27c672e34f6c7cc1c41ffbd281a4a16134ffb813dc", size = 402801, upload-time = "2026-01-03T06:17:21.822Z" },
 ]
 
 [[package]]
@@ -1501,14 +1491,14 @@ wheels = [
 
 [[package]]
 name = "uipath-runtime"
-version = "0.4.1"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "uipath-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/2a/8373a1c1118442b000c5a89e864a61e8548e6e1575c30fb21501b0e60652/uipath_runtime-0.4.1.tar.gz", hash = "sha256:ddcb26c02833993432a4c19c3306a55858a14afecaffcf32195601564bb44585", size = 102875, upload-time = "2026-01-13T13:34:50.803Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/78/6f/683b258720c18f8ec0e68ec712a05f42ede6ecf63e75710aa555b8d52092/uipath_runtime-0.4.0.tar.gz", hash = "sha256:129933b08c6f589d13c2c0e7045ddf61ca144029340c1482134d127dd15563e3", size = 99934, upload-time = "2026-01-03T05:44:33.712Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/58/14c89ba528c4e69683d0e19b43026bc8102dab02ec66c4a0d9f2a0fc4ae9/uipath_runtime-0.4.1-py3-none-any.whl", hash = "sha256:b10c7072246066c8e525eb602a9e04f5497a7da6af871d1bd27693fb9e910d7b", size = 39834, upload-time = "2026-01-13T13:34:49.421Z" },
+    { url = "https://files.pythonhosted.org/packages/45/46/402708653a197c7f0b1d9de66b235f8a5798f814c775bab575cd2d7e2539/uipath_runtime-0.4.0-py3-none-any.whl", hash = "sha256:f49a23ed24f7cfaa736f99a5763bcf314234c67b727c40ec891a0a3d10140027", size = 38359, upload-time = "2026-01-03T05:44:31.817Z" },
 ]
 
 [[package]]

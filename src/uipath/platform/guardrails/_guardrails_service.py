@@ -1,9 +1,6 @@
 from typing import Any
 
-from uipath.core.guardrails import (
-    GuardrailValidationResult,
-    GuardrailValidationResultType,
-)
+from uipath.core.guardrails import GuardrailValidationResult
 
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
@@ -43,7 +40,7 @@ class GuardrailsService(BaseService):
             guardrail: A guardrail instance used for validation.
 
         Returns:
-            GuardrailValidationResult: The outcome of the guardrail evaluation.
+            BuiltInGuardrailValidationResult: The outcome of the guardrail evaluation, containing whether validation passed and the reason.
         """
         parameters = [
             param.model_dump(by_alias=True) for param in guardrail.validator_parameters
@@ -64,41 +61,4 @@ class GuardrailsService(BaseService):
             json=spec.json,
             headers=spec.headers,
         )
-        response_data = response.json()
-
-        # Handle new API format: try to parse result field
-        result = None
-        result_str = response_data.get("result")
-        if result_str:
-            # Try to get enum by name first (e.g., "VALIDATION_FAILED")
-            try:
-                result = GuardrailValidationResultType[result_str]
-            except KeyError:
-                # If not found by name, try by value (e.g., "validation_failed")
-                try:
-                    result = GuardrailValidationResultType(result_str)
-                except ValueError:
-                    # Parsing failed, fall back to old format
-                    result = None
-
-        # Old format: backwards compatibility - determine result from validation_passed
-        if result is None:
-            validation_passed = response_data.get("validation_passed", False)
-            result = (
-                GuardrailValidationResultType.PASSED
-                if validation_passed
-                else GuardrailValidationResultType.VALIDATION_FAILED
-            )
-
-        # Ensure result is always set (defensive check)
-        if result is None:
-            result = GuardrailValidationResultType.VALIDATION_FAILED
-
-        # Prepare model data with only the fields needed by GuardrailValidationResult
-        # (result and reason; ignore old fields like details, validation_passed, skip)
-        model_data = {
-            "result": result.value,
-            "reason": response_data.get("reason", ""),
-        }
-
-        return GuardrailValidationResult.model_validate(model_data)
+        return GuardrailValidationResult.model_validate(response.json())

@@ -33,23 +33,15 @@ def _make_base_params() -> EvaluatorBaseParams:
     )
 
 
-@pytest.fixture(autouse=True)
-def mock_uipath_platform():
-    """Fixture to mock UiPath platform for all tests."""
-    with patch("uipath.platform.UiPath") as mock_uipath_class:
-        mock_uipath_instance = mock_uipath_class.return_value
-        mock_uipath_instance.llm = AsyncMock()
-        yield mock_uipath_class
-
-
 @pytest.fixture
 def evaluator_with_mocked_llm():
     """Fixture to create evaluator with mocked LLM service."""
-    evaluator = LegacyContextPrecisionEvaluator(
-        **_make_base_params().model_dump(),
-        config={},
-        model="gpt-4.1-2025-04-14",
-    )
+    with patch("uipath.platform.UiPath"):
+        evaluator = LegacyContextPrecisionEvaluator(
+            **_make_base_params().model_dump(),
+            config={},
+            model="gpt-4.1-2025-04-14",
+        )
     return evaluator
 
 

@@ -8,7 +8,9 @@ from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel
+from pysignalr.client import SignalRClient
 from rich.console import Console
+from rich.syntax import Syntax
 from rich.tree import Tree
 from uipath.runtime import (
     UiPathBreakpointResult,
@@ -434,7 +436,6 @@ class ConsoleDebugBridge:
                 json_str = json.dumps(data, indent=2, default=str)
                 if len(json_str) > 10000:
                     json_str = json_str[:10000] + "\n..."
-                from rich.syntax import Syntax
 
                 syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
                 self.console.print(f"\n[dim]{label}:")
@@ -464,6 +465,7 @@ class SignalRDebugBridge:
         self.access_token = access_token
         self.headers = headers or {}
         self.state = DebuggerState()
+        self._client: SignalRClient | None = None
         self._connected_event = asyncio.Event()
         self._resume_event: asyncio.Event | None = None
         self._terminate_event = asyncio.Event()
@@ -473,9 +475,6 @@ class SignalRDebugBridge:
         all_headers = {**self.headers}
         if self.access_token:
             all_headers["Authorization"] = f"Bearer {self.access_token}"
-
-        # Lazy import to avoid dependency if not used, improve startup time
-        from pysignalr.client import SignalRClient
 
         self._client = SignalRClient(self.hub_url, headers=all_headers)
 

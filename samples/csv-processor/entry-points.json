@@ -4,67 +4,47 @@
     "entryPoints": [
         {
             "filePath": "main",
-            "uniqueId": "99d18636-8167-4c38-b3de-448a2fad8032",
+            "uniqueId": "41d162bc-d52c-4d72-93f6-4a099a07b630",
             "type": "agent",
             "input": {
                 "type": "object",
                 "properties": {
-                    "attachment": {
-                        "$ref": "#/definitions/job-attachment"
-                    }
-                },
-                "required": [
-                    "attachment"
-                ],
-                "title": "Input",
-                "definitions": {
-                    "job-attachment": {
-                        "type": "object",
-                        "required": [
-                            "ID"
-                        ],
-                        "x-uipath-resource-kind": "JobAttachment",
-                        "properties": {
-                            "ID": {
-                                "type": "string"
-                            },
-                            "FullName": {
-                                "type": "string"
-                            },
-                            "MimeType": {
-                                "type": "string"
-                            },
-                            "Metadata": {
-                                "type": "object",
-                                "additionalProperties": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "output": {
-                "type": "object",
-                "properties": {
                     "ID": {
-                        "format": "uuid",
-                        "type": "string"
+                        "type": "object",
+                        "properties": {},
+                        "required": []
                     },
                     "FullName": {
-                        "title": "Fullname",
                         "type": "string"
                     },
                     "MimeType": {
-                        "title": "Mimetype",
                         "type": "string"
                     }
                 },
                 "required": [
                     "FullName",
                     "MimeType"
-                ],
-                "title": "UiPathAttachment"
+                ]
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "ID": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    },
+                    "FullName": {
+                        "type": "string"
+                    },
+                    "MimeType": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "FullName",
+                    "MimeType"
+                ]
             }
         }
     ]

@@ -40,24 +40,7 @@ class LegacyExactMatchEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating exact match (True/False)
         """
-        actual_output = agent_execution.agent_output
-        expected_output = evaluation_criteria.expected_output
-
-        if self.target_output_key and self.target_output_key != "*":
-            if isinstance(actual_output, dict) and isinstance(expected_output, dict):
-                if not (
-                    self.target_output_key in actual_output
-                    and self.target_output_key in expected_output
-                ):
-                    # Assuming that we should pass the test.
-                    expected_output = actual_output = {}
-                else:
-                    if self.target_output_key in actual_output:
-                        actual_output = actual_output[self.target_output_key]
-                    if self.target_output_key in expected_output:
-                        expected_output = expected_output[self.target_output_key]
-
         return BooleanEvaluationResult(
-            score=self._canonical_json(actual_output)
-            == self._canonical_json(expected_output)
+            score=self._canonical_json(agent_execution.agent_output)
+            == self._canonical_json(evaluation_criteria.expected_output)
         )

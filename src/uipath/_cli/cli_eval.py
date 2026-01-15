@@ -1,7 +1,6 @@
 import ast
 import asyncio
 import os
-from typing import Any
 
 import click
 from uipath.core.tracing import UiPathTraceManager
@@ -20,7 +19,6 @@ from uipath._cli.middlewares import Middlewares
 from uipath._events._event_bus import EventBus
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
-from uipath.platform.chat import set_llm_concurrency
 from uipath.platform.common import UiPathConfig
 from uipath.telemetry._track import flush_events
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
@@ -109,16 +107,10 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     help="File path where traces will be written in JSONL format",
 )
 @click.option(
-    "--max-llm-concurrency",
-    type=int,
-    default=20,
-    help="Maximum concurrent LLM requests (default: 20)",
-)
-@click.option(
-    "--input-overrides",
-    cls=LiteralOption,
-    default="{}",
-    help='Input field overrides per evaluation ID: \'{"eval-1": {"operator": "*"}, "eval-2": {"a": 100}}\'. Supports deep merge for nested objects.',
+    "--resume",
+    is_flag=True,
+    default=False,
+    help="Resume execution from a previous suspended state",
 )
 def eval(
     entrypoint: str | None,
@@ -132,8 +124,7 @@ def eval(
     report_coverage: bool,
     model_settings_id: str,
     trace_file: str | None,
-    max_llm_concurrency: int,
-    input_overrides: dict[str, Any],
+    resume: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -147,12 +138,8 @@ def eval(
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
         model_settings_id: Model settings ID to override agent settings
-        trace_file: File path where traces will be written in JSONL format
-        max_llm_concurrency: Maximum concurrent LLM requests
-        input_overrides: Input field overrides mapping (direct field override with deep merge)
+        resume: Resume execution from a previous suspended state
     """
-    set_llm_concurrency(max_llm_concurrency)
-
     should_register_progress_reporter = setup_reporting_prereq(no_report)
 
     result = Middlewares.next(
@@ -187,7 +174,7 @@ def eval(
         eval_context.eval_ids = eval_ids
         eval_context.report_coverage = report_coverage
         eval_context.model_settings_id = model_settings_id
-        eval_context.input_overrides = input_overrides
+        eval_context.resume = resume
 
         try:
 
@@ -211,6 +198,9 @@ def eval(
                     trace_manager=trace_manager,
                     command="eval",
                 ) as ctx:
+                    # Set job_id in eval context for single runtime runs
+                    eval_context.job_id = ctx.job_id
+
                     if ctx.job_id:
                         trace_manager.add_span_exporter(LlmOpsHttpExporter())
 

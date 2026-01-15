@@ -3,10 +3,6 @@
 This module includes UiPath ReAct Agent Loop constructs such as prompts, tools
 """
 
-from .conversational_prompts import (
-    PromptUserSettings,
-    get_chat_system_prompt,
-)
 from .prompts import AGENT_SYSTEM_PROMPT_TEMPLATE
 from .tools import (
     END_EXECUTION_TOOL,
@@ -23,6 +19,4 @@ __all__ = [
     "RAISE_ERROR_TOOL",
     "EndExecutionToolSchemaModel",
     "RaiseErrorToolSchemaModel",
-    "PromptUserSettings",
-    "get_chat_system_prompt",
 ]

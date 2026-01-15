@@ -31,7 +31,6 @@ from .llm_gateway import (
     ToolChoice,
     ToolDefinition,
 )
-from .llm_throttle import get_llm_semaphore
 
 # Common constants
 API_VERSION = "2024-10-21"  # Standard API version for OpenAI-compatible endpoints
@@ -190,14 +189,13 @@ class UiPathOpenAIService(BaseService):
         )
         endpoint = Endpoint("/" + endpoint)
 
-        async with get_llm_semaphore():
-            response = await self.request_async(
-                "POST",
-                endpoint,
-                json={"input": input},
-                params={"api-version": API_VERSION},
-                headers=DEFAULT_LLM_HEADERS,
-            )
+        response = await self.request_async(
+            "POST",
+            endpoint,
+            json={"input": input},
+            params={"api-version": API_VERSION},
+            headers=DEFAULT_LLM_HEADERS,
+        )
 
         return TextEmbedding.model_validate(response.json())
 
@@ -317,14 +315,13 @@ class UiPathOpenAIService(BaseService):
                 # Use provided dictionary format directly
                 request_body["response_format"] = response_format
 
-        async with get_llm_semaphore():
-            response = await self.request_async(
-                "POST",
-                endpoint,
-                json=request_body,
-                params={"api-version": API_VERSION},
-                headers=DEFAULT_LLM_HEADERS,
-            )
+        response = await self.request_async(
+            "POST",
+            endpoint,
+            json=request_body,
+            params={"api-version": API_VERSION},
+            headers=DEFAULT_LLM_HEADERS,
+        )
 
         return ChatCompletion.model_validate(response.json())
 
@@ -549,14 +546,13 @@ class UiPathLlmChatService(BaseService):
             "X-UiPath-LlmGateway-NormalizedApi-ModelName": model,
         }
 
-        async with get_llm_semaphore():
-            response = await self.request_async(
-                "POST",
-                endpoint,
-                json=request_body,
-                params={"api-version": NORMALIZED_API_VERSION},
-                headers=headers,
-            )
+        response = await self.request_async(
+            "POST",
+            endpoint,
+            json=request_body,
+            params={"api-version": NORMALIZED_API_VERSION},
+            headers=headers,
+        )
 
         return ChatCompletion.model_validate(response.json())
 

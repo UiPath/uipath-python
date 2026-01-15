@@ -4,7 +4,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..action_center.tasks import Task
+from ..action_center import Task
 from ..context_grounding import (
     BatchTransformCreationResponse,
     BatchTransformOutputColumn,
@@ -12,7 +12,7 @@ from ..context_grounding import (
     DeepRagCreationResponse,
 )
 from ..documents import FileContent, StartExtractionResponse
-from ..orchestrator.job import Job
+from ..orchestrator import Job
 
 
 class InvokeProcess(BaseModel):

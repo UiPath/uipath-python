@@ -10,7 +10,6 @@ from uipath.core.guardrails import (
     DeterministicGuardrailsService,
     GuardrailScope,
     GuardrailValidationResult,
-    GuardrailValidationResultType,
 )
 
 from ._guardrails_service import GuardrailsService
@@ -25,7 +24,6 @@ __all__ = [
     "GuardrailsService",
     "BuiltInValidatorGuardrail",
     "GuardrailType",
-    "GuardrailValidationResultType",
     "BaseGuardrail",
     "GuardrailScope",
     "DeterministicGuardrail",
