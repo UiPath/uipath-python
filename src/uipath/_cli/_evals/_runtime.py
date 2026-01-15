@@ -778,6 +778,10 @@ class UiPathEvalRuntime:
                         )
                     )
 
+                # Collect evaluator spans after all evaluators have run
+                # These spans include LLM calls made by evaluators
+                evaluator_spans, _ = self._get_and_clear_execution_data(execution_id)
+
                 exception_details = None
                 agent_output = agent_execution_output.result.output
                 if agent_execution_output.result.status == UiPathRuntimeStatus.FAULTED:
@@ -803,6 +807,7 @@ class UiPathEvalRuntime:
                         agent_output=agent_output,
                         agent_execution_time=agent_execution_output.execution_time,
                         spans=agent_execution_output.spans,
+                        evaluator_spans=evaluator_spans,
                         logs=agent_execution_output.logs,
                         exception_details=exception_details,
                     ),
@@ -821,6 +826,11 @@ class UiPathEvalRuntime:
                         )
                     )
 
+                # Collect any evaluator spans that were generated before the exception
+                exception_evaluator_spans, _ = self._get_and_clear_execution_data(
+                    execution_id
+                )
+
                 eval_run_updated_event = EvalRunUpdatedEvent(
                     execution_id=execution_id,
                     eval_item=eval_item,
@@ -830,6 +840,7 @@ class UiPathEvalRuntime:
                     agent_execution_time=0.0,
                     exception_details=exception_details,
                     spans=[],
+                    evaluator_spans=exception_evaluator_spans,
                     logs=[],
                 )
                 if isinstance(e, EvaluationRuntimeException):

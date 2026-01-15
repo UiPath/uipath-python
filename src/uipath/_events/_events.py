@@ -49,6 +49,7 @@ class EvalRunUpdatedEvent(BaseModel):
     agent_output: Any
     agent_execution_time: float
     spans: list[ReadableSpan]
+    evaluator_spans: list[ReadableSpan] = []
     logs: list[logging.LogRecord]
     exception_details: EvalItemExceptionDetails | None = None
 
