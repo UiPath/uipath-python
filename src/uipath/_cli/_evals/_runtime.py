@@ -29,6 +29,7 @@ from pydantic import BaseModel
 from uipath.core.tracing import UiPathTraceManager
 from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
 from uipath.runtime import (
+    UiPathExecuteOptions,
     UiPathExecutionRuntime,
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeProtocol,
@@ -941,14 +942,20 @@ class UiPathEvalRuntime:
             "span_type": "eval",
         }
 
-        # Create a new runtime with unique runtime_id for this eval execution.
-        # This ensures each eval has its own LangGraph thread_id (clean state),
-        # preventing message accumulation across eval runs.
+        # Create a new runtime with runtime_id for this eval execution.
+        # Use eval_item.id to maintain consistent thread_id across suspend and resume.
+        # This ensures checkpoints can be found when resuming from suspended state.
+        runtime_id = eval_item.id
+        if self.context.resume:
+            logger.info(
+                f"🟢 EVAL RUNTIME: Resume mode - using eval_item.id '{runtime_id}' to load checkpoint"
+            )
+
         eval_runtime = None
         try:
             eval_runtime = await self.factory.new_runtime(
                 entrypoint=self.context.entrypoint or "",
-                runtime_id=execution_id,
+                runtime_id=runtime_id,
             )
             execution_runtime = UiPathExecutionRuntime(
                 delegate=eval_runtime,
@@ -966,9 +973,22 @@ class UiPathEvalRuntime:
                     input_overrides or {},
                     eval_id=eval_item.id,
                 )
-                result = await execution_runtime.execute(
-                    input=inputs_with_overrides,
-                )
+
+                # In resume mode, configure execution options with resume flag
+                # The consistent runtime_id ensures the checkpoint is found
+                if self.context.resume:
+                    logger.info(
+                        "🟢 EVAL RUNTIME: Resuming from checkpoint with resume option"
+                    )
+                    options = UiPathExecuteOptions(resume=True)
+                    result = await execution_runtime.execute(
+                        input=inputs_with_overrides,
+                        options=options,
+                    )
+                else:
+                    result = await execution_runtime.execute(
+                        input=inputs_with_overrides,
+                    )
             except Exception as e:
                 end_time = time()
                 spans, logs = self._get_and_clear_execution_data(execution_id)
