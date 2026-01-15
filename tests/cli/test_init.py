@@ -135,9 +135,10 @@ class TestInit:
             script_content = """
 from dataclasses import dataclass
 from typing import Optional
-
+import uuid
 @dataclass
 class Input:
+    uuid_attribute: uuid.UUID
     message: str
     count: Optional[int] = None
 
@@ -170,6 +171,11 @@ def main(input: Input) -> Output:
                 assert "message" in input_schema["properties"]
                 assert "count" in input_schema["properties"]
                 assert "message" in input_schema["required"]
+
+                assert "uuid_attribute" in input_schema["properties"]
+                assert "uuid_attribute" in input_schema["required"]
+                assert input_schema["properties"]["uuid_attribute"]["type"] == "string"
+                assert input_schema["properties"]["uuid_attribute"]["format"] == "uuid"
 
                 # Verify output schema
                 assert "output" in entry

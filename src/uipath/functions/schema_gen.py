@@ -9,6 +9,10 @@ from typing import Any, Union, get_args, get_origin
 from pydantic import BaseModel
 from uipath.runtime.schema import transform_nullable_types, transform_references
 
+SPECIAL_TYPES_MAP: dict[str, Any] = {
+    "UUID": {"type": "string", "format": "uuid"},
+}
+
 TYPE_MAP: dict[str, str] = {
     "int": "integer",
     "float": "number",
@@ -66,11 +70,14 @@ def get_type_schema(type_hint: Any) -> dict[str, Any]:
         return _get_dataclass_schema(type_hint)
 
     # Handle regular classes with annotations
-    if hasattr(type_hint, "__annotations__"):
+    if hasattr(type_hint, "__annotations__") and type_hint.__annotations__:
         return _get_annotated_class_schema(type_hint)
 
-    # Fallback
     type_name = getattr(type_hint, "__name__", str(type_hint))
+    if type_name in SPECIAL_TYPES_MAP:
+        return SPECIAL_TYPES_MAP[type_name]
+
+    # Fallback
     return {"type": TYPE_MAP.get(type_name, "object")}
 
 
