@@ -45,6 +45,7 @@ class AgentToolType(str, Enum):
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
     INTEGRATION = "Integration"
     INTERNAL = "Internal"
+    IXP = "Ixp"
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
@@ -438,6 +439,22 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     )
 
 
+class AgentIxpExtractionToolProperties(BaseResourceProperties):
+    """Agent process tool properties model."""
+
+    project_name: str | None = Field(None, alias="projectName")
+    version_tag: str | None = Field(None, alias="versionTag")
+
+
+class AgentIxpExtractionResourceConfig(BaseAgentToolResourceConfig):
+    """Agent ixp extraction tool resource configuration model."""
+
+    type: Literal[AgentToolType.IXP] = AgentToolType.IXP
+    output_schema: dict[str, Any] = Field(..., alias="outputSchema")
+    settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
+    properties: AgentIxpExtractionToolProperties
+
+
 class AgentIntegrationToolParameter(BaseCfg):
     """Agent integration tool parameter model."""
 
@@ -520,6 +537,7 @@ ToolResourceConfig = Annotated[
         AgentProcessToolResourceConfig,
         AgentIntegrationToolResourceConfig,
         AgentInternalToolResourceConfig,
+        AgentIxpExtractionResourceConfig,
         AgentUnknownToolResourceConfig,  # when parent sets type="Unknown"
     ],
     Field(discriminator="type"),
@@ -885,6 +903,7 @@ class AgentDefinition(BaseModel):
             "processorchestration": "ProcessOrchestration",
             "integration": "Integration",
             "internal": "Internal",
+            "ixp": "Ixp",
             "unknown": "Unknown",
         }
         CONTEXT_MODE_MAP = {

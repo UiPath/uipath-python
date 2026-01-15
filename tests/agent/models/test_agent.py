@@ -15,6 +15,7 @@ from uipath.agent.models.agent import (
     AgentGuardrailEscalateAction,
     AgentGuardrailUnknownAction,
     AgentIntegrationToolResourceConfig,
+    AgentIxpExtractionResourceConfig,
     AgentMcpResourceConfig,
     AgentProcessToolResourceConfig,
     AgentResourceType,
@@ -2280,6 +2281,135 @@ class TestAgentBuilderConfig:
 
         assert isinstance(recipient, recipient_class)
         assert recipient.type == expected_type
+
+    def test_agent_with_ixp_extraction_tool(self):
+        """Test agent with IXP extraction tool resource"""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000005",
+            "name": "Agent with IXP Extraction Tool",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "id": "43931770-a441-48f7-894d-0792bf45f6b9",
+                    "name": "document_extraction",
+                    "description": "Extract data from input files",
+                    "location": "external",
+                    "type": "ixp",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "attachment": {
+                                "description": "file to extract the data from",
+                                "$ref": "#/definitions/job-attachment",
+                            }
+                        },
+                        "required": ["attachment"],
+                        "definitions": {
+                            "job-attachment": {
+                                "type": "object",
+                                "required": ["ID"],
+                                "x-uipath-resource-kind": "JobAttachment",
+                                "properties": {
+                                    "ID": {
+                                        "type": "string",
+                                        "description": "Orchestrator attachment key",
+                                    },
+                                    "FullName": {
+                                        "type": "string",
+                                        "description": "File name",
+                                    },
+                                    "MimeType": {
+                                        "type": "string",
+                                        "description": 'The MIME type of the content, such as "application/json" or "image/png"',
+                                    },
+                                    "Metadata": {
+                                        "type": "object",
+                                        "description": "Dictionary<string, string> of metadata",
+                                        "additionalProperties": {"type": "string"},
+                                    },
+                                },
+                            }
+                        },
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "settings": {},
+                    "properties": {
+                        "projectName": "extraction-project",
+                        "versionTag": "latest",
+                    },
+                    "guardrail": {"policies": []},
+                    "isEnabled": True,
+                    "argumentProperties": {},
+                }
+            ],
+            "features": [],
+        }
+
+        # Test deserialization
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        # Validate agent
+        assert config.id == "aaaaaaaa-0000-0000-0000-000000000005"
+        assert config.name == "Agent with IXP Extraction Tool"
+        assert len(config.resources) == 1
+
+        # Validate IXP extraction tool
+        tool = config.resources[0]
+        assert isinstance(tool, AgentIxpExtractionResourceConfig)
+        assert tool.resource_type == AgentResourceType.TOOL
+        assert tool.type == AgentToolType.IXP
+        assert tool.name == "document_extraction"
+        assert tool.description == "Extract data from input files"
+
+        # Validate tool properties
+        assert tool.properties.project_name == "extraction-project"
+        assert tool.properties.version_tag == "latest"
+
+        # Validate input schema with definitions
+        assert tool.input_schema is not None
+        assert tool.input_schema["type"] == "object"
+        assert "properties" in tool.input_schema
+        assert "attachment" in tool.input_schema["properties"]
+        assert tool.input_schema["required"] == ["attachment"]
+        assert "definitions" in tool.input_schema
+        assert "job-attachment" in tool.input_schema["definitions"]
+
+        # Validate job-attachment definition
+        job_attachment_def = tool.input_schema["definitions"]["job-attachment"]
+        assert job_attachment_def["type"] == "object"
+        assert job_attachment_def["required"] == ["ID"]
+        assert job_attachment_def["x-uipath-resource-kind"] == "JobAttachment"
+        assert "ID" in job_attachment_def["properties"]
+        assert "FullName" in job_attachment_def["properties"]
+        assert "MimeType" in job_attachment_def["properties"]
+        assert "Metadata" in job_attachment_def["properties"]
+
+        # Validate output schema
+        assert tool.output_schema is not None
+        assert tool.output_schema["type"] == "object"
+        assert tool.output_schema["properties"] == {}
+
+        # Validate settings
+        assert tool.settings is not None
 
 
 class TestAgentDefinitionIsConversational:
