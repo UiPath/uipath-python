@@ -48,8 +48,8 @@ class TestGuardrailsService:
                 url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
                 status_code=200,
                 json={
-                    "result": "passed",
-                    "reason": "Validation passed",
+                    "result": "PASSED",
+                    "details": "Validation passed",
                 },
             )
 
@@ -98,8 +98,8 @@ class TestGuardrailsService:
                 url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
                 status_code=200,
                 json={
-                    "result": "validation_failed",
-                    "reason": "PII detected: Email found",
+                    "result": "VALIDATION_FAILED",
+                    "details": "PII detected: Email found",
                 },
             )
 
@@ -136,8 +136,8 @@ class TestGuardrailsService:
                 url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
                 status_code=200,
                 json={
-                    "result": "feature_disabled",
-                    "reason": "Guardrail feature is disabled",
+                    "result": "FEATURE_DISABLED",
+                    "details": "Guardrail feature is disabled",
                 },
             )
 
@@ -174,8 +174,8 @@ class TestGuardrailsService:
                 url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
                 status_code=200,
                 json={
-                    "result": "entitlements_missing",
-                    "reason": "Guardrail entitlement is missing",
+                    "result": "ENTITLEMENTS_MISSING",
+                    "details": "Guardrail entitlement is missing",
                 },
             )
 
@@ -216,8 +216,8 @@ class TestGuardrailsService:
                 return httpx.Response(
                     status_code=200,
                     json={
-                        "result": "passed",
-                        "reason": "Validation passed",
+                        "result": "PASSED",
+                        "details": "Validation passed",
                     },
                 )
 

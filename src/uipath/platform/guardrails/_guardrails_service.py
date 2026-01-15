@@ -30,6 +30,32 @@ class GuardrailsService(BaseService):
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    @staticmethod
+    def _parse_result(result_str: str) -> GuardrailValidationResultType:
+        """Parse result string from API response to GuardrailValidationResultType.
+
+        Args:
+            result_str: The result string from the API response (e.g., "VALIDATION_FAILED").
+
+        Returns:
+            GuardrailValidationResultType: The parsed validation result type.
+        """
+        if not result_str:
+            return GuardrailValidationResultType.VALIDATION_FAILED
+
+        # Convert uppercase enum name to enum value
+        # API: "VALIDATION_FAILED" -> enum: "validation_failed"
+        result_value = result_str.lower()
+        try:
+            return GuardrailValidationResultType(result_value)
+        except ValueError:
+            # If direct conversion fails, try by enum name
+            try:
+                return GuardrailValidationResultType[result_str]
+            except KeyError:
+                # Fallback to validation_failed if unknown
+                return GuardrailValidationResultType.VALIDATION_FAILED
+
     @traced("evaluate_guardrail", run_type="uipath")
     def evaluate_guardrail(
         self,
@@ -66,39 +92,15 @@ class GuardrailsService(BaseService):
         )
         response_data = response.json()
 
-        # Handle new API format: try to parse result field
-        result = None
-        result_str = response_data.get("result")
-        if result_str:
-            # Try to get enum by name first (e.g., "VALIDATION_FAILED")
-            try:
-                result = GuardrailValidationResultType[result_str]
-            except KeyError:
-                # If not found by name, try by value (e.g., "validation_failed")
-                try:
-                    result = GuardrailValidationResultType(result_str)
-                except ValueError:
-                    # Parsing failed, fall back to old format
-                    result = None
+        result = self._parse_result(response_data.get("result", ""))
 
-        # Old format: backwards compatibility - determine result from validation_passed
-        if result is None:
-            validation_passed = response_data.get("validation_passed", False)
-            result = (
-                GuardrailValidationResultType.PASSED
-                if validation_passed
-                else GuardrailValidationResultType.VALIDATION_FAILED
-            )
+        # Map details field to reason
+        details = response_data.get("details", "")
 
-        # Ensure result is always set (defensive check)
-        if result is None:
-            result = GuardrailValidationResultType.VALIDATION_FAILED
-
-        # Prepare model data with only the fields needed by GuardrailValidationResult
-        # (result and reason; ignore old fields like details, validation_passed, skip)
+        # Prepare model data
         model_data = {
             "result": result.value,
-            "reason": response_data.get("reason", ""),
+            "reason": details,
         }
 
         return GuardrailValidationResult.model_validate(model_data)
