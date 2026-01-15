@@ -8,106 +8,73 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def parse_speedscope_profile(profile_path: str) -> dict:
-    """Extract timing metrics from py-spy speedscope output.
+def load_timing_metrics(artifacts_dir: str = "artifacts") -> dict:
+    """Load timing metrics from instrumentation files.
 
-    Speedscope format contains:
-    - profiles: Array of profile data with weights (time samples)
-    - shared: Frame information with function names
-    - samples: Timeline of stack samples
-
-    We extract:
-    - Total execution time
-    - Time spent in user function (main)
-    - Time spent in framework overhead
+    Returns timing breakdown:
+    - User code time (from main.py instrumentation)
+    - Total execution time (from run.sh measurement)
+    - Framework overhead (calculated as total - user code)
     """
-    if not Path(profile_path).exists():
-        return {"error": f"Profile file not found: {profile_path}"}
+    artifacts_path = Path(artifacts_dir)
 
-    try:
-        with open(profile_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        return {"error": f"Invalid JSON: {e}"}
+    # Load user code timing (instrumented in main.py)
+    user_timing_path = artifacts_path / "user_code_timing.json"
+    user_code_time = 0
 
-    # Extract timing information
-    profiles = data.get("profiles", [])
-    if not profiles:
-        return {"error": "No profile data found"}
+    if user_timing_path.exists():
+        try:
+            with open(user_timing_path, "r", encoding="utf-8") as f:
+                user_timing = json.load(f)
+                user_code_time = user_timing.get("user_code_time_seconds", 0)
+        except json.JSONDecodeError:
+            pass
 
-    profile = profiles[0]  # Use first profile (main process)
-    samples = profile.get("samples", [])
-    weights = profile.get("weights", [])
-    shared = data.get("shared", {})
-    frames = shared.get("frames", [])
+    # Load total execution timing (from run.sh memray measurement)
+    total_timing_path = artifacts_path / "total_execution.json"
+    total_time = 0
+    if total_timing_path.exists():
+        try:
+            with open(total_timing_path, "r", encoding="utf-8") as f:
+                total_timing = json.load(f)
+                total_time = total_timing.get("total_execution_time_seconds", 0)
+        except json.JSONDecodeError:
+            pass
 
-    # Calculate total execution time (sum of all weights, in microseconds)
-    total_time_us = sum(weights) if weights else 0
-    total_time_ms = total_time_us / 1000
-    total_time_s = total_time_us / 1_000_000
-
-    # Find user function time
-    # Look for frames containing "main" from our testcase
-    user_function_time_us = 0
-    framework_time_us = 0
-    import_time_us = 0
-
-    for i, sample_frames in enumerate(samples):
-        weight = weights[i] if i < len(weights) else 0
-
-        # Get frame information
-        frame_names = []
-        for frame_idx in sample_frames:
-            if frame_idx < len(frames):
-                frame = frames[frame_idx]
-                frame_name = frame.get("name", "")
-                frame_names.append(frame_name)
-
-        # Check if this sample is in user function
-        is_user_function = any("main" in name and "testcases" in str(frame.get("file", ""))
-                              for frame_idx in sample_frames
-                              for name in [frames[frame_idx].get("name", "")]
-                              if frame_idx < len(frames))
-
-        # Check if this sample is in import machinery
-        is_import = any("_find_and_load" in name or "_load_unlocked" in name
-                       for frame_idx in sample_frames
-                       for name in [frames[frame_idx].get("name", "")]
-                       if frame_idx < len(frames))
-
-        if is_import:
-            import_time_us += weight
-        elif is_user_function:
-            user_function_time_us += weight
-        else:
-            framework_time_us += weight
+    # Calculate framework overhead
+    framework_overhead = total_time - user_code_time
 
     # Calculate percentages
-    user_percentage = (user_function_time_us / total_time_us * 100) if total_time_us > 0 else 0
-    framework_percentage = (framework_time_us / total_time_us * 100) if total_time_us > 0 else 0
-    import_percentage = (import_time_us / total_time_us * 100) if total_time_us > 0 else 0
+    user_percentage = (user_code_time / total_time * 100) if total_time > 0 else 0
+    framework_percentage = (framework_overhead / total_time * 100) if total_time > 0 else 0
 
     return {
-        "total_time_seconds": round(total_time_s, 3),
-        "total_time_ms": round(total_time_ms, 2),
-        "user_function": {
-            "time_ms": round(user_function_time_us / 1000, 2),
-            "time_seconds": round(user_function_time_us / 1_000_000, 3),
+        "total_time_seconds": round(total_time, 3),
+        "total_time_ms": round(total_time * 1000, 2),
+        "user_code_time": {
+            "time_ms": round(user_code_time * 1000, 2),
+            "time_seconds": round(user_code_time, 6),
             "percentage": round(user_percentage, 2)
         },
         "framework_overhead": {
-            "time_ms": round(framework_time_us / 1000, 2),
-            "time_seconds": round(framework_time_us / 1_000_000, 3),
+            "time_ms": round(framework_overhead * 1000, 2),
+            "time_seconds": round(framework_overhead, 3),
             "percentage": round(framework_percentage, 2)
-        },
-        "import_time": {
-            "time_ms": round(import_time_us / 1000, 2),
-            "time_seconds": round(import_time_us / 1_000_000, 3),
-            "percentage": round(import_percentage, 2)
-        },
-        "sample_count": len(samples),
-        "unique_frames": len(frames)
+        }
     }
+
+
+def load_memory_metrics(artifacts_dir: str = "artifacts") -> dict:
+    """Load memory metrics from memray stats output."""
+    memory_stats_path = Path(artifacts_dir) / "memory_stats.json"
+    if not memory_stats_path.exists():
+        return {}
+
+    try:
+        with open(memory_stats_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
 
 
 def get_file_size(file_path: str) -> int:
@@ -115,19 +82,6 @@ def get_file_size(file_path: str) -> int:
     if not Path(file_path).exists():
         return 0
     return Path(file_path).stat().st_size
-
-
-def load_memory_metrics(artifacts_dir: str = "artifacts") -> dict:
-    """Load memory profiling metrics if available."""
-    memory_profile_path = Path(artifacts_dir) / "memory_profile.json"
-    if not memory_profile_path.exists():
-        return {}
-
-    try:
-        with open(memory_profile_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        return {}
 
 
 def collect_metrics(
@@ -153,17 +107,19 @@ def collect_metrics(
     if testcase is None:
         testcase = os.getenv("TESTCASE", Path.cwd().name)
 
-    # Parse speedscope profile for timing metrics
-    profile_path = artifacts_path / "profile.json"
-    timing_metrics = parse_speedscope_profile(str(profile_path))
+    # Load timing metrics (user code + total execution)
+    timing_metrics = load_timing_metrics(artifacts_dir)
 
-    # Load memory metrics
+    # Load memory metrics (from memray)
     memory_metrics = load_memory_metrics(artifacts_dir)
 
     # Get artifact file sizes
     file_sizes = {
-        "profile_json": get_file_size(str(profile_path)),
-        "memory_profile_json": get_file_size(str(artifacts_path / "memory_profile.json")),
+        "profile_json": get_file_size(str(artifacts_path / "profile.json")),
+        "user_code_timing_json": get_file_size(str(artifacts_path / "user_code_timing.json")),
+        "total_execution_json": get_file_size(str(artifacts_path / "total_execution.json")),
+        "memory_bin": get_file_size(str(artifacts_path / "memory.bin")),
+        "memory_stats_json": get_file_size(str(artifacts_path / "memory_stats.json")),
     }
 
     # Build complete metrics object
@@ -173,8 +129,7 @@ def collect_metrics(
         "testcase": testcase,
         "function": "main (echo function - minimal work)",
         "timing": timing_metrics,
-        "memory": memory_metrics.get("memory", {}),
-        "execution_time_seconds": memory_metrics.get("execution_time_seconds", 0),
+        "memory": memory_metrics,
         "file_sizes": file_sizes,
         "environment": {
             "python_version": sys.version.split()[0],
@@ -283,25 +238,23 @@ def main():
 
     # Timing metrics
     timing = metrics.get('timing', {})
-    if timing and 'error' not in timing:
+    if timing:
         print(f"\n⏱️  Timing Metrics:")
         print(f"  Total execution time: {timing.get('total_time_seconds', 0)}s ({timing.get('total_time_ms', 0)}ms)")
 
-        user_func = timing.get('user_function', {})
-        print(f"  User function time: {user_func.get('time_seconds', 0)}s ({user_func.get('percentage', 0)}%)")
+        user_code = timing.get('user_code_time', {})
+        print(f"  User code time: {user_code.get('time_seconds', 0)}s ({user_code.get('percentage', 0)}%)")
 
         framework = timing.get('framework_overhead', {})
         print(f"  Framework overhead: {framework.get('time_seconds', 0)}s ({framework.get('percentage', 0)}%)")
-
-        import_time = timing.get('import_time', {})
-        print(f"  Import time: {import_time.get('time_seconds', 0)}s ({import_time.get('percentage', 0)}%)")
 
     # Memory metrics
     memory = metrics.get('memory', {})
     if memory:
         print(f"\n💾 Memory Metrics:")
         print(f"  Peak memory: {memory.get('peak_mb', 0)} MB")
-        print(f"  Current memory: {memory.get('current_mb', 0)} MB")
+        if 'total_allocations' in memory:
+            print(f"  Total allocations: {memory.get('total_allocations', 0):,}")
 
     # Save metrics JSON
     print("\n💾 Saving metrics...")
