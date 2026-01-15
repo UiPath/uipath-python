@@ -535,9 +535,31 @@ class UiPathEvalRuntime:
                             logger.info("EVAL RUNTIME: No triggers to pass through")
                         logger.info("=" * 80)
 
+                        # Determine overall status - if any eval run is suspended, propagate SUSPENDED
+                        # This is critical for serverless executor to know to save state and suspend job
+                        overall_status = UiPathRuntimeStatus.SUCCESSFUL
+                        for eval_run_result in results.evaluation_set_results:
+                            if (
+                                eval_run_result.agent_execution_output
+                                and eval_run_result.agent_execution_output.result
+                            ):
+                                inner_status = (
+                                    eval_run_result.agent_execution_output.result.status
+                                )
+                                if inner_status == UiPathRuntimeStatus.SUSPENDED:
+                                    overall_status = UiPathRuntimeStatus.SUSPENDED
+                                    logger.info(
+                                        "EVAL RUNTIME: Propagating SUSPENDED status from inner runtime"
+                                    )
+                                    break
+                                elif inner_status == UiPathRuntimeStatus.FAULTED:
+                                    # FAULTED takes precedence over SUCCESSFUL but not SUSPENDED
+                                    if overall_status != UiPathRuntimeStatus.SUSPENDED:
+                                        overall_status = UiPathRuntimeStatus.FAULTED
+
                         result = UiPathRuntimeResult(
                             output={**results.model_dump(by_alias=True)},
-                            status=UiPathRuntimeStatus.SUCCESSFUL,
+                            status=overall_status,
                             triggers=all_triggers if all_triggers else None,
                         )
                         return result
