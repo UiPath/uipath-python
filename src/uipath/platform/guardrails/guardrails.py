@@ -60,11 +60,3 @@ class GuardrailType(str, Enum):
 
     BUILT_IN_VALIDATOR = "builtInValidator"
     CUSTOM = "custom"
-
-
-class GuardrailValidationResultType(str, Enum):
-    """Guardrail validation result type enumeration."""
-
-    PASSED = "passed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
