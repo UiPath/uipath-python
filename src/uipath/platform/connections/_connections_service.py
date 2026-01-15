@@ -661,7 +661,7 @@ class ConnectionsService(BaseService):
             ValueError: If required parameters are missing or invalid
             RuntimeError: If the HTTP request fails or returns an error status
         """
-        spec, files = self._build_activity_request_spec(
+        spec = self._build_activity_request_spec(
             activity_metadata, connection_id, activity_input
         )
 
@@ -671,7 +671,7 @@ class ConnectionsService(BaseService):
             headers=spec.headers,
             params=spec.params,
             json=spec.json,
-            files=files,
+            files=spec.files,
         )
 
         return response.json()
@@ -700,7 +700,7 @@ class ConnectionsService(BaseService):
             ValueError: If required parameters are missing or invalid
             RuntimeError: If the HTTP request fails or returns an error status
         """
-        spec, files = self._build_activity_request_spec(
+        spec = self._build_activity_request_spec(
             activity_metadata, connection_id, activity_input
         )
 
@@ -710,7 +710,7 @@ class ConnectionsService(BaseService):
             headers=spec.headers,
             params=spec.params,
             json=spec.json,
-            files=files,
+            files=spec.files,
         )
 
         return response.json()
@@ -720,7 +720,7 @@ class ConnectionsService(BaseService):
         activity_metadata: ActivityMetadata,
         connection_id: str,
         activity_input: Dict[str, Any],
-    ) -> tuple[RequestSpec, dict[str, Any] | None]:
+    ) -> RequestSpec:
         """Build the request specification for invoking an activity."""
         url = f"/elements_/v3/element/instances/{connection_id}{activity_metadata.object_path}"
 
@@ -767,7 +767,7 @@ class ConnectionsService(BaseService):
         }
 
         # body and files handling
-        json_data = None
+        json_data: Dict[str, Any] | None = None
         files: Dict[str, Any] | None = None
 
         # multipart/form-data for file uploads
@@ -786,9 +786,8 @@ class ConnectionsService(BaseService):
                     None,
                 )  # probably needs to extract content type from val since IS metadata doesn't provide it
 
-            # body fields need to get added as a separate part
             files["body"] = (
-                "body",
+                "",
                 json.dumps(body_fields),
                 "application/json",
             )
@@ -801,13 +800,11 @@ class ConnectionsService(BaseService):
                 f"Unsupported content type: {activity_metadata.content_type}"
             )
 
-        return (
-            RequestSpec(
-                method=activity_metadata.method_name,
-                endpoint=Endpoint(url),
-                headers=headers,
-                params=query_params,
-                json=json_data,
-            ),
-            files,
+        return RequestSpec(
+            method=activity_metadata.method_name,
+            endpoint=Endpoint(url),
+            headers=headers,
+            params=query_params,
+            json=json_data,
+            files=files,
         )
