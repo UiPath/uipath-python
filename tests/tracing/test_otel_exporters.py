@@ -737,16 +737,6 @@ class TestUpsertSpan:
             assert result == SpanExportResult.FAILURE
             assert exporter_with_mocks.http_client.post.call_count == 4  # max_retries=4
 
-    def test_upsert_span_filters_dropped_spans(self, exporter_with_mocks):
-        """upsert_span should skip spans marked with telemetry.filter=drop."""
-        span = MagicMock(spec=ReadableSpan)
-        span.attributes = {"telemetry.filter": "drop"}
-
-        result = exporter_with_mocks.upsert_span(span)
-
-        assert result == SpanExportResult.SUCCESS
-        exporter_with_mocks.http_client.post.assert_not_called()
-
 
 if __name__ == "__main__":
     unittest.main()

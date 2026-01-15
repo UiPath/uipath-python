@@ -7,7 +7,6 @@ from types import UnionType
 from typing import Any, Union, get_args, get_origin
 
 from pydantic import BaseModel
-from uipath.runtime.schema import transform_nullable_types, transform_references
 
 TYPE_MAP: dict[str, str] = {
     "int": "integer",
@@ -92,20 +91,17 @@ def _get_enum_schema(enum_class: type[Enum]) -> dict[str, Any]:
 
 
 def _get_pydantic_schema(model_class: type[BaseModel]) -> dict[str, Any]:
-    """Generate schema for Pydantic models using Pydantic's built-in schema generation."""
-    schema = model_class.model_json_schema()
+    """Generate schema for Pydantic models."""
+    properties = {}
+    required = []
 
-    resolved_schema, _ = transform_references(schema)
-    processed_properties = transform_nullable_types(resolved_schema)
-    assert isinstance(processed_properties, dict)
-    schema = {
-        "type": "object",
-        "properties": processed_properties.get("properties", {}),
-        "required": processed_properties.get("required", []),
-    }
-    if (title := processed_properties.get("title", None)) is not None:
-        schema["title"] = title
-    return schema
+    for field_name, field_info in model_class.model_fields.items():
+        schema_field_name = field_info.alias or field_name
+        properties[schema_field_name] = get_type_schema(field_info.annotation)
+        if field_info.is_required():
+            required.append(schema_field_name)
+
+    return {"type": "object", "properties": properties, "required": required}
 
 
 def _get_dataclass_schema(dataclass_type: type) -> dict[str, Any]:
@@ -115,7 +111,6 @@ def _get_dataclass_schema(dataclass_type: type) -> dict[str, Any]:
 
     for field in fields(dataclass_type):
         properties[field.name] = get_type_schema(field.type)
-
         # Field is required if it has no default value and no default_factory
         if field.default == field.default_factory == field.default.__class__.__name__:
             required.append(field.name)

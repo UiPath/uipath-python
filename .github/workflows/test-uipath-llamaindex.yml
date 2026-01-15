@@ -36,19 +36,19 @@ jobs:
         working-directory: uipath-python
         run: uv build
 
-      - name: Checkout uipath-integrations-python
+      - name: Checkout uipath-llamaindex-python
         uses: actions/checkout@v4
         with:
-          repository: 'UiPath/uipath-integrations-python'
-          path: 'uipath-integrations-python'
+          repository: 'UiPath/uipath-llamaindex-python'
+          path: 'uipath-llamaindex-python'
 
       - name: Update uipath-python version
         shell: bash
-        working-directory: uipath-integrations-python/packages/uipath-llamaindex
-        run: uv add ../../../uipath-python/dist/*.whl --dev
+        working-directory: uipath-llamaindex-python
+        run: uv add ../uipath-python/dist/*.whl --dev
 
       - name: Run uipath-llamaindex tests
-        working-directory: uipath-integrations-python/packages/uipath-llamaindex
+        working-directory: uipath-llamaindex-python
         run: |
           uv sync
           uv run pytest
@@ -61,15 +61,15 @@ jobs:
     outputs:
       testcases: ${{ steps.discover.outputs.testcases }}
     steps:
-      - name: Checkout uipath-integrations-python
+      - name: Checkout uipath-llamaindex-python
         uses: actions/checkout@v4
         with:
-          repository: 'UiPath/uipath-integrations-python'
-          path: 'uipath-integrations-python'
+          repository: 'UiPath/uipath-llamaindex-python'
+          path: 'uipath-llamaindex-python'
 
       - name: Discover testcases
         id: discover
-        working-directory: uipath-integrations-python/packages/uipath-llamaindex
+        working-directory: uipath-llamaindex-python
         run: |
           # Find all testcase folders (excluding common folders like README, etc.)
           testcase_dirs=$(find testcases -maxdepth 1 -type d -name "*-*" | sed 's|testcases/||' | sort)
@@ -108,19 +108,19 @@ jobs:
         working-directory: uipath-python
         run: uv build
 
-      - name: Checkout uipath-integrations-python
+      - name: Checkout uipath-llamaindex-python
         uses: actions/checkout@v4
         with:
-          repository: 'UiPath/uipath-integrations-python'
-          path: 'uipath-integrations-python'
+          repository: 'UiPath/uipath-llamaindex-python'
+          path: 'uipath-llamaindex-python'
 
       - name: Update uipath-python version
         shell: bash
-        working-directory: uipath-integrations-python/packages/uipath-llamaindex
-        run: uv add ../../../uipath-python/dist/*.whl
+        working-directory: uipath-llamaindex-python
+        run: uv add ../uipath-python/dist/*.whl
 
       - name: Install dependencies
-        working-directory: uipath-integrations-python/packages/uipath-llamaindex
+        working-directory: uipath-llamaindex-python
         run: uv sync
 
       - name: Run testcase
@@ -129,7 +129,7 @@ jobs:
           CLIENT_SECRET:  ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_SECRET || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_SECRET || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_SECRET }}
           BASE_URL:       ${{ matrix.environment == 'alpha' && secrets.ALPHA_BASE_URL || matrix.environment == 'staging' && secrets.STAGING_BASE_URL || matrix.environment == 'cloud' && secrets.CLOUD_BASE_URL }}
           UV_PYTHON: "3.12"
-        working-directory: uipath-integrations-python/packages/uipath-llamaindex/testcases/${{ matrix.testcase }}
+        working-directory: uipath-llamaindex-python/testcases/${{ matrix.testcase }}
         run: |
           echo "Running testcase: ${{ matrix.testcase }}"
           echo "Environment: ${{ matrix.environment }}"

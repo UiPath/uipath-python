@@ -173,11 +173,7 @@ def write_entry_points_file(entry_points: list[UiPathRuntimeSchema]) -> Path:
         "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
         "$id": "entry-points.json",
         "entryPoints": [
-            ep.model_dump(
-                by_alias=True,
-                exclude_unset=True,
-            )
-            for ep in entry_points
+            ep.model_dump(by_alias=True, exclude_unset=True) for ep in entry_points
         ],
     }
 
@@ -301,7 +297,6 @@ def init(no_agents_md_override: bool) -> None:
                                 entrypoint_name, runtime_id="default"
                             )
                             schema = await runtime.get_schema()
-
                             entry_point_schemas.append(schema)
                         finally:
                             if runtime:

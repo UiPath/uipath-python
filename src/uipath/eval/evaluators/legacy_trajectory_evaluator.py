@@ -49,8 +49,9 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorCon
         return v
 
     def model_post_init(self, __context: Any):
-        """Initialize the evaluator after model creation."""
+        """Initialize the LLM service after model creation."""
         super().model_post_init(__context)
+        self._initialize_llm()
 
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
@@ -81,10 +82,6 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorCon
         Raises:
             NotImplementedError: This evaluator is not yet implemented
         """
-        # Lazily initialize the LLM on first evaluation call
-        if self.llm is None:
-            self._initialize_llm()
-
         evaluation_prompt = self._create_evaluation_prompt(
             expected_agent_behavior=agent_execution.expected_agent_behavior,
             agent_run_history=agent_execution.agent_trace,
@@ -136,7 +133,8 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorCon
         Returns:
             LLMResponse with score and justification
         """
-        assert self.llm, "LLM should be initialized before calling this method."
+        if not self.llm:
+            raise ValueError("LLM service not initialized")
 
         model = self.model
         if model.endswith(COMMUNITY_agents_SUFFIX):

@@ -1,13 +1,14 @@
 """Chat bridge implementations for conversational agents."""
 
 import asyncio
-import json
 import logging
 import os
 import uuid
 from typing import Any
 from urllib.parse import urlparse
 
+import socketio  # type: ignore[import-untyped]
+from socketio import AsyncClient
 from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
@@ -53,12 +54,8 @@ class SocketIOChatBridge:
         self.exchange_id = exchange_id
         self.auth = auth
         self.headers = headers
-        self._client: Any | None = None
+        self._client: AsyncClient | None = None
         self._connected_event = asyncio.Event()
-
-        # Set CAS_WEBSOCKET_DISABLED when using the debugger to prevent websocket errors from
-        # interrupting the debugging session. Events will be logged instead of being sent.
-        self._websocket_disabled = os.environ.get("CAS_WEBSOCKET_DISABLED") == "true"
 
     async def connect(self, timeout: float = 10.0) -> None:
         """Establish WebSocket connection to the server.
@@ -80,10 +77,7 @@ class SocketIOChatBridge:
             return
 
         # Create new SocketIO client
-        # Lazy import to avoid dependency if not used, improve startup time
-        from socketio import AsyncClient  # type: ignore[import-untyped]
-
-        self._client = AsyncClient(
+        self._client = socketio.AsyncClient(
             logger=logger,
             engineio_logger=logger,
         )
@@ -92,43 +86,37 @@ class SocketIOChatBridge:
         self._client.on("connect", self._handle_connect)
         self._client.on("disconnect", self._handle_disconnect)
         self._client.on("connect_error", self._handle_connect_error)
-        self._client.on("ConversationEvent", self._handle_conversation_event)
 
         self._connected_event.clear()
 
-        if self._websocket_disabled:
-            logger.warning(
-                "SocketIOChatBridge is in debug mode. Not connecting websocket."
+        try:
+            # Attempt to connect with timeout
+            await asyncio.wait_for(
+                self._client.connect(
+                    url=self.websocket_url,
+                    socketio_path=self.websocket_path,
+                    headers=self.headers,
+                    auth=self.auth,
+                    transports=["websocket"],
+                ),
+                timeout=timeout,
             )
-        else:
-            try:
-                # Attempt to connect with timeout
-                await asyncio.wait_for(
-                    self._client.connect(
-                        url=self.websocket_url,
-                        socketio_path=self.websocket_path,
-                        headers=self.headers,
-                        auth=self.auth,
-                        transports=["websocket"],
-                    ),
-                    timeout=timeout,
-                )
 
-                await asyncio.wait_for(self._connected_event.wait(), timeout=timeout)
+            await asyncio.wait_for(self._connected_event.wait(), timeout=timeout)
 
-            except asyncio.TimeoutError as e:
-                error_message = (
-                    f"Failed to connect to WebSocket server within {timeout}s timeout"
-                )
-                logger.error(error_message)
-                await self._cleanup_client()
-                raise RuntimeError(error_message) from e
+        except asyncio.TimeoutError as e:
+            error_message = (
+                f"Failed to connect to WebSocket server within {timeout}s timeout"
+            )
+            logger.error(error_message)
+            await self._cleanup_client()
+            raise RuntimeError(error_message) from e
 
-            except Exception as e:
-                error_message = f"Failed to connect to WebSocket server: {e}"
-                logger.error(error_message)
-                await self._cleanup_client()
-                raise RuntimeError(error_message) from e
+        except Exception as e:
+            error_message = f"Failed to connect to WebSocket server: {e}"
+            logger.error(error_message)
+            await self._cleanup_client()
+            raise RuntimeError(error_message) from e
 
     async def disconnect(self) -> None:
         """Close the WebSocket connection gracefully.
@@ -161,7 +149,7 @@ class SocketIOChatBridge:
         if self._client is None:
             raise RuntimeError("WebSocket client not connected. Call connect() first.")
 
-        if not self._connected_event.is_set() and not self._websocket_disabled:
+        if not self._connected_event.is_set():
             raise RuntimeError("WebSocket client not in connected state")
 
         try:
@@ -178,12 +166,7 @@ class SocketIOChatBridge:
                 mode="json", exclude_none=True, by_alias=True
             )
 
-            if self._websocket_disabled:
-                logger.info(
-                    f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
-                )
-            else:
-                await self._client.emit("ConversationEvent", event_data)
+            await self._client.emit("ConversationEvent", event_data)
 
             # Store the current message ID, used for emitting interrupt events.
             self._current_message_id = message_event.message_id
@@ -201,7 +184,7 @@ class SocketIOChatBridge:
         if self._client is None:
             raise RuntimeError("WebSocket client not connected. Call connect() first.")
 
-        if not self._connected_event.is_set() and not self._websocket_disabled:
+        if not self._connected_event.is_set():
             raise RuntimeError("WebSocket client not in connected state")
 
         try:
@@ -217,12 +200,7 @@ class SocketIOChatBridge:
                 mode="json", exclude_none=True, by_alias=True
             )
 
-            if self._websocket_disabled:
-                logger.info(
-                    f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
-                )
-            else:
-                await self._client.emit("ConversationEvent", event_data)
+            await self._client.emit("ConversationEvent", event_data)
 
         except Exception as e:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
@@ -252,12 +230,7 @@ class SocketIOChatBridge:
                 event_data = interrupt_event.model_dump(
                     mode="json", exclude_none=True, by_alias=True
                 )
-                if self._websocket_disabled:
-                    logger.info(
-                        f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
-                    )
-                else:
-                    await self._client.emit("ConversationEvent", event_data)
+                await self._client.emit("ConversationEvent", event_data)
             except Exception as e:
                 logger.warning(f"Error sending interrupt event: {e}")
 
@@ -291,14 +264,6 @@ class SocketIOChatBridge:
     async def _handle_connect_error(self, data: Any) -> None:
         """Handle connection error event."""
         logger.error(f"WebSocket connection error: {data}")
-
-    async def _handle_conversation_event(
-        self, event: dict[str, Any], _sid: str
-    ) -> None:
-        """Handle received ConversationEvent events."""
-        error_event = event.get("conversationError")
-        if error_event:
-            logger.error(f"Conversation error: {json.dumps(error_event)}")
 
     async def _cleanup_client(self) -> None:
         """Clean up client resources."""
@@ -349,13 +314,6 @@ def get_chat_bridge(
     # Construct WebSocket URL for CAS
     websocket_url = f"wss://{host}?conversationId={context.conversation_id}"
     websocket_path = "autopilotforeveryone_/websocket_/socket.io"
-
-    if os.environ.get("CAS_WEBSOCKET_HOST"):
-        websocket_url = f"ws://{os.environ.get('CAS_WEBSOCKET_HOST')}?conversationId={context.conversation_id}"
-        websocket_path = "/socket.io"
-        logger.warning(
-            f"CAS_WEBSOCKET_HOST is set. Using websocket_url '{websocket_url}{websocket_path}'."
-        )
 
     # Build headers from context
     headers = {

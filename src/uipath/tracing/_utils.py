@@ -99,10 +99,6 @@ class UiPathSpan:
 
     job_key: Optional[str] = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
 
-    # Top-level fields for internal tracing schema
-    execution_type: Optional[int] = None
-    agent_version: Optional[str] = None
-
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
         """Convert the Span to a dictionary suitable for JSON serialization.
 
@@ -141,8 +137,6 @@ class UiPathSpan:
             "ProcessKey": self.process_key,
             "JobKey": self.job_key,
             "ReferenceId": self.reference_id,
-            "ExecutionType": self.execution_type,
-            "AgentVersion": self.agent_version,
         }
 
 
@@ -291,10 +285,6 @@ class _SpanUtils:
         span_type_value = attributes_dict.get("span_type", "OpenTelemetry")
         span_type = str(span_type_value)
 
-        # Top-level fields for internal tracing schema
-        execution_type = attributes_dict.get("executionType")
-        agent_version = attributes_dict.get("agentVersion")
-
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
             (otel_span.start_time or 0) / 1e9
@@ -320,8 +310,6 @@ class _SpanUtils:
             end_time=end_time_str,
             status=status,
             span_type=span_type,
-            execution_type=execution_type,
-            agent_version=agent_version,
         )
 
     @staticmethod

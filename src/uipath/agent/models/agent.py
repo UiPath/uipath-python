@@ -16,7 +16,7 @@ from pydantic import (
 from uipath.core.guardrails import (
     BaseGuardrail,
     FieldReference,
-    SpecificFieldsSelector,
+    FieldSelector,
     UniversalRule,
 )
 
@@ -655,25 +655,11 @@ class AgentWordRule(BaseModel):
     """Word rule model."""
 
     rule_type: Literal["word"] = Field(alias="$ruleType")
-    field_selector: AgentFieldSelector = Field(alias="fieldSelector")
+    field_selector: FieldSelector = Field(alias="fieldSelector")
     operator: AgentWordOperator
     value: str | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-class AgentAllFieldsSelector(BaseModel):
-    """All fields selector."""
-
-    selector_type: Literal["all"] = Field(alias="$selectorType")
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
-AgentFieldSelector = Annotated[
-    AgentAllFieldsSelector | SpecificFieldsSelector,
-    Field(discriminator="selector_type"),
-]
 
 
 class AgentNumberOperator(str, Enum):
@@ -691,7 +677,7 @@ class AgentNumberRule(BaseModel):
     """Number rule model."""
 
     rule_type: Literal["number"] = Field(alias="$ruleType")
-    field_selector: AgentFieldSelector = Field(alias="fieldSelector")
+    field_selector: FieldSelector = Field(alias="fieldSelector")
     operator: AgentNumberOperator
     value: float
 
@@ -708,7 +694,7 @@ class AgentBooleanRule(BaseModel):
     """Boolean rule model."""
 
     rule_type: Literal["boolean"] = Field(alias="$ruleType")
-    field_selector: AgentFieldSelector = Field(alias="fieldSelector")
+    field_selector: FieldSelector = Field(alias="fieldSelector")
     operator: AgentBooleanOperator
     value: bool
 
@@ -779,13 +765,6 @@ class AgentMessage(BaseCfg):
         return v.lower() if isinstance(v, str) else v
 
 
-class AgentByomProperties(BaseCfg):
-    """Agent byom properties model."""
-
-    connection_id: str = Field(alias="connectionId")
-    connector_key: str = Field(alias="connectorKey")
-
-
 class AgentSettings(BaseCfg):
     """Agent settings model."""
 
@@ -793,7 +772,6 @@ class AgentSettings(BaseCfg):
     model: str
     max_tokens: int = Field(..., alias="maxTokens")
     temperature: float
-    byom_properties: Optional[AgentByomProperties] = Field(None, alias="byomProperties")
 
 
 class AgentDefinition(BaseModel):
@@ -816,15 +794,6 @@ class AgentDefinition(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
-
-    @property
-    def is_conversational(self) -> bool:
-        """Checks the settings.engine property to determine if the agent is conversational."""
-        if hasattr(self, "metadata") and self.metadata:
-            metadata = self.metadata
-            if hasattr(metadata, "is_conversational"):
-                return metadata.is_conversational
-        return False
 
     @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:

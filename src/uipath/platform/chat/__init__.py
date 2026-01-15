@@ -30,7 +30,6 @@ from .llm_gateway import (
     ToolParametersDefinition,
     ToolPropertyDefinition,
 )
-from .llm_throttle import get_llm_semaphore, set_llm_concurrency
 
 __all__ = [
     # Conversations Service
@@ -40,9 +39,6 @@ __all__ = [
     "EmbeddingModels",
     "UiPathLlmChatService",
     "UiPathOpenAIService",
-    # LLM Throttling
-    "get_llm_semaphore",
-    "set_llm_concurrency",
     # LLM Gateway Models
     "ToolPropertyDefinition",
     "ToolParametersDefinition",

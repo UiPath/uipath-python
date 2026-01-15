@@ -2,7 +2,6 @@ import json
 import logging
 import uuid
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from time import time
@@ -19,11 +18,8 @@ from typing import (
 
 import coverage
 from opentelemetry import context as context_api
-from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
-from opentelemetry.sdk.trace.export import (
-    SpanExporter,
-    SpanExportResult,
-)
+from opentelemetry.sdk.trace import ReadableSpan, Span
+from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 from uipath.core.tracing import UiPathTraceManager
@@ -51,7 +47,6 @@ from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.input_mocker import (
     generate_llm_input,
 )
-from uipath.tracing import LlmOpsHttpExporter, SpanStatus
 
 from ..._events._event_bus import EventBus
 from ..._events._events import (
@@ -68,7 +63,6 @@ from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
 from ._configurable_factory import ConfigurableRuntimeFactory
-from ._eval_util import apply_input_overrides
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
@@ -161,102 +155,6 @@ class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
                 self.collector.add_span(span, exec_id)
 
 
-class LiveTrackingSpanProcessor(SpanProcessor):
-    """Span processor for live span tracking using upsert_span API.
-
-    Sends real-time span updates:
-    - On span start: Upsert with RUNNING status
-    - On span end: Upsert with final status (OK/ERROR)
-
-    All upsert calls run in background threads without blocking evaluation
-    execution. Uses a thread pool to cap the maximum number of concurrent
-    threads and avoid resource exhaustion.
-    """
-
-    def __init__(
-        self,
-        exporter: LlmOpsHttpExporter,
-        max_workers: int = 10,
-    ):
-        self.exporter = exporter
-        self.span_status = SpanStatus
-        self.executor = ThreadPoolExecutor(
-            max_workers=max_workers, thread_name_prefix="span-upsert"
-        )
-
-    def _upsert_span_async(
-        self, span: Span | ReadableSpan, status_override: int | None = None
-    ) -> None:
-        """Run upsert_span in a background thread without blocking.
-
-        Submits the upsert task to the thread pool and returns immediately.
-        The thread pool handles execution with max_workers cap to prevent
-        resource exhaustion.
-        """
-
-        def _upsert():
-            try:
-                if status_override:
-                    self.exporter.upsert_span(span, status_override=status_override)
-                else:
-                    self.exporter.upsert_span(span)
-            except Exception as e:
-                logger.debug(f"Failed to upsert span: {e}")
-
-        # Submit to thread pool and return immediately (non-blocking)
-        # The timeout parameter is reserved for shutdown operations
-        self.executor.submit(_upsert)
-
-    def on_start(
-        self, span: Span, parent_context: context_api.Context | None = None
-    ) -> None:
-        """Called when span starts - upsert with RUNNING status (non-blocking)."""
-        # Only track evaluation-related spans
-        if span.attributes and self._is_eval_span(span):
-            self._upsert_span_async(span, status_override=self.span_status.RUNNING)
-
-    def on_end(self, span: ReadableSpan) -> None:
-        """Called when span ends - upsert with final status (non-blocking)."""
-        # Only track evaluation-related spans
-        if span.attributes and self._is_eval_span(span):
-            self._upsert_span_async(span)
-
-    def _is_eval_span(self, span: Span | ReadableSpan) -> bool:
-        """Check if span is evaluation-related."""
-        if not span.attributes:
-            return False
-
-        span_type = span.attributes.get("span_type")
-        # Track eval-related span types
-        eval_span_types = {
-            "eval",
-            "evaluator",
-            "evaluation",
-            "eval_set_run",
-            "evalOutput",
-        }
-
-        if span_type in eval_span_types:
-            return True
-
-        # Also track spans with execution.id (eval executions)
-        if "execution.id" in span.attributes:
-            return True
-
-        return False
-
-    def shutdown(self) -> None:
-        """Shutdown the processor and wait for pending tasks to complete."""
-        try:
-            self.executor.shutdown(wait=True)
-        except Exception as e:
-            logger.debug(f"Executor shutdown failed: {e}")
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:
-        """Force flush - no-op for live tracking."""
-        return True
-
-
 class ExecutionLogsExporter:
     """Custom exporter that stores multiple execution log handlers."""
 
@@ -293,8 +191,9 @@ class UiPathEvalContext:
     verbose: bool = False
     enable_mocker_cache: bool = False
     report_coverage: bool = False
-    input_overrides: dict[str, Any] | None = None
     model_settings_id: str = "default"
+    resume: bool = False
+    job_id: str | None = None
 
 
 class UiPathEvalRuntime:
@@ -320,14 +219,9 @@ class UiPathEvalRuntime:
         self.trace_manager.tracer_span_processors.append(span_processor)
         self.trace_manager.tracer_provider.add_span_processor(span_processor)
 
-        # Live tracking processor for real-time span updates
-        live_tracking_exporter = LlmOpsHttpExporter()
-        live_tracking_processor = LiveTrackingSpanProcessor(live_tracking_exporter)
-        self.trace_manager.tracer_span_processors.append(live_tracking_processor)
-        self.trace_manager.tracer_provider.add_span_processor(live_tracking_processor)
-
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
-        self.execution_id = str(uuid.uuid4())
+        # Use job_id if available (for single runtime runs), otherwise generate UUID
+        self.execution_id = context.job_id or str(uuid.uuid4())
         self.coverage = coverage.Coverage(branch=True)
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
@@ -405,6 +299,17 @@ class UiPathEvalRuntime:
         )
 
     async def execute(self) -> UiPathRuntimeResult:
+        logger.info("=" * 80)
+        logger.info("EVAL RUNTIME: Starting evaluation execution")
+        logger.info(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
+        logger.info(f"EVAL RUNTIME: Job ID: {self.context.job_id}")
+        logger.info(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
+        if self.context.resume:
+            logger.info(
+                "🟢 EVAL RUNTIME: RESUME MODE ENABLED - Will resume from suspended state"
+            )
+        logger.info("=" * 80)
+
         # Configure model settings override before creating runtime
         await self._configure_model_settings_override()
 
@@ -490,9 +395,41 @@ class UiPathEvalRuntime:
                             wait_for_completion=False,
                         )
 
+                        # Collect triggers from all evaluation runs (pass-through from inner runtime)
+                        logger.info("=" * 80)
+                        logger.info(
+                            "EVAL RUNTIME: Collecting triggers from all evaluation runs"
+                        )
+                        all_triggers = []
+                        for eval_run_result in results.evaluation_set_results:
+                            if (
+                                eval_run_result.agent_execution_output
+                                and eval_run_result.agent_execution_output.result
+                            ):
+                                runtime_result = (
+                                    eval_run_result.agent_execution_output.result
+                                )
+                                if runtime_result.trigger:
+                                    all_triggers.append(runtime_result.trigger)
+                                if runtime_result.triggers:
+                                    all_triggers.extend(runtime_result.triggers)
+
+                        if all_triggers:
+                            logger.info(
+                                f"EVAL RUNTIME: ✅ Passing through {len(all_triggers)} trigger(s) to top-level result"
+                            )
+                            for i, trigger in enumerate(all_triggers, 1):
+                                logger.info(
+                                    f"EVAL RUNTIME: Pass-through trigger {i}: {trigger.model_dump(by_alias=True)}"
+                                )
+                        else:
+                            logger.info("EVAL RUNTIME: No triggers to pass through")
+                        logger.info("=" * 80)
+
                         result = UiPathRuntimeResult(
                             output={**results.model_dump(by_alias=True)},
                             status=UiPathRuntimeStatus.SUCCESSFUL,
+                            triggers=all_triggers if all_triggers else None,
                         )
                         return result
                     except Exception as e:
@@ -519,7 +456,21 @@ class UiPathEvalRuntime:
         evaluators: list[BaseEvaluator[Any, Any, Any]],
         runtime: UiPathRuntimeProtocol,
     ) -> EvaluationRunResult:
+        # Generate LLM-based input if input_mocking_strategy is defined
+        if eval_item.input_mocking_strategy:
+            eval_item = await self._generate_input_for_eval(eval_item, runtime)
+
         execution_id = str(uuid.uuid4())
+
+        set_execution_context(eval_item, self.span_collector, execution_id)
+
+        await self.event_bus.publish(
+            EvaluationEvents.CREATE_EVAL_RUN,
+            EvalRunCreatedEvent(
+                execution_id=execution_id,
+                eval_item=eval_item,
+            ),
+        )
 
         # Create the "Evaluation" span for this eval item
         # Use tracer from trace_manager's provider to ensure spans go through
@@ -540,27 +491,17 @@ class UiPathEvalRuntime:
 
             try:
                 try:
-                    # Generate LLM-based input if input_mocking_strategy is defined
-                    if eval_item.input_mocking_strategy:
-                        eval_item = await self._generate_input_for_eval(
-                            eval_item, runtime
-                        )
-
-                    set_execution_context(eval_item, self.span_collector, execution_id)
-
-                    await self.event_bus.publish(
-                        EvaluationEvents.CREATE_EVAL_RUN,
-                        EvalRunCreatedEvent(
-                            execution_id=execution_id,
-                            eval_item=eval_item,
-                        ),
-                    )
                     agent_execution_output = await self.execute_runtime(
-                        eval_item,
-                        execution_id,
-                        runtime,
-                        input_overrides=self.context.input_overrides,
+                        eval_item, execution_id, runtime
                     )
+
+                    logger.info(
+                        f"DEBUG: Agent execution result status: {agent_execution_output.result.status}"
+                    )
+                    logger.info(
+                        f"DEBUG: Agent execution result trigger: {agent_execution_output.result.trigger}"
+                    )
+
                 except Exception as e:
                     if self.context.verbose:
                         if isinstance(e, EvaluationRuntimeException):
@@ -595,6 +536,69 @@ class UiPathEvalRuntime:
                             )
                         )
                     raise
+
+                # Check if execution was suspended (e.g., waiting for RPA job completion)
+                if (
+                    agent_execution_output.result.status
+                    == UiPathRuntimeStatus.SUSPENDED
+                ):
+                    # For suspended executions, we don't run evaluators yet
+                    # The serverless executor should save the triggers and resume later
+                    logger.info("=" * 80)
+                    logger.info(
+                        f"🔴 EVAL RUNTIME: DETECTED SUSPENSION for eval '{eval_item.name}' (id: {eval_item.id})"
+                    )
+                    logger.info("EVAL RUNTIME: Agent returned SUSPENDED status")
+
+                    # Extract triggers from result
+                    triggers = []
+                    if agent_execution_output.result.trigger:
+                        triggers.append(agent_execution_output.result.trigger)
+                    if agent_execution_output.result.triggers:
+                        triggers.extend(agent_execution_output.result.triggers)
+
+                    logger.info(
+                        f"EVAL RUNTIME: Extracted {len(triggers)} trigger(s) from suspended execution"
+                    )
+                    for i, trigger in enumerate(triggers, 1):
+                        logger.info(
+                            f"EVAL RUNTIME: Trigger {i}: {trigger.model_dump(by_alias=True)}"
+                        )
+                    logger.info("=" * 80)
+
+                    # IMPORTANT: Always include execution output with triggers when suspended
+                    # This ensures triggers are visible in the output JSON for serverless executor
+                    evaluation_run_results.agent_execution_output = (
+                        convert_eval_execution_output_to_serializable(
+                            agent_execution_output
+                        )
+                    )
+
+                    # Publish suspended status event
+                    await self.event_bus.publish(
+                        EvaluationEvents.UPDATE_EVAL_RUN,
+                        EvalRunUpdatedEvent(
+                            execution_id=execution_id,
+                            eval_item=eval_item,
+                            eval_results=[],
+                            success=True,  # Not failed, just suspended
+                            agent_output={
+                                "status": "suspended",
+                                "triggers": [
+                                    t.model_dump(by_alias=True) for t in triggers
+                                ],
+                            },
+                            agent_execution_time=agent_execution_output.execution_time,
+                            spans=agent_execution_output.spans,
+                            logs=agent_execution_output.logs,
+                            exception_details=None,
+                        ),
+                        wait_for_completion=False,
+                    )
+
+                    # Return partial results with trigger information
+                    # The evaluation will be completed when resumed
+                    return evaluation_run_results
 
                 if self.context.verbose:
                     evaluation_run_results.agent_execution_output = (
@@ -794,7 +798,6 @@ class UiPathEvalRuntime:
         eval_item: EvaluationItem,
         execution_id: str,
         runtime: UiPathRuntimeProtocol,
-        input_overrides: dict[str, Any] | None = None,
     ) -> UiPathEvalRunExecutionOutput:
         log_handler = self._setup_execution_logging(execution_id)
         attributes = {
@@ -821,14 +824,8 @@ class UiPathEvalRuntime:
 
             start_time = time()
             try:
-                # Apply input overrides to inputs if configured
-                inputs_with_overrides = apply_input_overrides(
-                    eval_item.inputs,
-                    input_overrides or {},
-                    eval_id=eval_item.id,
-                )
                 result = await execution_runtime.execute(
-                    input=inputs_with_overrides,
+                    input=eval_item.inputs,
                 )
             except Exception as e:
                 end_time = time()

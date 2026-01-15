@@ -10,7 +10,8 @@ from ..._utils.constants import (
     HEADER_TENANT_ID,
 )
 from ...tracing import traced
-from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
+from ..common import FolderContext, UiPathApiConfig, UiPathExecutionContext
+from ..common._base_service import BaseService
 from .task_schema import TaskSchema
 from .tasks import Task
 

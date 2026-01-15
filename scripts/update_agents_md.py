@@ -262,9 +262,11 @@ def generate_cli_docs() -> str:
     Returns:
         Markdown string with CLI commands documentation
     """
-    from uipath._cli.cli_eval import eval
-    from uipath._cli.cli_init import init
-    from uipath._cli.cli_run import run
+    from uipath._cli import (
+        eval,
+        init,
+        run,
+    )
 
     commands = [
         ("init", init),

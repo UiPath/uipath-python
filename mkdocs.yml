@@ -107,7 +107,7 @@ nav:
       - LLMs and Embeddings: llamaindex/llms_and_embeddings.md
       - Context Grounding: llamaindex/context_grounding.md
       - Human In The Loop: llamaindex/human_in_the_loop.md
-      - Sample Agents: https://github.com/UiPath/uipath-integrations-python/tree/main/packages/uipath-llamaindex/samples
+      - Sample Agents: https://github.com/UiPath/uipath-llamaindex-python/tree/main/samples
   - How To Contribute: CONTRIBUTING.md
   - FAQ: FAQ.md
   - Automation Suite: AutomationSuite.md

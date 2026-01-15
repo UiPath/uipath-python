@@ -1,12 +1,12 @@
 [project]
 name = "uipath"
-version = "2.5.2"
+version = "2.4.11"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
-  "uipath-core>=0.1.6, <0.2.0",
-  "uipath-runtime>=0.5.0, <0.6.0",
+  "uipath-core>=0.1.4, <0.2.0",
+  "uipath-runtime>=0.4.0, <0.5.0",
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
@@ -59,9 +59,7 @@ dev = [
   "pytest-trio>=0.8.0",
   "pytest-cov>=4.1.0",
   "pytest-mock>=3.11.1",
-  "pre-commit>=4.5.1",
-  "filelock>=3.20.3",
-  "virtualenv>=20.36.1",
+  "pre-commit>=4.1.0",
   "mkdocs>=1.6.1",
   "mkdocs-material[imaging]>=9.7.0",
   "mkdocstrings[python]>=0.30.1",

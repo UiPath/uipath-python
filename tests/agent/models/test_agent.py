@@ -100,10 +100,6 @@ class TestAgentBuilderConfig:
                 "maxTokens": 16384,
                 "temperature": 0,
                 "engine": "basic-v1",
-                "byomProperties": {
-                    "connectionId": "test-byom-connection-id",
-                    "connectorKey": "uipath-openai-openai",
-                },
             },
             "resources": [
                 {
@@ -459,11 +455,6 @@ class TestAgentBuilderConfig:
         assert len(config.resources) == 8  # All tool types + escalation + context + mcp
         assert config.settings.engine == "basic-v1"
         assert config.settings.max_tokens == 16384
-        assert config.settings.byom_properties is not None
-        assert (
-            config.settings.byom_properties.connection_id == "test-byom-connection-id"
-        )
-        assert config.settings.byom_properties.connector_key == "uipath-openai-openai"
 
         # Validate resource types
         resource_types = [resource.resource_type for resource in config.resources]
@@ -2280,109 +2271,3 @@ class TestAgentBuilderConfig:
 
         assert isinstance(recipient, recipient_class)
         assert recipient.type == expected_type
-
-
-class TestAgentDefinitionIsConversational:
-    """Tests for AgentDefinition.is_conversational property."""
-
-    def test_is_conversational_true_when_metadata_set(self):
-        """Returns True when metadata.is_conversational is True."""
-        json_data = {
-            "id": "test-conversational",
-            "name": "Conversational Agent",
-            "version": "1.0.0",
-            "metadata": {"isConversational": True, "storageVersion": "1.0.0"},
-            "settings": {
-                "model": "gpt-4o",
-                "maxTokens": 4096,
-                "temperature": 0.7,
-                "engine": "conversational-v1",
-            },
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {"type": "object", "properties": {}},
-            "resources": [],
-            "messages": [
-                {"role": "system", "content": "You are a conversational agent."}
-            ],
-        }
-
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-
-        assert config.is_conversational is True
-
-    def test_is_conversational_false_when_metadata_set_false(self):
-        """Returns False when metadata.is_conversational is False."""
-        json_data = {
-            "id": "test-non-conversational",
-            "name": "Non-Conversational Agent",
-            "version": "1.0.0",
-            "metadata": {"isConversational": False, "storageVersion": "1.0.0"},
-            "settings": {
-                "model": "gpt-4o",
-                "maxTokens": 4096,
-                "temperature": 0.7,
-                "engine": "basic-v1",
-            },
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {"type": "object", "properties": {}},
-            "resources": [],
-            "messages": [{"role": "system", "content": "You are an agent."}],
-        }
-
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-
-        assert config.is_conversational is False
-
-    def test_is_conversational_false_when_no_metadata(self):
-        """Returns False when agent has no metadata."""
-        json_data = {
-            "id": "test-no-metadata",
-            "name": "Agent Without Metadata",
-            "version": "1.0.0",
-            "settings": {
-                "model": "gpt-4o",
-                "maxTokens": 4096,
-                "temperature": 0.7,
-                "engine": "basic-v1",
-            },
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {"type": "object", "properties": {}},
-            "resources": [],
-            "messages": [{"role": "system", "content": "You are an agent."}],
-        }
-
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-
-        assert config.metadata is None
-        assert config.is_conversational is False
-
-    def test_is_conversational_false_by_default(self):
-        """Default agent definition returns False."""
-        # Minimal agent definition without conversational settings
-        json_data = {
-            "id": "test-default",
-            "name": "Default Agent",
-            "version": "1.0.0",
-            "settings": {
-                "model": "gpt-4o",
-                "maxTokens": 4096,
-                "temperature": 0,
-                "engine": "basic-v1",
-            },
-            "inputSchema": {"type": "object", "properties": {}},
-            "outputSchema": {"type": "object", "properties": {}},
-            "resources": [],
-            "messages": [{"role": "system", "content": "Default system prompt."}],
-        }
-
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-
-        assert config.is_conversational is False

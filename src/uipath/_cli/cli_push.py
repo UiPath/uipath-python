@@ -84,12 +84,7 @@ async def create_resources(studio_client: StudioClient):
         else:
             name_resource_value = bindings_resource.value.get("name")
             folder_path_resource_value = bindings_resource.value.get("folderPath")
-
-            if not folder_path_resource_value:
-                # guardrail resource, nothing to import
-                continue
-
-            assert name_resource_value
+            assert name_resource_value and folder_path_resource_value
             resource_name = name_resource_value.default_value
             folder_path = folder_path_resource_value.default_value
 

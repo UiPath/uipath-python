@@ -3,15 +3,10 @@ from typing import Optional
 
 from pydantic import ValidationError
 
-from .._utils._auth import resolve_config_from_env
+from .._utils._auth import resolve_config
 from .action_center import TasksService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
-from .common import (
-    ApiClient,
-    ExternalApplicationService,
-    UiPathApiConfig,
-    UiPathExecutionContext,
-)
+from .common import ApiClient, UiPathApiConfig, UiPathExecutionContext
 from .connections import ConnectionsService
 from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
@@ -31,14 +26,6 @@ from .orchestrator import (
 from .resource_catalog import ResourceCatalogService
 
 
-def _has_valid_client_credentials(
-    client_id: Optional[str], client_secret: Optional[str]
-) -> bool:
-    if bool(client_id) != bool(client_secret):
-        raise ValueError("Both client_id and client_secret must be provided together.")
-    return bool(client_id and client_secret)
-
-
 class UiPath:
     def __init__(
         self,
@@ -51,14 +38,9 @@ class UiPath:
         debug: bool = False,
     ) -> None:
         try:
-            if _has_valid_client_credentials(client_id, client_secret):
-                assert client_id and client_secret
-                service = ExternalApplicationService(base_url)
-                token_data = service.get_token_data(client_id, client_secret, scope)
-                base_url, secret = service._base_url, token_data.access_token
-            else:
-                base_url, secret = resolve_config_from_env(base_url, secret)
-
+            base_url, secret = resolve_config(
+                base_url, secret, client_id, client_secret, scope
+            )
             self._config = UiPathApiConfig(
                 base_url=base_url,
                 secret=secret,

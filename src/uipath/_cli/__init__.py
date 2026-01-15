@@ -1,67 +1,29 @@
 import importlib.metadata
-import os
 import sys
 
 import click
-from dotenv import load_dotenv
 
-from uipath._cli._utils._context import CliContext
-from uipath._cli.runtimes import load_runtime_factories
-from uipath._utils._logs import setup_logging
-from uipath._utils.constants import DOTENV_FILE
 from uipath.functions import register_default_runtime_factory
 
-# DO NOT ADD HEAVY IMPORTS HERE
-#
-# Every import at the top of this file runs on EVERY command.
-# Yes, even `--version`. Yes, even `--help`.
-#
-# We spent hours getting startup from 1.7s → 0.5s.
-# If you add `import pandas` here, I will find you.
-
-_LAZY_COMMANDS = {
-    "new": "cli_new",
-    "init": "cli_init",
-    "pack": "cli_pack",
-    "publish": "cli_publish",
-    "run": "cli_run",
-    "deploy": "cli_deploy",
-    "auth": "cli_auth",
-    "invoke": "cli_invoke",
-    "push": "cli_push",
-    "pull": "cli_pull",
-    "eval": "cli_eval",
-    "dev": "cli_dev",
-    "add": "cli_add",
-    "register": "cli_register",
-    "debug": "cli_debug",
-    "buckets": "services.cli_buckets",
-}
-
-
-def _load_command(name: str):
-    """Load a CLI command by name."""
-    if name not in _LAZY_COMMANDS:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    module_name = _LAZY_COMMANDS[name]
-    mod = __import__(f"uipath._cli.{module_name}", fromlist=[name])
-    return getattr(mod, name)
-
-
-def __getattr__(name: str):
-    """Lazy load CLI commands for mkdocs-click compatibility."""
-    return _load_command(name)
-
-
-def add_cwd_to_path():
-    cwd = os.getcwd()
-    if cwd not in sys.path:
-        sys.path.insert(0, cwd)
-
-
-def load_environment_variables():
-    load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
-
+from .._utils._logs import setup_logging
+from ._utils._common import add_cwd_to_path, load_environment_variables
+from ._utils._context import CliContext
+from .cli_add import add as add
+from .cli_auth import auth as auth
+from .cli_debug import debug as debug
+from .cli_deploy import deploy as deploy
+from .cli_dev import dev as dev
+from .cli_eval import eval as eval
+from .cli_init import init as init
+from .cli_invoke import invoke as invoke
+from .cli_new import new as new
+from .cli_pack import pack as pack
+from .cli_publish import publish as publish
+from .cli_pull import pull as pull
+from .cli_push import push as push
+from .cli_register import register as register
+from .cli_run import run as run
+from .runtimes import load_runtime_factories
 
 load_environment_variables()
 add_cwd_to_path()
@@ -78,19 +40,7 @@ def _get_safe_version() -> str:
         return "unknown"
 
 
-class LazyGroup(click.Group):
-    """Lazy-load commands only when invoked."""
-
-    def list_commands(self, ctx):
-        return sorted(_LAZY_COMMANDS.keys())
-
-    def get_command(self, ctx, cmd_name):
-        if cmd_name in _LAZY_COMMANDS:
-            return _load_command(cmd_name)
-        return None
-
-
-@click.command(cls=LazyGroup, invoke_without_command=True)
+@click.group(invoke_without_command=True)
 @click.version_option(
     _get_safe_version(),
     prog_name="uipath",
@@ -159,3 +109,24 @@ def cli(
     # Show help if no command was provided (matches docker, kubectl, git behavior)
     if ctx.invoked_subcommand is None and not lv and not v:
         click.echo(ctx.get_help())
+
+
+cli.add_command(new)
+cli.add_command(init)
+cli.add_command(pack)
+cli.add_command(publish)
+cli.add_command(run)
+cli.add_command(deploy)
+cli.add_command(auth)
+cli.add_command(invoke)
+cli.add_command(push)
+cli.add_command(pull)
+cli.add_command(eval)
+cli.add_command(dev)
+cli.add_command(add)
+cli.add_command(register)
+cli.add_command(debug)
+
+from .services import register_service_commands  # noqa: E402
+
+register_service_commands(cli)
