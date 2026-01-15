@@ -20,4 +20,5 @@ class RequestSpec:
     content: Optional[Any] = None
     json: Optional[Any] = None
     data: Optional[Any] = None
+    files: Optional[dict[str, Any]] = None
     timeout: Optional[Union[int, float]] = None
