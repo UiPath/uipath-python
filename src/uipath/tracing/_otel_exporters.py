@@ -188,6 +188,9 @@ class LlmOpsHttpExporter(SpanExporter):
         Returns:
             SpanExportResult indicating success or failure
         """
+        if self._should_drop_span(span):
+            return SpanExportResult.SUCCESS
+
         span_data = _SpanUtils.otel_span_to_uipath_span(
             span, custom_trace_id=self.trace_id, serialize_attributes=False
         ).to_dict(serialize_attributes=False)
