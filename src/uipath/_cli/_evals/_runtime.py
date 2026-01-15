@@ -295,6 +295,8 @@ class UiPathEvalContext:
     report_coverage: bool = False
     input_overrides: dict[str, Any] | None = None
     model_settings_id: str = "default"
+    resume: bool = False
+    job_id: str | None = None
 
 
 class UiPathEvalRuntime:
@@ -327,7 +329,8 @@ class UiPathEvalRuntime:
         self.trace_manager.tracer_provider.add_span_processor(live_tracking_processor)
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
-        self.execution_id = str(uuid.uuid4())
+        # Use job_id if available (for single runtime runs), otherwise generate UUID
+        self.execution_id = context.job_id or str(uuid.uuid4())
         self.coverage = coverage.Coverage(branch=True)
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
@@ -405,6 +408,17 @@ class UiPathEvalRuntime:
         )
 
     async def execute(self) -> UiPathRuntimeResult:
+        logger.info("=" * 80)
+        logger.info("EVAL RUNTIME: Starting evaluation execution")
+        logger.info(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
+        logger.info(f"EVAL RUNTIME: Job ID: {self.context.job_id}")
+        logger.info(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
+        if self.context.resume:
+            logger.info(
+                "🟢 EVAL RUNTIME: RESUME MODE ENABLED - Will resume from suspended state"
+            )
+        logger.info("=" * 80)
+
         # Configure model settings override before creating runtime
         await self._configure_model_settings_override()
 
@@ -490,9 +504,63 @@ class UiPathEvalRuntime:
                             wait_for_completion=False,
                         )
 
+                        # Collect triggers from all evaluation runs (pass-through from inner runtime)
+                        logger.info("=" * 80)
+                        logger.info(
+                            "EVAL RUNTIME: Collecting triggers from all evaluation runs"
+                        )
+                        all_triggers = []
+                        for eval_run_result in results.evaluation_set_results:
+                            if (
+                                eval_run_result.agent_execution_output
+                                and eval_run_result.agent_execution_output.result
+                            ):
+                                runtime_result = (
+                                    eval_run_result.agent_execution_output.result
+                                )
+                                if runtime_result.trigger:
+                                    all_triggers.append(runtime_result.trigger)
+                                if runtime_result.triggers:
+                                    all_triggers.extend(runtime_result.triggers)
+
+                        if all_triggers:
+                            logger.info(
+                                f"EVAL RUNTIME: ✅ Passing through {len(all_triggers)} trigger(s) to top-level result"
+                            )
+                            for i, trigger in enumerate(all_triggers, 1):
+                                logger.info(
+                                    f"EVAL RUNTIME: Pass-through trigger {i}: {trigger.model_dump(by_alias=True)}"
+                                )
+                        else:
+                            logger.info("EVAL RUNTIME: No triggers to pass through")
+                        logger.info("=" * 80)
+
+                        # Determine overall status - propagate status from inner runtime
+                        # This is critical for serverless executor to know to save state and suspend job
+                        # Priority: SUSPENDED > FAULTED > SUCCESSFUL
+                        overall_status = UiPathRuntimeStatus.SUCCESSFUL
+                        for eval_run_result in results.evaluation_set_results:
+                            if (
+                                eval_run_result.agent_execution_output
+                                and eval_run_result.agent_execution_output.result
+                            ):
+                                inner_status = (
+                                    eval_run_result.agent_execution_output.result.status
+                                )
+                                if inner_status == UiPathRuntimeStatus.SUSPENDED:
+                                    overall_status = UiPathRuntimeStatus.SUSPENDED
+                                    logger.info(
+                                        "EVAL RUNTIME: Propagating SUSPENDED status from inner runtime"
+                                    )
+                                    break  # SUSPENDED takes highest priority, stop checking
+                                elif inner_status == UiPathRuntimeStatus.FAULTED:
+                                    overall_status = UiPathRuntimeStatus.FAULTED
+                                    # Continue checking in case a later eval is SUSPENDED
+
                         result = UiPathRuntimeResult(
                             output={**results.model_dump(by_alias=True)},
-                            status=UiPathRuntimeStatus.SUCCESSFUL,
+                            status=overall_status,
+                            triggers=all_triggers if all_triggers else None,
                         )
                         return result
                     except Exception as e:
@@ -561,6 +629,14 @@ class UiPathEvalRuntime:
                         runtime,
                         input_overrides=self.context.input_overrides,
                     )
+
+                    logger.info(
+                        f"DEBUG: Agent execution result status: {agent_execution_output.result.status}"
+                    )
+                    logger.info(
+                        f"DEBUG: Agent execution result trigger: {agent_execution_output.result.trigger}"
+                    )
+
                 except Exception as e:
                     if self.context.verbose:
                         if isinstance(e, EvaluationRuntimeException):
@@ -595,6 +671,69 @@ class UiPathEvalRuntime:
                             )
                         )
                     raise
+
+                # Check if execution was suspended (e.g., waiting for RPA job completion)
+                if (
+                    agent_execution_output.result.status
+                    == UiPathRuntimeStatus.SUSPENDED
+                ):
+                    # For suspended executions, we don't run evaluators yet
+                    # The serverless executor should save the triggers and resume later
+                    logger.info("=" * 80)
+                    logger.info(
+                        f"🔴 EVAL RUNTIME: DETECTED SUSPENSION for eval '{eval_item.name}' (id: {eval_item.id})"
+                    )
+                    logger.info("EVAL RUNTIME: Agent returned SUSPENDED status")
+
+                    # Extract triggers from result
+                    triggers = []
+                    if agent_execution_output.result.trigger:
+                        triggers.append(agent_execution_output.result.trigger)
+                    if agent_execution_output.result.triggers:
+                        triggers.extend(agent_execution_output.result.triggers)
+
+                    logger.info(
+                        f"EVAL RUNTIME: Extracted {len(triggers)} trigger(s) from suspended execution"
+                    )
+                    for i, trigger in enumerate(triggers, 1):
+                        logger.info(
+                            f"EVAL RUNTIME: Trigger {i}: {trigger.model_dump(by_alias=True)}"
+                        )
+                    logger.info("=" * 80)
+
+                    # IMPORTANT: Always include execution output with triggers when suspended
+                    # This ensures triggers are visible in the output JSON for serverless executor
+                    evaluation_run_results.agent_execution_output = (
+                        convert_eval_execution_output_to_serializable(
+                            agent_execution_output
+                        )
+                    )
+
+                    # Publish suspended status event
+                    await self.event_bus.publish(
+                        EvaluationEvents.UPDATE_EVAL_RUN,
+                        EvalRunUpdatedEvent(
+                            execution_id=execution_id,
+                            eval_item=eval_item,
+                            eval_results=[],
+                            success=True,  # Not failed, just suspended
+                            agent_output={
+                                "status": "suspended",
+                                "triggers": [
+                                    t.model_dump(by_alias=True) for t in triggers
+                                ],
+                            },
+                            agent_execution_time=agent_execution_output.execution_time,
+                            spans=agent_execution_output.spans,
+                            logs=agent_execution_output.logs,
+                            exception_details=None,
+                        ),
+                        wait_for_completion=False,
+                    )
+
+                    # Return partial results with trigger information
+                    # The evaluation will be completed when resumed
+                    return evaluation_run_results
 
                 if self.context.verbose:
                     evaluation_run_results.agent_execution_output = (

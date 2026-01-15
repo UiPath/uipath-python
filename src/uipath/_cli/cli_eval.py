@@ -120,6 +120,12 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     default="{}",
     help='Input field overrides per evaluation ID: \'{"eval-1": {"operator": "*"}, "eval-2": {"a": 100}}\'. Supports deep merge for nested objects.',
 )
+@click.option(
+    "--resume",
+    is_flag=True,
+    default=False,
+    help="Resume execution from a previous suspended state",
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -134,6 +140,7 @@ def eval(
     trace_file: str | None,
     max_llm_concurrency: int,
     input_overrides: dict[str, Any],
+    resume: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -150,6 +157,7 @@ def eval(
         trace_file: File path where traces will be written in JSONL format
         max_llm_concurrency: Maximum concurrent LLM requests
         input_overrides: Input field overrides mapping (direct field override with deep merge)
+        resume: Resume execution from a previous suspended state
     """
     set_llm_concurrency(max_llm_concurrency)
 
@@ -188,6 +196,7 @@ def eval(
         eval_context.report_coverage = report_coverage
         eval_context.model_settings_id = model_settings_id
         eval_context.input_overrides = input_overrides
+        eval_context.resume = resume
 
         try:
 
@@ -211,6 +220,9 @@ def eval(
                     trace_manager=trace_manager,
                     command="eval",
                 ) as ctx:
+                    # Set job_id in eval context for single runtime runs
+                    eval_context.job_id = ctx.job_id
+
                     if ctx.job_id:
                         trace_manager.add_span_exporter(LlmOpsHttpExporter())
 
