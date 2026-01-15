@@ -357,6 +357,24 @@ class LlmOpsHttpExporter(SpanExporter):
         elif span_type == "toolCall":
             self._map_tool_call_attributes(attributes)
 
+        # Parse JSON-encoded strings that should be objects (avoids double-encoding)
+        # OTEL only accepts primitives, so agents serialize dicts to JSON strings.
+        # We parse them back here before final serialization.
+        for key in (
+            "inputSchema",
+            "outputSchema",
+            "settings",
+            "toolCalls",
+            "usage",
+            "error",
+            "output",
+            "input",
+            "arguments",
+            "result",
+        ):
+            if key in attributes:
+                attributes[key] = _safe_parse_json(attributes[key])
+
         # If attributes were a string (legacy path), serialize back
         # If dict (optimized path), leave as dict - caller will serialize once at the end
         if isinstance(attributes_val, str):
