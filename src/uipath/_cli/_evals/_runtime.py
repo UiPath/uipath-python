@@ -941,14 +941,18 @@ class UiPathEvalRuntime:
             "span_type": "eval",
         }
 
-        # Create a new runtime with unique runtime_id for this eval execution.
-        # This ensures each eval has its own LangGraph thread_id (clean state),
-        # preventing message accumulation across eval runs.
+        # Create a new runtime with runtime_id for this eval execution.
+        # For suspend/resume scenarios, we use eval_item.id as runtime_id (thread_id)
+        # so checkpoints can be found across suspend and resume invocations.
+        # For non-suspend scenarios, this still ensures each eval has its own thread_id.
         eval_runtime = None
         try:
+            runtime_id = eval_item.id
+            if self.context.resume:
+                logger.info(f"🟢 EVAL RUNTIME: Using eval_item.id '{runtime_id}' to load checkpoint from suspend")
             eval_runtime = await self.factory.new_runtime(
                 entrypoint=self.context.entrypoint or "",
-                runtime_id=execution_id,
+                runtime_id=runtime_id,
             )
             execution_runtime = UiPathExecutionRuntime(
                 delegate=eval_runtime,
@@ -966,9 +970,27 @@ class UiPathEvalRuntime:
                     input_overrides or {},
                     eval_id=eval_item.id,
                 )
-                result = await execution_runtime.execute(
-                    input=inputs_with_overrides,
-                )
+
+                # Handle resume mode: provide resume data to continue from interrupt()
+                if self.context.resume:
+                    try:
+                        from langgraph.types import Command
+                        # Provide mock resume data for evaluation testing
+                        # In production, orchestrator would provide actual result data
+                        resume_data = {"status": "completed", "result": "mock_completion_data"}
+                        logger.info(f"🟢 EVAL RUNTIME: Resuming with mock data: {resume_data}")
+                        result = await execution_runtime.execute(
+                            input=Command(resume=resume_data),
+                        )
+                    except ImportError:
+                        logger.warning("langgraph.types.Command not available, falling back to normal execution")
+                        result = await execution_runtime.execute(
+                            input=inputs_with_overrides,
+                        )
+                else:
+                    result = await execution_runtime.execute(
+                        input=inputs_with_overrides,
+                    )
             except Exception as e:
                 end_time = time()
                 spans, logs = self._get_and_clear_execution_data(execution_id)
