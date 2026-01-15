@@ -67,6 +67,9 @@ jobs:
         APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         APP_INSIGHTS_APP_ID: ${{ secrets.APP_INSIGHTS_APP_ID }}
         APP_INSIGHTS_API_KEY: ${{ secrets.APP_INSIGHTS_API_KEY }}
+
+        # Azure Blob Storage for performance metrics
+        AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
       working-directory: testcases/${{ matrix.testcase }}
       run: |
         # If any errors occur execution will stop with exit code
