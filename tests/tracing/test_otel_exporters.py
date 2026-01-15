@@ -587,17 +587,21 @@ class TestLangchainExporter(unittest.TestCase):
         assert isinstance(attributes, dict)
 
         # JSON strings should be parsed to objects
-        self.assertIsInstance(attributes["inputSchema"], dict)
-        self.assertEqual(attributes["inputSchema"]["type"], "object")
+        input_schema = attributes["inputSchema"]
+        assert isinstance(input_schema, dict)
+        self.assertEqual(input_schema["type"], "object")
 
-        self.assertIsInstance(attributes["outputSchema"], dict)
-        self.assertIn("content", attributes["outputSchema"]["properties"])
+        output_schema = attributes["outputSchema"]
+        assert isinstance(output_schema, dict)
+        self.assertIn("content", output_schema["properties"])
 
-        self.assertIsInstance(attributes["settings"], dict)
-        self.assertEqual(attributes["settings"]["maxTokens"], 16384)
+        settings = attributes["settings"]
+        assert isinstance(settings, dict)
+        self.assertEqual(settings["maxTokens"], 16384)
 
-        self.assertIsInstance(attributes["toolCalls"], list)
-        self.assertEqual(attributes["toolCalls"][0]["name"], "test_tool")
+        tool_calls = attributes["toolCalls"]
+        assert isinstance(tool_calls, list)
+        self.assertEqual(tool_calls[0]["name"], "test_tool")
 
         # Non-JSON strings should remain as strings
         self.assertIsInstance(attributes["regularString"], str)
