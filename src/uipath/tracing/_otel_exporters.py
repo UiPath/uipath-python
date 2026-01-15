@@ -406,10 +406,12 @@ class LlmOpsHttpExporter(SpanExporter):
     def _should_drop_span(self, span: ReadableSpan) -> bool:
         """Check if span is marked for dropping.
 
-        Spans with telemetry.filter="drop" are skipped by this exporter.
+        Spans with telemetry.filter="drop" or run_type="uipath" are skipped.
         """
         attrs = span.attributes or {}
-        return attrs.get("telemetry.filter") == "drop"
+        return (
+            attrs.get("run_type") == "uipath" or attrs.get("telemetry.filter") == "drop"
+        )
 
 
 class JsonLinesFileExporter(SpanExporter):

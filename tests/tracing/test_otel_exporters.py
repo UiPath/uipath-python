@@ -613,6 +613,18 @@ class TestSpanFiltering:
         span.attributes = {"telemetry.filter": "keep"}
         assert exporter_with_mocks._should_drop_span(span) is False
 
+    def test_filters_spans_with_uipath_run_type(self, exporter_with_mocks):
+        """Span with run_type=uipath → filtered out."""
+        span = MagicMock(spec=ReadableSpan)
+        span.attributes = {"run_type": "uipath"}
+        assert exporter_with_mocks._should_drop_span(span) is True
+
+    def test_passes_spans_with_other_run_types(self, exporter_with_mocks):
+        """Span with other run_type values → passes through."""
+        span = MagicMock(spec=ReadableSpan)
+        span.attributes = {"run_type": "agent"}
+        assert exporter_with_mocks._should_drop_span(span) is False
+
     def test_export_filters_marked_spans(self, exporter_with_mocks):
         """export() should filter out spans marked for drop."""
         # Create mixed batch: 1 marked for drop, 1 unmarked
