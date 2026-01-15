@@ -2486,7 +2486,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.5.1"
+version = "2.5.2"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2555,7 +2555,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", specifier = ">=0.1.6,<0.2.0" },
-    { name = "uipath-runtime", specifier = ">=0.5,<0.6.0" },
+    { name = "uipath-runtime", specifier = ">=0.5.0,<0.6.0" },
 ]
 
 [package.metadata.requires-dev]

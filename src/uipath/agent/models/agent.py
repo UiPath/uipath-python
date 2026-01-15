@@ -16,7 +16,7 @@ from pydantic import (
 from uipath.core.guardrails import (
     BaseGuardrail,
     FieldReference,
-    FieldSelector,
+    SpecificFieldsSelector,
     UniversalRule,
 )
 
@@ -655,11 +655,25 @@ class AgentWordRule(BaseModel):
     """Word rule model."""
 
     rule_type: Literal["word"] = Field(alias="$ruleType")
-    field_selector: FieldSelector = Field(alias="fieldSelector")
+    field_selector: AgentFieldSelector = Field(alias="fieldSelector")
     operator: AgentWordOperator
     value: str | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class AgentAllFieldsSelector(BaseModel):
+    """All fields selector."""
+
+    selector_type: Literal["all"] = Field(alias="$selectorType")
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+AgentFieldSelector = Annotated[
+    AgentAllFieldsSelector | SpecificFieldsSelector,
+    Field(discriminator="selector_type"),
+]
 
 
 class AgentNumberOperator(str, Enum):
@@ -677,7 +691,7 @@ class AgentNumberRule(BaseModel):
     """Number rule model."""
 
     rule_type: Literal["number"] = Field(alias="$ruleType")
-    field_selector: FieldSelector = Field(alias="fieldSelector")
+    field_selector: AgentFieldSelector = Field(alias="fieldSelector")
     operator: AgentNumberOperator
     value: float
 
@@ -694,7 +708,7 @@ class AgentBooleanRule(BaseModel):
     """Boolean rule model."""
 
     rule_type: Literal["boolean"] = Field(alias="$ruleType")
-    field_selector: FieldSelector = Field(alias="fieldSelector")
+    field_selector: AgentFieldSelector = Field(alias="fieldSelector")
     operator: AgentBooleanOperator
     value: bool
 
