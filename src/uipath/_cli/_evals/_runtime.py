@@ -535,8 +535,9 @@ class UiPathEvalRuntime:
                             logger.info("EVAL RUNTIME: No triggers to pass through")
                         logger.info("=" * 80)
 
-                        # Determine overall status - if any eval run is suspended, propagate SUSPENDED
+                        # Determine overall status - propagate status from inner runtime
                         # This is critical for serverless executor to know to save state and suspend job
+                        # Priority: SUSPENDED > FAULTED > SUCCESSFUL
                         overall_status = UiPathRuntimeStatus.SUCCESSFUL
                         for eval_run_result in results.evaluation_set_results:
                             if (
@@ -551,11 +552,10 @@ class UiPathEvalRuntime:
                                     logger.info(
                                         "EVAL RUNTIME: Propagating SUSPENDED status from inner runtime"
                                     )
-                                    break
+                                    break  # SUSPENDED takes highest priority, stop checking
                                 elif inner_status == UiPathRuntimeStatus.FAULTED:
-                                    # FAULTED takes precedence over SUCCESSFUL but not SUSPENDED
-                                    if overall_status != UiPathRuntimeStatus.SUSPENDED:
-                                        overall_status = UiPathRuntimeStatus.FAULTED
+                                    overall_status = UiPathRuntimeStatus.FAULTED
+                                    # Continue checking in case a later eval is SUSPENDED
 
                         result = UiPathRuntimeResult(
                             output={**results.model_dump(by_alias=True)},
