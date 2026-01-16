@@ -23,6 +23,7 @@ class Attachment(BaseModel):
     mime_type: str = Field(..., alias="MimeType")
     model_config = {
         "title": "UiPathAttachment",
+        "populate_by_name": True
     }
 
 
