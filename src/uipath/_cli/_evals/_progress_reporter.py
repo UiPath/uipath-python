@@ -357,6 +357,10 @@ class StudioWebProgressReporter:
         )
 
     async def handle_create_eval_set_run(self, payload: EvalSetRunCreatedEvent) -> None:
+        logger.info("[TraceID] handle_create_eval_set_run: Event handler triggered")
+        logger.info(
+            f"[TraceID] handle_create_eval_set_run: Received payload with eval_set_run_id={payload.eval_set_run_id}"
+        )
         try:
             self.evaluators = {eval.id: eval for eval in payload.evaluators}
             self.evaluator_scores = {eval.id: [] for eval in payload.evaluators}
@@ -369,6 +373,9 @@ class StudioWebProgressReporter:
             self.is_coded_eval[payload.execution_id] = is_coded
 
             eval_set_run_id = payload.eval_set_run_id
+            logger.info(
+                f"[TraceID] handle_create_eval_set_run: eval_set_run_id from payload = {eval_set_run_id}"
+            )
             if not eval_set_run_id:
                 eval_set_run_id = await self.create_eval_set_run_sw(
                     eval_set_id=payload.eval_set_id,
@@ -422,16 +429,6 @@ class StudioWebProgressReporter:
         try:
             eval_run_id = self.eval_run_ids.get(payload.execution_id)
 
-            # Use evalRunId as the trace_id for agent execution spans
-            # This makes all agent spans children of the eval run trace
-            if eval_run_id:
-                self.spans_exporter.trace_id = eval_run_id
-            else:
-                # Fallback to evalSetRunId if eval_run_id not available yet
-                if self.eval_set_execution_id:
-                    self.spans_exporter.trace_id = self.eval_set_run_ids.get(
-                        self.eval_set_execution_id
-                    )
 
             self.spans_exporter.export(payload.spans)
 
