@@ -1,5 +1,6 @@
 from typing import Any
 
+from httpx import HTTPStatusError
 from uipath.core.guardrails import (
     GuardrailValidationResult,
     GuardrailValidationResultType,
@@ -8,6 +9,7 @@ from uipath.core.guardrails import (
 from ..._utils import Endpoint, RequestSpec
 from ...tracing import traced
 from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
+from ..errors import EnrichedException
 from .guardrails import BuiltInValidatorGuardrail
 
 
@@ -84,23 +86,48 @@ class GuardrailsService(BaseService):
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
             json=payload,
         )
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            json=spec.json,
-            headers=spec.headers,
-        )
-        response_data = response.json()
+        try:
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                json=spec.json,
+                headers=spec.headers,
+            )
+            response_data = response.json()
+        except EnrichedException as e:
+            # Handle 403 responses: API returns 403 with valid JSON body for
+            # ENTITLEMENTS_MISSING or FEATURE_DISABLED cases
+            if e.status_code == 403:
+                # Access the original HTTPStatusError to get the full response
+                original_error = e.__cause__
+                if (
+                    isinstance(original_error, HTTPStatusError)
+                    and original_error.response
+                ):
+                    try:
+                        response_data = original_error.response.json()
+                    except Exception:
+                        # If JSON parsing fails, re-raise the original exception
+                        raise
+                else:
+                    # Try to parse from response_content if available
+                    try:
+                        import json
+
+                        response_data = json.loads(e.response_content)
+                    except Exception:
+                        raise
+            else:
+                raise
 
         result = self._parse_result(response_data.get("result", ""))
 
-        # Map details field to reason
-        details = response_data.get("details", "")
+        reason = response_data.get("details", "")
 
         # Prepare model data
         model_data = {
             "result": result.value,
-            "reason": details,
+            "reason": reason,
         }
 
         return GuardrailValidationResult.model_validate(model_data)
