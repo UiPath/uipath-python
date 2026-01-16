@@ -380,8 +380,9 @@ class _SpanUtils:
 
             input_value = attributes.get("input.value")
             output_value = attributes.get("output.value")
+            telemetry_filter = attributes.get("telemetry.filter")
 
-            if not input_value or not output_value:
+            if not input_value or not output_value or telemetry_filter == "drop":
                 continue
 
             history.append(f"Function: {span.name}")
