@@ -22,28 +22,8 @@ mkdir -p artifacts
 echo "Run agent with py-spy profiling (speedscope JSON with timing data)"
 uv run py-spy record --subprocesses -f speedscope -o artifacts/profile.json -- uv run uipath run main '{"message": "abc", "repeat": 2, "prefix": "xyz"}'
 
-echo "Run agent with memray memory profiling and timing measurement"
-uv run python -c "
-import subprocess
-import time
-import json
-from pathlib import Path
-
-# Measure total execution time with memray
-start_time = time.perf_counter()
-result = subprocess.run(
-    ['uv', 'run', 'memray', 'run', '--output', 'artifacts/memory.bin', '-m', 'uipath', 'run', 'main', '{\"message\": \"abc\", \"repeat\": 2, \"prefix\": \"xyz\"}'],
-    capture_output=True
-)
-end_time = time.perf_counter()
-
-# Save total execution time
-Path('artifacts/total_execution.json').write_text(json.dumps({
-    'total_execution_time_seconds': round(end_time - start_time, 3),
-    'success': result.returncode == 0,
-    'error': result.stderr.decode() if result.returncode != 0 else None
-}))
-"
+echo "Run agent with memray memory profiling"
+uv run memray run --output artifacts/memory.bin -m uipath run main '{"message": "abc", "repeat": 2, "prefix": "xyz"}' 2>&1 | tee artifacts/memray_output.txt
 
 echo "Extract memory stats from memray output"
 uv run python extract_memory_stats.py

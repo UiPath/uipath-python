@@ -13,7 +13,7 @@ def load_timing_metrics(artifacts_dir: str = "artifacts") -> dict:
 
     Returns timing breakdown:
     - User code time (from main.py instrumentation)
-    - Total execution time (from run.sh measurement)
+    - Total execution time (from py-spy speedscope profile)
     - Framework overhead (calculated as total - user code)
     """
     artifacts_path = Path(artifacts_dir)
@@ -30,15 +30,21 @@ def load_timing_metrics(artifacts_dir: str = "artifacts") -> dict:
         except json.JSONDecodeError:
             pass
 
-    # Load total execution timing (from run.sh memray measurement)
-    total_timing_path = artifacts_path / "total_execution.json"
+    # Extract total execution time from py-spy speedscope profile
+    profile_path = artifacts_path / "profile.json"
     total_time = 0
-    if total_timing_path.exists():
+    if profile_path.exists():
         try:
-            with open(total_timing_path, "r", encoding="utf-8") as f:
-                total_timing = json.load(f)
-                total_time = total_timing.get("total_execution_time_seconds", 0)
-        except json.JSONDecodeError:
+            with open(profile_path, "r", encoding="utf-8") as f:
+                speedscope_data = json.load(f)
+                # Get weights from first profile (main process)
+                profiles = speedscope_data.get("profiles", [])
+                if profiles:
+                    weights = profiles[0].get("weights", [])
+                    # Sum all weights (in microseconds) to get total time
+                    total_time_us = sum(weights)
+                    total_time = total_time_us / 1_000_000  # Convert to seconds
+        except (json.JSONDecodeError, KeyError, IndexError):
             pass
 
     # Calculate framework overhead
@@ -117,7 +123,6 @@ def collect_metrics(
     file_sizes = {
         "profile_json": get_file_size(str(artifacts_path / "profile.json")),
         "user_code_timing_json": get_file_size(str(artifacts_path / "user_code_timing.json")),
-        "total_execution_json": get_file_size(str(artifacts_path / "total_execution.json")),
         "memory_bin": get_file_size(str(artifacts_path / "memory.bin")),
         "memory_stats_json": get_file_size(str(artifacts_path / "memory_stats.json")),
     }
