@@ -237,7 +237,7 @@ def eval(
                     eval_context.job_id = ctx.job_id
 
                     if ctx.job_id:
-                        trace_manager.add_span_exporter(LlmOpsHttpExporter())
+                        trace_manager.add_span_exporter(live_tracking_exporter)
 
                     if trace_file:
                         trace_manager.add_span_exporter(
