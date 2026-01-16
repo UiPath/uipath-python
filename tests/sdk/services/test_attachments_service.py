@@ -915,7 +915,7 @@ class TestAttachmentsService:
         # Arrange
         attachment_key = uuid.UUID("12345678-1234-1234-1234-123456789012")
         file_content = b"Test file content for reading"
-        attachment = Attachment(
+        attachment = Attachment(  # type: ignore[call-arg]
             ID=attachment_key,
             FullName="test_file.txt",
             MimeType="text/plain",
@@ -992,7 +992,7 @@ class TestAttachmentsService:
         # Arrange
         file_name = "test_write_file.txt"
         file_content = b"Content to write"
-        attachment = Attachment(
+        attachment = Attachment(  # type: ignore[call-arg]
             FullName=file_name,
             MimeType="text/plain",
         )
@@ -1066,7 +1066,7 @@ class TestAttachmentsService:
         # Arrange
         attachment_key = uuid.UUID("12345678-1234-1234-1234-123456789012")
         file_content = b"Test file content for async reading"
-        attachment = Attachment(
+        attachment = Attachment(  # type: ignore[call-arg]
             ID=attachment_key,
             FullName="test_file_async.txt",
             MimeType="text/plain",
@@ -1143,7 +1143,7 @@ class TestAttachmentsService:
         # Arrange
         file_name = "test_write_file_async.txt"
         file_content = b"Content to write async"
-        attachment = Attachment(
+        attachment = Attachment(  # type: ignore[call-arg]
             FullName=file_name,
             MimeType="text/plain",
         )
