@@ -21,10 +21,7 @@ class Attachment(BaseModel):
     id: Optional[uuid.UUID] = Field(None, alias="ID")
     full_name: str = Field(..., alias="FullName")
     mime_type: str = Field(..., alias="MimeType")
-    model_config = {
-        "title": "UiPathAttachment",
-        "populate_by_name": True
-    }
+    model_config = {"title": "UiPathAttachment", "populate_by_name": True}
 
 
 @dataclass
