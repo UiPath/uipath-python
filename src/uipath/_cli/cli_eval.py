@@ -228,13 +228,20 @@ def eval(
 
                 trace_manager = UiPathTraceManager()
 
+                logger.info(
+                    f"[TraceID] Setting job_id to eval_set_run_id = {eval_context.eval_set_run_id} for UI trace discovery"
+                )
                 with UiPathRuntimeContext.with_defaults(
                     output_file=output_file,
                     trace_manager=trace_manager,
                     command="eval",
+                    job_id=eval_context.eval_set_run_id,  # Use eval_set_run_id as job_id so UI can find traces
                 ) as ctx:
                     # Set job_id in eval context for single runtime runs
                     eval_context.job_id = ctx.job_id
+                    logger.info(
+                        f"[TraceID] Runtime context initialized: job_id = {ctx.job_id}, matches eval_set_run_id = {eval_context.eval_set_run_id}"
+                    )
 
                     if ctx.job_id:
                         trace_manager.add_span_exporter(live_tracking_exporter)
