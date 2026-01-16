@@ -4,7 +4,11 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..action_center.tasks import Task
+from uipath.platform.context_grounding.context_grounding_index import (
+    ContextGroundingIndex,
+)
+
+from ..action_center import Task
 from ..context_grounding import (
     BatchTransformCreationResponse,
     BatchTransformOutputColumn,
@@ -85,16 +89,16 @@ class WaitDeepRag(BaseModel):
 
 
 class CreateEphemeralIndex(BaseModel):
-    """Model representing a Jit Index task creation."""
+    """Model representing a Ephemeral Index task creation."""
 
     usage: str
     attachments: list[str]
 
 
 class WaitEphemeralIndex(BaseModel):
-    """Model representing a wait Jit Index task."""
+    """Model representing a wait Ephemeral Index task."""
 
-    id: str
+    index: ContextGroundingIndex
 
 
 class CreateBatchTransform(BaseModel):

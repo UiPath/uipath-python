@@ -526,14 +526,14 @@ class UiPathResumeTriggerCreator:
     ) -> None:
         """Handle ephemeral index"""
         if isinstance(value, WaitEphemeralIndex):
-            resume_trigger.item_key = value.ephemeral_index.id
+            resume_trigger.item_key = value.index.id
         elif isinstance(value, CreateEphemeralIndex):
             ephemeral_index = uipath.context_grounding.create_ephemeral_index(
                 usage=value.usage,
                 attachments=value.attachments,
             )
             if not ephemeral_index:
-                raise Exception("Failed to start ephemeral index")
+                raise Exception("Failed to create ephemeral index")
             resume_trigger.item_key = ephemeral_index.id
 
     async def _handle_batch_rag_job_trigger(
