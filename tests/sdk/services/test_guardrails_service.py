@@ -123,7 +123,7 @@ class TestGuardrailsService:
             assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
             assert result.reason == "PII detected: Email found"
 
-        def test_evaluate_guardrail_entitlements_skip(
+        def test_evaluate_guardrail_feature_disabled_403(
             self,
             httpx_mock: HTTPXMock,
             service: GuardrailsService,
@@ -131,10 +131,10 @@ class TestGuardrailsService:
             org: str,
             tenant: str,
         ) -> None:
-            # Mock API response for entitlements check - feature disabled
+            # Mock API response with 403 status for FEATURE_DISABLED
             httpx_mock.add_response(
                 url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
-                status_code=200,
+                status_code=403,
                 json={
                     "result": "FEATURE_DISABLED",
                     "details": "Guardrail feature is disabled",
@@ -161,7 +161,7 @@ class TestGuardrailsService:
             assert result.result == GuardrailValidationResultType.FEATURE_DISABLED
             assert result.reason == "Guardrail feature is disabled"
 
-        def test_evaluate_guardrail_entitlements_missing(
+        def test_evaluate_guardrail_entitlements_missing_403(
             self,
             httpx_mock: HTTPXMock,
             service: GuardrailsService,
@@ -169,10 +169,10 @@ class TestGuardrailsService:
             org: str,
             tenant: str,
         ) -> None:
-            # Mock API response for entitlements check - entitlement missing
+            # Mock API response with 403 status for ENTITLEMENTS_MISSING
             httpx_mock.add_response(
                 url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
-                status_code=200,
+                status_code=403,
                 json={
                     "result": "ENTITLEMENTS_MISSING",
                     "details": "Guardrail entitlement is missing",
