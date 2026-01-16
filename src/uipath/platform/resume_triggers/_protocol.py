@@ -268,7 +268,11 @@ class UiPathResumeTriggerReader:
                             f"Index ingestion '{ephemeral_index.name}' did not finish successfully.",
                         )
 
+<<<<<<< HEAD
                     trigger_response = ephemeral_index.model_dump()
+=======
+                    trigger_response = ephemeral_index
+>>>>>>> cf1f8f3 (add create ephemeral index)
 
                     return trigger_response
 
@@ -426,6 +430,10 @@ class UiPathResumeTriggerCreator:
                 case UiPathResumeTriggerType.INDEX_INGESTION:
                     await self._handle_ephemeral_index_job_trigger(
                         suspend_value, resume_trigger
+                    )
+                case UiPathResumeTriggerType.EPHEMERAL_INDEX:
+                    await self._handle_ephemeral_index_job_trigger(
+                        suspend_value, resume_trigger, uipath
                     )
                 case UiPathResumeTriggerType.BATCH_RAG:
                     await self._handle_batch_rag_job_trigger(
@@ -595,6 +603,7 @@ class UiPathResumeTriggerCreator:
         )
 
     async def _handle_ephemeral_index_job_trigger(
+<<<<<<< HEAD
         self, value: Any, resume_trigger: UiPathResumeTrigger
     ) -> None:
         """Handle ephemeral index.
@@ -616,6 +625,20 @@ class UiPathResumeTriggerCreator:
             )
             if not ephemeral_index:
                 raise Exception("Failed to create ephemeral index")
+=======
+        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+    ) -> None:
+        """Handle ephemeral index"""
+        if isinstance(value, WaitEphemeralIndex):
+            resume_trigger.item_key = value.ephemeral_index.id
+        elif isinstance(value, CreateEphemeralIndex):
+            ephemeral_index = uipath.context_grounding.create_ephemeral_index(
+                usage=value.usage,
+                attachments=value.attachments,
+            )
+            if not ephemeral_index:
+                raise Exception("Failed to start ephemeral index")
+>>>>>>> cf1f8f3 (add create ephemeral index)
             resume_trigger.item_key = ephemeral_index.id
 
         assert resume_trigger.item_key
