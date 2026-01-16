@@ -19,12 +19,13 @@ from typing import (
 
 import coverage
 from opentelemetry import context as context_api
+from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import (
     SpanExporter,
     SpanExportResult,
 )
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import SpanContext, SpanKind, Status, StatusCode, TraceFlags
 from pydantic import BaseModel
 from uipath.core.tracing import UiPathTraceManager
 from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
@@ -455,8 +456,25 @@ class UiPathEvalRuntime:
                 logger.info(
                     f"[TraceID] About to create 'Evaluation Set Run' span. Current exporter.trace_id = {getattr(self.live_tracking_exporter, 'trace_id', None)}"
                 )
+
+                # Create a span context with the eval_set_run_id as the trace ID
+                # This ensures the OTel trace_id matches the eval_set_run_id
+                trace_id_int = int(uuid.UUID(self.context.eval_set_run_id))
+                span_context = SpanContext(
+                    trace_id=trace_id_int,
+                    span_id=trace_id_int,  # Use same ID for root span
+                    is_remote=False,
+                    trace_flags=TraceFlags(0x01),  # Sampled
+                )
+
+                # Create a non-recording span with our custom context
+                ctx = trace.set_span_in_context(trace.NonRecordingSpan(span_context))
+
                 with tracer.start_as_current_span(
-                    "Evaluation Set Run", attributes=span_attributes
+                    "Evaluation Set Run",
+                    attributes=span_attributes,
+                    context=ctx,
+                    kind=SpanKind.INTERNAL
                 ) as span:
                     logger.info(
                         f"[TraceID] Inside 'Evaluation Set Run' span. Exporter.trace_id = {getattr(self.live_tracking_exporter, 'trace_id', None)}"
