@@ -84,6 +84,19 @@ class WaitDeepRag(BaseModel):
     index_folder_key: str | None = None
 
 
+class CreateEphemeralIndex(BaseModel):
+    """Model representing a Jit Index task creation."""
+
+    usage: str
+    attachments: list[str]
+
+
+class WaitEphemeralIndex(BaseModel):
+    """Model representing a wait Jit Index task."""
+
+    id: str
+
+
 class CreateBatchTransform(BaseModel):
     """Model representing a Batch Transform task creation."""
 

@@ -12,6 +12,7 @@ from .context_grounding import (
     DeepRagCreationResponse,
     DeepRagResponse,
     DeepRagStatus,
+    IndexStatus,
 )
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
@@ -52,6 +53,7 @@ __all__ = [
     "DeepRagCreationResponse",
     "DeepRagResponse",
     "DeepRagStatus",
+    "IndexStatus",
     "DropboxDataSource",
     "DropboxSourceConfig",
     "GoogleDriveDataSource",

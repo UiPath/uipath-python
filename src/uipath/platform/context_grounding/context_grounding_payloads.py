@@ -141,7 +141,7 @@ class CreateIndexPayload(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-class CreateJitIndexPayload(BaseModel):
+class CreateEphemeralIndexPayload(BaseModel):
     """ """
 
     usage: str = Field(description="Index usage")

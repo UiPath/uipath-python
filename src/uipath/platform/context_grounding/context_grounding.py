@@ -41,6 +41,15 @@ class DeepRagStatus(str, Enum):
     FAILED = "Failed"
 
 
+class IndexStatus(str, Enum):
+    """Enum representing possible index tasks status."""
+
+    QUEUED = "Queued"
+    IN_PROGRESS = "InProgress"
+    SUCCESSFUL = "Successful"
+    FAILED = "Failed"
+
+
 class Citation(BaseModel):
     """Model representing a deep RAG citation."""
 
