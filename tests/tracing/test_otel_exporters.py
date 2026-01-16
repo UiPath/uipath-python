@@ -556,6 +556,60 @@ class TestLangchainExporter(unittest.TestCase):
         print("✓ UNKNOWN span preserved and processed correctly")
         print(f"✓ Final attributes keys: {list(attributes.keys())}")
 
+    def test_json_strings_parsed_to_objects(self):
+        """Test that JSON-encoded strings starting with { or [ are parsed to objects.
+
+        OTEL only accepts primitives, so agents serialize dicts/lists to JSON strings.
+        The exporter should parse these back to objects before final serialization.
+        """
+        span_data = {
+            "Id": "test-span-id",
+            "TraceId": "test-trace-id",
+            "ParentId": None,
+            "Name": "Test span",
+            "StartTime": "2025-01-01T00:00:00Z",
+            "EndTime": "2025-01-01T00:00:01Z",
+            "Attributes": {
+                "type": "agentRun",
+                "inputSchema": '{"type": "object", "properties": {}}',
+                "outputSchema": '{"type": "object", "properties": {"content": {"type": "string"}}}',
+                "settings": '{"maxTokens": 16384, "temperature": 0.0}',
+                "toolCalls": '[{"id": "call_123", "name": "test_tool"}]',
+                "regularString": "not json",
+                "emptyString": "",
+            },
+            "Status": 1,
+        }
+
+        self.exporter._process_span_attributes(span_data)
+
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+
+        # JSON strings should be parsed to objects
+        input_schema = attributes["inputSchema"]
+        assert isinstance(input_schema, dict)
+        self.assertEqual(input_schema["type"], "object")
+
+        output_schema = attributes["outputSchema"]
+        assert isinstance(output_schema, dict)
+        self.assertIn("content", output_schema["properties"])
+
+        settings = attributes["settings"]
+        assert isinstance(settings, dict)
+        self.assertEqual(settings["maxTokens"], 16384)
+
+        tool_calls = attributes["toolCalls"]
+        assert isinstance(tool_calls, list)
+        self.assertEqual(tool_calls[0]["name"], "test_tool")
+
+        # Non-JSON strings should remain as strings
+        self.assertIsInstance(attributes["regularString"], str)
+        self.assertEqual(attributes["regularString"], "not json")
+
+        self.assertIsInstance(attributes["emptyString"], str)
+        self.assertEqual(attributes["emptyString"], "")
+
 
 class TestSpanFiltering:
     """Tests for filtering spans marked with telemetry.filter=drop."""
