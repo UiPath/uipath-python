@@ -422,8 +422,8 @@ class StudioWebProgressReporter:
         try:
             eval_run_id = self.eval_run_ids.get(payload.execution_id)
 
-            # Use evalRunId as the trace_id for agent execution spans
-            # This makes all agent spans children of the eval run trace
+            # Use evalRunId as the trace_id for agent execution and evaluator spans
+            # This makes all spans children of the eval run trace
             if eval_run_id:
                 self.spans_exporter.trace_id = eval_run_id
             else:
@@ -433,7 +433,13 @@ class StudioWebProgressReporter:
                         self.eval_set_execution_id
                     )
 
+            # Export agent execution spans
             self.spans_exporter.export(payload.spans)
+
+            # Export evaluator spans (including LLM calls made by evaluators)
+            # with the same trace_id so they can be fetched together
+            if payload.evaluator_spans:
+                self.spans_exporter.export(payload.evaluator_spans)
 
             for eval_result in payload.eval_results:
                 evaluator_id = eval_result.evaluator_id
