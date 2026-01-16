@@ -974,15 +974,22 @@ class UiPathEvalRuntime:
                     eval_id=eval_item.id,
                 )
 
-                # In resume mode, configure execution options with resume flag
-                # The consistent runtime_id ensures the checkpoint is found
+                # In resume mode, pass None as input
+                # The UiPathResumableRuntime wrapper will automatically:
+                # 1. Fetch triggers from storage
+                # 2. Read resume data via trigger_manager.read_trigger()
+                # 3. Build resume map: {interrupt_id: resume_data}
+                # 4. Pass this map to the delegate runtime
                 if self.context.resume:
+                    logger.info("🟢 EVAL RUNTIME: Resuming from checkpoint")
+                    logger.info(f"🟢 EVAL RUNTIME: Using thread_id: {runtime_id}")
                     logger.info(
-                        "🟢 EVAL RUNTIME: Resuming from checkpoint with resume option"
+                        "🟢 EVAL RUNTIME: Passing None - wrapper will load resume data from storage"
                     )
+
                     options = UiPathExecuteOptions(resume=True)
                     result = await execution_runtime.execute(
-                        input=inputs_with_overrides,
+                        input=None,  # Let wrapper load resume data
                         options=options,
                     )
                 else:
