@@ -308,6 +308,7 @@ class UiPathEvalRuntime:
         factory: UiPathRuntimeFactoryProtocol,
         trace_manager: UiPathTraceManager,
         event_bus: EventBus,
+        live_tracking_exporter: LlmOpsHttpExporter,
     ):
         self.context: UiPathEvalContext = context
         # Wrap the factory to support model settings overrides
@@ -323,10 +324,14 @@ class UiPathEvalRuntime:
         self.trace_manager.tracer_provider.add_span_processor(span_processor)
 
         # Live tracking processor for real-time span updates
-        live_tracking_exporter = LlmOpsHttpExporter()
-        live_tracking_processor = LiveTrackingSpanProcessor(live_tracking_exporter)
+        self.live_tracking_exporter = live_tracking_exporter
+        live_tracking_processor = LiveTrackingSpanProcessor(self.live_tracking_exporter)
         self.trace_manager.tracer_span_processors.append(live_tracking_processor)
         self.trace_manager.tracer_provider.add_span_processor(live_tracking_processor)
+
+        logger.info(
+            f"[TraceID] UiPathEvalRuntime.__init__: live_tracking_exporter.trace_id = {getattr(self.live_tracking_exporter, 'trace_id', None)}"
+        )
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         # Use job_id if available (for single runtime runs), otherwise generate UUID
@@ -386,6 +391,9 @@ class UiPathEvalRuntime:
         )
         evaluators = await self._load_evaluators(evaluation_set, runtime)
 
+        logger.info(
+            f"[TraceID] Publishing CREATE_EVAL_SET_RUN event with eval_set_run_id={self.context.eval_set_run_id}"
+        )
         await self.event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
             EvalSetRunCreatedEvent(
@@ -396,6 +404,9 @@ class UiPathEvalRuntime:
                 no_of_evals=len(evaluation_set.evaluations),
                 evaluators=evaluators,
             ),
+        )
+        logger.info(
+            f"[TraceID] After event publish, exporter.trace_id = {getattr(self.live_tracking_exporter, 'trace_id', None)}"
         )
 
         return (
@@ -440,9 +451,16 @@ class UiPathEvalRuntime:
                 }
                 if self.context.eval_set_run_id:
                     span_attributes["eval_set_run_id"] = self.context.eval_set_run_id
+
+                logger.info(
+                    f"[TraceID] About to create 'Evaluation Set Run' span. Current exporter.trace_id = {getattr(self.live_tracking_exporter, 'trace_id', None)}"
+                )
                 with tracer.start_as_current_span(
                     "Evaluation Set Run", attributes=span_attributes
                 ) as span:
+                    logger.info(
+                        f"[TraceID] Inside 'Evaluation Set Run' span. Exporter.trace_id = {getattr(self.live_tracking_exporter, 'trace_id', None)}"
+                    )
                     try:
                         (
                             evaluation_set,

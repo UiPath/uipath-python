@@ -1,11 +1,14 @@
 import ast
 import asyncio
+import logging
 import os
 from typing import Any
 
 import click
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
+
+logger = logging.getLogger(__name__)
 
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._evaluate import evaluate
@@ -203,8 +206,18 @@ def eval(
             async def execute_eval():
                 event_bus = EventBus()
 
+                live_tracking_exporter = LlmOpsHttpExporter()
+
+                if eval_context.eval_set_run_id:
+                    live_tracking_exporter.trace_id = eval_context.eval_set_run_id
+                    logger.info(
+                        f"[TraceID] Set live_tracking_exporter.trace_id = {eval_context.eval_set_run_id} (user-provided via --eval-set-run-id)"
+                    )
+
                 if should_register_progress_reporter:
-                    progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
+                    progress_reporter = StudioWebProgressReporter(
+                        live_tracking_exporter
+                    )
                     await progress_reporter.subscribe_to_eval_runtime_events(event_bus)
 
                 console_reporter = ConsoleProgressReporter()
@@ -247,11 +260,16 @@ def eval(
                                     trace_manager,
                                     eval_context,
                                     event_bus,
+                                    live_tracking_exporter,
                                 )
                         else:
                             # Fall back to execution without overwrites
                             ctx.result = await evaluate(
-                                runtime_factory, trace_manager, eval_context, event_bus
+                                runtime_factory,
+                                trace_manager,
+                                eval_context,
+                                event_bus,
+                                live_tracking_exporter,
                             )
                     finally:
                         if runtime_factory:
