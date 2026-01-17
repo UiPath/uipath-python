@@ -6,10 +6,8 @@ import click
 from dotenv import load_dotenv
 
 from uipath._cli._utils._context import CliContext
-from uipath._cli.runtimes import load_runtime_factories
 from uipath._utils._logs import setup_logging
 from uipath._utils.constants import DOTENV_FILE
-from uipath.functions import register_default_runtime_factory
 
 # DO NOT ADD HEAVY IMPORTS HERE
 #
@@ -38,11 +36,33 @@ _LAZY_COMMANDS = {
     "buckets": "services.cli_buckets",
 }
 
+_RUNTIME_COMMANDS = {"init", "dev", "run", "eval", "debug"}
+
+_runtime_initialized = False
+
+
+def _ensure_runtime_initialized():
+    """Initialize runtime factories once, only when needed."""
+    global _runtime_initialized
+    if _runtime_initialized:
+        return
+    _runtime_initialized = True
+
+    from uipath._cli.runtimes import load_runtime_factories
+    from uipath.functions import register_default_runtime_factory
+
+    register_default_runtime_factory()
+    load_runtime_factories()
+
 
 def _load_command(name: str):
     """Load a CLI command by name."""
     if name not in _LAZY_COMMANDS:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    if name in _RUNTIME_COMMANDS:
+        _ensure_runtime_initialized()
+
     module_name = _LAZY_COMMANDS[name]
     mod = __import__(f"uipath._cli.{module_name}", fromlist=[name])
     return getattr(mod, name)
@@ -65,8 +85,6 @@ def load_environment_variables():
 
 load_environment_variables()
 add_cwd_to_path()
-register_default_runtime_factory()
-load_runtime_factories()
 
 
 def _get_safe_version() -> str:
