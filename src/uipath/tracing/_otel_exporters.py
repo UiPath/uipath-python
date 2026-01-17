@@ -10,6 +10,7 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
     SpanExportResult,
 )
+from opentelemetry.trace import NonRecordingSpan
 
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 
@@ -411,10 +412,12 @@ class LlmOpsHttpExporter(SpanExporter):
         return uipath_url
 
     def _should_drop_span(self, span: ReadableSpan) -> bool:
-        """Check if span is marked for dropping.
+        """Check if span should be dropped.
 
-        Spans with telemetry.filter="drop" are skipped by this exporter.
+        Drops NonRecordingSpan instances and spans with telemetry.filter="drop".
         """
+        if isinstance(span, NonRecordingSpan):
+            return True
         attrs = span.attributes or {}
         return attrs.get("telemetry.filter") == "drop"
 
@@ -429,7 +432,12 @@ class JsonLinesFileExporter(SpanExporter):
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         try:
-            dict_spans = [span.to_json(indent=None) for span in spans]
+            # Filter out NonRecordingSpan instances
+            recording_spans = [s for s in spans if not isinstance(s, NonRecordingSpan)]
+            if not recording_spans:
+                return SpanExportResult.SUCCESS
+
+            dict_spans = [span.to_json(indent=None) for span in recording_spans]
 
             with open(self.file_path, "a") as f:
                 for span in dict_spans:
