@@ -29,6 +29,7 @@ from uipath._cli._evals._runtime import (
     UiPathEvalRuntime,
 )
 from uipath._events._event_bus import EventBus
+from uipath.tracing import LlmOpsHttpExporter
 
 
 class MockRuntimeSchema(UiPathRuntimeSchema):
@@ -164,7 +165,14 @@ class TestFindAgentModelInRuntime:
             return BaseTestRuntime()
 
         factory = MockFactory(create_runtime)
-        return UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        return UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
     def test_finds_model_in_direct_runtime(self, eval_runtime):
         """Test finding agent model directly on runtime."""
@@ -228,7 +236,14 @@ class TestGetAgentModel:
         factory = MockFactory(create_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        eval_runtime = UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
         runtime = await create_runtime()
         model = await eval_runtime._get_agent_model(runtime)
@@ -243,7 +258,14 @@ class TestGetAgentModel:
         factory = MockFactory(create_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        eval_runtime = UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
         runtime = await create_runtime()
         model = await eval_runtime._get_agent_model(runtime)
@@ -258,7 +280,14 @@ class TestGetAgentModel:
         factory = MockFactory(create_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        eval_runtime = UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
         runtime = await create_runtime()
 
@@ -277,7 +306,14 @@ class TestGetAgentModel:
         factory = MockFactory(create_good_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        eval_runtime = UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
         # Create a bad runtime that raises during get_agent_model
         class BadRuntime(BaseTestRuntime):
@@ -310,7 +346,14 @@ class TestGetSchema:
         factory = MockFactory(create_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        eval_runtime = UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
         runtime = await create_runtime()
         schema = await eval_runtime.get_schema(runtime)
@@ -326,7 +369,14 @@ class TestGetSchema:
         factory = MockFactory(create_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        eval_runtime = UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
         runtime = await create_runtime()
 
@@ -346,7 +396,14 @@ class TestGetSchema:
         factory = MockFactory(create_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        eval_runtime = UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
         runtime = await create_runtime()
 
@@ -393,7 +450,14 @@ class TestWrappedRuntimeModelResolution:
         factory = MockFactory(create_runtime)
         event_bus = EventBus()
         trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(context, factory, trace_manager, event_bus)
+        eval_runtime = UiPathEvalRuntime(
+            context,
+            factory,
+            trace_manager,
+            event_bus,
+            LlmOpsHttpExporter(),
+            LlmOpsHttpExporter(),
+        )
 
         model = await eval_runtime._get_agent_model(resumable_runtime)
         assert model == "gpt-4o-from-agent-json"
