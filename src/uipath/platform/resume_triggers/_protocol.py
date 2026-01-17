@@ -35,7 +35,14 @@ from uipath.platform.common import (
     WaitJob,
     WaitTask,
 )
-from uipath.platform.context_grounding import DeepRagStatus
+from uipath.platform.common.interrupt_models import (
+    CreateEphemeralIndex,
+    WaitEphemeralIndex,
+)
+from uipath.platform.context_grounding import DeepRagStatus, IndexStatus
+from uipath.platform.context_grounding.context_grounding_index import (
+    ContextGroundingIndex,
+)
 from uipath.platform.errors import (
     BatchTransformNotCompleteException,
     ExtractionNotCompleteException,
@@ -226,6 +233,33 @@ class UiPathResumeTriggerReader:
 
                     return trigger_response
 
+            case UiPathResumeTriggerType.EPHEMERAL_INDEX:
+                if trigger.item_key:
+                    index = uipath.context_grounding.retrieve_by_id(trigger.item_key)
+
+                    ephemeral_index = ContextGroundingIndex(**index)
+
+                    ephemeral_index_status = ephemeral_index.last_ingestion_status
+
+                    if ephemeral_index_status in (
+                        IndexStatus.QUEUED,
+                        IndexStatus.IN_PROGRESS,
+                    ):
+                        raise UiPathPendingTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"Index ingestion is not finished yet. Current status: {ephemeral_index_status}",
+                        )
+
+                    if ephemeral_index_status != IndexStatus.SUCCESSFUL:
+                        raise UiPathFaultedTriggerError(
+                            ErrorCategory.USER,
+                            f"Index ingestion '{ephemeral_index.name}' did not finish successfully.",
+                        )
+
+                    trigger_response = ephemeral_index
+
+                    return trigger_response
+
             case UiPathResumeTriggerType.BATCH_RAG:
                 if trigger.item_key:
                     destination_path = self._extract_field(
@@ -354,6 +388,10 @@ class UiPathResumeTriggerCreator:
                     await self._handle_deep_rag_job_trigger(
                         suspend_value, resume_trigger, uipath
                     )
+                case UiPathResumeTriggerType.EPHEMERAL_INDEX:
+                    await self._handle_ephemeral_index_job_trigger(
+                        suspend_value, resume_trigger, uipath
+                    )
                 case UiPathResumeTriggerType.BATCH_RAG:
                     await self._handle_batch_rag_job_trigger(
                         suspend_value, resume_trigger, uipath
@@ -391,6 +429,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerType.JOB
         if isinstance(value, (CreateDeepRag, WaitDeepRag)):
             return UiPathResumeTriggerType.DEEP_RAG
+        if isinstance(value, (CreateEphemeralIndex, WaitEphemeralIndex)):
+            return UiPathResumeTriggerType.EPHEMERAL_INDEX
         if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
             return UiPathResumeTriggerType.BATCH_RAG
         if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
@@ -415,6 +455,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.JOB
         if isinstance(value, (CreateDeepRag, WaitDeepRag)):
             return UiPathResumeTriggerName.DEEP_RAG
+        if isinstance(value, (CreateEphemeralIndex, WaitEphemeralIndex)):
+            return UiPathResumeTriggerName.EPHEMERAL_INDEX
         if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
             return UiPathResumeTriggerName.BATCH_RAG
         if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
@@ -478,6 +520,21 @@ class UiPathResumeTriggerCreator:
             if not deep_rag:
                 raise Exception("Failed to start deep rag")
             resume_trigger.item_key = deep_rag.id
+
+    async def _handle_ephemeral_index_job_trigger(
+        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+    ) -> None:
+        """Handle ephemeral index"""
+        if isinstance(value, WaitEphemeralIndex):
+            resume_trigger.item_key = value.index.id
+        elif isinstance(value, CreateEphemeralIndex):
+            ephemeral_index = uipath.context_grounding.create_ephemeral_index(
+                usage=value.usage,
+                attachments=value.attachments,
+            )
+            if not ephemeral_index:
+                raise Exception("Failed to create ephemeral index")
+            resume_trigger.item_key = ephemeral_index.id
 
     async def _handle_batch_rag_job_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath

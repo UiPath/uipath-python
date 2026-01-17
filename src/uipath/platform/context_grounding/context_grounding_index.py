@@ -44,9 +44,9 @@ class ContextGroundingIndex(BaseModel):
         extra="allow",
     )
 
-    @field_serializer("last_ingested", "last_queried", when_used="json")
+    @field_serializer("last_ingested", "last_queried")
     def serialize_datetime(self, value):
-        """Serialize datetime fields to ISO 8601 format for JSON output."""
+        """Serialize datetime fields to ISO 8601 format."""
         if isinstance(value, datetime):
             return value.isoformat() if value else None
         return value

@@ -4,7 +4,11 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..action_center.tasks import Task
+from uipath.platform.context_grounding.context_grounding_index import (
+    ContextGroundingIndex,
+)
+
+from ..action_center import Task
 from ..context_grounding import (
     BatchTransformCreationResponse,
     BatchTransformOutputColumn,
@@ -82,6 +86,19 @@ class WaitDeepRag(BaseModel):
     deep_rag: DeepRagCreationResponse
     index_folder_path: str | None = None
     index_folder_key: str | None = None
+
+
+class CreateEphemeralIndex(BaseModel):
+    """Model representing a Ephemeral Index task creation."""
+
+    usage: str
+    attachments: list[str]
+
+
+class WaitEphemeralIndex(BaseModel):
+    """Model representing a wait Ephemeral Index task."""
+
+    index: ContextGroundingIndex
 
 
 class CreateBatchTransform(BaseModel):
