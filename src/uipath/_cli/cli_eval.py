@@ -8,8 +8,6 @@ import click
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
-logger = logging.getLogger(__name__)
-
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
@@ -31,6 +29,7 @@ from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 from ._utils._console import ConsoleLogger
 from ._utils._eval_set import EvalHelpers
 
+logger = logging.getLogger(__name__)
 console = ConsoleLogger()
 
 
