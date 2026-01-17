@@ -1,4 +1,7 @@
 import asyncio
+import json
+import uuid
+from pathlib import Path
 
 import click
 from uipath.core.tracing import UiPathTraceManager
@@ -14,6 +17,17 @@ from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import get_debug_bridge
+from uipath._cli._evals._models._evaluation_set import (
+    EvaluationItem,
+    EvaluationSimulationTool,
+    LLMMockingStrategy,
+    MockingStrategyType,
+)
+from uipath._cli._evals._span_collection import ExecutionSpanCollector
+from uipath._cli._evals.mocks.mocks import (
+    clear_execution_context,
+    set_execution_context,
+)
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._utils._bindings import ResourceOverwritesContext
@@ -24,6 +38,60 @@ from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
+
+
+def load_simulation_config() -> EvaluationItem | None:
+    """Load simulation.json from current directory and convert to EvaluationItem.
+
+    Returns:
+        EvaluationItem with LLM mocking strategy if simulation.json exists and is valid,
+        None otherwise.
+    """
+    simulation_path = Path.cwd() / "simulation.json"
+
+    if not simulation_path.exists():
+        return None
+
+    try:
+        with open(simulation_path, "r", encoding="utf-8") as f:
+            simulation_data = json.load(f)
+
+        # Check if simulation is enabled
+        if not simulation_data.get("enabled", True):
+            return None
+
+        # Extract tools to simulate
+        tools_to_simulate = [
+            EvaluationSimulationTool(name=tool["name"])
+            for tool in simulation_data.get("toolsToSimulate", [])
+        ]
+
+        if not tools_to_simulate:
+            return None
+
+        # Create LLM mocking strategy
+        mocking_strategy = LLMMockingStrategy(
+            type=MockingStrategyType.LLM,
+            prompt=simulation_data.get("instructions", ""),
+            tools_to_simulate=tools_to_simulate,
+        )
+
+        # Create a minimal EvaluationItem for debugging
+        # We use empty inputs since the actual input comes from the debug command
+        eval_item = EvaluationItem(
+            id=str(uuid.uuid4()),
+            name="debug-simulation",
+            inputs={},
+            evaluation_criterias={},
+            mocking_strategy=mocking_strategy,
+        )
+
+        console.info(f"Loaded simulation config for {len(tools_to_simulate)} tool(s)")
+        return eval_item
+
+    except Exception as e:
+        console.warning(f"Failed to load simulation.json: {e}")
+        return None
 
 
 @click.command()
@@ -114,6 +182,17 @@ def debug(
                     debug_runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
 
+                    # Load simulation config and set up execution context for tool mocking
+                    eval_item = load_simulation_config()
+                    span_collector: ExecutionSpanCollector | None = None
+                    execution_id = str(uuid.uuid4())
+
+                    if eval_item:
+                        # Create span collector for trace access during mocking
+                        span_collector = ExecutionSpanCollector()
+                        # Set execution context to enable tool simulation
+                        set_execution_context(eval_item, span_collector, execution_id)
+
                     try:
                         trigger_poll_interval: float = 5.0
 
@@ -163,6 +242,10 @@ def debug(
                             )
 
                     finally:
+                        # Clear execution context after debugging completes
+                        if eval_item:
+                            clear_execution_context()
+
                         if debug_runtime:
                             await debug_runtime.dispose()
                         if chat_runtime:
