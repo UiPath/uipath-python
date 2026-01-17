@@ -1,11 +1,14 @@
 import ast
 import asyncio
+import logging
 import os
 from typing import Any
 
 import click
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
+
+logger = logging.getLogger(__name__)
 
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._evaluate import evaluate
@@ -203,8 +206,18 @@ def eval(
             async def execute_eval():
                 event_bus = EventBus()
 
+                # Only create studio web exporter when reporting to Studio Web
+                studio_web_tracking_exporter = None
                 if should_register_progress_reporter:
-                    progress_reporter = StudioWebProgressReporter(LlmOpsHttpExporter())
+                    studio_web_tracking_exporter = LlmOpsHttpExporter()
+                    if eval_context.eval_set_run_id:
+                        studio_web_tracking_exporter.trace_id = (
+                            eval_context.eval_set_run_id
+                        )
+
+                    progress_reporter = StudioWebProgressReporter(
+                        studio_web_tracking_exporter
+                    )
                     await progress_reporter.subscribe_to_eval_runtime_events(event_bus)
 
                 console_reporter = ConsoleProgressReporter()
@@ -224,8 +237,11 @@ def eval(
                     # Set job_id in eval context for single runtime runs
                     eval_context.job_id = ctx.job_id
 
+                    # Create job exporter for live tracking
+                    job_exporter = None
                     if ctx.job_id:
-                        trace_manager.add_span_exporter(LlmOpsHttpExporter())
+                        job_exporter = LlmOpsHttpExporter()
+                        trace_manager.add_span_exporter(job_exporter)
 
                     if trace_file:
                         trace_manager.add_span_exporter(
@@ -248,11 +264,18 @@ def eval(
                                     trace_manager,
                                     eval_context,
                                     event_bus,
+                                    job_exporter,
+                                    studio_web_tracking_exporter,
                                 )
                         else:
                             # Fall back to execution without overwrites
                             ctx.result = await evaluate(
-                                runtime_factory, trace_manager, eval_context, event_bus
+                                runtime_factory,
+                                trace_manager,
+                                eval_context,
+                                event_bus,
+                                job_exporter,
+                                studio_web_tracking_exporter,
                             )
                     finally:
                         if runtime_factory:

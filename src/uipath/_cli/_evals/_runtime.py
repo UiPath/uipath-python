@@ -309,6 +309,8 @@ class UiPathEvalRuntime:
         factory: UiPathRuntimeFactoryProtocol,
         trace_manager: UiPathTraceManager,
         event_bus: EventBus,
+        job_exporter: LlmOpsHttpExporter | None,
+        studio_web_tracking_exporter: LlmOpsHttpExporter | None,
     ):
         self.context: UiPathEvalContext = context
         # Wrap the factory to support model settings overrides
@@ -323,11 +325,27 @@ class UiPathEvalRuntime:
         self.trace_manager.tracer_span_processors.append(span_processor)
         self.trace_manager.tracer_provider.add_span_processor(span_processor)
 
-        # Live tracking processor for real-time span updates
-        live_tracking_exporter = LlmOpsHttpExporter()
-        live_tracking_processor = LiveTrackingSpanProcessor(live_tracking_exporter)
-        self.trace_manager.tracer_span_processors.append(live_tracking_processor)
-        self.trace_manager.tracer_provider.add_span_processor(live_tracking_processor)
+        # Job exporter tracking processor for real-time span updates
+        if job_exporter:
+            self.job_exporter = job_exporter
+            job_tracking_processor = LiveTrackingSpanProcessor(self.job_exporter)
+            self.trace_manager.tracer_span_processors.append(job_tracking_processor)
+            self.trace_manager.tracer_provider.add_span_processor(
+                job_tracking_processor
+            )
+
+        # Studio Web tracking processor for real-time span updates
+        if studio_web_tracking_exporter:
+            self.studio_web_tracking_exporter = studio_web_tracking_exporter
+            studio_web_tracking_processor = LiveTrackingSpanProcessor(
+                self.studio_web_tracking_exporter
+            )
+            self.trace_manager.tracer_span_processors.append(
+                studio_web_tracking_processor
+            )
+            self.trace_manager.tracer_provider.add_span_processor(
+                studio_web_tracking_processor
+            )
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
         # Use job_id if available (for single runtime runs), otherwise generate UUID

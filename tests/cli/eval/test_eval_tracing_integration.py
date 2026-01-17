@@ -124,6 +124,8 @@ class TestEvalSetRunSpanCreation:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         # Mock initiate_evaluation to return empty results
@@ -168,6 +170,8 @@ class TestEvalSetRunSpanCreation:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         mock_eval_set = MagicMock()
@@ -248,6 +252,8 @@ class TestEvaluationSpanCreation:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         # Mock execute_runtime to return a successful result
@@ -352,6 +358,8 @@ class TestEvaluatorSpanCreation:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         await runtime.run_evaluator(
@@ -393,6 +401,8 @@ class TestEvaluatorSpanCreation:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         evaluator_names = ["Accuracy", "Relevance", "Fluency"]
@@ -464,6 +474,8 @@ class TestSpanAttributeValues:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         mock_runtime = AsyncMock()
@@ -517,6 +529,8 @@ class TestSpanAttributeValues:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         eval_item = MagicMock()
@@ -706,6 +720,8 @@ class TestSpanOutputAttributes:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         # Mock the runtime and evaluator
@@ -783,6 +799,8 @@ class TestSpanOutputAttributes:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         # Mock the runtime
@@ -862,6 +880,8 @@ class TestSpanOutputAttributes:
             factory=mock_factory,
             trace_manager=mock_trace_manager,
             event_bus=mock_event_bus,
+            job_exporter=MagicMock(),
+            studio_web_tracking_exporter=MagicMock(),
         )
 
         # Mock execution output
