@@ -9,7 +9,7 @@ from uuid import UUID
 from ..._utils import Endpoint
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
-from ..errors import ExtractionNotCompleteException
+from ..errors import OperationFailedException, OperationNotCompleteException
 from .documents import (
     ActionPriority,
     ClassificationResponse,
@@ -19,6 +19,7 @@ from .documents import (
     FileContent,
     ProjectType,
     StartExtractionResponse,
+    StartOperationResponse,
     ValidateClassificationAction,
     ValidateExtractionAction,
 )
@@ -992,6 +993,70 @@ class DocumentsService(FolderContext, BaseService):
             document_id=document_id,
         )
 
+    def _retrieve_operation_result(
+        self,
+        url: Endpoint,
+        operation_id: str,
+        operation_name: str,
+    ) -> Dict:
+        response = self.request(
+            method="GET",
+            url=url,
+            params={"api-version": "1.1"},
+            headers=self._get_common_headers(),
+        ).json()
+
+        status = response.get("status")
+        if status in ["NotStarted", "Running"]:
+            raise OperationNotCompleteException(
+                operation_id=operation_id,
+                status=response.get("status"),
+                operation_name=operation_name,
+            )
+
+        if status != "Succeeded":
+            raise OperationFailedException(
+                operation_id=operation_id,
+                status=status,
+                error=response.get("error"),
+                operation_name=operation_name,
+            )
+
+        return response.get("result")
+
+    async def _retrieve_operation_result_async(
+        self,
+        url: Endpoint,
+        operation_id: str,
+        operation_name: str,
+    ) -> Dict:
+        response = (
+            await self.request_async(
+                method="GET",
+                url=url,
+                params={"api-version": "1.1"},
+                headers=self._get_common_headers(),
+            )
+        ).json()
+
+        status = response.get("status")
+        if status in ["NotStarted", "Running"]:
+            raise OperationNotCompleteException(
+                operation_id=operation_id,
+                status=response.get("status"),
+                operation_name=operation_name,
+            )
+
+        if status != "Succeeded":
+            raise OperationFailedException(
+                operation_id=operation_id,
+                status=status,
+                error=response.get("error"),
+                operation_name=operation_name,
+            )
+
+        return response.get("result")
+
     @traced(name="documents_retrieve_ixp_extraction_result", run_type="uipath")
     def retrieve_ixp_extraction_result(
         self,
@@ -1014,7 +1079,8 @@ class DocumentsService(FolderContext, BaseService):
             ExtractionResponseIXP: The extraction response containing the extracted data.
 
         Raises:
-            IxpExtractionNotCompleteException: If the extraction is not yet complete.
+            OperationNotCompleteException: If the extraction is not yet complete.
+            OperationFailedException: If the extraction operation failed.
 
         Examples:
             ```python
@@ -1032,21 +1098,12 @@ class DocumentsService(FolderContext, BaseService):
             f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/result/{operation_id}"
         )
 
-        result = self.request(
-            method="GET",
+        extraction_response = self._retrieve_operation_result(
             url=url,
-            params={"api-version": "1.1"},
-            headers=self._get_common_headers(),
-        ).json()
+            operation_id=operation_id,
+            operation_name="IXP extraction",
+        )
 
-        status = result.get("status")
-        if status in ["NotStarted", "Running"]:
-            raise ExtractionNotCompleteException(
-                operation_id=operation_id,
-                status=status,
-            )
-
-        extraction_response = result.get("result")
         extraction_response["projectId"] = project_id
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
@@ -1068,23 +1125,12 @@ class DocumentsService(FolderContext, BaseService):
             f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/result/{operation_id}"
         )
 
-        result = (
-            await self.request_async(
-                method="GET",
-                url=url,
-                params={"api-version": "1.1"},
-                headers=self._get_common_headers(),
-            )
-        ).json()
+        extraction_response = await self._retrieve_operation_result_async(
+            url=url,
+            operation_id=operation_id,
+            operation_name="IXP extraction",
+        )
 
-        status = result.get("status")
-        if status in ["NotStarted", "Running"]:
-            raise ExtractionNotCompleteException(
-                operation_id=operation_id,
-                status=status,
-            )
-
-        extraction_response = result.get("result")
         extraction_response["projectId"] = project_id
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
@@ -1362,7 +1408,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: str,
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
-    ) -> str:
+    ) -> StartOperationResponse:
         if project_type == ProjectType.PRETRAINED:
             url = Endpoint(
                 f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start"
@@ -1372,7 +1418,7 @@ class DocumentsService(FolderContext, BaseService):
                 f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/start"
             )
 
-        return self.request(
+        operation_id = self.request(
             "POST",
             url=url,
             params={"api-version": 1.1},
@@ -1390,6 +1436,13 @@ class DocumentsService(FolderContext, BaseService):
             },
         ).json()["operationId"]
 
+        return StartOperationResponse(
+            operation_id=operation_id,
+            document_id=extraction_response.extraction_result.document_id,
+            project_id=project_id,
+            tag=tag,
+        )
+
     async def _start_extraction_validation_async(
         self,
         project_id: str,
@@ -1403,7 +1456,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: str,
         storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
-    ) -> str:
+    ) -> StartOperationResponse:
         if project_type == ProjectType.PRETRAINED:
             url = Endpoint(
                 f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start"
@@ -1413,7 +1466,7 @@ class DocumentsService(FolderContext, BaseService):
                 f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/start"
             )
 
-        return (
+        operation_id = (
             await self.request_async(
                 "POST",
                 url=url,
@@ -1432,6 +1485,184 @@ class DocumentsService(FolderContext, BaseService):
                 },
             )
         ).json()["operationId"]
+
+        return StartOperationResponse(
+            operation_id=operation_id,
+            document_id=extraction_response.extraction_result.document_id,
+            project_id=project_id,
+            tag=tag,
+        )
+
+    @traced(name="documents_start_ixp_extraction_validation", run_type="uipath")
+    def start_ixp_extraction_validation(
+        self,
+        action_title: str,
+        action_priority: ActionPriority,
+        action_catalog: str,
+        action_folder: str,
+        storage_bucket_name: str,
+        storage_bucket_directory_path: str,
+        extraction_response: ExtractionResponseIXP,
+    ) -> StartOperationResponse:
+        """Start an IXP extraction validation action without waiting for results (non-blocking).
+
+        Args:
+            action_title (str): The title of the validation action.
+            action_priority (ActionPriority): The priority of the validation action.
+            action_catalog (str): The catalog of the validation action.
+            action_folder (str): The folder of the validation action.
+            storage_bucket_name (str): The name of the storage bucket where validation data will be stored.
+            storage_bucket_directory_path (str): The directory path within the storage bucket.
+            extraction_response (ExtractionResponseIXP): The extraction response from the IXP extraction process.
+
+        Returns:
+            StartOperationResponse: Contains the operation_id, document_id, project_id, and tag.
+
+        Examples:
+            ```python
+            start_operation_response = service.start_ixp_extraction_validation(
+                action_title="Validate IXP Extraction",
+                action_priority=ActionPriority.HIGH,
+                action_catalog="DefaultCatalog",
+                action_folder="Validations",
+                storage_bucket_name="my-storage-bucket",
+                storage_bucket_directory_path="validations/ixp",
+                extraction_response=extraction_response,
+            )
+            # start_operation_response can be used to poll for validation results later
+            ```
+        """
+        return self._start_extraction_validation(
+            project_id=extraction_response.project_id,
+            project_type=ProjectType.IXP,
+            tag=extraction_response.tag,
+            document_type_id=str(UUID(int=0)),
+            action_title=action_title,
+            action_priority=action_priority,
+            action_catalog=action_catalog,
+            action_folder=action_folder,
+            storage_bucket_name=storage_bucket_name,
+            storage_bucket_directory_path=storage_bucket_directory_path,
+            extraction_response=extraction_response,
+        )
+
+    @traced(
+        name="documents_start_ixp_extraction_validation_async",
+        run_type="uipath",
+    )
+    async def start_ixp_extraction_validation_async(
+        self,
+        action_title: str,
+        action_priority: ActionPriority,
+        action_catalog: str,
+        action_folder: str,
+        storage_bucket_name: str,
+        storage_bucket_directory_path: str,
+        extraction_response: ExtractionResponseIXP,
+    ) -> StartOperationResponse:
+        """Asynchronous version of the [`start_ixp_extraction_validation`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction_validation] method."""
+        return await self._start_extraction_validation_async(
+            project_id=extraction_response.project_id,
+            project_type=ProjectType.IXP,
+            tag=extraction_response.tag,
+            document_type_id=str(UUID(int=0)),
+            action_title=action_title,
+            action_priority=action_priority,
+            action_catalog=action_catalog,
+            action_folder=action_folder,
+            storage_bucket_name=storage_bucket_name,
+            storage_bucket_directory_path=storage_bucket_directory_path,
+            extraction_response=extraction_response,
+        )
+
+    @traced(
+        name="documents_retrieve_ixp_extraction_validation_result",
+        run_type="uipath",
+    )
+    def retrieve_ixp_extraction_validation_result(
+        self,
+        project_id: str,
+        tag: str,
+        operation_id: str,
+    ) -> ValidateExtractionAction:
+        """Retrieve the result of an IXP create validate extraction action operation (single-shot, non-blocking).
+
+        This method retrieves the result of an IXP create validate extraction action that was previously started
+        with `start_ixp_extraction_validation`. It does not poll - it makes a single request and
+        returns the result if available, or raises an exception if not complete.
+
+        Args:
+            operation_id (str): The operation ID returned from `start_ixp_extraction_validation`.
+            project_id (str): The ID of the IXP project.
+            tag (str): The tag of the published project version.
+
+        Returns:
+            ValidateExtractionAction: The validation action
+
+        Raises:
+            OperationNotCompleteException: If the validation action is not yet complete.
+            OperationFailedException: If the validation action has failed.
+
+        Examples:
+            ```python
+            # After receiving a callback/webhook that validation is complete:
+            validation_result = service.retrieve_ixp_extraction_validation_result(
+                operation_id=start_operation_response.operation_id,
+                project_id=start_operation_response.project_id,
+                tag=start_operation_response.tag,
+            )
+            ```
+        """
+        document_type_id = str(UUID(int=0))
+
+        url = Endpoint(
+            f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/result/{operation_id}"
+        )
+
+        result = self._retrieve_operation_result(
+            url=url,
+            operation_id=operation_id,
+            operation_name="IXP Create Validate Extraction Action",
+        )
+
+        result["projectId"] = project_id
+        result["projectType"] = ProjectType.IXP
+        result["tag"] = tag
+        result["documentTypeId"] = str(UUID(int=0))
+        result["operationId"] = operation_id
+
+        return ValidateExtractionAction.model_validate(result)
+
+    @traced(
+        name="documents_retrieve_ixp_extraction_validation_result_async",
+        run_type="uipath",
+    )
+    async def retrieve_ixp_extraction_validation_result_async(
+        self,
+        project_id: str,
+        tag: str,
+        operation_id: str,
+    ) -> ValidateExtractionAction:
+        """Asynchronous version of the [`retrieve_ixp_extraction_validation_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_validation_result] method."""
+        document_type_id = str(UUID(int=0))
+
+        url = Endpoint(
+            f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/result/{operation_id}"
+        )
+
+        result = await self._retrieve_operation_result_async(
+            url=url,
+            operation_id=operation_id,
+            operation_name="IXP Create Validate Extraction Action",
+        )
+
+        result["projectId"] = project_id
+        result["projectType"] = ProjectType.IXP
+        result["tag"] = tag
+        result["documentTypeId"] = str(UUID(int=0))
+        result["operationId"] = operation_id
+
+        return ValidateExtractionAction.model_validate(result)
 
     def _get_classification_validation_result(
         self,
@@ -1811,7 +2042,7 @@ class DocumentsService(FolderContext, BaseService):
             storage_bucket_name=storage_bucket_name,
             storage_bucket_directory_path=storage_bucket_directory_path,
             extraction_response=extraction_response,
-        )
+        ).operation_id
 
         return self._wait_for_create_validate_extraction_action(
             project_id=extraction_response.project_id,
@@ -1833,19 +2064,21 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response: ExtractionResponse,
     ) -> ValidateExtractionAction:
         """Asynchronous version of the [`create_validation_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_extraction_action] method."""
-        operation_id = await self._start_extraction_validation_async(
-            project_id=extraction_response.project_id,
-            project_type=extraction_response.project_type,
-            tag=extraction_response.tag,
-            document_type_id=extraction_response.document_type_id,
-            action_title=action_title,
-            action_priority=action_priority,
-            action_catalog=action_catalog,
-            action_folder=action_folder,
-            storage_bucket_name=storage_bucket_name,
-            storage_bucket_directory_path=storage_bucket_directory_path,
-            extraction_response=extraction_response,
-        )
+        operation_id = (
+            await self._start_extraction_validation_async(
+                project_id=extraction_response.project_id,
+                project_type=extraction_response.project_type,
+                tag=extraction_response.tag,
+                document_type_id=extraction_response.document_type_id,
+                action_title=action_title,
+                action_priority=action_priority,
+                action_catalog=action_catalog,
+                action_folder=action_folder,
+                storage_bucket_name=storage_bucket_name,
+                storage_bucket_directory_path=storage_bucket_directory_path,
+                extraction_response=extraction_response,
+            )
+        ).operation_id
 
         return await self._wait_for_create_validate_extraction_action_async(
             project_id=extraction_response.project_id,

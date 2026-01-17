@@ -38,7 +38,7 @@ from uipath.platform.common import (
 from uipath.platform.context_grounding import DeepRagStatus
 from uipath.platform.errors import (
     BatchTransformNotCompleteException,
-    ExtractionNotCompleteException,
+    OperationNotCompleteException,
 )
 from uipath.platform.orchestrator.job import JobState
 from uipath.platform.resume_triggers._enums import PropertyName, TriggerMarker
@@ -263,7 +263,7 @@ class UiPathResumeTriggerReader:
                                 project_id, tag, trigger.item_key
                             )
                         )
-                    except ExtractionNotCompleteException as e:
+                    except OperationNotCompleteException as e:
                         raise UiPathPendingTriggerError(
                             ErrorCategory.SYSTEM,
                             f"{e.message}",
