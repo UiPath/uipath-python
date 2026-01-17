@@ -141,7 +141,10 @@ class SocketIOChatBridge:
             return
 
         try:
+            # Request disconnect then wait for it to happen, this allows pending sends to complete. Without the wait,
+            # sending the endExchange event was racing with process termination, and losing much of the time.
             await self._client.disconnect()
+            await self._client.wait()
         except Exception as e:
             logger.error(f"Error during WebSocket disconnect: {e}")
         finally:
