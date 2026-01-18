@@ -614,7 +614,9 @@ class UiPathEvalRuntime:
                             eval_item, runtime
                         )
 
-                    set_execution_context(eval_item, self.span_collector, execution_id)
+                    set_execution_context(
+                        eval_item.mocking_strategy, self.span_collector, execution_id
+                    )
 
                     await self.event_bus.publish(
                         EvaluationEvents.CREATE_EVAL_RUN,
@@ -868,8 +870,16 @@ class UiPathEvalRuntime:
         self, eval_item: EvaluationItem, runtime: UiPathRuntimeProtocol
     ) -> EvaluationItem:
         """Use LLM to generate a mock input for an evaluation item."""
+        expected_output = (
+            getattr(eval_item, "evaluation_criterias", None)
+            or getattr(eval_item, "expected_output", None)
+            or {}
+        )
         generated_input = await generate_llm_input(
-            eval_item, (await self.get_schema(runtime)).input
+            eval_item.input_mocking_strategy,
+            (await self.get_schema(runtime)).input,
+            expected_behavior=eval_item.expected_agent_behavior or "",
+            expected_output=expected_output,
         )
         updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
         return updated_eval_item
