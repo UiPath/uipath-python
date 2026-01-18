@@ -1,0 +1,12 @@
+{
+  "name": "uipath",
+  "version": "1.0.0",
+  "description": "Create, run, and evaluate UiPath coded agents with AI-powered assistance",
+  "author": {
+    "name": "UiPath"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/uipath/uipath-python",
+  "repository": "https://github.com/uipath/uipath-python",
+  "keywords": ["uipath", "automation", "rpa", "agent", "evaluation"]
+}

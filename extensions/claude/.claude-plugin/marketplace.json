@@ -1,0 +1,22 @@
+{
+  "name": "uipath-marketplace",
+  "owner": {
+    "name": "UiPath",
+    "email": "support@uipath.com"
+  },
+  "plugins": [
+    {
+      "name": "uipath",
+      "source": "./.claude-plugin/plugins/uipath",
+      "description": "Create, run, and evaluate UiPath coded agents with AI-powered assistance",
+      "version": "1.0.0",
+      "author": {
+        "name": "UiPath"
+      },
+      "homepage": "https://github.com/uipath/uipath-python",
+      "repository": "https://github.com/uipath/uipath-python",
+      "license": "MIT",
+      "keywords": ["uipath", "automation", "rpa", "agent", "evaluation"]
+    }
+  ]
+}

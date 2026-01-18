@@ -1,0 +1,26 @@
+# Cache files
+*.pyc
+__pycache__/
+*.pyo
+
+# Virtual environments
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Workspace
+workspace/
+.claude/cache/

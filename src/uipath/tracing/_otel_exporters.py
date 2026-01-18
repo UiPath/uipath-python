@@ -415,6 +415,8 @@ class LlmOpsHttpExporter(SpanExporter):
 
         Spans with telemetry.filter="drop" are skipped by this exporter.
         """
+        if isinstance(span, NonRecordingSpan):
+            breakpoint()
         attrs = span.attributes or {}
         return attrs.get("telemetry.filter") == "drop"
 
