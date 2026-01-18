@@ -6,11 +6,10 @@ from pytest_httpx import HTTPXMock
 
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
-    InputMockingStrategy,
-    ModelSettings,
 )
 from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.input_mocker import generate_llm_input
+from uipath._cli._evals.mocks.types import InputMockingStrategy, ModelSettings
 
 
 @pytest.mark.asyncio
@@ -98,7 +97,12 @@ async def test_generate_llm_input_with_model_settings(
         },
     )
 
-    result = await generate_llm_input(eval_item, input_schema)
+    result = await generate_llm_input(
+        eval_item.input_mocking_strategy,
+        input_schema,
+        expected_behavior=eval_item.expected_agent_behavior,
+        expected_output={"result": 35},
+    )
 
     # Verify the mocked input is correct
     assert result == {"query": "Calculate 5 times 7"}

@@ -7,11 +7,10 @@ from pydantic import TypeAdapter, ValidationError
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
     EvaluationSet,
-    InputMockingStrategy,
     LegacyEvaluationItem,
     LegacyEvaluationSet,
-    LLMMockingStrategy,
 )
+from uipath._cli._evals.mocks.types import InputMockingStrategy, LLMMockingStrategy
 from uipath._cli._utils._console import ConsoleLogger
 
 console = ConsoleLogger()

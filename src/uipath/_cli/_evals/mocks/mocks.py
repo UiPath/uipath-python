@@ -4,15 +4,19 @@ import logging
 from contextvars import ContextVar
 from typing import Any, Callable
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath._cli._evals._span_collection import ExecutionSpanCollector
 from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.mocker import Mocker, UiPathNoMockFoundError
 from uipath._cli._evals.mocks.mocker_factory import MockerFactory
+from uipath._cli._evals.mocks.types import (
+    LLMMockingStrategy,
+    MockingContext,
+    MockitoMockingStrategy,
+)
 
 # Context variables for evaluation items and mockers
-evaluation_context: ContextVar[EvaluationItem | None] = ContextVar(
-    "evaluation", default=None
+mocking_context: ContextVar[MockingContext | None] = ContextVar(
+    "mocking_context", default=None
 )
 
 mocker_context: ContextVar[Mocker | None] = ContextVar("mocker", default=None)
@@ -33,20 +37,20 @@ logger = logging.getLogger(__name__)
 
 
 def set_execution_context(
-    eval_item: EvaluationItem,
+    context: MockingContext | None,
     span_collector: ExecutionSpanCollector,
-    execution_id: str,
+    execution_id: str | None = None,
 ) -> None:
     """Set the execution context for an evaluation run for mocking and trace access."""
-    evaluation_context.set(eval_item)
+    mocking_context.set(context)
 
     try:
-        if eval_item.mocking_strategy:
-            mocker_context.set(MockerFactory.create(eval_item))
+        if context:
+            mocker_context.set(MockerFactory.create(context))
         else:
             mocker_context.set(None)
     except Exception:
-        logger.warning(f"Failed to create mocker for evaluation {eval_item.name}")
+        logger.warning("Failed to create mocker.")
         mocker_context.set(None)
 
     span_collector_context.set(span_collector)
@@ -55,7 +59,7 @@ def set_execution_context(
 
 def clear_execution_context() -> None:
     """Clear the execution context after evaluation completes."""
-    evaluation_context.set(None)
+    mocking_context.set(None)
     mocker_context.set(None)
     span_collector_context.set(None)
     execution_id_context.set(None)
@@ -70,25 +74,20 @@ def _normalize_tool_name(name: str) -> str:
 
 
 def is_tool_simulated(tool_name: str) -> bool:
-    """Check if a tool will be simulated based on the current evaluation context.
+    """Check if a tool will be simulated based on the current mocking strategy context.
 
     Args:
         tool_name: The name of the tool to check.
 
     Returns:
-        True if we're in an evaluation context and the tool is configured
+        True if we're in an mocking strategy context and the tool is configured
         to be simulated, False otherwise.
     """
-    eval_item = evaluation_context.get()
-    if eval_item is None or eval_item.mocking_strategy is None:
+    ctx = mocking_context.get()
+    strategy = ctx.strategy if ctx else None
+    if strategy is None:
         return False
 
-    from uipath._cli._evals._models._evaluation_set import (
-        LLMMockingStrategy,
-        MockitoMockingStrategy,
-    )
-
-    strategy = eval_item.mocking_strategy
     normalized_tool_name = _normalize_tool_name(tool_name)
 
     if isinstance(strategy, LLMMockingStrategy):

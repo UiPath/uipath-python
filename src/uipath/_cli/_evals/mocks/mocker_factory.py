@@ -1,25 +1,25 @@
 """Mocker Factory."""
 
-from uipath._cli._evals._models._evaluation_set import (
-    EvaluationItem,
-    LLMMockingStrategy,
-    MockitoMockingStrategy,
-)
 from uipath._cli._evals.mocks.llm_mocker import LLMMocker
 from uipath._cli._evals.mocks.mocker import Mocker
 from uipath._cli._evals.mocks.mockito_mocker import MockitoMocker
+from uipath._cli._evals.mocks.types import (
+    LLMMockingStrategy,
+    MockingContext,
+    MockitoMockingStrategy,
+)
 
 
 class MockerFactory:
     """Mocker factory."""
 
     @staticmethod
-    def create(evaluation_item: EvaluationItem) -> Mocker:
+    def create(context: MockingContext) -> Mocker:
         """Create a mocker instance."""
-        match evaluation_item.mocking_strategy:
+        match context.strategy:
             case LLMMockingStrategy():
-                return LLMMocker(evaluation_item)
+                return LLMMocker(context)
             case MockitoMockingStrategy():
-                return MockitoMocker(evaluation_item)
+                return MockitoMocker(context)
             case _:
                 raise ValueError("Unknown mocking strategy")

@@ -9,16 +9,16 @@ from mockito import (  # type: ignore[import-untyped]
 )
 from pydantic import JsonValue
 
-from uipath._cli._evals._models._evaluation_set import (
-    EvaluationItem,
-    MockingAnswerType,
-    MockitoMockingStrategy,
-)
 from uipath._cli._evals.mocks.mocker import (
     Mocker,
     R,
     T,
     UiPathMockResponseGenerationError,
+)
+from uipath._cli._evals.mocks.types import (
+    MockingAnswerType,
+    MockingContext,
+    MockitoMockingStrategy,
 )
 
 
@@ -63,15 +63,15 @@ def _resolve_value(config: JsonValue) -> Any:
 class MockitoMocker(Mocker):
     """Mockito Mocker."""
 
-    def __init__(self, evaluation_item: EvaluationItem):
+    def __init__(self, context: MockingContext):
         """Instantiate a mockito mocker."""
-        self.evaluation_item = evaluation_item
-        assert isinstance(self.evaluation_item.mocking_strategy, MockitoMockingStrategy)
+        self.context = context
+        assert isinstance(self.context.strategy, MockitoMockingStrategy)
 
         self.stub = Stub()
         mock_obj = mocking.Mock(self.stub)
 
-        for behavior in self.evaluation_item.mocking_strategy.behaviors:
+        for behavior in self.context.strategy.behaviors:
             resolved_args = _resolve_value(behavior.arguments.args)
             resolved_kwargs = _resolve_value(behavior.arguments.kwargs)
 
@@ -96,15 +96,13 @@ class MockitoMocker(Mocker):
         self, func: Callable[[T], R], params: dict[str, Any], *args: T, **kwargs
     ) -> R:
         """Return mocked response or raise appropriate errors."""
-        if not isinstance(
-            self.evaluation_item.mocking_strategy, MockitoMockingStrategy
-        ):
+        if not isinstance(self.context.strategy, MockitoMockingStrategy):
             raise UiPathMockResponseGenerationError("Mocking strategy misconfigured.")
 
         # No behavior configured → call real function
         is_mocked = any(
             behavior.function == params["name"]
-            for behavior in self.evaluation_item.mocking_strategy.behaviors
+            for behavior in self.context.strategy.behaviors
         )
 
         if not is_mocked:

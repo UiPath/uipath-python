@@ -1,8 +1,14 @@
-from enum import Enum, IntEnum
-from typing import Annotated, Any, Literal, Union
+from enum import IntEnum
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+from uipath._cli._evals.mocks.types import (
+    InputMockingStrategy,
+    MockingStrategy,
+    ToolSimulation,
+)
 
 
 class EvaluatorReference(BaseModel):
@@ -52,32 +58,6 @@ class EvaluatorReference(BaseModel):
         )
 
 
-class EvaluationSimulationTool(BaseModel):
-    name: str = Field(..., alias="name")
-
-
-class MockingStrategyType(str, Enum):
-    LLM = "llm"
-    MOCKITO = "mockito"
-    UNKNOWN = "unknown"
-
-
-class BaseMockingStrategy(BaseModel):
-    pass
-
-
-class ModelSettings(BaseModel):
-    """Model Generation Parameters."""
-
-    model: str = Field(..., alias="model")
-    temperature: float | str | None = Field(default=None, alias="temperature")
-    top_p: float | None = Field(default=None, alias="topP")
-    top_k: int | None = Field(default=None, alias="topK")
-    frequency_penalty: float | None = Field(default=None, alias="frequencyPenalty")
-    presence_penalty: float | None = Field(default=None, alias="presencePenalty")
-    max_tokens: int | None = Field(default=None, alias="maxTokens")
-
-
 class EvaluationSetModelSettings(BaseModel):
     """Model setting overrides within evaluation sets with ID."""
 
@@ -86,75 +66,6 @@ class EvaluationSetModelSettings(BaseModel):
     id: str = Field(..., alias="id")
     model_name: str = Field(..., alias="modelName")
     temperature: float | str | None = Field(default=None, alias="temperature")
-
-
-class LLMMockingStrategy(BaseMockingStrategy):
-    type: Literal[MockingStrategyType.LLM] = MockingStrategyType.LLM
-    prompt: str = Field(..., alias="prompt")
-    tools_to_simulate: list[EvaluationSimulationTool] = Field(
-        ..., alias="toolsToSimulate"
-    )
-    model: ModelSettings | None = Field(None, alias="model")
-
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-class InputMockingStrategy(BaseModel):
-    prompt: str = Field(..., alias="prompt")
-    model: ModelSettings | None = Field(None, alias="model")
-
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-class MockingArgument(BaseModel):
-    args: list[Any] = Field(default_factory=lambda: [], alias="args")
-    kwargs: dict[str, Any] = Field(default_factory=lambda: {}, alias="kwargs")
-
-
-class MockingAnswerType(str, Enum):
-    RETURN = "return"
-    RAISE = "raise"
-
-
-class MockingAnswer(BaseModel):
-    type: MockingAnswerType
-    value: Any = Field(..., alias="value")
-
-
-class MockingBehavior(BaseModel):
-    function: str = Field(..., alias="function")
-    arguments: MockingArgument = Field(..., alias="arguments")
-    then: list[MockingAnswer] = Field(..., alias="then")
-
-
-class MockitoMockingStrategy(BaseMockingStrategy):
-    type: Literal[MockingStrategyType.MOCKITO] = MockingStrategyType.MOCKITO
-    behaviors: list[MockingBehavior] = Field(..., alias="config")
-
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-KnownMockingStrategy = Annotated[
-    Union[LLMMockingStrategy, MockitoMockingStrategy],
-    Field(discriminator="type"),
-]
-
-
-class UnknownMockingStrategy(BaseMockingStrategy):
-    type: str = Field(..., alias="type")
-
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-MockingStrategy = Union[KnownMockingStrategy, UnknownMockingStrategy]
 
 
 class EvaluationItem(BaseModel):
@@ -201,7 +112,7 @@ class LegacyEvaluationItem(BaseModel):
     simulation_instructions: str | None = Field(
         default=None, alias="simulationInstructions"
     )
-    tools_to_simulate: list[EvaluationSimulationTool] = Field(
+    tools_to_simulate: list[ToolSimulation] = Field(
         default_factory=list, alias="toolsToSimulate"
     )
 

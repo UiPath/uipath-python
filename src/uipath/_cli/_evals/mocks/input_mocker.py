@@ -4,7 +4,9 @@ import json
 from datetime import datetime
 from typing import Any
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
+from uipath._cli._evals.mocks.types import (
+    InputMockingStrategy,
+)
 from uipath.platform import UiPath
 from uipath.tracing import traced
 
@@ -54,8 +56,10 @@ OUTPUT: ONLY the simulated agent input in the exact format of the INPUT_SCHEMA i
 
 @traced(name="__mocker__", recording=False)
 async def generate_llm_input(
-    evaluation_item: EvaluationItem,
+    mocking_strategy: InputMockingStrategy,
     input_schema: dict[str, Any],
+    expected_behavior: str,
+    expected_output: dict[str, Any],
 ) -> dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
     from .mocks import cache_manager_context
@@ -68,18 +72,12 @@ async def generate_llm_input(
         if "additionalProperties" not in input_schema:
             input_schema["additionalProperties"] = False
 
-        expected_output = (
-            getattr(evaluation_item, "evaluation_criterias", None)
-            or getattr(evaluation_item, "expected_output", None)
-            or {}
-        )
-
         prompt_generation_args = {
             "input_schema": json.dumps(input_schema),
-            "input_generation_instructions": evaluation_item.input_mocking_strategy.prompt
-            if evaluation_item.input_mocking_strategy
+            "input_generation_instructions": mocking_strategy.prompt
+            if mocking_strategy
             else "",
-            "expected_behavior": evaluation_item.expected_agent_behavior or "",
+            "expected_behavior": expected_behavior or "",
             "expected_output": json.dumps(expected_output),
         }
 
@@ -94,11 +92,7 @@ async def generate_llm_input(
             },
         }
 
-        model_parameters = (
-            evaluation_item.input_mocking_strategy.model
-            if evaluation_item.input_mocking_strategy
-            else None
-        )
+        model_parameters = mocking_strategy.model if mocking_strategy else None
         completion_kwargs = (
             model_parameters.model_dump(by_alias=False, exclude_none=True)
             if model_parameters
