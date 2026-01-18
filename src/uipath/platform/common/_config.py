@@ -49,6 +49,12 @@ class ConfigurationManager:
         return os.getenv(PROJECT_KEY, None)
 
     @property
+    def tenant_name(self) -> str | None:
+        from uipath._utils.constants import ENV_TENANT_NAME
+
+        return os.getenv(ENV_TENANT_NAME, None)
+
+    @property
     def organization_id(self) -> str | None:
         from uipath._utils.constants import ENV_ORGANIZATION_ID
 
