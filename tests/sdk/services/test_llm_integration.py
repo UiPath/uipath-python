@@ -85,7 +85,7 @@ class TestLLMIntegration:
         # Make the actual API call
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=50,
             temperature=0.7,
         )

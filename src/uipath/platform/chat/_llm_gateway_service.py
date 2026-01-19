@@ -62,6 +62,7 @@ class ChatModels(object):
     gpt_4o_2024_05_13 = "gpt-4o-2024-05-13"
     gpt_4o_2024_08_06 = "gpt-4o-2024-08-06"
     gpt_4o_mini_2024_07_18 = "gpt-4o-mini-2024-07-18"
+    gpt_4_1_mini_2025_04_14 = "gpt-4.1-mini-2025-04-14"
     o3_mini = "o3-mini-2025-01-31"
 
 
@@ -205,7 +206,7 @@ class UiPathOpenAIService(BaseService):
     async def chat_completions(
         self,
         messages: list[dict[str, str]],
-        model: str = ChatModels.gpt_4o_mini_2024_07_18,
+        model: str = ChatModels.gpt_4_1_mini_2025_04_14,
         max_tokens: int = 4096,
         temperature: float = 0,
         response_format: dict[str, Any] | type[BaseModel] | None = None,
@@ -223,7 +224,7 @@ class UiPathOpenAIService(BaseService):
                 the behavior/context, user messages are from the human, and assistant messages
                 are from the AI.
             model (str, optional): The model to use for chat completion.
-                Defaults to ChatModels.gpt_4o_mini_2024_07_18.
+                Defaults to ChatModels.gpt_4_1_mini_2025_04_14.
                 Available models are defined in the ChatModels class.
             max_tokens (int, optional): Maximum number of tokens to generate in the response.
                 Defaults to 4096. Higher values allow longer responses.
@@ -350,7 +351,7 @@ class UiPathLlmChatService(BaseService):
     async def chat_completions(
         self,
         messages: list[dict[str, str]] | list[tuple[str, str]],
-        model: str = ChatModels.gpt_4o_mini_2024_07_18,
+        model: str = ChatModels.gpt_4_1_mini_2025_04_14,
         max_tokens: int = 4096,
         temperature: float = 0,
         n: int = 1,
@@ -376,7 +377,7 @@ class UiPathLlmChatService(BaseService):
                 the behavior/context, user messages are from the human, and assistant messages
                 are from the AI.
             model (str, optional): The model to use for chat completion.
-                Defaults to ChatModels.gpt_4o_mini_2024_07_18.
+                Defaults to ChatModels.gpt_4_1_mini_2025_04_14.
                 Available models are defined in the ChatModels class.
             max_tokens (int, optional): Maximum number of tokens to generate in the response.
                 Defaults to 4096. Higher values allow longer responses.

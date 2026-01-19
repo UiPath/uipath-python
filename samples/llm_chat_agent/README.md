@@ -136,7 +136,7 @@ llm_service = UiPathLlmChatService(config=config, execution_context=execution_co
 ```python
 result = await llm_service.chat_completions(
     messages=messages,
-    model=ChatModels.gpt_4o_mini_2024_07_18,
+    model=ChatModels.gpt_4_1_mini_2025_04_14,
     max_tokens=500,
     temperature=0.7,
     tools=[WEATHER_TOOL, CALCULATOR_TOOL],  # Optional
@@ -198,13 +198,14 @@ if result.choices[0].message.tool_calls:
 
 ## Available Models
 
-The agent uses `ChatModels.gpt_4o_mini_2024_07_18` by default. Other available models:
+The agent uses `ChatModels.gpt_4_1_mini_2025_04_14` by default. Other available models:
 
 - `ChatModels.gpt_4`
 - `ChatModels.gpt_4_turbo_2024_04_09`
 - `ChatModels.gpt_4o_2024_05_13`
 - `ChatModels.gpt_4o_2024_08_06`
 - `ChatModels.gpt_4o_mini_2024_07_18`
+- `ChatModels.gpt_4_1_mini_2025_04_14`
 - `ChatModels.o3_mini`
 
 ## Tracing and Observability

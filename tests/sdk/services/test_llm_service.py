@@ -232,7 +232,7 @@ class TestOpenAIService:
 
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             response_format=Company,  # Pass BaseModel directly instead of dict
             max_tokens=2000,
             temperature=0,
@@ -332,7 +332,7 @@ class TestOpenAIService:
 
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             response_format=Article,  # Pass BaseModel directly instead of dict
             max_tokens=2000,
             temperature=0,
