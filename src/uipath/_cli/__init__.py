@@ -33,6 +33,7 @@ _LAZY_COMMANDS = {
     "add": "cli_add",
     "register": "cli_register",
     "debug": "cli_debug",
+    "assets": "services.cli_assets",
     "buckets": "services.cli_buckets",
 }
 

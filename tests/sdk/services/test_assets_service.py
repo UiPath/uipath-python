@@ -5,6 +5,7 @@ from pytest_httpx import HTTPXMock
 
 from uipath._utils.constants import HEADER_USER_AGENT
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.common.paging import PagedResult
 from uipath.platform.orchestrator import Asset, UserAsset
 from uipath.platform.orchestrator._assets_service import AssetsService
 
@@ -110,6 +111,151 @@ class TestAssetsService:
             assert (
                 sent_request.headers[HEADER_USER_AGENT]
                 == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve/{version}"
+            )
+
+    class TestListAssets:
+        def test_list_assets(
+            self,
+            httpx_mock: HTTPXMock,
+            base_url: str,
+            org: str,
+            tenant: str,
+            version: str,
+            config: UiPathApiConfig,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+            service = AssetsService(
+                config=config,
+                execution_context=UiPathExecutionContext(),
+            )
+
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?$skip=0&$top=100",
+                status_code=200,
+                json={
+                    "value": [
+                        {
+                            "Key": "asset-key-1",
+                            "Name": "Asset 1",
+                            "Value": "value-1",
+                            "ValueType": "Text",
+                        },
+                        {
+                            "Key": "asset-key-2",
+                            "Name": "Asset 2",
+                            "Value": "value-2",
+                            "ValueType": "Text",
+                        },
+                    ]
+                },
+            )
+
+            result = service.list()
+
+            assert isinstance(result, PagedResult)
+            assert len(result.items) == 2
+            assert all(isinstance(asset, Asset) for asset in result.items)
+            assert result.items[0].key == "asset-key-1"
+            assert result.items[0].name == "Asset 1"
+            assert result.items[1].key == "asset-key-2"
+            assert result.items[1].name == "Asset 2"
+            assert result.skip == 0
+            assert result.top == 100
+            assert result.has_more is False  # 2 items < 100 top
+
+            sent_request = httpx_mock.get_request()
+            if sent_request is None:
+                raise Exception("No request was sent")
+
+            assert sent_request.method == "GET"
+            assert HEADER_USER_AGENT in sent_request.headers
+            assert (
+                sent_request.headers[HEADER_USER_AGENT]
+                == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.list/{version}"
+            )
+
+        def test_list_assets_with_filter_and_orderby(
+            self,
+            httpx_mock: HTTPXMock,
+            base_url: str,
+            org: str,
+            tenant: str,
+            config: UiPathApiConfig,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+            service = AssetsService(
+                config=config,
+                execution_context=UiPathExecutionContext(),
+            )
+
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?$skip=0&$top=100&$filter=ValueType eq 'Text'&$orderby=Name asc",
+                status_code=200,
+                json={
+                    "value": [
+                        {
+                            "Key": "asset-key-1",
+                            "Name": "Text Asset",
+                            "ValueType": "Text",
+                        },
+                    ]
+                },
+            )
+
+            result = service.list(filter="ValueType eq 'Text'", orderby="Name asc")
+
+            assert len(result.items) == 1
+            assert result.items[0].name == "Text Asset"
+
+        @pytest.mark.anyio
+        async def test_list_assets_async(
+            self,
+            httpx_mock: HTTPXMock,
+            base_url: str,
+            org: str,
+            tenant: str,
+            version: str,
+            config: UiPathApiConfig,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+            service = AssetsService(
+                config=config,
+                execution_context=UiPathExecutionContext(),
+            )
+
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?$skip=0&$top=100",
+                status_code=200,
+                json={
+                    "value": [
+                        {
+                            "Key": "asset-key-1",
+                            "Name": "Asset 1",
+                            "Value": "value-1",
+                        },
+                    ]
+                },
+            )
+
+            result = await service.list_async()
+
+            assert isinstance(result, PagedResult)
+            assert len(result.items) == 1
+            assert result.items[0].key == "asset-key-1"
+            assert result.items[0].name == "Asset 1"
+
+            sent_request = httpx_mock.get_request()
+            if sent_request is None:
+                raise Exception("No request was sent")
+
+            assert sent_request.method == "GET"
+            assert HEADER_USER_AGENT in sent_request.headers
+            assert (
+                sent_request.headers[HEADER_USER_AGENT]
+                == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.list_async/{version}"
             )
 
     def test_retrieve_credential(

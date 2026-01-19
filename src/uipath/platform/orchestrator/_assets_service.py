@@ -1,10 +1,12 @@
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from httpx import Response
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ..._utils.validation import validate_pagination_params
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
+from ..common.paging import PagedResult
 from .assets import Asset, UserAsset
 
 
@@ -15,11 +17,164 @@ class AssetsService(FolderContext, BaseService):
     credentials, and other settings used by automation processes.
     """
 
+    # Pagination limits
+    MAX_PAGE_SIZE = 1000  # Maximum items per page
+    MAX_SKIP_OFFSET = 10000  # Maximum skip offset
+
     def __init__(
         self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self._base_url = "assets"
+
+    @traced(name="assets_list", run_type="uipath")
+    def list(
+        self,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        filter: Optional[str] = None,
+        orderby: Optional[str] = None,
+        skip: int = 0,
+        top: int = 100,
+    ) -> PagedResult[Asset]:
+        """List assets using OData API with offset-based pagination.
+
+        Returns a single page of results with pagination metadata.
+
+        Args:
+            folder_path: Folder path to filter assets.
+            folder_key: Folder key (mutually exclusive with folder_path).
+            filter: OData $filter expression (e.g., "ValueType eq 'Text'").
+            orderby: OData $orderby expression (e.g., "Name asc").
+            skip: Number of items to skip (default 0, max 10000).
+            top: Maximum items per page (default 100, max 1000).
+
+        Returns:
+            PagedResult[Asset]: Page of assets with pagination metadata.
+
+        Raises:
+            ValueError: If skip or top parameters are invalid.
+
+        Examples:
+            ```python
+            from uipath.platform import UiPath
+
+            client = UiPath()
+
+            # List all assets in the default folder
+            result = client.assets.list(top=100)
+            for asset in result.items:
+                print(asset.name, asset.value_type)
+
+            # List with filter
+            result = client.assets.list(filter="ValueType eq 'Text'")
+
+            # Paginate through all assets
+            skip = 0
+            while True:
+                result = client.assets.list(skip=skip, top=100)
+                for asset in result.items:
+                    print(asset.name)
+                if not result.has_more:
+                    break
+                skip += 100
+            ```
+        """
+        validate_pagination_params(
+            skip=skip,
+            top=top,
+            max_skip=self.MAX_SKIP_OFFSET,
+            max_top=self.MAX_PAGE_SIZE,
+        )
+
+        spec = self._list_spec(
+            folder_path=folder_path,
+            folder_key=folder_key,
+            filter=filter,
+            orderby=orderby,
+            skip=skip,
+            top=top,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+
+        items = response.get("value", [])
+        assets = [Asset.model_validate(item) for item in items]
+
+        return PagedResult(
+            items=assets,
+            has_more=len(items) == top,
+            skip=skip,
+            top=top,
+        )
+
+    @traced(name="assets_list", run_type="uipath")
+    async def list_async(
+        self,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        filter: Optional[str] = None,
+        orderby: Optional[str] = None,
+        skip: int = 0,
+        top: int = 100,
+    ) -> PagedResult[Asset]:
+        """Asynchronously list assets using OData API with offset-based pagination.
+
+        Returns a single page of results with pagination metadata.
+
+        Args:
+            folder_path: Folder path to filter assets.
+            folder_key: Folder key (mutually exclusive with folder_path).
+            filter: OData $filter expression (e.g., "ValueType eq 'Text'").
+            orderby: OData $orderby expression (e.g., "Name asc").
+            skip: Number of items to skip (default 0, max 10000).
+            top: Maximum items per page (default 100, max 1000).
+
+        Returns:
+            PagedResult[Asset]: Page of assets with pagination metadata.
+
+        Raises:
+            ValueError: If skip or top parameters are invalid.
+        """
+        validate_pagination_params(
+            skip=skip,
+            top=top,
+            max_skip=self.MAX_SKIP_OFFSET,
+            max_top=self.MAX_PAGE_SIZE,
+        )
+
+        spec = self._list_spec(
+            folder_path=folder_path,
+            folder_key=folder_key,
+            filter=filter,
+            orderby=orderby,
+            skip=skip,
+            top=top,
+        )
+        response = (
+            await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+
+        items = response.get("value", [])
+        assets = [Asset.model_validate(item) for item in items]
+
+        return PagedResult(
+            items=assets,
+            has_more=len(items) == top,
+            skip=skip,
+            top=top,
+        )
 
     @resource_override(resource_type="asset")
     @traced(
@@ -369,4 +524,28 @@ class AssetsService(FolderContext, BaseService):
             headers={
                 **header_folder(folder_key, folder_path),
             },
+        )
+
+    def _list_spec(
+        self,
+        folder_path: Optional[str],
+        folder_key: Optional[str],
+        filter: Optional[str],
+        orderby: Optional[str],
+        skip: int,
+        top: int,
+    ) -> RequestSpec:
+        params: Dict[str, Any] = {"$skip": skip, "$top": top}
+        if filter:
+            params["$filter"] = filter
+        if orderby:
+            params["$orderby"] = orderby
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered"
+            ),
+            params=params,
+            headers={**header_folder(folder_key, folder_path)},
         )
