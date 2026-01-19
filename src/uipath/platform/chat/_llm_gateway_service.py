@@ -4,6 +4,7 @@ This module provides services for interacting with UiPath's LLM (Large Language 
 offering both OpenAI-compatible and normalized API interfaces for chat completions and embeddings.
 
 The module includes:
+- LlmDiscoveryService: Service for discovering available LLM models
 - UiPathOpenAIService: OpenAI-compatible API for chat completions and embeddings
 - UiPathLlmChatService: UiPath's normalized API with advanced features like tool calling
 - ChatModels: Constants for available chat models
@@ -12,6 +13,7 @@ The module includes:
 Classes:
     ChatModels: Container for supported chat model identifiers
     EmbeddingModels: Container for supported embedding model identifiers
+    LlmDiscoveryService: Service for discovering available LLM models
     UiPathOpenAIService: Service using OpenAI-compatible API format
     UiPathLlmChatService: Service using UiPath's normalized API format
 """
@@ -45,6 +47,32 @@ DEFAULT_LLM_HEADERS = {
     "X-UiPath-LlmGateway-RequestingProduct": "uipath-python-sdk",
     "X-UiPath-LlmGateway-RequestingFeature": "langgraph-agent",
 }
+
+
+class LlmDiscoveryService(BaseService):
+    """Service for discovering available LLM models from the LLM Gateway."""
+
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
+        """Initialize the LLM discovery service."""
+        super().__init__(config=config, execution_context=execution_context)
+
+    def get_available_models(self, agenthub_config: str) -> list[dict[str, Any]]:
+        """Fetch available models from LLM Gateway discovery endpoint.
+
+        Args:
+            agenthub_config: The AgentHub configuration identifier
+
+        Returns:
+            List of available models and their configurations.
+        """
+        response = self.request(
+            "GET",
+            url=Endpoint("/agenthub_/llm/api/discovery"),
+            headers={"X-UiPath-AgentHub-Config": agenthub_config},
+        )
+        return response.json()
 
 
 class ChatModels(object):

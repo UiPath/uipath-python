@@ -9,6 +9,7 @@ from ._conversations_service import ConversationsService
 from ._llm_gateway_service import (
     ChatModels,
     EmbeddingModels,
+    LlmDiscoveryService,
     UiPathLlmChatService,
     UiPathOpenAIService,
 )
@@ -38,6 +39,7 @@ __all__ = [
     # LLM Gateway Services
     "ChatModels",
     "EmbeddingModels",
+    "LlmDiscoveryService",
     "UiPathLlmChatService",
     "UiPathOpenAIService",
     # LLM Throttling
