@@ -414,10 +414,6 @@ class UiPathEvalRuntime:
         logger.info(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
         logger.info(f"EVAL RUNTIME: Job ID: {self.context.job_id}")
         logger.info(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
-        if self.context.resume:
-            logger.info(
-                "🟢 EVAL RUNTIME: RESUME MODE ENABLED - Will resume from suspended state"
-            )
         logger.info("=" * 80)
 
         # Configure model settings override before creating runtime
@@ -946,10 +942,6 @@ class UiPathEvalRuntime:
         # Use eval_item.id to maintain consistent thread_id across suspend and resume.
         # This ensures checkpoints can be found when resuming from suspended state.
         runtime_id = eval_item.id
-        if self.context.resume:
-            logger.info(
-                f"🟢 EVAL RUNTIME: Resume mode - using eval_item.id '{runtime_id}' to load checkpoint"
-            )
 
         eval_runtime = None
         try:
@@ -964,9 +956,6 @@ class UiPathEvalRuntime:
                 execution_id=execution_id,
                 span_attributes=attributes,
             )
-
-            # Log execution_id to track across suspend/resume
-            logger.info(f"🟢 EVAL RUNTIME: execution_id: {execution_id}")
 
             start_time = time()
             try:
@@ -984,31 +973,21 @@ class UiPathEvalRuntime:
                 # 3. Build resume map: {interrupt_id: resume_data}
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
-                    logger.info("🟢 EVAL RUNTIME: Resuming from checkpoint")
-                    logger.info(f"🟢 EVAL RUNTIME: Using thread_id: {runtime_id}")
-                    logger.info(f"🟢 EVAL RUNTIME: Using execution_id: {execution_id}")
-                    logger.info(
-                        "🟢 EVAL RUNTIME: Passing None - wrapper will load resume data from storage"
-                    )
-
+                    logger.info(f"Resuming evaluation {eval_item.id}")
                     options = UiPathExecuteOptions(resume=True)
                     result = await execution_runtime.execute(
                         input=None,  # Let wrapper load resume data
                         options=options,
                     )
-                    logger.info(
-                        f"🟢 EVAL RUNTIME: Resume completed with execution_id: {execution_id}"
-                    )
                 else:
-                    logger.info(
-                        f"🟢 EVAL RUNTIME: Initial execution with execution_id: {execution_id}"
-                    )
                     result = await execution_runtime.execute(
                         input=inputs_with_overrides,
                     )
-                    logger.info(
-                        f"🟢 EVAL RUNTIME: Initial execution completed with execution_id: {execution_id}"
-                    )
+
+                # Log suspend status if applicable
+                if result.status == UiPathRuntimeStatus.SUSPENDED:
+                    logger.info(f"Evaluation {eval_item.id} suspended")
+
             except Exception as e:
                 end_time = time()
                 spans, logs = self._get_and_clear_execution_data(execution_id)
