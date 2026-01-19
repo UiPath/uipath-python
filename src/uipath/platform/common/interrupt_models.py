@@ -108,6 +108,24 @@ class WaitBatchTransform(BaseModel):
     index_folder_key: str | None = None
 
 
+class InvokeSystemAgent(BaseModel):
+    """Model representing a system agent job invocation."""
+
+    agent_name: str
+    entrypoint: str
+    input_arguments: dict[str, Any] | None = None
+    folder_path: str | None = None
+    folder_key: str | None = None
+
+
+class WaitSystemAgent(BaseModel):
+    """Model representing a wait system agent job invocation."""
+
+    job_key: str
+    process_folder_path: str | None = None
+    process_folder_key: str | None = None
+
+
 class DocumentExtraction(BaseModel):
     """Model representing a document extraction task creation."""
 
