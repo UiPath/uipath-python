@@ -588,7 +588,7 @@ class UiPathEvalRuntime:
         evaluators: list[BaseEvaluator[Any, Any, Any]],
         runtime: UiPathRuntimeProtocol,
     ) -> EvaluationRunResult:
-        execution_id = str(uuid.uuid4())
+        execution_id = str(eval_item.id)
 
         # Create the "Evaluation" span for this eval item
         # Use tracer from trace_manager's provider to ensure spans go through
@@ -965,6 +965,9 @@ class UiPathEvalRuntime:
                 span_attributes=attributes,
             )
 
+            # Log execution_id to track across suspend/resume
+            logger.info(f"🟢 EVAL RUNTIME: execution_id: {execution_id}")
+
             start_time = time()
             try:
                 # Apply input overrides to inputs if configured
@@ -983,6 +986,7 @@ class UiPathEvalRuntime:
                 if self.context.resume:
                     logger.info("🟢 EVAL RUNTIME: Resuming from checkpoint")
                     logger.info(f"🟢 EVAL RUNTIME: Using thread_id: {runtime_id}")
+                    logger.info(f"🟢 EVAL RUNTIME: Using execution_id: {execution_id}")
                     logger.info(
                         "🟢 EVAL RUNTIME: Passing None - wrapper will load resume data from storage"
                     )
@@ -992,9 +996,18 @@ class UiPathEvalRuntime:
                         input=None,  # Let wrapper load resume data
                         options=options,
                     )
+                    logger.info(
+                        f"🟢 EVAL RUNTIME: Resume completed with execution_id: {execution_id}"
+                    )
                 else:
+                    logger.info(
+                        f"🟢 EVAL RUNTIME: Initial execution with execution_id: {execution_id}"
+                    )
                     result = await execution_runtime.execute(
                         input=inputs_with_overrides,
+                    )
+                    logger.info(
+                        f"🟢 EVAL RUNTIME: Initial execution completed with execution_id: {execution_id}"
                     )
             except Exception as e:
                 end_time = time()
