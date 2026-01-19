@@ -342,7 +342,7 @@ async def main(input: AgentInput) -> AgentOutput:
 
             result = await llm_service.chat_completions(
                 messages=messages,
-                model=ChatModels.gpt_4o_mini_2024_07_18,
+                model=ChatModels.gpt_4_1_mini_2025_04_14,
                 max_tokens=500,
                 temperature=0.7,
                 tools=[WEATHER_TOOL, CALCULATOR_TOOL],
@@ -400,7 +400,7 @@ async def main(input: AgentInput) -> AgentOutput:
                 print("Making follow-up LLM call with tool results")
                 result = await llm_service.chat_completions(
                     messages=messages,
-                    model=ChatModels.gpt_4o_mini_2024_07_18,
+                    model=ChatModels.gpt_4_1_mini_2025_04_14,
                     max_tokens=500,
                     temperature=0.7,
                 )
@@ -414,7 +414,7 @@ async def main(input: AgentInput) -> AgentOutput:
 
             result = await llm_service.chat_completions(
                 messages=messages,
-                model=ChatModels.gpt_4o_mini_2024_07_18,
+                model=ChatModels.gpt_4_1_mini_2025_04_14,
                 max_tokens=300,
                 temperature=0.7,
             )

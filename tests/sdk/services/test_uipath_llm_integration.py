@@ -49,7 +49,7 @@ class TestUiPathLLMIntegration:
 
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=50,
             temperature=0,
         )
@@ -100,7 +100,7 @@ class TestUiPathLLMIntegration:
 
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=250,
             temperature=0,
             tools=[test_tool],
@@ -154,7 +154,7 @@ class TestUiPathLLMIntegration:
 
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=250,
             temperature=0,
             frequency_penalty=1,
@@ -184,7 +184,7 @@ class TestUiPathLLMIntegration:
 
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=100,
             temperature=0.7,
         )
@@ -259,7 +259,7 @@ class TestUiPathLLMServiceMocked:
         # Call the method
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=50,
             temperature=0,
         )
@@ -352,7 +352,7 @@ class TestUiPathLLMServiceMocked:
         # Call the method
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=250,
             temperature=0,
             tools=[test_tool],
@@ -435,7 +435,7 @@ class TestUiPathLLMServiceMocked:
         # Call the method
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=250,
             temperature=0,
             frequency_penalty=1,
@@ -490,7 +490,7 @@ class TestUiPathLLMServiceMocked:
         # Call the method
         result = await llm_service.chat_completions(
             messages=messages,
-            model=ChatModels.gpt_4o_mini_2024_07_18,
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
             max_tokens=100,
             temperature=0.7,
         )
