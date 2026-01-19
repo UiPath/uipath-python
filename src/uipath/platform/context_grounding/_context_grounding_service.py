@@ -1,4 +1,3 @@
-import uuid
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
@@ -376,28 +375,6 @@ class ContextGroundingService(FolderContext, BaseService):
             preprocessing_request=preprocessing_request or LLMV4_REQUEST,
             folder_path=folder_path,
             folder_key=folder_key,
-        )
-
-        response = self.request(
-            spec.method,
-            spec.endpoint,
-            json=spec.json,
-            headers=spec.headers,
-        )
-
-        return ContextGroundingIndex.model_validate(response.json())
-
-    @resource_override(resource_type="index")
-    @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
-    def create_ephemeral_index(
-        self,
-        usage: str,
-        attachments: list[uuid.UUID],
-    ) -> ContextGroundingIndex:
-        """Create a new context ephemeral grounding index."""
-        spec = self._create_ephemeral_spec(
-            usage,
-            attachments,
         )
 
         response = self.request(

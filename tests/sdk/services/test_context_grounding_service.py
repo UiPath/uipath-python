@@ -1837,7 +1837,11 @@ class TestContextGroundingService:
             },
         )
 
+<<<<<<< HEAD
         attachment_ids = [str(uuid.uuid4()), str(uuid.uuid4())]
+=======
+        attachment_ids = [uuid.uuid4(), uuid.uuid4()]
+>>>>>>> 7addb23 (fix tests)
         index = await service.create_ephemeral_index_async(
             usage="DeepRAG",
             attachments=attachment_ids,

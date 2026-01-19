@@ -628,9 +628,11 @@ class UiPathResumeTriggerCreator:
         if isinstance(value, WaitEphemeralIndex):
             resume_trigger.item_key = value.index.id
         elif isinstance(value, CreateEphemeralIndex):
-            ephemeral_index = uipath.context_grounding.create_ephemeral_index(
-                usage=value.usage,
-                attachments=value.attachments,
+            ephemeral_index = (
+                await uipath.context_grounding.create_ephemeral_index_async(
+                    usage=value.usage,
+                    attachments=value.attachments,
+                )
             )
             if not ephemeral_index:
 <<<<<<< HEAD
