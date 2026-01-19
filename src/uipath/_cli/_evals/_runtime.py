@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -417,6 +418,9 @@ class UiPathEvalRuntime:
             logger.info(
                 "🟢 EVAL RUNTIME: RESUME MODE ENABLED - Will resume from suspended state"
             )
+        logger.info("EVAL RUNTIME: Environment variables:")
+        for key, value in sorted(os.environ.items()):
+            logger.info(f"  {key}={value}")
         logger.info("=" * 80)
 
         # Configure model settings override before creating runtime
