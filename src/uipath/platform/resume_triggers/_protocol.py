@@ -35,6 +35,7 @@ from uipath.platform.common import (
     WaitJob,
     WaitTask,
 )
+from uipath.platform.common.interrupt_models import InvokeSystemAgent, WaitSystemAgent
 from uipath.platform.context_grounding import DeepRagStatus
 from uipath.platform.errors import (
     BatchTransformNotCompleteException,
@@ -387,7 +388,9 @@ class UiPathResumeTriggerCreator:
         """
         if isinstance(value, (CreateTask, WaitTask, CreateEscalation, WaitEscalation)):
             return UiPathResumeTriggerType.TASK
-        if isinstance(value, (InvokeProcess, WaitJob)):
+        if isinstance(
+            value, (InvokeProcess, WaitJob, InvokeSystemAgent, WaitSystemAgent)
+        ):
             return UiPathResumeTriggerType.JOB
         if isinstance(value, (CreateDeepRag, WaitDeepRag)):
             return UiPathResumeTriggerType.DEEP_RAG
@@ -411,7 +414,9 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.ESCALATION
         if isinstance(value, (CreateTask, WaitTask)):
             return UiPathResumeTriggerName.TASK
-        if isinstance(value, (InvokeProcess, WaitJob)):
+        if isinstance(
+            value, (InvokeProcess, WaitJob, InvokeSystemAgent, WaitSystemAgent)
+        ):
             return UiPathResumeTriggerName.JOB
         if isinstance(value, (CreateDeepRag, WaitDeepRag)):
             return UiPathResumeTriggerName.DEEP_RAG
@@ -546,15 +551,21 @@ class UiPathResumeTriggerCreator:
         """Handle job-type resume triggers.
 
         Args:
-            value: The suspend value (InvokeProcess or WaitJob)
+            value: The suspend value (InvokeProcess, WaitJob, InvokeSystemAgent, WaitSystemAgent)
             resume_trigger: The resume trigger to populate
             uipath: The UiPath client instance
         """
-        resume_trigger.folder_path = value.process_folder_path
-        resume_trigger.folder_key = value.process_folder_key
+        if isinstance(value, InvokeSystemAgent):
+            resume_trigger.folder_path = value.folder_path
+            resume_trigger.folder_key = value.folder_key
+        else:
+            resume_trigger.folder_path = value.process_folder_path
+            resume_trigger.folder_key = value.process_folder_key
 
         if isinstance(value, WaitJob):
             resume_trigger.item_key = value.job.key
+        elif isinstance(value, WaitSystemAgent):
+            resume_trigger.item_key = value.job_key
         elif isinstance(value, InvokeProcess):
             job = await uipath.processes.invoke_async(
                 name=value.name,
@@ -565,6 +576,17 @@ class UiPathResumeTriggerCreator:
             if not job:
                 raise Exception("Failed to invoke process")
             resume_trigger.item_key = job.key
+        elif isinstance(value, InvokeSystemAgent):
+            job_key = await uipath.agenthub.invoke_system_agent_async(
+                agent_name=value.agent_name,
+                entrypoint=value.entrypoint,
+                input_arguments=value.input_arguments,
+                folder_path=value.folder_path,
+                folder_key=value.folder_key,
+            )
+            if not job_key:
+                raise Exception("Failed to invoke system agent")
+            resume_trigger.item_key = job_key
 
     def _handle_api_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger

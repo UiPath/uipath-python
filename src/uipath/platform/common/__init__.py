@@ -17,11 +17,13 @@ from .interrupt_models import (
     CreateTask,
     DocumentExtraction,
     InvokeProcess,
+    InvokeSystemAgent,
     WaitBatchTransform,
     WaitDeepRag,
     WaitDocumentExtraction,
     WaitEscalation,
     WaitJob,
+    WaitSystemAgent,
     WaitTask,
 )
 from .paging import PagedResult
@@ -48,4 +50,6 @@ __all__ = [
     "WaitBatchTransform",
     "DocumentExtraction",
     "WaitDocumentExtraction",
+    "InvokeSystemAgent",
+    "WaitSystemAgent",
 ]

@@ -20,9 +20,11 @@ from uipath.platform.common import (
     CreateTask,
     DocumentExtraction,
     InvokeProcess,
+    InvokeSystemAgent,
     WaitBatchTransform,
     WaitDeepRag,
     WaitJob,
+    WaitSystemAgent,
     WaitTask,
 )
 from uipath.platform.context_grounding import (
@@ -244,6 +246,48 @@ class TestHitlReader:
                 folder_key="test-folder",
                 folder_path="test-path",
                 process_name="process_name",
+            )
+
+    @pytest.mark.anyio
+    async def test_read_system_agent_job_trigger_successful(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a successful system agent job trigger."""
+        job_key = "test-system-agent-job-key"
+        job_id = 1234
+        output_args = str({"result": "agent completed successfully"})
+
+        mock_job = Job(
+            id=job_id,
+            key=job_key,
+            state=UiPathRuntimeStatus.SUCCESSFUL.value,
+            output_arguments=output_args,
+        )
+        mock_retrieve_async = AsyncMock(return_value=mock_job)
+
+        with patch(
+            "uipath.platform.orchestrator._jobs_service.JobsService.retrieve_async",
+            new=mock_retrieve_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.JOB,
+                item_key=job_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+                payload={
+                    "agent_name": "template-filler-agent",
+                    "entrypoint": "main",
+                },
+            )
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
+            assert result == output_args
+            mock_retrieve_async.assert_called_once_with(
+                job_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+                process_name=None,
             )
 
     @pytest.mark.anyio
@@ -628,6 +672,65 @@ class TestHitlProcessor:
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
         assert resume_trigger.item_key == job_key
         assert resume_trigger.folder_path == wait_job.process_folder_path
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_invoke_system_agent(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for InvokeSystemAgent."""
+        job_key = "test-system-agent-job-key"
+        invoke_system_agent = InvokeSystemAgent(
+            agent_name="template-filler-agent",
+            entrypoint="main",
+            folder_path="/test/path",
+            folder_key="test-folder-key",
+            input_arguments={"metadata_id": "123", "template_id": "456"},
+        )
+
+        mock_invoke_system_agent = AsyncMock(return_value=job_key)
+
+        with patch(
+            "uipath.platform.agenthub._agenthub_service.AgentHubService.invoke_system_agent_async",
+            new=mock_invoke_system_agent,
+        ) as mock_agent_invoke:
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(invoke_system_agent)
+
+            assert resume_trigger is not None
+            assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
+            assert resume_trigger.item_key == job_key
+            assert resume_trigger.folder_path == invoke_system_agent.folder_path
+            assert resume_trigger.folder_key == invoke_system_agent.folder_key
+            mock_agent_invoke.assert_called_once_with(
+                agent_name=invoke_system_agent.agent_name,
+                entrypoint=invoke_system_agent.entrypoint,
+                input_arguments=invoke_system_agent.input_arguments,
+                folder_path=invoke_system_agent.folder_path,
+                folder_key=invoke_system_agent.folder_key,
+            )
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_system_agent(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for WaitSystemAgent."""
+        job_key = "1234"
+        wait_system_agent = WaitSystemAgent(
+            job_key="1234",
+            process_folder_path="/test/path",
+            process_folder_key="test-folder-key",
+        )
+
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_system_agent)
+
+        assert resume_trigger is not None
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
+        assert resume_trigger.item_key == job_key
+        assert resume_trigger.folder_path == wait_system_agent.process_folder_path
+        assert resume_trigger.folder_key == wait_system_agent.process_folder_key
 
     @pytest.mark.anyio
     async def test_create_resume_trigger_api(
