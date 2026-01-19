@@ -7,9 +7,10 @@ All services are explicitly imported to ensure:
 - Debuggable registration
 """
 
+from .cli_assets import assets
 from .cli_buckets import buckets
 
-__all__ = ["buckets", "register_service_commands"]
+__all__ = ["assets", "buckets", "register_service_commands"]
 
 
 def register_service_commands(cli_group):
@@ -30,7 +31,7 @@ def register_service_commands(cli_group):
     Industry Precedent:
         AWS CLI, Azure CLI, and gcloud all use explicit registration.
     """
-    services = [buckets]
+    services = [assets, buckets]
 
     for service in services:
         cli_group.add_command(service)

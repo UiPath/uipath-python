@@ -54,9 +54,18 @@ def format_output(
             )
 
     if hasattr(data, "model_dump"):
-        data = data.model_dump()
+        model_fields = getattr(data, "model_fields", None)
+        if isinstance(model_fields, dict):
+            data = data.model_dump(include=set(model_fields.keys()))
+        else:
+            data = data.model_dump()
     elif isinstance(data, list) and len(data) > 0 and hasattr(data[0], "model_dump"):
-        data = [item.model_dump() for item in data]
+        model_fields = getattr(data[0], "model_fields", None)
+        if isinstance(model_fields, dict):
+            fields = set(model_fields.keys())
+            data = [item.model_dump(include=fields) for item in data]
+        else:
+            data = [item.model_dump() for item in data]
 
     if hasattr(data, "__aiter__"):
         raise TypeError(
