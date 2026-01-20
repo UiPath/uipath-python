@@ -833,11 +833,12 @@ class UiPathEvalRuntime:
             return None
 
         logger.info(
-            f"Applying model settings override: model={target_model_settings.model}, temperature={target_model_settings.temperature}"
+            f"Applying model settings override: model={target_model_settings.model_name}, temperature={target_model_settings.temperature}"
         )
 
         # Return settings as dict for schema.metadata override
         return target_model_settings.model_dump(exclude_none=True)
+            target_model_settings.model_name
 
     async def execute_runtime(
         self,
