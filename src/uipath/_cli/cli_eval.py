@@ -219,6 +219,7 @@ def eval(
                     output_file=output_file,
                     trace_manager=trace_manager,
                     command="eval",
+                    resume=resume,
                 ) as ctx:
                     # Set job_id in eval context for single runtime runs
                     eval_context.job_id = ctx.job_id
