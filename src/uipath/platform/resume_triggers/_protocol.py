@@ -325,8 +325,6 @@ class UiPathResumeTriggerCreator:
                 unknown model type is encountered.
             Exception: If any underlying UiPath service calls fail.
         """
-        uipath = UiPath()
-
         try:
             trigger_type = self._determine_trigger_type(suspend_value)
             trigger_name = self._determine_trigger_name(suspend_value)
@@ -339,29 +337,25 @@ class UiPathResumeTriggerCreator:
 
             match trigger_type:
                 case UiPathResumeTriggerType.TASK:
-                    await self._handle_task_trigger(
-                        suspend_value, resume_trigger, uipath
-                    )
+                    await self._handle_task_trigger(suspend_value, resume_trigger)
 
                 case UiPathResumeTriggerType.JOB:
-                    await self._handle_job_trigger(
-                        suspend_value, resume_trigger, uipath
-                    )
+                    await self._handle_job_trigger(suspend_value, resume_trigger)
 
                 case UiPathResumeTriggerType.API:
                     self._handle_api_trigger(suspend_value, resume_trigger)
 
                 case UiPathResumeTriggerType.DEEP_RAG:
                     await self._handle_deep_rag_job_trigger(
-                        suspend_value, resume_trigger, uipath
+                        suspend_value, resume_trigger
                     )
                 case UiPathResumeTriggerType.BATCH_RAG:
                     await self._handle_batch_rag_job_trigger(
-                        suspend_value, resume_trigger, uipath
+                        suspend_value, resume_trigger
                     )
                 case UiPathResumeTriggerType.IXP_EXTRACTION:
                     await self._handle_ixp_extraction_trigger(
-                        suspend_value, resume_trigger, uipath
+                        suspend_value, resume_trigger
                     )
                 case _:
                     raise UiPathFaultedTriggerError(
@@ -428,14 +422,13 @@ class UiPathResumeTriggerCreator:
         return UiPathResumeTriggerName.API
 
     async def _handle_task_trigger(
-        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+        self, value: Any, resume_trigger: UiPathResumeTrigger
     ) -> None:
         """Handle task-type resume triggers.
 
         Args:
             value: The suspend value (CreateTask or WaitTask)
             resume_trigger: The resume trigger to populate
-            uipath: The UiPath client instance
         """
         resume_trigger.folder_path = value.app_folder_path
         resume_trigger.folder_key = value.app_folder_key
@@ -443,6 +436,7 @@ class UiPathResumeTriggerCreator:
         if isinstance(value, (WaitTask, WaitEscalation)):
             resume_trigger.item_key = value.action.key
         elif isinstance(value, (CreateTask, CreateEscalation)):
+            uipath = UiPath()
             action = await uipath.tasks.create_async(
                 title=value.title,
                 app_name=value.app_name if value.app_name else "",
@@ -457,20 +451,20 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = action.key
 
     async def _handle_deep_rag_job_trigger(
-        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+        self, value: Any, resume_trigger: UiPathResumeTrigger
     ) -> None:
         """Handle Deep RAG resume triggers.
 
         Args:
             value: The suspend value (CreateDeepRag or WaitDeepRag)
             resume_trigger: The resume trigger to populate
-            uipath: The UiPath client instance
         """
         resume_trigger.folder_path = value.index_folder_path
         resume_trigger.folder_key = value.index_folder_key
         if isinstance(value, WaitDeepRag):
             resume_trigger.item_key = value.deep_rag.id
         elif isinstance(value, CreateDeepRag):
+            uipath = UiPath()
             deep_rag = await uipath.context_grounding.start_deep_rag_async(
                 name=value.name,
                 index_name=value.index_name,
@@ -485,20 +479,20 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = deep_rag.id
 
     async def _handle_batch_rag_job_trigger(
-        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+        self, value: Any, resume_trigger: UiPathResumeTrigger
     ) -> None:
         """Handle batch transform resume triggers.
 
         Args:
             value: The suspend value (CreateBatchTransform or WaitBatchTransform)
             resume_trigger: The resume trigger to populate
-            uipath: The UiPath client instance
         """
         resume_trigger.folder_path = value.index_folder_path
         resume_trigger.folder_key = value.index_folder_key
         if isinstance(value, WaitBatchTransform):
             resume_trigger.item_key = value.batch_transform.id
         elif isinstance(value, CreateBatchTransform):
+            uipath = UiPath()
             batch_transform = await uipath.context_grounding.start_batch_transform_async(
                 name=value.name,
                 index_name=value.index_name,
@@ -514,20 +508,20 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = batch_transform.id
 
     async def _handle_ixp_extraction_trigger(
-        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+        self, value: Any, resume_trigger: UiPathResumeTrigger
     ) -> None:
         """Handle IXP Extraction resume triggers.
 
         Args:
             value: The suspend value (DocumentExtraction or WaitDocumentExtraction)
             resume_trigger: The resume trigger to populate
-            uipath: The UiPath client instance
         """
         resume_trigger.folder_path = resume_trigger.folder_key = None
 
         if isinstance(value, WaitDocumentExtraction):
             resume_trigger.item_key = value.extraction.operation_id
         elif isinstance(value, DocumentExtraction):
+            uipath = UiPath()
             document_extraction = await uipath.documents.start_ixp_extraction_async(
                 project_name=value.project_name,
                 tag=value.tag,
@@ -546,14 +540,13 @@ class UiPathResumeTriggerCreator:
             resume_trigger.payload.setdefault("tag", document_extraction.tag)
 
     async def _handle_job_trigger(
-        self, value: Any, resume_trigger: UiPathResumeTrigger, uipath: UiPath
+        self, value: Any, resume_trigger: UiPathResumeTrigger
     ) -> None:
         """Handle job-type resume triggers.
 
         Args:
             value: The suspend value (InvokeProcess, WaitJob, InvokeSystemAgent, WaitSystemAgent)
             resume_trigger: The resume trigger to populate
-            uipath: The UiPath client instance
         """
         if isinstance(value, InvokeSystemAgent):
             resume_trigger.folder_path = value.folder_path
@@ -567,6 +560,7 @@ class UiPathResumeTriggerCreator:
         elif isinstance(value, WaitSystemAgent):
             resume_trigger.item_key = value.job_key
         elif isinstance(value, InvokeProcess):
+            uipath = UiPath()
             job = await uipath.processes.invoke_async(
                 name=value.name,
                 input_arguments=value.input_arguments,
@@ -577,6 +571,7 @@ class UiPathResumeTriggerCreator:
                 raise Exception("Failed to invoke process")
             resume_trigger.item_key = job.key
         elif isinstance(value, InvokeSystemAgent):
+            uipath = UiPath()
             job_key = await uipath.agenthub.invoke_system_agent_async(
                 agent_name=value.agent_name,
                 entrypoint=value.entrypoint,
