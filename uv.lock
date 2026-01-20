@@ -2486,7 +2486,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.5.16"
+version = "2.5.17"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2554,7 +2554,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
-    { name = "uipath-core", specifier = ">=0.1.8,<0.2.0" },
+    { name = "uipath-core", specifier = ">=0.1.9,<0.2.0" },
     { name = "uipath-runtime", specifier = ">=0.5.1,<0.6.0" },
 ]
 
@@ -2589,16 +2589,16 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.1.8"
+version = "0.1.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e0/c0/eb507053d9c90cdc7aea80c9df8bad9564b88622341e1996d4282583b1a3/uipath_core-0.1.8.tar.gz", hash = "sha256:e6d376a34b689774992c466e0d7c6e706c6669022d4cd2e66aafb114461140f8", size = 100928, upload-time = "2026-01-17T05:55:26.951Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/64/29/dd69ab6e86882a05a20ba0359f90197a2f746310cde9618b93b66c8e20a6/uipath_core-0.1.9.tar.gz", hash = "sha256:32e897490363d76aaf2c323a80c3e777698b4a548bea35e98679c14a26a74fc7", size = 101369, upload-time = "2026-01-20T15:59:04.047Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/bf/327c4f052320227bbdf7636c902ac82e1424abda38288efef5d490a05766/uipath_core-0.1.8-py3-none-any.whl", hash = "sha256:0647b93c8629cd3af24a4e0b9b92bb346cb6b49a3867eccd24cb289c5c04109f", size = 31662, upload-time = "2026-01-17T05:55:25.361Z" },
+    { url = "https://files.pythonhosted.org/packages/39/99/806c73e350e178e950d0b4beeb277a3069e1d539d530365f88ed40ae5037/uipath_core-0.1.9-py3-none-any.whl", hash = "sha256:b2e66475577c21c22262bb211bc89426fed1616967f7c7e53a7cfac08c2b1447", size = 31924, upload-time = "2026-01-20T15:59:02.806Z" },
 ]
 
 [[package]]
