@@ -812,6 +812,7 @@ class AgentSettings(BaseCfg):
     max_tokens: int = Field(..., alias="maxTokens")
     temperature: float
     byom_properties: Optional[AgentByomProperties] = Field(None, alias="byomProperties")
+    max_iterations: Optional[int] = Field(None, alias="maxIterations")
 
 
 class AgentDefinition(BaseModel):
