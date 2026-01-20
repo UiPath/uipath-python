@@ -976,7 +976,7 @@ class UiPathEvalRuntime:
                     logger.info(f"Resuming evaluation {eval_item.id}")
                     options = UiPathExecuteOptions(resume=True)
                     result = await execution_runtime.execute(
-                        input=None,  # Let wrapper load resume data
+                        input=input_overrides if self.context.job_id is None else None,
                         options=options,
                     )
                 else:
