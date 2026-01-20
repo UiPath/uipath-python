@@ -141,7 +141,7 @@ class _AppInsightsEventClient:
         if not _HAS_APPINSIGHTS:
             return
 
-        connection_string = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+        connection_string = os.getenv("TELEMETRY_CONNECTION_STRING")
         if not connection_string:
             return
 

@@ -64,7 +64,7 @@ jobs:
         USE_AZURE_CHAT: ${{ matrix.use_azure_chat }}
 
         # App Insights for telemetry testing
-        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        TELEMETRY_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         APP_INSIGHTS_APP_ID: ${{ secrets.APP_INSIGHTS_APP_ID }}
         APP_INSIGHTS_API_KEY: ${{ secrets.APP_INSIGHTS_API_KEY }}
       working-directory: testcases/${{ matrix.testcase }}

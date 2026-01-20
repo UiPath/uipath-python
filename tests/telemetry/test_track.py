@@ -87,8 +87,8 @@ class TestAppInsightsEventClient:
     def test_initialize_no_connection_string(self):
         """Test initialization when no connection string is provided."""
         with patch.dict(os.environ, {}, clear=True):
-            # Remove APPLICATIONINSIGHTS_CONNECTION_STRING if it exists
-            os.environ.pop("APPLICATIONINSIGHTS_CONNECTION_STRING", None)
+            # Remove TELEMETRY_CONNECTION_STRING if it exists
+            os.environ.pop("TELEMETRY_CONNECTION_STRING", None)
 
             _AppInsightsEventClient._initialize()
 
@@ -113,7 +113,7 @@ class TestAppInsightsEventClient:
         with patch.dict(
             os.environ,
             {
-                "APPLICATIONINSIGHTS_CONNECTION_STRING": (
+                "TELEMETRY_CONNECTION_STRING": (
                     "InstrumentationKey=test-key;IngestionEndpoint=https://example.com/"
                 )
             },
@@ -130,7 +130,7 @@ class TestAppInsightsEventClient:
         """Test initialization with invalid connection string."""
         with patch.dict(
             os.environ,
-            {"APPLICATIONINSIGHTS_CONNECTION_STRING": "invalid-connection-string"},
+            {"TELEMETRY_CONNECTION_STRING": "invalid-connection-string"},
         ):
             _AppInsightsEventClient._initialize()
 
@@ -473,7 +473,7 @@ class TestTelemetryExceptionHandling:
 
         with patch.dict(
             os.environ,
-            {"APPLICATIONINSIGHTS_CONNECTION_STRING": "InstrumentationKey=test-key"},
+            {"TELEMETRY_CONNECTION_STRING": "InstrumentationKey=test-key"},
         ):
             # Should not raise exception
             _AppInsightsEventClient._initialize()
