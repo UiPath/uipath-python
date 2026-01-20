@@ -11,10 +11,8 @@ from typing import (
     Awaitable,
     Iterable,
     Iterator,
-    Protocol,
     Sequence,
     Tuple,
-    runtime_checkable,
 )
 
 import coverage
@@ -67,7 +65,6 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
-from ._configurable_factory import ConfigurableRuntimeFactory
 from ._eval_util import apply_input_overrides
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
@@ -91,25 +88,6 @@ from .mocks.mocks import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class LLMAgentRuntimeProtocol(Protocol):
-    """Protocol for runtimes that can provide agent model information.
-
-    Runtimes that implement this protocol can be queried for
-    the agent's configured LLM model, enabling features like 'same-as-agent'
-    model resolution for evaluators.
-    """
-
-    def get_agent_model(self) -> str | None:
-        """Return the agent's configured LLM model name.
-
-        Returns:
-            The model name from agent settings (e.g., 'gpt-4o-2024-11-20'),
-            or None if no model is configured.
-        """
-        ...
 
 
 class ExecutionSpanExporter(SpanExporter):
@@ -310,8 +288,7 @@ class UiPathEvalRuntime:
         event_bus: EventBus,
     ):
         self.context: UiPathEvalContext = context
-        # Wrap the factory to support model settings overrides
-        self.factory = ConfigurableRuntimeFactory(factory)
+        self.factory = factory
         self.event_bus: EventBus = event_bus
         self.trace_manager: UiPathTraceManager = trace_manager
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
@@ -352,6 +329,62 @@ class UiPathEvalRuntime:
         if schema is None:
             raise ValueError("Schema could not be loaded")
         return schema
+
+    def _resolve_model_settings_override(self) -> dict[str, Any] | None:
+        """Resolve model settings override from evaluation set.
+
+        Returns:
+            Dictionary with model settings override, or None if using agent defaults
+        """
+        if not self.context.eval_set:
+            return None
+
+        # Load eval set to get model settings
+        evaluation_set, _ = EvalHelpers.load_eval_set(
+            self.context.eval_set, self.context.eval_ids
+        )
+
+        # Find the model settings by ID
+        model_settings = next(
+            (
+                ms
+                for ms in evaluation_set.model_settings
+                if ms.id == self.context.model_settings_id
+            ),
+            None,
+        )
+
+        if not model_settings:
+            logger.warning(
+                f"Model settings ID '{self.context.model_settings_id}' not found in eval set, "
+                "using agent defaults"
+            )
+            return None
+
+        # If using same-as-agent, don't pass overrides
+        if (
+            model_settings.model_name == "same-as-agent"
+            and model_settings.temperature == "same-as-agent"
+        ):
+            logger.debug("Using same-as-agent for both model and temperature")
+            return None
+
+        logger.info(
+            f"Applying model settings override: "
+            f"model={model_settings.model_name}, temperature={model_settings.temperature}"
+        )
+
+        # Build override dict
+        override = {}
+        if model_settings.model_name != "same-as-agent":
+            override["model"] = model_settings.model_name
+        if (
+            model_settings.temperature is not None
+            and model_settings.temperature != "same-as-agent"
+        ):
+            override["temperature"] = model_settings.temperature
+
+        return override if override else None
 
     @contextmanager
     def _mocker_cache(self) -> Iterator[None]:
@@ -419,12 +452,13 @@ class UiPathEvalRuntime:
             )
         logger.info("=" * 80)
 
-        # Configure model settings override before creating runtime
-        await self._configure_model_settings_override()
+        # Resolve model settings override from eval set
+        settings_override = self._resolve_model_settings_override()
 
         runtime = await self.factory.new_runtime(
             entrypoint=self.context.entrypoint or "",
             runtime_id=self.execution_id,
+            settings=settings_override,
         )
         try:
             with self._mocker_cache():
@@ -886,48 +920,6 @@ class UiPathEvalRuntime:
 
         return spans, logs
 
-    async def _configure_model_settings_override(self) -> None:
-        """Configure the factory with model settings override if specified."""
-        # Skip if no model settings ID specified
-        if (
-            not self.context.model_settings_id
-            or self.context.model_settings_id == "default"
-        ):
-            return
-
-        # Load evaluation set to get model settings
-        evaluation_set, _ = EvalHelpers.load_eval_set(self.context.eval_set or "")
-        if (
-            not hasattr(evaluation_set, "model_settings")
-            or not evaluation_set.model_settings
-        ):
-            logger.warning("No model settings available in evaluation set")
-            return
-
-        # Find the specified model settings
-        target_model_settings = next(
-            (
-                ms
-                for ms in evaluation_set.model_settings
-                if ms.id == self.context.model_settings_id
-            ),
-            None,
-        )
-
-        if not target_model_settings:
-            logger.warning(
-                f"Model settings ID '{self.context.model_settings_id}' not found in evaluation set"
-            )
-            return
-
-        logger.info(
-            f"Configuring model settings override: id='{target_model_settings.id}', "
-            f"model_name='{target_model_settings.model_name}', temperature='{target_model_settings.temperature}'"
-        )
-
-        # Configure the factory with the override settings
-        self.factory.set_model_settings_override(target_model_settings)
-
     async def execute_runtime(
         self,
         eval_item: EvaluationItem,
@@ -1078,46 +1070,32 @@ class UiPathEvalRuntime:
             return result
 
     async def _get_agent_model(self, runtime: UiPathRuntimeProtocol) -> str | None:
-        """Get agent model from the runtime.
+        """Get agent model from the runtime schema metadata.
 
         Returns:
             The model name from agent settings, or None if not found.
         """
         try:
-            model = self._find_agent_model_in_runtime(runtime)
-            if model:
-                logger.debug(f"Got agent model from runtime: {model}")
-            return model
-        except Exception:
+            schema = await runtime.get_schema()
+            if schema is None:
+                logger.debug("Schema is None, cannot retrieve agent model")
+                return None
+
+            # Read model from schema.metadata["settings"]["model"]
+            metadata = getattr(schema, "metadata", None)
+            if metadata and isinstance(metadata, dict):
+                settings = metadata.get("settings", {})
+                if isinstance(settings, dict):
+                    model = settings.get("model")
+                    if model:
+                        logger.debug(f"Got agent model from schema.metadata: {model}")
+                        return model
+
+            logger.debug("No model found in schema.metadata")
             return None
-
-    def _find_agent_model_in_runtime(
-        self, runtime: UiPathRuntimeProtocol
-    ) -> str | None:
-        """Recursively search for get_agent_model in runtime and its delegates.
-
-        Runtimes may be wrapped (e.g., ResumableRuntime wraps TelemetryWrapper
-        which wraps the base runtime). This method traverses the wrapper chain
-        to find a runtime that implements LLMAgentRuntimeProtocol.
-
-        Args:
-            runtime: The runtime to check (may be a wrapper)
-
-        Returns:
-            The model name if found, None otherwise.
-        """
-        # Check if this runtime implements the protocol
-        if isinstance(runtime, LLMAgentRuntimeProtocol):
-            return runtime.get_agent_model()
-
-        # Check for delegate property (used by UiPathResumableRuntime, TelemetryRuntimeWrapper)
-        delegate = getattr(runtime, "delegate", None) or getattr(
-            runtime, "_delegate", None
-        )
-        if delegate is not None:
-            return self._find_agent_model_in_runtime(delegate)
-
-        return None
+        except Exception as e:
+            logger.debug(f"Failed to get agent model from schema: {e}")
+            return None
 
     async def _load_evaluators(
         self, evaluation_set: EvaluationSet, runtime: UiPathRuntimeProtocol
