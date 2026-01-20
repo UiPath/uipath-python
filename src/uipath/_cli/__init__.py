@@ -97,6 +97,15 @@ def _get_safe_version() -> str:
         return "unknown"
 
 
+def _get_format_from_argv() -> str | None:
+    for i, arg in enumerate(sys.argv):
+        if arg == "--format" and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+        elif arg.startswith("--format="):
+            return arg.split("=", 1)[1]
+    return None
+
+
 class LazyGroup(click.Group):
     """Lazy-load commands only when invoked."""
 
@@ -107,6 +116,18 @@ class LazyGroup(click.Group):
         if cmd_name in _LAZY_COMMANDS:
             return _load_command(cmd_name)
         return None
+
+    def format_help(self, ctx, formatter):
+        format_value = _get_format_from_argv()
+
+        if format_value == "json":
+            from uipath._cli._utils._help_json import get_help_json
+
+            json_output = get_help_json(self, ctx, _get_safe_version())
+            click.echo(json_output)
+            ctx.exit(0)
+        else:
+            super().format_help(ctx, formatter)
 
 
 @click.command(cls=LazyGroup, invoke_without_command=True)
