@@ -836,9 +836,20 @@ class UiPathEvalRuntime:
             f"Applying model settings override: model={target_model_settings.model_name}, temperature={target_model_settings.temperature}"
         )
 
-        # Return settings as dict for schema.metadata override
-        return target_model_settings.model_dump(exclude_none=True)
+        # Return settings dict with correct keys for factory
+        override = {}
+        if (
             target_model_settings.model_name
+            and target_model_settings.model_name != "same-as-agent"
+        ):
+            override["model"] = target_model_settings.model_name
+        if (
+            target_model_settings.temperature is not None
+            and target_model_settings.temperature != "same-as-agent"
+        ):
+            override["temperature"] = target_model_settings.temperature
+
+        return override if override else None
 
     async def execute_runtime(
         self,
