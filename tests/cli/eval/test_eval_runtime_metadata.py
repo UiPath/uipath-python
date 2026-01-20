@@ -29,7 +29,6 @@ from uipath._cli._evals._runtime import (
     UiPathEvalRuntime,
 )
 from uipath._events._event_bus import EventBus
-from uipath.tracing import LlmOpsHttpExporter
 
 
 class MockRuntimeSchema(UiPathRuntimeSchema):
@@ -170,8 +169,6 @@ class TestFindAgentModelInRuntime:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
     def test_finds_model_in_direct_runtime(self, eval_runtime):
@@ -241,8 +238,6 @@ class TestGetAgentModel:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
         runtime = await create_runtime()
@@ -263,8 +258,6 @@ class TestGetAgentModel:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
         runtime = await create_runtime()
@@ -285,8 +278,6 @@ class TestGetAgentModel:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
         runtime = await create_runtime()
@@ -311,8 +302,6 @@ class TestGetAgentModel:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
         # Create a bad runtime that raises during get_agent_model
@@ -351,8 +340,6 @@ class TestGetSchema:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
         runtime = await create_runtime()
@@ -374,8 +361,6 @@ class TestGetSchema:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
         runtime = await create_runtime()
@@ -401,8 +386,6 @@ class TestGetSchema:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
         runtime = await create_runtime()
@@ -455,8 +438,6 @@ class TestWrappedRuntimeModelResolution:
             factory,
             trace_manager,
             event_bus,
-            LlmOpsHttpExporter(),
-            LlmOpsHttpExporter(),
         )
 
         model = await eval_runtime._get_agent_model(resumable_runtime)

@@ -17,7 +17,6 @@ from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._models._output import UiPathEvalOutput
 from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath._events._event_bus import EventBus
-from uipath.tracing import LlmOpsHttpExporter
 
 
 async def test_evaluate():
@@ -90,15 +89,11 @@ async def test_evaluate():
     factory = TestFactory(identity)
 
     # Act
-    job_exporter = LlmOpsHttpExporter()
-    studio_web_tracking_exporter = LlmOpsHttpExporter()
     result = await evaluate(
         factory,
         trace_manager,
         context,
         event_bus,
-        job_exporter,
-        studio_web_tracking_exporter,
     )
 
     # Assert that the output is json-serializable
@@ -195,15 +190,11 @@ async def test_eval_runtime_generates_uuid_when_no_custom_id():
     factory = TestFactory(identity)
 
     # Act
-    job_exporter = LlmOpsHttpExporter()
-    studio_web_tracking_exporter = LlmOpsHttpExporter()
     runtime = UiPathEvalRuntime(
         context,
         factory,
         trace_manager,
         event_bus,
-        job_exporter,
-        studio_web_tracking_exporter,
     )
 
     # Assert
@@ -284,29 +275,25 @@ async def test_eval_runtime_works_without_exporters():
 
     factory = TestFactory(identity)
 
-    # Act - Pass None for both exporters (simulating local execution without job/studio web)
+    # Act
     runtime = UiPathEvalRuntime(
         context,
         factory,
         trace_manager,
         event_bus,
-        job_exporter=None,
-        studio_web_tracking_exporter=None,
     )
 
-    # Assert - Runtime should still work without exporters
+    # Assert - Runtime should work
     assert runtime is not None
     assert len(runtime.execution_id) == 36
     assert runtime.execution_id.count("-") == 4
 
-    # Verify that evaluate() also works with None exporters
+    # Verify that evaluate() also works
     result = await evaluate(
         factory,
         trace_manager,
         context,
         event_bus,
-        job_exporter=None,
-        studio_web_tracking_exporter=None,
     )
 
     # Assert that the evaluation completed successfully

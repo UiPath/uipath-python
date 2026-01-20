@@ -10,6 +10,7 @@ from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._evaluate import evaluate
+from uipath._cli._evals._live_tracking_processor import LiveTrackingSpanProcessor
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
     UiPathEvalContext,
@@ -241,6 +242,26 @@ def eval(
                     if ctx.job_id:
                         job_exporter = LlmOpsHttpExporter()
                         trace_manager.add_span_exporter(job_exporter)
+                        # Add live tracking processor for real-time span updates
+                        job_tracking_processor = LiveTrackingSpanProcessor(job_exporter)
+                        trace_manager.tracer_span_processors.append(
+                            job_tracking_processor
+                        )
+                        trace_manager.tracer_provider.add_span_processor(
+                            job_tracking_processor
+                        )
+
+                    # Add studio web tracking processor if reporting to Studio Web
+                    if studio_web_tracking_exporter:
+                        studio_web_tracking_processor = LiveTrackingSpanProcessor(
+                            studio_web_tracking_exporter
+                        )
+                        trace_manager.tracer_span_processors.append(
+                            studio_web_tracking_processor
+                        )
+                        trace_manager.tracer_provider.add_span_processor(
+                            studio_web_tracking_processor
+                        )
 
                     if trace_file:
                         trace_manager.add_span_exporter(
@@ -263,8 +284,6 @@ def eval(
                                     trace_manager,
                                     eval_context,
                                     event_bus,
-                                    job_exporter,
-                                    studio_web_tracking_exporter,
                                 )
                         else:
                             # Fall back to execution without overwrites
@@ -273,8 +292,6 @@ def eval(
                                 trace_manager,
                                 eval_context,
                                 event_bus,
-                                job_exporter,
-                                studio_web_tracking_exporter,
                             )
                     finally:
                         if runtime_factory:
