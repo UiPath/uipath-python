@@ -1,4 +1,4 @@
-"""Tests for LiveTrackingSpanProcessor in _runtime.py."""
+"""Tests for LiveTrackingSpanProcessor."""
 
 import threading
 import time
@@ -9,7 +9,7 @@ import pytest
 from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
 
-from uipath._cli._evals._runtime import LiveTrackingSpanProcessor
+from uipath._cli._evals._live_tracking_processor import LiveTrackingSpanProcessor
 from uipath.tracing import SpanStatus
 
 
