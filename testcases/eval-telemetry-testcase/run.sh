@@ -4,8 +4,8 @@ set -e
 echo "=== E2E Test: Eval Telemetry Integration ==="
 
 # Validate required environment variables
-if [ -z "$APPLICATIONINSIGHTS_CONNECTION_STRING" ]; then
-    echo "Warning: APPLICATIONINSIGHTS_CONNECTION_STRING not set, telemetry won't be sent"
+if [ -z "$TELEMETRY_CONNECTION_STRING" ]; then
+    echo "Warning: TELEMETRY_CONNECTION_STRING not set, telemetry won't be sent"
 fi
 if [ -z "$APP_INSIGHTS_APP_ID" ]; then
     echo "Warning: APP_INSIGHTS_APP_ID not set, skipping telemetry verification"
