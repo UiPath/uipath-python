@@ -108,13 +108,18 @@ class ConsoleLogger:
             message: The error message to display
             include_traceback: Whether to include the current exception traceback
         """
-        self.log(message, LogLevel.ERROR, "red")
-
         if include_traceback:
+            import sys
             import traceback
 
-            click.echo(traceback.format_exc(), err=True)
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            if exc_value is not None:
+                tb = "".join(
+                    traceback.format_exception(exc_type, exc_value, exc_tb, chain=False)
+                )
+                message = f"{message}\n{tb}"
 
+        self.log(message, LogLevel.ERROR, "red")
         click.get_current_context().exit(1)
 
     def warning(self, message: str) -> None:
