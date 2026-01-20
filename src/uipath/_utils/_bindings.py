@@ -169,6 +169,12 @@ def resource_override(
             bound = sig.bind_partial(*args, **kwargs)
             bound.apply_defaults()
             all_args = dict(bound.arguments)
+            if (
+                "kwargs" in sig.parameters
+                and sig.parameters["kwargs"].kind == inspect.Parameter.VAR_KEYWORD
+            ):
+                extra_kwargs = all_args.pop("kwargs", {})
+                all_args.update(extra_kwargs)
 
             # Get overwrites from context variable
             context_overwrites = _resource_overwrites.get()

@@ -303,6 +303,19 @@ class TestResourceOverrides:
         assert process.resource_identifier == "Overwritten Process Name"
         assert process.folder_identifier == "Overwritten/Process/Folder"
 
+    def test_overrides_decorator_should_pop_kwargs_dict_when_present(self):
+        from uipath._utils import resource_override
+
+        @resource_override(resource_type="asset")
+        def some_method(a: str, b: str, **kwargs):
+            return kwargs
+
+        result = some_method("a", "b", kwargs_param=123)
+
+        assert "kwargs" not in result
+        assert len(result) == 1
+        assert result["kwargs_param"] == 123
+
     def test_debug_with_resource_overwrites(
         self,
         runner: CliRunner,
