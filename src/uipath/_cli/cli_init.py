@@ -323,9 +323,7 @@ def init(no_agents_md_override: bool) -> None:
                     )
 
             except Exception as e:
-                console.error(
-                    f"Error during initialization:\n{str(e)}", include_traceback=True
-                )
+                console.error(f"Error during initialization:\n{e}")
 
         asyncio.run(initialize())
 
