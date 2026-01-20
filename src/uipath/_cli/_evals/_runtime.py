@@ -29,6 +29,7 @@ from pydantic import BaseModel
 from uipath.core.tracing import UiPathTraceManager
 from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
 from uipath.runtime import (
+    UiPathExecuteOptions,
     UiPathExecutionRuntime,
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeProtocol,
@@ -413,10 +414,6 @@ class UiPathEvalRuntime:
         logger.info(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
         logger.info(f"EVAL RUNTIME: Job ID: {self.context.job_id}")
         logger.info(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
-        if self.context.resume:
-            logger.info(
-                "🟢 EVAL RUNTIME: RESUME MODE ENABLED - Will resume from suspended state"
-            )
         logger.info("=" * 80)
 
         # Configure model settings override before creating runtime
@@ -587,7 +584,7 @@ class UiPathEvalRuntime:
         evaluators: list[BaseEvaluator[Any, Any, Any]],
         runtime: UiPathRuntimeProtocol,
     ) -> EvaluationRunResult:
-        execution_id = str(uuid.uuid4())
+        execution_id = str(eval_item.id)
 
         # Create the "Evaluation" span for this eval item
         # Use tracer from trace_manager's provider to ensure spans go through
@@ -941,14 +938,16 @@ class UiPathEvalRuntime:
             "span_type": "eval",
         }
 
-        # Create a new runtime with unique runtime_id for this eval execution.
-        # This ensures each eval has its own LangGraph thread_id (clean state),
-        # preventing message accumulation across eval runs.
+        # Create a new runtime with runtime_id for this eval execution.
+        # Use eval_item.id to maintain consistent thread_id across suspend and resume.
+        # This ensures checkpoints can be found when resuming from suspended state.
+        runtime_id = eval_item.id
+
         eval_runtime = None
         try:
             eval_runtime = await self.factory.new_runtime(
                 entrypoint=self.context.entrypoint or "",
-                runtime_id=execution_id,
+                runtime_id=runtime_id,
             )
             execution_runtime = UiPathExecutionRuntime(
                 delegate=eval_runtime,
@@ -966,9 +965,29 @@ class UiPathEvalRuntime:
                     input_overrides or {},
                     eval_id=eval_item.id,
                 )
-                result = await execution_runtime.execute(
-                    input=inputs_with_overrides,
-                )
+
+                # In resume mode, pass None as input
+                # The UiPathResumableRuntime wrapper will automatically:
+                # 1. Fetch triggers from storage
+                # 2. Read resume data via trigger_manager.read_trigger()
+                # 3. Build resume map: {interrupt_id: resume_data}
+                # 4. Pass this map to the delegate runtime
+                if self.context.resume:
+                    logger.info(f"Resuming evaluation {eval_item.id}")
+                    options = UiPathExecuteOptions(resume=True)
+                    result = await execution_runtime.execute(
+                        input=None,  # Let wrapper load resume data
+                        options=options,
+                    )
+                else:
+                    result = await execution_runtime.execute(
+                        input=inputs_with_overrides,
+                    )
+
+                # Log suspend status if applicable
+                if result.status == UiPathRuntimeStatus.SUSPENDED:
+                    logger.info(f"Evaluation {eval_item.id} suspended")
+
             except Exception as e:
                 end_time = time()
                 spans, logs = self._get_and_clear_execution_data(execution_id)
