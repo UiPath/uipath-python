@@ -20,7 +20,7 @@ class TaskRecipientType(str, enum.Enum):
 
     USER_ID = "UserId"
     GROUP_ID = "GroupId"
-    USER_EMAIL = "UserEmail"
+    EMAIL = "UserEmail"
     GROUP_NAME = "GroupName"
 
 
@@ -30,7 +30,7 @@ class TaskRecipient(BaseModel):
     type: Literal[
         TaskRecipientType.USER_ID,
         TaskRecipientType.GROUP_ID,
-        TaskRecipientType.USER_EMAIL,
+        TaskRecipientType.EMAIL,
         TaskRecipientType.GROUP_NAME,
     ] = Field(..., alias="type")
     value: str = Field(..., alias="value")

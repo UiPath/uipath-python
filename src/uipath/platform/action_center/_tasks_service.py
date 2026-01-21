@@ -133,7 +133,7 @@ async def _assign_task_spec(
         recipient_value = await _resolve_recipient(self, task_recipient)
         if (
             task_recipient.type == TaskRecipientType.USER_ID
-            or task_recipient.type == TaskRecipientType.USER_EMAIL
+            or task_recipient.type == TaskRecipientType.EMAIL
         ):
             request_spec.json = {
                 "taskAssignments": [
