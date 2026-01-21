@@ -70,7 +70,7 @@ def dev(interface: str | None, debug: bool, debug_port: int) -> None:
                 trace_manager = UiPathTraceManager()
                 factory = UiPathRuntimeFactoryRegistry.get(
                     context=UiPathRuntimeContext(
-                        trace_manager=trace_manager,
+                        trace_manager=trace_manager, command="dev"
                     )
                 )
 
