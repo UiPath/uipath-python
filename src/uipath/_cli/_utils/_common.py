@@ -21,10 +21,10 @@ from ._studio_project import (
 )
 
 
-def get_claim_from_token(claim_name: str) -> str | None:
+def get_claim_from_token(claim_name: str, token: str | None = None) -> str | None:
     import jwt
 
-    token = os.getenv(ENV_UIPATH_ACCESS_TOKEN)
+    token = token or os.getenv(ENV_UIPATH_ACCESS_TOKEN)
     if not token:
         raise Exception("JWT token not available")
     decoded_token = jwt.decode(token, options={"verify_signature": False})
