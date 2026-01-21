@@ -18,6 +18,7 @@ Classes:
 
 from typing import Any
 
+from opentelemetry import trace
 from pydantic import BaseModel
 
 from ..._utils import Endpoint
@@ -318,16 +319,26 @@ class UiPathOpenAIService(BaseService):
                 # Use provided dictionary format directly
                 request_body["response_format"] = response_format
 
-        async with get_llm_semaphore():
-            response = await self.request_async(
-                "POST",
-                endpoint,
-                json=request_body,
-                params={"api-version": API_VERSION},
-                headers=DEFAULT_LLM_HEADERS,
-            )
+        # Create manual "LLM call" span for OpenInference-compatible tracing
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span("LLM call") as llm_span:
+            # Set OpenInference semantic convention attributes
+            llm_span.set_attribute("llm.model_name", model)
+            llm_span.set_attribute("llm.request.type", "chat")
+            llm_span.set_attribute("llm.request.max_tokens", max_tokens)
+            llm_span.set_attribute("llm.request.temperature", temperature)
+            llm_span.set_attribute("uipath.custom_instrumentation", True)
 
-        return ChatCompletion.model_validate(response.json())
+            async with get_llm_semaphore():
+                response = await self.request_async(
+                    "POST",
+                    endpoint,
+                    json=request_body,
+                    params={"api-version": API_VERSION},
+                    headers=DEFAULT_LLM_HEADERS,
+                )
+
+            return ChatCompletion.model_validate(response.json())
 
 
 class UiPathLlmChatService(BaseService):
@@ -550,16 +561,26 @@ class UiPathLlmChatService(BaseService):
             "X-UiPath-LlmGateway-NormalizedApi-ModelName": model,
         }
 
-        async with get_llm_semaphore():
-            response = await self.request_async(
-                "POST",
-                endpoint,
-                json=request_body,
-                params={"api-version": NORMALIZED_API_VERSION},
-                headers=headers,
-            )
+        # Create manual "LLM call" span for OpenInference-compatible tracing
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span("LLM call") as llm_span:
+            # Set OpenInference semantic convention attributes
+            llm_span.set_attribute("llm.model_name", model)
+            llm_span.set_attribute("llm.request.type", "chat")
+            llm_span.set_attribute("llm.request.max_tokens", max_tokens)
+            llm_span.set_attribute("llm.request.temperature", temperature)
+            llm_span.set_attribute("uipath.custom_instrumentation", True)
 
-        return ChatCompletion.model_validate(response.json())
+            async with get_llm_semaphore():
+                response = await self.request_async(
+                    "POST",
+                    endpoint,
+                    json=request_body,
+                    params={"api-version": NORMALIZED_API_VERSION},
+                    headers=headers,
+                )
+
+            return ChatCompletion.model_validate(response.json())
 
     def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> dict[str, Any]:
         """Convert an OpenAI-style tool definition to UiPath API format.
