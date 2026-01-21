@@ -210,6 +210,7 @@ class UiPathOpenAIService(BaseService):
         temperature: float = 0,
         response_format: dict[str, Any] | type[BaseModel] | None = None,
         api_version: str = API_VERSION,
+        **kwargs: Any,
     ):
         """Generate chat completions using UiPath's LLM Gateway service.
 
@@ -361,6 +362,7 @@ class UiPathLlmChatService(BaseService):
         tool_choice: ToolChoice | None = None,
         response_format: dict[str, Any] | type[BaseModel] | None = None,
         api_version: str = NORMALIZED_API_VERSION,
+        **kwargs: Any,
     ):
         """Generate chat completions using UiPath's normalized LLM Gateway API.
 

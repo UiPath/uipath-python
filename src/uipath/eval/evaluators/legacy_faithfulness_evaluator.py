@@ -511,6 +511,6 @@ The stance must be exactly one of: "SUPPORTS", "CONTRADICTS", or "IRRELEVANT".""
         }
 
         assert self.llm, "LLM should be initialized before calling this method."
-        response = await self.llm.chat_completions(**request_data)
+        response = await self.llm.chat_completions(**request_data)  # type: ignore[arg-type]
         content = response.choices[-1].message.content or "{}"
         return json.loads(content)

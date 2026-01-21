@@ -143,7 +143,7 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorCon
             model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
         # Prepare the request
-        request_data = {
+        request_data: dict[str, Any] = {
             "model": model,
             "messages": [{"role": "user", "content": evaluation_prompt}],
             "response_format": {
