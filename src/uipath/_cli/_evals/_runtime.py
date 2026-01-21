@@ -837,7 +837,7 @@ class UiPathEvalRuntime:
         )
 
         # Return settings dict with correct keys for factory
-        override = {}
+        override: dict[str, str | float] = {}
         if (
             target_model_settings.model_name
             and target_model_settings.model_name != "same-as-agent"
@@ -847,7 +847,7 @@ class UiPathEvalRuntime:
             target_model_settings.temperature is not None
             and target_model_settings.temperature != "same-as-agent"
         ):
-            override["temperature"] = target_model_settings.temperature
+            override["temperature"] = float(target_model_settings.temperature)
 
         return override if override else None
 
