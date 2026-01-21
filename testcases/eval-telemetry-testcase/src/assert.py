@@ -16,10 +16,10 @@ import httpx
 
 # Expected telemetry event names
 EXPECTED_EVENTS = [
-    "EvalSetRun.Start.URT",
-    "EvalSetRun.End.URT",
-    "EvalRun.Start.URT",
-    "EvalRun.End.URT",
+    "EvalSetRun.Start",
+    "EvalSetRun.End",
+    "EvalRun.Start",
+    "EvalRun.End",
 ]
 
 
