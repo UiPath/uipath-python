@@ -1241,6 +1241,7 @@ class StudioWebProgressReporter:
             parent_span.set_attribute("openinference.span.kind", "CHAIN")
             parent_span.set_attribute("span.type", "evaluators")
             parent_span.set_attribute("eval_run_id", eval_run_id)
+            parent_span.set_attribute("telemetry.filter", "drop")
 
             # Make this span the active span for child spans
             parent_ctx = trace.set_span_in_context(parent_span, ctx)
@@ -1289,6 +1290,7 @@ class StudioWebProgressReporter:
                 evaluator_span.set_attribute(
                     "score_type", eval_result.result.score_type.name
                 )
+                evaluator_span.set_attribute("telemetry.filter", "drop")
 
                 # Add details/justification if available
                 if eval_result.result.details:
