@@ -5,12 +5,10 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
 from opentelemetry import trace
-from opentelemetry.trace import SpanContext, SpanKind, TraceFlags
 from pydantic import BaseModel
 from rich.console import Console
 
@@ -382,10 +380,9 @@ class StudioWebProgressReporter:
             if current_span.is_recording():
                 current_span.set_attribute("eval_set_run_id", eval_set_run_id)
 
-            # Set trace_id and send parent trace for the evaluation set run
+            # Set trace_id for the evaluation set run
             if eval_set_run_id:
                 self.spans_exporter.trace_id = eval_set_run_id
-                await self._send_parent_trace(eval_set_run_id, payload.eval_set_id)
 
             logger.debug(
                 f"Created eval set run with ID: {eval_set_run_id} (coded={is_coded})"
@@ -1030,99 +1027,6 @@ class StudioWebProgressReporter:
                 f"{ENV_TENANT_ID} env var is not set. Please run 'uipath auth'."
             )
         return {HEADER_INTERNAL_TENANT_ID: tenant_id}
-
-    async def _send_parent_trace(
-        self, eval_set_run_id: str, eval_set_name: str
-    ) -> None:
-        """Send the parent trace span for the evaluation set run.
-
-        Args:
-            eval_set_run_id: The ID of the evaluation set run
-            eval_set_name: The name of the evaluation set
-        """
-        try:
-            # Get the tracer
-            tracer = trace.get_tracer(__name__)
-
-            # Convert eval_set_run_id to trace ID format (128-bit integer)
-            trace_id_int = int(uuid.UUID(eval_set_run_id))
-
-            # Create a span context with the eval_set_run_id as the trace ID
-            span_context = SpanContext(
-                trace_id=trace_id_int,
-                span_id=trace_id_int,  # Use same ID for root span
-                is_remote=False,
-                trace_flags=TraceFlags(0x01),  # Sampled
-            )
-
-            # Create a non-recording span with our custom context
-            ctx = trace.set_span_in_context(trace.NonRecordingSpan(span_context))
-
-            # Start a new span with the custom trace ID
-            with tracer.start_as_current_span(
-                eval_set_name,
-                context=ctx,
-                kind=SpanKind.INTERNAL,
-                start_time=int(datetime.now(timezone.utc).timestamp() * 1_000_000_000),
-            ) as span:
-                # Set attributes for the evaluation set span
-                span.set_attribute("openinference.span.kind", "CHAIN")
-                span.set_attribute("span.type", "evaluationSet")
-                span.set_attribute("eval_set_run_id", eval_set_run_id)
-
-            logger.debug(f"Created parent trace for eval set run: {eval_set_run_id}")
-
-        except Exception as e:
-            logger.warning(f"Failed to create parent trace: {e}")
-
-    async def _send_eval_run_trace(
-        self, eval_run_id: str, eval_set_run_id: str, eval_name: str
-    ) -> None:
-        """Send the child trace span for an evaluation run.
-
-        Args:
-            eval_run_id: The ID of the evaluation run
-            eval_set_run_id: The ID of the parent evaluation set run
-            eval_name: The name of the evaluation
-        """
-        try:
-            # Get the tracer
-            tracer = trace.get_tracer(__name__)
-
-            # Convert IDs to trace format
-            trace_id_int = int(uuid.UUID(eval_run_id))
-            parent_span_id_int = int(uuid.UUID(eval_set_run_id))
-
-            # Create a parent span context
-            parent_context = SpanContext(
-                trace_id=trace_id_int,
-                span_id=parent_span_id_int,
-                is_remote=False,
-                trace_flags=TraceFlags(0x01),
-            )
-
-            # Create context with parent span
-            ctx = trace.set_span_in_context(trace.NonRecordingSpan(parent_context))
-
-            # Start a new span with the eval_run_id as trace ID
-            with tracer.start_as_current_span(
-                eval_name,
-                context=ctx,
-                kind=SpanKind.INTERNAL,
-                start_time=int(datetime.now(timezone.utc).timestamp() * 1_000_000_000),
-            ) as span:
-                # Set attributes for the evaluation run span
-                span.set_attribute("openinference.span.kind", "CHAIN")
-                span.set_attribute("span.type", "evaluation")
-                span.set_attribute("eval_run_id", eval_run_id)
-                span.set_attribute("eval_set_run_id", eval_set_run_id)
-
-            logger.debug(
-                f"Created trace for eval run: {eval_run_id} (parent: {eval_set_run_id})"
-            )
-
-        except Exception as e:
-            logger.warning(f"Failed to create eval run trace: {e}")
 
     async def _send_evaluator_traces(
         self, eval_run_id: str, eval_results: list[EvalItemResult], spans: list[Any]
