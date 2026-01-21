@@ -15,8 +15,8 @@ from ..common import (
     BaseService,
     FolderContext,
     UiPathApiConfig,
-    UiPathExecutionContext,
     UiPathConfig,
+    UiPathExecutionContext,
 )
 from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
@@ -121,7 +121,7 @@ def _retrieve_action_spec(
 
 
 async def _assign_task_spec(
-    self, task_key: str, assignee: str, task_recipient: TaskRecipient | None
+    self, task_key: str, assignee: str | None, task_recipient: TaskRecipient | None
 ) -> RequestSpec:
     request_spec = RequestSpec(
         method="POST",
@@ -130,30 +130,7 @@ async def _assign_task_spec(
         ),
     )
     if task_recipient:
-        recipient_value = task_recipient.value
-        if task_recipient.type == TaskRecipientType.USER_ID:
-            user_spec = _resolve_user(task_recipient.value)
-            user_response = await self.request_async(
-                user_spec.method,
-                user_spec.endpoint,
-                json=user_spec.json,
-                content=user_spec.content,
-                headers=user_spec.headers,
-                scoped="org",
-            )
-            recipient_value = user_response.json().get("email")
-        if task_recipient.type == TaskRecipientType.GROUP_ID:
-            group_spec = _resolve_group(assignee)
-            group_response = await self.request_async(
-                group_spec.method,
-                group_spec.endpoint,
-                json=group_spec.json,
-                content=group_spec.content,
-                headers=group_spec.headers,
-                scoped="org",
-            )
-            recipient_value = group_response.json().get("displayName")
-
+        recipient_value = await _resolve_recipient(self, task_recipient)
         if (
             task_recipient.type == TaskRecipientType.USER_ID
             or task_recipient.type == TaskRecipientType.USER_EMAIL
@@ -177,17 +154,38 @@ async def _assign_task_spec(
                     }
                 ]
             }
-    else:
+    elif assignee:
         request_spec.json = {
-            "taskAssignments": [
-                {
-                    "taskId": task_key,
-                    "assignmentCriteria": "SingleUser",
-                    "userNameOrEmail": assignee,
-                }
-            ]
+            "taskAssignments": [{"taskId": task_key, "UserNameOrEmail": assignee}]
         }
     return request_spec
+
+
+async def _resolve_recipient(self, task_recipient: TaskRecipient) -> str:
+    recipient_value = task_recipient.value
+    if task_recipient.type == TaskRecipientType.USER_ID:
+        user_spec = _resolve_user(task_recipient.value)
+        user_response = await self.request_async(
+            user_spec.method,
+            user_spec.endpoint,
+            json=user_spec.json,
+            content=user_spec.content,
+            headers=user_spec.headers,
+            scoped="org",
+        )
+        recipient_value = user_response.json().get("email")
+    if task_recipient.type == TaskRecipientType.GROUP_ID:
+        group_spec = _resolve_group(task_recipient.value)
+        group_response = await self.request_async(
+            group_spec.method,
+            group_spec.endpoint,
+            json=group_spec.json,
+            content=group_spec.content,
+            headers=group_spec.headers,
+            scoped="org",
+        )
+        recipient_value = group_response.json().get("displayName")
+    return recipient_value
 
 
 def _resolve_user(entity_id: str) -> RequestSpec:
@@ -388,7 +386,7 @@ class TasksService(FolderContext, BaseService):
             headers=spec.headers,
         )
         json_response = response.json()
-        if assignee:
+        if assignee or recipient:
             spec = asyncio.run(
                 _assign_task_spec(self, json_response["id"], assignee, recipient)
             )

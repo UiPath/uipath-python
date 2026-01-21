@@ -600,6 +600,7 @@ class TestHitlProcessor:
                 app_folder_key="",
                 app_key="",
                 assignee="",
+                recipient="",
                 data=create_action.data,
             )
 
