@@ -31,6 +31,7 @@ from uipath.platform.common import UiPathConfig
 
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
+from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 from .models.runtime_schema import Bindings
@@ -326,6 +327,7 @@ def _display_entrypoint_graphs(entry_point_schemas: list[UiPathRuntimeSchema]) -
     default=False,
     help="Won't override existing .agent files and AGENTS.md file.",
 )
+@track_command("initialize")
 def init(no_agents_md_override: bool) -> None:
     """Initialize the project."""
     with console.spinner("Initializing UiPath project ..."):

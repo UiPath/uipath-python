@@ -1,3 +1,4 @@
+import atexit
 import json
 import os
 from functools import wraps
@@ -24,6 +25,7 @@ from ._constants import (
     _CODE_FILEPATH,
     _CODE_FUNCTION,
     _CODE_LINENO,
+    _CONNECTION_STRING,
     _OTEL_RESOURCE_ATTRIBUTES,
     _PROJECT_KEY,
     _SDK_VERSION,
@@ -129,6 +131,7 @@ class _AppInsightsEventClient:
 
     _initialized = False
     _client: Optional[Any] = None
+    _atexit_registered = False
 
     @staticmethod
     def _initialize() -> None:
@@ -205,6 +208,13 @@ class _AppInsightsEventClient:
                 _AppInsightsEventClient._client.flush()
             except Exception:
                 pass
+
+    @staticmethod
+    def register_atexit_flush() -> None:
+        """Register an atexit handler to flush events on process exit."""
+        if not _AppInsightsEventClient._atexit_registered:
+            atexit.register(_AppInsightsEventClient.flush)
+            _AppInsightsEventClient._atexit_registered = True
 
 
 class _TelemetryClient:
@@ -323,6 +333,35 @@ def flush_events() -> None:
     events are sent immediately.
     """
     _AppInsightsEventClient.flush()
+
+
+def _inject_cli_connection_string() -> None:
+    """Inject _CONNECTION_STRING into TELEMETRY_CONNECTION_STRING env var for CLI.
+
+    This allows CLI commands to use the build-time injected connection string.
+    """
+    if os.getenv("TELEMETRY_CONNECTION_STRING"):
+        return
+    if _CONNECTION_STRING and _CONNECTION_STRING != "$CONNECTION_STRING":
+        os.environ["TELEMETRY_CONNECTION_STRING"] = _CONNECTION_STRING
+
+
+def track_cli_event(
+    name: str,
+    properties: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Track a CLI event.
+
+    Buffers the event and registers an atexit handler to flush pending events on process exit.
+    """
+    if not _TelemetryClient._is_enabled():
+        return
+    try:
+        _inject_cli_connection_string()
+        _AppInsightsEventClient.track_event(name, properties)
+        _AppInsightsEventClient.register_atexit_flush()
+    except Exception:
+        pass
 
 
 def track(

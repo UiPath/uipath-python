@@ -9,6 +9,7 @@ from uipath.platform.errors import EnrichedException, FolderNotFoundException
 
 from ..platform.resource_catalog import ResourceType
 from ._push.sw_file_handler import SwFileHandler
+from ._telemetry import track_command
 from ._utils._common import ensure_coded_agent_project, may_override_files
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
@@ -230,6 +231,7 @@ async def upload_source_files_to_project(
     is_flag=True,
     help="Automatically overwrite remote files without prompts",
 )
+@track_command("push")
 def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> None:
     """Push local project files to Studio Web.
 
