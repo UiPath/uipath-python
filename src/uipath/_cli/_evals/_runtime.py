@@ -337,6 +337,9 @@ class UiPathEvalRuntime:
                 with tracer.start_as_current_span(
                     "Evaluation Set Run", attributes=span_attributes
                 ) as span:
+                    # Mark as custom instrumentation for LLMOps trace view
+                    span.set_attribute("uipath.custom_instrumentation", True)
+
                     try:
                         (
                             evaluation_set,
@@ -496,6 +499,9 @@ class UiPathEvalRuntime:
                 "eval_item_name": eval_item.name,
             },
         ) as span:
+            # Mark as custom instrumentation for LLMOps trace view
+            span.set_attribute("uipath.custom_instrumentation", True)
+
             evaluation_run_results = EvaluationRunResult(
                 evaluation_name=eval_item.name, evaluation_run_results=[]
             )
@@ -955,7 +961,10 @@ class UiPathEvalRuntime:
                 "evaluator_name": evaluator.name,
                 "eval_item_id": eval_item.id,
             },
-        ):
+        ) as span:
+            # Mark as custom instrumentation for LLMOps trace view
+            span.set_attribute("uipath.custom_instrumentation", True)
+
             output_data: dict[str, Any] | str = {}
             if execution_output.result.output:
                 if isinstance(execution_output.result.output, BaseModel):
