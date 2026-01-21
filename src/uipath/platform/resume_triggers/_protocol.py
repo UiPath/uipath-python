@@ -444,6 +444,7 @@ class UiPathResumeTriggerCreator:
                 app_folder_key=value.app_folder_key if value.app_folder_key else "",
                 app_key=value.app_key if value.app_key else "",
                 assignee=value.assignee if value.assignee else "",
+                recipient=value.recipient if value.recipient else "",
                 data=value.data,
             )
             if not action:

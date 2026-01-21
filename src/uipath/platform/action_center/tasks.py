@@ -2,7 +2,7 @@
 
 import enum
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -13,6 +13,27 @@ class TaskStatus(enum.IntEnum):
     UNASSIGNED = 0
     PENDING = 1
     COMPLETED = 2
+
+
+class TaskRecipientType(str, enum.Enum):
+    """Task recipient type enumeration."""
+
+    USER_ID = "UserId"
+    GROUP_ID = "GroupId"
+    EMAIL = "UserEmail"
+    GROUP_NAME = "GroupName"
+
+
+class TaskRecipient(BaseModel):
+    """Model representing a task recipient."""
+
+    type: Literal[
+        TaskRecipientType.USER_ID,
+        TaskRecipientType.GROUP_ID,
+        TaskRecipientType.EMAIL,
+        TaskRecipientType.GROUP_NAME,
+    ] = Field(..., alias="type")
+    value: str = Field(..., alias="value")
 
 
 class Task(BaseModel):

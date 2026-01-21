@@ -1,3 +1,4 @@
+import asyncio
 import os
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
@@ -10,9 +11,15 @@ from ..._utils.constants import (
     HEADER_TENANT_ID,
 )
 from ...tracing import traced
-from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
+from ..common import (
+    BaseService,
+    FolderContext,
+    UiPathApiConfig,
+    UiPathConfig,
+    UiPathExecutionContext,
+)
 from .task_schema import TaskSchema
-from .tasks import Task
+from .tasks import Task, TaskRecipient, TaskRecipientType
 
 
 def _create_spec(
@@ -113,13 +120,94 @@ def _retrieve_action_spec(
     )
 
 
-def _assign_task_spec(task_key: str, assignee: str) -> RequestSpec:
-    return RequestSpec(
+async def _assign_task_spec(
+    self, task_key: str, assignee: str | None, task_recipient: TaskRecipient | None
+) -> RequestSpec:
+    request_spec = RequestSpec(
         method="POST",
         endpoint=Endpoint(
             "/orchestrator_/odata/Tasks/UiPath.Server.Configuration.OData.AssignTasks"
         ),
-        json={"taskAssignments": [{"taskId": task_key, "UserNameOrEmail": assignee}]},
+    )
+    if task_recipient:
+        recipient_value = await _resolve_recipient(self, task_recipient)
+        if (
+            task_recipient.type == TaskRecipientType.USER_ID
+            or task_recipient.type == TaskRecipientType.EMAIL
+        ):
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "SingleUser",
+                        "userNameOrEmail": recipient_value,
+                    }
+                ]
+            }
+        else:
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "AllUsers",
+                        "assigneeNamesOrEmails": [recipient_value],
+                    }
+                ]
+            }
+    elif assignee:
+        request_spec.json = {
+            "taskAssignments": [{"taskId": task_key, "UserNameOrEmail": assignee}]
+        }
+    return request_spec
+
+
+async def _resolve_recipient(self, task_recipient: TaskRecipient) -> str:
+    recipient_value = task_recipient.value
+    if task_recipient.type == TaskRecipientType.USER_ID:
+        user_spec = _resolve_user(task_recipient.value)
+        user_response = await self.request_async(
+            user_spec.method,
+            user_spec.endpoint,
+            json=user_spec.json,
+            content=user_spec.content,
+            headers=user_spec.headers,
+            scoped="org",
+        )
+        recipient_value = user_response.json().get("email")
+    if task_recipient.type == TaskRecipientType.GROUP_ID:
+        group_spec = _resolve_group(task_recipient.value)
+        group_response = await self.request_async(
+            group_spec.method,
+            group_spec.endpoint,
+            json=group_spec.json,
+            content=group_spec.content,
+            headers=group_spec.headers,
+            scoped="org",
+        )
+        recipient_value = group_response.json().get("displayName")
+    return recipient_value
+
+
+def _resolve_user(entity_id: str) -> RequestSpec:
+    org_id = UiPathConfig.organization_id
+    return RequestSpec(
+        method="POST",
+        endpoint=Endpoint(
+            "/identity_/api/Directory/Resolve/{org_id}".format(org_id=org_id)
+        ),
+        json={"entityId": entity_id, "entityType": "User"},
+    )
+
+
+def _resolve_group(entity_id: str) -> RequestSpec:
+    org_id = UiPathConfig.organization_id
+    return RequestSpec(
+        method="GET",
+        endpoint=Endpoint(
+            "/identity_/api/Group/{org_id}/{entity_id}".format(
+                org_id=org_id, entity_id=entity_id
+            )
+        ),
     )
 
 
@@ -181,6 +269,7 @@ class TasksService(FolderContext, BaseService):
         app_folder_path: Optional[str] = None,
         app_folder_key: Optional[str] = None,
         assignee: Optional[str] = None,
+        recipient: Optional[TaskRecipient] = None,
     ) -> Task:
         """Creates a new action asynchronously.
 
@@ -226,8 +315,10 @@ class TasksService(FolderContext, BaseService):
             headers=spec.headers,
         )
         json_response = response.json()
-        if assignee:
-            spec = _assign_task_spec(json_response["id"], assignee)
+        if assignee or recipient:
+            spec = await _assign_task_spec(
+                self, json_response["id"], assignee, recipient
+            )
             await self.request_async(
                 spec.method, spec.endpoint, json=spec.json, content=spec.content
             )
@@ -249,6 +340,7 @@ class TasksService(FolderContext, BaseService):
         app_folder_path: Optional[str] = None,
         app_folder_key: Optional[str] = None,
         assignee: Optional[str] = None,
+        recipient: Optional[TaskRecipient] = None,
     ) -> Task:
         """Creates a new task synchronously.
 
@@ -294,8 +386,10 @@ class TasksService(FolderContext, BaseService):
             headers=spec.headers,
         )
         json_response = response.json()
-        if assignee:
-            spec = _assign_task_spec(json_response["id"], assignee)
+        if assignee or recipient:
+            spec = asyncio.run(
+                _assign_task_spec(self, json_response["id"], assignee, recipient)
+            )
             self.request(
                 spec.method, spec.endpoint, json=spec.json, content=spec.content
             )
