@@ -1,0 +1,1277 @@
+{
+  "actionData": {
+    "type": "Validation",
+    "id": 10432640,
+    "status": "Completed",
+    "title": "Test Validation Action",
+    "priority": "Medium",
+    "taskCatalogName": "default_du_actions",
+    "taskUrl": "https://dummy.uipath.com/82e69757-09ff-4e6d-83e7-d530f2a99999/bd829329-42ff-40aa-96dc-95a781699999/actions_/tasks/10499999",
+    "folderPath": "Shared",
+    "folderId": 1744784,
+    "data": {
+      "automaticExtractionResultsPath": "TestDirectory/12c04908-67f0-f011-8196-6045bd99999/input_results.zip",
+      "validatedExtractionResultsPath": "TestDirectory/12c04908-67f0-f011-8196-6045bd99999/output_results.zip",
+      "documentRejectionDetails": null
+    },
+    "action": "Completed",
+    "isDeleted": false,
+    "assignedToUser": {
+      "id": 4303796,
+      "emailAddress": "dummy.dummy@dummy.com"
+    },
+    "creatorUser": null,
+    "deleterUser": null,
+    "lastModifierUser": {
+      "id": 4303796,
+      "emailAddress": "dummy.dummy@dummy.com"
+    },
+    "completedByUser": {
+      "id": 4303796,
+      "emailAddress": "dummy.dummy@dummy.com"
+    },
+    "creationTime": "2026-01-22T10:03:02.9434351Z",
+    "lastAssignedTime": "2026-01-22T10:03:45.587Z",
+    "completionTime": "2026-01-22T10:03:56.71Z",
+    "processingTime": null
+  },
+  "validatedExtractionResults": {
+    "DocumentId": "47f037fe-66f0-f011-8196-6045bd99999",
+    "ResultsVersion": 1,
+    "ResultsDocument": {
+      "Bounds": {
+        "StartPage": 0,
+        "PageCount": 1,
+        "TextStartIndex": 0,
+        "TextLength": 635,
+        "PageRange": "1"
+      },
+      "Language": "eng",
+      "DocumentGroup": "",
+      "DocumentCategory": "",
+      "DocumentTypeId": "00000000-0000-0000-0000-000000000000",
+      "DocumentTypeName": "Default",
+      "DocumentTypeDataVersion": 0,
+      "DataVersion": 1,
+      "DocumentTypeSource": "Automatic",
+      "DocumentTypeField": {
+        "Components": [],
+        "Value": "Default",
+        "UnformattedValue": "",
+        "Reference": { "TextStartIndex": 0, "TextLength": 0, "Tokens": [] },
+        "DerivedFields": [],
+        "Confidence": 1.0,
+        "OperatorConfirmed": true,
+        "OcrConfidence": 1.0,
+        "TextType": "Unknown",
+        "ValidatorNotes": "",
+        "ValidatorNotesInfo": ""
+      },
+      "Fields": [
+        {
+          "FieldId": "Uber Receipt",
+          "FieldName": "Uber Receipt",
+          "FieldType": "Table",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "Values": [
+            {
+              "Components": [
+                {
+                  "FieldId": "Uber Receipt.Header",
+                  "FieldName": "Header",
+                  "FieldType": "Internal",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [
+                        {
+                          "FieldId": "Date of Trip",
+                          "FieldName": "Date of Trip",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Date of Trip",
+                              "UnformattedValue": "Date of Trip",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Customer Name",
+                          "FieldName": "Customer Name",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Customer Name",
+                              "UnformattedValue": "Customer Name",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Total Amount Paid",
+                          "FieldName": "Total Amount Paid",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Total Amount Paid",
+                              "UnformattedValue": "Total Amount Paid",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        }
+                      ],
+                      "Value": "",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ],
+                  "DataVersion": 0,
+                  "OperatorConfirmed": true,
+                  "ValidatorNotes": "",
+                  "ValidatorNotesInfo": ""
+                },
+                {
+                  "FieldId": "Uber Receipt.Body",
+                  "FieldName": "Body",
+                  "FieldType": "Internal",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [
+                        {
+                          "FieldId": "Date of Trip",
+                          "FieldName": "Date of Trip",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "12/11/2023 00:00:00",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 565,
+                                "TextLength": 17,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 565,
+                                    "TextLength": 8,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [47.2702, 464.3362, 33.9578, 5.9088]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 574,
+                                    "TextLength": 3,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [47.2702, 500.5087, 6.6439, 5.9088]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 574,
+                                    "TextLength": 3,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [47.2702, 507.8908, 1.4764, 5.9088]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 578,
+                                    "TextLength": 4,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [47.2702, 511.5819, 16.2407, 5.9088]
+                                    ]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Text",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Customer Name",
+                          "FieldName": "Customer Name",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Alex",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 41,
+                                "TextLength": 5,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 41,
+                                    "TextLength": 5,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [84.2, 275.3536, 33.9578, 13.2947]
+                                    ]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Text",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Total Amount Paid",
+                          "FieldName": "Total Amount Paid",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "66.79 RON",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 584,
+                                "TextLength": 9,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 584,
+                                    "TextLength": 3,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [146.2421, 473.933, 22.1464, 8.1246]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 588,
+                                    "TextLength": 5,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [146.2421, 500.5087, 26.5757, 8.1246]
+                                    ]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Text",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        }
+                      ],
+                      "Value": "",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ],
+                  "DataVersion": 0,
+                  "OperatorConfirmed": true,
+                  "ValidatorNotes": "",
+                  "ValidatorNotesInfo": ""
+                }
+              ],
+              "Value": "",
+              "UnformattedValue": "",
+              "Reference": {
+                "TextStartIndex": 0,
+                "TextLength": 0,
+                "Tokens": []
+              },
+              "DerivedFields": [],
+              "Confidence": 1.0,
+              "OperatorConfirmed": true,
+              "OcrConfidence": 1.0,
+              "TextType": "Unknown",
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "DataVersion": 0,
+          "OperatorConfirmed": true,
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        },
+        {
+          "FieldId": "Uber Receipt > Fare Breakdown",
+          "FieldName": "Uber Receipt > Fare Breakdown",
+          "FieldType": "Table",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "Values": [
+            {
+              "Components": [
+                {
+                  "FieldId": "Uber Receipt > Fare Breakdown.Header",
+                  "FieldName": "Header",
+                  "FieldType": "Internal",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [
+                        {
+                          "FieldId": "Fare Amount",
+                          "FieldName": "Fare Amount",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Fare Amount",
+                              "UnformattedValue": "Fare Amount",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Subtotal",
+                          "FieldName": "Subtotal",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Subtotal",
+                              "UnformattedValue": "Subtotal",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Promotion Amount",
+                          "FieldName": "Promotion Amount",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Promotion Amount",
+                              "UnformattedValue": "Promotion Amount",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        }
+                      ],
+                      "Value": "",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ],
+                  "DataVersion": 0,
+                  "OperatorConfirmed": true,
+                  "ValidatorNotes": "",
+                  "ValidatorNotesInfo": ""
+                },
+                {
+                  "FieldId": "Uber Receipt > Fare Breakdown.Body",
+                  "FieldName": "Body",
+                  "FieldType": "Internal",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [
+                        {
+                          "FieldId": "Fare Amount",
+                          "FieldName": "Fare Amount",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "65.29 RON",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 595,
+                                "TextLength": 9,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 595,
+                                    "TextLength": 3,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [187.6035, 493.8648, 14.026, 4.4316]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 599,
+                                    "TextLength": 5,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [187.6035, 509.3672, 16.9789, 4.4316]
+                                    ]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Text",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Subtotal",
+                          "FieldName": "Subtotal",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "65.29 RON",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 606,
+                                "TextLength": 9,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 606,
+                                    "TextLength": 3,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [224.5333, 491.6501, 14.7643, 5.1702]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 610,
+                                    "TextLength": 5,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [224.5333, 508.629, 18.4553, 5.1702]
+                                    ]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 1.0,
+                              "OperatorConfirmed": true,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Text",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Promotion Amount",
+                          "FieldName": "Promotion Amount",
+                          "FieldType": "Text",
+                          "IsMissing": true,
+                          "DataSource": "Automatic",
+                          "Values": [],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": true,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        }
+                      ],
+                      "Value": "",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ],
+                  "DataVersion": 0,
+                  "OperatorConfirmed": true,
+                  "ValidatorNotes": "",
+                  "ValidatorNotesInfo": ""
+                }
+              ],
+              "Value": "",
+              "UnformattedValue": "",
+              "Reference": {
+                "TextStartIndex": 0,
+                "TextLength": 0,
+                "Tokens": []
+              },
+              "DerivedFields": [],
+              "Confidence": 1.0,
+              "OperatorConfirmed": true,
+              "OcrConfidence": 1.0,
+              "TextType": "Unknown",
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "DataVersion": 0,
+          "OperatorConfirmed": true,
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        }
+      ],
+      "Tables": [
+        {
+          "FieldId": "Uber Receipt",
+          "FieldName": "Uber Receipt",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "DataVersion": 0,
+          "OperatorConfirmed": true,
+          "Values": [
+            {
+              "OperatorConfirmed": true,
+              "Confidence": 1.0,
+              "OcrConfidence": 1.0,
+              "Cells": [
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 0,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Date of Trip",
+                      "UnformattedValue": "Date of Trip",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 1,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Customer Name",
+                      "UnformattedValue": "Customer Name",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 2,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Total Amount Paid",
+                      "UnformattedValue": "Total Amount Paid",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 0,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "12/11/2023 00:00:00",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 565,
+                        "TextLength": 17,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 565,
+                            "TextLength": 8,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[47.2702, 464.3362, 33.9578, 5.9088]]
+                          },
+                          {
+                            "TextStartIndex": 574,
+                            "TextLength": 3,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[47.2702, 500.5087, 6.6439, 5.9088]]
+                          },
+                          {
+                            "TextStartIndex": 574,
+                            "TextLength": 3,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[47.2702, 507.8908, 1.4764, 5.9088]]
+                          },
+                          {
+                            "TextStartIndex": 578,
+                            "TextLength": 4,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[47.2702, 511.5819, 16.2407, 5.9088]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Text",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 1,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Alex",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 41,
+                        "TextLength": 5,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 41,
+                            "TextLength": 5,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[84.2, 275.3536, 33.9578, 13.2947]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Text",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 2,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "66.79 RON",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 584,
+                        "TextLength": 9,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 584,
+                            "TextLength": 3,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[146.2421, 473.933, 22.1464, 8.1246]]
+                          },
+                          {
+                            "TextStartIndex": 588,
+                            "TextLength": 5,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[146.2421, 500.5087, 26.5757, 8.1246]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Text",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                }
+              ],
+              "ColumnInfo": [
+                {
+                  "FieldId": "Date of Trip",
+                  "FieldName": "Date of Trip",
+                  "FieldType": "Text"
+                },
+                {
+                  "FieldId": "Customer Name",
+                  "FieldName": "Customer Name",
+                  "FieldType": "Text"
+                },
+                {
+                  "FieldId": "Total Amount Paid",
+                  "FieldName": "Total Amount Paid",
+                  "FieldType": "Text"
+                }
+              ],
+              "NumberOfRows": 2,
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        },
+        {
+          "FieldId": "Uber Receipt > Fare Breakdown",
+          "FieldName": "Uber Receipt > Fare Breakdown",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "DataVersion": 0,
+          "OperatorConfirmed": true,
+          "Values": [
+            {
+              "OperatorConfirmed": true,
+              "Confidence": 1.0,
+              "OcrConfidence": 1.0,
+              "Cells": [
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 0,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Fare Amount",
+                      "UnformattedValue": "Fare Amount",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 1,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Subtotal",
+                      "UnformattedValue": "Subtotal",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 2,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Promotion Amount",
+                      "UnformattedValue": "Promotion Amount",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 0,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "65.29 RON",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 595,
+                        "TextLength": 9,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 595,
+                            "TextLength": 3,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[187.6035, 493.8648, 14.026, 4.4316]]
+                          },
+                          {
+                            "TextStartIndex": 599,
+                            "TextLength": 5,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[187.6035, 509.3672, 16.9789, 4.4316]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Text",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 1,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "65.29 RON",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 606,
+                        "TextLength": 9,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 606,
+                            "TextLength": 3,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[224.5333, 491.6501, 14.7643, 5.1702]]
+                          },
+                          {
+                            "TextStartIndex": 610,
+                            "TextLength": 5,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[224.5333, 508.629, 18.4553, 5.1702]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 1.0,
+                      "OperatorConfirmed": true,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Text",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 2,
+                  "IsHeader": false,
+                  "IsMissing": true,
+                  "OperatorConfirmed": true,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": []
+                }
+              ],
+              "ColumnInfo": [
+                {
+                  "FieldId": "Fare Amount",
+                  "FieldName": "Fare Amount",
+                  "FieldType": "Text"
+                },
+                {
+                  "FieldId": "Subtotal",
+                  "FieldName": "Subtotal",
+                  "FieldType": "Text"
+                },
+                {
+                  "FieldId": "Promotion Amount",
+                  "FieldName": "Promotion Amount",
+                  "FieldType": "Text"
+                }
+              ],
+              "NumberOfRows": 2,
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        }
+      ]
+    },
+    "ExtractorPayloads": null,
+    "BusinessRulesResults": null
+  },
+  "dataProjection": [
+    {
+      "fieldGroupName": "Uber Receipt",
+      "fieldValues": [
+        {
+          "id": "Date of Trip",
+          "name": "Date of Trip",
+          "value": "12/11/2023 00:00:00",
+          "unformattedValue": "",
+          "confidence": 1,
+          "ocrConfidence": 1,
+          "type": "Text"
+        },
+        {
+          "id": "Customer Name",
+          "name": "Customer Name",
+          "value": "Alex",
+          "unformattedValue": "",
+          "confidence": 1,
+          "ocrConfidence": 1,
+          "type": "Text"
+        },
+        {
+          "id": "Total Amount Paid",
+          "name": "Total Amount Paid",
+          "value": "66.79 RON",
+          "unformattedValue": "",
+          "confidence": 1,
+          "ocrConfidence": 1,
+          "type": "Text"
+        }
+      ]
+    },
+    {
+      "fieldGroupName": "Uber Receipt > Fare Breakdown",
+      "fieldValues": [
+        {
+          "id": "Fare Amount",
+          "name": "Fare Amount",
+          "value": "65.29 RON",
+          "unformattedValue": "",
+          "confidence": 1,
+          "ocrConfidence": 1,
+          "type": "Text"
+        },
+        {
+          "id": "Subtotal",
+          "name": "Subtotal",
+          "value": "65.29 RON",
+          "unformattedValue": "",
+          "confidence": 1,
+          "ocrConfidence": 1,
+          "type": "Text"
+        },
+        {
+          "id": "Promotion Amount",
+          "name": "Promotion Amount",
+          "value": null,
+          "unformattedValue": null,
+          "confidence": null,
+          "ocrConfidence": null,
+          "type": "Text"
+        }
+      ]
+    }
+  ],
+  "actionStatus": "Completed"
+}
