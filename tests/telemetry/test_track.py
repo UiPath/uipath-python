@@ -84,6 +84,7 @@ class TestAppInsightsEventClient:
         _AppInsightsEventClient._initialized = False
         _AppInsightsEventClient._client = None
 
+    @patch("uipath.telemetry._track._CONNECTION_STRING", "$CONNECTION_STRING")
     def test_initialize_no_connection_string(self):
         """Test initialization when no connection string is provided."""
         with patch.dict(os.environ, {}, clear=True):
@@ -94,6 +95,28 @@ class TestAppInsightsEventClient:
 
             assert _AppInsightsEventClient._initialized is True
             assert _AppInsightsEventClient._client is None
+
+    @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
+    @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
+    @patch(
+        "uipath.telemetry._track._CONNECTION_STRING",
+        "InstrumentationKey=builtin-key;IngestionEndpoint=https://example.com/",
+    )
+    def test_initialize_falls_back_to_builtin_connection_string(
+        self, mock_client_class
+    ):
+        """Test initialization uses _CONNECTION_STRING when env var is not set."""
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop("TELEMETRY_CONNECTION_STRING", None)
+
+            _AppInsightsEventClient._initialize()
+
+        assert _AppInsightsEventClient._initialized is True
+        assert _AppInsightsEventClient._client is mock_client
+        mock_client_class.assert_called_once_with("builtin-key")
 
     @patch("uipath.telemetry._track._HAS_APPINSIGHTS", False)
     def test_initialize_no_appinsights_package(self):

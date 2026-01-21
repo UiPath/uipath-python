@@ -2531,7 +2531,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.9.2"
+version = "2.9.3"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2603,7 +2603,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", specifier = ">=0.5.2,<0.6.0" },
-    { name = "uipath-platform", specifier = ">=0.0.1,<0.1.0" },
+    { name = "uipath-platform", specifier = ">=0.0.2,<0.1.0" },
     { name = "uipath-runtime", specifier = ">=0.9.1,<0.10.0" },
 ]
 
@@ -2652,7 +2652,7 @@ wheels = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.0.1"
+version = "0.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -2661,9 +2661,9 @@ dependencies = [
     { name = "truststore" },
     { name = "uipath-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/db/39/771b69a8a5857776da47c2e51df928a3977975822bd65b88868296d25c4e/uipath_platform-0.0.1.tar.gz", hash = "sha256:30a531fa9a1ae69fb74096aaab53a1f2b7bc42654d97f2caecacf1d16c0ea3d3", size = 253295, upload-time = "2026-02-23T13:21:48.96Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/53/cd3293926c89c4a2da477b1cb386b84490905cf7a49a54e7788085932f10/uipath_platform-0.0.2.tar.gz", hash = "sha256:1d59c8be6e1b168cb08449416e25532dc5085e02574bd11d422f6fd9c053a5f5", size = 253303, upload-time = "2026-02-23T16:37:00.097Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/70/0039692caf10c53f95c359313f7e96362e585684959560b5246d79aaa29b/uipath_platform-0.0.1-py3-none-any.whl", hash = "sha256:60926ec5c9147d89c3b226c1da5f46dce6bc399630185591855aceb72d59aad3", size = 152869, upload-time = "2026-02-23T13:21:47.33Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/dd/21f313aff40f54b7e56618676f057779a92922b83d3a9da643d8d79e5d72/uipath_platform-0.0.2-py3-none-any.whl", hash = "sha256:b0b963edf150a0a0951cc25a0aace632ab39e2b73be6e7edeaf7f53bf9718c74", size = 152879, upload-time = "2026-02-23T16:36:58.747Z" },
 ]
 
 [[package]]

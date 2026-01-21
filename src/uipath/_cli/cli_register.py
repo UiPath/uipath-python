@@ -7,6 +7,7 @@ from uipath.eval.evaluators.registration import (
     register_evaluator,
 )
 
+from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from ._utils._resources import Resources
 
@@ -17,6 +18,7 @@ console = ConsoleLogger()
 @click.command()
 @click.argument("resource", required=True)
 @click.argument("args", nargs=-1)
+@track_command("register")
 def register(resource: str, args: tuple[str]) -> None:
     """Register a local resource.
 
