@@ -2486,7 +2486,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.5.25"
+version = "2.5.26"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2554,7 +2554,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
-    { name = "uipath-core", specifier = ">=0.1.9,<0.2.0" },
+    { name = "uipath-core", specifier = ">=0.1.10,<0.2.0" },
     { name = "uipath-runtime", specifier = ">=0.5.1,<0.6.0" },
 ]
 
@@ -2589,16 +2589,16 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.1.9"
+version = "0.1.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/64/29/dd69ab6e86882a05a20ba0359f90197a2f746310cde9618b93b66c8e20a6/uipath_core-0.1.9.tar.gz", hash = "sha256:32e897490363d76aaf2c323a80c3e777698b4a548bea35e98679c14a26a74fc7", size = 101369, upload-time = "2026-01-20T15:59:04.047Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/25/9d1cca53005e103ed8d13ccc9193498a41f4c9ba19b59e6a896c2a96b7e8/uipath_core-0.1.10.tar.gz", hash = "sha256:2fe7db7c4a6d4ff7845ed5448cae05c9c819dc0ae020758ea54fe2768877b247", size = 101413, upload-time = "2026-01-21T13:19:12.59Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/99/806c73e350e178e950d0b4beeb277a3069e1d539d530365f88ed40ae5037/uipath_core-0.1.9-py3-none-any.whl", hash = "sha256:b2e66475577c21c22262bb211bc89426fed1616967f7c7e53a7cfac08c2b1447", size = 31924, upload-time = "2026-01-20T15:59:02.806Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/82/7623a3b73b6e3afa8db0375197ef0b1e1ceb85c2c363d4be3907692692a0/uipath_core-0.1.10-py3-none-any.whl", hash = "sha256:041c0379e18ac29cda149a6db8fa97268b24f0d504b41fb2c64d0db71a8d640e", size = 31968, upload-time = "2026-01-21T13:19:11.29Z" },
 ]
 
 [[package]]

@@ -16,6 +16,7 @@ from mermaid_builder.flowchart import (  # type: ignore[import-untyped]
     Subgraph,
 )
 from uipath.runtime import (
+    UiPathRuntimeContext,
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeFactoryRegistry,
     UiPathRuntimeProtocol,
@@ -281,7 +282,9 @@ def init(no_agents_md_override: bool) -> None:
 
                 # Always create/update entry-points.json from runtime schemas
                 factory: UiPathRuntimeFactoryProtocol = (
-                    UiPathRuntimeFactoryRegistry.get()
+                    UiPathRuntimeFactoryRegistry.get(
+                        context=UiPathRuntimeContext(command="init")
+                    )
                 )
                 entry_point_schemas: list[UiPathRuntimeSchema] = []
 
