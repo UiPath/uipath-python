@@ -7,6 +7,7 @@ import click
 import httpx
 
 from .._utils._ssl_context import get_httpx_client_kwargs
+from ._telemetry import track_command
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info_async
@@ -43,6 +44,7 @@ def _read_project_details() -> tuple[str, str]:
     type=click.Path(exists=True),
     help="File path for the .json input",
 )
+@track_command("invoke")
 def invoke(entrypoint: str | None, input: str | None, file: str | None) -> None:
     """Invoke an agent published in my workspace."""
     if file:

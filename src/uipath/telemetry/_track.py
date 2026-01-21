@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from functools import wraps
 from importlib.metadata import version
 from logging import INFO, WARNING, LogRecord, getLogger
@@ -24,6 +25,7 @@ from ._constants import (
     _CODE_FILEPATH,
     _CODE_FUNCTION,
     _CODE_LINENO,
+    _CONNECTION_STRING,
     _OTEL_RESOURCE_ATTRIBUTES,
     _PROJECT_KEY,
     _SDK_VERSION,
@@ -323,6 +325,48 @@ def flush_events() -> None:
     events are sent immediately.
     """
     _AppInsightsEventClient.flush()
+
+
+def _inject_cli_connection_string() -> None:
+    """Inject _CONNECTION_STRING into TELEMETRY_CONNECTION_STRING env var for CLI.
+
+    This allows CLI commands to use the build-time injected connection string.
+    """
+    if os.getenv("TELEMETRY_CONNECTION_STRING"):
+        return
+    if _CONNECTION_STRING and _CONNECTION_STRING != "$CONNECTION_STRING":
+        os.environ["TELEMETRY_CONNECTION_STRING"] = _CONNECTION_STRING
+
+
+def _send_cli_event_sync(name: str, properties: Optional[Dict[str, Any]]) -> None:
+    """Send CLI event synchronously."""
+    try:
+        _inject_cli_connection_string()
+        _AppInsightsEventClient.track_event(name, properties)
+        _AppInsightsEventClient.flush()
+    except Exception:
+        pass
+
+
+def track_cli_event(
+    name: str,
+    properties: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Track a CLI event.
+
+    This function runs telemetry in a background daemon thread so it doesn't block the CLI.
+    """
+    if not _TelemetryClient._is_enabled():
+        return
+    try:
+        thread = threading.Thread(
+            target=_send_cli_event_sync,
+            args=(name, properties),
+            daemon=True,
+        )
+        thread.start()
+    except Exception:
+        pass
 
 
 def track(

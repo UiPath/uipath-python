@@ -4,6 +4,7 @@ import click
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
+from uipath._cli._telemetry import track_command
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli.middlewares import Middlewares
@@ -39,6 +40,7 @@ def _check_dev_dependency() -> None:
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
+@track_command("dev")
 def dev(interface: str | None, debug: bool, debug_port: int) -> None:
     """Launch UiPath Developer Console."""
     try:
