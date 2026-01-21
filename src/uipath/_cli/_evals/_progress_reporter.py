@@ -443,10 +443,8 @@ class StudioWebProgressReporter:
                 # Extract usage metrics from spans
                 self._extract_usage_from_spans(payload.spans)
 
-                # Send evaluator traces
-                await self._send_evaluator_traces(
-                    eval_run_id, payload.eval_results, payload.spans
-                )
+                # Export agent execution spans
+                await self._export_agent_execution_spans(eval_run_id, payload.spans)
 
                 await self.update_eval_run(
                     StudioWebProgressItem(
@@ -1028,29 +1026,27 @@ class StudioWebProgressReporter:
             )
         return {HEADER_INTERNAL_TENANT_ID: tenant_id}
 
-    async def _send_evaluator_traces(
-        self, eval_run_id: str, eval_results: list[EvalItemResult], spans: list[Any]
+    async def _export_agent_execution_spans(
+        self, eval_run_id: str, spans: list[Any]
     ) -> None:
-        """Send trace spans for all evaluators.
+        """Export agent execution spans to LLMOps.
 
         Args:
             eval_run_id: The ID of the evaluation run
-            eval_results: List of evaluator results
-            spans: List of spans that may contain evaluator LLM calls
+            spans: List of agent execution spans
         """
         try:
-            if not eval_results:
+            if not spans:
                 logger.debug(
-                    f"No evaluator results to trace for eval run: {eval_run_id}"
+                    f"No agent execution spans to export for eval run: {eval_run_id}"
                 )
                 return
 
-            # First, export the agent execution spans so they appear in the trace
+            # Export the agent execution spans so they appear in the trace
             agent_readable_spans = []
-            if spans:
-                for span in spans:
-                    if hasattr(span, "_readable_span"):
-                        agent_readable_spans.append(span._readable_span())
+            for span in spans:
+                if hasattr(span, "_readable_span"):
+                    agent_readable_spans.append(span._readable_span())
 
             if agent_readable_spans:
                 self.spans_exporter.export(agent_readable_spans)
