@@ -54,6 +54,11 @@ class CreateTask(BaseModel):
     app_folder_path: str | None = None
     app_folder_key: str | None = None
     app_key: str | None = None
+    app_version: int | None = None
+    priority: str | None = None
+    labels: list[str] | None = None
+    is_actionable_message_enabled: bool | None = None
+    actionable_message_metadata: dict[str, Any] | None = None
 
 
 class CreateEscalation(CreateTask):
