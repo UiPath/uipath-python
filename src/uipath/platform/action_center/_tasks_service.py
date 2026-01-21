@@ -315,7 +315,7 @@ class TasksService(FolderContext, BaseService):
             headers=spec.headers,
         )
         json_response = response.json()
-        if assignee:
+        if assignee or recipient:
             spec = await _assign_task_spec(
                 self, json_response["id"], assignee, recipient
             )
