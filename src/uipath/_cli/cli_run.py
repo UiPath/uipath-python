@@ -23,6 +23,7 @@ from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 
+from ._telemetry import track_cli_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -80,6 +81,7 @@ console = ConsoleLogger()
     is_flag=True,
     help="Keep the temporary state file even when not resuming and no job id is provided",
 )
+@track_cli_command("run")
 def run(
     entrypoint: str | None,
     input: str | None,
