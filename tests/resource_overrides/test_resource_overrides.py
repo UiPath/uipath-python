@@ -303,6 +303,11 @@ class TestResourceOverrides:
         assert process.resource_identifier == "Overwritten Process Name"
         assert process.folder_identifier == "Overwritten/Process/Folder"
 
+        # Verify MCP Server overwrite
+        mcp_server = parsed_overwrites["mcpServer.mcp_server_name"]
+        assert mcp_server.resource_identifier == "Overwritten MCP Server Name"
+        assert mcp_server.folder_identifier == "Overwritten/MCPServer/Folder"
+
     def test_overrides_decorator_should_pop_kwargs_dict_when_present(self):
         from uipath._utils import resource_override
 

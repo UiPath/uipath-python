@@ -24,5 +24,9 @@
   "process.process_name": {
     "name": "Overwritten Process Name",
     "folderPath": "Overwritten/Process/Folder"
+  },
+  "mcpServer.mcp_server_name": {
+    "name": "Overwritten MCP Server Name",
+    "folderPath": "Overwritten/MCPServer/Folder"
   }
 }
