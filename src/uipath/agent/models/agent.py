@@ -375,6 +375,18 @@ AgentEscalationRecipient = Annotated[
     BeforeValidator(_normalize_recipient_type),
 ]
 
+class TaskTitleType(str, Enum):
+    """Task title type enumeration."""
+
+    DYNAMIC = "dynamic"
+    TEXT_BUILDER = "textBuilder"
+
+class TaskTitle(BaseCfg):
+    """Task title model with token-based text building."""
+
+    type: TaskTitleType
+    tokens: List[TextToken]
+
 
 class AgentEscalationChannelProperties(BaseResourceProperties):
     """Agent escalation channel properties model."""
@@ -407,6 +419,7 @@ class AgentEscalationChannel(BaseCfg):
     properties: AgentEscalationChannelProperties = Field(..., alias="properties")
     recipients: List[AgentEscalationRecipient] = Field(..., alias="recipients")
     task_title: Optional[str] = Field(default=None, alias="taskTitle")
+    task_title_v2: Optional[TaskTitle] = Field(default=None, alias="taskTitleV2")
     priority: Optional[str] = None
     labels: List[str] = Field(default_factory=list)
 
