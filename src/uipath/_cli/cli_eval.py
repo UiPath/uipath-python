@@ -205,15 +205,19 @@ def eval(
 
             async def execute_eval():
                 event_bus = EventBus()
+                trace_manager = UiPathTraceManager()
 
                 # Only create studio web exporter when reporting to Studio Web
-                studio_web_tracking_exporter = None
                 if should_register_progress_reporter:
                     studio_web_tracking_exporter = LlmOpsHttpExporter()
                     if eval_context.eval_set_run_id:
                         studio_web_tracking_exporter.trace_id = (
                             eval_context.eval_set_run_id
                         )
+
+                    trace_manager.add_span_processor(
+                        LiveTrackingSpanProcessor(studio_web_tracking_exporter)
+                    )
 
                     progress_reporter = StudioWebProgressReporter(
                         studio_web_tracking_exporter
@@ -226,8 +230,6 @@ def eval(
                 telemetry_subscriber = EvalTelemetrySubscriber()
                 await telemetry_subscriber.subscribe_to_eval_runtime_events(event_bus)
 
-                trace_manager = UiPathTraceManager()
-
                 with UiPathRuntimeContext.with_defaults(
                     output_file=output_file,
                     trace_manager=trace_manager,
@@ -237,30 +239,11 @@ def eval(
                     # Set job_id in eval context for single runtime runs
                     eval_context.job_id = ctx.job_id
 
-                    # Create job exporter for live tracking
-                    job_exporter = None
                     if ctx.job_id:
                         job_exporter = LlmOpsHttpExporter()
                         trace_manager.add_span_exporter(job_exporter)
-                        # Add live tracking processor for real-time span updates
-                        job_tracking_processor = LiveTrackingSpanProcessor(job_exporter)
-                        trace_manager.tracer_span_processors.append(
-                            job_tracking_processor
-                        )
-                        trace_manager.tracer_provider.add_span_processor(
-                            job_tracking_processor
-                        )
-
-                    # Add studio web tracking processor if reporting to Studio Web
-                    if studio_web_tracking_exporter:
-                        studio_web_tracking_processor = LiveTrackingSpanProcessor(
-                            studio_web_tracking_exporter
-                        )
-                        trace_manager.tracer_span_processors.append(
-                            studio_web_tracking_processor
-                        )
-                        trace_manager.tracer_provider.add_span_processor(
-                            studio_web_tracking_processor
+                        trace_manager.add_span_processor(
+                            LiveTrackingSpanProcessor(job_exporter)
                         )
 
                     if trace_file:
