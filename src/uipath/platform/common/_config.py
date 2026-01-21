@@ -44,9 +44,9 @@ class ConfigurationManager:
 
     @property
     def project_key(self) -> str | None:
-        from uipath._utils.constants import PROJECT_KEY
+        from uipath._utils.constants import ENV_PROJECT_KEY
 
-        return os.getenv(PROJECT_KEY, None)
+        return os.getenv(ENV_PROJECT_KEY, None)
 
     @property
     def tenant_name(self) -> str | None:
