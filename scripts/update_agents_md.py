@@ -494,10 +494,16 @@ def generate_service_cli_docs() -> str:
         "These commands allow you to manage buckets, assets, jobs, and other resources.\n\n"
     )
 
-    # Find all service command groups (Groups registered in CLI)
+    # With LazyGroup, we need to use list_commands() and get_command()
+    # Create a fake context for the CLI
+    ctx = click.Context(cli)
+
+    # Get all command names and filter for service groups
+    all_command_names = cli.list_commands(ctx)
+
     service_groups = []
-    for name, cmd in sorted(cli.commands.items()):
-        if isinstance(cmd, click.Group) and name not in [
+    for name in sorted(all_command_names):
+        if name not in [
             "init",
             "run",
             "eval",
@@ -505,8 +511,18 @@ def generate_service_cli_docs() -> str:
             "pack",
             "publish",
             "deploy",
+            "auth",
+            "invoke",
+            "push",
+            "pull",
+            "dev",
+            "add",
+            "register",
+            "debug",
         ]:
-            service_groups.append((name, cmd))
+            cmd = cli.get_command(ctx, name)
+            if isinstance(cmd, click.Group):
+                service_groups.append((name, cmd))
 
     if not service_groups:
         return ""
@@ -515,27 +531,61 @@ def generate_service_cli_docs() -> str:
         output.write(f"### `uipath {service_name}`\n\n")
         output.write(f"{service_group.help or 'Manage ' + service_name}\n\n")
 
-        # Document subcommands
-        if hasattr(service_group, "commands"):
-            subcommands = sorted(service_group.commands.items())
+        # Document subcommands - use list_commands/get_command for lazy groups
+        service_ctx = click.Context(service_group, parent=ctx)
+
+        if hasattr(service_group, "list_commands"):
+            subcommand_names = service_group.list_commands(service_ctx)
+        elif hasattr(service_group, "commands"):
+            subcommand_names = list(service_group.commands.keys())
+        else:
+            subcommand_names = []
+
+        if subcommand_names:
             output.write("**Subcommands:**\n\n")
 
-            for subcmd_name, subcmd in subcommands:
+            for subcmd_name in sorted(subcommand_names):
+                # Get the subcommand
+                if hasattr(service_group, "get_command"):
+                    subcmd = service_group.get_command(service_ctx, subcmd_name)
+                elif hasattr(service_group, "commands"):
+                    subcmd = service_group.commands.get(subcmd_name)
+                else:
+                    continue
+
+                if subcmd is None:
+                    continue
+
                 # Handle nested groups (e.g., buckets files)
                 if isinstance(subcmd, click.Group):
                     output.write(f"#### `uipath {service_name} {subcmd_name}`\n\n")
                     output.write(f"{subcmd.help or f'{subcmd_name} commands'}\n\n")
 
-                    if hasattr(subcmd, "commands"):
-                        nested_cmds = sorted(subcmd.commands.items())
-                        for nested_name, nested_cmd in nested_cmds:
-                            cmd_info = get_command_help(
-                                nested_cmd,
-                                f"{service_name} {subcmd_name} {nested_name}",
-                            )
-                            _write_command_doc(
-                                output, cmd_info, service_name, subcmd_name
-                            )
+                    # Get nested commands
+                    nested_ctx = click.Context(subcmd, parent=service_ctx)
+                    if hasattr(subcmd, "list_commands"):
+                        nested_cmd_names = subcmd.list_commands(nested_ctx)
+                    elif hasattr(subcmd, "commands"):
+                        nested_cmd_names = list(subcmd.commands.keys())
+                    else:
+                        nested_cmd_names = []
+
+                    for nested_name in sorted(nested_cmd_names):
+                        if hasattr(subcmd, "get_command"):
+                            nested_cmd = subcmd.get_command(nested_ctx, nested_name)
+                        elif hasattr(subcmd, "commands"):
+                            nested_cmd = subcmd.commands.get(nested_name)
+                        else:
+                            continue
+
+                        if nested_cmd is None:
+                            continue
+
+                        cmd_info = get_command_help(
+                            nested_cmd,
+                            f"{service_name} {subcmd_name} {nested_name}",
+                        )
+                        _write_command_doc(output, cmd_info, service_name, subcmd_name)
                 else:
                     cmd_info = get_command_help(subcmd, f"{service_name} {subcmd_name}")
                     _write_command_doc(output, cmd_info, service_name)
