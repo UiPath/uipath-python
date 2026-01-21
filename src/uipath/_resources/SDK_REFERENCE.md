@@ -365,11 +365,23 @@ sdk.documents.retrieve_ixp_extraction_result(project_id: str, tag: str, operatio
 # Asynchronous version of the [`retrieve_ixp_extraction_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_result] method.
 sdk.documents.retrieve_ixp_extraction_result_async(project_id: str, tag: str, operation_id: str) -> uipath.platform.documents.documents.ExtractionResponseIXP
 
+# Retrieve the result of an IXP create validate extraction action operation (single-shot, non-blocking).
+sdk.documents.retrieve_ixp_extraction_validation_result(project_id: str, tag: str, operation_id: str) -> uipath.platform.documents.documents.ValidateExtractionAction
+
+# Asynchronous version of the [`retrieve_ixp_extraction_validation_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_validation_result] method.
+sdk.documents.retrieve_ixp_extraction_validation_result_async(project_id: str, tag: str, operation_id: str) -> uipath.platform.documents.documents.ValidateExtractionAction
+
 # Start an IXP extraction process without waiting for results (non-blocking).
 sdk.documents.start_ixp_extraction(project_name: str, tag: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> uipath.platform.documents.documents.StartExtractionResponse
 
 # Asynchronous version of the [`start_ixp_extraction`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction] method.
 sdk.documents.start_ixp_extraction_async(project_name: str, tag: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> uipath.platform.documents.documents.StartExtractionResponse
+
+# Start an IXP extraction validation action without waiting for results (non-blocking).
+sdk.documents.start_ixp_extraction_validation(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.platform.documents.documents.ExtractionResponseIXP) -> uipath.platform.documents.documents.StartOperationResponse
+
+# Asynchronous version of the [`start_ixp_extraction_validation`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction_validation] method.
+sdk.documents.start_ixp_extraction_validation_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.platform.documents.documents.ExtractionResponseIXP) -> uipath.platform.documents.documents.StartOperationResponse
 
 ```
 
@@ -653,10 +665,10 @@ Tasks service
 
 ```python
 # Creates a new task synchronously.
-sdk.tasks.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None) -> uipath.platform.action_center.tasks.Task
+sdk.tasks.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None, recipient: Optional[uipath.platform.action_center.tasks.TaskRecipient]=None) -> uipath.platform.action_center.tasks.Task
 
 # Creates a new action asynchronously.
-sdk.tasks.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None) -> uipath.platform.action_center.tasks.Task
+sdk.tasks.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None, recipient: Optional[uipath.platform.action_center.tasks.TaskRecipient]=None) -> uipath.platform.action_center.tasks.Task
 
 # Retrieves a task by its key synchronously.
 sdk.tasks.retrieve(action_key: str, app_folder_path: str="", app_folder_key: str="", app_name: str | None=None) -> uipath.platform.action_center.tasks.Task

@@ -5,6 +5,7 @@ import os
 from typing import Any
 
 import click
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
@@ -32,6 +33,35 @@ from ._utils._eval_set import EvalHelpers
 
 logger = logging.getLogger(__name__)
 console = ConsoleLogger()
+
+# Module-level state for instrumentation
+_httpx_instrumentor = None
+
+
+def setup_httpx_instrumentation() -> None:
+    """Set up OpenInference auto-instrumentation for httpx.
+
+    This enables automatic creation of "LLM call" → "Model run" span hierarchy
+    for evaluator LLM calls, matching the pattern used in agent runs.
+    """
+    global _httpx_instrumentor
+    if _httpx_instrumentor is None:
+        _httpx_instrumentor = HTTPXClientInstrumentor()
+        _httpx_instrumentor.instrument()
+        logger.debug("HTTPXClientInstrumentor initialized for evaluator LLM calls")
+
+
+def shutdown_httpx_instrumentation() -> None:
+    """Cleanup httpx instrumentation."""
+    global _httpx_instrumentor
+    if _httpx_instrumentor is not None:
+        try:
+            _httpx_instrumentor.uninstrument()
+            logger.debug("HTTPXClientInstrumentor uninitialized")
+        except Exception:
+            logger.exception("Failed to uninstrument HTTPXClientInstrumentor")
+        finally:
+            _httpx_instrumentor = None
 
 
 class LiteralOption(click.Option):
@@ -206,6 +236,10 @@ def eval(
             async def execute_eval():
                 event_bus = EventBus()
 
+                # Set up OpenInference auto-instrumentation for evaluator LLM calls
+                # This enables "LLM call" → "Model run" span hierarchy
+                setup_httpx_instrumentation()
+
                 # Only create studio web exporter when reporting to Studio Web
                 studio_web_tracking_exporter = None
                 if should_register_progress_reporter:
@@ -296,6 +330,8 @@ def eval(
                     finally:
                         if runtime_factory:
                             await runtime_factory.dispose()
+                        # Cleanup httpx instrumentation
+                        shutdown_httpx_instrumentation()
 
             asyncio.run(execute_eval())
 
