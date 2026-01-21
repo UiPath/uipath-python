@@ -9,8 +9,6 @@ from pytest_httpx import HTTPXMock
 
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
-    LLMMockingStrategy,
-    MockitoMockingStrategy,
 )
 from uipath._cli._evals.mocks.cache_manager import CacheManager
 from uipath._cli._evals.mocks.mocker import UiPathMockResponseGenerationError
@@ -19,6 +17,11 @@ from uipath._cli._evals.mocks.mocks import (
     clear_execution_context,
     is_tool_simulated,
     set_execution_context,
+)
+from uipath._cli._evals.mocks.types import (
+    LLMMockingStrategy,
+    MockingContext,
+    MockitoMockingStrategy,
 )
 from uipath.eval.mocks import mockable
 
@@ -61,7 +64,15 @@ class TestIsToolSimulated:
             "mockingStrategy": None,
         }
         evaluation = EvaluationItem(**evaluation_item)
-        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+        set_execution_context(
+            MockingContext(
+                strategy=evaluation.mocking_strategy,
+                name=evaluation.name,
+                inputs=evaluation.inputs,
+            ),
+            _mock_span_collector,
+            "test-execution-id",
+        )
 
         assert is_tool_simulated("any_tool") is False
         clear_execution_context()
@@ -80,7 +91,15 @@ class TestIsToolSimulated:
             },
         }
         evaluation = EvaluationItem(**evaluation_item)
-        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+        set_execution_context(
+            MockingContext(
+                strategy=evaluation.mocking_strategy,
+                name=evaluation.name,
+                inputs=evaluation.inputs,
+            ),
+            _mock_span_collector,
+            "test-execution-id",
+        )
 
         assert is_tool_simulated("my_tool") is True
         assert is_tool_simulated("other_tool") is True
@@ -100,7 +119,15 @@ class TestIsToolSimulated:
             },
         }
         evaluation = EvaluationItem(**evaluation_item)
-        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+        set_execution_context(
+            MockingContext(
+                strategy=evaluation.mocking_strategy,
+                name=evaluation.name,
+                inputs=evaluation.inputs,
+            ),
+            _mock_span_collector,
+            "test-execution-id",
+        )
 
         assert is_tool_simulated("not_simulated_tool") is False
         clear_execution_context()
@@ -124,7 +151,15 @@ class TestIsToolSimulated:
             },
         }
         evaluation = EvaluationItem(**evaluation_item)
-        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+        set_execution_context(
+            MockingContext(
+                strategy=evaluation.mocking_strategy,
+                name=evaluation.name,
+                inputs=evaluation.inputs,
+            ),
+            _mock_span_collector,
+            "test-execution-id",
+        )
 
         assert is_tool_simulated("my_tool") is True
         clear_execution_context()
@@ -148,7 +183,15 @@ class TestIsToolSimulated:
             },
         }
         evaluation = EvaluationItem(**evaluation_item)
-        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+        set_execution_context(
+            MockingContext(
+                strategy=evaluation.mocking_strategy,
+                name=evaluation.name,
+                inputs=evaluation.inputs,
+            ),
+            _mock_span_collector,
+            "test-execution-id",
+        )
 
         assert is_tool_simulated("not_simulated_tool") is False
         clear_execution_context()
@@ -168,7 +211,15 @@ class TestIsToolSimulated:
             },
         }
         evaluation = EvaluationItem(**evaluation_item)
-        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+        set_execution_context(
+            MockingContext(
+                strategy=evaluation.mocking_strategy,
+                name=evaluation.name,
+                inputs=evaluation.inputs,
+            ),
+            _mock_span_collector,
+            "test-execution-id",
+        )
 
         assert is_tool_simulated("my_tool") is True
         clear_execution_context()
@@ -193,7 +244,15 @@ class TestIsToolSimulated:
             },
         }
         evaluation = EvaluationItem(**evaluation_item)
-        set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+        set_execution_context(
+            MockingContext(
+                strategy=evaluation.mocking_strategy,
+                name=evaluation.name,
+                inputs=evaluation.inputs,
+            ),
+            _mock_span_collector,
+            "test-execution-id",
+        )
 
         assert is_tool_simulated("my_tool") is True
         clear_execution_context()
@@ -234,7 +293,15 @@ def test_mockito_mockable_sync():
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
     assert foo() == "bar1"
     assert foo() == "bar2"
     assert foo() == "bar2"
@@ -246,13 +313,29 @@ def test_mockito_mockable_sync():
         assert foofoo()
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
     assert foo(x=1) == "bar1"
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
         "x": {"_target_": "mockito.any"}
     }
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
     assert foo(x=2) == "bar1"
 
 
@@ -292,7 +375,15 @@ async def test_mockito_mockable_async():
     assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
 
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
     assert await foo() == "bar1"
     assert await foo() == "bar2"
     assert await foo() == "bar2"
@@ -304,13 +395,29 @@ async def test_mockito_mockable_async():
         assert await foofoo()
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
     assert await foo(x=1) == "bar1"
 
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {
         "x": {"_target_": "mockito.any"}
     }
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
     assert await foo(x=2) == "bar1"
 
 
@@ -384,11 +491,19 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
         },
     )
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
 
     assert foo() == "bar1"
 
-    mock_request = httpx_mock.get_request()
+    mock_request = httpx_mock.get_request(method="POST")
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
     assert request["response_format"] == {
@@ -485,7 +600,15 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
         },
     )
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
 
     assert await foo() == "bar1"
 
@@ -585,7 +708,15 @@ def test_llm_mockable_with_output_schema_sync(
         },
     )
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
 
     assert foo() == {"content": "bar1"}
     mock_request = httpx_mock.get_request()
@@ -678,7 +809,15 @@ async def test_llm_mockable_with_output_schema_async(
         },
     )
     # Act & Assert
-    set_execution_context(evaluation, _mock_span_collector, "test-execution-id")
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
 
     assert await foo() == {"content": "bar1"}
     mock_request = httpx_mock.get_request()
