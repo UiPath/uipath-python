@@ -26,6 +26,15 @@ from uipath.platform.guardrails import (
 )
 
 
+def _decapitalize_first_letter(s: str) -> str:
+    """Convert first letter to lowercase (e.g., 'SimpleText' -> 'simpleText')."""
+    if not s or len(s) == 0:
+        return s
+    if len(s) == 1:
+        return s.lower()
+    return s[0].lower() + s[1:]
+
+
 class AgentResourceType(str, Enum):
     """Agent resource type enumeration."""
 
@@ -131,6 +140,12 @@ class TextToken(BaseCfg):
 
     type: TextTokenType
     raw_string: str = Field(alias="rawString")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, v: Any) -> Any:
+        """Normalize type by decapitalizing first letter."""
+        return _decapitalize_first_letter(v) if isinstance(v, str) else v
 
 
 class BaseAgentToolArgumentProperties(BaseCfg):
@@ -679,6 +694,12 @@ class AgentWordRule(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
+    @field_validator("operator", mode="before")
+    @classmethod
+    def normalize_operator(cls, v: Any) -> Any:
+        """Normalize operator by decapitalizing first letter."""
+        return _decapitalize_first_letter(v) if isinstance(v, str) else v
+
 
 class AgentAllFieldsSelector(BaseModel):
     """All fields selector."""
@@ -715,6 +736,12 @@ class AgentNumberRule(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
+    @field_validator("operator", mode="before")
+    @classmethod
+    def normalize_operator(cls, v: Any) -> Any:
+        """Normalize operator by decapitalizing first letter."""
+        return _decapitalize_first_letter(v) if isinstance(v, str) else v
+
 
 class AgentBooleanOperator(str, Enum):
     """Boolean operator enumeration."""
@@ -731,6 +758,12 @@ class AgentBooleanRule(BaseModel):
     value: bool
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    @field_validator("operator", mode="before")
+    @classmethod
+    def normalize_operator(cls, v: Any) -> Any:
+        """Normalize operator by decapitalizing first letter."""
+        return _decapitalize_first_letter(v) if isinstance(v, str) else v
 
 
 AgentRule = Annotated[
