@@ -401,7 +401,7 @@ class TestLangchainExporter(unittest.TestCase):
         self.assertEqual(attributes["arguments"], {})
         self.assertEqual(attributes["result"], "2025-09-18 15:14:19")
         self.assertEqual(attributes["toolType"], "Integration")
-        self.assertIsNone(attributes["error"])
+        self.assertNotIn("error", attributes)  # error should be absent when no error
 
         # input.value should be mapped to input
         self.assertIn("input", attributes)

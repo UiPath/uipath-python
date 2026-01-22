@@ -296,7 +296,6 @@ class LlmOpsHttpExporter(SpanExporter):
         result["result"] = _safe_parse_json(
             attributes.get("output", attributes.get("output.value"))
         )
-        result["error"] = None
 
         return result
 
