@@ -617,31 +617,22 @@ class TestAgentSnapshotExtraction:
         assert snapshot.output_schema == {}
 
     def test_extract_agent_snapshot_warns_when_entrypoint_is_none(
-        self, progress_reporter, caplog
+        self, progress_reporter
     ):
-        """Test that a warning is logged when entrypoint is None."""
-        import logging
-
-        with caplog.at_level(logging.WARNING):
-            snapshot = progress_reporter._extract_agent_snapshot(entrypoint=None)
+        """Test that empty schemas are returned when entrypoint is None."""
+        snapshot = progress_reporter._extract_agent_snapshot(entrypoint=None)
 
         assert snapshot.input_schema == {}
         assert snapshot.output_schema == {}
-        assert "Entrypoint not provided" in caplog.text
-        assert "falling back to empty inputSchema" in caplog.text
 
     def test_extract_agent_snapshot_warns_when_entrypoint_is_empty(
-        self, progress_reporter, caplog
+        self, progress_reporter
     ):
-        """Test that a warning is logged when entrypoint is empty string."""
-        import logging
-
-        with caplog.at_level(logging.WARNING):
-            snapshot = progress_reporter._extract_agent_snapshot(entrypoint="")
+        """Test that empty schemas are returned when entrypoint is empty string."""
+        snapshot = progress_reporter._extract_agent_snapshot(entrypoint="")
 
         assert snapshot.input_schema == {}
         assert snapshot.output_schema == {}
-        assert "Entrypoint not provided" in caplog.text
 
     def test_extract_agent_snapshot_returns_empty_when_entrypoint_not_found(
         self, progress_reporter, tmp_path

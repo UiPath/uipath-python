@@ -38,8 +38,9 @@ def mock_env_vars():
 def mock_span():
     """Create a mock ReadableSpan for testing."""
     span = MagicMock(spec=ReadableSpan)
-    # Ensure span doesn't get filtered by _should_drop_span
-    span.attributes = {}
+    # Ensure span doesn't get filtered by _should_drop_span (whitelist approach)
+    # Only spans with uipath.custom_instrumentation=True are kept
+    span.attributes = {"uipath.custom_instrumentation": True}
     return span
 
 
@@ -612,7 +613,7 @@ class TestLangchainExporter(unittest.TestCase):
 
 
 class TestSpanFiltering:
-    """Tests for filtering spans marked with telemetry.filter=drop."""
+    """Tests for whitelist-based span filtering (only keep custom instrumentation)."""
 
     @pytest.fixture
     def exporter_with_mocks(self, mock_env_vars):
@@ -628,48 +629,51 @@ class TestSpanFiltering:
         """Helper to create mock span with span attributes.
 
         Args:
-            should_drop: If True, sets telemetry.filter="drop".
+            should_drop: If True, creates span without custom instrumentation marker.
+                        If False, creates span with uipath.custom_instrumentation=True.
         """
         span = MagicMock(spec=ReadableSpan)
 
         if should_drop:
-            span.attributes = {"telemetry.filter": "drop"}
-        else:
+            # Spans without custom instrumentation are dropped
             span.attributes = {}
+        else:
+            # Only spans with custom instrumentation marker are kept
+            span.attributes = {"uipath.custom_instrumentation": True}
 
         return span
 
     def test_filters_spans_marked_for_drop(self, exporter_with_mocks):
-        """Span with telemetry.filter=drop → filtered out."""
+        """Span without custom instrumentation → filtered out."""
         span = self._create_mock_span(should_drop=True)
         assert exporter_with_mocks._should_drop_span(span) is True
 
     def test_passes_unmarked_spans(self, exporter_with_mocks):
-        """Span without marker attribute → passes through."""
+        """Span with custom instrumentation marker → passes through."""
         span = self._create_mock_span(should_drop=False)
         assert exporter_with_mocks._should_drop_span(span) is False
 
     def test_passes_spans_with_no_attributes(self, exporter_with_mocks):
-        """Span with None attributes → passes through."""
+        """Span with None attributes → filtered out (no custom instrumentation)."""
         span = MagicMock(spec=ReadableSpan)
         span.attributes = None
-        assert exporter_with_mocks._should_drop_span(span) is False
+        assert exporter_with_mocks._should_drop_span(span) is True
 
     def test_passes_spans_with_empty_attributes(self, exporter_with_mocks):
-        """Span with empty attributes dict → passes through."""
+        """Span with empty attributes dict → filtered out (no custom instrumentation)."""
         span = MagicMock(spec=ReadableSpan)
         span.attributes = {}
-        assert exporter_with_mocks._should_drop_span(span) is False
+        assert exporter_with_mocks._should_drop_span(span) is True
 
     def test_passes_spans_with_other_filter_values(self, exporter_with_mocks):
-        """Span with telemetry.filter=keep → passes through."""
+        """Span with other attributes but no custom instrumentation → filtered out."""
         span = MagicMock(spec=ReadableSpan)
         span.attributes = {"telemetry.filter": "keep"}
-        assert exporter_with_mocks._should_drop_span(span) is False
+        assert exporter_with_mocks._should_drop_span(span) is True
 
     def test_export_filters_marked_spans(self, exporter_with_mocks):
-        """export() should filter out spans marked for drop."""
-        # Create mixed batch: 1 marked for drop, 1 unmarked
+        """export() should filter out spans without custom instrumentation."""
+        # Create mixed batch: 1 without marker (dropped), 1 with marker (kept)
         drop_span = self._create_mock_span(should_drop=True)
         keep_span = self._create_mock_span(should_drop=False)
 
@@ -792,9 +796,9 @@ class TestUpsertSpan:
             assert exporter_with_mocks.http_client.post.call_count == 4  # max_retries=4
 
     def test_upsert_span_filters_dropped_spans(self, exporter_with_mocks):
-        """upsert_span should skip spans marked with telemetry.filter=drop."""
+        """upsert_span should skip spans without custom instrumentation marker."""
         span = MagicMock(spec=ReadableSpan)
-        span.attributes = {"telemetry.filter": "drop"}
+        span.attributes = {}  # No custom instrumentation marker
 
         result = exporter_with_mocks.upsert_span(span)
 
