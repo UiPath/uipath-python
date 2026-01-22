@@ -447,6 +447,8 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         usage: EphemeralIndexUsage,
         attachments: list[str],
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
@@ -460,6 +462,8 @@ class ContextGroundingService(FolderContext, BaseService):
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
+            folder_path=folder_path,
+            folder_key=folder_key,
         )
 
         response = self.request(
@@ -477,6 +481,8 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         usage: EphemeralIndexUsage,
         attachments: list[str],
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
@@ -490,6 +496,8 @@ class ContextGroundingService(FolderContext, BaseService):
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
+            folder_path=folder_path,
+            folder_key=folder_key,
         )
 
         response = await self.request_async(
@@ -883,6 +891,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         index_name: Annotated[str, Field(max_length=512)],
+        index_id: Annotated[str, Field(max_length=512)],
         prompt: Annotated[str, Field(max_length=250000)],
         glob_pattern: Annotated[str, Field(max_length=512, default="*")] = "**",
         citation_mode: CitationMode = CitationMode.SKIP,
@@ -904,14 +913,16 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             DeepRagCreationResponse: The Deep RAG task creation response.
         """
-        index = await self.retrieve_async(
-            index_name, folder_key=folder_key, folder_path=folder_path
-        )
-        if index and index.in_progress_ingestion():
-            raise IngestionInProgressException(index_name=index_name)
+        if not index_id:
+            index = await self.retrieve_async(
+                index_name, folder_key=folder_key, folder_path=folder_path
+            )
+            if index and index.in_progress_ingestion():
+                raise IngestionInProgressException(index_name=index_name)
+            index_id = index.id
 
         spec = self._deep_rag_creation_spec(
-            index_id=index.id,
+            index_id=index_id,
             name=name,
             glob_pattern=glob_pattern,
             prompt=prompt,
@@ -1261,6 +1272,8 @@ class ContextGroundingService(FolderContext, BaseService):
         """
         data_source_dict = self._build_ephemeral_data_source(attachments)
 
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
         payload = CreateEphemeralIndexPayload(
             usage=usage,
             data_source=data_source_dict,
@@ -1270,7 +1283,9 @@ class ContextGroundingService(FolderContext, BaseService):
             method="POST",
             endpoint=Endpoint("/ecs_/v2/indexes/createephemeral"),
             json=payload.model_dump(by_alias=True, exclude_none=True),
-            headers={},
+            headers={
+                **header_folder(folder_key, None),
+            },
         )
 
     def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:

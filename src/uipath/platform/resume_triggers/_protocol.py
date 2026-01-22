@@ -580,6 +580,7 @@ class UiPathResumeTriggerCreator:
             deep_rag = await uipath.context_grounding.start_deep_rag_async(
                 name=value.name,
                 index_name=value.index_name,
+                index_id=value.index_id,
                 prompt=value.prompt,
                 glob_pattern=value.glob_pattern,
                 citation_mode=value.citation_mode,

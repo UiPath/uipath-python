@@ -62,6 +62,7 @@ class AgentInternalToolType(str, Enum):
     """Agent internal tool type enumeration."""
 
     ANALYZE_FILES = "analyze-attachments"
+    DEEP_RAG = "deep-rag"
 
 
 class AgentEscalationRecipientType(str, Enum):
@@ -117,6 +118,20 @@ class TextTokenType(str, Enum):
     SIMPLE_TEXT = "simpleText"
     VARIABLE = "variable"
     EXPRESSION = "expression"
+
+
+class CitationMode(str, Enum):
+    """Citation mode enumeration."""
+
+    INLINE = "Inline"
+    SKIP = "Skip"
+
+
+class FileExtension(str, Enum):
+    """File extension enumeration."""
+
+    PDF = "pdf"
+    TXT = "txt"
 
 
 class BaseCfg(BaseModel):
@@ -243,6 +258,18 @@ class AgentContextValueSetting(BaseCfg):
     """Agent context value setting model."""
 
     value: Any = Field(...)
+
+
+class DeepRagCitationModeSetting(BaseCfg):
+    """DeepRAG citation mode setting model."""
+
+    value: CitationMode = Field(...)
+
+
+class DeepRagFileExtensionSetting(BaseCfg):
+    """DeepRAG file extension setting model."""
+
+    value: FileExtension = Field(...)
 
 
 class AgentContextOutputColumn(BaseCfg):
@@ -605,12 +632,40 @@ class AgentIntegrationToolProperties(BaseResourceProperties):
     )
 
 
-class AgentInternalToolProperties(BaseResourceProperties):
-    """Agent internal tool properties model."""
+class AgentInternalAnalyzeFilesToolProperties(BaseResourceProperties):
+    """Agent internal analyze files tool properties model."""
 
     tool_type: Literal[AgentInternalToolType.ANALYZE_FILES] = Field(
-        ..., alias="toolType"
+        alias="toolType", default=AgentInternalToolType.ANALYZE_FILES, frozen=True
     )
+
+
+class AgentInternalDeepRagToolProperties(BaseResourceProperties):
+    """Agent internal DeepRAG tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.DEEP_RAG] = Field(
+        alias="toolType", default=AgentInternalToolType.DEEP_RAG, frozen=True
+    )
+    settings: AgentInternalDeepRagSettings = Field(..., alias="settings")
+
+
+AgentInternalToolProperties = Annotated[
+    Union[
+        AgentInternalAnalyzeFilesToolProperties,
+        AgentInternalDeepRagToolProperties,
+    ],
+    Field(discriminator="tool_type"),
+]
+
+
+class AgentInternalDeepRagSettings(BaseCfg):
+    """Agent internal DeepRAG tool settings model."""
+
+    context_type: str = Field(..., alias="contextType")
+    query: AgentContextQuerySetting = Field(None)
+    folder_path_prefix: AgentContextQuerySetting = Field(None, alias="folderPathPrefix")
+    citation_mode: DeepRagCitationModeSetting = Field(..., alias="citationMode")
+    file_extension: DeepRagFileExtensionSetting = Field(..., alias="fileExtension")
 
 
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):

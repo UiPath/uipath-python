@@ -85,6 +85,7 @@ class CreateDeepRag(BaseModel):
 
     name: str
     index_name: Annotated[str, Field(max_length=512)]
+    index_id: Annotated[str, Field(max_length=512)] | None = None
     prompt: Annotated[str, Field(max_length=250000)]
     glob_pattern: Annotated[str, Field(max_length=512, default="*")] = "**"
     citation_mode: CitationMode = CitationMode.SKIP
