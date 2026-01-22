@@ -800,7 +800,10 @@ class UiPathEvalRuntime:
         logs = self.logs_exporter.get_logs(execution_id)
         self.logs_exporter.clear(execution_id)
 
-        return spans, logs
+        # Filter out "root" span to make Agent run a direct child of Evaluation
+        filtered_spans = [span for span in spans if span.name != "root"]
+
+        return filtered_spans, logs
 
     async def _configure_model_settings_override(self) -> None:
         """Configure the factory with model settings override if specified."""
