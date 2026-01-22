@@ -513,13 +513,16 @@ class UiPathEvalRuntime:
                         execution_id=execution_id,
                     )
 
-                    await self.event_bus.publish(
-                        EvaluationEvents.CREATE_EVAL_RUN,
-                        EvalRunCreatedEvent(
-                            execution_id=execution_id,
-                            eval_item=eval_item,
-                        ),
-                    )
+                    # Only create eval run entry if NOT resuming from a checkpoint
+                    # When resuming, the entry already exists from the suspend phase
+                    if not self.context.resume:
+                        await self.event_bus.publish(
+                            EvaluationEvents.CREATE_EVAL_RUN,
+                            EvalRunCreatedEvent(
+                                execution_id=execution_id,
+                                eval_item=eval_item,
+                            ),
+                        )
                     agent_execution_output = await self.execute_runtime(
                         eval_item,
                         execution_id,
