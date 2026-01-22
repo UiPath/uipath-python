@@ -116,6 +116,7 @@ class ExecutionSpanExporter(SpanExporter):
     """Custom exporter that stores spans grouped by execution ids.
 
     Filters out unwanted spans (root, POST, GET) to create cleaner evaluation traces.
+    Reparenting is handled by LiveTrackingSpanProcessor for Studio Web traces.
     """
 
     def __init__(self):

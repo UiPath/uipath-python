@@ -175,6 +175,7 @@ class LlmOpsHttpExporter(SpanExporter):
         self,
         span: ReadableSpan,
         status_override: Optional[int] = None,
+        parent_id_override: Optional[str] = None,
     ) -> SpanExportResult:
         """Upsert a single span to LLMOps for real-time state updates.
 
@@ -184,6 +185,7 @@ class LlmOpsHttpExporter(SpanExporter):
         Args:
             span: OTel Span (live or ReadableSpan)
             status_override: Override status (e.g., SpanStatus.RUNNING)
+            parent_id_override: Override parent ID (for reparenting filtered spans)
 
         Returns:
             SpanExportResult indicating success or failure
@@ -198,6 +200,10 @@ class LlmOpsHttpExporter(SpanExporter):
         url = self._build_url([span_data])
 
         self._process_span_attributes(span_data)
+
+        # Apply parent ID override for reparenting (e.g., when parent was filtered)
+        if parent_id_override is not None:
+            span_data["ParentId"] = parent_id_override
 
         # Apply status override after processing (which may set status from error)
         if status_override is not None:
