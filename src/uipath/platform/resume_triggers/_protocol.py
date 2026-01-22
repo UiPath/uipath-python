@@ -28,6 +28,7 @@ from uipath.platform.common import (
     CreateTask,
     DocumentExtraction,
     InvokeProcess,
+    UiPathConfig,
     WaitBatchTransform,
     WaitDeepRag,
     WaitDocumentExtraction,
@@ -50,7 +51,12 @@ from uipath.platform.errors import (
     OperationNotCompleteException,
 )
 from uipath.platform.orchestrator.job import JobState
-from uipath.platform.resume_triggers._enums import PropertyName, TriggerMarker
+from uipath.platform.resume_triggers._enums import (
+    ExternalTrigger,
+    ExternalTriggerType,
+    PropertyName,
+    TriggerMarker,
+)
 
 
 def _try_convert_to_json_format(value: str | None) -> Any:
@@ -412,6 +418,19 @@ class UiPathResumeTriggerCreator:
             ) from e
         return resume_trigger
 
+    async def _create_external_trigger(self, external_trigger: ExternalTrigger):
+        """Creates an external trigger in orchestrator."""
+        # only create external trigger entities for non-debug runs
+        if not UiPathConfig.job_key:
+            return
+
+        uipath = UiPath()
+        await uipath.api_client.request_async(
+            method="POST",
+            url="orchestrator_/api/JobTriggers/SaveExternalTrigger",
+            json=external_trigger.model_dump(by_alias=True),
+        )
+
     def _determine_trigger_type(self, value: Any) -> UiPathResumeTriggerType:
         """Determines the resume trigger type based on the input value.
 
@@ -522,6 +541,13 @@ class UiPathResumeTriggerCreator:
             )
             if not deep_rag:
                 raise Exception("Failed to start deep rag")
+
+            await self._create_external_trigger(
+                ExternalTrigger(
+                    type=ExternalTriggerType.DEEP_RAG, external_id=deep_rag.id
+                )
+            )
+
             resume_trigger.item_key = deep_rag.id
 
     async def _handle_ephemeral_index_job_trigger(
@@ -575,6 +601,14 @@ class UiPathResumeTriggerCreator:
             )
             if not batch_transform:
                 raise Exception("Failed to start batch transform")
+
+            await self._create_external_trigger(
+                ExternalTrigger(
+                    type=ExternalTriggerType.BATCH_TRANSFORM,
+                    external_id=batch_transform.id,
+                )
+            )
+
             resume_trigger.item_key = batch_transform.id
 
     async def _handle_ixp_extraction_trigger(
@@ -600,6 +634,14 @@ class UiPathResumeTriggerCreator:
             )
             if not document_extraction:
                 raise Exception("Failed to start document extraction")
+
+            await self._create_external_trigger(
+                ExternalTrigger(
+                    type=ExternalTriggerType.IXP_EXTRACTION,
+                    external_id=document_extraction.operation_id,
+                )
+            )
+
             resume_trigger.item_key = document_extraction.operation_id
 
             # add project_id and tag to the payload dict (needed when reading the trigger)
