@@ -113,7 +113,10 @@ class LLMAgentRuntimeProtocol(Protocol):
 
 
 class ExecutionSpanExporter(SpanExporter):
-    """Custom exporter that stores spans grouped by execution ids."""
+    """Custom exporter that stores spans grouped by execution ids.
+
+    Filters out unwanted spans (root, POST, GET) to create cleaner evaluation traces.
+    """
 
     def __init__(self):
         # { execution_id -> list of spans }
@@ -124,7 +127,11 @@ class ExecutionSpanExporter(SpanExporter):
             if span.attributes is not None:
                 exec_id = span.attributes.get("execution.id")
                 if exec_id is not None and isinstance(exec_id, str):
-                    self._spans[exec_id].append(span)
+                    # Filter out unwanted spans for cleaner trace hierarchy
+                    # - "root": Makes Agent run a direct child of Evaluation
+                    # - "POST"/"GET": HTTP instrumentation spans that add noise
+                    if span.name not in ("root", "POST", "GET"):
+                        self._spans[exec_id].append(span)
 
         return SpanExportResult.SUCCESS
 
@@ -800,14 +807,8 @@ class UiPathEvalRuntime:
         logs = self.logs_exporter.get_logs(execution_id)
         self.logs_exporter.clear(execution_id)
 
-        # Filter out unwanted spans for cleaner trace hierarchy
-        # - "root": Makes Agent run a direct child of Evaluation
-        # - "POST"/"GET": HTTP instrumentation spans that add noise
-        filtered_spans = [
-            span for span in spans if span.name not in ("root", "POST", "GET")
-        ]
-
-        return filtered_spans, logs
+        # Spans are already filtered at export time in ExecutionSpanExporter
+        return spans, logs
 
     async def _configure_model_settings_override(self) -> None:
         """Configure the factory with model settings override if specified."""
