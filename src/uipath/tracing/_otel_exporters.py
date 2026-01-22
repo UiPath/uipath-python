@@ -413,8 +413,8 @@ class LlmOpsHttpExporter(SpanExporter):
         """Check if span should be dropped using whitelist filtering.
 
         Only spans with uipath.custom_instrumentation=True are kept.
-        This filters out HTTP instrumentation spans (POST/GET), OpenTelemetry
-        generic spans, and other auto-instrumentation noise.
+        All other spans (HTTP instrumentation, OpenTelemetry generic spans,
+        auto-instrumentation, etc.) are dropped.
 
         Args:
             span: The span to check
@@ -424,11 +424,9 @@ class LlmOpsHttpExporter(SpanExporter):
         """
         attrs = span.attributes or {}
 
-        # Filter out HTTP spans by name (POST, GET, PUT, DELETE, etc.)
-        if span.name in ("POST", "GET", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"):
-            return True
-
-        return False
+        # Whitelist: only keep spans with custom instrumentation marker
+        # Drop everything else
+        return attrs.get("uipath.custom_instrumentation") != True
 
 
 class JsonLinesFileExporter(SpanExporter):
