@@ -63,7 +63,9 @@ def dev(interface: str | None, debug: bool, debug_port: int) -> None:
         if interface == "terminal":
 
             async def run_terminal() -> None:
-                from uipath.dev import UiPathDeveloperConsole
+                from uipath.dev import (
+                    UiPathDeveloperConsole,  # type: ignore[import-untyped]
+                )
 
                 trace_manager = UiPathTraceManager()
                 factory = UiPathRuntimeFactoryRegistry.get(
