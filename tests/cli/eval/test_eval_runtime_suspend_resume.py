@@ -138,7 +138,7 @@ def context():
 def event_bus():
     """Create event bus with mocked publish method."""
     bus = EventBus()
-    bus.publish = AsyncMock()
+    bus.publish = AsyncMock()  # type: ignore[method-assign]
     return bus
 
 
@@ -306,7 +306,7 @@ class TestSuspendResumeLifecycle:
         """Test complete lifecycle: suspend (creates entry) then resume (updates entry)."""
         # Phase 1: Suspend
         event_bus_suspend = EventBus()
-        event_bus_suspend.publish = AsyncMock()
+        event_bus_suspend.publish = AsyncMock()  # type: ignore[method-assign]
 
         async def create_suspending_runtime():
             return SuspendingRuntime()
@@ -335,7 +335,7 @@ class TestSuspendResumeLifecycle:
         # Phase 2: Resume
         context.resume = True
         event_bus_resume = EventBus()
-        event_bus_resume.publish = AsyncMock()
+        event_bus_resume.publish = AsyncMock()  # type: ignore[method-assign]
 
         async def create_successful_runtime():
             return SuccessfulRuntime()
