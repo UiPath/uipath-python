@@ -1,6 +1,6 @@
 from typing import List
 
-from ..._utils import Endpoint, RequestSpec, header_folder
+from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ._folder_service import FolderService
@@ -104,6 +104,7 @@ class McpService(FolderContext, BaseService):
 
         return [McpServer.model_validate(server) for server in response.json()]
 
+    @resource_override(resource_type="mcpServer", resource_identifier="slug")
     @traced(name="mcp_retrieve", run_type="uipath")
     def retrieve(
         self,
@@ -144,6 +145,7 @@ class McpService(FolderContext, BaseService):
 
         return McpServer.model_validate(response.json())
 
+    @resource_override(resource_type="mcpServer", resource_identifier="slug")
     @traced(name="mcp_retrieve", run_type="uipath")
     async def retrieve_async(
         self,
