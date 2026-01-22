@@ -410,12 +410,23 @@ class LlmOpsHttpExporter(SpanExporter):
         return uipath_url
 
     def _should_drop_span(self, span: ReadableSpan) -> bool:
-        """Check if span is marked for dropping.
+        """Check if span should be dropped using whitelist filtering.
 
-        Spans with telemetry.filter="drop" are skipped by this exporter.
+        Only spans with uipath.custom_instrumentation=True are kept.
+        All other spans (HTTP instrumentation, OpenTelemetry generic spans,
+        auto-instrumentation, etc.) are dropped.
+
+        Args:
+            span: The span to check
+
+        Returns:
+            True if the span should be dropped, False otherwise
         """
         attrs = span.attributes or {}
-        return attrs.get("telemetry.filter") == "drop"
+
+        # Whitelist: only keep spans with custom instrumentation marker
+        # Drop everything else
+        return not attrs.get("uipath.custom_instrumentation")
 
 
 class JsonLinesFileExporter(SpanExporter):
