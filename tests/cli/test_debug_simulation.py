@@ -231,6 +231,9 @@ def main(input):
             with open("uipath.json", "w") as f:
                 json.dump({"functions": {"main": f"{script_file}:main"}}, f)
 
+            # Get the current directory to ensure load_simulation_config looks in the right place
+            current_dir = Path.cwd()
+
             # Track if set_execution_context was called
             with patch(
                 "uipath._cli.cli_debug.set_execution_context"
@@ -238,63 +241,72 @@ def main(input):
                 with patch(
                     "uipath._cli.cli_debug.clear_execution_context"
                 ) as mock_clear_context:
+                    # Ensure Path.cwd() returns the isolated filesystem directory
                     with patch(
-                        "uipath._cli.cli_debug.Middlewares.next"
-                    ) as mock_middleware:
-                        # Set should_continue=True so the debug execution logic runs
-                        mock_middleware.return_value = MiddlewareResult(
-                            should_continue=True,
-                            info_message=None,
-                            error_message=None,
-                            should_include_stacktrace=False,
-                        )
-
-                        # Mock the runtime factory and execution
+                        "uipath._cli.cli_debug.Path.cwd", return_value=current_dir
+                    ):
                         with patch(
-                            "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get"
-                        ) as mock_factory_get:
-                            mock_runtime = Mock()
-                            mock_runtime.execute = Mock(
-                                return_value=Mock(status="SUCCESSFUL", output={})
+                            "uipath._cli.cli_debug.Middlewares.next"
+                        ) as mock_middleware:
+                            # Set should_continue=True so the debug execution logic runs
+                            mock_middleware.return_value = MiddlewareResult(
+                                should_continue=True,
+                                info_message=None,
+                                error_message=None,
+                                should_include_stacktrace=False,
                             )
-                            mock_runtime.dispose = Mock()
 
-                            mock_factory = Mock()
-                            mock_factory.new_runtime = Mock(return_value=mock_runtime)
-                            mock_factory.dispose = Mock()
-                            mock_factory_get.return_value = mock_factory
+                            # Mock the runtime factory and execution
+                            with patch(
+                                "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get"
+                            ) as mock_factory_get:
+                                mock_runtime = Mock()
+                                mock_runtime.execute = Mock(
+                                    return_value=Mock(status="SUCCESSFUL", output={})
+                                )
+                                mock_runtime.dispose = Mock()
 
-                            # Mock debug bridge to avoid SignalR/console issues
-                            with patch("uipath._cli.cli_debug.get_debug_bridge"):
-                                with patch(
-                                    "uipath._cli.cli_debug.UiPathDebugRuntime"
-                                ) as mock_debug_runtime_class:
-                                    mock_debug_runtime = Mock()
-                                    mock_debug_runtime.execute = Mock(
-                                        return_value=Mock(
-                                            status="SUCCESSFUL", output={}
+                                mock_factory = Mock()
+                                mock_factory.new_runtime = Mock(
+                                    return_value=mock_runtime
+                                )
+                                mock_factory.dispose = Mock()
+                                mock_factory_get.return_value = mock_factory
+
+                                # Mock debug bridge to avoid SignalR/console issues
+                                with patch("uipath._cli.cli_debug.get_debug_bridge"):
+                                    with patch(
+                                        "uipath._cli.cli_debug.UiPathDebugRuntime"
+                                    ) as mock_debug_runtime_class:
+                                        mock_debug_runtime = Mock()
+                                        mock_debug_runtime.execute = Mock(
+                                            return_value=Mock(
+                                                status="SUCCESSFUL", output={}
+                                            )
                                         )
-                                    )
-                                    mock_debug_runtime.dispose = Mock()
-                                    mock_debug_runtime_class.return_value = (
-                                        mock_debug_runtime
-                                    )
+                                        mock_debug_runtime.dispose = Mock()
+                                        mock_debug_runtime_class.return_value = (
+                                            mock_debug_runtime
+                                        )
 
-                                    result = runner.invoke(cli, ["debug", "main", "{}"])
+                                        result = runner.invoke(
+                                            cli, ["debug", "main", "{}"]
+                                        )
 
-                                    # Verify set_execution_context was called
-                                    assert mock_set_context.called
-                                    # Verify the MockingContext passed has the right structure
-                                    call_args = mock_set_context.call_args
-                                    mocking_ctx = call_args[0][0]
-                                    assert isinstance(mocking_ctx, MockingContext)
-                                    assert mocking_ctx.strategy is not None
-                                    assert (
-                                        len(mocking_ctx.strategy.tools_to_simulate) == 3
-                                    )
+                                        # Verify set_execution_context was called
+                                        assert mock_set_context.called
+                                        # Verify the MockingContext passed has the right structure
+                                        call_args = mock_set_context.call_args
+                                        mocking_ctx = call_args[0][0]
+                                        assert isinstance(mocking_ctx, MockingContext)
+                                        assert mocking_ctx.strategy is not None
+                                        assert (
+                                            len(mocking_ctx.strategy.tools_to_simulate)
+                                            == 3
+                                        )
 
-                                    # Verify clear_execution_context was called in finally block
-                                    assert mock_clear_context.called
+                                        # Verify clear_execution_context was called in finally block
+                                        assert mock_clear_context.called
 
     def test_debug_clears_context_on_error(
         self, runner: CliRunner, temp_dir: str, valid_simulation_config: dict[str, Any]
