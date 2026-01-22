@@ -426,7 +426,7 @@ class LlmOpsHttpExporter(SpanExporter):
 
         # Whitelist: only keep spans with custom instrumentation marker
         # Drop everything else
-        return attrs.get("uipath.custom_instrumentation") != True
+        return not attrs.get("uipath.custom_instrumentation")
 
 
 class JsonLinesFileExporter(SpanExporter):
