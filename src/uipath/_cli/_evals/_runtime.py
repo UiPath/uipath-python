@@ -613,13 +613,16 @@ class UiPathEvalRuntime:
 
                     set_execution_context(eval_item, self.span_collector, execution_id)
 
-                    await self.event_bus.publish(
-                        EvaluationEvents.CREATE_EVAL_RUN,
-                        EvalRunCreatedEvent(
-                            execution_id=execution_id,
-                            eval_item=eval_item,
-                        ),
-                    )
+                    # Only create eval run entry if NOT resuming
+                    # When resuming, the entry already exists from the suspend phase
+                    if not self.context.resume:
+                        await self.event_bus.publish(
+                            EvaluationEvents.CREATE_EVAL_RUN,
+                            EvalRunCreatedEvent(
+                                execution_id=execution_id,
+                                eval_item=eval_item,
+                            ),
+                        )
                     agent_execution_output = await self.execute_runtime(
                         eval_item,
                         execution_id,
@@ -688,6 +691,20 @@ class UiPathEvalRuntime:
                         triggers.append(agent_execution_output.result.trigger)
                     if agent_execution_output.result.triggers:
                         triggers.extend(agent_execution_output.result.triggers)
+
+                    # Deduplicate triggers by interrupt_id to avoid reporting the same trigger multiple times
+                    seen_interrupt_ids = set()
+                    deduplicated_triggers = []
+                    for trigger in triggers:
+                        interrupt_id = (
+                            trigger.interrupt_id
+                            if hasattr(trigger, "interrupt_id")
+                            else str(trigger)
+                        )
+                        if interrupt_id not in seen_interrupt_ids:
+                            seen_interrupt_ids.add(interrupt_id)
+                            deduplicated_triggers.append(trigger)
+                    triggers = deduplicated_triggers
 
                     logger.info(
                         f"EVAL RUNTIME: Extracted {len(triggers)} trigger(s) from suspended execution"
