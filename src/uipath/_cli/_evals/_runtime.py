@@ -326,6 +326,7 @@ class UiPathEvalRuntime:
                 tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
                 span_attributes: dict[str, str] = {
                     "span_type": "eval_set_run",
+                    "uipath.custom_instrumentation": True,
                 }
                 if self.context.eval_set_run_id:
                     span_attributes["eval_set_run_id"] = self.context.eval_set_run_id
@@ -489,6 +490,7 @@ class UiPathEvalRuntime:
                 "span_type": "evaluation",
                 "eval_item_id": eval_item.id,
                 "eval_item_name": eval_item.name,
+                "uipath.custom_instrumentation": True,
             },
         ) as span:
             evaluation_run_results = EvaluationRunResult(
@@ -878,11 +880,15 @@ class UiPathEvalRuntime:
                 entrypoint=self.context.entrypoint or "",
                 runtime_id=runtime_id,
             )
+            # Don't pass execution_id to UiPathExecutionRuntime to avoid creating
+            # an extra "root" span. The parent "Evaluation" span already provides
+            # the necessary tracing context, and having the execution.id attribute set.
+            # We still pass the log_handler to capture logs.
             execution_runtime = UiPathExecutionRuntime(
                 delegate=eval_runtime,
                 trace_manager=self.trace_manager,
                 log_handler=log_handler,
-                execution_id=execution_id,
+                execution_id=None,
                 span_attributes=attributes,
             )
 
@@ -970,6 +976,7 @@ class UiPathEvalRuntime:
                 "evaluator_id": evaluator.id,
                 "evaluator_name": evaluator.name,
                 "eval_item_id": eval_item.id,
+                "uipath.custom_instrumentation": True,
             },
         ):
             output_data: dict[str, Any] | str = {}
@@ -997,6 +1004,7 @@ class UiPathEvalRuntime:
                 "openinference.span.kind": "CHAIN",
                 "value": result.score,
                 "evaluatorId": evaluator.id,
+                "uipath.custom_instrumentation": True,
             }
 
             # Add justification if available
