@@ -332,7 +332,12 @@ class UiPathOpenAIService(BaseService):
             llm_span.set_attribute("uipath.custom_instrumentation", True)
 
             # Set input messages
-            llm_span.set_attribute("input.value", json.dumps(messages))
+            # For evaluator LLM calls (single user message), extract content directly
+            # For multi-turn conversations, use the full messages array
+            if len(messages) == 1 and messages[0].get("role") == "user":
+                llm_span.set_attribute("input.value", messages[0].get("content", ""))
+            else:
+                llm_span.set_attribute("input.value", json.dumps(messages))
 
             async with get_llm_semaphore():
                 response = await self.request_async(
@@ -351,20 +356,25 @@ class UiPathOpenAIService(BaseService):
                 output_msg = choice.message
 
                 # Set output value
-                output_dict: dict[str, Any] = {
-                    "role": output_msg.role,
-                    "content": output_msg.content or "",
-                }
+                # For simple responses without tool calls, use just the content string
+                # For responses with tool calls, use full message object
                 if output_msg.tool_calls:
-                    output_dict["tool_calls"] = [
-                        {
-                            "id": tc.id,
-                            "name": tc.name,
-                            "arguments": tc.arguments,
-                        }
-                        for tc in output_msg.tool_calls
-                    ]
-                llm_span.set_attribute("output.value", json.dumps(output_dict))
+                    output_dict: dict[str, Any] = {
+                        "role": output_msg.role,
+                        "content": output_msg.content or "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "name": tc.name,
+                                "arguments": tc.arguments,
+                            }
+                            for tc in output_msg.tool_calls
+                        ],
+                    }
+                    llm_span.set_attribute("output.value", json.dumps(output_dict))
+                else:
+                    # Just the content string for cleaner display
+                    llm_span.set_attribute("output.value", output_msg.content or "")
 
             # Set token usage attributes
             if completion.usage:
@@ -614,7 +624,17 @@ class UiPathLlmChatService(BaseService):
             llm_span.set_attribute("uipath.custom_instrumentation", True)
 
             # Set input messages
-            llm_span.set_attribute("input.value", json.dumps(converted_messages))
+            # For evaluator LLM calls (single user message), extract content directly
+            # For multi-turn conversations, use the full messages array
+            if (
+                len(converted_messages) == 1
+                and converted_messages[0].get("role") == "user"
+            ):
+                llm_span.set_attribute(
+                    "input.value", converted_messages[0].get("content", "")
+                )
+            else:
+                llm_span.set_attribute("input.value", json.dumps(converted_messages))
 
             async with get_llm_semaphore():
                 response = await self.request_async(
@@ -633,20 +653,25 @@ class UiPathLlmChatService(BaseService):
                 output_msg = choice.message
 
                 # Set output value
-                output_dict: dict[str, Any] = {
-                    "role": output_msg.role,
-                    "content": output_msg.content or "",
-                }
+                # For simple responses without tool calls, use just the content string
+                # For responses with tool calls, use full message object
                 if output_msg.tool_calls:
-                    output_dict["tool_calls"] = [
-                        {
-                            "id": tc.id,
-                            "name": tc.name,
-                            "arguments": tc.arguments,
-                        }
-                        for tc in output_msg.tool_calls
-                    ]
-                llm_span.set_attribute("output.value", json.dumps(output_dict))
+                    output_dict: dict[str, Any] = {
+                        "role": output_msg.role,
+                        "content": output_msg.content or "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "name": tc.name,
+                                "arguments": tc.arguments,
+                            }
+                            for tc in output_msg.tool_calls
+                        ],
+                    }
+                    llm_span.set_attribute("output.value", json.dumps(output_dict))
+                else:
+                    # Just the content string for cleaner display
+                    llm_span.set_attribute("output.value", output_msg.content or "")
 
             # Set token usage attributes
             if completion.usage:

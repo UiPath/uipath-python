@@ -41,14 +41,14 @@ _httpx_instrumentor = None
 def setup_httpx_instrumentation() -> None:
     """Set up OpenInference auto-instrumentation for httpx.
 
-    This enables automatic creation of "LLM call" → "Model run" span hierarchy
-    for evaluator LLM calls, matching the pattern used in agent runs.
+    This enables automatic creation of POST/GET spans that are sent to AppInsights
+    for telemetry purposes. These spans are filtered out from evaluation traces.
     """
     global _httpx_instrumentor
     if _httpx_instrumentor is None:
         _httpx_instrumentor = HTTPXClientInstrumentor()
         _httpx_instrumentor.instrument()
-        logger.debug("HTTPXClientInstrumentor initialized for evaluator LLM calls")
+        logger.debug("HTTPXClientInstrumentor initialized for telemetry")
 
 
 def shutdown_httpx_instrumentation() -> None:
@@ -236,8 +236,8 @@ def eval(
             async def execute_eval():
                 event_bus = EventBus()
 
-                # Set up OpenInference auto-instrumentation for evaluator LLM calls
-                # This enables "LLM call" → "Model run" span hierarchy
+                # Set up httpx instrumentation for AppInsights telemetry
+                # POST/GET spans are sent to AppInsights but filtered from eval traces
                 setup_httpx_instrumentation()
 
                 # Only create studio web exporter when reporting to Studio Web
