@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "id": "AttachmentCreatedEvaluator",
+  "description": "Checks if the agent successfully created an output attachment with processed CSV information",
+  "evaluatorSchema": "file://attachment_created_evaluator.py:AttachmentCreatedEvaluator",
+  "evaluatorConfig": {
+    "name": "AttachmentCreatedEvaluator",
+    "defaultEvaluationCriteria": {
+      "attachment_name": "processed_output.txt"
+    }
+  }
+}

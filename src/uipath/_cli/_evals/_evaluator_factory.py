@@ -208,9 +208,12 @@ class EvaluatorFactory:
         file_path = Path(file_path_str)
         if not file_path.is_absolute():
             if not file_path.exists():
-                # Try using the provided evaluators_dir first
                 if evaluators_dir is not None:
-                    file_path = evaluators_dir / "custom" / file_path_str
+                    # Try the file directly in evaluators_dir first
+                    file_path = evaluators_dir / file_path_str
+                    if not file_path.exists():
+                        # Fall back to evaluators_dir/custom/
+                        file_path = evaluators_dir / "custom" / file_path_str
                 else:
                     # Fall back to the old behavior
                     file_path = (

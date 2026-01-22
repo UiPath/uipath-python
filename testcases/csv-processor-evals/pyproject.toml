@@ -1,0 +1,12 @@
+[project]
+name = "csv-processor-agent"
+version = "0.0.1"
+description = "CSV processor agent testcase with file input evaluations"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "uipath",
+]
+requires-python = ">=3.11"
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }
