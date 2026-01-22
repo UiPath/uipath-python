@@ -333,13 +333,6 @@ class UiPathOpenAIService(BaseService):
 
             # Set input messages
             llm_span.set_attribute("input.value", json.dumps(messages))
-            for i, msg in enumerate(messages):
-                llm_span.set_attribute(
-                    f"llm.input_messages.{i}.message.role", msg.get("role", "")
-                )
-                llm_span.set_attribute(
-                    f"llm.input_messages.{i}.message.content", msg.get("content", "")
-                )
 
             async with get_llm_semaphore():
                 response = await self.request_async(
@@ -372,31 +365,6 @@ class UiPathOpenAIService(BaseService):
                         for tc in output_msg.tool_calls
                     ]
                 llm_span.set_attribute("output.value", json.dumps(output_dict))
-
-                # Set output message attributes
-                llm_span.set_attribute(
-                    "llm.output_messages.0.message.role", output_msg.role
-                )
-                if output_msg.content:
-                    llm_span.set_attribute(
-                        "llm.output_messages.0.message.content", output_msg.content
-                    )
-
-                # Set tool calls if present
-                if output_msg.tool_calls:
-                    for i, tc in enumerate(output_msg.tool_calls):
-                        llm_span.set_attribute(
-                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.id",
-                            tc.id,
-                        )
-                        llm_span.set_attribute(
-                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.function.name",
-                            tc.name,
-                        )
-                        llm_span.set_attribute(
-                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.function.arguments",
-                            json.dumps(tc.arguments),
-                        )
 
             # Set token usage attributes
             if completion.usage:
@@ -647,13 +615,6 @@ class UiPathLlmChatService(BaseService):
 
             # Set input messages
             llm_span.set_attribute("input.value", json.dumps(converted_messages))
-            for i, msg in enumerate(converted_messages):
-                llm_span.set_attribute(
-                    f"llm.input_messages.{i}.message.role", msg.get("role", "")
-                )
-                llm_span.set_attribute(
-                    f"llm.input_messages.{i}.message.content", msg.get("content", "")
-                )
 
             async with get_llm_semaphore():
                 response = await self.request_async(
@@ -686,31 +647,6 @@ class UiPathLlmChatService(BaseService):
                         for tc in output_msg.tool_calls
                     ]
                 llm_span.set_attribute("output.value", json.dumps(output_dict))
-
-                # Set output message attributes
-                llm_span.set_attribute(
-                    "llm.output_messages.0.message.role", output_msg.role
-                )
-                if output_msg.content:
-                    llm_span.set_attribute(
-                        "llm.output_messages.0.message.content", output_msg.content
-                    )
-
-                # Set tool calls if present
-                if output_msg.tool_calls:
-                    for i, tc in enumerate(output_msg.tool_calls):
-                        llm_span.set_attribute(
-                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.id",
-                            tc.id,
-                        )
-                        llm_span.set_attribute(
-                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.function.name",
-                            tc.name,
-                        )
-                        llm_span.set_attribute(
-                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.function.arguments",
-                            json.dumps(tc.arguments),
-                        )
 
             # Set token usage attributes
             if completion.usage:
