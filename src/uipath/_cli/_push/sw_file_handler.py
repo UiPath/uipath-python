@@ -454,9 +454,11 @@ class SwFileHandler:
                     # Increment patch version (0.1.0 -> 0.1.1)
                     version_parts[-1] = str(int(version_parts[-1]) + 1)
                     metadata["codeVersion"] = ".".join(version_parts)
+                    metadata["lastPushDate"] = datetime.now(timezone.utc).isoformat()
                 else:
                     # Invalid version format, use default with patch = 1
                     metadata["codeVersion"] = AGENT_INITIAL_CODE_VERSION[:-1] + "1"
+                    metadata["lastPushDate"] = datetime.now(timezone.utc).isoformat()
             except Exception:
                 logger.info(
                     "Could not parse existing metadata file, using default version"
