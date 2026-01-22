@@ -23,6 +23,7 @@ console = ConsoleLogger()
     "root",
     type=click.Path(exists=False, file_okay=False, dir_okay=True, path_type=Path),
     default=Path("."),
+    metavar="",
 )
 @click.option(
     "--overwrite",
@@ -34,14 +35,11 @@ def pull(root: Path, overwrite: bool) -> None:
 
     This command pulls the remote project files from a UiPath Studio Web project.
 
-    Args:
-        root: The root directory to pull files into
-        overwrite: Whether to automatically overwrite local files without prompts
-
-    Environment Variables:
+    **Environment Variables:**
         UIPATH_PROJECT_ID: Required. The ID of the UiPath Studio Web project
 
-    Example:
+    **Example:**
+
         $ uipath pull
         $ uipath pull /path/to/project
         $ uipath pull --overwrite
