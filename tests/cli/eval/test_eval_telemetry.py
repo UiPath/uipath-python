@@ -32,15 +32,15 @@ class TestEventNameConstants:
 
     def test_eval_set_run_event_names(self):
         """Test eval set run event name constants."""
-        assert EVAL_SET_RUN_STARTED == "EvalSetRun.Start.URT"
-        assert EVAL_SET_RUN_COMPLETED == "EvalSetRun.End.URT"
-        assert EVAL_SET_RUN_FAILED == "EvalSetRun.Failed.URT"
+        assert EVAL_SET_RUN_STARTED == "EvalSetRun.Start"
+        assert EVAL_SET_RUN_COMPLETED == "EvalSetRun.End"
+        assert EVAL_SET_RUN_FAILED == "EvalSetRun.Failed"
 
     def test_eval_run_event_names(self):
         """Test eval run event name constants."""
-        assert EVAL_RUN_STARTED == "EvalRun.Start.URT"
-        assert EVAL_RUN_COMPLETED == "EvalRun.End.URT"
-        assert EVAL_RUN_FAILED == "EvalRun.Failed.URT"
+        assert EVAL_RUN_STARTED == "EvalRun.Start"
+        assert EVAL_RUN_COMPLETED == "EvalRun.End"
+        assert EVAL_RUN_FAILED == "EvalRun.Failed"
 
 
 class TestEvalTelemetrySubscriberInit:
@@ -187,8 +187,8 @@ class TestEvalRunCreated:
         call_args = mock_track_event.call_args
         assert call_args[0][0] == EVAL_RUN_STARTED
         properties = call_args[0][1]
-        assert properties["EvalItemId"] == "item-1"
-        assert properties["EvalItemName"] == "Test Eval"
+        assert properties["EvalId"] == "item-1"
+        assert properties["EvalName"] == "Test Eval"
 
     @pytest.mark.asyncio
     @patch("uipath._cli._evals._telemetry.track_event")
@@ -417,8 +417,11 @@ class TestEnrichProperties:
         assert properties["Source"] == "uipath-python-cli"
         assert properties["ApplicationName"] == "UiPath.Eval"
 
-    def test_enrich_properties_adds_env_vars(self):
+    @patch("uipath._cli._evals._telemetry.get_claim_from_token")
+    def test_enrich_properties_adds_env_vars(self, mock_get_claim):
         """Test that environment variables are added when present."""
+        mock_get_claim.return_value = "user-789"
+
         subscriber = EvalTelemetrySubscriber()
         properties: dict[str, Any] = {}
 
@@ -426,20 +429,23 @@ class TestEnrichProperties:
             os.environ,
             {
                 "UIPATH_PROJECT_ID": "project-123",
-                "UIPATH_CLOUD_ORGANIZATION_ID": "org-456",
-                "UIPATH_CLOUD_USER_ID": "user-789",
+                "UIPATH_ORGANIZATION_ID": "org-456",
                 "UIPATH_TENANT_ID": "tenant-abc",
             },
         ):
             subscriber._enrich_properties(properties)
 
         assert properties["ProjectId"] == "project-123"
+        assert properties["AgentId"] == "project-123"
         assert properties["CloudOrganizationId"] == "org-456"
         assert properties["CloudUserId"] == "user-789"
         assert properties["TenantId"] == "tenant-abc"
 
-    def test_enrich_properties_skips_missing_env_vars(self):
+    @patch("uipath._cli._evals._telemetry.get_claim_from_token")
+    def test_enrich_properties_skips_missing_env_vars(self, mock_get_claim):
         """Test that missing environment variables are not added."""
+        mock_get_claim.side_effect = Exception("No token")
+
         subscriber = EvalTelemetrySubscriber()
         properties: dict[str, Any] = {}
 
@@ -447,8 +453,7 @@ class TestEnrichProperties:
             # Remove env vars if they exist
             for key in [
                 "UIPATH_PROJECT_ID",
-                "UIPATH_CLOUD_ORGANIZATION_ID",
-                "UIPATH_CLOUD_USER_ID",
+                "UIPATH_ORGANIZATION_ID",
                 "UIPATH_TENANT_ID",
             ]:
                 os.environ.pop(key, None)
@@ -456,6 +461,7 @@ class TestEnrichProperties:
             subscriber._enrich_properties(properties)
 
         assert "ProjectId" not in properties
+        assert "AgentId" not in properties
         assert "CloudOrganizationId" not in properties
         assert "CloudUserId" not in properties
         assert "TenantId" not in properties

@@ -9,6 +9,7 @@ import os
 import time
 from typing import Any, Dict, Optional
 
+from uipath._cli._utils._common import get_claim_from_token
 from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -17,17 +18,18 @@ from uipath._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
+from uipath.platform.common._config import UiPathConfig
 from uipath.telemetry._track import is_telemetry_enabled, track_event
 
 logger = logging.getLogger(__name__)
 
 # Telemetry event names for Application Insights
-EVAL_SET_RUN_STARTED = "EvalSetRun.Start.URT"
-EVAL_SET_RUN_COMPLETED = "EvalSetRun.End.URT"
-EVAL_SET_RUN_FAILED = "EvalSetRun.Failed.URT"
-EVAL_RUN_STARTED = "EvalRun.Start.URT"
-EVAL_RUN_COMPLETED = "EvalRun.End.URT"
-EVAL_RUN_FAILED = "EvalRun.Failed.URT"
+EVAL_SET_RUN_STARTED = "EvalSetRun.Start"
+EVAL_SET_RUN_COMPLETED = "EvalSetRun.End"
+EVAL_SET_RUN_FAILED = "EvalSetRun.Failed"
+EVAL_RUN_STARTED = "EvalRun.Start"
+EVAL_RUN_COMPLETED = "EvalRun.End"
+EVAL_RUN_FAILED = "EvalRun.Failed"
 
 
 class EvalTelemetrySubscriber:
@@ -53,7 +55,21 @@ class EvalTelemetrySubscriber:
         self._eval_set_info: Dict[str, Dict[str, Any]] = {}
         self._eval_run_info: Dict[str, Dict[str, Any]] = {}
         self._current_eval_set_run_id: Optional[str] = None
-        self._current_agent_id: Optional[str] = None
+        self._current_entrypoint: Optional[str] = None
+
+    @staticmethod
+    def _get_agent_type(entrypoint: str) -> str:
+        """Determine agent type from entrypoint.
+
+        Args:
+            entrypoint: The entrypoint path.
+
+        Returns:
+            "LowCode" if entrypoint is "agent.json", "Coded" otherwise.
+        """
+        if entrypoint == "agent.json":
+            return "LowCode"
+        return "Coded"
 
     async def subscribe_to_eval_runtime_events(self, event_bus: EventBus) -> None:
         """Subscribe to evaluation runtime events.
@@ -62,7 +78,6 @@ class EvalTelemetrySubscriber:
             event_bus: The event bus to subscribe to.
         """
         if not is_telemetry_enabled():
-            logger.debug("Telemetry disabled, skipping subscription")
             return
 
         event_bus.subscribe(
@@ -73,8 +88,6 @@ class EvalTelemetrySubscriber:
         event_bus.subscribe(
             EvaluationEvents.UPDATE_EVAL_SET_RUN, self._on_eval_set_run_updated
         )
-
-        logger.debug("Telemetry subscriber subscribed to evaluation events")
 
     async def _on_eval_set_run_created(self, event: EvalSetRunCreatedEvent) -> None:
         """Handle eval set run created event.
@@ -97,7 +110,7 @@ class EvalTelemetrySubscriber:
 
             # Store for child events
             self._current_eval_set_run_id = eval_set_run_id
-            self._current_agent_id = event.entrypoint
+            self._current_entrypoint = event.entrypoint
 
             properties: Dict[str, Any] = {
                 "EvalSetId": event.eval_set_id,
@@ -105,15 +118,13 @@ class EvalTelemetrySubscriber:
                 "Entrypoint": event.entrypoint,
                 "EvalCount": event.no_of_evals,
                 "EvaluatorCount": len(event.evaluators),
+                "AgentType": self._get_agent_type(event.entrypoint),
+                "Runtime": "URT",
             }
-
-            if event.entrypoint:
-                properties["AgentId"] = event.entrypoint
 
             self._enrich_properties(properties)
 
             track_event(EVAL_SET_RUN_STARTED, properties)
-            logger.debug(f"Tracked eval set run started: {event.eval_set_id}")
 
         except Exception as e:
             logger.debug(f"Error tracking eval set run started: {e}")
@@ -132,23 +143,23 @@ class EvalTelemetrySubscriber:
             }
 
             properties: Dict[str, Any] = {
-                "EvalItemId": event.eval_item.id,
-                "EvalItemName": event.eval_item.name,
-                "EvalRunId": event.execution_id,
+                "EvalId": event.eval_item.id,
+                "EvalName": event.eval_item.name,
+                "Runtime": "URT",
             }
 
             # Add eval set run id from parent
             if self._current_eval_set_run_id:
                 properties["EvalSetRunId"] = self._current_eval_set_run_id
 
-            # Add agent id
-            if self._current_agent_id:
-                properties["AgentId"] = self._current_agent_id
+            # Add entrypoint and agent type
+            if self._current_entrypoint:
+                properties["Entrypoint"] = self._current_entrypoint
+                properties["AgentType"] = self._get_agent_type(self._current_entrypoint)
 
             self._enrich_properties(properties)
 
             track_event(EVAL_RUN_STARTED, properties)
-            logger.debug(f"Tracked eval run started: {event.eval_item.id}")
 
         except Exception as e:
             logger.debug(f"Error tracking eval run started: {e}")
@@ -183,18 +194,19 @@ class EvalTelemetrySubscriber:
                         break
 
             properties: Dict[str, Any] = {
-                "EvalItemId": run_info.get("eval_item_id", event.eval_item.id),
-                "EvalItemName": run_info.get("eval_item_name", event.eval_item.name),
-                "EvalRunId": event.execution_id,
+                "EvalId": run_info.get("eval_item_id", event.eval_item.id),
+                "EvalName": run_info.get("eval_item_name", event.eval_item.name),
                 "Success": event.success,
                 "EvaluatorCount": len(event.eval_results),
+                "Runtime": "URT",
             }
 
             if self._current_eval_set_run_id:
                 properties["EvalSetRunId"] = self._current_eval_set_run_id
 
-            if self._current_agent_id:
-                properties["AgentId"] = self._current_agent_id
+            if self._current_entrypoint:
+                properties["Entrypoint"] = self._current_entrypoint
+                properties["AgentType"] = self._get_agent_type(self._current_entrypoint)
 
             if trace_id:
                 properties["TraceId"] = trace_id
@@ -225,9 +237,6 @@ class EvalTelemetrySubscriber:
 
             event_name = EVAL_RUN_COMPLETED if event.success else EVAL_RUN_FAILED
             track_event(event_name, properties)
-            logger.debug(
-                f"Tracked eval run {'completed' if event.success else 'failed'}: {event.eval_item.id}"
-            )
 
         except Exception as e:
             logger.debug(f"Error tracking eval run updated: {e}")
@@ -261,7 +270,9 @@ class EvalTelemetrySubscriber:
 
             if set_info.get("entrypoint"):
                 properties["Entrypoint"] = set_info["entrypoint"]
-                properties["AgentId"] = set_info["entrypoint"]
+                properties["AgentType"] = self._get_agent_type(set_info["entrypoint"])
+
+            properties["Runtime"] = "URT"
 
             if set_info.get("no_of_evals"):
                 properties["EvalCount"] = set_info["no_of_evals"]
@@ -284,12 +295,9 @@ class EvalTelemetrySubscriber:
                 EVAL_SET_RUN_COMPLETED if event.success else EVAL_SET_RUN_FAILED
             )
             track_event(event_name, properties)
-            logger.debug(
-                f"Tracked eval set run {'completed' if event.success else 'failed'}"
-            )
 
             self._current_eval_set_run_id = None
-            self._current_agent_id = None
+            self._current_entrypoint = None
 
         except Exception as e:
             logger.debug(f"Error tracking eval set run updated: {e}")
@@ -301,18 +309,23 @@ class EvalTelemetrySubscriber:
             properties: The properties dictionary to enrich.
         """
         # Add UiPath context
-        project_id = os.getenv("UIPATH_PROJECT_ID")
-        if project_id:
-            properties["ProjectId"] = project_id
+        if UiPathConfig.project_id:
+            properties["ProjectId"] = UiPathConfig.project_id
+            properties["AgentId"] = UiPathConfig.project_id
 
-        org_id = os.getenv("UIPATH_CLOUD_ORGANIZATION_ID")
-        if org_id:
-            properties["CloudOrganizationId"] = org_id
+        # Get organization ID from UiPathConfig
+        if UiPathConfig.organization_id:
+            properties["CloudOrganizationId"] = UiPathConfig.organization_id
 
-        user_id = os.getenv("UIPATH_CLOUD_USER_ID")
-        if user_id:
-            properties["CloudUserId"] = user_id
+        # Get CloudUserId from JWT token
+        try:
+            cloud_user_id = get_claim_from_token("sub")
+            if cloud_user_id:
+                properties["CloudUserId"] = cloud_user_id
+        except Exception:
+            pass  # CloudUserId is optional
 
+        # Get tenant ID from environment
         tenant_id = os.getenv("UIPATH_TENANT_ID")
         if tenant_id:
             properties["TenantId"] = tenant_id
