@@ -16,6 +16,7 @@ from uipath._cli._evals.mocks.mocks import (
 from uipath._cli._evals.mocks.types import (
     LLMMockingStrategy,
     MockingContext,
+    MockingStrategyType,
     ToolSimulation,
 )
 from uipath._cli.cli_debug import load_simulation_config
@@ -160,6 +161,7 @@ class TestLoadSimulationConfig:
             result = load_simulation_config()
 
             assert result is not None
+            assert isinstance(result.strategy, LLMMockingStrategy)
             assert result.strategy.prompt == ""
 
 
@@ -229,7 +231,7 @@ def main(input):
 
             # Create a MockingContext to return from load_simulation_config
             mocking_strategy = LLMMockingStrategy(
-                type="llm",
+                type=MockingStrategyType.LLM,
                 prompt=valid_simulation_config["instructions"],
                 tools_to_simulate=[
                     ToolSimulation(name=tool["name"])
@@ -310,6 +312,9 @@ def main(input):
                                         mocking_ctx = call_args[0][0]
                                         assert isinstance(mocking_ctx, MockingContext)
                                         assert mocking_ctx.strategy is not None
+                                        assert isinstance(
+                                            mocking_ctx.strategy, LLMMockingStrategy
+                                        )
                                         assert (
                                             len(mocking_ctx.strategy.tools_to_simulate)
                                             == 3
@@ -337,7 +342,7 @@ def main(input):
 
             # Create a MockingContext to return from load_simulation_config
             mocking_strategy = LLMMockingStrategy(
-                type="llm",
+                type=MockingStrategyType.LLM,
                 prompt="Test instructions",
                 tools_to_simulate=[ToolSimulation(name="Test Tool")],
             )
