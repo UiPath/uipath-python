@@ -66,7 +66,6 @@ from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
-from ._configurable_factory import ConfigurableRuntimeFactory
 from ._eval_util import apply_input_overrides
 from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
@@ -214,8 +213,7 @@ class UiPathEvalRuntime:
         event_bus: EventBus,
     ):
         self.context: UiPathEvalContext = context
-        # Wrap the factory to support model settings overrides
-        self.factory = ConfigurableRuntimeFactory(factory)
+        self.factory: UiPathRuntimeFactoryProtocol = factory
         self.event_bus: EventBus = event_bus
         self.trace_manager: UiPathTraceManager = trace_manager
         self.span_exporter: ExecutionSpanExporter = ExecutionSpanExporter()
@@ -240,10 +238,6 @@ class UiPathEvalRuntime:
         if self.context.report_coverage:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
-
-        # Clean up any temporary files created by the factory
-        if hasattr(self.factory, "dispose"):
-            await self.factory.dispose()
 
     async def get_schema(self, runtime: UiPathRuntimeProtocol) -> UiPathRuntimeSchema:
         schema = await runtime.get_schema()
@@ -313,12 +307,13 @@ class UiPathEvalRuntime:
         logger.info(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
         logger.info("=" * 80)
 
-        # Configure model settings override before creating runtime
-        await self._configure_model_settings_override()
+        # Resolve model settings override from eval set
+        settings_override = self._resolve_model_settings_override()
 
         runtime = await self.factory.new_runtime(
             entrypoint=self.context.entrypoint or "",
             runtime_id=self.execution_id,
+            settings=settings_override,
         )
         try:
             with self._mocker_cache():
@@ -796,14 +791,21 @@ class UiPathEvalRuntime:
 
         return spans, logs
 
-    async def _configure_model_settings_override(self) -> None:
-        """Configure the factory with model settings override if specified."""
-        # Skip if no model settings ID specified
+    def _resolve_model_settings_override(
+        self,
+    ) -> dict[str, Any] | None:
+        """Resolve model settings override from evaluation set.
+
+        Returns:
+            Model settings dict to use for override, or None if using defaults.
+            Settings are passed to factory via settings kwarg.
+        """
+        # Skip if no model settings ID specified or using default
         if (
             not self.context.model_settings_id
             or self.context.model_settings_id == "default"
         ):
-            return
+            return None
 
         # Load evaluation set to get model settings
         evaluation_set, _ = EvalHelpers.load_eval_set(self.context.eval_set or "")
@@ -812,7 +814,7 @@ class UiPathEvalRuntime:
             or not evaluation_set.model_settings
         ):
             logger.warning("No model settings available in evaluation set")
-            return
+            return None
 
         # Find the specified model settings
         target_model_settings = next(
@@ -828,15 +830,26 @@ class UiPathEvalRuntime:
             logger.warning(
                 f"Model settings ID '{self.context.model_settings_id}' not found in evaluation set"
             )
-            return
+            return None
 
         logger.info(
-            f"Configuring model settings override: id='{target_model_settings.id}', "
-            f"model_name='{target_model_settings.model_name}', temperature='{target_model_settings.temperature}'"
+            f"Applying model settings override: model={target_model_settings.model_name}, temperature={target_model_settings.temperature}"
         )
 
-        # Configure the factory with the override settings
-        self.factory.set_model_settings_override(target_model_settings)
+        # Return settings dict with correct keys for factory
+        override: dict[str, str | float] = {}
+        if (
+            target_model_settings.model_name
+            and target_model_settings.model_name != "same-as-agent"
+        ):
+            override["model"] = target_model_settings.model_name
+        if (
+            target_model_settings.temperature is not None
+            and target_model_settings.temperature != "same-as-agent"
+        ):
+            override["temperature"] = float(target_model_settings.temperature)
+
+        return override if override else None
 
     async def execute_runtime(
         self,
@@ -1010,15 +1023,27 @@ class UiPathEvalRuntime:
             return result
 
     async def _get_agent_model(self, runtime: UiPathRuntimeProtocol) -> str | None:
-        """Get agent model from the runtime.
+        """Get agent model from the runtime schema metadata.
+
+        The model is read from schema.metadata["settings"]["model"] which is
+        populated by the low-code agents runtime from agent.json.
 
         Returns:
             The model name from agent settings, or None if not found.
         """
         try:
+            schema = await self.get_schema(runtime)
+            if schema.metadata and "settings" in schema.metadata:
+                settings = schema.metadata["settings"]
+                model = settings.get("model")
+                if model:
+                    logger.debug(f"Got agent model from schema.metadata: {model}")
+                    return model
+
+            # Fallback to protocol-based approach for backwards compatibility
             model = self._find_agent_model_in_runtime(runtime)
             if model:
-                logger.debug(f"Got agent model from runtime: {model}")
+                logger.debug(f"Got agent model from runtime protocol: {model}")
             return model
         except Exception:
             return None
