@@ -800,8 +800,12 @@ class UiPathEvalRuntime:
         logs = self.logs_exporter.get_logs(execution_id)
         self.logs_exporter.clear(execution_id)
 
-        # Filter out "root" span to make Agent run a direct child of Evaluation
-        filtered_spans = [span for span in spans if span.name != "root"]
+        # Filter out unwanted spans for cleaner trace hierarchy
+        # - "root": Makes Agent run a direct child of Evaluation
+        # - "POST"/"GET": HTTP instrumentation spans that add noise
+        filtered_spans = [
+            span for span in spans if span.name not in ("root", "POST", "GET")
+        ]
 
         return filtered_spans, logs
 
