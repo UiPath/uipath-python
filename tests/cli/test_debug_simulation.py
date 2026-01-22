@@ -301,9 +301,7 @@ def main(input):
                                             mock_debug_runtime
                                         )
 
-                                        runner.invoke(
-                                            cli, ["debug", "main", "{}"]
-                                        )
+                                        runner.invoke(cli, ["debug", "main", "{}"])
 
                                         # Verify set_execution_context was called
                                         assert mock_set_context.called
