@@ -208,10 +208,6 @@ class TestDebugCommandSimulationIntegration:
     ):
         """Test that debug command sets execution context when simulation.json exists."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            # Create simulation.json
-            with open("simulation.json", "w") as f:
-                json.dump(valid_simulation_config, f)
-
             script_file = "entrypoint.py"
             with open(script_file, "w") as f:
                 f.write(
@@ -231,8 +227,20 @@ def main(input):
             with open("uipath.json", "w") as f:
                 json.dump({"functions": {"main": f"{script_file}:main"}}, f)
 
-            # Get the current directory to ensure load_simulation_config looks in the right place
-            current_dir = Path.cwd()
+            # Create a MockingContext to return from load_simulation_config
+            mocking_strategy = LLMMockingStrategy(
+                type="llm",
+                prompt=valid_simulation_config["instructions"],
+                tools_to_simulate=[
+                    ToolSimulation(name=tool["name"])
+                    for tool in valid_simulation_config["toolsToSimulate"]
+                ],
+            )
+            mock_mocking_context = MockingContext(
+                strategy=mocking_strategy,
+                name="debug-simulation",
+                inputs={},
+            )
 
             # Track if set_execution_context was called
             with patch(
@@ -241,10 +249,12 @@ def main(input):
                 with patch(
                     "uipath._cli.cli_debug.clear_execution_context"
                 ) as mock_clear_context:
-                    # Ensure Path.cwd() returns the isolated filesystem directory
+                    # Mock load_simulation_config to return the MockingContext
                     with patch(
-                        "uipath._cli.cli_debug.Path.cwd", return_value=current_dir
-                    ):
+                        "uipath._cli.cli_debug.load_simulation_config"
+                    ) as mock_load_config:
+                        mock_load_config.return_value = mock_mocking_context
+
                         with patch(
                             "uipath._cli.cli_debug.Middlewares.next"
                         ) as mock_middleware:
