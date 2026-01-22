@@ -301,7 +301,7 @@ def main(input):
                                             mock_debug_runtime
                                         )
 
-                                        result = runner.invoke(
+                                        runner.invoke(
                                             cli, ["debug", "main", "{}"]
                                         )
 
@@ -403,7 +403,7 @@ def main(input):
                                     )
 
                                     # This will raise an exception during execution
-                                    result = runner.invoke(cli, ["debug", "main", "{}"])
+                                    runner.invoke(cli, ["debug", "main", "{}"])
 
                                     # Verify clear_execution_context was still called
                                     assert mock_clear_context.called
@@ -471,7 +471,7 @@ def main(input):
                         should_include_stacktrace=False,
                     )
 
-                    result = runner.invoke(cli, ["debug", "main", "{}"])
+                    runner.invoke(cli, ["debug", "main", "{}"])
 
                     # Verify set_execution_context was NOT called
                     assert not mock_set_context.called
