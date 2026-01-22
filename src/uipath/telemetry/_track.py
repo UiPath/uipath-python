@@ -138,6 +138,11 @@ class _AppInsightsEventClient:
 
         _AppInsightsEventClient._initialized = True
 
+        # Suppress verbose logging from Application Insights SDK
+        # The SDK logs telemetry ingestion details which should not be user-facing
+        getLogger("applicationinsights").setLevel(WARNING)
+        getLogger("applicationinsights.channel").setLevel(WARNING)
+
         if not _HAS_APPINSIGHTS:
             return
 
@@ -153,6 +158,9 @@ class _AppInsightsEventClient:
             _AppInsightsEventClient._client = AppInsightsTelemetryClient(
                 instrumentation_key
             )
+
+            # Set application version
+            _AppInsightsEventClient._client.context.application.ver = version("uipath")
         except Exception:
             # Silently fail - telemetry should never break the main application
             pass
@@ -222,7 +230,10 @@ class _TelemetryClient:
             os.environ["OTEL_TRACES_EXPORTER"] = "none"
             os.environ["APPLICATIONINSIGHTS_STATSBEAT_DISABLED_ALL"] = "true"
 
+            # Suppress verbose logging from telemetry libraries
             getLogger("azure").setLevel(WARNING)
+            getLogger("applicationinsights").setLevel(WARNING)
+            getLogger("opentelemetry").setLevel(WARNING)
             _logger.addHandler(_AzureMonitorOpenTelemetryEventHandler())
             _logger.setLevel(INFO)
 
