@@ -1076,8 +1076,25 @@ class StudioWebProgressReporter:
                         root_span_id_to_parent
                     )
 
-                # Export filtered spans (without root)
-                self.spans_exporter.export(filtered_spans)
+                # Export filtered spans with reparenting
+                # Use upsert_span for spans that need reparenting
+                for span in filtered_spans:
+                    parent_id_override = None
+                    if span.parent and span.parent.span_id in root_span_id_to_parent:
+                        # This span's parent was filtered (root), reparent to grandparent
+                        grandparent_id = root_span_id_to_parent[span.parent.span_id]
+                        if grandparent_id is not None:
+                            from uipath.tracing._utils import _SpanUtils
+
+                            parent_id_override = str(
+                                _SpanUtils.span_id_to_uuid4(grandparent_id)
+                            )
+
+                    # Use upsert_span to send with parent override if needed
+                    self.spans_exporter.upsert_span(
+                        span, parent_id_override=parent_id_override
+                    )
+
                 logger.debug(
                     f"Exported {len(filtered_spans)} agent execution spans for eval run: {eval_run_id} (filtered {len(root_span_id_to_parent)} root spans)"
                 )

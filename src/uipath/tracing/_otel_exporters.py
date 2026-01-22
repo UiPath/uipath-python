@@ -237,9 +237,15 @@ class LlmOpsHttpExporter(SpanExporter):
             result["usage"] = usage
 
         # Input/Output Messages
-        result["input"] = _get_llm_messages(attributes, "llm.input_messages")
-        output_messages = _get_llm_messages(attributes, "llm.output_messages")
-        result["output"] = output_messages
+        # Preserve input/output from input.value/output.value if set by ATTRIBUTE_MAPPING
+        # Only use llm.input_messages/llm.output_messages as fallback
+        if "input" not in result or not result["input"]:
+            result["input"] = _get_llm_messages(attributes, "llm.input_messages")
+        if "output" not in result or not result["output"]:
+            output_messages = _get_llm_messages(attributes, "llm.output_messages")
+            result["output"] = output_messages
+        else:
+            output_messages = result.get("output", [])
 
         # Invocation Parameters
         invocation_params = _safe_parse_json(
