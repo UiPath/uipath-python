@@ -324,7 +324,7 @@ class UiPathEvalRuntime:
                 # UiPathExecutionBatchTraceProcessor propagates execution.id from parent
                 # to child spans, which would overwrite the per-eval execution.id
                 tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
-                span_attributes: dict[str, str] = {
+                span_attributes: dict[str, str | bool] = {
                     "span_type": "eval_set_run",
                     "uipath.custom_instrumentation": True,
                 }
