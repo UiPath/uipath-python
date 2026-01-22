@@ -329,14 +329,20 @@ class UiPathOpenAIService(BaseService):
             llm_span.set_attribute("llm.request.temperature", temperature)
             llm_span.set_attribute("uipath.custom_instrumentation", True)
 
-            async with get_llm_semaphore():
-                response = await self.request_async(
-                    "POST",
-                    endpoint,
-                    json=request_body,
-                    params={"api-version": API_VERSION},
-                    headers=DEFAULT_LLM_HEADERS,
-                )
+            # Create "Model run" child span
+            with tracer.start_as_current_span("Model run") as model_span:
+                # Set OpenInference span kind for LLM
+                model_span.set_attribute("openinference.span.kind", "LLM")
+                model_span.set_attribute("llm.model_name", model)
+
+                async with get_llm_semaphore():
+                    response = await self.request_async(
+                        "POST",
+                        endpoint,
+                        json=request_body,
+                        params={"api-version": API_VERSION},
+                        headers=DEFAULT_LLM_HEADERS,
+                    )
 
             return ChatCompletion.model_validate(response.json())
 
@@ -571,14 +577,20 @@ class UiPathLlmChatService(BaseService):
             llm_span.set_attribute("llm.request.temperature", temperature)
             llm_span.set_attribute("uipath.custom_instrumentation", True)
 
-            async with get_llm_semaphore():
-                response = await self.request_async(
-                    "POST",
-                    endpoint,
-                    json=request_body,
-                    params={"api-version": NORMALIZED_API_VERSION},
-                    headers=headers,
-                )
+            # Create "Model run" child span
+            with tracer.start_as_current_span("Model run") as model_span:
+                # Set OpenInference span kind for LLM
+                model_span.set_attribute("openinference.span.kind", "LLM")
+                model_span.set_attribute("llm.model_name", model)
+
+                async with get_llm_semaphore():
+                    response = await self.request_async(
+                        "POST",
+                        endpoint,
+                        json=request_body,
+                        params={"api-version": NORMALIZED_API_VERSION},
+                        headers=headers,
+                    )
 
             return ChatCompletion.model_validate(response.json())
 
