@@ -16,6 +16,7 @@ Classes:
     UiPathLlmChatService: Service using UiPath's normalized API format
 """
 
+import json
 from typing import Any
 
 from opentelemetry import trace
@@ -330,6 +331,16 @@ class UiPathOpenAIService(BaseService):
             llm_span.set_attribute("llm.request.temperature", temperature)
             llm_span.set_attribute("uipath.custom_instrumentation", True)
 
+            # Set input messages
+            llm_span.set_attribute("input.value", json.dumps(messages))
+            for i, msg in enumerate(messages):
+                llm_span.set_attribute(
+                    f"llm.input_messages.{i}.message.role", msg.get("role", "")
+                )
+                llm_span.set_attribute(
+                    f"llm.input_messages.{i}.message.content", msg.get("content", "")
+                )
+
             async with get_llm_semaphore():
                 response = await self.request_async(
                     "POST",
@@ -339,7 +350,68 @@ class UiPathOpenAIService(BaseService):
                     headers=DEFAULT_LLM_HEADERS,
                 )
 
-            return ChatCompletion.model_validate(response.json())
+            completion = ChatCompletion.model_validate(response.json())
+
+            # Set output attributes
+            if completion.choices:
+                choice = completion.choices[0]
+                output_msg = choice.message
+
+                # Set output value
+                output_dict: dict[str, Any] = {
+                    "role": output_msg.role,
+                    "content": output_msg.content or "",
+                }
+                if output_msg.tool_calls:
+                    output_dict["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "name": tc.name,
+                            "arguments": tc.arguments,
+                        }
+                        for tc in output_msg.tool_calls
+                    ]
+                llm_span.set_attribute("output.value", json.dumps(output_dict))
+
+                # Set output message attributes
+                llm_span.set_attribute(
+                    "llm.output_messages.0.message.role", output_msg.role
+                )
+                if output_msg.content:
+                    llm_span.set_attribute(
+                        "llm.output_messages.0.message.content", output_msg.content
+                    )
+
+                # Set tool calls if present
+                if output_msg.tool_calls:
+                    for i, tc in enumerate(output_msg.tool_calls):
+                        llm_span.set_attribute(
+                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.id",
+                            tc.id,
+                        )
+                        llm_span.set_attribute(
+                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.function.name",
+                            tc.name,
+                        )
+                        llm_span.set_attribute(
+                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.function.arguments",
+                            json.dumps(tc.arguments),
+                        )
+
+            # Set token usage attributes
+            if completion.usage:
+                llm_span.set_attribute(
+                    "llm.token_count.prompt", completion.usage.prompt_tokens or 0
+                )
+                llm_span.set_attribute(
+                    "llm.token_count.completion",
+                    completion.usage.completion_tokens or 0,
+                )
+                llm_span.set_attribute(
+                    "llm.token_count.total", completion.usage.total_tokens or 0
+                )
+
+            return completion
 
 
 class UiPathLlmChatService(BaseService):
@@ -573,6 +645,16 @@ class UiPathLlmChatService(BaseService):
             llm_span.set_attribute("llm.request.temperature", temperature)
             llm_span.set_attribute("uipath.custom_instrumentation", True)
 
+            # Set input messages
+            llm_span.set_attribute("input.value", json.dumps(converted_messages))
+            for i, msg in enumerate(converted_messages):
+                llm_span.set_attribute(
+                    f"llm.input_messages.{i}.message.role", msg.get("role", "")
+                )
+                llm_span.set_attribute(
+                    f"llm.input_messages.{i}.message.content", msg.get("content", "")
+                )
+
             async with get_llm_semaphore():
                 response = await self.request_async(
                     "POST",
@@ -582,7 +664,68 @@ class UiPathLlmChatService(BaseService):
                     headers=headers,
                 )
 
-            return ChatCompletion.model_validate(response.json())
+            completion = ChatCompletion.model_validate(response.json())
+
+            # Set output attributes
+            if completion.choices:
+                choice = completion.choices[0]
+                output_msg = choice.message
+
+                # Set output value
+                output_dict: dict[str, Any] = {
+                    "role": output_msg.role,
+                    "content": output_msg.content or "",
+                }
+                if output_msg.tool_calls:
+                    output_dict["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "name": tc.name,
+                            "arguments": tc.arguments,
+                        }
+                        for tc in output_msg.tool_calls
+                    ]
+                llm_span.set_attribute("output.value", json.dumps(output_dict))
+
+                # Set output message attributes
+                llm_span.set_attribute(
+                    "llm.output_messages.0.message.role", output_msg.role
+                )
+                if output_msg.content:
+                    llm_span.set_attribute(
+                        "llm.output_messages.0.message.content", output_msg.content
+                    )
+
+                # Set tool calls if present
+                if output_msg.tool_calls:
+                    for i, tc in enumerate(output_msg.tool_calls):
+                        llm_span.set_attribute(
+                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.id",
+                            tc.id,
+                        )
+                        llm_span.set_attribute(
+                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.function.name",
+                            tc.name,
+                        )
+                        llm_span.set_attribute(
+                            f"llm.output_messages.0.message.tool_calls.{i}.tool_call.function.arguments",
+                            json.dumps(tc.arguments),
+                        )
+
+            # Set token usage attributes
+            if completion.usage:
+                llm_span.set_attribute(
+                    "llm.token_count.prompt", completion.usage.prompt_tokens or 0
+                )
+                llm_span.set_attribute(
+                    "llm.token_count.completion",
+                    completion.usage.completion_tokens or 0,
+                )
+                llm_span.set_attribute(
+                    "llm.token_count.total", completion.usage.total_tokens or 0
+                )
+
+            return completion
 
     def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> dict[str, Any]:
         """Convert an OpenAI-style tool definition to UiPath API format.
