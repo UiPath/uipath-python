@@ -892,15 +892,16 @@ class UiPathEvalRuntime:
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
                     logger.info(f"Resuming evaluation {eval_item.id}")
-                    options = UiPathExecuteOptions(resume=True)
-                    result = await execution_runtime.execute(
-                        input=input_overrides if self.context.job_id is None else None,
-                        options=options,
-                    )
+                    input = input_overrides if self.context.job_id is None else None
                 else:
-                    result = await execution_runtime.execute(
-                        input=inputs_with_overrides,
-                    )
+                    input = inputs_with_overrides
+
+                # Always pass UiPathExecuteOptions explicitly for consistency with debug flow
+                options = UiPathExecuteOptions(resume=self.context.resume)
+                result = await execution_runtime.execute(
+                    input=input,
+                    options=options,
+                )
 
                 # Log suspend status if applicable
                 if result.status == UiPathRuntimeStatus.SUSPENDED:
