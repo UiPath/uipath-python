@@ -115,8 +115,8 @@ class LLMAgentRuntimeProtocol(Protocol):
 class ExecutionSpanExporter(SpanExporter):
     """Custom exporter that stores spans grouped by execution ids.
 
-    Filters out unwanted spans (root, POST, GET) to create cleaner evaluation traces.
-    Reparenting is handled by LiveTrackingSpanProcessor for Studio Web traces.
+    Filters out root spans to create cleaner evaluation traces.
+    Reparenting is handled in _export_agent_execution_spans.
     """
 
     def __init__(self):
@@ -128,10 +128,9 @@ class ExecutionSpanExporter(SpanExporter):
             if span.attributes is not None:
                 exec_id = span.attributes.get("execution.id")
                 if exec_id is not None and isinstance(exec_id, str):
-                    # Filter out unwanted spans for cleaner trace hierarchy
-                    # - "root": Makes Agent run a direct child of Evaluation
-                    # - "POST"/"GET": HTTP instrumentation spans that add noise
-                    if span.name not in ("root", "POST", "GET"):
+                    # Filter out root span for cleaner trace hierarchy
+                    # Makes Agent run a direct child of Evaluation
+                    if span.name != "root":
                         self._spans[exec_id].append(span)
 
         return SpanExportResult.SUCCESS

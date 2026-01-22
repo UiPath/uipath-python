@@ -74,8 +74,13 @@ def gracefully_handle_errors(func):
 class StudioWebProgressReporter:
     """Handles reporting evaluation progress to StudioWeb."""
 
-    def __init__(self, spans_exporter: LlmOpsHttpExporter):
+    def __init__(
+        self,
+        spans_exporter: LlmOpsHttpExporter,
+        live_tracking_processor: Any | None = None,
+    ):
         self.spans_exporter = spans_exporter
+        self.live_tracking_processor = live_tracking_processor
 
         logging.getLogger("uipath._cli.middlewares").setLevel(logging.CRITICAL)
         console_logger = ConsoleLogger.get_instance()
@@ -1031,6 +1036,9 @@ class StudioWebProgressReporter:
     ) -> None:
         """Export agent execution spans to LLMOps.
 
+        Filters out "root" spans and reparents their children to create
+        a cleaner trace hierarchy where Agent run is a direct child of Evaluation.
+
         Args:
             eval_run_id: The ID of the evaluation run
             spans: List of agent execution spans
@@ -1049,9 +1057,29 @@ class StudioWebProgressReporter:
                     agent_readable_spans.append(span._readable_span())
 
             if agent_readable_spans:
-                self.spans_exporter.export(agent_readable_spans)
+                # Filter out root spans and track their parents for reparenting
+                root_span_id_to_parent = {}
+                filtered_spans = []
+
+                for span in agent_readable_spans:
+                    if span.name == "root":
+                        # Track root's parent for reparenting
+                        parent_id = span.parent.span_id if span.parent else None
+                        root_span_id_to_parent[span.context.span_id] = parent_id
+                    else:
+                        filtered_spans.append(span)
+
+                # Update LiveTrackingSpanProcessor's filtered parents mapping
+                # This allows it to reparent spans whose parent was root
+                if root_span_id_to_parent and self.live_tracking_processor:
+                    self.live_tracking_processor._filtered_parents.update(
+                        root_span_id_to_parent
+                    )
+
+                # Export filtered spans (without root)
+                self.spans_exporter.export(filtered_spans)
                 logger.debug(
-                    f"Exported {len(agent_readable_spans)} agent execution spans for eval run: {eval_run_id}"
+                    f"Exported {len(filtered_spans)} agent execution spans for eval run: {eval_run_id} (filtered {len(root_span_id_to_parent)} root spans)"
                 )
         except Exception as e:
             logger.warning(f"Failed to create evaluator traces: {e}")

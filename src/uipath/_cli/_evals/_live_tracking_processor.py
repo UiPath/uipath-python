@@ -16,7 +16,7 @@ class LiveTrackingSpanProcessor(SpanProcessor):
     - On span start: Upsert with RUNNING status
     - On span end: Upsert with final status (OK/ERROR)
 
-    Filters out root/POST/GET spans and reparents their children for cleaner traces.
+    Filters out root spans and reparents their children for cleaner traces.
 
     All upsert calls run in background threads without blocking evaluation
     execution. Uses a thread pool to cap the maximum number of concurrent
@@ -84,8 +84,8 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         self, span: Span, parent_context: context_api.Context | None = None
     ) -> None:
         """Called when span starts - upsert with RUNNING status (non-blocking)."""
-        # Filter out root/POST/GET spans
-        if span.name in ("root", "POST", "GET"):
+        # Filter out root spans
+        if span.name == "root":
             # Track filtered span's parent for reparenting
             parent_id = span.parent.span_id if span.parent else None
             self._filtered_parents[span.context.span_id] = parent_id
@@ -97,8 +97,8 @@ class LiveTrackingSpanProcessor(SpanProcessor):
 
     def on_end(self, span: ReadableSpan) -> None:
         """Called when span ends - upsert with final status (non-blocking)."""
-        # Filter out root/POST/GET spans
-        if span.name in ("root", "POST", "GET"):
+        # Filter out root spans
+        if span.name == "root":
             return
 
         # Only track evaluation-related spans

@@ -208,6 +208,7 @@ def eval(
 
                 # Only create studio web exporter when reporting to Studio Web
                 studio_web_tracking_exporter = None
+                studio_web_tracking_processor = None
                 if should_register_progress_reporter:
                     studio_web_tracking_exporter = LlmOpsHttpExporter()
                     if eval_context.eval_set_run_id:
@@ -215,8 +216,14 @@ def eval(
                             eval_context.eval_set_run_id
                         )
 
-                    progress_reporter = StudioWebProgressReporter(
+                    # Create processor that will be used for live tracking
+                    studio_web_tracking_processor = LiveTrackingSpanProcessor(
                         studio_web_tracking_exporter
+                    )
+
+                    progress_reporter = StudioWebProgressReporter(
+                        studio_web_tracking_exporter,
+                        live_tracking_processor=studio_web_tracking_processor,
                     )
                     await progress_reporter.subscribe_to_eval_runtime_events(event_bus)
 
@@ -252,10 +259,7 @@ def eval(
                         )
 
                     # Add studio web tracking processor if reporting to Studio Web
-                    if studio_web_tracking_exporter:
-                        studio_web_tracking_processor = LiveTrackingSpanProcessor(
-                            studio_web_tracking_exporter
-                        )
+                    if studio_web_tracking_processor:
                         trace_manager.tracer_span_processors.append(
                             studio_web_tracking_processor
                         )
