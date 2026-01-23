@@ -864,9 +864,10 @@ class UiPathEvalRuntime:
         input_overrides: dict[str, Any] | None = None,
     ) -> UiPathEvalRunExecutionOutput:
         log_handler = self._setup_execution_logging(execution_id)
-        attributes = {
+        attributes: dict[str, Any] = {
             "evalId": eval_item.id,
             "span_type": "eval",
+            "uipath.custom_instrumentation": True,
         }
 
         # Create a new runtime with runtime_id for this eval execution.
@@ -880,15 +881,11 @@ class UiPathEvalRuntime:
                 entrypoint=self.context.entrypoint or "",
                 runtime_id=runtime_id,
             )
-            # Don't pass execution_id to UiPathExecutionRuntime to avoid creating
-            # an extra "root" span. The parent "Evaluation" span already provides
-            # the necessary tracing context, and having the execution.id attribute set.
-            # We still pass the log_handler to capture logs.
             execution_runtime = UiPathExecutionRuntime(
                 delegate=eval_runtime,
                 trace_manager=self.trace_manager,
                 log_handler=log_handler,
-                execution_id=None,
+                execution_id=execution_id,
                 span_attributes=attributes,
             )
 
