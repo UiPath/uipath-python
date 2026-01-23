@@ -864,7 +864,7 @@ class UiPathEvalRuntime:
         input_overrides: dict[str, Any] | None = None,
     ) -> UiPathEvalRunExecutionOutput:
         log_handler = self._setup_execution_logging(execution_id)
-        attributes = {
+        attributes: dict[str, Any] = {
             "evalId": eval_item.id,
             "span_type": "eval",
             "uipath.custom_instrumentation": True,
