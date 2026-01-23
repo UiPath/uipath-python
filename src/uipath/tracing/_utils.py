@@ -294,6 +294,7 @@ class _SpanUtils:
         # Top-level fields for internal tracing schema
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
+        reference_id = attributes_dict.get("referenceId")
 
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
@@ -322,6 +323,7 @@ class _SpanUtils:
             span_type=span_type,
             execution_type=execution_type,
             agent_version=agent_version,
+            reference_id=reference_id,
         )
 
     @staticmethod
