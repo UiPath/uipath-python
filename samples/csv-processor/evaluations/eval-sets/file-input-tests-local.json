@@ -14,7 +14,7 @@
       "inputs": {
         "attachment": {
           "ID": "11111111-1111-1111-1111-111111111111",
-          "FullName": "test-data/sales_data.csv",
+          "FullName": "../../samples/csv-processor/test-data/sales_data.csv",
           "MimeType": "text/csv"
         }
       },
@@ -35,7 +35,7 @@
       "inputs": {
         "attachment": {
           "ID": "22222222-2222-2222-2222-222222222222",
-          "FullName": "test-data/large_dataset.csv",
+          "FullName": "../../samples/csv-processor/test-data/large_dataset.csv",
           "MimeType": "text/csv"
         }
       },
@@ -56,7 +56,7 @@
       "inputs": {
         "attachment": {
           "ID": "33333333-3333-3333-3333-333333333333",
-          "FullName": "test-data/minimal.csv",
+          "FullName": "../../samples/csv-processor/test-data/minimal.csv",
           "MimeType": "text/csv"
         }
       },
