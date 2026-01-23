@@ -200,7 +200,10 @@ def debug(
                         )
 
                         if ctx.job_id:
-                            trace_manager.add_span_exporter(LlmOpsHttpExporter())
+                            is_low_code = entrypoint == "agent.json"
+                            trace_manager.add_span_exporter(
+                                LlmOpsHttpExporter(is_low_code=is_low_code)
+                            )
                             trigger_poll_interval = (
                                 0.0  # Polling disabled for production jobs
                             )
