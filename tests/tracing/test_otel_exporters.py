@@ -617,9 +617,9 @@ class TestSpanFiltering:
 
     @pytest.fixture
     def exporter_with_mocks(self, mock_env_vars):
-        """Create exporter with mocked HTTP client."""
+        """Create exporter with mocked HTTP client for low code (with filtering)."""
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
-            exporter = LlmOpsHttpExporter()
+            exporter = LlmOpsHttpExporter(is_low_code=True)
             yield exporter
 
     def _create_mock_span(
@@ -713,9 +713,9 @@ class TestUpsertSpan:
 
     @pytest.fixture
     def exporter_with_mocks(self, mock_env_vars):
-        """Create exporter with mocked HTTP client."""
+        """Create exporter with mocked HTTP client for low code (with filtering)."""
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
-            exporter = LlmOpsHttpExporter()
+            exporter = LlmOpsHttpExporter(is_low_code=True)
             exporter._build_url = MagicMock(  # type: ignore
                 return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=Robots"
             )
@@ -804,6 +804,133 @@ class TestUpsertSpan:
 
         assert result == SpanExportResult.SUCCESS
         exporter_with_mocks.http_client.post.assert_not_called()
+
+
+class TestSpanFilteringByAgentType:
+    """Tests for span filtering behavior based on agent type (low code vs coded)."""
+
+    def test_coded_agent_no_filtering(self, mock_env_vars):
+        """For coded agents, all spans should be kept regardless of custom instrumentation marker."""
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter(is_low_code=False)
+
+            # Span without custom instrumentation marker
+            span_without_marker = MagicMock(spec=ReadableSpan)
+            span_without_marker.attributes = {}
+
+            # Span with custom instrumentation marker
+            span_with_marker = MagicMock(spec=ReadableSpan)
+            span_with_marker.attributes = {"uipath.custom_instrumentation": True}
+
+            # For coded agents, both should NOT be dropped
+            assert not exporter._should_drop_span(span_without_marker)
+            assert not exporter._should_drop_span(span_with_marker)
+
+    def test_low_code_applies_filtering(self, mock_env_vars):
+        """For low code processes, only spans with custom instrumentation marker should be kept."""
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter(is_low_code=True)
+
+            # Span without custom instrumentation marker
+            span_without_marker = MagicMock(spec=ReadableSpan)
+            span_without_marker.attributes = {}
+
+            # Span with custom instrumentation marker
+            span_with_marker = MagicMock(spec=ReadableSpan)
+            span_with_marker.attributes = {"uipath.custom_instrumentation": True}
+
+            # For low code, only span without marker should be dropped
+            assert exporter._should_drop_span(span_without_marker)
+            assert not exporter._should_drop_span(span_with_marker)
+
+    def test_default_is_coded_agent(self, mock_env_vars):
+        """Default behavior (no is_low_code parameter) should be coded agent (no filtering)."""
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+
+            # Span without custom instrumentation marker
+            span_without_marker = MagicMock(spec=ReadableSpan)
+            span_without_marker.attributes = {}
+
+            # By default (is_low_code=False), span should NOT be dropped
+            assert not exporter._should_drop_span(span_without_marker)
+
+    def test_coded_agent_export_all_spans(self, mock_env_vars):
+        """For coded agents, export should process all spans regardless of marker."""
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter(is_low_code=False)
+            exporter._build_url = MagicMock(
+                return_value="https://test.uipath.com/api/Traces/spans?traceId=test&source=Robots"
+            )
+
+            # Create spans without custom instrumentation marker
+            span1 = MagicMock(spec=ReadableSpan)
+            span1.attributes = {"some_attribute": "value"}
+
+            span2 = MagicMock(spec=ReadableSpan)
+            span2.attributes = {"another_attribute": "value"}
+
+            mock_uipath_span = MagicMock()
+            mock_uipath_span.to_dict.return_value = {
+                "TraceId": "test-trace-id",
+                "Attributes": {},
+            }
+
+            with patch(
+                "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
+                return_value=mock_uipath_span,
+            ):
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                exporter.http_client.post.return_value = mock_response
+
+                result = exporter.export([span1, span2])
+
+                assert result == SpanExportResult.SUCCESS
+                # Both spans should be exported
+                exporter.http_client.post.assert_called_once()
+                call_args = exporter.http_client.post.call_args
+                payload = call_args.kwargs["json"]
+                assert len(payload) == 2
+
+    def test_low_code_export_filters_spans(self, mock_env_vars):
+        """For low code, export should filter out spans without custom instrumentation marker."""
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter(is_low_code=True)
+            exporter._build_url = MagicMock(
+                return_value="https://test.uipath.com/api/Traces/spans?traceId=test&source=Robots"
+            )
+
+            # Create span without custom instrumentation marker
+            span_without_marker = MagicMock(spec=ReadableSpan)
+            span_without_marker.attributes = {"some_attribute": "value"}
+
+            # Create span with custom instrumentation marker
+            span_with_marker = MagicMock(spec=ReadableSpan)
+            span_with_marker.attributes = {"uipath.custom_instrumentation": True}
+
+            mock_uipath_span = MagicMock()
+            mock_uipath_span.to_dict.return_value = {
+                "TraceId": "test-trace-id",
+                "Attributes": {},
+            }
+
+            with patch(
+                "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
+                return_value=mock_uipath_span,
+            ):
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                exporter.http_client.post.return_value = mock_response
+
+                result = exporter.export([span_without_marker, span_with_marker])
+
+                assert result == SpanExportResult.SUCCESS
+                # Only span with marker should be exported
+                exporter.http_client.post.assert_called_once()
+                call_args = exporter.http_client.post.call_args
+                payload = call_args.kwargs["json"]
+                assert len(payload) == 1
 
 
 if __name__ == "__main__":
