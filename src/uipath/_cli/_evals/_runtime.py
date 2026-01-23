@@ -611,26 +611,12 @@ class UiPathEvalRuntime:
                         )
                     )
 
-                    # Publish suspended status event
-                    await self.event_bus.publish(
-                        EvaluationEvents.UPDATE_EVAL_RUN,
-                        EvalRunUpdatedEvent(
-                            execution_id=execution_id,
-                            eval_item=eval_item,
-                            eval_results=[],
-                            success=True,  # Not failed, just suspended
-                            agent_output={
-                                "status": "suspended",
-                                "triggers": [
-                                    t.model_dump(by_alias=True) for t in triggers
-                                ],
-                            },
-                            agent_execution_time=agent_execution_output.execution_time,
-                            spans=agent_execution_output.spans,
-                            logs=agent_execution_output.logs,
-                            exception_details=None,
-                        ),
-                        wait_for_completion=False,
+                    # DO NOT update evalRun status when suspended!
+                    # The evalRun should remain in IN_PROGRESS state until the agent completes
+                    # and evaluators run. When the execution resumes, the evaluators will run
+                    # and the evalRun will be properly updated with results.
+                    logger.info(
+                        "EVAL RUNTIME: Skipping evalRun update - keeping status as IN_PROGRESS until resume"
                     )
 
                     # Return partial results with trigger information
