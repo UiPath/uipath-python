@@ -297,7 +297,11 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             Any: The index information, including its configuration and metadata.
         """
-        spec = self._retrieve_by_id_spec(id)
+        spec = self._retrieve_by_id_spec(
+            id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         return self.request(
             spec.method,
@@ -325,7 +329,11 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             Any: The index information, including its configuration and metadata.
         """
-        spec = self._retrieve_by_id_spec(id)
+        spec = self._retrieve_by_id_spec(
+            id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         response = await self.request_async(
             spec.method,
@@ -1368,6 +1376,7 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
+
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
