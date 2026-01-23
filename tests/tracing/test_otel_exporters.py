@@ -859,7 +859,7 @@ class TestSpanFilteringByAgentType:
         """For coded agents, export should process all spans regardless of marker."""
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter(is_low_code=False)
-            exporter._build_url = MagicMock(
+            exporter._build_url = MagicMock(  # type: ignore
                 return_value="https://test.uipath.com/api/Traces/spans?traceId=test&source=Robots"
             )
 
@@ -882,14 +882,14 @@ class TestSpanFilteringByAgentType:
             ):
                 mock_response = MagicMock()
                 mock_response.status_code = 200
-                exporter.http_client.post.return_value = mock_response
+                exporter.http_client.post.return_value = mock_response  # type: ignore
 
                 result = exporter.export([span1, span2])
 
                 assert result == SpanExportResult.SUCCESS
                 # Both spans should be exported
-                exporter.http_client.post.assert_called_once()
-                call_args = exporter.http_client.post.call_args
+                exporter.http_client.post.assert_called_once()  # type: ignore
+                call_args = exporter.http_client.post.call_args  # type: ignore
                 payload = call_args.kwargs["json"]
                 assert len(payload) == 2
 
@@ -897,7 +897,7 @@ class TestSpanFilteringByAgentType:
         """For low code, export should filter out spans without custom instrumentation marker."""
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter(is_low_code=True)
-            exporter._build_url = MagicMock(
+            exporter._build_url = MagicMock(  # type: ignore
                 return_value="https://test.uipath.com/api/Traces/spans?traceId=test&source=Robots"
             )
 
@@ -921,14 +921,14 @@ class TestSpanFilteringByAgentType:
             ):
                 mock_response = MagicMock()
                 mock_response.status_code = 200
-                exporter.http_client.post.return_value = mock_response
+                exporter.http_client.post.return_value = mock_response  # type: ignore
 
                 result = exporter.export([span_without_marker, span_with_marker])
 
                 assert result == SpanExportResult.SUCCESS
                 # Only span with marker should be exported
-                exporter.http_client.post.assert_called_once()
-                call_args = exporter.http_client.post.call_args
+                exporter.http_client.post.assert_called_once()  # type: ignore
+                call_args = exporter.http_client.post.call_args  # type: ignore
                 payload = call_args.kwargs["json"]
                 assert len(payload) == 1
 
