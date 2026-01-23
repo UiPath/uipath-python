@@ -141,10 +141,18 @@ class SocketIOChatBridge:
             return
 
         try:
-            # Request disconnect then wait for it to happen, this allows pending sends to complete. Without the wait,
-            # sending the endExchange event was racing with process termination, and losing much of the time.
+            # Wait for last event to be sent (usually endExchange). Without this, it seems that the disconnect races
+            # with the send and sometimes the last event isn't sent. Since the wait happens after the agent has
+            # completed it doesn't add latency for the user, but it does create a larger window where the job isn't
+            # suspended or terminated yet and a new input message is received from the user. CAS expects coded
+            # conversational agent jobs to suspend at the end of an exchange, and for low code agent jobs to terminate
+            # at the end of an exchange. CAS will resume or re-start jobs when a new user input message is received. To
+            # handle the race condition should an input be received before the job is actually suspended or terminated,
+            # CAS waits for running jobs to suspend or terminate before resuming or starting a new job. Note that this
+            # window exists even without this additional wait, but would usually be much smaller so is less of a
+            # concern.
+            await asyncio.sleep(1)
             await self._client.disconnect()
-            await self._client.wait()
         except Exception as e:
             logger.error(f"Error during WebSocket disconnect: {e}")
         finally:
