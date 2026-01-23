@@ -159,3 +159,35 @@ async def test_execute_runtime_method_passes_options_with_resume_true():
         assert options is not None, "UiPathExecuteOptions should be passed explicitly"
         assert isinstance(options, UiPathExecuteOptions)
         assert options.resume is True, "resume should be True when context.resume=True"
+
+
+@pytest.mark.asyncio
+async def test_resume_with_multiple_evaluations_raises_error():
+    """Test that resume mode with multiple evaluations raises a ValueError."""
+    # Arrange
+    event_bus = EventBus()
+    trace_manager = UiPathTraceManager()
+    context = UiPathEvalContext()
+    context.eval_set = str(
+        Path(__file__).parent / "evals" / "eval-sets" / "multiple-evals.json"
+    )
+    context.resume = True  # Enable resume mode
+
+    # Create a mock factory
+    mock_factory = AsyncMock(spec=UiPathRuntimeFactoryProtocol)
+    mock_runtime = AsyncMock(spec=UiPathRuntimeProtocol)
+    mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)
+
+    eval_runtime = UiPathEvalRuntime(
+        context=context,
+        factory=mock_factory,
+        event_bus=event_bus,
+        trace_manager=trace_manager,
+    )
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError,
+        match=r"Resume mode is not supported with multiple evaluations.*Found 2 evaluations",
+    ):
+        await eval_runtime.initiate_evaluation(mock_runtime)

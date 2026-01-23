@@ -276,6 +276,15 @@ class UiPathEvalRuntime:
         evaluation_set, _ = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
+
+        # Validate that resume mode is not used with multiple evaluations
+        if self.context.resume and len(evaluation_set.evaluations) > 1:
+            raise ValueError(
+                f"Resume mode is not supported with multiple evaluations. "
+                f"Found {len(evaluation_set.evaluations)} evaluations in the set. "
+                f"Please run with a single evaluation using --eval-ids to specify one evaluation."
+            )
+
         evaluators = await self._load_evaluators(evaluation_set, runtime)
 
         await self.event_bus.publish(
