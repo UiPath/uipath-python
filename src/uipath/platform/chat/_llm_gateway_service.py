@@ -18,6 +18,7 @@ Classes:
 
 from typing import Any
 
+from opentelemetry import trace
 from pydantic import BaseModel
 
 from ..._utils import Endpoint
