@@ -391,11 +391,14 @@ def files_to_include(
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml", ".md"]
     files_included = ["pyproject.toml"]
     files_excluded = []
+    # Files that should be included at any depth (not just root level)
+    files_included_at_any_depth = ["pyproject.toml"]
 
     if directories_to_ignore is None:
         directories_to_ignore = []
     if include_uv_lock:
         files_included += ["uv.lock"]
+        files_included_at_any_depth += ["uv.lock"]
     if pack_options is not None:
         if pack_options.file_extensions_included:
             file_extensions_included.extend(pack_options.file_extensions_included)
@@ -422,12 +425,16 @@ def files_to_include(
         )
 
     extra_files: list[FileInfo] = []
+    # Directories that should be included even if they start with .
+    dot_directories_included = [".agent-builder"]
     # Walk through directory and return all files in the allowlist
     for root, dirs, files in os.walk(directory):
         # Skip all directories that start with . or are a venv or are excluded
         included_dirs = []
         for d in dirs:
-            if d.startswith(".") or is_venv_dir(os.path.join(root, d)):
+            if (d.startswith(".") and d not in dot_directories_included) or is_venv_dir(
+                os.path.join(root, d)
+            ):
                 continue
 
             # Check if directory should be excluded
@@ -461,14 +468,16 @@ def files_to_include(
             # Normalize the path
             normalized_rel_path = rel_path.replace(os.sep, "/")
 
-            # Check inclusion: by extension, by filename (for base directory), or by relative path
+            # Check inclusion: by extension, by filename, or by relative path
             should_include = (
                 file_extension in file_extensions_included
+                or file
+                in files_included_at_any_depth  # pyproject.toml and uv.lock at any depth
                 or (
                     file in files_included and normalized_rel_path == file
-                )  # filename match for base directory only
+                )  # other files only at root level
                 or normalized_rel_path
-                in files_included  # path match for subdirectories
+                in files_included  # path match for specific paths
             )
 
             # Check exclusion: by filename (for base directory only) or by relative path

@@ -88,7 +88,7 @@ class UiPathSpan:
     folder_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
     )
-    source: Optional[str] = None
+    source: Optional[int] = None
     span_type: str = "Coded Agents"
     process_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
@@ -102,6 +102,7 @@ class UiPathSpan:
     # Top-level fields for internal tracing schema
     execution_type: Optional[int] = None
     agent_version: Optional[str] = None
+    verbosity_level: Optional[int] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
         """Convert the Span to a dictionary suitable for JSON serialization.
@@ -143,6 +144,7 @@ class UiPathSpan:
             "ReferenceId": self.reference_id,
             "ExecutionType": self.execution_type,
             "AgentVersion": self.agent_version,
+            "VerbosityLevel": self.verbosity_level,
         }
 
 
@@ -294,6 +296,9 @@ class _SpanUtils:
         # Top-level fields for internal tracing schema
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
+        verbosity_level = attributes_dict.get("verbosityLevel")
+        # sourceType in attributes maps to top-level Source (platform type enum)
+        source = attributes_dict.get("sourceType")
 
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
@@ -322,6 +327,8 @@ class _SpanUtils:
             span_type=span_type,
             execution_type=execution_type,
             agent_version=agent_version,
+            verbosity_level=verbosity_level,
+            source=source,
         )
 
     @staticmethod
