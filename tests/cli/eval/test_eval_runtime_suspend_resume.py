@@ -328,8 +328,8 @@ class TestSuspendResumeLifecycle:
         ]
 
         assert len(suspend_create_calls) > 0, "Suspend phase should CREATE entry"
-        assert len(suspend_update_calls) > 0, (
-            "Suspend phase should UPDATE entry with triggers"
+        assert len(suspend_update_calls) == 0, (
+            "Suspend phase should NOT UPDATE - evalRun stays IN_PROGRESS until resume"
         )
 
         # Phase 2: Resume
