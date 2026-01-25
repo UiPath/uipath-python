@@ -291,11 +291,17 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             id (str): The unique identifier of the context index.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
 
         Returns:
             Any: The index information, including its configuration and metadata.
         """
-        spec = self._retrieve_by_id_spec(id)
+        spec = self._retrieve_by_id_spec(
+            id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         return self.request(
             spec.method,
@@ -317,11 +323,17 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Args:
             id (str): The unique identifier of the context index.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
 
         Returns:
             Any: The index information, including its configuration and metadata.
         """
-        spec = self._retrieve_by_id_spec(id)
+        spec = self._retrieve_by_id_spec(
+            id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
 
         response = await self.request_async(
             spec.method,
@@ -444,11 +456,7 @@ class ContextGroundingService(FolderContext, BaseService):
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     def create_ephemeral_index(
-        self,
-        usage: EphemeralIndexUsage,
-        attachments: list[str],
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        self, usage: EphemeralIndexUsage, attachments: list[str]
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
@@ -462,8 +470,6 @@ class ContextGroundingService(FolderContext, BaseService):
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
-            folder_path=folder_path,
-            folder_key=folder_key,
         )
 
         response = self.request(
@@ -478,11 +484,7 @@ class ContextGroundingService(FolderContext, BaseService):
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     async def create_ephemeral_index_async(
-        self,
-        usage: EphemeralIndexUsage,
-        attachments: list[str],
-        folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
+        self, usage: EphemeralIndexUsage, attachments: list[str]
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
@@ -496,8 +498,6 @@ class ContextGroundingService(FolderContext, BaseService):
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
-            folder_path=folder_path,
-            folder_key=folder_key,
         )
 
         response = await self.request_async(
@@ -1272,8 +1272,6 @@ class ContextGroundingService(FolderContext, BaseService):
         """
         data_source_dict = self._build_ephemeral_data_source(attachments)
 
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
-
         payload = CreateEphemeralIndexPayload(
             usage=usage,
             data_source=data_source_dict,
@@ -1283,9 +1281,7 @@ class ContextGroundingService(FolderContext, BaseService):
             method="POST",
             endpoint=Endpoint("/ecs_/v2/indexes/createephemeral"),
             json=payload.model_dump(by_alias=True, exclude_none=True),
-            headers={
-                **header_folder(folder_key, None),
-            },
+            headers={},
         )
 
     def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:
@@ -1383,7 +1379,9 @@ class ContextGroundingService(FolderContext, BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
-            headers={},
+            headers={
+                **header_folder(folder_key, None),
+            },
         )
 
     def _delete_by_id_spec(
