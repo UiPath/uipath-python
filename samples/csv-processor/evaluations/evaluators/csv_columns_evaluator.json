@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "id": "CSVColumnsEvaluator",
+  "description": "Checks if the expected CSV column names are correctly identified in the output",
+  "evaluatorSchema": "file://csv_columns_evaluator.py:CSVColumnsEvaluator",
+  "evaluatorConfig": {
+    "name": "CSVColumnsEvaluator",
+    "defaultEvaluationCriteria": {
+      "expected_columns": []
+    }
+  }
+}

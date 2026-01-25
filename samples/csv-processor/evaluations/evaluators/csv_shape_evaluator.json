@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "id": "CSVShapeEvaluator",
+  "description": "Checks if the CSV shape information (rows, columns) is correct in the output",
+  "evaluatorSchema": "file://csv_shape_evaluator.py:CSVShapeEvaluator",
+  "evaluatorConfig": {
+    "name": "CSVShapeEvaluator",
+    "defaultEvaluationCriteria": {
+      "expected_rows": 1,
+      "expected_columns": 1
+    }
+  }
+}

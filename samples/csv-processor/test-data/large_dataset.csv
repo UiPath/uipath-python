@@ -1,0 +1,6 @@
+id,name,email,age,department,salary,hire_date,address,city,state,zip,phone,status
+1,John Doe,john@example.com,30,Engineering,75000,2020-01-15,123 Main St,New York,NY,10001,555-0101,Active
+2,Jane Smith,jane@example.com,28,Marketing,65000,2021-03-20,456 Oak Ave,Los Angeles,CA,90001,555-0102,Active
+3,Bob Johnson,bob@example.com,35,Sales,70000,2019-06-10,789 Pine Rd,Chicago,IL,60601,555-0103,Active
+4,Alice Brown,alice@example.com,32,Engineering,80000,2018-11-05,321 Elm St,Houston,TX,77001,555-0104,On Leave
+5,Charlie Wilson,charlie@example.com,29,HR,60000,2022-02-28,654 Maple Dr,Phoenix,AZ,85001,555-0105,Active
