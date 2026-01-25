@@ -32,8 +32,24 @@ class CitationMode(str, Enum):
     INLINE = "Inline"
 
 
+class EphemeralIndexUsage(str, Enum):
+    """Enum representing possible ephemeral index usage types."""
+
+    DEEP_RAG = "DeepRAG"
+    BATCH_RAG = "BatchRAG"
+
+
 class DeepRagStatus(str, Enum):
     """Enum representing possible deep RAG tasks status."""
+
+    QUEUED = "Queued"
+    IN_PROGRESS = "InProgress"
+    SUCCESSFUL = "Successful"
+    FAILED = "Failed"
+
+
+class IndexStatus(str, Enum):
+    """Enum representing possible index tasks status."""
 
     QUEUED = "Queued"
     IN_PROGRESS = "InProgress"

@@ -3,7 +3,6 @@ from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
 import httpx
 from pydantic import Field, TypeAdapter
-from typing_extensions import deprecated
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils._ssl_context import get_httpx_client_kwargs
@@ -30,13 +29,16 @@ from .context_grounding import (
     ContextGroundingQueryResponse,
     DeepRagCreationResponse,
     DeepRagResponse,
+    EphemeralIndexUsage,
 )
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
+    AttachmentsDataSource,
     BucketDataSource,
     BucketSourceConfig,
     ConfluenceDataSource,
     ConfluenceSourceConfig,
+    CreateEphemeralIndexPayload,
     CreateIndexPayload,
     DropboxDataSource,
     DropboxSourceConfig,
@@ -276,7 +278,6 @@ class ContextGroundingService(FolderContext, BaseService):
             raise Exception("ContextGroundingIndex not found") from e
 
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
-    @deprecated("Use retrieve instead")
     def retrieve_by_id(
         self,
         id: str,
@@ -309,7 +310,6 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
 
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
-    @deprecated("Use retrieve_async instead")
     async def retrieve_by_id_async(
         self,
         id: str,
@@ -442,6 +442,66 @@ class ContextGroundingService(FolderContext, BaseService):
             preprocessing_request=preprocessing_request or LLMV4_REQUEST,
             folder_path=folder_path,
             folder_key=folder_key,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return ContextGroundingIndex.model_validate(response.json())
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
+    def create_ephemeral_index(
+        self,
+        usage: EphemeralIndexUsage,
+        attachments: list[str],
+    ) -> ContextGroundingIndex:
+        """Create a new ephemeral context grounding index.
+
+        Args:
+            usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG or BatchRAG)
+            attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+
+        Returns:
+            ContextGroundingIndex: The created index information.
+        """
+        spec = self._create_ephemeral_spec(
+            usage,
+            attachments,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return ContextGroundingIndex.model_validate(response.json())
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
+    async def create_ephemeral_index_async(
+        self,
+        usage: EphemeralIndexUsage,
+        attachments: list[str],
+    ) -> ContextGroundingIndex:
+        """Create a new ephemeral context grounding index.
+
+        Args:
+            usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG or BatchRAG)
+            attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+
+        Returns:
+            ContextGroundingIndex: The created index information.
+        """
+        spec = self._create_ephemeral_spec(
+            usage,
+            attachments,
         )
 
         response = await self.request_async(
@@ -1197,6 +1257,34 @@ class ContextGroundingService(FolderContext, BaseService):
             },
         )
 
+    def _create_ephemeral_spec(
+        self,
+        usage: str,
+        attachments: list[str],
+    ) -> RequestSpec:
+        """Create request spec for ephemeral index creation.
+
+        Args:
+            usage (str): The task in which the ephemeral index will be used for
+            attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+
+        Returns:
+            RequestSpec for the create index request
+        """
+        data_source_dict = self._build_ephemeral_data_source(attachments)
+
+        payload = CreateEphemeralIndexPayload(
+            usage=usage,
+            data_source=data_source_dict,
+        )
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint("/ecs_/v2/indexes/createephemeral"),
+            json=payload.model_dump(by_alias=True, exclude_none=True),
+            headers={},
+        )
+
     def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:
         """Build data source configuration from typed source config.
 
@@ -1264,6 +1352,22 @@ class ContextGroundingService(FolderContext, BaseService):
             )
 
         return data_source.model_dump(by_alias=True, exclude_none=True)
+
+    def _build_ephemeral_data_source(self, attachments: list[str]) -> Dict[str, Any]:
+        """Build data source configuration from typed source config.
+
+        Args:
+            attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+
+        Returns:
+            Dictionary with data source configuration for API
+        """
+        data_source = AttachmentsDataSource(attachments=attachments)
+        return data_source.model_dump(
+            by_alias=True,
+            exclude_none=True,
+            mode="json",
+        )
 
     def _retrieve_by_id_spec(
         self,
@@ -1421,9 +1525,6 @@ class ContextGroundingService(FolderContext, BaseService):
                 if self._folder_path
                 else None
             )
-
-        if folder_key is None:
-            raise ValueError("ContextGrounding: Failed to resolve folder key")
 
         return folder_key
 

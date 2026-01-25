@@ -82,6 +82,12 @@ class ConfluenceDataSource(DataSourceBase):
     space_id: str = Field(alias="spaceId", description="Space ID")
 
 
+class AttachmentsDataSource(BaseModel):
+    """Data source configuration for Attachments."""
+
+    attachments: list[str] = Field(description="List of attachment ids")
+
+
 class Indexer(BaseModel):
     """Configuration for periodic indexing of data sources."""
 
@@ -131,6 +137,23 @@ class CreateIndexPayload(BaseModel):
     )
     pre_processing: Optional[PreProcessing] = Field(
         default=None, alias="preProcessing", description="Preprocessing configuration"
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CreateEphemeralIndexPayload(BaseModel):
+    """Payload for creating an ephemeral context grounding index.
+
+    Note: data_source is Dict[str, Any] because it may contain additional
+    fields like 'indexer' that are added dynamically based on configuration.
+    The data source is still validated through the _build_data_source method
+    which uses typed models internally.
+    """
+
+    usage: str = Field(description="Index usage")
+    data_source: Dict[str, Any] = Field(
+        alias="dataSource", description="Data source configuration"
     )
 
     model_config = ConfigDict(populate_by_name=True)
