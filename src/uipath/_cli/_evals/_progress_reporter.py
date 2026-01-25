@@ -417,7 +417,7 @@ class StudioWebProgressReporter:
     @gracefully_handle_errors
     async def create_eval_run(
         self, eval_item: EvaluationItem, eval_set_run_id: str, is_coded: bool = False
-    ) -> str:
+    ) -> str | None:
         """Create a new evaluation run in StudioWeb.
 
         Args:
