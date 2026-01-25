@@ -6,9 +6,11 @@ from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeEvent,
+    UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
+    UiPathRuntimeStorageProtocol,
     UiPathStreamOptions,
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
@@ -75,8 +77,11 @@ async def test_evaluate():
         def discover_entrypoints(self) -> list[str]:
             return ["test"]
 
-        async def discover_runtimes(self) -> list[UiPathRuntimeProtocol]:
-            return [TestRuntime(self.executor)]
+        async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+            return None
+
+        async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
+            return None
 
         async def new_runtime(
             self, entrypoint: str, runtime_id: str, **kwargs
@@ -176,8 +181,11 @@ async def test_eval_runtime_generates_uuid_when_no_custom_id():
         def discover_entrypoints(self) -> list[str]:
             return ["test"]
 
-        async def discover_runtimes(self) -> list[UiPathRuntimeProtocol]:
-            return [TestRuntime(self.executor)]
+        async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+            return None
+
+        async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
+            return None
 
         async def new_runtime(
             self, entrypoint: str, runtime_id: str, **kwargs
@@ -262,8 +270,11 @@ async def test_eval_runtime_works_without_exporters():
         def discover_entrypoints(self) -> list[str]:
             return ["test"]
 
-        async def discover_runtimes(self) -> list[UiPathRuntimeProtocol]:
-            return [TestRuntime(self.executor)]
+        async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+            return None
+
+        async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
+            return None
 
         async def new_runtime(
             self, entrypoint: str, runtime_id: str, **kwargs
