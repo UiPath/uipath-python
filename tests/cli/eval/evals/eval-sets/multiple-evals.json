@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "id": "multiple-eval-set-id",
+  "name": "Multiple Evaluations Set",
+  "evaluatorRefs": [
+    "ExactMatchEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "eval-1",
+      "name": "First Evaluation",
+      "inputs": {"foo": "bar"},
+      "evaluationCriterias": {
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "foo": "bar"
+          }
+        }
+      }
+    },
+    {
+      "id": "eval-2",
+      "name": "Second Evaluation",
+      "inputs": {"baz": "qux"},
+      "evaluationCriterias": {
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "baz": "qux"
+          }
+        }
+      }
+    }
+  ],
+  "modelSettings": [],
+  "createdAt": "2025-09-04T18:54:58.379Z",
+  "updatedAt": "2025-09-04T18:55:55.416Z"
+}

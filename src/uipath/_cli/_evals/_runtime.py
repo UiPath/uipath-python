@@ -276,6 +276,15 @@ class UiPathEvalRuntime:
         evaluation_set, _ = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
+
+        # Validate that resume mode is not used with multiple evaluations
+        if self.context.resume and len(evaluation_set.evaluations) > 1:
+            raise ValueError(
+                f"Resume mode is not supported with multiple evaluations. "
+                f"Found {len(evaluation_set.evaluations)} evaluations in the set. "
+                f"Please run with a single evaluation using --eval-ids to specify one evaluation."
+            )
+
         evaluators = await self._load_evaluators(evaluation_set, runtime)
 
         await self.event_bus.publish(
@@ -892,15 +901,16 @@ class UiPathEvalRuntime:
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
                     logger.info(f"Resuming evaluation {eval_item.id}")
-                    options = UiPathExecuteOptions(resume=True)
-                    result = await execution_runtime.execute(
-                        input=input_overrides if self.context.job_id is None else None,
-                        options=options,
-                    )
+                    input = input_overrides if self.context.job_id is None else None
                 else:
-                    result = await execution_runtime.execute(
-                        input=inputs_with_overrides,
-                    )
+                    input = inputs_with_overrides
+
+                # Always pass UiPathExecuteOptions explicitly for consistency with debug flow
+                options = UiPathExecuteOptions(resume=self.context.resume)
+                result = await execution_runtime.execute(
+                    input=input,
+                    options=options,
+                )
 
                 # Log suspend status if applicable
                 if result.status == UiPathRuntimeStatus.SUSPENDED:
