@@ -88,7 +88,7 @@ class UiPathSpan:
     folder_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
     )
-    source: Optional[int] = None
+    source: Optional[str] = None
     span_type: str = "Coded Agents"
     process_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
@@ -294,8 +294,6 @@ class _SpanUtils:
         # Top-level fields for internal tracing schema
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
-        reference_id = attributes_dict.get("referenceId")
-        source = attributes_dict.get("source")
 
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
@@ -324,8 +322,6 @@ class _SpanUtils:
             span_type=span_type,
             execution_type=execution_type,
             agent_version=agent_version,
-            reference_id=reference_id,
-            source=source,
         )
 
     @staticmethod

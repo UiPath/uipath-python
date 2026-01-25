@@ -18,7 +18,6 @@ Classes:
 
 from typing import Any
 
-from opentelemetry import trace
 from pydantic import BaseModel
 
 from ..._utils import Endpoint
@@ -203,7 +202,7 @@ class UiPathOpenAIService(BaseService):
 
         return TextEmbedding.model_validate(response.json())
 
-    @traced(name="LLM call", run_type="uipath")
+    @traced(name="llm_chat_completions", run_type="uipath")
     async def chat_completions(
         self,
         messages: list[dict[str, str]],
@@ -289,10 +288,6 @@ class UiPathOpenAIService(BaseService):
             When using a Pydantic BaseModel as response_format, it will be automatically
             converted to the appropriate JSON schema format for the LLM Gateway.
         """
-        span = trace.get_current_span()
-        span.set_attribute("model", model)
-        span.set_attribute("uipath.custom_instrumentation", True)
-
         endpoint = EndpointManager.get_passthrough_endpoint().format(
             model=model, api_version=api_version
         )
@@ -352,7 +347,7 @@ class UiPathLlmChatService(BaseService):
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    @traced(name="LLM call", run_type="uipath")
+    @traced(name="llm_chat_completions", run_type="uipath")
     async def chat_completions(
         self,
         messages: list[dict[str, str]] | list[tuple[str, str]],
@@ -485,10 +480,6 @@ class UiPathLlmChatService(BaseService):
             This service uses UiPath's normalized API format which provides consistent
             behavior across different underlying model providers and enhanced enterprise features.
         """
-        span = trace.get_current_span()
-        span.set_attribute("model", model)
-        span.set_attribute("uipath.custom_instrumentation", True)
-
         converted_messages = []
 
         for message in messages:
