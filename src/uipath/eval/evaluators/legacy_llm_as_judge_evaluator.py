@@ -39,8 +39,10 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorC
         """Auto-add missing placeholders to prompt if not present.
 
         If both {{ActualOutput}} and {{ExpectedOutput}} are present, returns prompt as-is.
-        If one is missing, appends the missing one at the end in a new section.
-        If both are missing, appends both at the end in separate sections.
+        If one is missing, appends the missing one at the end in a new section with tags.
+        If both are missing, appends both at the end in separate sections with tags.
+
+        Tags are added to help the LLM distinguish between outputs, especially for large JSONs.
         """
         has_actual = "{{ActualOutput}}" in v
         has_expected = "{{ExpectedOutput}}" in v
@@ -49,14 +51,24 @@ class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorC
         if has_actual and has_expected:
             return v
 
-        # Build the sections to add
+        # Build the sections to add with opening and closing tags
         sections_to_add = []
 
         if not has_actual:
-            sections_to_add.append("\n\n## Actual Output\n{{ActualOutput}}")
+            sections_to_add.append(
+                "\n\n## Actual Output\n"
+                "<ActualOutput>\n"
+                "{{ActualOutput}}\n"
+                "</ActualOutput>"
+            )
 
         if not has_expected:
-            sections_to_add.append("\n\n## Expected Output\n{{ExpectedOutput}}")
+            sections_to_add.append(
+                "\n\n## Expected Output\n"
+                "<ExpectedOutput>\n"
+                "{{ExpectedOutput}}\n"
+                "</ExpectedOutput>"
+            )
 
         # Add missing sections to the end of the prompt
         return v + "".join(sections_to_add)

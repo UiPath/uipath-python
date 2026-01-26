@@ -63,8 +63,10 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         """Auto-add missing placeholders to prompt if not present.
 
         If both {{ActualOutput}} and {{ExpectedOutput}} are present, returns prompt as-is.
-        If one is missing, appends the missing one at the end in a new section.
-        If both are missing, appends both at the end in separate sections.
+        If one is missing, appends the missing one at the end in a new section with tags.
+        If both are missing, appends both at the end in separate sections with tags.
+
+        Tags are added to help the LLM distinguish between outputs, especially for large JSONs.
         """
         has_actual = self.actual_output_placeholder in self.evaluator_config.prompt
         has_expected = self.expected_output_placeholder in self.evaluator_config.prompt
@@ -73,17 +75,23 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         if has_actual and has_expected:
             return self
 
-        # Build the sections to add
+        # Build the sections to add with opening and closing tags
         sections_to_add = []
 
         if not has_actual:
             sections_to_add.append(
-                f"\n\n## Actual Output\n{self.actual_output_placeholder}"
+                f"\n\n## Actual Output\n"
+                f"<ActualOutput>\n"
+                f"{self.actual_output_placeholder}\n"
+                f"</ActualOutput>"
             )
 
         if not has_expected:
             sections_to_add.append(
-                f"\n\n## Expected Output\n{self.expected_output_placeholder}"
+                f"\n\n## Expected Output\n"
+                f"<ExpectedOutput>\n"
+                f"{self.expected_output_placeholder}\n"
+                f"</ExpectedOutput>"
             )
 
         # Add missing sections to the end of the prompt
