@@ -114,8 +114,8 @@ def _create_spec(
 
     if app_version is not None:
         json_payload["appVersion"] = app_version
-    if priority is not None:
-        json_payload["priority"] = _normalize_priority(priority)
+    if priority and (normalized_priority := _normalize_priority(priority)):
+        json_payload["priority"] = normalized_priority
     if labels is not None:
         json_payload["tags"] = [
             {

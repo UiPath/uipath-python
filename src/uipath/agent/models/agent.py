@@ -409,6 +409,42 @@ TaskTitle = Annotated[
 ]
 
 
+def _resolve_task_title(v: Any) -> Any:
+    """Resolve taskTitleV2 and taskTitle into a single task_title field."""
+    if not isinstance(v, dict):
+        return v
+
+    task_title_v2 = v.get("taskTitleV2")
+    task_title = v.get("taskTitle")
+
+    # Priority 1: Use taskTitleV2 if present
+    if task_title_v2 is not None:
+        # Check the type field
+        title_type = (
+            task_title_v2.get("type") if isinstance(task_title_v2, dict) else None
+        )
+
+        if title_type == "textBuilder":
+            # Move taskTitleV2 to taskTitle
+            v["taskTitle"] = task_title_v2
+        else:
+            raise NotImplementedError(f"TaskTitle type '{title_type}' not implemented")
+
+        # Remove taskTitleV2 from the dict
+        v.pop("taskTitleV2", None)
+
+    # Priority 2: Use taskTitle if present (legacy string support)
+    elif task_title is not None:
+        # Already present, no action needed
+        pass
+
+    # Priority 3: Default to "Escalation Task"
+    else:
+        v["taskTitle"] = "Escalation Task"
+
+    return v
+
+
 class AgentEscalationChannelProperties(BaseResourceProperties):
     """Agent escalation channel properties model."""
 
@@ -447,46 +483,9 @@ class AgentEscalationChannel(BaseCfg):
 
     @model_validator(mode="before")
     @classmethod
-    def _consolidate_task_title(cls, v: Any) -> Any:
-        """Consolidate taskTitleV2 and taskTitle into a single task_title field."""
-        if not isinstance(v, dict):
-            return v
-
-        # Check both alias (taskTitleV2) and field name (task_title_v2)
-        task_title_v2 = v.get("taskTitleV2") or v.get("task_title_v2")
-        # Check both alias (taskTitle) and field name (task_title)
-        task_title = v.get("taskTitle") or v.get("task_title")
-
-        # Priority 1: Use taskTitleV2 if present
-        if task_title_v2 is not None:
-            # Check the type field
-            title_type = (
-                task_title_v2.get("type") if isinstance(task_title_v2, dict) else None
-            )
-
-            if title_type == "textBuilder":
-                # Move taskTitleV2 to taskTitle
-                v["taskTitle"] = task_title_v2
-            else:
-                raise NotImplementedError(
-                    f"TaskTitle type '{title_type}' not implemented"
-                )
-
-            # Remove taskTitleV2 from the dict
-            v.pop("taskTitleV2", None)
-            v.pop("task_title_v2", None)
-
-        # Priority 2: Use taskTitle if present (legacy string support)
-        elif task_title is not None:
-            v["taskTitle"] = task_title
-            # Remove the snake_case version if it exists
-            v.pop("task_title", None)
-
-        # Priority 3: Default to "Escalation Task"
-        else:
-            v["taskTitle"] = "Escalation Task"
-
-        return v
+    def _apply_task_title_resolution(cls, v: Any) -> Any:
+        """Apply task title resolution."""
+        return _resolve_task_title(v)
 
 
 class AgentEscalationResourceConfig(BaseAgentResourceConfig):
