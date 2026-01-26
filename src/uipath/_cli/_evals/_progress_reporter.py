@@ -730,10 +730,6 @@ class StudioWebProgressReporter:
                     f"Found eval_run_id={eval_run_id} for execution_id={payload.execution_id} in cache"
                 )
 
-            # Export spans using the eval_set_run_id as trace_id (already set during CREATE_EVAL_SET_RUN)
-            # Individual eval runs are distinguished by span attributes, not separate trace IDs
-            self.spans_exporter.export(payload.spans)
-
             for eval_result in payload.eval_results:
                 evaluator_id = eval_result.evaluator_id
                 if evaluator_id in self.evaluator_scores:

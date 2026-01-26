@@ -23,6 +23,7 @@ from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
 
+from ._evals._live_tracking_processor import LiveTrackingSpanProcessor
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -180,15 +181,18 @@ def run(
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         try:
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+                            factory_settings = await factory.get_settings()
                             runtime = await factory.new_runtime(
                                 entrypoint,
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
 
                             if ctx.job_id:
-                                is_low_code = entrypoint == "agent.json"
-                                trace_manager.add_span_exporter(
-                                    LlmOpsHttpExporter(is_low_code=is_low_code)
+                                job_exporter = LlmOpsHttpExporter()
+                                LiveTrackingSpanProcessor.create_and_register(
+                                    job_exporter,
+                                    trace_manager,
+                                    settings=factory_settings,
                                 )
 
                                 if ctx.conversation_id and ctx.exchange_id:

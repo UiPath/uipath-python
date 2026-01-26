@@ -53,7 +53,13 @@ class UiPathFunctionsRuntimeFactory:
         return None
 
     async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
-        """Get factory settings if any (placeholder for protocol compliance)."""
+        """Get factory settings for coded functions.
+
+        Coded functions don't need span filtering - all spans are relevant
+        since developers have full control over instrumentation.
+
+        Low-code agents (LangGraph) need filtering due to framework overhead.
+        """
         return None
 
     async def new_runtime(

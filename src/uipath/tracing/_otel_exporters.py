@@ -108,18 +108,13 @@ class LlmOpsHttpExporter(SpanExporter):
     def __init__(
         self,
         trace_id: Optional[str] = None,
-        is_low_code: bool = False,
-        **kwargs,
     ):
         """Initialize the exporter with the base URL and authentication token.
 
         Args:
             trace_id: Optional trace ID to use for all spans
-            is_low_code: Whether this is for a low code process (agent.json).
-                        If True, applies custom instrumentation filtering.
-                        If False (coded agent), no filtering is applied.
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.base_url = self._get_base_url()
         self.auth_token = os.environ.get("UIPATH_ACCESS_TOKEN")
         self.headers = {
@@ -131,7 +126,6 @@ class LlmOpsHttpExporter(SpanExporter):
 
         self.http_client = httpx.Client(**client_kwargs, headers=self.headers)
         self.trace_id = trace_id
-        self.is_low_code = is_low_code
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to UiPath LLM Ops."""
@@ -139,15 +133,8 @@ class LlmOpsHttpExporter(SpanExporter):
             logger.warning("No spans to export")
             return SpanExportResult.SUCCESS
 
-        # Filter out spans marked for dropping
-        filtered_spans = [s for s in spans if not self._should_drop_span(s)]
-
-        if len(filtered_spans) == 0:
-            logger.debug("No spans to export after filtering dropped spans")
-            return SpanExportResult.SUCCESS
-
         logger.debug(
-            f"Exporting {len(filtered_spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
+            f"Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
         )
 
         # Use optimized path: keep attributes as dict for processing
@@ -156,7 +143,7 @@ class LlmOpsHttpExporter(SpanExporter):
             _SpanUtils.otel_span_to_uipath_span(
                 span, custom_trace_id=self.trace_id, serialize_attributes=False
             ).to_dict(serialize_attributes=False)
-            for span in filtered_spans
+            for span in spans
         ]
 
         url = self._build_url(span_list)
@@ -197,9 +184,6 @@ class LlmOpsHttpExporter(SpanExporter):
         Returns:
             SpanExportResult indicating success or failure
         """
-        if self._should_drop_span(span):
-            return SpanExportResult.SUCCESS
-
         span_data = _SpanUtils.otel_span_to_uipath_span(
             span, custom_trace_id=self.trace_id, serialize_attributes=False
         ).to_dict(serialize_attributes=False)
@@ -417,34 +401,6 @@ class LlmOpsHttpExporter(SpanExporter):
         uipath_url = uipath_url.rstrip("/")
 
         return uipath_url
-
-    def _should_drop_span(self, span: ReadableSpan) -> bool:
-        """Check if span should be dropped using whitelist filtering.
-
-        For low code processes (agent.json):
-            Only spans with uipath.custom_instrumentation=True are kept.
-            All other spans (HTTP instrumentation, OpenTelemetry generic spans,
-            auto-instrumentation, etc.) are dropped.
-
-        For coded agents:
-            No filtering is applied - all spans are kept.
-
-        Args:
-            span: The span to check
-
-        Returns:
-            True if the span should be dropped, False otherwise
-        """
-        # For coded agents, don't drop any spans
-        if not self.is_low_code:
-            return False
-
-        # For low code processes, apply whitelist filtering
-        attrs = span.attributes or {}
-
-        # Whitelist: only keep spans with custom instrumentation marker
-        # Drop everything else
-        return not attrs.get("uipath.custom_instrumentation")
 
 
 class JsonLinesFileExporter(SpanExporter):

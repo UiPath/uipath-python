@@ -17,6 +17,7 @@ from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import get_debug_bridge
+from uipath._cli._evals._live_tracking_processor import LiveTrackingSpanProcessor
 from uipath._cli._evals._span_collection import ExecutionSpanCollector
 from uipath._cli._evals.mocks.mocks import (
     clear_execution_context,
@@ -194,15 +195,16 @@ def debug(
                         trigger_poll_interval: float = 5.0
 
                         factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+                        factory_settings = await factory.get_settings()
 
                         runtime = await factory.new_runtime(
                             entrypoint, ctx.conversation_id or ctx.job_id or "default"
                         )
 
                         if ctx.job_id:
-                            is_low_code = entrypoint == "agent.json"
-                            trace_manager.add_span_exporter(
-                                LlmOpsHttpExporter(is_low_code=is_low_code)
+                            job_exporter = LlmOpsHttpExporter()
+                            LiveTrackingSpanProcessor.create_and_register(
+                                job_exporter, trace_manager, settings=factory_settings
                             )
                             trigger_poll_interval = (
                                 0.0  # Polling disabled for production jobs

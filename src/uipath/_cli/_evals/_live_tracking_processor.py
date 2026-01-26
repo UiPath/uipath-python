@@ -16,21 +16,63 @@ class LiveTrackingSpanProcessor(SpanProcessor):
     - On span start: Upsert with RUNNING status
     - On span end: Upsert with final status (OK/ERROR)
 
-    All upsert calls run in background threads without blocking evaluation
-    execution. Uses a thread pool to cap the maximum number of concurrent
-    threads and avoid resource exhaustion.
+    All upsert calls run in background threads without blocking execution.
+    Uses a thread pool to cap the maximum number of concurrent threads
+    and avoid resource exhaustion.
+
+    Filtering:
+        Applies the span_filter from factory settings (if provided).
+        - Low-code agents: Filter to uipath.custom_instrumentation=True
+        - Coded functions: No filtering (settings=None)
+
+    Architecture note:
+        One LiveTrackingSpanProcessor per LlmOpsHttpExporter.
+        Do not share processors between exporters.
     """
 
     def __init__(
         self,
         exporter: LlmOpsHttpExporter,
         max_workers: int = 10,
+        settings=None,
     ):
         self.exporter = exporter
         self.span_status = SpanStatus
+        self.settings = settings
+        self.span_filter = (
+            settings.trace_settings.span_filter
+            if settings and settings.trace_settings
+            else None
+        )
         self.executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="span-upsert"
         )
+
+    @classmethod
+    def create_and_register(
+        cls,
+        exporter: LlmOpsHttpExporter,
+        trace_manager,
+        max_workers: int = 10,
+        settings=None,
+    ) -> "LiveTrackingSpanProcessor":
+        """Factory method to create and register a live tracking processor.
+
+        Creates one LiveTrackingSpanProcessor per exporter following the
+        architecture pattern: one processor → one exporter.
+
+        Args:
+            exporter: The LlmOpsHttpExporter to send upserts to
+            trace_manager: UiPathTraceManager instance to register with
+            max_workers: Thread pool size for async upserts
+            settings: UiPathRuntimeFactorySettings with optional span_filter
+
+        Returns:
+            The created and registered processor
+        """
+        processor = cls(exporter, max_workers, settings)
+        trace_manager.add_span_processor(processor)
+        return processor
 
     def _upsert_span_async(
         self, span: Span | ReadableSpan, status_override: int | None = None
@@ -59,39 +101,15 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         self, span: Span, parent_context: context_api.Context | None = None
     ) -> None:
         """Called when span starts - upsert with RUNNING status (non-blocking)."""
-        # Only track evaluation-related spans
-        if span.attributes and self._is_eval_span(span):
+        # Apply factory span filter if configured
+        if self.span_filter is None or self.span_filter(span):
             self._upsert_span_async(span, status_override=self.span_status.RUNNING)
 
     def on_end(self, span: ReadableSpan) -> None:
         """Called when span ends - upsert with final status (non-blocking)."""
-        # Only track evaluation-related spans
-        if span.attributes and self._is_eval_span(span):
+        # Apply factory span filter if configured
+        if self.span_filter is None or self.span_filter(span):
             self._upsert_span_async(span)
-
-    def _is_eval_span(self, span: Span | ReadableSpan) -> bool:
-        """Check if span is evaluation-related."""
-        if not span.attributes:
-            return False
-
-        span_type = span.attributes.get("span_type")
-        # Track eval-related span types
-        eval_span_types = {
-            "eval",
-            "evaluator",
-            "evaluation",
-            "eval_set_run",
-            "evalOutput",
-        }
-
-        if span_type in eval_span_types:
-            return True
-
-        # Also track spans with execution.id (eval executions)
-        if "execution.id" in span.attributes:
-            return True
-
-        return False
 
     def shutdown(self) -> None:
         """Shutdown the processor and wait for pending tasks to complete."""
