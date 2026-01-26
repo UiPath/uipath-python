@@ -210,7 +210,10 @@ async def upload_source_files_to_project(
 
 @click.command()
 @click.argument(
-    "root", type=click.Path(exists=True, file_okay=False, dir_okay=True), default="."
+    "root",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=".",
+    metavar="",
 )
 @click.option(
     "--ignore-resources",
@@ -232,21 +235,18 @@ def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> No
 
     This command pushes the local project files to a UiPath Studio Web project.
     It ensures that the remote project structure matches the local files by:
+
     - Updating existing files that have changed
     - Uploading new files
     - Deleting remote files that no longer exist locally
     - Optionally managing the UV lock file
 
-    Args:
-        root: The root directory of the project
-        ignore_resources: Whether to skip importing the referenced resources
-        nolock: Whether to skip UV lock operations and exclude uv.lock from push
-        overwrite: Whether to automatically overwrite remote files without prompts
+    **Environment Variables:**
 
-    Environment Variables:
-        UIPATH_PROJECT_ID: Required. The ID of the UiPath Cloud project
+    - `UIPATH_PROJECT_ID`: Required. The ID of the UiPath Cloud project
 
-    Example:
+    **Example:**
+
         $ uipath push
         $ uipath push --nolock
         $ uipath push --overwrite

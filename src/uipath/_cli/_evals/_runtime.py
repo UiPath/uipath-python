@@ -417,8 +417,6 @@ class UiPathEvalRuntime:
                                 runtime_result = (
                                     eval_run_result.agent_execution_output.result
                                 )
-                                if runtime_result.trigger:
-                                    all_triggers.append(runtime_result.trigger)
                                 if runtime_result.triggers:
                                     all_triggers.extend(runtime_result.triggers)
 

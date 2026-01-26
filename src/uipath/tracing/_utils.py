@@ -245,8 +245,7 @@ class _SpanUtils:
                 try:
                     attributes_dict["input.value"] = json.loads(original_inputs)
                     attributes_dict["input.mime_type"] = "application/json"
-                except Exception as e:
-                    logger.warning(f"Error parsing inputs: {e}")
+                except Exception:
                     attributes_dict["input.value"] = original_inputs
             else:
                 attributes_dict["input.value"] = original_inputs
@@ -258,8 +257,7 @@ class _SpanUtils:
                 try:
                     attributes_dict["output.value"] = json.loads(original_outputs)
                     attributes_dict["output.mime_type"] = "application/json"
-                except Exception as e:
-                    logger.warning(f"Error parsing output: {e}")
+                except Exception:
                     attributes_dict["output.value"] = original_outputs
             else:
                 attributes_dict["output.value"] = original_outputs

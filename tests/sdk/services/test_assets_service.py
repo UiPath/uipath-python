@@ -31,6 +31,8 @@ class TestAssetsService:
             tenant: str,
             version: str,
         ) -> None:
+            import json
+
             httpx_mock.add_response(
                 url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
                 status_code=200,
@@ -53,6 +55,12 @@ class TestAssetsService:
                 sent_request.url
                 == f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
             )
+
+            # Verify default behavior includes supportsCredentialsProxyDisconnected=True
+            request_body = json.loads(sent_request.content)
+            assert request_body["assetName"] == "Test Asset"
+            assert request_body["supportsCredentialsProxyDisconnected"] is True
+            assert "robotKey" in request_body
 
             assert HEADER_USER_AGENT in sent_request.headers
             assert (
