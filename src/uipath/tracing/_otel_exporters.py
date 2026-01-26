@@ -154,14 +154,13 @@ class LlmOpsHttpExporter(SpanExporter):
     def __init__(
         self,
         trace_id: Optional[str] = None,
-        **kwargs,
     ):
         """Initialize the exporter with the base URL and authentication token.
 
         Args:
             trace_id: Optional trace ID to use for all spans
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.base_url = self._get_base_url()
         self.auth_token = os.environ.get("UIPATH_ACCESS_TOKEN")
         self.headers = {
