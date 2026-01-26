@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "id": "MultiModelLLMJudgeEval",
+  "name": "Multi-Model LLM Judge Evaluation",
+  "evaluatorRefs": [
+    "LLMJudgeOutputEvaluator",
+    "LLMJudgeOutputEvaluatorClaude",
+    "LLMJudgeOutputEvaluatorGemini",
+    "LLMJudgeStrictJSONSimilarityOutputEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "test-add-multi-model",
+      "name": "Test Add with Multiple LLM Judges",
+      "inputs": {
+        "a": 2,
+        "b": 3,
+        "operator": "+"
+      },
+      "evaluationCriterias": {
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 5.0
+          }
+        },
+        "LLMJudgeOutputEvaluatorClaude": {
+          "expectedOutput": {
+            "result": 5.0
+          }
+        },
+        "LLMJudgeOutputEvaluatorGemini": {
+          "expectedOutput": {
+            "result": 5.0
+          }
+        }
+      }
+    },
+    {
+      "id": "test-multiply-multi-model",
+      "name": "Test Multiply with Multiple LLM Judges",
+      "inputs": {
+        "a": 4,
+        "b": 5,
+        "operator": "*"
+      },
+      "evaluationCriterias": {
+        "LLMJudgeOutputEvaluator": {
+          "expectedOutput": {
+            "result": 20.0
+          }
+        },
+        "LLMJudgeOutputEvaluatorClaude": {
+          "expectedOutput": {
+            "result": 20.0
+          }
+        },
+        "LLMJudgeOutputEvaluatorGemini": {
+          "expectedOutput": {
+            "result": 20.0
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "fileName": "context-precision-multi-model.json",
+  "id": "context-precision-multi-model-eval-set",
+  "name": "Multi-Model Context Precision Evaluation",
+  "batchSize": 10,
+  "evaluatorRefs": [
+    "ContextPrecisionEvaluatorClaude",
+    "ContextPrecisionEvaluatorGemini"
+  ],
+  "evaluations": [
+    {
+      "id": "test-context-precision-add-multi-model",
+      "name": "Test Add Context Precision with Multiple LLM Judges",
+      "inputs": {
+        "a": 7,
+        "b": 3,
+        "operator": "+"
+      },
+      "expectedOutput": {
+        "result": 10.0
+      },
+      "evalSetId": "context-precision-multi-model-eval-set",
+      "createdAt": "2025-01-25T00:00:00.000Z",
+      "updatedAt": "2025-01-25T00:00:00.000Z"
+    }
+  ],
+  "modelSettings": [],
+  "createdAt": "2025-01-25T00:00:00.000Z",
+  "updatedAt": "2025-01-25T00:00:00.000Z"
+}

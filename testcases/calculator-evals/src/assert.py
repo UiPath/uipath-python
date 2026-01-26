@@ -12,7 +12,14 @@ import os
 def main() -> None:
     """Main assertion logic."""
     # Check if output file exists
-    for output_file in ["default.json", "legacy.json"]:
+    for output_file in [
+        "default.json",
+        "legacy.json",
+        "multi-model.json",
+        "trajectory-multi-model.json",
+        "faithfulness-multi-model.json",
+        "context-precision-multi-model.json",
+    ]:
         assert os.path.isfile(output_file), (
             f"Evaluation output file '{output_file}' not found"
         )
@@ -28,7 +35,9 @@ def main() -> None:
         output = output_data
 
         # Validate structure
-        assert "evaluationSetResults" in output, "Missing 'evaluationSetResults' in output"
+        assert "evaluationSetResults" in output, (
+            "Missing 'evaluationSetResults' in output"
+        )
 
         evaluation_results = output["evaluationSetResults"]
         assert len(evaluation_results) > 0, "No evaluation results found"
@@ -40,6 +49,7 @@ def main() -> None:
         failed_count = 0
         skipped_count = 0
         has_positive_scores = False
+        has_non_rag_evaluators = False
 
         for eval_result in evaluation_results:
             eval_name = eval_result.get("evaluationName", "Unknown")
@@ -62,10 +72,24 @@ def main() -> None:
                     score = result.get("score", 0)
                     min_score = min(min_score, score)
 
+                    # Allow 0 scores for Faithfulness and ContextPrecision evaluators
+                    # since calculator doesn't use RAG/context grounding
+                    is_rag_evaluator = any(
+                        x in evaluator_name
+                        for x in ["Faithfulness", "ContextPrecision"]
+                    )
+
+                    if not is_rag_evaluator:
+                        has_non_rag_evaluators = True
+
                     # Check if score is greater than 0
                     if score > 0:
                         has_positive_scores = True
                         print(f"  ✓ {evaluator_name}: score={score:.1f}")
+                    elif is_rag_evaluator:
+                        print(
+                            f"  ⊘ {evaluator_name}: score={score:.1f} (RAG evaluator, 0 allowed)"
+                        )
                     else:
                         print(f"  ✗ {evaluator_name}: score={score:.1f} (must be > 0)")
                         all_passed = False
@@ -73,6 +97,11 @@ def main() -> None:
                 if all_passed and min_score > 0:
                     print(
                         f"  ✓ All evaluators passed for '{eval_name}' (min score: {min_score:.1f})"
+                    )
+                    passed_count += 1
+                elif all_passed:
+                    print(
+                        f"  ⊘ All evaluators passed for '{eval_name}' (some RAG evaluators scored 0)"
                     )
                     passed_count += 1
                 else:
@@ -93,7 +122,10 @@ def main() -> None:
         print(f"{'=' * 60}")
 
         assert failed_count == 0, "Some assertions failed"
-        assert has_positive_scores, "No evaluation scores greater than 0 were found"
+        # Only require positive scores if there are non-RAG evaluators
+        # RAG evaluators can legitimately score 0 on non-RAG agents like calculator
+        if has_non_rag_evaluators:
+            assert has_positive_scores, "No evaluation scores greater than 0 were found"
 
         print("\n✅ All assertions passed!")
 

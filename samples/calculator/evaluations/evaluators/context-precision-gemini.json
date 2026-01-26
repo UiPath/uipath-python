@@ -1,0 +1,13 @@
+{
+  "id": "ContextPrecisionEvaluatorGemini",
+  "fileName": "context-precision-gemini.json",
+  "name": "Context Precision Evaluator (Gemini)",
+  "description": "Uses Gemini to evaluate the relevance of context chunks to queries.",
+  "category": 1,
+  "type": 8,
+  "model": "gemini-2.5-flash",
+  "prompt": "Evaluate the relevance of each context chunk to the provided query.",
+  "targetOutputKey": "*",
+  "createdAt": "2025-01-25T00:00:00.000Z",
+  "updatedAt": "2025-01-25T00:00:00.000Z"
+}

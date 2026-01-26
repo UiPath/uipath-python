@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "id": "TrajectoryMultiModelEval",
+  "name": "Multi-Model Trajectory Evaluation",
+  "evaluatorRefs": [
+    "TrajectoryEvaluator",
+    "TrajectoryEvaluatorClaude",
+    "TrajectoryEvaluatorGemini"
+  ],
+  "evaluations": [
+    {
+      "id": "test-trajectory-add-multi-model",
+      "name": "Test Add Trajectory with Multiple LLM Judges",
+      "inputs": {
+        "a": 7,
+        "b": 3,
+        "operator": "+"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should correctly add the two numbers and return the result 10."
+        },
+        "TrajectoryEvaluatorClaude": {
+          "expectedAgentBehavior": "The agent should correctly add the two numbers and return the result 10."
+        },
+        "TrajectoryEvaluatorGemini": {
+          "expectedAgentBehavior": "The agent should correctly add the two numbers and return the result 10."
+        }
+      }
+    },
+    {
+      "id": "test-trajectory-divide-multi-model",
+      "name": "Test Divide Trajectory with Multiple LLM Judges",
+      "inputs": {
+        "a": 20,
+        "b": 4,
+        "operator": "/"
+      },
+      "evaluationCriterias": {
+        "TrajectoryEvaluator": {
+          "expectedAgentBehavior": "The agent should correctly divide the first number by the second and return the result 5."
+        },
+        "TrajectoryEvaluatorClaude": {
+          "expectedAgentBehavior": "The agent should correctly divide the first number by the second and return the result 5."
+        },
+        "TrajectoryEvaluatorGemini": {
+          "expectedAgentBehavior": "The agent should correctly divide the first number by the second and return the result 5."
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "FaithfulnessEvaluatorGemini",
+  "fileName": "faithfulness-gemini.json",
+  "name": "Faithfulness Evaluator (Gemini)",
+  "description": "Uses Gemini to evaluate whether agent output claims are grounded in context.",
+  "category": 1,
+  "type": 9,
+  "model": "gemini-2.5-flash",
+  "prompt": "Evaluate whether the agent output claims are grounded in the provided context sources.",
+  "targetOutputKey": "*",
+  "createdAt": "2025-01-25T00:00:00.000Z",
+  "updatedAt": "2025-01-25T00:00:00.000Z"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "ContextPrecisionEvaluatorClaude",
+  "fileName": "context-precision-claude.json",
+  "name": "Context Precision Evaluator (Claude)",
+  "description": "Uses Claude to evaluate the relevance of context chunks to queries.",
+  "category": 1,
+  "type": 8,
+  "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "prompt": "Evaluate the relevance of each context chunk to the provided query.",
+  "targetOutputKey": "*",
+  "createdAt": "2025-01-25T00:00:00.000Z",
+  "updatedAt": "2025-01-25T00:00:00.000Z"
+}

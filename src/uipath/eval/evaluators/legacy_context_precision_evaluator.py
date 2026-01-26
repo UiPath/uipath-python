@@ -307,46 +307,72 @@ class LegacyContextPrecisionEvaluator(
     async def _get_structured_llm_response(
         self, evaluation_prompt: str
     ) -> dict[str, Any]:
-        """Get structured LLM response using the context precision schema."""
+        """Get structured LLM response using function calling."""
+        from uipath.platform.chat.llm_gateway import (
+            RequiredToolChoice,
+            ToolDefinition,
+            ToolFunctionDefinition,
+            ToolParametersDefinition,
+        )
+
         # Remove community-agents suffix from llm model name
         model = clean_model_name(self.model)
 
-        # Prepare the request
+        # Create tool definition for context precision evaluation
+        # Note: We pass the array schema as a raw dict because ToolPropertyDefinition
+        # doesn't support the 'items' field needed for array types
+        tool = ToolDefinition(
+            type="function",
+            function=ToolFunctionDefinition(
+                name="submit_context_precision_evaluation",
+                description="Submit relevancy scores for context chunks",
+                parameters=ToolParametersDefinition(
+                    type="object",
+                    properties={
+                        "relevancies": {  # type: ignore[dict-item]
+                            "type": "array",
+                            "description": "List of relevancy scores for each context chunk",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "relevancy_score": {
+                                        "type": "number",
+                                        "description": "Relevancy score for the chunk (0-100).",
+                                    }
+                                },
+                                "required": ["relevancy_score"],
+                            },
+                        }
+                    },
+                    required=["relevancies"],
+                ),
+            ),
+        )
+
+        tool_choice = RequiredToolChoice()
+
+        # Prepare the request with function calling
         request_data = {
             "model": model,
             "messages": [
                 {"role": "system", "content": "Context Precision Evaluation"},
                 {"role": "user", "content": evaluation_prompt},
             ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "context_precision_evaluation",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "relevancies": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "relevancy_score": {
-                                            "type": "number",
-                                            "description": "Relevancy score for the chunk (0-100).",
-                                        }
-                                    },
-                                    "required": ["relevancy_score"],
-                                },
-                                "description": "List of relevancy scores for each context chunk",
-                            }
-                        },
-                        "required": ["relevancies"],
-                    },
-                },
-            },
+            "tools": [tool],
+            "tool_choice": tool_choice,
         }
 
         assert self.llm, "LLM should be initialized before calling this method."
         response = await self.llm.chat_completions(**request_data)
-        content = response.choices[-1].message.content or "{}"
-        return json.loads(content)
+
+        # Extract from tool call
+        if (
+            response.choices
+            and response.choices[0].message.tool_calls
+            and len(response.choices[0].message.tool_calls) > 0
+        ):
+            tool_call = response.choices[0].message.tool_calls[0]
+            return tool_call.arguments
+
+        # Fallback to empty dict if no tool calls
+        return {}

@@ -795,19 +795,25 @@ class TestLlmAsAJudgeEvaluator:
     async def test_llm_judge_basic_evaluation(
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
-        """Test LLM as judge basic evaluation functionality."""
+        """Test LLM as judge basic evaluation functionality with function calling."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
         mock_llm = mocker.MagicMock()
         mock_uipath.llm = mock_llm
 
-        # Mock the chat completions response as an async method
+        # Mock the chat completions response with tool call (function calling approach)
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 80,
+            "justification": "Good response that meets criteria",
+        }
+
         mock_response = mocker.MagicMock()
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 80, "justification": "Good response that meets criteria"}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -841,13 +847,20 @@ class TestLlmAsAJudgeEvaluator:
     async def test_llm_judge_basic_evaluation_with_llm_service(
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
-        """Test LLM judge basic evaluation functionality with a custom LLM service."""
+        """Test LLM judge basic evaluation functionality with a custom LLM service and function calling."""
+        # Mock tool call for function calling approach
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 80,
+            "justification": "Good response that meets criteria",
+        }
+
         mock_response = mocker.MagicMock()
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 80, "justification": "Good response that meets criteria"}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -881,19 +894,25 @@ class TestLlmAsAJudgeEvaluator:
     async def test_llm_judge_validate_and_evaluate_criteria(
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
-        """Test LLM judge using validate_and_evaluate_criteria."""
+        """Test LLM judge using validate_and_evaluate_criteria with function calling."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
         mock_llm = mocker.MagicMock()
         mock_uipath.llm = mock_llm
 
-        # Mock the chat completions response as an async method
+        # Mock tool call for function calling approach
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 75,
+            "justification": "Good response using raw criteria",
+        }
+
         mock_response = mocker.MagicMock()
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 75, "justification": "Good response using raw criteria"}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -933,19 +952,25 @@ class TestLlmJudgeTrajectoryEvaluator:
     async def test_llm_trajectory_basic_evaluation(
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
-        """Test LLM trajectory judge basic evaluation functionality."""
+        """Test LLM trajectory judge basic evaluation functionality with function calling."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
         mock_llm = mocker.MagicMock()
         mock_uipath.llm = mock_llm
 
-        # Mock the chat completions response as an async method
+        # Mock tool call for function calling approach
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 90,
+            "justification": "The agent followed the expected behavior and met the criteria",
+        }
+
         mock_response = mocker.MagicMock()
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 90, "justification": "The agent followed the expected behavior and met the criteria"}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -982,19 +1007,25 @@ class TestLlmJudgeTrajectoryEvaluator:
     async def test_llm_trajectory_validate_and_evaluate_criteria(
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
-        """Test LLM trajectory judge using validate_and_evaluate_criteria."""
+        """Test LLM trajectory judge using validate_and_evaluate_criteria with function calling."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
         mock_llm = mocker.MagicMock()
         mock_uipath.llm = mock_llm
 
-        # Mock the chat completions response as an async method
+        # Mock tool call for function calling approach
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 85,
+            "justification": "The agent behavior was good using raw criteria",
+        }
+
         mock_response = mocker.MagicMock()
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 85, "justification": "The agent behavior was good using raw criteria"}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -1265,19 +1296,25 @@ class TestJustificationHandling:
     async def test_llm_judge_output_evaluator_justification(
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
-        """Test that LLMJudgeOutputEvaluator handles str justification correctly."""
+        """Test that LLMJudgeOutputEvaluator handles str justification correctly with function calling."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
         mock_llm = mocker.MagicMock()
         mock_uipath.llm = mock_llm
 
-        # Mock the chat completions response with justification
+        # Mock tool call for function calling approach
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 80,
+            "justification": "The response meets most criteria but could be more detailed",
+        }
+
         mock_response = mocker.MagicMock()
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 80, "justification": "The response meets most criteria but could be more detailed"}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -1321,13 +1358,19 @@ class TestJustificationHandling:
         mock_llm = mocker.MagicMock()
         mock_uipath.llm = mock_llm
 
-        # Mock the chat completions response with justification
+        # Mock the chat completions response with justification using tool_call format
         mock_response = mocker.MagicMock()
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 85,
+            "justification": "The agent trajectory shows good decision making and follows expected behavior patterns",
+        }
+
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 85, "justification": "The agent trajectory shows good decision making and follows expected behavior patterns"}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 

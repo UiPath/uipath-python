@@ -1,6 +1,7 @@
 """LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
 
 import json
+import logging
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -26,6 +27,8 @@ from .base_evaluator import (
 )
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
+
+logger = logging.getLogger(__name__)
 
 
 class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
@@ -77,11 +80,17 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
             self.llm_service = self._get_llm_service()
 
     def _get_llm_service(self):
-        """Get the LLM service from the UiPath instance."""
+        """Get the LLM service from the UiPath instance.
+
+        Uses the normalized API which supports multiple model providers (OpenAI, Anthropic, Gemini, etc.).
+        The normalized API endpoint checks against AllowedNormalizedModels configuration,
+        which includes multi-vendor models that agents use.
+        """
         from uipath.platform import UiPath
 
         try:
             uipath = UiPath()
+            # Use llm (normalized API) for multi-vendor model support
             return uipath.llm.chat_completions
         except Exception as e:
             raise UiPathEvaluationError(
@@ -140,28 +149,63 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         return formatted_prompt
 
     async def _get_llm_response(self, evaluation_prompt: str) -> LLMResponse:
-        """Get response from the LLM."""
-        # remove community-agents suffix from llm model name
+        """Get response from the LLM using function calling for structured output.
+
+        This method uses the Normalized API's function calling feature to ensure
+        structured output across all model providers (OpenAI, Claude, Gemini).
+        Function calling is more reliable than prompt-based JSON instructions
+        and works consistently across all providers.
+        """
+        from uipath.platform.chat.llm_gateway import (
+            RequiredToolChoice,
+            ToolDefinition,
+            ToolFunctionDefinition,
+            ToolParametersDefinition,
+            ToolPropertyDefinition,
+        )
+
+        # Remove community-agents suffix from llm model name
         model = self.evaluator_config.model
         if model.endswith(COMMUNITY_agents_SUFFIX):
             model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
-        # Prepare the request
-        request_data = {
+        # Define function/tool for structured output (works for ALL models via Normalized API)
+        evaluation_tool = ToolDefinition(
+            type="function",
+            function=ToolFunctionDefinition(
+                name="submit_evaluation",
+                description="Submit the evaluation score and justification for the agent output",
+                parameters=ToolParametersDefinition(
+                    type="object",
+                    properties={
+                        "justification": ToolPropertyDefinition(
+                            type="string",
+                            description="Clear analysis of the evaluation explaining the reasoning behind the score",
+                        ),
+                        "score": ToolPropertyDefinition(
+                            type="number",
+                            description="Numeric score between 0 and 100 representing the evaluation result",
+                        ),
+                    },
+                    required=["justification", "score"],
+                ),
+            ),
+        )
+
+        # Prepare the tool_choice object
+        tool_choice = RequiredToolChoice()
+
+        # Prepare the request with function calling
+        request_data: dict[str, Any] = {
             "model": model,
             "messages": [
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": evaluation_prompt},
             ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "evaluation_response",
-                    "schema": self.output_schema.model_json_schema(),
-                },
-            },
             "max_tokens": self.evaluator_config.max_tokens,
             "temperature": self.evaluator_config.temperature,
+            "tools": [evaluation_tool],
+            "tool_choice": tool_choice,
         }
 
         if self.llm_service is None:
@@ -172,31 +216,161 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             )
 
+        # Log the request details (exclude non-JSON-serializable objects)
+        logger.info(
+            f"🤖 Calling LLM evaluator with model: {model} (using function calling)"
+        )
+        logger.debug(
+            f"Request data: model={model}, max_tokens={self.evaluator_config.max_tokens}, temperature={self.evaluator_config.temperature}, tool_choice=required"
+        )
+
         try:
             response = await self.llm_service(**request_data)
         except Exception as e:
+            # Enhanced error logging with details
+            logger.error("=" * 80)
+            logger.error("❌ LLM REQUEST FAILED")
+            logger.error("=" * 80)
+            logger.error(f"Model: {model}")
+            logger.error("API Endpoint: Normalized API (/llm/api/chat/completions)")
+            logger.error(f"Error Type: {type(e).__name__}")
+            logger.error(f"Error Message: {str(e)}")
+
+            # Try to extract HTTP error details if available
+            if hasattr(e, "response"):
+                logger.error(
+                    f"HTTP Status Code: {e.response.status_code if hasattr(e.response, 'status_code') else 'N/A'}"
+                )
+                try:
+                    error_body = (
+                        e.response.json()
+                        if hasattr(e.response, "json")
+                        else str(e.response.content)
+                    )
+                    logger.error(
+                        f"Response Body: {json.dumps(error_body, indent=2) if isinstance(error_body, dict) else error_body}"
+                    )
+                except Exception:
+                    logger.error(
+                        f"Response Body: {str(e.response.content) if hasattr(e.response, 'content') else 'N/A'}"
+                    )
+
+            logger.error(
+                f"Request Details: model={model}, max_tokens={self.evaluator_config.max_tokens}, temperature={self.evaluator_config.temperature}, tool_choice=required"
+            )
+            logger.error("=" * 80)
+
             raise UiPathEvaluationError(
                 code="FAILED_TO_GET_LLM_RESPONSE",
                 title="Failed to get LLM response",
-                detail=f"Error: {e}",
+                detail=f"Model: {model}, Error: {type(e).__name__}: {str(e)}",
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             ) from e
 
+        # Log successful response
+        logger.info(f"✅ LLM response received successfully from {model}")
+        logger.debug(f"Response: {response}")
+
+        # Extract structured output from tool call
+        return self._extract_tool_call_response(response, model)
+
+    def _extract_tool_call_response(self, response: Any, model: str) -> LLMResponse:
+        """Extract the evaluation response from the tool call.
+
+        Args:
+            response: The chat completion response containing tool calls
+            model: The model name (for error logging)
+
+        Returns:
+            LLMResponse with score and justification
+
+        Raises:
+            UiPathEvaluationError: If tool call is missing or malformed
+        """
         try:
-            content = response.choices[-1].message.content
-            if content is None:
+            # Get the first choice
+            if not response.choices or len(response.choices) == 0:
                 raise UiPathEvaluationError(
-                    code="EMPTY_LLM_RESPONSE",
-                    title="Empty LLM response",
-                    detail="The LLM response message content was None.",
+                    code="INVALID_LLM_RESPONSE",
+                    title="No choices in LLM response",
+                    detail="The LLM response contained no choices",
                     category=UiPathEvaluationErrorCategory.SYSTEM,
                 )
-            parsed_response = json.loads(str(content))
+
+            choice = response.choices[0]
+            message = choice.message
+
+            # Check for tool calls
+            if not message.tool_calls or len(message.tool_calls) == 0:
+                # Log the actual response for debugging
+                logger.error("=" * 80)
+                logger.error("❌ NO TOOL CALL IN RESPONSE")
+                logger.error("=" * 80)
+                logger.error(f"Model: {model}")
+                logger.error(f"Message content: {message.content}")
+                logger.error("=" * 80)
+
+                raise UiPathEvaluationError(
+                    code="NO_TOOL_CALL",
+                    title="LLM did not use the evaluation tool",
+                    detail=f"Expected tool call but got text response: {message.content}",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                )
+
+            # Extract the tool call arguments
+            tool_call = message.tool_calls[0]
+            arguments = tool_call.arguments
+
+            logger.debug(f"Tool call arguments: {arguments}")
+
+            # Validate required fields
+            if "score" not in arguments:
+                raise UiPathEvaluationError(
+                    code="MISSING_SCORE",
+                    title="Tool call missing required 'score' field",
+                    detail=f"Tool arguments: {arguments}",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                )
+
+            if "justification" not in arguments:
+                raise UiPathEvaluationError(
+                    code="MISSING_JUSTIFICATION",
+                    title="Tool call missing required 'justification' field",
+                    detail=f"Tool arguments: {arguments}",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                )
+
+            # Parse and validate
+            try:
+                score = float(arguments["score"])
+                justification = str(arguments["justification"])
+            except (ValueError, TypeError) as e:
+                raise UiPathEvaluationError(
+                    code="INVALID_TOOL_ARGUMENTS",
+                    title="Failed to parse tool call arguments",
+                    detail=f"Error: {e}, Arguments: {arguments}",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                ) from e
+
+            logger.info(f"📊 Parsed evaluation score: {score}")
+            return LLMResponse(score=score, justification=justification)
+
+        except UiPathEvaluationError:
+            # Re-raise UiPathEvaluationErrors as-is
+            raise
         except Exception as e:
+            # Wrap unexpected errors
+            logger.error("=" * 80)
+            logger.error("❌ TOOL CALL EXTRACTION FAILED")
+            logger.error("=" * 80)
+            logger.error(f"Model: {model}")
+            logger.error(f"Error: {type(e).__name__}: {str(e)}")
+            logger.error(f"Response: {response}")
+            logger.error("=" * 80)
+
             raise UiPathEvaluationError(
-                code="FAILED_TO_PARSE_LLM_RESPONSE",
-                title="Failed to parse LLM response",
-                detail=f"Error: {e}",
+                code="FAILED_TO_EXTRACT_TOOL_CALL",
+                title="Failed to extract evaluation from tool call",
+                detail=f"Error: {type(e).__name__}: {str(e)}",
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             ) from e
-        return LLMResponse(**parsed_response)
