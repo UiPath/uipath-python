@@ -1470,6 +1470,17 @@ class TestResourceCreation:
     base_url = "https://cloud.uipath.com/organization"
     project_id = "test-project-id"
 
+    @pytest.fixture(autouse=True)
+    def clear_solution_id_cache(self):
+        """Clear the studio_solution_id cache before each test."""
+        from uipath.platform.common import UiPathConfig
+
+        # Clear cache before test
+        UiPathConfig.studio_solution_id = None
+        yield
+        # Clear cache after test
+        UiPathConfig.studio_solution_id = None
+
     def _mock_file_download(
         self,
         httpx_mock,
