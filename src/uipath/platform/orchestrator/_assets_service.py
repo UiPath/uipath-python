@@ -499,7 +499,11 @@ class AssetsService(FolderContext, BaseService):
             endpoint=Endpoint(
                 "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
             ),
-            json={"assetName": name, "robotKey": robot_key},
+            json={
+                "assetName": name,
+                "robotKey": robot_key,
+                "supportsCredentialsProxyDisconnected": True,
+            },
             headers={
                 **header_folder(folder_key, folder_path),
             },
