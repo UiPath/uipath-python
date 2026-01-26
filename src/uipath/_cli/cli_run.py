@@ -186,10 +186,7 @@ def run(
                             )
 
                             if ctx.job_id:
-                                is_low_code = entrypoint == "agent.json"
-                                trace_manager.add_span_exporter(
-                                    LlmOpsHttpExporter(is_low_code=is_low_code)
-                                )
+                                trace_manager.add_span_exporter(LlmOpsHttpExporter())
 
                                 if ctx.conversation_id and ctx.exchange_id:
                                     chat_bridge: UiPathChatProtocol = get_chat_bridge(

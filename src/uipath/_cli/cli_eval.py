@@ -206,18 +206,13 @@ def eval(
             async def execute_eval():
                 event_bus = EventBus()
 
-                is_low_code = eval_context.entrypoint == "agent.json"
-
                 # Only create studio web exporter when reporting to Studio Web
                 studio_web_tracking_exporter = None
                 if should_register_progress_reporter:
+                    # Set trace_id during exporter creation, not mutation afterward
                     studio_web_tracking_exporter = LlmOpsHttpExporter(
-                        is_low_code=is_low_code
+                        trace_id=eval_context.eval_set_run_id
                     )
-                    if eval_context.eval_set_run_id:
-                        studio_web_tracking_exporter.trace_id = (
-                            eval_context.eval_set_run_id
-                        )
 
                     progress_reporter = StudioWebProgressReporter(
                         studio_web_tracking_exporter
@@ -244,8 +239,7 @@ def eval(
                     # Create job exporter for live tracking
                     job_exporter = None
                     if ctx.job_id:
-                        job_exporter = LlmOpsHttpExporter(is_low_code=is_low_code)
-                        trace_manager.add_span_exporter(job_exporter)
+                        job_exporter = LlmOpsHttpExporter()
                         # Add live tracking processor for real-time span updates
                         job_tracking_processor = LiveTrackingSpanProcessor(job_exporter)
                         trace_manager.tracer_span_processors.append(

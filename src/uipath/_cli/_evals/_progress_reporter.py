@@ -732,6 +732,8 @@ class StudioWebProgressReporter:
 
             # Export spans using the eval_set_run_id as trace_id (already set during CREATE_EVAL_SET_RUN)
             # Individual eval runs are distinguished by span attributes, not separate trace IDs
+            # Spans already have trace IDs set from evaluation execution context
+            # No need to mutate exporter state - just export directly
             self.spans_exporter.export(payload.spans)
 
             for eval_result in payload.eval_results:
