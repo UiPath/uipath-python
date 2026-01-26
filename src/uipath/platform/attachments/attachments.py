@@ -21,6 +21,7 @@ class Attachment(BaseModel):
     id: Optional[uuid.UUID] = Field(None, alias="ID")
     full_name: str = Field(..., alias="FullName")
     mime_type: str = Field(..., alias="MimeType")
+    metadata: Optional[dict[str, str]] = Field(None, alias="Metadata")
     model_config = {
         "title": "UiPathAttachment",
         "validate_by_name": True,
