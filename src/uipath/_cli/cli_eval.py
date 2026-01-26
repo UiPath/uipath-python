@@ -236,39 +236,32 @@ def eval(
                     # Set job_id in eval context for single runtime runs
                     eval_context.job_id = ctx.job_id
 
-                    # Create job exporter for live tracking
-                    job_exporter = None
+                    runtime_factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+                    factory_settings = await runtime_factory.get_settings()
                     if ctx.job_id:
                         job_exporter = LlmOpsHttpExporter()
-                        # Add live tracking processor for real-time span updates
-                        job_tracking_processor = LiveTrackingSpanProcessor(job_exporter)
-                        trace_manager.tracer_span_processors.append(
-                            job_tracking_processor
-                        )
-                        trace_manager.tracer_provider.add_span_processor(
-                            job_tracking_processor
+                        LiveTrackingSpanProcessor.create_and_register(
+                            job_exporter, trace_manager, settings=factory_settings
                         )
 
-                    # Add studio web tracking processor if reporting to Studio Web
                     if studio_web_tracking_exporter:
-                        studio_web_tracking_processor = LiveTrackingSpanProcessor(
-                            studio_web_tracking_exporter
-                        )
-                        trace_manager.tracer_span_processors.append(
-                            studio_web_tracking_processor
-                        )
-                        trace_manager.tracer_provider.add_span_processor(
-                            studio_web_tracking_processor
+                        LiveTrackingSpanProcessor.create_and_register(
+                            studio_web_tracking_exporter,
+                            trace_manager,
+                            settings=factory_settings,
                         )
 
                     if trace_file:
+                        trace_settings = (
+                            factory_settings.trace_settings
+                            if factory_settings
+                            else None
+                        )
                         trace_manager.add_span_exporter(
-                            JsonLinesFileExporter(trace_file)
+                            JsonLinesFileExporter(trace_file), settings=trace_settings
                         )
 
                     project_id = UiPathConfig.project_id
-
-                    runtime_factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
 
                     try:
                         if project_id:

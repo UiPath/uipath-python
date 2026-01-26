@@ -633,7 +633,8 @@ class TestFilteringSpanExporter:
         """FilteringSpanExporter applies custom filter function."""
 
         def is_custom_instrumentation(span: ReadableSpan) -> bool:
-            return span.attributes.get("uipath.custom_instrumentation") is True
+            attrs = span.attributes or {}
+            return attrs.get("uipath.custom_instrumentation") is True
 
         filtered_exporter = FilteringSpanExporter(
             base_exporter, is_custom_instrumentation
@@ -659,14 +660,14 @@ class TestFilteringSpanExporter:
         ):
             mock_response = MagicMock()
             mock_response.status_code = 200
-            base_exporter.http_client.post.return_value = mock_response  # type: ignore
+            base_exporter.http_client.post.return_value = mock_response
 
             # Export both spans through filtered exporter
             result = filtered_exporter.export([drop_span, keep_span])
 
             assert result == SpanExportResult.SUCCESS
             # Only one span should reach the base exporter
-            base_exporter.http_client.post.assert_called_once()  # type: ignore
+            base_exporter.http_client.post.assert_called_once()
 
     def test_all_filtered_returns_success_without_delegation(self, base_exporter):
         """When all spans filtered, returns SUCCESS without calling base exporter."""
@@ -683,26 +684,26 @@ class TestFilteringSpanExporter:
 
         assert result == SpanExportResult.SUCCESS
         # Base exporter should not be called
-        base_exporter.http_client.post.assert_not_called()  # type: ignore
+        base_exporter.http_client.post.assert_not_called()
 
     def test_shutdown_delegates_to_base(self, base_exporter):
         """shutdown() delegates to base exporter."""
-        base_exporter.shutdown = MagicMock()  # type: ignore
+        base_exporter.shutdown = MagicMock()
 
         filtered_exporter = FilteringSpanExporter(base_exporter, lambda s: True)
         filtered_exporter.shutdown()
 
-        base_exporter.shutdown.assert_called_once()  # type: ignore
+        base_exporter.shutdown.assert_called_once()
 
     def test_force_flush_delegates_to_base(self, base_exporter):
         """force_flush() delegates to base exporter."""
-        base_exporter.force_flush = MagicMock(return_value=True)  # type: ignore
+        base_exporter.force_flush = MagicMock(return_value=True)
 
         filtered_exporter = FilteringSpanExporter(base_exporter, lambda s: True)
         result = filtered_exporter.force_flush(timeout_millis=5000)
 
         assert result is True
-        base_exporter.force_flush.assert_called_once_with(5000)  # type: ignore
+        base_exporter.force_flush.assert_called_once_with(5000)
 
 
 class TestUpsertSpan:
