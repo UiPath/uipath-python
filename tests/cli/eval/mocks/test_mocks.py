@@ -22,10 +22,49 @@ from uipath._cli._evals.mocks.types import (
     LLMMockingStrategy,
     MockingContext,
     MockitoMockingStrategy,
+    ToolSimulation,
 )
 from uipath.eval.mocks import mockable
 
 _mock_span_collector = MagicMock()
+
+
+class TestSetExecutionContext:
+    """Tests for the set_execution_context function."""
+
+    def test_sets_mocker_to_none_when_context_is_none(self):
+        clear_execution_context()
+        set_execution_context(None, _mock_span_collector, "test-execution-id")
+        # Verify mocker context is None by checking is_tool_simulated returns False
+        assert is_tool_simulated("any_tool") is False
+        clear_execution_context()
+
+    def test_sets_mocker_to_none_when_strategy_is_none(self):
+        clear_execution_context()
+        context = MockingContext(
+            strategy=None,
+            name="test",
+            inputs={},
+        )
+        set_execution_context(context, _mock_span_collector, "test-execution-id")
+        # Verify mocker context is None by checking is_tool_simulated returns False
+        assert is_tool_simulated("any_tool") is False
+        clear_execution_context()
+
+    def test_creates_mocker_when_context_and_strategy_exist(self):
+        clear_execution_context()
+        context = MockingContext(
+            strategy=LLMMockingStrategy(
+                prompt="test prompt",
+                tools_to_simulate=[ToolSimulation(name="test_tool")],
+            ),
+            name="test",
+            inputs={},
+        )
+        set_execution_context(context, _mock_span_collector, "test-execution-id")
+        # Verify mocker context was created by checking is_tool_simulated returns True
+        assert is_tool_simulated("test_tool") is True
+        clear_execution_context()
 
 
 class TestNormalizeToolName:
