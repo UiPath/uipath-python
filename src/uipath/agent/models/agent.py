@@ -375,17 +375,38 @@ AgentEscalationRecipient = Annotated[
     BeforeValidator(_normalize_recipient_type),
 ]
 
+
 class TaskTitleType(str, Enum):
     """Task title type enumeration."""
 
     DYNAMIC = "dynamic"
     TEXT_BUILDER = "textBuilder"
 
-class TaskTitle(BaseCfg):
-    """Task title model with token-based text building."""
 
-    type: TaskTitleType
+class BaseTaskTitle(BaseCfg):
+    """Base class for task titles."""
+
+    type: Union[TaskTitleType, str] = Field(..., alias="type")
+
+
+class DynamicTaskTitle(BaseTaskTitle):
+    """Dynamic task title with argument path."""
+
+    type: Literal[TaskTitleType.DYNAMIC] = Field(..., alias="type")
+    argument_path: str = Field(..., alias="argumentPath")
+
+
+class TextBuilderTaskTitle(BaseTaskTitle):
+    """Text builder task title with tokens."""
+
+    type: Literal[TaskTitleType.TEXT_BUILDER] = Field(..., alias="type")
     tokens: List[TextToken]
+
+
+TaskTitle = Annotated[
+    Union[DynamicTaskTitle, TextBuilderTaskTitle],
+    Field(discriminator="type"),
+]
 
 
 class AgentEscalationChannelProperties(BaseResourceProperties):
@@ -418,10 +439,54 @@ class AgentEscalationChannel(BaseCfg):
     outcome_mapping: Optional[Dict[str, str]] = Field(None, alias="outcomeMapping")
     properties: AgentEscalationChannelProperties = Field(..., alias="properties")
     recipients: List[AgentEscalationRecipient] = Field(..., alias="recipients")
-    task_title: Optional[str] = Field(default=None, alias="taskTitle")
-    task_title_v2: Optional[TaskTitle] = Field(default=None, alias="taskTitleV2")
+    task_title: Optional[Union[str, TaskTitle]] = Field(
+        default="Escalation Task", alias="taskTitle"
+    )
     priority: Optional[str] = None
     labels: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _consolidate_task_title(cls, v: Any) -> Any:
+        """Consolidate taskTitleV2 and taskTitle into a single task_title field."""
+        if not isinstance(v, dict):
+            return v
+
+        # Check both alias (taskTitleV2) and field name (task_title_v2)
+        task_title_v2 = v.get("taskTitleV2") or v.get("task_title_v2")
+        # Check both alias (taskTitle) and field name (task_title)
+        task_title = v.get("taskTitle") or v.get("task_title")
+
+        # Priority 1: Use taskTitleV2 if present
+        if task_title_v2 is not None:
+            # Check the type field
+            title_type = (
+                task_title_v2.get("type") if isinstance(task_title_v2, dict) else None
+            )
+
+            if title_type == "textBuilder":
+                # Move taskTitleV2 to taskTitle
+                v["taskTitle"] = task_title_v2
+            else:
+                raise NotImplementedError(
+                    f"TaskTitle type '{title_type}' not implemented"
+                )
+
+            # Remove taskTitleV2 from the dict
+            v.pop("taskTitleV2", None)
+            v.pop("task_title_v2", None)
+
+        # Priority 2: Use taskTitle if present (legacy string support)
+        elif task_title is not None:
+            v["taskTitle"] = task_title
+            # Remove the snake_case version if it exists
+            v.pop("task_title", None)
+
+        # Priority 3: Default to "Escalation Task"
+        else:
+            v["taskTitle"] = "Escalation Task"
+
+        return v
 
 
 class AgentEscalationResourceConfig(BaseAgentResourceConfig):

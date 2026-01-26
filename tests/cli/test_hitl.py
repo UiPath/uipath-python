@@ -837,6 +837,11 @@ class TestHitlProcessor:
                 assignee="",
                 recipient="",
                 data=create_action.data,
+                app_version=None,
+                priority=None,
+                labels=None,
+                is_actionable_message_enabled=None,
+                actionable_message_metadata=None,
             )
 
     @pytest.mark.anyio

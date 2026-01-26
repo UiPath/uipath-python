@@ -86,7 +86,7 @@ def _create_spec(
                     }
                 )
 
-    json_payload = {
+    json_payload: Dict[str, Any] = {
         "appId": app_key,
         "title": title,
         "data": data if data is not None else {},
@@ -352,7 +352,7 @@ class TasksService(FolderContext, BaseService):
             app_version: Optional version of the app
             priority: Optional priority of the task
             labels: Optional list of labels for the task
-            is_actionable_message_enabled: Optional boolean indicating <?>
+            is_actionable_message_enabled: Optional boolean indicating whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
 
         Returns:
@@ -438,7 +438,7 @@ class TasksService(FolderContext, BaseService):
             app_version: Optional version of the app
             priority: Optional priority of the task
             labels: Optional list of labels for the task
-            is_actionable_message_enabled: Optional boolean indicating <?>
+            is_actionable_message_enabled: Optional boolean indicating  whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
 
         Returns:
