@@ -63,6 +63,7 @@ class AgentInternalToolType(str, Enum):
 
     ANALYZE_FILES = "analyze-attachments"
     DEEP_RAG = "deep-rag"
+    BATCH_TRANSFORM = "batch-transform"
 
 
 class AgentEscalationRecipientType(str, Enum):
@@ -127,11 +128,24 @@ class CitationMode(str, Enum):
     SKIP = "Skip"
 
 
-class FileExtension(str, Enum):
-    """File extension enumeration."""
+class DeepRagFileExtension(str, Enum):
+    """File extension enumeration for DeepRAG."""
 
     PDF = "pdf"
     TXT = "txt"
+
+
+class BatchTransformFileExtension(str, Enum):
+    """File extension enumeration for Batch Transform."""
+
+    CSV = "csv"
+
+
+class BatchTransformWebSearchGrounding(str, Enum):
+    """Batch Transform web search grounding enumeration."""
+
+    ENABLED = "Enabled"
+    DISABLED = "Disabled"
 
 
 class BaseCfg(BaseModel):
@@ -269,7 +283,19 @@ class DeepRagCitationModeSetting(BaseCfg):
 class DeepRagFileExtensionSetting(BaseCfg):
     """DeepRAG file extension setting model."""
 
-    value: FileExtension = Field(...)
+    value: DeepRagFileExtension = Field(...)
+
+
+class BatchTransformFileExtensionSetting(BaseCfg):
+    """Batch Transform file extension setting model."""
+
+    value: BatchTransformFileExtension = Field(...)
+
+
+class BatchTransformWebSearchGroundingSetting(BaseCfg):
+    """DeepRAG file extension setting model."""
+
+    value: BatchTransformWebSearchGrounding = Field(...)
 
 
 class AgentContextOutputColumn(BaseCfg):
@@ -649,10 +675,20 @@ class AgentInternalDeepRagToolProperties(BaseResourceProperties):
     settings: AgentInternalDeepRagSettings = Field(..., alias="settings")
 
 
+class AgentInternalBatchTransformToolProperties(BaseResourceProperties):
+    """Agent internal Batch Tranform tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.BATCH_TRANSFORM] = Field(
+        alias="toolType", default=AgentInternalToolType.BATCH_TRANSFORM, frozen=True
+    )
+    settings: AgentInternalBatchTransformSettings = Field(..., alias="settings")
+
+
 AgentInternalToolProperties = Annotated[
     Union[
         AgentInternalAnalyzeFilesToolProperties,
         AgentInternalDeepRagToolProperties,
+        AgentInternalBatchTransformToolProperties,
     ],
     Field(discriminator="tool_type"),
 ]
@@ -662,10 +698,25 @@ class AgentInternalDeepRagSettings(BaseCfg):
     """Agent internal DeepRAG tool settings model."""
 
     context_type: str = Field(..., alias="contextType")
-    query: AgentContextQuerySetting = Field(None)
+    query: AgentContextQuerySetting = Field(...)
     folder_path_prefix: AgentContextQuerySetting = Field(None, alias="folderPathPrefix")
     citation_mode: DeepRagCitationModeSetting = Field(..., alias="citationMode")
     file_extension: DeepRagFileExtensionSetting = Field(..., alias="fileExtension")
+
+
+class AgentInternalBatchTransformSettings(BaseCfg):
+    """Agent internal DeepRAG tool settings model."""
+
+    context_type: str = Field(..., alias="contextType")
+    query: AgentContextQuerySetting = Field(...)
+    folder_path_prefix: AgentContextQuerySetting = Field(None, alias="folderPathPrefix")
+    file_extension: BatchTransformFileExtensionSetting = Field(
+        ..., alias="fileExtension"
+    )
+    output_columns: List[AgentContextOutputColumn] = Field(..., alias="outputColumns")
+    web_search_grounding: BatchTransformWebSearchGroundingSetting = Field(
+        ..., alias="folderPathPrefix"
+    )
 
 
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):

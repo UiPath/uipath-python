@@ -842,6 +842,7 @@ class ContextGroundingService(FolderContext, BaseService):
         prompt: Annotated[str, Field(max_length=250000)],
         glob_pattern: Annotated[str, Field(max_length=512, default="*")] = "**",
         citation_mode: CitationMode = CitationMode.SKIP,
+        index_id: Annotated[str, Field(max_length=512)] | None = None,
         folder_key: str | None = None,
         folder_path: str | None = None,
     ) -> DeepRagCreationResponse:
@@ -855,18 +856,20 @@ class ContextGroundingService(FolderContext, BaseService):
             citation_mode (CitationMode): The citation mode to use. Defaults to SKIP.
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
+            index_id (str): The id of the context index to search in, used in place of name if present
 
         Returns:
             DeepRagCreationResponse: The Deep RAG task creation response.
         """
-        index = self.retrieve(
-            index_name, folder_key=folder_key, folder_path=folder_path
-        )
-        if index and index.in_progress_ingestion():
-            raise IngestionInProgressException(index_name=index_name)
+        if not index_id:
+            index = self.retrieve(
+                index_name, folder_key=folder_key, folder_path=folder_path
+            )
+            if index and index.in_progress_ingestion():
+                raise IngestionInProgressException(index_name=index_name)
 
         spec = self._deep_rag_creation_spec(
-            index_id=index.id,
+            index_id=index_id,
             name=name,
             glob_pattern=glob_pattern,
             prompt=prompt,
@@ -891,10 +894,10 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         index_name: Annotated[str, Field(max_length=512)],
-        index_id: Annotated[str, Field(max_length=512)],
         prompt: Annotated[str, Field(max_length=250000)],
         glob_pattern: Annotated[str, Field(max_length=512, default="*")] = "**",
         citation_mode: CitationMode = CitationMode.SKIP,
+        index_id: Annotated[str, Field(max_length=512)] | None = None,
         folder_key: str | None = None,
         folder_path: str | None = None,
     ) -> DeepRagCreationResponse:
@@ -909,6 +912,7 @@ class ContextGroundingService(FolderContext, BaseService):
             citation_mode (CitationMode): The citation mode to use. Defaults to SKIP.
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
+            index_id (str): The id of the context index to search in, used in place of name if present
 
         Returns:
             DeepRagCreationResponse: The Deep RAG task creation response.
