@@ -75,7 +75,9 @@ class TestLiveTrackingSpanProcessor:
 
         settings = UiPathRuntimeFactorySettings(
             trace_settings=UiPathTraceSettings(
-                span_filter=lambda span: span.attributes.get("test") is True
+                span_filter=lambda span: bool(
+                    span.attributes and span.attributes.get("test")
+                )
             )
         )
         processor = LiveTrackingSpanProcessor(mock_exporter, settings=settings)
