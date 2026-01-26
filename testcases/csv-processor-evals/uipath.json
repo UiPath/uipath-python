@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "main": "../../samples/csv-processor/main.py:main"
+  }
+}

@@ -5,12 +5,10 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
 from opentelemetry import trace
-from opentelemetry.trace import SpanContext, SpanKind, TraceFlags
 from pydantic import BaseModel
 from rich.console import Console
 
@@ -95,16 +93,189 @@ class StudioWebProgressReporter:
                 "Cannot report data to StudioWeb. Please set UIPATH_PROJECT_ID."
             )
 
+        self.eval_set_ids: dict[str, str] = {}  # Track eval_set_id per execution
         self.eval_set_run_ids: dict[str, str] = {}
         self.evaluators: dict[str, Any] = {}
         self.evaluator_scores: dict[str, list[float]] = {}
         self.eval_run_ids: dict[str, str] = {}
         self.is_coded_eval: dict[str, bool] = {}  # Track coded vs legacy per execution
+        self.is_resume_mode: dict[str, bool] = {}  # Track resume mode per execution
         self.eval_spans: dict[
             str, list[Any]
         ] = {}  # Store spans per execution for usage metrics
         self.eval_set_execution_id: str | None = (
             None  # Track current eval set execution ID
+        )
+
+    @gracefully_handle_errors
+    async def get_eval_run_for_evaluation(
+        self,
+        eval_set_id: str,
+        eval_set_run_id: str,
+        evaluation_id: str,
+        is_coded: bool = False,
+    ) -> str | None:
+        """Get the eval_run_id for a specific evaluation from the backend.
+
+        This is used during resume to fetch the eval_run_id for the specific
+        evaluation being executed, using the backend database as the source of truth.
+
+        Args:
+            eval_set_id: The eval set ID
+            eval_set_run_id: The eval set run ID
+            evaluation_id: The specific evaluation ID being executed
+            is_coded: Whether this is a coded evaluation (vs legacy)
+
+        Returns:
+            The eval_run_id if found, None otherwise
+        """
+        logger.info(
+            f"Fetching eval runs from backend: eval_set_id={eval_set_id}, "
+            f"eval_set_run_id={eval_set_run_id}, evaluation_id={evaluation_id}, coded={is_coded}"
+        )
+
+        spec = self._get_eval_runs_spec(
+            eval_set_id, eval_set_run_id, evaluation_id, is_coded
+        )
+
+        logger.debug(f"GET request endpoint: {spec.endpoint}")
+
+        response = await self._client.request_async(
+            method=spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+            scoped="org" if self._is_localhost() else "tenant",
+        )
+
+        logger.info(
+            f"GET eval runs response: status_code={response.status_code}, "
+            f"content_length={len(response.content)} bytes"
+        )
+
+        # Parse response to find the eval run matching this evaluation_id
+        response_data = json.loads(response.content)
+        logger.debug(
+            f"GET eval run response data for evaluation_id={evaluation_id}: {json.dumps(response_data, indent=2)}"
+        )
+
+        # Extract eval runs from response
+        # Response format may vary between coded and legacy APIs
+        eval_runs = (
+            response_data
+            if isinstance(response_data, list)
+            else response_data.get("value", [])
+        )
+
+        logger.info(
+            f"Backend returned {len(eval_runs)} eval run(s) for eval_set_run_id={eval_set_run_id}"
+        )
+
+        # Find the eval run that matches our evaluation_id
+        for idx, eval_run in enumerate(eval_runs):
+            eval_snapshot = eval_run.get("evalSnapshot", {})
+            snapshot_eval_id = str(eval_snapshot.get("id", ""))
+            eval_run_id_in_response = eval_run.get("id")
+
+            logger.debug(
+                f"Checking eval run [{idx}]: eval_run_id={eval_run_id_in_response}, "
+                f"snapshot_eval_id={snapshot_eval_id}, target_evaluation_id={evaluation_id}"
+            )
+
+            if snapshot_eval_id == evaluation_id:
+                eval_run_id = eval_run.get("id")
+                if eval_run_id:
+                    logger.info(
+                        f"✓ MATCH FOUND: eval_run_id={eval_run_id} matches evaluation_id={evaluation_id} (resume scenario)"
+                    )
+                    return eval_run_id
+                else:
+                    logger.warning(
+                        f"Found matching eval snapshot with evaluation_id={evaluation_id} but eval_run_id is missing in response"
+                    )
+
+        logger.warning(
+            f"✗ NO MATCH: No eval run found in backend for evaluation_id={evaluation_id}. "
+            f"Searched {len(eval_runs)} eval run(s) in eval_set_run_id={eval_set_run_id}. "
+            f"Available evaluation IDs: {[str(er.get('evalSnapshot', {}).get('id', '')) for er in eval_runs]}"
+        )
+        return None
+
+    async def fetch_and_cache_eval_runs(
+        self,
+        eval_set_id: str,
+        eval_set_run_id: str,
+        is_coded: bool = False,
+    ) -> None:
+        """Fetch all eval runs from backend and populate cache.
+
+        This is used during resume to pre-populate the eval_run_id cache with
+        all existing eval runs from the backend database.
+
+        Args:
+            eval_set_id: The eval set ID
+            eval_set_run_id: The eval set run ID
+            is_coded: Whether this is a coded evaluation (vs legacy)
+        """
+        logger.info(
+            f"🔄 RESUME FLOW: Fetching all eval runs from backend to populate cache: "
+            f"eval_set_id={eval_set_id}, eval_set_run_id={eval_set_run_id}, coded={is_coded}"
+        )
+
+        # Use empty evaluation_id to fetch all eval runs (not filtering by specific evaluation)
+        spec = self._get_eval_runs_spec(
+            eval_set_id, eval_set_run_id, evaluation_id="", is_coded=is_coded
+        )
+
+        logger.debug(f"GET all eval runs endpoint: {spec.endpoint}")
+
+        response = await self._client.request_async(
+            method=spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+            scoped="org" if self._is_localhost() else "tenant",
+        )
+
+        logger.info(
+            f"GET all eval runs response: status_code={response.status_code}, "
+            f"content_length={len(response.content)} bytes"
+        )
+
+        # Parse response to extract all eval runs
+        response_data = json.loads(response.content)
+
+        # Extract eval runs from response
+        # Response format may vary between coded and legacy APIs
+        eval_runs = (
+            response_data
+            if isinstance(response_data, list)
+            else response_data.get("value", [])
+        )
+
+        logger.info(
+            f"✓ Backend returned {len(eval_runs)} eval run(s) for eval_set_run_id={eval_set_run_id}"
+        )
+
+        # Populate cache with all eval runs
+        cached_count = 0
+        for eval_run in eval_runs:
+            eval_snapshot = eval_run.get("evalSnapshot", {})
+            evaluation_id = str(eval_snapshot.get("id", ""))
+            eval_run_id = eval_run.get("id")
+
+            if evaluation_id and eval_run_id:
+                # Cache using evaluation_id as the key
+                # Since we don't have execution_id yet, we'll need to map by evaluation_id
+                # Store in a temporary mapping that will be used when CREATE_EVAL_RUN would have fired
+                self.eval_run_ids[evaluation_id] = eval_run_id
+                cached_count += 1
+                logger.debug(
+                    f"✓ Cached eval_run_id={eval_run_id} for evaluation_id={evaluation_id}"
+                )
+
+        logger.info(
+            f"✓ RESUME FLOW: Successfully cached {cached_count}/{len(eval_runs)} eval runs"
         )
 
     def _format_error_message(self, error: Exception, context: str) -> None:
@@ -246,7 +417,7 @@ class StudioWebProgressReporter:
     @gracefully_handle_errors
     async def create_eval_run(
         self, eval_item: EvaluationItem, eval_set_run_id: str, is_coded: bool = False
-    ) -> str:
+    ) -> str | None:
         """Create a new evaluation run in StudioWeb.
 
         Args:
@@ -266,7 +437,17 @@ class StudioWebProgressReporter:
             headers=spec.headers,
             scoped="org" if self._is_localhost() else "tenant",
         )
-        return json.loads(response.content)["id"]
+
+        # Parse response and extract eval_run_id
+        response_data = json.loads(response.content)
+        logger.debug(f"CREATE_EVAL_RUN response: {response_data}")
+
+        eval_run_id = response_data.get("id")
+        if not eval_run_id:
+            logger.error(f"No 'id' field in CREATE_EVAL_RUN response: {response_data}")
+            return None
+
+        return eval_run_id
 
     @gracefully_handle_errors
     async def update_eval_run(
@@ -364,12 +545,39 @@ class StudioWebProgressReporter:
             # Store the eval set execution ID for mapping eval runs to eval set
             self.eval_set_execution_id = payload.execution_id
 
+            # Store the eval_set_id for this execution (needed for backend API calls)
+            self.eval_set_ids[payload.execution_id] = payload.eval_set_id
+
             # Detect if using coded evaluators and store for this execution
             is_coded = self._is_coded_evaluator(payload.evaluators)
             self.is_coded_eval[payload.execution_id] = is_coded
 
+            # Check if eval_set_run_id is provided (resume scenario)
             eval_set_run_id = payload.eval_set_run_id
-            if not eval_set_run_id:
+            if eval_set_run_id:
+                # Resume scenario: Use the provided eval_set_run_id
+                # Fetch all existing eval runs from backend to populate cache
+                self.is_resume_mode[payload.execution_id] = True
+                logger.info(
+                    f"Resume scenario: Using provided eval_set_run_id={eval_set_run_id}"
+                )
+
+                # Fetch all eval runs for this eval_set_run_id to populate cache
+                # Gracefully handle errors so we don't block the resume flow
+                try:
+                    await self.fetch_and_cache_eval_runs(
+                        eval_set_id=payload.eval_set_id,
+                        eval_set_run_id=eval_set_run_id,
+                        is_coded=is_coded,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to fetch eval runs from backend during resume: {e}. "
+                        "Will continue with empty cache."
+                    )
+            else:
+                # Normal scenario: Create a new eval set run in the backend
+                self.is_resume_mode[payload.execution_id] = False
                 eval_set_run_id = await self.create_eval_set_run_sw(
                     eval_set_id=payload.eval_set_id,
                     agent_snapshot=self._extract_agent_snapshot(payload.entrypoint),
@@ -377,15 +585,16 @@ class StudioWebProgressReporter:
                     evaluators=payload.evaluators,
                     is_coded=is_coded,
                 )
+                logger.info(f"Created new eval_set_run_id: {eval_set_run_id}")
+
             self.eval_set_run_ids[payload.execution_id] = eval_set_run_id
+
             current_span = trace.get_current_span()
             if current_span.is_recording():
                 current_span.set_attribute("eval_set_run_id", eval_set_run_id)
 
-            # Set trace_id and send parent trace for the evaluation set run
-            if eval_set_run_id:
-                self.spans_exporter.trace_id = eval_set_run_id
-                await self._send_parent_trace(eval_set_run_id, payload.eval_set_id)
+            # Do NOT set global trace_id override here
+            # Trace IDs are set per-evaluation in handle_update_eval_run()
 
             logger.debug(
                 f"Created eval set run with ID: {eval_set_run_id} (coded={is_coded})"
@@ -396,12 +605,87 @@ class StudioWebProgressReporter:
 
     async def handle_create_eval_run(self, payload: EvalRunCreatedEvent) -> None:
         try:
-            # Use the stored eval set execution ID to find the eval_set_run_id
-            if self.eval_set_execution_id and (
-                eval_set_run_id := self.eval_set_run_ids.get(self.eval_set_execution_id)
-            ):
-                # Get the is_coded flag for this execution
-                is_coded = self.is_coded_eval.get(self.eval_set_execution_id, False)
+            logger.info(
+                f"Processing CREATE_EVAL_RUN event: execution_id={payload.execution_id}, "
+                f"evaluation_id={payload.eval_item.id}"
+            )
+
+            # Check if we already have an eval_run_id cached
+            existing_eval_run_id = self.eval_run_ids.get(payload.execution_id)
+
+            if existing_eval_run_id:
+                # Already have eval_run_id (from previous fetch or creation)
+                logger.info(
+                    f"Using cached eval_run_id={existing_eval_run_id} for execution_id={payload.execution_id} "
+                    f"(skipping backend fetch/create)"
+                )
+                return
+
+            # Get eval_set_id, eval_set_run_id and is_coded flag
+            if not self.eval_set_execution_id:
+                logger.warning("Cannot process eval run: eval_set_execution_id not set")
+                return
+
+            eval_set_id = self.eval_set_ids.get(self.eval_set_execution_id)
+            if not eval_set_id:
+                logger.warning(
+                    f"Cannot process eval run: eval_set_id not available for eval_set_execution_id={self.eval_set_execution_id}"
+                )
+                return
+
+            eval_set_run_id = self.eval_set_run_ids.get(self.eval_set_execution_id)
+            if not eval_set_run_id:
+                logger.warning(
+                    f"Cannot process eval run: eval_set_run_id not available for eval_set_execution_id={self.eval_set_execution_id}"
+                )
+                return
+
+            is_coded = self.is_coded_eval.get(self.eval_set_execution_id, False)
+
+            # Check if we're in resume mode (eval_set_run_id was provided vs created)
+            is_resume = self.is_resume_mode.get(self.eval_set_execution_id, False)
+
+            logger.info(
+                f"Retrieved context: eval_set_id={eval_set_id}, eval_set_run_id={eval_set_run_id}, "
+                f"is_coded={is_coded}, is_resume={is_resume}, eval_set_execution_id={self.eval_set_execution_id}"
+            )
+
+            evaluation_id = payload.eval_item.id
+            eval_run_id = None
+
+            # Only fetch from backend if we're in resume mode
+            # In normal mode, we know eval runs don't exist yet (we just created eval_set_run)
+            if is_resume:
+                logger.info(
+                    f"Resume mode: Attempting to fetch existing eval_run_id from backend for evaluation_id={evaluation_id}"
+                )
+
+                # Try to fetch existing eval run from backend (resume scenario)
+                eval_run_id = await self.get_eval_run_for_evaluation(
+                    eval_set_id, eval_set_run_id, evaluation_id, is_coded
+                )
+
+                if eval_run_id:
+                    # Resume scenario: Found existing eval run in backend
+                    self.eval_run_ids[payload.execution_id] = eval_run_id
+                    logger.info(
+                        f"✓ RESUME FLOW: Successfully cached eval_run_id={eval_run_id} for "
+                        f"execution_id={payload.execution_id}, evaluation_id={evaluation_id}. "
+                        f"Loaded from backend database."
+                    )
+                else:
+                    logger.warning(
+                        f"Resume mode but no eval_run_id found in backend for evaluation_id={evaluation_id}. "
+                        f"Will create new eval run."
+                    )
+
+            # Create new eval run if not in resume mode OR if backend fetch didn't find one
+            if not eval_run_id:
+                logger.info(
+                    f"{'Normal mode' if not is_resume else 'Resume mode (no existing run found)'}: "
+                    f"Creating new eval run for evaluation_id={evaluation_id}, eval_set_run_id={eval_set_run_id}"
+                )
+
                 eval_run_id = await self.create_eval_run(
                     payload.eval_item, eval_set_run_id, is_coded
                 )
@@ -409,19 +693,41 @@ class StudioWebProgressReporter:
                     # Store eval_run_id with the individual eval run's execution_id
                     self.eval_run_ids[payload.execution_id] = eval_run_id
 
-                    logger.debug(
-                        f"Created eval run with ID: {eval_run_id} (coded={is_coded})"
+                    logger.info(
+                        f"✓ NORMAL FLOW: Successfully created and cached eval_run_id={eval_run_id} for "
+                        f"execution_id={payload.execution_id}, evaluation_id={evaluation_id}, "
+                        f"eval_set_run_id={eval_set_run_id} (coded={is_coded})"
                     )
-            else:
-                logger.warning("Cannot create eval run: eval_set_run_id not available")
+                else:
+                    logger.error(
+                        f"✗ ERROR: create_eval_run returned None for execution_id={payload.execution_id}, "
+                        f"evaluation_id={evaluation_id}, eval_set_run_id={eval_set_run_id}, is_coded={is_coded}"
+                    )
 
         except Exception as e:
             self._format_error_message(e, "StudioWeb create eval run error")
 
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
+            logger.info(
+                f"Processing UPDATE_EVAL_RUN event: execution_id={payload.execution_id}, "
+                f"success={payload.success}"
+            )
+
             eval_run_id = self.eval_run_ids.get(payload.execution_id)
 
+            if not eval_run_id:
+                logger.warning(
+                    f"Cannot update eval run: eval_run_id not found in cache for "
+                    f"execution_id={payload.execution_id}. Available keys: {list(self.eval_run_ids.keys())}"
+                )
+            else:
+                logger.info(
+                    f"Found eval_run_id={eval_run_id} for execution_id={payload.execution_id} in cache"
+                )
+
+            # Export spans using the eval_set_run_id as trace_id (already set during CREATE_EVAL_SET_RUN)
+            # Individual eval runs are distinguished by span attributes, not separate trace IDs
             self.spans_exporter.export(payload.spans)
 
             for eval_result in payload.eval_results:
@@ -443,13 +749,13 @@ class StudioWebProgressReporter:
                 # Get the is_coded flag for this execution
                 is_coded = self.is_coded_eval.get(self.eval_set_execution_id, False)
 
+                logger.info(
+                    f"Sending UPDATE to backend: eval_run_id={eval_run_id}, "
+                    f"is_coded={is_coded}, success={payload.success}"
+                )
+
                 # Extract usage metrics from spans
                 self._extract_usage_from_spans(payload.spans)
-
-                # Send evaluator traces
-                await self._send_evaluator_traces(
-                    eval_run_id, payload.eval_results, payload.spans
-                )
 
                 await self.update_eval_run(
                     StudioWebProgressItem(
@@ -464,8 +770,8 @@ class StudioWebProgressReporter:
                     spans=payload.spans,
                 )
 
-                logger.debug(
-                    f"Updated eval run with ID: {eval_run_id} (coded={is_coded})"
+                logger.info(
+                    f"✓ Successfully updated eval_run_id={eval_run_id} in backend (coded={is_coded})"
                 )
 
         except Exception as e:
@@ -1023,6 +1329,53 @@ class StudioWebProgressReporter:
             headers=self._tenant_header(),
         )
 
+    def _get_eval_runs_spec(
+        self,
+        eval_set_id: str,
+        eval_set_run_id: str,
+        evaluation_id: str | None = None,
+        is_coded: bool = False,
+    ) -> RequestSpec:
+        """Create request spec to GET eval runs for a given eval_set_run_id.
+
+        Args:
+            eval_set_id: The ID of the eval set
+            eval_set_run_id: The ID of the eval set run
+            evaluation_id: Optional evaluation ID to filter for a specific eval run
+            is_coded: Whether this is a coded evaluation (vs legacy)
+
+        Returns:
+            RequestSpec for the GET request
+        """
+        # Build endpoint path matching backend structure:
+        # Legacy: api/execution/agents/{agentId}/evalSets/{evalSetId}/evalSetRuns/{evalSetRunId}/evalRuns
+        # Coded: api/execution/agents/{agentId}/coded/evalSets/{evalSetId}/evalSetRuns/{evalSetRunId}/evalRuns
+
+        prefix = self._get_endpoint_prefix()
+
+        if is_coded:
+            endpoint_path = (
+                f"{prefix}execution/agents/{self._project_id}/coded/"
+                f"evalSets/{eval_set_id}/evalSetRuns/{eval_set_run_id}/evalRuns"
+            )
+        else:
+            endpoint_path = (
+                f"{prefix}execution/agents/{self._project_id}/"
+                f"evalSets/{eval_set_id}/evalSetRuns/{eval_set_run_id}/evalRuns"
+            )
+
+        logger.debug(
+            f"Creating GET eval runs spec: eval_set_id={eval_set_id}, "
+            f"eval_set_run_id={eval_set_run_id}, evaluation_id={evaluation_id}, coded={is_coded}"
+        )
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(endpoint_path),
+            params={},  # No query params needed - evalSetRunId is in the path
+            headers=self._tenant_header(),
+        )
+
     def _tenant_header(self) -> dict[str, str | None]:
         tenant_id = os.getenv(ENV_TENANT_ID, None)
         if not tenant_id:
@@ -1030,316 +1383,3 @@ class StudioWebProgressReporter:
                 f"{ENV_TENANT_ID} env var is not set. Please run 'uipath auth'."
             )
         return {HEADER_INTERNAL_TENANT_ID: tenant_id}
-
-    async def _send_parent_trace(
-        self, eval_set_run_id: str, eval_set_name: str
-    ) -> None:
-        """Send the parent trace span for the evaluation set run.
-
-        Args:
-            eval_set_run_id: The ID of the evaluation set run
-            eval_set_name: The name of the evaluation set
-        """
-        try:
-            # Get the tracer
-            tracer = trace.get_tracer(__name__)
-
-            # Convert eval_set_run_id to trace ID format (128-bit integer)
-            trace_id_int = int(uuid.UUID(eval_set_run_id))
-
-            # Create a span context with the eval_set_run_id as the trace ID
-            span_context = SpanContext(
-                trace_id=trace_id_int,
-                span_id=trace_id_int,  # Use same ID for root span
-                is_remote=False,
-                trace_flags=TraceFlags(0x01),  # Sampled
-            )
-
-            # Create a non-recording span with our custom context
-            ctx = trace.set_span_in_context(trace.NonRecordingSpan(span_context))
-
-            # Start a new span with the custom trace ID
-            with tracer.start_as_current_span(
-                eval_set_name,
-                context=ctx,
-                kind=SpanKind.INTERNAL,
-                start_time=int(datetime.now(timezone.utc).timestamp() * 1_000_000_000),
-            ) as span:
-                # Set attributes for the evaluation set span
-                span.set_attribute("openinference.span.kind", "CHAIN")
-                span.set_attribute("span.type", "evaluationSet")
-                span.set_attribute("eval_set_run_id", eval_set_run_id)
-
-            logger.debug(f"Created parent trace for eval set run: {eval_set_run_id}")
-
-        except Exception as e:
-            logger.warning(f"Failed to create parent trace: {e}")
-
-    async def _send_eval_run_trace(
-        self, eval_run_id: str, eval_set_run_id: str, eval_name: str
-    ) -> None:
-        """Send the child trace span for an evaluation run.
-
-        Args:
-            eval_run_id: The ID of the evaluation run
-            eval_set_run_id: The ID of the parent evaluation set run
-            eval_name: The name of the evaluation
-        """
-        try:
-            # Get the tracer
-            tracer = trace.get_tracer(__name__)
-
-            # Convert IDs to trace format
-            trace_id_int = int(uuid.UUID(eval_run_id))
-            parent_span_id_int = int(uuid.UUID(eval_set_run_id))
-
-            # Create a parent span context
-            parent_context = SpanContext(
-                trace_id=trace_id_int,
-                span_id=parent_span_id_int,
-                is_remote=False,
-                trace_flags=TraceFlags(0x01),
-            )
-
-            # Create context with parent span
-            ctx = trace.set_span_in_context(trace.NonRecordingSpan(parent_context))
-
-            # Start a new span with the eval_run_id as trace ID
-            with tracer.start_as_current_span(
-                eval_name,
-                context=ctx,
-                kind=SpanKind.INTERNAL,
-                start_time=int(datetime.now(timezone.utc).timestamp() * 1_000_000_000),
-            ) as span:
-                # Set attributes for the evaluation run span
-                span.set_attribute("openinference.span.kind", "CHAIN")
-                span.set_attribute("span.type", "evaluation")
-                span.set_attribute("eval_run_id", eval_run_id)
-                span.set_attribute("eval_set_run_id", eval_set_run_id)
-
-            logger.debug(
-                f"Created trace for eval run: {eval_run_id} (parent: {eval_set_run_id})"
-            )
-
-        except Exception as e:
-            logger.warning(f"Failed to create eval run trace: {e}")
-
-    async def _send_evaluator_traces(
-        self, eval_run_id: str, eval_results: list[EvalItemResult], spans: list[Any]
-    ) -> None:
-        """Send trace spans for all evaluators.
-
-        Args:
-            eval_run_id: The ID of the evaluation run
-            eval_results: List of evaluator results
-            spans: List of spans that may contain evaluator LLM calls
-        """
-        try:
-            if not eval_results:
-                logger.debug(
-                    f"No evaluator results to trace for eval run: {eval_run_id}"
-                )
-                return
-
-            # First, export the agent execution spans so they appear in the trace
-            agent_readable_spans = []
-            if spans:
-                for span in spans:
-                    if hasattr(span, "_readable_span"):
-                        agent_readable_spans.append(span._readable_span())
-
-            if agent_readable_spans:
-                self.spans_exporter.export(agent_readable_spans)
-                logger.debug(
-                    f"Exported {len(agent_readable_spans)} agent execution spans for eval run: {eval_run_id}"
-                )
-
-            # Get the tracer
-            tracer = trace.get_tracer(__name__)
-
-            # Calculate overall start and end times for the evaluators parent span
-            # Since evaluators run sequentially, the parent span duration should be
-            # the sum of all individual evaluator times
-            now = datetime.now(timezone.utc)
-
-            # Sum all evaluator execution times for sequential execution
-            total_eval_time = (
-                sum(
-                    (
-                        r.result.evaluation_time
-                        for r in eval_results
-                        if r.result.evaluation_time
-                    )
-                )
-                or 0.0
-            )
-
-            # Parent span covers the sequential evaluation period
-            parent_end_time = now
-            parent_start_time = (
-                datetime.fromtimestamp(
-                    now.timestamp() - total_eval_time, tz=timezone.utc
-                )
-                if total_eval_time > 0
-                else now
-            )
-
-            # Find the root execution span from the agent spans
-            # The root span typically has no parent
-            root_span_uuid = None
-            if spans:
-                from uipath.tracing._utils import _SpanUtils
-
-                for span in spans:
-                    # Check if this span has no parent (indicating it's the root)
-                    if span.parent is None:
-                        # Get the span context and convert to UUID
-                        span_context = span.get_span_context()
-                        root_span_uuid = _SpanUtils.span_id_to_uuid4(
-                            span_context.span_id
-                        )
-                        break
-
-            # Convert eval_run_id to trace ID format
-            trace_id_int = int(uuid.UUID(eval_run_id))
-
-            # Create parent span context - child of root span if available
-            # The root span should be the eval span (the agent execution root)
-            if root_span_uuid:
-                # Convert root span UUID to integer for SpanContext
-                root_span_id_int = int(root_span_uuid)
-                parent_context = SpanContext(
-                    trace_id=trace_id_int,
-                    span_id=root_span_id_int,
-                    is_remote=False,
-                    trace_flags=TraceFlags(0x01),
-                )
-                ctx = trace.set_span_in_context(trace.NonRecordingSpan(parent_context))
-            else:
-                # No root span found, create as root span with eval_run_id as both trace and span
-                parent_context = SpanContext(
-                    trace_id=trace_id_int,
-                    span_id=trace_id_int,
-                    is_remote=False,
-                    trace_flags=TraceFlags(0x01),
-                )
-                ctx = trace.set_span_in_context(trace.NonRecordingSpan(parent_context))
-
-            # Create the evaluators parent span
-            parent_start_ns = int(parent_start_time.timestamp() * 1_000_000_000)
-            parent_end_ns = int(parent_end_time.timestamp() * 1_000_000_000)
-
-            # Start parent span manually (not using with statement) to control end time
-            parent_span = tracer.start_span(
-                "Evaluators",
-                context=ctx,
-                kind=SpanKind.INTERNAL,
-                start_time=parent_start_ns,
-            )
-
-            # Set attributes for the evaluators parent span
-            parent_span.set_attribute("openinference.span.kind", "CHAIN")
-            parent_span.set_attribute("span.type", "evaluators")
-            parent_span.set_attribute("eval_run_id", eval_run_id)
-
-            # Make this span the active span for child spans
-            parent_ctx = trace.set_span_in_context(parent_span, ctx)
-
-            # Track the current time for sequential execution
-            current_time = parent_start_time
-
-            # Collect all readable spans for export
-            readable_spans = []
-
-            # Create individual evaluator spans - running sequentially
-            for eval_result in eval_results:
-                # Get evaluator name from stored evaluators
-                evaluator = self.evaluators.get(eval_result.evaluator_id)
-                evaluator_name = evaluator.id if evaluator else eval_result.evaluator_id
-
-                # Each evaluator starts where the previous one ended (sequential execution)
-                eval_time = eval_result.result.evaluation_time or 0
-                eval_start = current_time
-                eval_end = datetime.fromtimestamp(
-                    current_time.timestamp() + eval_time, tz=timezone.utc
-                )
-
-                # Move current time forward for the next evaluator
-                current_time = eval_end
-
-                # Create timestamps
-                eval_start_ns = int(eval_start.timestamp() * 1_000_000_000)
-                eval_end_ns = int(eval_end.timestamp() * 1_000_000_000)
-
-                # Start evaluator span manually (not using with statement) to control end time
-                evaluator_span = tracer.start_span(
-                    evaluator_name,
-                    context=parent_ctx,
-                    kind=SpanKind.INTERNAL,
-                    start_time=eval_start_ns,
-                )
-
-                # Set attributes for the evaluator span
-                evaluator_span.set_attribute("openinference.span.kind", "EVALUATOR")
-                evaluator_span.set_attribute("span.type", "evaluator")
-                evaluator_span.set_attribute("evaluator_id", eval_result.evaluator_id)
-                evaluator_span.set_attribute("evaluator_name", evaluator_name)
-                evaluator_span.set_attribute("eval_run_id", eval_run_id)
-                evaluator_span.set_attribute("score", eval_result.result.score)
-                evaluator_span.set_attribute(
-                    "score_type", eval_result.result.score_type.name
-                )
-
-                # Add details/justification if available
-                if eval_result.result.details:
-                    if isinstance(eval_result.result.details, BaseModel):
-                        evaluator_span.set_attribute(
-                            "details",
-                            json.dumps(eval_result.result.details.model_dump()),
-                        )
-                    else:
-                        evaluator_span.set_attribute(
-                            "details", str(eval_result.result.details)
-                        )
-
-                # Add evaluation time if available
-                if eval_result.result.evaluation_time:
-                    evaluator_span.set_attribute(
-                        "evaluation_time", eval_result.result.evaluation_time
-                    )
-
-                # Set status based on score type
-                from opentelemetry.trace import Status, StatusCode
-
-                if eval_result.result.score_type == ScoreType.ERROR:
-                    evaluator_span.set_status(
-                        Status(StatusCode.ERROR, "Evaluation failed")
-                    )
-                else:
-                    evaluator_span.set_status(Status(StatusCode.OK))
-
-                # End the evaluator span at the correct time
-                evaluator_span.end(end_time=eval_end_ns)
-
-                # Convert to ReadableSpan for export
-                # The span object has a method to get the readable version
-                if hasattr(evaluator_span, "_readable_span"):
-                    readable_spans.append(evaluator_span._readable_span())
-
-            # End the parent span at the correct time after all children are created
-            parent_span.end(end_time=parent_end_ns)
-
-            # Convert parent span to ReadableSpan
-            if hasattr(parent_span, "_readable_span"):
-                # Add parent span at the beginning for proper ordering
-                readable_spans.insert(0, parent_span._readable_span())
-
-            # Export all evaluator spans together
-            if readable_spans:
-                self.spans_exporter.export(readable_spans)
-
-            logger.debug(
-                f"Created evaluator traces for eval run: {eval_run_id} ({len(eval_results)} evaluators)"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to create evaluator traces: {e}")

@@ -27,6 +27,10 @@ from uipath.platform.common import (
     WaitSystemAgent,
     WaitTask,
 )
+from uipath.platform.common.interrupt_models import (
+    CreateEphemeralIndex,
+    WaitEphemeralIndex,
+)
 from uipath.platform.context_grounding import (
     BatchTransformCreationResponse,
     BatchTransformOutputColumn,
@@ -34,6 +38,11 @@ from uipath.platform.context_grounding import (
     CitationMode,
     DeepRagCreationResponse,
     DeepRagStatus,
+    EphemeralIndexUsage,
+    IndexStatus,
+)
+from uipath.platform.context_grounding.context_grounding_index import (
+    ContextGroundingIndex,
 )
 from uipath.platform.orchestrator import (
     Job,
@@ -561,6 +570,95 @@ class TestHitlReader:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
 
+    @pytest.mark.anyio
+    async def test_read_ephemeral_index_trigger_successful(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a successful ephemeral index trigger."""
+        index_id = "test-ephemeral-index-id"
+        index_data = {
+            "id": index_id,
+            "name": "test-index",
+            "lastIngestionStatus": IndexStatus.SUCCESSFUL.value,
+        }
+
+        mock_retrieve_by_id = AsyncMock(return_value=index_data)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.retrieve_by_id_async",
+            new=mock_retrieve_by_id,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.EPHEMERAL_INDEX,
+                item_key=index_id,
+            )
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
+
+            assert isinstance(result, dict)
+            assert result["id"] == index_id
+            mock_retrieve_by_id.assert_called_once_with(index_id)
+
+    @pytest.mark.anyio
+    async def test_read_ephemeral_index_trigger_pending(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a pending ephemeral index trigger raises pending error."""
+        from uipath.core.errors import UiPathPendingTriggerError
+
+        index_id = "test-ephemeral-index-id"
+        index_data = {
+            "id": index_id,
+            "name": "test-index",
+            "lastIngestionStatus": IndexStatus.IN_PROGRESS.value,
+        }
+
+        mock_retrieve_by_id = AsyncMock(return_value=index_data)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.retrieve_by_id_async",
+            new=mock_retrieve_by_id,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.EPHEMERAL_INDEX,
+                item_key=index_id,
+            )
+
+            with pytest.raises(UiPathPendingTriggerError):
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
+
+    @pytest.mark.anyio
+    async def test_read_ephemeral_index_trigger_failed(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a failed ephemeral index trigger raises faulted error."""
+        index_id = "test-ephemeral-index-id"
+        index_data = {
+            "id": index_id,
+            "name": "test-index",
+            "lastIngestionStatus": IndexStatus.FAILED.value,
+        }
+
+        mock_retrieve_by_id = AsyncMock(return_value=index_data)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.retrieve_by_id_async",
+            new=mock_retrieve_by_id,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.EPHEMERAL_INDEX,
+                item_key=index_id,
+            )
+
+            with pytest.raises(UiPathFaultedTriggerError) as exc_info:
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
+            assert exc_info.value.args[0] == ErrorCategory.USER
+
 
 class TestHitlProcessor:
     """Tests for the HitlProcessor class."""
@@ -881,6 +979,64 @@ class TestHitlProcessor:
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.BATCH_RAG
         assert resume_trigger.item_key == batch_transform_id
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_create_ephemeral_index(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for CreateEphemeralIndex."""
+        index_id = "test-ephemeral-index-id"
+        attachments = ["attachment-uuid-1", "attachment-uuid-2"]
+        create_ephemeral_index = CreateEphemeralIndex(
+            usage=EphemeralIndexUsage.DEEP_RAG,
+            attachments=attachments,
+        )
+
+        mock_index = ContextGroundingIndex(
+            id=index_id,
+            name="ephemeral-index",
+            last_ingestion_status=IndexStatus.QUEUED.value,
+        )
+        mock_create_ephemeral_index = AsyncMock(return_value=mock_index)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.create_ephemeral_index_async",
+            new=mock_create_ephemeral_index,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(create_ephemeral_index)
+
+            assert resume_trigger is not None
+            assert (
+                resume_trigger.trigger_type == UiPathResumeTriggerType.EPHEMERAL_INDEX
+            )
+            assert resume_trigger.item_key == index_id
+            mock_create_ephemeral_index.assert_called_once_with(
+                usage=create_ephemeral_index.usage,
+                attachments=create_ephemeral_index.attachments,
+            )
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_ephemeral_index(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for WaitEphemeralIndex."""
+        index_id = "test-ephemeral-index-id"
+        ephemeral_index = ContextGroundingIndex(
+            id=index_id,
+            name="ephemeral-index",
+            last_ingestion_status=IndexStatus.IN_PROGRESS.value,
+        )
+        wait_ephemeral_index = WaitEphemeralIndex(index=ephemeral_index)
+
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_ephemeral_index)
+
+        assert resume_trigger is not None
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.EPHEMERAL_INDEX
+        assert resume_trigger.item_key == index_id
 
 
 class TestDocumentExtractionModels:

@@ -5,7 +5,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from uipath.runtime import UiPathRuntimeProtocol
+from uipath.runtime import (
+    UiPathRuntimeFactorySettings,
+    UiPathRuntimeProtocol,
+    UiPathRuntimeStorageProtocol,
+)
 
 from .runtime import UiPathFunctionsRuntime
 
@@ -44,9 +48,13 @@ class UiPathFunctionsRuntimeFactory:
         config = self._load_config()
         return list(config.get("functions", {}).keys())
 
-    async def discover_runtimes(self) -> list[UiPathRuntimeProtocol]:
-        """Discover all runtime instances."""
-        return [self._create_runtime(ep) for ep in self.discover_entrypoints()]
+    async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+        """Get storage protocol if any (placeholder for protocol compliance)."""
+        return None
+
+    async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
+        """Get factory settings if any (placeholder for protocol compliance)."""
+        return None
 
     async def new_runtime(
         self, entrypoint: str, runtime_id: str, **kwargs

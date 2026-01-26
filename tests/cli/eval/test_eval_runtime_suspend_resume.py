@@ -1,8 +1,9 @@
 """Tests for UiPathEvalRuntime suspend/resume event publishing.
 
 This module tests:
-- Normal flow: CREATE_EVAL_RUN event is published
-- Resume flow: CREATE_EVAL_RUN event is NOT published (only UPDATE)
+- Normal flow: CREATE_EVAL_RUN event is published, eval_run_id saved to disk
+- Resume flow: CREATE_EVAL_RUN event is NOT published, eval_run_id loaded from disk
+- UPDATE_EVAL_RUN works correctly after evaluators complete
 - Ensures no duplicate eval run entries in StudioWeb
 """
 
@@ -15,9 +16,11 @@ from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeEvent,
+    UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
+    UiPathRuntimeStorageProtocol,
     UiPathStreamOptions,
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
@@ -112,8 +115,11 @@ class MockFactory:
     def discover_entrypoints(self) -> list[str]:
         return ["test"]
 
-    async def discover_runtimes(self) -> list[UiPathRuntimeProtocol]:
-        return [await self.runtime_creator()]
+    async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+        return None
+
+    async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
+        return None
 
     async def new_runtime(
         self, entrypoint: str, runtime_id: str, **kwargs
@@ -203,12 +209,17 @@ class TestNormalFlowCreateEvalRun:
 
 
 class TestResumeFlowSkipsCreateEvalRun:
-    """Tests for resume flow - CREATE_EVAL_RUN should NOT be published."""
+    """Tests for resume flow - CREATE_EVAL_RUN should NOT be published, eval_run_id loaded from disk."""
 
     async def test_skips_create_eval_run_on_resume(
         self, context, event_bus, trace_manager
     ):
-        """Test that CREATE_EVAL_RUN is NOT published when resuming from checkpoint."""
+        """Test that CREATE_EVAL_RUN is NOT published when resuming from checkpoint.
+
+        During resume, the eval_run_id mapping is loaded from the persisted file
+        (__uipath/eval_run_ids.json) instead of making a new CREATE_EVAL_RUN API call.
+        This prevents duplicate entries in StudioWeb.
+        """
         # Arrange
         context.resume = True  # Set resume flag
 
@@ -228,7 +239,7 @@ class TestResumeFlowSkipsCreateEvalRun:
             if call[0][0] == EvaluationEvents.CREATE_EVAL_RUN
         ]
         assert len(create_calls) == 0, (
-            "CREATE_EVAL_RUN should NOT be published on resume"
+            "CREATE_EVAL_RUN should NOT be published on resume (loaded from disk instead)"
         )
 
     async def test_publishes_update_eval_run_on_resume(
@@ -267,10 +278,10 @@ class TestResumeFlowSkipsCreateEvalRun:
         """Test that resuming doesn't create duplicate entries (integration test concept).
 
         This test verifies that when resume=True:
-        1. CREATE_EVAL_RUN is NOT called
-        2. Only UPDATE_EVAL_RUN is called
+        1. CREATE_EVAL_RUN is NOT called (prevents duplicate backend entries)
+        2. Only UPDATE_EVAL_RUN is called (updates existing entry)
 
-        This ensures no duplicate entries in StudioWeb.
+        The eval_run_id mapping is loaded from persisted state on disk.
         """
         # Arrange
         context.resume = True
@@ -328,8 +339,8 @@ class TestSuspendResumeLifecycle:
         ]
 
         assert len(suspend_create_calls) > 0, "Suspend phase should CREATE entry"
-        assert len(suspend_update_calls) > 0, (
-            "Suspend phase should UPDATE entry with triggers"
+        assert len(suspend_update_calls) == 0, (
+            "Suspend phase should NOT UPDATE - evalRun stays IN_PROGRESS until resume"
         )
 
         # Phase 2: Resume

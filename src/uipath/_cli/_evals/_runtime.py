@@ -276,6 +276,15 @@ class UiPathEvalRuntime:
         evaluation_set, _ = EvalHelpers.load_eval_set(
             self.context.eval_set, self.context.eval_ids
         )
+
+        # Validate that resume mode is not used with multiple evaluations
+        if self.context.resume and len(evaluation_set.evaluations) > 1:
+            raise ValueError(
+                f"Resume mode is not supported with multiple evaluations. "
+                f"Found {len(evaluation_set.evaluations)} evaluations in the set. "
+                f"Please run with a single evaluation using --eval-ids to specify one evaluation."
+            )
+
         evaluators = await self._load_evaluators(evaluation_set, runtime)
 
         await self.event_bus.publish(
@@ -517,6 +526,7 @@ class UiPathEvalRuntime:
 
                     # Only create eval run entry if NOT resuming from a checkpoint
                     # When resuming, the entry already exists from the suspend phase
+                    # The progress reporter will load the eval_run_id from persisted state
                     if not self.context.resume:
                         await self.event_bus.publish(
                             EvaluationEvents.CREATE_EVAL_RUN,
@@ -611,26 +621,12 @@ class UiPathEvalRuntime:
                         )
                     )
 
-                    # Publish suspended status event
-                    await self.event_bus.publish(
-                        EvaluationEvents.UPDATE_EVAL_RUN,
-                        EvalRunUpdatedEvent(
-                            execution_id=execution_id,
-                            eval_item=eval_item,
-                            eval_results=[],
-                            success=True,  # Not failed, just suspended
-                            agent_output={
-                                "status": "suspended",
-                                "triggers": [
-                                    t.model_dump(by_alias=True) for t in triggers
-                                ],
-                            },
-                            agent_execution_time=agent_execution_output.execution_time,
-                            spans=agent_execution_output.spans,
-                            logs=agent_execution_output.logs,
-                            exception_details=None,
-                        ),
-                        wait_for_completion=False,
+                    # DO NOT update evalRun status when suspended!
+                    # The evalRun should remain in IN_PROGRESS state until the agent completes
+                    # and evaluators run. When the execution resumes, the evaluators will run
+                    # and the evalRun will be properly updated with results.
+                    logger.info(
+                        "EVAL RUNTIME: Skipping evalRun update - keeping status as IN_PROGRESS until resume"
                     )
 
                     # Return partial results with trigger information
@@ -906,15 +902,16 @@ class UiPathEvalRuntime:
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
                     logger.info(f"Resuming evaluation {eval_item.id}")
-                    options = UiPathExecuteOptions(resume=True)
-                    result = await execution_runtime.execute(
-                        input=input_overrides if self.context.job_id is None else None,
-                        options=options,
-                    )
+                    input = input_overrides if self.context.job_id is None else None
                 else:
-                    result = await execution_runtime.execute(
-                        input=inputs_with_overrides,
-                    )
+                    input = inputs_with_overrides
+
+                # Always pass UiPathExecuteOptions explicitly for consistency with debug flow
+                options = UiPathExecuteOptions(resume=self.context.resume)
+                result = await execution_runtime.execute(
+                    input=input,
+                    options=options,
+                )
 
                 # Log suspend status if applicable
                 if result.status == UiPathRuntimeStatus.SUSPENDED:

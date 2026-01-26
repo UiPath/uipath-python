@@ -1760,6 +1760,117 @@ class TestContextGroundingService:
         assert destination.read_bytes() == b"col1,col2\nval1,val2"
         assert destination.parent.exists()
 
+    def test_create_ephemeral_index(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        import uuid
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
+            status_code=200,
+            json={
+                "id": "ephemeral-index-id",
+                "name": "ephemeral-index",
+                "lastIngestionStatus": "Queued",
+            },
+        )
+
+        attachment_ids = [str(uuid.uuid4()), str(uuid.uuid4())]
+        index = service.create_ephemeral_index(
+            usage="DeepRAG",
+            attachments=attachment_ids,
+        )
+
+        assert isinstance(index, ContextGroundingIndex)
+        assert index.id == "ephemeral-index-id"
+        assert index.name == "ephemeral-index"
+        assert index.last_ingestion_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert (
+            sent_requests[0].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral"
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["usage"] == "DeepRAG"
+        assert "dataSource" in request_data
+        assert request_data["dataSource"]["attachments"] == [
+            str(att) for att in attachment_ids
+        ]
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.create_ephemeral_index/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_create_ephemeral_index_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        import uuid
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
+            status_code=200,
+            json={
+                "id": "ephemeral-index-id",
+                "name": "ephemeral-index",
+                "lastIngestionStatus": "Queued",
+            },
+        )
+
+        attachment_ids = [str(uuid.uuid4()), str(uuid.uuid4())]
+        index = await service.create_ephemeral_index_async(
+            usage="DeepRAG",
+            attachments=attachment_ids,
+        )
+
+        assert isinstance(index, ContextGroundingIndex)
+        assert index.id == "ephemeral-index-id"
+        assert index.name == "ephemeral-index"
+        assert index.last_ingestion_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert (
+            sent_requests[0].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral"
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["usage"] == "DeepRAG"
+        assert "dataSource" in request_data
+        assert request_data["dataSource"]["attachments"] == [
+            str(att) for att in attachment_ids
+        ]
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.create_ephemeral_index_async/{version}"
+        )
+
     @pytest.mark.anyio
     async def test_download_batch_transform_result_async_creates_nested_directories(
         self,

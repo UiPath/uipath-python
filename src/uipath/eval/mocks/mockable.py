@@ -7,10 +7,12 @@ import logging
 import threading
 from typing import Any, List, Optional
 
+from opentelemetry import trace
 from pydantic import TypeAdapter
 from pydantic_function_models import (  # type: ignore[import-untyped]
     ValidatedFunction,
 )
+from uipath.core import UiPathSpanUtils
 
 from uipath._cli._evals._models._mocks import ExampleCall
 from uipath._cli._evals.mocks.mocker import UiPathNoMockFoundError
@@ -18,6 +20,8 @@ from uipath._cli._evals.mocks.mocks import get_mocked_response
 
 _event_loop = None
 logger = logging.getLogger(__name__)
+
+MOCKED_ANNOTATION_KEY = "__uipath_response_mocked"
 
 
 def run_coroutine(coro):
@@ -35,6 +39,12 @@ def mocked_response_decorator(func, params: dict[str, Any]):
 
     async def mock_response_generator(*args, **kwargs):
         mocked_response = await get_mocked_response(func, params, *args, **kwargs)
+
+        # Mocking successful.
+        context = UiPathSpanUtils.get_parent_context()
+        span = trace.get_current_span(context=context)
+        span.set_attribute(MOCKED_ANNOTATION_KEY, True)
+
         return_type: Any = func.__annotations__.get("return", None)
 
         if return_type is not None:
