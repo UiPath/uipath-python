@@ -8,7 +8,6 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExportResult
 
 from uipath.tracing._otel_exporters import (
-    FilteringSpanExporter,
     LlmOpsHttpExporter,
     SpanStatus,
 )
@@ -614,96 +613,6 @@ class TestLangchainExporter(unittest.TestCase):
 
         self.assertIsInstance(attributes["emptyString"], str)
         self.assertEqual(attributes["emptyString"], "")
-
-
-class TestFilteringSpanExporter:
-    """Tests for FilteringSpanExporter wrapper class."""
-
-    @pytest.fixture
-    def base_exporter(self, mock_env_vars):
-        """Create a base LlmOpsHttpExporter for delegation."""
-        with patch("uipath.tracing._otel_exporters.httpx.Client"):
-            exporter = LlmOpsHttpExporter()
-            exporter._build_url = MagicMock(  # type: ignore
-                return_value="https://test.uipath.com/api/Traces/spans?traceId=test&source=Robots"
-            )
-            yield exporter
-
-    def test_filters_spans_by_custom_function(self, base_exporter):
-        """FilteringSpanExporter applies custom filter function."""
-
-        def is_custom_instrumentation(span: ReadableSpan) -> bool:
-            attrs = span.attributes or {}
-            return attrs.get("uipath.custom_instrumentation") is True
-
-        filtered_exporter = FilteringSpanExporter(
-            base_exporter, is_custom_instrumentation
-        )
-
-        # Span with custom instrumentation marker
-        keep_span = MagicMock(spec=ReadableSpan)
-        keep_span.attributes = {"uipath.custom_instrumentation": True}
-
-        # Span without marker
-        drop_span = MagicMock(spec=ReadableSpan)
-        drop_span.attributes = {}
-
-        mock_uipath_span = MagicMock()
-        mock_uipath_span.to_dict.return_value = {
-            "TraceId": "test-trace-id",
-            "Attributes": {},
-        }
-
-        with patch(
-            "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
-            return_value=mock_uipath_span,
-        ):
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            base_exporter.http_client.post.return_value = mock_response
-
-            # Export both spans through filtered exporter
-            result = filtered_exporter.export([drop_span, keep_span])
-
-            assert result == SpanExportResult.SUCCESS
-            # Only one span should reach the base exporter
-            base_exporter.http_client.post.assert_called_once()
-
-    def test_all_filtered_returns_success_without_delegation(self, base_exporter):
-        """When all spans filtered, returns SUCCESS without calling base exporter."""
-
-        def drop_all(span: ReadableSpan) -> bool:
-            return False
-
-        filtered_exporter = FilteringSpanExporter(base_exporter, drop_all)
-
-        span = MagicMock(spec=ReadableSpan)
-        span.attributes = {}
-
-        result = filtered_exporter.export([span])
-
-        assert result == SpanExportResult.SUCCESS
-        # Base exporter should not be called
-        base_exporter.http_client.post.assert_not_called()
-
-    def test_shutdown_delegates_to_base(self, base_exporter):
-        """shutdown() delegates to base exporter."""
-        base_exporter.shutdown = MagicMock()
-
-        filtered_exporter = FilteringSpanExporter(base_exporter, lambda s: True)
-        filtered_exporter.shutdown()
-
-        base_exporter.shutdown.assert_called_once()
-
-    def test_force_flush_delegates_to_base(self, base_exporter):
-        """force_flush() delegates to base exporter."""
-        base_exporter.force_flush = MagicMock(return_value=True)
-
-        filtered_exporter = FilteringSpanExporter(base_exporter, lambda s: True)
-        result = filtered_exporter.force_flush(timeout_millis=5000)
-
-        assert result is True
-        base_exporter.force_flush.assert_called_once_with(5000)
 
 
 class TestUpsertSpan:

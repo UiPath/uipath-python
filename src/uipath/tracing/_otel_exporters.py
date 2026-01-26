@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import httpx
 from opentelemetry.sdk.trace import ReadableSpan
@@ -16,52 +16,6 @@ from uipath._utils._ssl_context import get_httpx_client_kwargs
 from ._utils import _SpanUtils
 
 logger = logging.getLogger(__name__)
-
-
-class FilteringSpanExporter(SpanExporter):
-    """Wraps a SpanExporter to filter spans before export.
-
-    Used to route specific spans to specific exporters. Filtering logic
-    belongs in the processor/exporter wrapper layer, not in the exporter itself.
-    Exporters should only handle HOW to send data, while filters determine WHAT to send.
-
-    Example:
-        >>> def is_custom_instrumentation(span: ReadableSpan) -> bool:
-        ...     return span.attributes.get("uipath.custom_instrumentation") == True
-        >>>
-        >>> base_exporter = LlmOpsHttpExporter()
-        >>> filtered = FilteringSpanExporter(base_exporter, is_custom_instrumentation)
-        >>> trace_manager.add_span_exporter(filtered)
-    """
-
-    def __init__(
-        self,
-        delegate: SpanExporter,
-        filter_fn: Callable[[ReadableSpan], bool],
-    ):
-        """Initialize the filtering exporter.
-
-        Args:
-            delegate: The underlying exporter to send filtered spans to.
-            filter_fn: Function that returns True for spans to export, False to drop.
-        """
-        self._delegate = delegate
-        self._filter_fn = filter_fn
-
-    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        """Export only spans that pass the filter."""
-        filtered = [s for s in spans if self._filter_fn(s)]
-        if not filtered:
-            return SpanExportResult.SUCCESS
-        return self._delegate.export(filtered)
-
-    def shutdown(self) -> None:
-        """Shutdown the delegate exporter."""
-        self._delegate.shutdown()
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:
-        """Force flush the delegate exporter."""
-        return self._delegate.force_flush(timeout_millis)
 
 
 class SpanStatus:
