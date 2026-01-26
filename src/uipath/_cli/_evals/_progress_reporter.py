@@ -106,6 +106,9 @@ class StudioWebProgressReporter:
         self.eval_set_execution_id: str | None = (
             None  # Track current eval set execution ID
         )
+        self.user_provided_eval_set_run_ids: set[str] = (
+            set()
+        )  # Track user-provided eval_set_run_ids
 
     @gracefully_handle_errors
     async def get_eval_run_for_evaluation(
@@ -555,6 +558,7 @@ class StudioWebProgressReporter:
             # Check if eval_set_run_id is provided (resume scenario)
             eval_set_run_id = payload.eval_set_run_id
             if eval_set_run_id:
+                self.user_provided_eval_set_run_ids.add(eval_set_run_id)
                 # Resume scenario: Use the provided eval_set_run_id
                 # Fetch all existing eval runs from backend to populate cache
                 self.is_resume_mode[payload.execution_id] = True
@@ -780,6 +784,12 @@ class StudioWebProgressReporter:
     async def handle_update_eval_set_run(self, payload: EvalSetRunUpdatedEvent) -> None:
         try:
             if eval_set_run_id := self.eval_set_run_ids.get(payload.execution_id):
+                # Skip update if eval_set_run_id was provided by user
+                if eval_set_run_id in self.user_provided_eval_set_run_ids:
+                    logger.debug(
+                        f"Skipping eval set run update for user-provided eval_set_run_id (eval_set_run_id={eval_set_run_id})"
+                    )
+                    return
                 # Get the is_coded flag for this execution
                 is_coded = self.is_coded_eval.get(payload.execution_id, False)
                 await self.update_eval_set_run(

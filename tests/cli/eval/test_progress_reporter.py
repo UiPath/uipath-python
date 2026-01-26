@@ -16,7 +16,7 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
-from uipath._events._events import EvalSetRunCreatedEvent
+from uipath._events._events import EvalSetRunCreatedEvent, EvalSetRunUpdatedEvent
 from uipath.tracing import LlmOpsHttpExporter
 
 # Test fixtures - simple mocks without full evaluator instantiation
@@ -376,34 +376,46 @@ class TestCustomEvalSetRunId:
     """Tests for handling custom eval set run IDs."""
 
     @pytest.mark.asyncio
-    async def test_eval_set_run_created_event_with_skip_sw_creation_true(
+    async def test_eval_set_run_created_event_with_user_provided_id(
         self, progress_reporter
     ):
-        """Test that when eval_set_run_id is provided, create_eval_set_run_sw is not called."""
+        """Test that when eval_set_run_id is provided, eval set run creation is skipped."""
         # Arrange
         execution_id = "execution-id-12345"
-        custom_run_id = "custom-run-id-12345"
+        user_provided_id = "user-provided-id-12345"
         event = EvalSetRunCreatedEvent(
             execution_id=execution_id,
             entrypoint="test.py",
             eval_set_id="test-eval-set",
-            eval_set_run_id=custom_run_id,  # When this is provided, SW creation is skipped
+            eval_set_run_id=user_provided_id,  # User provides custom ID for tracing
             no_of_evals=5,
             evaluators=[],
         )
 
         # Mock the create_eval_set_run_sw method to ensure it's not called
         with patch.object(
-            progress_reporter, "create_eval_set_run_sw", new_callable=AsyncMock
+            progress_reporter,
+            "create_eval_set_run_sw",
+            new_callable=AsyncMock,
         ) as mock_create:
-            # Act
-            await progress_reporter.handle_create_eval_set_run(event)
+            with patch.object(
+                progress_reporter, "_extract_agent_snapshot"
+            ) as mock_extract:
+                mock_extract.return_value = Mock()
+                # Act
+                await progress_reporter.handle_create_eval_set_run(event)
 
-            # Assert
-            # Verify that create_eval_set_run_sw was NOT called
-            mock_create.assert_not_called()
-            # Verify that the custom run ID was stored (indexed by execution_id)
-            assert progress_reporter.eval_set_run_ids[execution_id] == custom_run_id
+                # Assert
+                # Verify that create_eval_set_run_sw WAS NOT called (skip creation)
+                mock_create.assert_not_called()
+                # Verify that the user-provided ID was stored for operations
+                assert (
+                    progress_reporter.eval_set_run_ids[execution_id] == user_provided_id
+                )
+                # Verify that eval_set_run_id is tracked as user-provided (for skipping evalSetRun operations)
+                assert (
+                    user_provided_id in progress_reporter.user_provided_eval_set_run_ids
+                )
 
     @pytest.mark.asyncio
     async def test_eval_set_run_created_event_with_skip_sw_creation_false(
@@ -476,6 +488,99 @@ class TestCustomEvalSetRunId:
 
         # Assert
         assert event.eval_set_run_id is None
+
+    @pytest.mark.asyncio
+    async def test_eval_set_run_update_skipped_when_user_provided(
+        self, progress_reporter
+    ):
+        """Test that eval set run updates are skipped when eval_set_run_id is user-provided."""
+        # Arrange
+        execution_id = "execution-id-12345"
+        custom_run_id = "custom-run-id-12345"
+
+        # First, create the eval set run with a user-provided ID
+        create_event = EvalSetRunCreatedEvent(
+            execution_id=execution_id,
+            entrypoint="test.py",
+            eval_set_id="test-eval-set",
+            eval_set_run_id=custom_run_id,
+            no_of_evals=5,
+            evaluators=[],
+        )
+        await progress_reporter.handle_create_eval_set_run(create_event)
+
+        # Now try to update the eval set run
+        update_event = EvalSetRunUpdatedEvent(
+            execution_id=execution_id,
+            evaluator_scores={"eval-1": 0.9},
+            success=True,
+        )
+
+        # Mock the update_eval_set_run method to ensure it's not called
+        with patch.object(
+            progress_reporter, "update_eval_set_run", new_callable=AsyncMock
+        ) as mock_update:
+            # Act
+            await progress_reporter.handle_update_eval_set_run(update_event)
+
+            # Assert
+            # Verify that update_eval_set_run was NOT called
+            mock_update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_eval_set_run_update_called_when_system_generated(
+        self, progress_reporter
+    ):
+        """Test that eval set run updates are called when eval_set_run_id is system-generated."""
+        # Arrange
+        execution_id = "execution-id-67890"
+        generated_run_id = "generated-run-id-abcde"
+
+        # First, create the eval set run without a user-provided ID (system generates it)
+        create_event = EvalSetRunCreatedEvent(
+            execution_id=execution_id,
+            entrypoint="test.py",
+            eval_set_id="test-eval-set",
+            eval_set_run_id=None,  # System will generate
+            no_of_evals=5,
+            evaluators=[],
+        )
+
+        # Mock the create_eval_set_run_sw method to return a generated ID
+        with patch.object(
+            progress_reporter,
+            "create_eval_set_run_sw",
+            new_callable=AsyncMock,
+            return_value=generated_run_id,
+        ):
+            with patch.object(
+                progress_reporter, "_extract_agent_snapshot"
+            ) as mock_extract:
+                mock_extract.return_value = Mock()
+                await progress_reporter.handle_create_eval_set_run(create_event)
+
+        # Now try to update the eval set run
+        update_event = EvalSetRunUpdatedEvent(
+            execution_id=execution_id,
+            evaluator_scores={"eval-1": 0.9},
+            success=True,
+        )
+
+        # Mock the update_eval_set_run method to verify it IS called
+        with patch.object(
+            progress_reporter, "update_eval_set_run", new_callable=AsyncMock
+        ) as mock_update:
+            # Act
+            await progress_reporter.handle_update_eval_set_run(update_event)
+
+            # Assert
+            # Verify that update_eval_set_run WAS called
+            mock_update.assert_called_once_with(
+                generated_run_id,
+                {"eval-1": 0.9},
+                is_coded=False,
+                success=True,
+            )
 
 
 # Tests for eval set run status updates
