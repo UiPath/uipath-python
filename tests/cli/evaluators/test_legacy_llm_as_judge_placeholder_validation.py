@@ -9,6 +9,10 @@ from unittest.mock import patch
 from uipath.eval.evaluators.legacy_llm_as_judge_evaluator import (
     LegacyLlmAsAJudgeEvaluator,
 )
+from uipath.eval.models.models import (
+    LegacyEvaluatorCategory,
+    LegacyEvaluatorType,
+)
 
 
 class TestLegacyLlmAsAJudgePlaceholderValidation:
@@ -25,8 +29,8 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
@@ -50,8 +54,8 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
@@ -86,8 +90,8 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
@@ -119,8 +123,8 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
@@ -164,8 +168,8 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
@@ -189,8 +193,8 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
@@ -220,8 +224,8 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
@@ -245,8 +249,8 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
@@ -279,8 +283,8 @@ Provide a score from 0-100.
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
                 id="test",
-                category="AI",
-                evaluator_type="LLMAsJudge",
+                category=LegacyEvaluatorCategory.LlmAsAJudge,
+                evaluator_type=LegacyEvaluatorType.Custom,
                 name="TestEvaluator",
                 description="Test",
                 created_at="2025-01-01T00:00:00Z",
