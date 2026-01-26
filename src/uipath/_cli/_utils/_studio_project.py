@@ -485,21 +485,20 @@ class StudioClient:
             f"/studio_/backend/api/Project/{project_id}/Lock"
         )
         self._project_id = project_id
-        self._solution_id_cache: Optional[str] = None
         self._resources_cache: Optional[List[dict[str, Any]]] = None
         self._project_structure_cache: Optional[ProjectStructure] = None
 
     async def _get_solution_id(self) -> str:
         # implement property cache logic as coroutines are not supported
-        if self._solution_id_cache is not None:
-            return self._solution_id_cache
+        if (solution_id := UiPathConfig.studio_solution_id) is not None:
+            return solution_id
         response = await self.uipath.api_client.request_async(
             "GET",
             url=f"/studio_/backend/api/Project/{self._project_id}",
             scoped="org",
         )
-        self._solution_id_cache = response.json()["solutionId"]
-        return self._solution_id_cache
+        UiPathConfig.studio_solution_id = response.json()["solutionId"]
+        return UiPathConfig.studio_solution_id
 
     async def ensure_coded_agent_project_async(self):
         structure = await self.get_project_structure_async()

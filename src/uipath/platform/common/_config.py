@@ -11,6 +11,7 @@ class UiPathApiConfig(BaseModel):
 
 class ConfigurationManager:
     _instance = None
+    studio_solution_id: str | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -40,6 +41,12 @@ class ConfigurationManager:
         from uipath._utils.constants import ENV_UIPATH_PROJECT_ID
 
         return os.getenv(ENV_UIPATH_PROJECT_ID, None)
+
+    @property
+    def project_key(self) -> str | None:
+        from uipath._utils.constants import PROJECT_KEY
+
+        return os.getenv(PROJECT_KEY, None)
 
     @property
     def organization_id(self) -> str | None:
