@@ -45,7 +45,7 @@ def set_execution_context(
     mocking_context.set(context)
 
     try:
-        if context:
+        if context and context.strategy:
             mocker_context.set(MockerFactory.create(context))
         else:
             mocker_context.set(None)
