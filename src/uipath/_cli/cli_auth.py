@@ -58,9 +58,11 @@ def auth(
     Otherwise, it can be specified with --cloud (default), --staging, or --alpha flags.
 
     Interactive mode (default): Opens browser for OAuth authentication.
+
     Unattended mode: Use --client-id, --client-secret, --base-url and --scope for client credentials flow.
 
     Network options:
+
     - Set HTTP_PROXY/HTTPS_PROXY/NO_PROXY environment variables for proxy configuration
     - Set REQUESTS_CA_BUNDLE to specify a custom CA bundle for SSL verification
     - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)

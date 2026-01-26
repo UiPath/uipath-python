@@ -244,3 +244,44 @@ Selected feed: Orchestrator Tenant Processes Feed
 ✨ Job started successfully!
 🔗 Monitor your job here: [LINK]
 ```
+---
+
+::: mkdocs-click
+    :module: uipath._cli
+    :command: push
+    :depth: 1
+    :style: table
+
+<!-- termynal -->
+
+```shell
+> uipath push
+Pushing UiPath project to Studio Web...
+Uploading 'main.py'
+Uploading 'uipath.json'
+Updating 'pyproject.toml'
+Uploading '.uipath/studio_metadata.json'
+
+Importing referenced resources to Studio Web project...
+
+ 🔵 Resource import summary: 0 total resources - 0 created, 0 updated, 0 unchanged, 0 not found
+```
+---
+
+::: mkdocs-click
+    :module: uipath._cli
+    :command: pull
+    :depth: 1
+    :style: table
+
+<!-- termynal -->
+
+```shell
+> uipath pull
+Pulling UiPath project from Studio Web...
+Processing: main.py
+Updated 'main.py'
+Processing: uipath.json
+File 'uipath.json' is up to date
+✓  Project pulled successfully
+```
