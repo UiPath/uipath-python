@@ -1,6 +1,5 @@
 """Trajectory evaluator for analyzing execution paths and decision sequences."""
 
-import json
 from typing import Any, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -10,6 +9,7 @@ from uipath.eval.models import EvaluationResult
 
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ...platform.chat import UiPathLlmChatService
+from ...platform.chat.llm_gateway import RequiredToolChoice
 from ..models.models import (
     AgentExecution,
     LLMResponse,
@@ -21,6 +21,7 @@ from .legacy_base_evaluator import (
     LegacyEvaluationCriteria,
     LegacyEvaluatorConfig,
 )
+from .legacy_llm_helpers import create_evaluation_tool, extract_tool_call_response
 
 
 class LegacyTrajectoryEvaluatorConfig(LegacyEvaluatorConfig):
@@ -128,7 +129,7 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorCon
         return formatted_prompt
 
     async def _get_llm_response(self, evaluation_prompt: str) -> LLMResponse:
-        """Get response from the LLM.
+        """Get response from the LLM using universal function calling.
 
         Args:
             evaluation_prompt: The formatted prompt to send to the LLM
@@ -142,33 +143,17 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorCon
         if model.endswith(COMMUNITY_agents_SUFFIX):
             model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
-        # Prepare the request
+        # Create evaluation tool for function calling (works across all models)
+        evaluation_tool = create_evaluation_tool()
+        tool_choice = RequiredToolChoice()
+
+        # Prepare the request with function calling
         request_data = {
             "model": model,
             "messages": [{"role": "user", "content": evaluation_prompt}],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "evaluation_response",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "score": {
-                                "type": "number",
-                                "minimum": 0,
-                                "maximum": 100,
-                                "description": "Score between 0 and 100",
-                            },
-                            "justification": {
-                                "type": "string",
-                                "description": "Explanation for the score",
-                            },
-                        },
-                        "required": ["score", "justification"],
-                    },
-                },
-            },
+            "tools": [evaluation_tool],
+            "tool_choice": tool_choice,
         }
 
         response = await self.llm.chat_completions(**request_data)
-        return LLMResponse(**json.loads(response.choices[-1].message.content or "{}"))
+        return extract_tool_call_response(response, model)

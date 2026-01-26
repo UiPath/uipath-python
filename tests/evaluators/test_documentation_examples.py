@@ -527,13 +527,19 @@ class TestLLMJudgeOutputExamples:
         from uipath.eval.evaluators import LLMJudgeOutputEvaluator
         from uipath.eval.models import AgentExecution
 
-        # Mock the LLM response
+        # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 95,
+            "justification": "Both outputs convey the same meaning about Paris being the capital of France.",
+        }
+
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 95, "justification": "Both outputs convey the same meaning about Paris being the capital of France."}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -569,13 +575,19 @@ class TestLLMJudgeOutputExamples:
     @pytest.mark.asyncio
     async def test_custom_evaluation_prompt(self, mocker: MockerFixture) -> None:
         """Test custom evaluation prompt example."""
-        # Mock the LLM response
+        # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_2"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 90,
+            "justification": "Both messages convey successful cart addition.",
+        }
+
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 90, "justification": "Both messages convey successful cart addition."}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -626,13 +638,19 @@ Provide a score from 0-100 based on semantic similarity.
         self, mocker: MockerFixture
     ) -> None:
         """Test evaluating natural language quality example."""
-        # Mock the LLM response
+        # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_3"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 85,
+            "justification": "The email is professional and addresses the customer inquiry appropriately.",
+        }
+
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 85, "justification": "The email is professional and addresses the customer inquiry appropriately."}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -683,13 +701,19 @@ Support Team"""
             LLMJudgeStrictJSONSimilarityOutputEvaluator,
         )
 
-        # Mock the LLM response
+        # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_4"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 100,
+            "justification": "All keys match perfectly.",
+        }
+
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 100, "justification": "All keys match perfectly."}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -741,13 +765,19 @@ class TestLLMJudgeTrajectoryExamples:
         from uipath.eval.evaluators import LLMJudgeTrajectoryEvaluator
         from uipath.eval.models import AgentExecution
 
-        # Mock the LLM response
+        # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_5"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 85,
+            "justification": "Agent followed the expected booking flow.",
+        }
+
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 85, "justification": "Agent followed the expected booking flow."}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -791,13 +821,19 @@ class TestLLMJudgeTrajectoryExamples:
     @pytest.mark.asyncio
     async def test_validating_tool_usage_sequence(self, mocker: MockerFixture) -> None:
         """Test validating tool usage sequence example."""
-        # Mock the LLM response
+        # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_6"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 90,
+            "justification": "Agent correctly validated, updated, and notified in proper sequence.",
+        }
+
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 90, "justification": "Agent correctly validated, updated, and notified in proper sequence."}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
@@ -842,13 +878,19 @@ class TestLLMJudgeTrajectoryExamples:
         """Test tool simulation trajectory evaluation example."""
         from uipath.eval.evaluators import LLMJudgeTrajectorySimulationEvaluator
 
-        # Mock the LLM response
+        # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_7"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 88,
+            "justification": "Agent followed expected flow with simulated tool responses.",
+        }
+
         mock_response.choices = [
             mocker.MagicMock(
-                message=mocker.MagicMock(
-                    content='{"score": 88, "justification": "Agent followed expected flow with simulated tool responses."}'
-                )
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 

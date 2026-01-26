@@ -1,0 +1,30 @@
+{
+  "fileName": "faithfulness-multi-model.json",
+  "id": "faithfulness-multi-model-eval-set",
+  "name": "Multi-Model Faithfulness Evaluation",
+  "batchSize": 10,
+  "evaluatorRefs": [
+    "FaithfulnessEvaluatorClaude",
+    "FaithfulnessEvaluatorGemini"
+  ],
+  "evaluations": [
+    {
+      "id": "test-faithfulness-add-multi-model",
+      "name": "Test Add Faithfulness with Multiple LLM Judges",
+      "inputs": {
+        "a": 7,
+        "b": 3,
+        "operator": "+"
+      },
+      "expectedOutput": {
+        "result": 10.0
+      },
+      "evalSetId": "faithfulness-multi-model-eval-set",
+      "createdAt": "2025-01-25T00:00:00.000Z",
+      "updatedAt": "2025-01-25T00:00:00.000Z"
+    }
+  ],
+  "modelSettings": [],
+  "createdAt": "2025-01-25T00:00:00.000Z",
+  "updatedAt": "2025-01-25T00:00:00.000Z"
+}

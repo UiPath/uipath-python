@@ -490,27 +490,55 @@ The stance must be exactly one of: "SUPPORTS", "CONTRADICTS", or "IRRELEVANT".""
         schema_name: str,
         schema: dict[str, Any],
     ) -> dict[str, Any]:
-        """Get structured LLM response using JSON schema."""
+        """Get structured LLM response using function calling."""
+        from uipath.platform.chat.llm_gateway import (
+            RequiredToolChoice,
+            ToolDefinition,
+            ToolFunctionDefinition,
+            ToolParametersDefinition,
+        )
+
         # Remove community-agents suffix from llm model name
         model = clean_model_name(self.model)
 
-        # Prepare the request
+        # Create a dynamic tool definition based on the schema
+        tool = ToolDefinition(
+            type="function",
+            function=ToolFunctionDefinition(
+                name=schema_name,
+                description=f"Submit the structured response for {schema_name}",
+                parameters=ToolParametersDefinition(
+                    type=schema.get("type", "object"),
+                    properties=schema.get("properties", {}),
+                    required=schema.get("required", []),
+                ),
+            ),
+        )
+
+        tool_choice = RequiredToolChoice()
+
+        # Prepare the request with function calling
         request_data = {
             "model": model,
             "messages": [
                 {"role": "system", "content": "Faithfulness Evaluation"},
                 {"role": "user", "content": evaluation_prompt},
             ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": schema_name,
-                    "schema": schema,
-                },
-            },
+            "tools": [tool],
+            "tool_choice": tool_choice,
         }
 
         assert self.llm, "LLM should be initialized before calling this method."
         response = await self.llm.chat_completions(**request_data)
-        content = response.choices[-1].message.content or "{}"
-        return json.loads(content)
+
+        # Extract from tool call
+        if (
+            response.choices
+            and response.choices[0].message.tool_calls
+            and len(response.choices[0].message.tool_calls) > 0
+        ):
+            tool_call = response.choices[0].message.tool_calls[0]
+            return tool_call.arguments
+
+        # Fallback to empty dict if no tool calls
+        return {}
