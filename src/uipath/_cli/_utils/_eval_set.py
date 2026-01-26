@@ -117,9 +117,9 @@ class EvalHelpers:
                         input_mocking_strategy = InputMockingStrategy(
                             prompt=evaluation.input_generation_instructions,
                         )
-                    if evaluation.simulate_tools and evaluation.simulation_instructions:
+                    if evaluation.simulate_tools:
                         mocking_strategy = LLMMockingStrategy(
-                            prompt=evaluation.simulation_instructions,
+                            prompt=evaluation.simulation_instructions or "",
                             tools_to_simulate=evaluation.tools_to_simulate or [],
                         )
                     return EvaluationItem.model_validate(
