@@ -15,9 +15,9 @@ class CredentialsConnectionData(BaseModel):
         arbitrary_types_allowed=True,
         extra="allow",
     )
-    url: str
-    body: str
-    bearer_token: str = Field(alias="bearerToken")
+    url: str = Field(alias="Url")
+    body: str = Field(alias="Body")
+    bearer_token: str = Field(alias="BearerToken")
 
 
 class UserAsset(BaseModel):

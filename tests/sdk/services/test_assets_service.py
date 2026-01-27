@@ -68,6 +68,62 @@ class TestAssetsService:
                 == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve/{version}"
             )
 
+        def test_retrieve_robot_asset_with_connection_data(
+            self,
+            httpx_mock: HTTPXMock,
+            service: AssetsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            version: str,
+        ) -> None:
+            """Test retrieving a robot asset with external credential store connection data.
+
+            This tests that the CredentialsConnectionData model correctly parses
+            API responses with uppercase field names (Url, Body, BearerToken).
+            """
+
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+                status_code=200,
+                json={
+                    "Id": 1,
+                    "Name": "Test Credential",
+                    "ValueType": "Credential",
+                    "ConnectionData": {
+                        "Url": "https://credentialstore.example.com/api/credentials",
+                        "Body": '{"credentialId": "12345"}',
+                        "BearerToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    },
+                },
+            )
+
+            asset = service.retrieve(name="Test Credential")
+
+            assert isinstance(asset, UserAsset)
+            assert asset.id == 1
+            assert asset.name == "Test Credential"
+            assert asset.value_type == "Credential"
+
+            # Verify connection data is correctly parsed with uppercase aliases
+            assert asset.connection_data is not None
+            assert (
+                asset.connection_data.url
+                == "https://credentialstore.example.com/api/credentials"
+            )
+            assert asset.connection_data.body == '{"credentialId": "12345"}'
+            assert (
+                asset.connection_data.bearer_token
+                == "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            )
+
+            sent_request = httpx_mock.get_request()
+            if sent_request is None:
+                raise Exception("No request was sent")
+
+            assert sent_request.method == "POST"
+            assert HEADER_USER_AGENT in sent_request.headers
+
         def test_retrieve_asset(
             self,
             httpx_mock: HTTPXMock,
