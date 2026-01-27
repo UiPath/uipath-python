@@ -29,7 +29,6 @@ def _create_spec(
     app_key: Optional[str] = None,
     app_folder_key: Optional[str] = None,
     app_folder_path: Optional[str] = None,
-    app_version: Optional[int] = None,
     priority: Optional[str] = None,
     labels: Optional[List[str]] = None,
     is_actionable_message_enabled: Optional[bool] = None,
@@ -112,8 +111,6 @@ def _create_spec(
         ),
     }
 
-    if app_version is not None:
-        json_payload["appVersion"] = app_version
     if priority and (normalized_priority := _normalize_priority(priority)):
         json_payload["priority"] = normalized_priority
     if labels is not None:
@@ -330,7 +327,6 @@ class TasksService(FolderContext, BaseService):
         app_folder_key: Optional[str] = None,
         assignee: Optional[str] = None,
         recipient: Optional[TaskRecipient] = None,
-        app_version: Optional[int] = None,
         priority: Optional[str] = None,
         labels: Optional[List[str]] = None,
         is_actionable_message_enabled: Optional[bool] = None,
@@ -349,7 +345,6 @@ class TasksService(FolderContext, BaseService):
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
             assignee: Optional username or email to assign the task to
-            app_version: Optional version of the app
             priority: Optional priority of the task
             labels: Optional list of labels for the task
             is_actionable_message_enabled: Optional boolean indicating whether actionable notifications are enabled for this task
@@ -375,7 +370,6 @@ class TasksService(FolderContext, BaseService):
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
-            app_version=app_version,
             priority=priority,
             labels=labels,
             is_actionable_message_enabled=is_actionable_message_enabled,
@@ -416,7 +410,6 @@ class TasksService(FolderContext, BaseService):
         app_folder_key: Optional[str] = None,
         assignee: Optional[str] = None,
         recipient: Optional[TaskRecipient] = None,
-        app_version: Optional[int] = None,
         priority: Optional[str] = None,
         labels: Optional[List[str]] = None,
         is_actionable_message_enabled: Optional[bool] = None,
@@ -435,7 +428,6 @@ class TasksService(FolderContext, BaseService):
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
             assignee: Optional username or email to assign the task to
-            app_version: Optional version of the app
             priority: Optional priority of the task
             labels: Optional list of labels for the task
             is_actionable_message_enabled: Optional boolean indicating  whether actionable notifications are enabled for this task
@@ -461,7 +453,6 @@ class TasksService(FolderContext, BaseService):
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
-            app_version=app_version,
             priority=priority,
             labels=labels,
             is_actionable_message_enabled=is_actionable_message_enabled,

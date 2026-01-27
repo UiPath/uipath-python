@@ -549,7 +549,6 @@ class UiPathResumeTriggerCreator:
                 assignee=value.assignee if value.assignee else "",
                 recipient=value.recipient if value.recipient else "",
                 data=value.data,
-                app_version=value.app_version,
                 priority=value.priority,
                 labels=value.labels,
                 is_actionable_message_enabled=value.is_actionable_message_enabled,
