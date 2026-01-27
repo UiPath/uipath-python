@@ -400,6 +400,9 @@ class AgentEscalationChannel(BaseCfg):
     description: str = Field(..., alias="description")
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
     output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
     outcome_mapping: Optional[Dict[str, str]] = Field(None, alias="outcomeMapping")
     properties: AgentEscalationChannelProperties = Field(..., alias="properties")
     recipients: List[AgentEscalationRecipient] = Field(..., alias="recipients")
