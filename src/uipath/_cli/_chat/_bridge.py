@@ -362,8 +362,8 @@ def get_chat_bridge(
     websocket_path = "autopilotforeveryone_/websocket_/socket.io"
 
     if os.environ.get("CAS_WEBSOCKET_HOST"):
-        websocket_url = f"ws://{os.environ.get('CAS_WEBSOCKET_HOST')}?conversationId={context.conversation_id}"
-        websocket_path = "/socket.io"
+        websocket_url = f"ws://{os.environ.get('CAS_WEBSOCKET_HOST')}"
+        websocket_path = f"/socket.io?conversationId={context.conversation_id}"
         logger.warning(
             f"CAS_WEBSOCKET_HOST is set. Using websocket_url '{websocket_url}{websocket_path}'."
         )
