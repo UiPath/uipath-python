@@ -23,7 +23,14 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
     SpanExportResult,
 )
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import (
+    NonRecordingSpan,
+    SpanContext,
+    Status,
+    StatusCode,
+    TraceFlags,
+    use_span,
+)
 from pydantic import BaseModel
 from uipath.core.tracing import UiPathTraceManager
 from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
@@ -229,9 +236,13 @@ class UiPathEvalRuntime:
         self.execution_id = context.job_id or str(uuid.uuid4())
         self.coverage = coverage.Coverage(branch=True)
 
+        self._storage = None
+
     async def __aenter__(self) -> "UiPathEvalRuntime":
         if self.context.report_coverage:
             self.coverage.start()
+        self._storage = await self.factory.get_storage()
+
         return self
 
     async def __aexit__(self, *args: Any) -> None:
@@ -326,22 +337,36 @@ class UiPathEvalRuntime:
         )
         try:
             with self._mocker_cache():
-                # Create the parent "Evaluation set run" span
-                # Use tracer from trace_manager's provider to ensure spans go through
-                # the ExecutionSpanProcessor
+                tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
+
+                # During resume, restore the parent "Evaluation Set Run" span context
+                # This prevents creating duplicate eval set run spans across jobs
+                eval_set_parent_span = await self._restore_parent_span(
+                    "eval_set_run", "Evaluation Set Run"
+                )
+
+                # Create "Evaluation Set Run" span or use restored parent context
                 # NOTE: Do NOT set execution.id on this parent span, as the mixin in
                 # UiPathExecutionBatchTraceProcessor propagates execution.id from parent
                 # to child spans, which would overwrite the per-eval execution.id
-                tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
                 span_attributes: dict[str, str | bool] = {
                     "span_type": "eval_set_run",
                     "uipath.custom_instrumentation": True,
                 }
                 if self.context.eval_set_run_id:
                     span_attributes["eval_set_run_id"] = self.context.eval_set_run_id
-                with tracer.start_as_current_span(
-                    "Evaluation Set Run", attributes=span_attributes
-                ) as span:
+
+                eval_set_span_context_manager = (
+                    use_span(
+                        eval_set_parent_span, end_on_exit=False
+                    )  # Don't end the remote span
+                    if eval_set_parent_span
+                    else tracer.start_as_current_span(
+                        "Evaluation Set Run", attributes=span_attributes
+                    )
+                )
+
+                with eval_set_span_context_manager as span:
                     try:
                         (
                             evaluation_set,
@@ -454,6 +479,13 @@ class UiPathEvalRuntime:
                                     overall_status = UiPathRuntimeStatus.FAULTED
                                     # Continue checking in case a later eval is SUSPENDED
 
+                        # Save the "Evaluation Set Run" span context if suspending
+                        # This allows the eval set run span to continue across job boundaries
+                        if overall_status == UiPathRuntimeStatus.SUSPENDED:
+                            await self._save_span_context_for_resume(
+                                span, "eval_set_run", "Evaluation Set Run"
+                            )
+
                         result = UiPathRuntimeResult(
                             output={**results.model_dump(by_alias=True)},
                             status=overall_status,
@@ -486,20 +518,30 @@ class UiPathEvalRuntime:
     ) -> EvaluationRunResult:
         execution_id = str(eval_item.id)
 
-        # Create the "Evaluation" span for this eval item
-        # Use tracer from trace_manager's provider to ensure spans go through
-        # the ExecutionSpanProcessor
         tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
-        with tracer.start_as_current_span(
-            "Evaluation",
-            attributes={
-                "execution.id": execution_id,
-                "span_type": "evaluation",
-                "eval_item_id": eval_item.id,
-                "eval_item_name": eval_item.name,
-                "uipath.custom_instrumentation": True,
-            },
-        ) as span:
+
+        # During resume, restore the parent span context from the previous execution
+        # This allows evaluators to be properly parented to the original "Evaluation" span
+        parent_span = await self._restore_parent_span(eval_item.id, "Evaluation")
+
+        # Create "Evaluation" span or use restored parent context
+        # use_span() handles context management automatically (no manual attach/detach)
+        span_context_manager = (
+            use_span(parent_span, end_on_exit=False)  # Don't end the remote span
+            if parent_span
+            else tracer.start_as_current_span(
+                "Evaluation",
+                attributes={
+                    "execution.id": execution_id,
+                    "span_type": "evaluation",
+                    "eval_item_id": eval_item.id,
+                    "eval_item_name": eval_item.name,
+                    "uipath.custom_instrumentation": True,
+                },
+            )
+        )
+
+        with span_context_manager as span:
             evaluation_run_results = EvaluationRunResult(
                 evaluation_name=eval_item.name, evaluation_run_results=[]
             )
@@ -609,6 +651,13 @@ class UiPathEvalRuntime:
                         logger.info(
                             f"EVAL RUNTIME: Trigger {i}: {trigger.model_dump(by_alias=True)}"
                         )
+
+                    # Save the parent Evaluation span context for resume
+                    # This allows evaluators to be properly parented to this span during resume
+                    await self._save_span_context_for_resume(
+                        span, eval_item.id, "Evaluation"
+                    )
+
                     logger.info("=" * 80)
 
                     # IMPORTANT: Always include execution output with triggers when suspended
@@ -1137,6 +1186,162 @@ class UiPathEvalRuntime:
             )
 
         return evaluators
+
+    async def _restore_parent_span(
+        self, span_key: str, span_type: str
+    ) -> NonRecordingSpan | None:
+        """Restore parent span from storage during resume.
+
+        Creates a NonRecordingSpan from saved span context to continue the trace
+        across job boundaries without creating duplicate spans.
+
+        Args:
+            span_key: Storage key for the span. Examples:
+                - "eval_set_run" (string literal) for Evaluation Set Run span
+                - eval_item.id (e.g., "eval-001") for individual Evaluation span
+            span_type: Human-readable span type for logging (e.g., "Evaluation Set Run")
+
+        Returns:
+            NonRecordingSpan if context was restored successfully, None otherwise
+        """
+        if not self.context.resume:
+            return None
+
+        saved_context = await self._get_saved_parent_span_context(span_key)
+        if not saved_context:
+            return None
+
+        try:
+            trace_id = int(saved_context["trace_id"], 16)
+            span_id = int(saved_context["span_id"], 16)
+            span_context = SpanContext(
+                trace_id=trace_id,
+                span_id=span_id,
+                is_remote=True,
+                trace_flags=TraceFlags(0x01),  # Sampled
+            )
+            parent_span = NonRecordingSpan(span_context)
+            logger.info(
+                f"EVAL RUNTIME: Restored {span_type} span context for resume - "
+                f"trace_id={saved_context['trace_id']}, span_id={saved_context['span_id']}"
+            )
+            return parent_span
+        except Exception as e:
+            logger.warning(
+                f"EVAL RUNTIME: Failed to restore {span_type} span context: {e}"
+            )
+            return None
+
+    async def _save_span_context_for_resume(
+        self, span: Any, span_key: str, span_type: str
+    ) -> None:
+        """Save span context for retrieval during resume.
+
+        Extracts trace_id and span_id from the span and persists them to storage
+        so they can be restored after suspend/resume across job boundaries.
+
+        Args:
+            span: The OpenTelemetry span to save context from
+            span_key: Storage key for the span. Examples:
+                - "eval_set_run" (string literal) for Evaluation Set Run span
+                - eval_item.id (e.g., "eval-001") for individual Evaluation span
+            span_type: Human-readable span type for logging (e.g., "Evaluation")
+        """
+        if span is None:
+            return
+
+        span_context = span.get_span_context()
+        span_id_hex = format(span_context.span_id, "016x")
+        trace_id_hex = format(span_context.trace_id, "032x")
+
+        await self._save_parent_span_context(
+            span_key,
+            {
+                "span_id": span_id_hex,
+                "trace_id": trace_id_hex,
+            },
+        )
+
+        logger.info(
+            f"EVAL RUNTIME: Saved {span_type} span context for resume - "
+            f"trace_id={trace_id_hex}, span_id={span_id_hex}"
+        )
+
+    async def _save_parent_span_context(
+        self, execution_id: str, span_context: dict[str, str]
+    ) -> None:
+        """Save parent span context for retrieval during resume.
+
+        Uses storage protocol from runtime factory to persist span context
+        across job boundaries (suspend/resume).
+
+        Storage structure:
+            - runtime_id: self.execution_id (eval set run ID)
+            - namespace: "eval_parent_span"
+            - key: execution_id parameter (span-specific identifier)
+
+        Args:
+            execution_id: Storage key for the span. Can be:
+                - "eval_set_run" for Evaluation Set Run span
+                - eval_item.id for individual Evaluation spans
+            span_context: Dictionary with 'span_id' and 'trace_id' keys (hex strings)
+        """
+        if self._storage is not None:
+            await self._storage.set_value(
+                runtime_id=self.execution_id,
+                namespace="eval_parent_span",
+                key=execution_id,
+                value=span_context,
+            )
+            logger.debug(
+                f"Saved parent span context to storage for execution_id={execution_id}: {span_context}"
+            )
+        else:
+            logger.warning(
+                f"No storage available, cannot persist parent span context for execution_id={execution_id}"
+            )
+
+    async def _get_saved_parent_span_context(
+        self, execution_id: str
+    ) -> dict[str, str] | None:
+        """Retrieve saved parent span context for resume.
+
+        Uses storage protocol from runtime factory to retrieve span context
+        persisted during suspend.
+
+        Storage lookup:
+            - runtime_id: self.execution_id (eval set run ID)
+            - namespace: "eval_parent_span"
+            - key: execution_id parameter (span-specific identifier)
+
+        Args:
+            execution_id: Storage key for the span. Can be:
+                - "eval_set_run" for Evaluation Set Run span
+                - eval_item.id for individual Evaluation spans
+
+        Returns:
+            Dictionary with 'span_id' and 'trace_id' keys (hex strings), or None if not found
+        """
+        if self._storage is not None:
+            context = await self._storage.get_value(
+                runtime_id=self.execution_id,
+                namespace="eval_parent_span",
+                key=execution_id,
+            )
+            if context:
+                logger.debug(
+                    f"Retrieved parent span context from storage for execution_id={execution_id}: {context}"
+                )
+            else:
+                logger.debug(
+                    f"No saved parent span context found in storage for execution_id={execution_id}"
+                )
+            return context
+        else:
+            logger.warning(
+                f"No storage available, cannot retrieve parent span context for execution_id={execution_id}"
+            )
+            return None
 
     async def cleanup(self) -> None:
         """Cleanup runtime resources."""
