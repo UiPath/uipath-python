@@ -9,6 +9,7 @@ from uipath.platform.context_grounding.context_grounding_index import (
 )
 
 from ..action_center.tasks import Task, TaskRecipient
+from ..attachments import Attachment
 from ..context_grounding import (
     BatchTransformCreationResponse,
     BatchTransformOutputColumn,
@@ -33,6 +34,7 @@ class InvokeProcess(BaseModel):
     process_folder_path: str | None = None
     process_folder_key: str | None = None
     input_arguments: dict[str, Any] | None
+    attachments: list[Attachment] | None = None
 
 
 class WaitJob(BaseModel):

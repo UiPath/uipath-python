@@ -774,6 +774,7 @@ class UiPathResumeTriggerCreator:
             job = await uipath.processes.invoke_async(
                 name=value.name,
                 input_arguments=value.input_arguments,
+                attachments=value.attachments,
                 folder_path=value.process_folder_path,
                 folder_key=value.process_folder_key,
             )
