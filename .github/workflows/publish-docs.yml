@@ -46,9 +46,11 @@ jobs:
         run: |
           ln -s ../plugins/uipath-langchain-python/docs docs/langchain
           ln -s ../plugins/uipath-integrations-python/packages/uipath-llamaindex/docs docs/llamaindex
+          ln -s ../plugins/uipath-integrations-python/packages/uipath-openai-agents/docs docs/openai-agents
           ln -s ../plugins/uipath-mcp-python/docs docs/mcp
           ls -a docs/langchain
           ls -a docs/llamaindex
+          ls -a docs/openai-agents
           ls -a docs/mcp
 
       - name: Publish Docs
