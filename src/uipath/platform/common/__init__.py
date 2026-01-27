@@ -24,7 +24,7 @@ from .interrupt_models import (
     WaitEscalation,
     WaitJob,
     WaitSystemAgent,
-    WaitTask,
+    WaitTask, CreateEphemeralIndex, WaitEphemeralIndex,
 )
 from .paging import PagedResult
 
@@ -52,4 +52,6 @@ __all__ = [
     "WaitDocumentExtraction",
     "InvokeSystemAgent",
     "WaitSystemAgent",
+    "CreateEphemeralIndex",
+    "WaitEphemeralIndex"
 ]
