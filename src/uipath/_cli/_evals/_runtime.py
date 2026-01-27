@@ -41,6 +41,7 @@ from uipath.runtime import (
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
+    UiPathRuntimeStorageProtocol,
 )
 from uipath.runtime.errors import (
     UiPathErrorCategory,
@@ -236,7 +237,7 @@ class UiPathEvalRuntime:
         self.execution_id = context.job_id or str(uuid.uuid4())
         self.coverage = coverage.Coverage(branch=True)
 
-        self._storage = None
+        self._storage: UiPathRuntimeStorageProtocol | None = None
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
         if self.context.report_coverage:
@@ -367,6 +368,10 @@ class UiPathEvalRuntime:
                 )
 
                 with eval_set_span_context_manager as span:
+                    await self._save_span_context_for_resume(
+                        span, "eval_set_run", "Evaluation Set Run"
+                    )
+
                     try:
                         (
                             evaluation_set,
@@ -479,13 +484,6 @@ class UiPathEvalRuntime:
                                     overall_status = UiPathRuntimeStatus.FAULTED
                                     # Continue checking in case a later eval is SUSPENDED
 
-                        # Save the "Evaluation Set Run" span context if suspending
-                        # This allows the eval set run span to continue across job boundaries
-                        if overall_status == UiPathRuntimeStatus.SUSPENDED:
-                            await self._save_span_context_for_resume(
-                                span, "eval_set_run", "Evaluation Set Run"
-                            )
-
                         result = UiPathRuntimeResult(
                             output={**results.model_dump(by_alias=True)},
                             status=overall_status,
@@ -542,6 +540,8 @@ class UiPathEvalRuntime:
         )
 
         with span_context_manager as span:
+            await self._save_span_context_for_resume(span, eval_item.id, "Evaluation")
+
             evaluation_run_results = EvaluationRunResult(
                 evaluation_name=eval_item.name, evaluation_run_results=[]
             )
@@ -651,12 +651,6 @@ class UiPathEvalRuntime:
                         logger.info(
                             f"EVAL RUNTIME: Trigger {i}: {trigger.model_dump(by_alias=True)}"
                         )
-
-                    # Save the parent Evaluation span context for resume
-                    # This allows evaluators to be properly parented to this span during resume
-                    await self._save_span_context_for_resume(
-                        span, eval_item.id, "Evaluation"
-                    )
 
                     logger.info("=" * 80)
 
@@ -1188,7 +1182,7 @@ class UiPathEvalRuntime:
         return evaluators
 
     async def _restore_parent_span(
-        self, span_key: str, span_type: str
+        self, eval_item: str, span_type: str
     ) -> NonRecordingSpan | None:
         """Restore parent span from storage during resume.
 
@@ -1196,7 +1190,7 @@ class UiPathEvalRuntime:
         across job boundaries without creating duplicate spans.
 
         Args:
-            span_key: Storage key for the span. Examples:
+            eval_item: Storage key for the span. Examples:
                 - "eval_set_run" (string literal) for Evaluation Set Run span
                 - eval_item.id (e.g., "eval-001") for individual Evaluation span
             span_type: Human-readable span type for logging (e.g., "Evaluation Set Run")
@@ -1207,7 +1201,7 @@ class UiPathEvalRuntime:
         if not self.context.resume:
             return None
 
-        saved_context = await self._get_saved_parent_span_context(span_key)
+        saved_context = await self._get_saved_parent_span_context(eval_item)
         if not saved_context:
             return None
 
@@ -1233,7 +1227,7 @@ class UiPathEvalRuntime:
             return None
 
     async def _save_span_context_for_resume(
-        self, span: Any, span_key: str, span_type: str
+        self, span: Any, eval_item: str, span_type: str
     ) -> None:
         """Save span context for retrieval during resume.
 
@@ -1242,12 +1236,12 @@ class UiPathEvalRuntime:
 
         Args:
             span: The OpenTelemetry span to save context from
-            span_key: Storage key for the span. Examples:
+            eval_item: Storage key for the span. Examples:
                 - "eval_set_run" (string literal) for Evaluation Set Run span
                 - eval_item.id (e.g., "eval-001") for individual Evaluation span
             span_type: Human-readable span type for logging (e.g., "Evaluation")
         """
-        if span is None:
+        if span is None or not hasattr(span, "get_span_context"):
             return
 
         span_context = span.get_span_context()
@@ -1255,7 +1249,7 @@ class UiPathEvalRuntime:
         trace_id_hex = format(span_context.trace_id, "032x")
 
         await self._save_parent_span_context(
-            span_key,
+            eval_item,
             {
                 "span_id": span_id_hex,
                 "trace_id": trace_id_hex,
