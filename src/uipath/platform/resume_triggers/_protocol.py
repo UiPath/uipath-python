@@ -570,6 +570,12 @@ class UiPathResumeTriggerCreator:
                     attachments=value.attachments,
                 )
             )
+            await self._create_external_trigger(
+                ExternalTrigger(
+                    type=ExternalTriggerType.INDEX_INGESTION,
+                    external_id=ephemeral_index.id,
+                )
+            )
             if not ephemeral_index:
                 raise Exception("Failed to create ephemeral index")
             resume_trigger.item_key = ephemeral_index.id
