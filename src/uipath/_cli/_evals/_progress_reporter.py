@@ -43,7 +43,6 @@ from uipath.eval.evaluators import (
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
-from uipath.tracing import LlmOpsHttpExporter
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +73,7 @@ def gracefully_handle_errors(func):
 class StudioWebProgressReporter:
     """Handles reporting evaluation progress to StudioWeb."""
 
-    def __init__(self, spans_exporter: LlmOpsHttpExporter):
-        self.spans_exporter = spans_exporter
-
+    def __init__(self):
         logging.getLogger("uipath._cli.middlewares").setLevel(logging.CRITICAL)
         console_logger = ConsoleLogger.get_instance()
 

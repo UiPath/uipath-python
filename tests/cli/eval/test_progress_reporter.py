@@ -36,7 +36,7 @@ def progress_reporter(mock_exporter, monkeypatch):
     monkeypatch.setenv("UIPATH_PROJECT_ID", "test-project-id")
     monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
 
-    reporter = StudioWebProgressReporter(mock_exporter)
+    reporter = StudioWebProgressReporter()
     return reporter
 
 

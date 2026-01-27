@@ -21,9 +21,12 @@ from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
-from uipath.tracing import JsonLinesFileExporter, LlmOpsHttpExporter
+from uipath.tracing import (
+    JsonLinesFileExporter,
+    LiveTrackingSpanProcessor,
+    LlmOpsHttpExporter,
+)
 
-from ._evals._live_tracking_processor import LiveTrackingSpanProcessor
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -182,17 +185,22 @@ def run(
                         try:
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
                             factory_settings = await factory.get_settings()
+                            trace_settings = (
+                                factory_settings.trace_settings
+                                if factory_settings
+                                else None
+                            )
                             runtime = await factory.new_runtime(
                                 entrypoint,
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
 
                             if ctx.job_id:
-                                job_exporter = LlmOpsHttpExporter()
-                                LiveTrackingSpanProcessor.create_and_register(
-                                    job_exporter,
-                                    trace_manager,
-                                    settings=factory_settings,
+                                trace_manager.add_span_processor(
+                                    LiveTrackingSpanProcessor(
+                                        LlmOpsHttpExporter(),
+                                        settings=trace_settings,
+                                    )
                                 )
 
                                 if ctx.conversation_id and ctx.exchange_id:

@@ -17,7 +17,6 @@ from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import get_debug_bridge
-from uipath._cli._evals._live_tracking_processor import LiveTrackingSpanProcessor
 from uipath._cli._evals._span_collection import ExecutionSpanCollector
 from uipath._cli._evals.mocks.mocks import (
     clear_execution_context,
@@ -33,7 +32,7 @@ from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.platform.common import UiPathConfig
-from uipath.tracing import LlmOpsHttpExporter
+from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -196,15 +195,22 @@ def debug(
 
                         factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
                         factory_settings = await factory.get_settings()
+                        trace_settings = (
+                            factory_settings.trace_settings
+                            if factory_settings
+                            else None
+                        )
 
                         runtime = await factory.new_runtime(
                             entrypoint, ctx.conversation_id or ctx.job_id or "default"
                         )
 
                         if ctx.job_id:
-                            job_exporter = LlmOpsHttpExporter()
-                            LiveTrackingSpanProcessor.create_and_register(
-                                job_exporter, trace_manager, settings=factory_settings
+                            trace_manager.add_span_processor(
+                                LiveTrackingSpanProcessor(
+                                    LlmOpsHttpExporter(),
+                                    settings=trace_settings,
+                                )
                             )
                             trigger_poll_interval = (
                                 0.0  # Polling disabled for production jobs
