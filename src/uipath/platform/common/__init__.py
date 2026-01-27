@@ -13,6 +13,7 @@ from .auth import TokenData
 from .interrupt_models import (
     CreateBatchTransform,
     CreateDeepRag,
+    CreateEphemeralIndex,
     CreateEscalation,
     CreateTask,
     DocumentExtraction,
@@ -21,10 +22,11 @@ from .interrupt_models import (
     WaitBatchTransform,
     WaitDeepRag,
     WaitDocumentExtraction,
+    WaitEphemeralIndex,
     WaitEscalation,
     WaitJob,
     WaitSystemAgent,
-    WaitTask, CreateEphemeralIndex, WaitEphemeralIndex,
+    WaitTask,
 )
 from .paging import PagedResult
 
@@ -53,5 +55,5 @@ __all__ = [
     "InvokeSystemAgent",
     "WaitSystemAgent",
     "CreateEphemeralIndex",
-    "WaitEphemeralIndex"
+    "WaitEphemeralIndex",
 ]
