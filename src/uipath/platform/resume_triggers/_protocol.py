@@ -549,6 +549,10 @@ class UiPathResumeTriggerCreator:
                 assignee=value.assignee if value.assignee else "",
                 recipient=value.recipient if value.recipient else "",
                 data=value.data,
+                priority=value.priority,
+                labels=value.labels,
+                is_actionable_message_enabled=value.is_actionable_message_enabled,
+                actionable_message_metadata=value.actionable_message_metadata,
             )
             if not action:
                 raise Exception("Failed to create action")

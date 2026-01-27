@@ -7,6 +7,7 @@ from uipath.agent.models.agent import (
     AgentContextRetrievalMode,
     AgentCustomGuardrail,
     AgentDefinition,
+    AgentEscalationChannel,
     AgentEscalationRecipient,
     AgentEscalationRecipientType,
     AgentEscalationResourceConfig,
@@ -2523,6 +2524,131 @@ class TestAgentBuilderConfig:
         assert channel.properties.app_version == 1
         assert channel.properties.folder_name is None
         assert channel.properties.resource_key is None
+
+    def test_task_title_text_builder_type(self):
+        """Test TextBuilderTaskTitle with tokens."""
+        from uipath.agent.models.agent import (
+            TaskTitleType,
+            TextBuilderTaskTitle,
+            TextToken,
+            TextTokenType,
+        )
+
+        task_title = TextBuilderTaskTitle(
+            type=TaskTitleType.TEXT_BUILDER,
+            tokens=[
+                TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Approve "),
+                TextToken(type=TextTokenType.VARIABLE, raw_string="requestType"),
+            ],
+        )
+
+        assert task_title.type == TaskTitleType.TEXT_BUILDER
+        assert len(task_title.tokens) == 2
+        assert task_title.tokens[0].type == TextTokenType.SIMPLE_TEXT
+
+    def test_task_title_dynamic_type(self):
+        """Test DynamicTaskTitle with argument path."""
+        from uipath.agent.models.agent import DynamicTaskTitle, TaskTitleType
+
+        task_title = DynamicTaskTitle(
+            type=TaskTitleType.DYNAMIC, argument_path="input.title"
+        )
+
+        assert task_title.type == TaskTitleType.DYNAMIC
+        assert task_title.argument_path == "input.title"
+
+    def test_escalation_channel_uses_task_title_v2_when_present(self):
+        """Test that taskTitleV2 with TEXT_BUILDER is used when present."""
+
+        channel_data = {
+            "name": "test_channel",
+            "type": "actionCenter",
+            "description": "Test channel",
+            "inputSchema": {"type": "object"},
+            "outputSchema": {"type": "object"},
+            "properties": {
+                "appName": "TestApp",
+                "appVersion": 1,
+                "resourceKey": "test-key",
+            },
+            "recipients": [],
+            "taskTitleV2": {
+                "type": "textBuilder",
+                "tokens": [{"type": "simpleText", "rawString": "Test Task"}],
+            },
+        }
+
+        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
+
+        assert isinstance(channel.task_title, dict) or hasattr(
+            channel.task_title, "tokens"
+        )
+
+    def test_escalation_channel_uses_legacy_task_title(self):
+        """Test that legacy taskTitle string is preserved."""
+
+        channel_data = {
+            "name": "test_channel",
+            "type": "actionCenter",
+            "description": "Test channel",
+            "inputSchema": {"type": "object"},
+            "outputSchema": {"type": "object"},
+            "properties": {
+                "appName": "TestApp",
+                "appVersion": 1,
+                "resourceKey": "test-key",
+            },
+            "recipients": [],
+            "taskTitle": "Legacy Task Title",
+        }
+
+        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
+
+        assert channel.task_title == "Legacy Task Title"
+
+    def test_escalation_channel_defaults_to_escalation_task(self):
+        """Test that taskTitle defaults to 'Escalation Task' when not provided."""
+
+        channel_data = {
+            "name": "test_channel",
+            "type": "actionCenter",
+            "description": "Test channel",
+            "inputSchema": {"type": "object"},
+            "outputSchema": {"type": "object"},
+            "properties": {
+                "appName": "TestApp",
+                "appVersion": 1,
+                "resourceKey": "test-key",
+            },
+            "recipients": [],
+        }
+
+        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
+
+        assert channel.task_title == "Escalation Task"
+
+    def test_escalation_channel_task_title_v2_unsupported_type_raises_error(self):
+        """Test that unsupported taskTitleV2 type raises NotImplementedError."""
+
+        channel_data = {
+            "name": "test_channel",
+            "type": "actionCenter",
+            "description": "Test channel",
+            "inputSchema": {"type": "object"},
+            "outputSchema": {"type": "object"},
+            "properties": {
+                "appName": "TestApp",
+                "appVersion": 1,
+                "resourceKey": "test-key",
+            },
+            "recipients": [],
+            "taskTitleV2": {"type": "unsupported", "someField": "value"},
+        }
+
+        with pytest.raises(NotImplementedError) as exc_info:
+            AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
+
+        assert "unsupported" in str(exc_info.value)
 
 
 class TestAgentDefinitionIsConversational:

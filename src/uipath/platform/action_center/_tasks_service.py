@@ -29,6 +29,10 @@ def _create_spec(
     app_key: Optional[str] = None,
     app_folder_key: Optional[str] = None,
     app_folder_path: Optional[str] = None,
+    priority: Optional[str] = None,
+    labels: Optional[List[str]] = None,
+    is_actionable_message_enabled: Optional[bool] = None,
+    actionable_message_metadata: Optional[Dict[str, Any]] = None,
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -81,14 +85,14 @@ def _create_spec(
                     }
                 )
 
-    return RequestSpec(
-        method="POST",
-        endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
-        json={
-            "appId": app_key,
-            "title": title,
-            "data": data if data is not None else {},
-            "actionableMessageMetaData": {
+    json_payload: Dict[str, Any] = {
+        "appId": app_key,
+        "title": title,
+        "data": data if data is not None else {},
+        "actionableMessageMetaData": actionable_message_metadata
+        if actionable_message_metadata is not None
+        else (
+            {
                 "fieldSet": {
                     "id": str(uuid.uuid4()),
                     "fields": field_list,
@@ -103,10 +107,63 @@ def _create_spec(
                 else {},
             }
             if action_schema is not None
-            else {},
-        },
+            else {}
+        ),
+    }
+
+    if priority and (normalized_priority := _normalize_priority(priority)):
+        json_payload["priority"] = normalized_priority
+    if labels is not None:
+        json_payload["tags"] = [
+            {
+                "name": label,
+                "displayName": label,
+                "value": label,
+                "displayValue": label,
+            }
+            for label in labels
+        ]
+    if is_actionable_message_enabled is not None:
+        json_payload["isActionableMessageEnabled"] = is_actionable_message_enabled
+
+    return RequestSpec(
+        method="POST",
+        endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
+        json=json_payload,
         headers=folder_headers(app_folder_key, app_folder_path),
     )
+
+
+def _normalize_priority(priority: str | None) -> str | None:
+    """Normalize priority string to match API expectations.
+
+    Converts case-insensitive priority strings to the proper capitalized format
+    expected by the Orchestrator API.
+
+    Args:
+        priority: Priority string (case-insensitive: "low", "HIGH", "MeDiUm", etc.)
+
+    Returns:
+        Normalized priority string ("Low", "Medium", "High", "Critical") or None
+    """
+    if priority is None or not priority.strip():
+        return None
+
+    priority_map = {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "critical": "Critical",
+    }
+
+    normalized = priority_map.get(priority.lower())
+    if normalized is None:
+        raise ValueError(
+            f"Invalid priority value: '{priority}'. "
+            f"Must be one of: Low, Medium, High, Critical (case-insensitive)"
+        )
+
+    return normalized
 
 
 def _retrieve_action_spec(
@@ -270,6 +327,10 @@ class TasksService(FolderContext, BaseService):
         app_folder_key: Optional[str] = None,
         assignee: Optional[str] = None,
         recipient: Optional[TaskRecipient] = None,
+        priority: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        is_actionable_message_enabled: Optional[bool] = None,
+        actionable_message_metadata: Optional[Dict[str, Any]] = None,
     ) -> Task:
         """Creates a new action asynchronously.
 
@@ -284,6 +345,10 @@ class TasksService(FolderContext, BaseService):
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
             assignee: Optional username or email to assign the task to
+            priority: Optional priority of the task
+            labels: Optional list of labels for the task
+            is_actionable_message_enabled: Optional boolean indicating whether actionable notifications are enabled for this task
+            actionable_message_metadata: Optional metadata for the action
 
         Returns:
             Action: The created action object
@@ -305,6 +370,10 @@ class TasksService(FolderContext, BaseService):
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
+            priority=priority,
+            labels=labels,
+            is_actionable_message_enabled=is_actionable_message_enabled,
+            actionable_message_metadata=actionable_message_metadata,
         )
 
         response = await self.request_async(
@@ -341,6 +410,10 @@ class TasksService(FolderContext, BaseService):
         app_folder_key: Optional[str] = None,
         assignee: Optional[str] = None,
         recipient: Optional[TaskRecipient] = None,
+        priority: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        is_actionable_message_enabled: Optional[bool] = None,
+        actionable_message_metadata: Optional[Dict[str, Any]] = None,
     ) -> Task:
         """Creates a new task synchronously.
 
@@ -355,6 +428,10 @@ class TasksService(FolderContext, BaseService):
             app_folder_path: Optional folder path for the action
             app_folder_key: Optional folder key for the action
             assignee: Optional username or email to assign the task to
+            priority: Optional priority of the task
+            labels: Optional list of labels for the task
+            is_actionable_message_enabled: Optional boolean indicating  whether actionable notifications are enabled for this task
+            actionable_message_metadata: Optional metadata for the action
 
         Returns:
             Action: The created action object
@@ -376,6 +453,10 @@ class TasksService(FolderContext, BaseService):
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
+            priority=priority,
+            labels=labels,
+            is_actionable_message_enabled=is_actionable_message_enabled,
+            actionable_message_metadata=actionable_message_metadata,
         )
 
         response = self.request(
