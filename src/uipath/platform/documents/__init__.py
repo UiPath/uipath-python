@@ -19,6 +19,7 @@ from .documents import (
     ProjectType,
     Reference,
     StartExtractionResponse,
+    StartExtractionValidationResponse,
     StartOperationResponse,
     ValidateClassificationAction,
     ValidateExtractionAction,
@@ -45,4 +46,5 @@ __all__ = [
     "FileContent",
     "StartExtractionResponse",
     "StartOperationResponse",
+    "StartExtractionValidationResponse",
 ]

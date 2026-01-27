@@ -27,6 +27,7 @@ class ExternalTriggerType(str, Enum):
     BATCH_TRANSFORM = "batchTransform"
     IXP_EXTRACTION = "ixpExtraction"
     INDEX_INGESTION = "indexIngestion"
+    IXP_VS_ESCALATION = "IxpVsEscalation"
 
 
 class ExternalTrigger(BaseModel):

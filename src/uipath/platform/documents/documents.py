@@ -274,3 +274,7 @@ class StartOperationResponse(BaseModel):
 
 class StartExtractionResponse(StartOperationResponse):
     """A model representing the response from starting an extraction operation."""
+
+
+class StartExtractionValidationResponse(StartOperationResponse):
+    """A model representing the response from starting an extraction validation operation."""

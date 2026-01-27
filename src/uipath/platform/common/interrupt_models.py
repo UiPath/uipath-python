@@ -16,7 +16,13 @@ from ..context_grounding import (
     DeepRagCreationResponse,
     EphemeralIndexUsage,
 )
-from ..documents import FileContent, StartExtractionResponse
+from ..documents import (
+    ActionPriority,
+    ExtractionResponseIXP,
+    FileContent,
+    StartExtractionResponse,
+)
+from ..documents.documents import StartExtractionValidationResponse
 from ..orchestrator.job import Job
 
 
@@ -171,3 +177,21 @@ class WaitDocumentExtraction(BaseModel):
     """Model representing a wait document extraction task creation."""
 
     extraction: StartExtractionResponse
+
+
+class DocumentExtractionValidation(BaseModel):
+    """Model representing a document extraction task creation."""
+
+    extraction_response: ExtractionResponseIXP
+    action_title: str
+    action_catalog: str | None = None
+    action_priority: ActionPriority | None = None
+    action_folder: str | None = None
+    storage_bucket_name: str | None = None
+    storage_bucket_directory_path: str | None = None
+
+
+class WaitDocumentExtractionValidation(BaseModel):
+    """Model representing a wait document extraction task creation."""
+
+    extraction_validation: StartExtractionValidationResponse

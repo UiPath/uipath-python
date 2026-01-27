@@ -420,7 +420,30 @@ class AgentEscalationResourceConfig(BaseAgentResourceConfig):
     )
     channels: List[AgentEscalationChannel] = Field(alias="channels")
     is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
-    escalation_type: int = Field(default=0, alias="escalationType")
+    escalation_type: Literal[0] = Field(default=0, alias="escalationType")
+
+
+class AgentIxpVsEscalationProperties(BaseCfg):
+    """VS escalation properties model."""
+
+    ixp_tool_id: str = Field(..., alias="ixpToolId")
+    storage_bucket_name: str = Field(..., alias="storageBucketName")
+    storage_bucket_folder_path: str = Field(..., alias="storageBucketFolderPath")
+
+
+class AgentIxpVsEscalationResourceConfig(BaseAgentResourceConfig):
+    """VS Agent escalation resource configuration model (escalationType=1)."""
+
+    id: Optional[str] = Field(None, alias="id")
+    resource_type: Literal[AgentResourceType.ESCALATION] = Field(
+        alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
+    )
+    channels: List[AgentEscalationChannel] = Field(alias="channels")
+    is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
+    escalation_type: Literal[1] = Field(default=1, alias="escalationType")
+    vs_escalation_properties: AgentIxpVsEscalationProperties = Field(
+        ..., alias="vsEscalationProperties"
+    )
 
 
 class BaseAgentToolResourceConfig(BaseAgentResourceConfig):
@@ -561,11 +584,19 @@ ToolResourceConfig = Annotated[
     Field(discriminator="type"),
 ]
 
+EscalationResourceConfig = Annotated[
+    Union[
+        AgentEscalationResourceConfig,
+        AgentIxpVsEscalationResourceConfig,
+    ],
+    Field(discriminator="escalation_type"),
+]
+
 AgentResourceConfig = Annotated[
     Union[
         ToolResourceConfig,  # nested discrim on 'type'
         AgentContextResourceConfig,
-        AgentEscalationResourceConfig,
+        EscalationResourceConfig,  # nested discrim on 'escalation_type'
         AgentMcpResourceConfig,
         AgentUnknownResourceConfig,  # when parent sets resource_type="Unknown"
     ],
