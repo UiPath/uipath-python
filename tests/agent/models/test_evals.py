@@ -32,6 +32,7 @@ class TestEvalsAgentDefinition:
             "resources": [
                 {
                     "$resourceType": "escalation",
+                    "escalationType": 0,
                     "channels": [
                         {
                             "id": "Channel id",

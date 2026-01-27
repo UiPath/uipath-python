@@ -16,6 +16,7 @@ from uipath.agent.models.agent import (
     AgentGuardrailUnknownAction,
     AgentIntegrationToolResourceConfig,
     AgentIxpExtractionResourceConfig,
+    AgentIxpVsEscalationResourceConfig,
     AgentMcpResourceConfig,
     AgentProcessToolResourceConfig,
     AgentResourceType,
@@ -1973,6 +1974,7 @@ class TestAgentBuilderConfig:
             "resources": [
                 {
                     "$resourceType": "escalation",
+                    "escalationType": 0,
                     "channels": [
                         {
                             "name": "Test Channel",
@@ -2042,6 +2044,7 @@ class TestAgentBuilderConfig:
             "resources": [
                 {
                     "$resourceType": "escalation",
+                    "escalationType": 0,
                     "channels": [
                         {
                             "name": "Test Channel",
@@ -2117,6 +2120,7 @@ class TestAgentBuilderConfig:
             "resources": [
                 {
                     "$resourceType": "escalation",
+                    "escalationType": 0,
                     "channels": [
                         {
                             "name": "Test Channel",
@@ -2186,6 +2190,7 @@ class TestAgentBuilderConfig:
             "resources": [
                 {
                     "$resourceType": "escalation",
+                    "escalationType": 0,
                     "channels": [
                         {
                             "name": "Test Channel",
@@ -2410,6 +2415,114 @@ class TestAgentBuilderConfig:
 
         # Validate settings
         assert tool.settings is not None
+
+    def test_agent_with_ixp_vs_escalation(self):
+        """Test agent with IXP VS escalation resource"""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000006",
+            "name": "Agent with IXP VS Escalation",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "escalation",
+                    "id": "b445425d-302c-4f37-9236-c6d44ef25dea",
+                    "name": "IxpEscalation",
+                    "description": "IXP VS escalation channel",
+                    "channels": [
+                        {
+                            "id": "640f5f8f-dc9c-4a2f-8c3b-493f93545adb",
+                            "name": "Channel",
+                            "description": "Channel description",
+                            "inputSchema": {"type": "object", "properties": {}},
+                            "inputSchemaDotnetTypeMapping": None,
+                            "outputSchema": {"type": "object", "properties": {}},
+                            "outputSchemaDotnetTypeMapping": None,
+                            "outcomeMapping": None,
+                            "recipients": [],
+                            "type": "actionCenter",
+                            "properties": {
+                                "appName": None,
+                                "appVersion": 1,
+                                "folderName": None,
+                                "resourceKey": None,
+                                "isActionableMessageEnabled": False,
+                                "actionableMessageMetaData": None,
+                            },
+                        }
+                    ],
+                    "isAgentMemoryEnabled": False,
+                    "governanceProperties": {"isEscalatedAtRuntime": False},
+                    "escalationType": 1,
+                    "vsEscalationProperties": {
+                        "ixpToolId": "some_tool_id",
+                        "storageBucketName": "some_storage_bucket_name",
+                        "storageBucketFolderPath": "solution_folder",
+                    },
+                    "properties": {},
+                }
+            ],
+            "features": [],
+        }
+
+        # Test deserialization
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        # Validate agent
+        assert config.id == "aaaaaaaa-0000-0000-0000-000000000006"
+        assert config.name == "Agent with IXP VS Escalation"
+        assert len(config.resources) == 1
+
+        # Validate IXP VS escalation resource
+        escalation = config.resources[0]
+        assert isinstance(escalation, AgentIxpVsEscalationResourceConfig)
+        assert escalation.resource_type == AgentResourceType.ESCALATION
+        assert escalation.escalation_type == 1
+        assert escalation.name == "IxpEscalation"
+        assert escalation.description == "IXP VS escalation channel"
+        assert escalation.is_agent_memory_enabled is False
+
+        # Validate VS escalation properties
+        assert escalation.vs_escalation_properties.ixp_tool_id == "some_tool_id"
+        assert (
+            escalation.vs_escalation_properties.storage_bucket_name
+            == "some_storage_bucket_name"
+        )
+        assert (
+            escalation.vs_escalation_properties.storage_bucket_folder_path
+            == "solution_folder"
+        )
+
+        # Validate channels
+        assert len(escalation.channels) == 1
+        channel = escalation.channels[0]
+        assert channel.name == "Channel"
+        assert channel.description == "Channel description"
+        assert channel.type == "actionCenter"
+        assert len(channel.recipients) == 0
+
+        # Validate channel properties
+        assert channel.properties.app_name is None
+        assert channel.properties.app_version == 1
+        assert channel.properties.folder_name is None
+        assert channel.properties.resource_key is None
 
 
 class TestAgentDefinitionIsConversational:

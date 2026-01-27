@@ -27,11 +27,13 @@ from uipath.platform.common import (
     CreateEscalation,
     CreateTask,
     DocumentExtraction,
+    DocumentExtractionValidation,
     InvokeProcess,
     UiPathConfig,
     WaitBatchTransform,
     WaitDeepRag,
     WaitDocumentExtraction,
+    WaitDocumentExtractionValidation,
     WaitEscalation,
     WaitJob,
     WaitTask,
@@ -315,6 +317,35 @@ class UiPathResumeTriggerReader:
 
                     return extraction_response.model_dump()
 
+            case UiPathResumeTriggerType.IXP_VS_ESCALATION:
+                if trigger.item_key:
+                    project_id = self._extract_field("project_id", trigger.payload)
+                    tag = self._extract_field("tag", trigger.payload)
+
+                    assert project_id is not None
+                    assert tag is not None
+                    try:
+                        escalation_response = await uipath.documents.retrieve_ixp_extraction_validation_result_async(
+                            project_id, tag, trigger.item_key
+                        )
+                    except OperationNotCompleteException as e:
+                        raise UiPathPendingTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"{e.message}",
+                        ) from e
+
+                    pending_status_name = TaskStatus.PENDING.name.lower()
+                    unassigned_status_name = TaskStatus.UNASSIGNED.name.lower()
+
+                    current_status = escalation_response.action_data["status"].lower()
+                    if current_status in (pending_status_name, unassigned_status_name):
+                        raise UiPathPendingTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"Document extraction escalation task is not completed yet. Current status: {current_status}",
+                        )
+
+                    return escalation_response.model_dump()
+
             case UiPathResumeTriggerType.API:
                 if trigger.api_resume and trigger.api_resume.inbox_id:
                     try:
@@ -404,6 +435,10 @@ class UiPathResumeTriggerCreator:
                     await self._handle_ixp_extraction_trigger(
                         suspend_value, resume_trigger
                     )
+                case UiPathResumeTriggerType.IXP_VS_ESCALATION:
+                    await self._handle_ixp_vs_escalation_trigger(
+                        suspend_value, resume_trigger
+                    )
                 case _:
                     raise UiPathFaultedTriggerError(
                         ErrorCategory.SYSTEM,
@@ -454,6 +489,10 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerType.BATCH_RAG
         if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
             return UiPathResumeTriggerType.IXP_EXTRACTION
+        if isinstance(
+            value, (DocumentExtractionValidation, WaitDocumentExtractionValidation)
+        ):
+            return UiPathResumeTriggerType.IXP_VS_ESCALATION
         # default to API trigger
         return UiPathResumeTriggerType.API
 
@@ -542,13 +581,14 @@ class UiPathResumeTriggerCreator:
             if not deep_rag:
                 raise Exception("Failed to start deep rag")
 
-            await self._create_external_trigger(
-                ExternalTrigger(
-                    type=ExternalTriggerType.DEEP_RAG, external_id=deep_rag.id
-                )
-            )
-
             resume_trigger.item_key = deep_rag.id
+
+        assert resume_trigger.item_key
+        await self._create_external_trigger(
+            ExternalTrigger(
+                type=ExternalTriggerType.DEEP_RAG, external_id=resume_trigger.item_key
+            )
+        )
 
     async def _handle_ephemeral_index_job_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger
@@ -570,15 +610,17 @@ class UiPathResumeTriggerCreator:
                     attachments=value.attachments,
                 )
             )
-            await self._create_external_trigger(
-                ExternalTrigger(
-                    type=ExternalTriggerType.INDEX_INGESTION,
-                    external_id=ephemeral_index.id,
-                )
-            )
             if not ephemeral_index:
                 raise Exception("Failed to create ephemeral index")
             resume_trigger.item_key = ephemeral_index.id
+
+        assert resume_trigger.item_key
+        await self._create_external_trigger(
+            ExternalTrigger(
+                type=ExternalTriggerType.INDEX_INGESTION,
+                external_id=resume_trigger.item_key,
+            )
+        )
 
     async def _handle_batch_rag_job_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger
@@ -608,14 +650,15 @@ class UiPathResumeTriggerCreator:
             if not batch_transform:
                 raise Exception("Failed to start batch transform")
 
-            await self._create_external_trigger(
-                ExternalTrigger(
-                    type=ExternalTriggerType.BATCH_TRANSFORM,
-                    external_id=batch_transform.id,
-                )
-            )
-
             resume_trigger.item_key = batch_transform.id
+
+        assert resume_trigger.item_key
+        await self._create_external_trigger(
+            ExternalTrigger(
+                type=ExternalTriggerType.BATCH_TRANSFORM,
+                external_id=resume_trigger.item_key,
+            )
+        )
 
     async def _handle_ixp_extraction_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger
@@ -627,7 +670,6 @@ class UiPathResumeTriggerCreator:
             resume_trigger: The resume trigger to populate
         """
         resume_trigger.folder_path = resume_trigger.folder_key = None
-
         if isinstance(value, WaitDocumentExtraction):
             resume_trigger.item_key = value.extraction.operation_id
         elif isinstance(value, DocumentExtraction):
@@ -641,13 +683,6 @@ class UiPathResumeTriggerCreator:
             if not document_extraction:
                 raise Exception("Failed to start document extraction")
 
-            await self._create_external_trigger(
-                ExternalTrigger(
-                    type=ExternalTriggerType.IXP_EXTRACTION,
-                    external_id=document_extraction.operation_id,
-                )
-            )
-
             resume_trigger.item_key = document_extraction.operation_id
 
             # add project_id and tag to the payload dict (needed when reading the trigger)
@@ -656,6 +691,59 @@ class UiPathResumeTriggerCreator:
                 "project_id", document_extraction.project_id
             )
             resume_trigger.payload.setdefault("tag", document_extraction.tag)
+
+        assert resume_trigger.item_key
+        await self._create_external_trigger(
+            ExternalTrigger(
+                type=ExternalTriggerType.IXP_EXTRACTION,
+                external_id=resume_trigger.item_key,
+            )
+        )
+
+    async def _handle_ixp_vs_escalation_trigger(
+        self, value: Any, resume_trigger: UiPathResumeTrigger
+    ) -> None:
+        """Handle IXP VS Escalation resume triggers.
+
+        Args:
+            value: The suspend value (DocumentExtractionValidation or WaitDocumentExtractionValidation)
+            resume_trigger: The resume trigger to populate
+        """
+        resume_trigger.folder_path = resume_trigger.folder_key = None
+
+        if isinstance(value, WaitDocumentExtractionValidation):
+            resume_trigger.item_key = value.extraction_validation.operation_id
+        elif isinstance(value, DocumentExtractionValidation):
+            uipath = UiPath()
+            extraction_validation = (
+                await uipath.documents.start_ixp_extraction_validation_async(
+                    extraction_response=value.extraction_response,
+                    action_title=value.action_title,
+                    action_priority=value.action_priority,
+                    action_folder=value.action_folder,
+                    storage_bucket_name=value.storage_bucket_name,
+                    storage_bucket_directory_path=value.storage_bucket_directory_path,
+                )
+            )
+            if not extraction_validation:
+                raise Exception("Failed to start extraction validation")
+
+            resume_trigger.item_key = extraction_validation.operation_id
+
+            # add project_id and tag to the payload dict (needed when reading the trigger)
+            assert isinstance(resume_trigger.payload, dict)
+            resume_trigger.payload.setdefault(
+                "project_id", extraction_validation.project_id
+            )
+            resume_trigger.payload.setdefault("tag", extraction_validation.tag)
+
+        assert resume_trigger.item_key
+        await self._create_external_trigger(
+            ExternalTrigger(
+                type=ExternalTriggerType.IXP_VS_ESCALATION,
+                external_id=resume_trigger.item_key,
+            )
+        )
 
     async def _handle_job_trigger(
         self, value: Any, resume_trigger: UiPathResumeTrigger
