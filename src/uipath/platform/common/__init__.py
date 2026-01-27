@@ -13,6 +13,7 @@ from .auth import TokenData
 from .interrupt_models import (
     CreateBatchTransform,
     CreateDeepRag,
+    CreateEphemeralIndex,
     CreateEscalation,
     CreateTask,
     DocumentExtraction,
@@ -21,6 +22,7 @@ from .interrupt_models import (
     WaitBatchTransform,
     WaitDeepRag,
     WaitDocumentExtraction,
+    WaitEphemeralIndex,
     WaitEscalation,
     WaitJob,
     WaitSystemAgent,
@@ -52,4 +54,6 @@ __all__ = [
     "WaitDocumentExtraction",
     "InvokeSystemAgent",
     "WaitSystemAgent",
+    "CreateEphemeralIndex",
+    "WaitEphemeralIndex",
 ]
