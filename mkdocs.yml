@@ -108,6 +108,9 @@ nav:
       - Context Grounding: llamaindex/context_grounding.md
       - Human In The Loop: llamaindex/human_in_the_loop.md
       - Sample Agents: https://github.com/UiPath/uipath-integrations-python/tree/main/packages/uipath-llamaindex/samples
+  - UiPath OpenAI Agents SDK:
+      - Getting Started: openai-agents/quick_start.md
+      - Sample Agents: https://github.com/UiPath/uipath-integrations-python/tree/main/packages/uipath-openai-agents/samples
   - How To Contribute: CONTRIBUTING.md
   - FAQ: FAQ.md
   - Automation Suite: AutomationSuite.md
@@ -126,6 +129,8 @@ plugins:
           - langchain/*.md
         "UiPath LlamaIndex SDK":
           - llamaindex/*.md
+        "UiPath OpenAI Agents SDK":
+          - openai-agents/*.md
         "Contributing & Resources":
           - CONTRIBUTING.md
           - FAQ.md
