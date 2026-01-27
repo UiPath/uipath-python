@@ -419,28 +419,25 @@ def _resolve_task_title(v: Any) -> Any:
 
     # Priority 1: Use taskTitleV2 if present
     if task_title_v2 is not None:
-        # Check the type field
         title_type = (
             task_title_v2.get("type") if isinstance(task_title_v2, dict) else None
         )
 
         if title_type == "textBuilder":
-            # Move taskTitleV2 to taskTitle
             v["taskTitle"] = task_title_v2
         else:
             raise NotImplementedError(f"TaskTitle type '{title_type}' not implemented")
 
-        # Remove taskTitleV2 from the dict
         v.pop("taskTitleV2", None)
 
+        return v
+
     # Priority 2: Use taskTitle if present (legacy string support)
-    elif task_title is not None:
-        # Already present, no action needed
-        pass
+    if task_title is not None:
+        return v
 
     # Priority 3: Default to "Escalation Task"
-    else:
-        v["taskTitle"] = "Escalation Task"
+    v["taskTitle"] = "Escalation Task"
 
     return v
 

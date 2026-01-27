@@ -2557,8 +2557,8 @@ class TestAgentBuilderConfig:
         assert task_title.type == TaskTitleType.DYNAMIC
         assert task_title.argument_path == "input.title"
 
-    def test_escalation_channel_consolidates_task_title_v2_text_builder(self):
-        """Test that taskTitleV2 with TEXT_BUILDER is moved to taskTitle."""
+    def test_escalation_channel_uses_task_title_v2_when_present(self):
+        """Test that taskTitleV2 with TEXT_BUILDER is used when present."""
 
         channel_data = {
             "name": "test_channel",
@@ -2580,7 +2580,6 @@ class TestAgentBuilderConfig:
 
         channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
 
-        # taskTitleV2 should be consolidated into task_title
         assert isinstance(channel.task_title, dict) or hasattr(
             channel.task_title, "tokens"
         )
