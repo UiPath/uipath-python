@@ -1316,13 +1316,13 @@ class DocumentsService(FolderContext, BaseService):
         project_id: str,
         project_type: ProjectType,
         tag: Optional[str],
-        action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
         classification_results: List[ClassificationResult],
+        action_title: str,
+        action_priority: Optional[ActionPriority] = None,
+        action_catalog: Optional[str] = None,
+        action_folder: Optional[str] = None,
+        storage_bucket_name: Optional[str] = None,
+        storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
         if project_type == ProjectType.PRETRAINED:
             url = Endpoint(
@@ -1357,13 +1357,13 @@ class DocumentsService(FolderContext, BaseService):
         project_id: str,
         project_type: ProjectType,
         tag: Optional[str],
-        action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
         classification_results: List[ClassificationResult],
+        action_title: str,
+        action_priority: Optional[ActionPriority] = None,
+        action_catalog: Optional[str] = None,
+        action_folder: Optional[str] = None,
+        storage_bucket_name: Optional[str] = None,
+        storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
         if project_type == ProjectType.PRETRAINED:
             url = Endpoint(
@@ -1402,11 +1402,11 @@ class DocumentsService(FolderContext, BaseService):
         tag: Optional[str],
         document_type_id: str,
         action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
+        action_priority: Optional[ActionPriority],
+        action_catalog: Optional[str],
+        action_folder: Optional[str],
+        storage_bucket_name: Optional[str],
+        storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
     ) -> StartOperationResponse:
         if project_type == ProjectType.PRETRAINED:
@@ -1450,11 +1450,11 @@ class DocumentsService(FolderContext, BaseService):
         tag: Optional[str],
         document_type_id: str,
         action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
+        action_priority: Optional[ActionPriority],
+        action_catalog: Optional[str],
+        action_folder: Optional[str],
+        storage_bucket_name: Optional[str],
+        storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
     ) -> StartOperationResponse:
         if project_type == ProjectType.PRETRAINED:
@@ -1496,24 +1496,24 @@ class DocumentsService(FolderContext, BaseService):
     @traced(name="documents_start_ixp_extraction_validation", run_type="uipath")
     def start_ixp_extraction_validation(
         self,
-        action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
         extraction_response: ExtractionResponseIXP,
+        action_title: str,
+        action_catalog: Optional[str] = None,
+        action_priority: Optional[ActionPriority] = None,
+        action_folder: Optional[str] = None,
+        storage_bucket_name: Optional[str] = None,
+        storage_bucket_directory_path: Optional[str] = None,
     ) -> StartOperationResponse:
         """Start an IXP extraction validation action without waiting for results (non-blocking).
 
         Args:
-            action_title (str): The title of the validation action.
-            action_priority (ActionPriority): The priority of the validation action.
-            action_catalog (str): The catalog of the validation action.
-            action_folder (str): The folder of the validation action.
-            storage_bucket_name (str): The name of the storage bucket where validation data will be stored.
-            storage_bucket_directory_path (str): The directory path within the storage bucket.
             extraction_response (ExtractionResponseIXP): The extraction response from the IXP extraction process.
+            action_title (str): The title of the validation action.
+            action_catalog (str, optional): The catalog of the validation action.
+            action_priority (ActionPriority, optional): The priority of the validation action.
+            action_folder (str, optional): The folder of the validation action.
+            storage_bucket_name (str, optional): The name of the storage bucket where validation data will be stored.
+            storage_bucket_directory_path (str, optional): The directory path within the storage bucket.
 
         Returns:
             StartOperationResponse: Contains the operation_id, document_id, project_id, and tag.
@@ -1552,13 +1552,13 @@ class DocumentsService(FolderContext, BaseService):
     )
     async def start_ixp_extraction_validation_async(
         self,
-        action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
         extraction_response: ExtractionResponseIXP,
+        action_title: str,
+        action_catalog: Optional[str] = None,
+        action_priority: Optional[ActionPriority] = None,
+        action_folder: Optional[str] = None,
+        storage_bucket_name: Optional[str] = None,
+        storage_bucket_directory_path: Optional[str] = None,
     ) -> StartOperationResponse:
         """Asynchronous version of the [`start_ixp_extraction_validation`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction_validation] method."""
         return await self._start_extraction_validation_async(
@@ -1899,24 +1899,24 @@ class DocumentsService(FolderContext, BaseService):
     @traced(name="documents_create_validate_classification_action", run_type="uipath")
     def create_validate_classification_action(
         self,
-        action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
         classification_results: List[ClassificationResult],
+        action_title: str,
+        action_priority: Optional[ActionPriority] = None,
+        action_catalog: Optional[str] = None,
+        action_folder: Optional[str] = None,
+        storage_bucket_name: Optional[str] = None,
+        storage_bucket_directory_path: Optional[str] = None,
     ) -> ValidateClassificationAction:
         """Create a validate classification action for a document based on the classification results. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-classifications).
 
         Args:
-            action_title (str): Title of the action.
-            action_priority (ActionPriority): Priority of the action.
-            action_catalog (str): Catalog of the action.
-            action_folder (str): Folder of the action.
-            storage_bucket_name (str): Name of the storage bucket.
-            storage_bucket_directory_path (str): Directory path in the storage bucket.
             classification_results (List[ClassificationResult]): The classification results to be validated, typically obtained from the [`classify`][uipath.platform.documents._documents_service.DocumentsService.classify] method.
+            action_title (str): Title of the action.
+            action_priority (ActionPriority, optional): Priority of the action.
+            action_catalog (str, optional): Catalog of the action.
+            action_folder (str, optional): Folder of the action.
+            storage_bucket_name (str, optional): Name of the storage bucket.
+            storage_bucket_directory_path (str, optional): Directory path in the storage bucket.
 
         Returns:
             ValidateClassificationAction: The created validate classification action.
@@ -1960,13 +1960,13 @@ class DocumentsService(FolderContext, BaseService):
     @traced(name="documents_create_validate_classification_action", run_type="uipath")
     async def create_validate_classification_action_async(
         self,
-        action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
         classification_results: List[ClassificationResult],
+        action_title: str,
+        action_priority: Optional[ActionPriority] = None,
+        action_catalog: Optional[str] = None,
+        action_folder: Optional[str] = None,
+        storage_bucket_name: Optional[str] = None,
+        storage_bucket_directory_path: Optional[str] = None,
     ) -> ValidateClassificationAction:
         """Asynchronous version of the [`create_validation_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_classification_action] method."""
         if not classification_results:
@@ -1995,24 +1995,24 @@ class DocumentsService(FolderContext, BaseService):
     @traced(name="documents_create_validate_extraction_action", run_type="uipath")
     def create_validate_extraction_action(
         self,
-        action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
+        action_title: str,
+        action_priority: Optional[ActionPriority] = None,
+        action_catalog: Optional[str] = None,
+        action_folder: Optional[str] = None,
+        storage_bucket_name: Optional[str] = None,
+        storage_bucket_directory_path: Optional[str] = None,
     ) -> ValidateExtractionAction:
         """Create a validate extraction action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
 
         Args:
-            action_title (str): Title of the action.
-            action_priority (ActionPriority): Priority of the action.
-            action_catalog (str): Catalog of the action.
-            action_folder (str): Folder of the action.
-            storage_bucket_name (str): Name of the storage bucket.
-            storage_bucket_directory_path (str): Directory path in the storage bucket.
             extraction_response (ExtractionResponse): The extraction result to be validated, typically obtained from the [`extract`][uipath.platform.documents._documents_service.DocumentsService.extract] method.
+            action_title (str): Title of the action.
+            action_priority (ActionPriority, optional): Priority of the action.
+            action_catalog (str, optional): Catalog of the action.
+            action_folder (str, optional): Folder of the action.
+            storage_bucket_name (str, optional): Name of the storage bucket.
+            storage_bucket_directory_path (str, optional): Directory path in the storage bucket.
 
         Returns:
             ValidateClassificationAction: The created validation action.
@@ -2055,13 +2055,13 @@ class DocumentsService(FolderContext, BaseService):
     @traced(name="documents_create_validate_extraction_action_async", run_type="uipath")
     async def create_validate_extraction_action_async(
         self,
-        action_title: str,
-        action_priority: ActionPriority,
-        action_catalog: str,
-        action_folder: str,
-        storage_bucket_name: str,
-        storage_bucket_directory_path: str,
         extraction_response: ExtractionResponse,
+        action_title: str,
+        action_priority: Optional[ActionPriority] = None,
+        action_catalog: Optional[str] = None,
+        action_folder: Optional[str] = None,
+        storage_bucket_name: Optional[str] = None,
+        storage_bucket_directory_path: Optional[str] = None,
     ) -> ValidateExtractionAction:
         """Asynchronous version of the [`create_validation_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_extraction_action] method."""
         operation_id = (

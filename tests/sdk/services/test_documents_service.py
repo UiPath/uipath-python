@@ -1351,6 +1351,78 @@ class TestDocumentsService:
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
+    async def test_create_validate_classification_action_with_optional_params_omitted(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        classification_response: dict,  # type: ignore
+        create_validation_action_response: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(UUID(int=0))
+        operation_id = str(uuid4())
+        tag = None
+        action_title = "TestAction"
+
+        classification_result = classification_response["classificationResults"][0]
+        classification_result["ProjectId"] = project_id
+        classification_result["ProjectType"] = ProjectType.PRETRAINED.value
+        classification_result["Tag"] = tag
+        classification_result = ClassificationResult.model_validate(
+            classification_result
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/start?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            match_json={
+                "actionTitle": action_title,
+                "actionPriority": None,
+                "actionCatalog": None,
+                "actionFolder": None,
+                "storageBucketName": None,
+                "storageBucketDirectoryPath": None,
+                "classificationResults": [
+                    classification_result.model_dump(),
+                ],
+                "documentId": classification_result.document_id,
+            },
+            json={"operationId": operation_id},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Succeeded", "result": create_validation_action_response},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.create_validate_classification_action_async(
+                classification_results=[classification_result],
+                action_title=action_title,
+            )
+        else:
+            response = service.create_validate_classification_action(
+                classification_results=[classification_result],
+                action_title=action_title,
+            )
+
+        # ASSERT
+        create_validation_action_response["projectId"] = project_id
+        create_validation_action_response["projectType"] = ProjectType.PRETRAINED.value
+        create_validation_action_response["tag"] = tag
+        create_validation_action_response["operationId"] = operation_id
+        assert response.model_dump() == create_validation_action_response
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
     async def test_create_validate_extraction_action_pretrained(
         self,
         httpx_mock: HTTPXMock,
@@ -1539,6 +1611,84 @@ class TestDocumentsService:
         # ASSERT
         create_validation_action_response["projectId"] = project_id
         create_validation_action_response["projectType"] = ProjectType.IXP.value
+        create_validation_action_response["tag"] = tag
+        create_validation_action_response["documentTypeId"] = document_type_id
+        create_validation_action_response["operationId"] = operation_id
+        create_validation_action_response["validatedExtractionResults"] = None
+        create_validation_action_response["dataProjection"] = None
+        assert response.model_dump() == create_validation_action_response
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_create_validate_extraction_action_with_optional_params_omitted(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        modern_extraction_response: dict,  # type: ignore
+        create_validation_action_response: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(UUID(int=0))
+        operation_id = str(uuid4())
+        document_type_id = str(UUID(int=0))
+        tag = None
+        action_title = "TestAction"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            match_json={
+                "extractionResult": modern_extraction_response["extractionResult"],
+                "documentId": modern_extraction_response["extractionResult"][
+                    "DocumentId"
+                ],
+                "actionTitle": action_title,
+                "actionPriority": None,
+                "actionCatalog": None,
+                "actionFolder": None,
+                "storageBucketName": None,
+                "allowChangeOfDocumentType": True,
+                "storageBucketDirectoryPath": None,
+            },
+            json={"operationId": operation_id},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={"status": "Succeeded", "result": create_validation_action_response},
+        )
+
+        modern_extraction_response["projectId"] = project_id
+        modern_extraction_response["projectType"] = ProjectType.PRETRAINED.value
+        modern_extraction_response["tag"] = tag
+        modern_extraction_response["documentTypeId"] = document_type_id
+
+        # ACT
+        if mode == "async":
+            response = await service.create_validate_extraction_action_async(
+                extraction_response=ExtractionResponse.model_validate(
+                    modern_extraction_response
+                ),
+                action_title=action_title,
+            )
+        else:
+            response = service.create_validate_extraction_action(
+                extraction_response=ExtractionResponse.model_validate(
+                    modern_extraction_response
+                ),
+                action_title=action_title,
+            )
+
+        # ASSERT
+        create_validation_action_response["projectId"] = project_id
+        create_validation_action_response["projectType"] = ProjectType.PRETRAINED.value
         create_validation_action_response["tag"] = tag
         create_validation_action_response["documentTypeId"] = document_type_id
         create_validation_action_response["operationId"] = operation_id
@@ -2145,6 +2295,71 @@ class TestDocumentsService:
                 extraction_response=ExtractionResponse.model_validate(
                     ixp_extraction_response
                 ),
+            )
+
+        # ASSERT
+        assert response.model_dump() == {
+            "projectId": project_id,
+            "tag": tag,
+            "documentId": ixp_extraction_response["extractionResult"]["DocumentId"],
+            "operationId": operation_id,
+        }
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_start_ixp_extraction_validation_with_optional_params_omitted(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ixp_extraction_response: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        tag = "live"
+        action_title = "TestAction"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/start?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            match_json={
+                "extractionResult": ixp_extraction_response["extractionResult"],
+                "documentId": ixp_extraction_response["extractionResult"]["DocumentId"],
+                "actionTitle": action_title,
+                "actionPriority": None,
+                "actionCatalog": None,
+                "actionFolder": None,
+                "storageBucketName": None,
+                "allowChangeOfDocumentType": True,
+                "storageBucketDirectoryPath": None,
+            },
+            json={"operationId": operation_id},
+        )
+
+        ixp_extraction_response["projectId"] = project_id
+        ixp_extraction_response["projectType"] = ProjectType.IXP.value
+        ixp_extraction_response["tag"] = tag
+        ixp_extraction_response["documentTypeId"] = str(UUID(int=0))
+
+        # ACT
+        if mode == "async":
+            response = await service.start_ixp_extraction_validation_async(
+                extraction_response=ExtractionResponse.model_validate(
+                    ixp_extraction_response
+                ),
+                action_title=action_title,
+            )
+        else:
+            response = service.start_ixp_extraction_validation(
+                extraction_response=ExtractionResponse.model_validate(
+                    ixp_extraction_response
+                ),
+                action_title=action_title,
             )
 
         # ASSERT
