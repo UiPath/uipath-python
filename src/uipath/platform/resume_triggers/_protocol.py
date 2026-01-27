@@ -241,7 +241,7 @@ class UiPathResumeTriggerReader:
 
                     return trigger_response
 
-            case UiPathResumeTriggerType.EPHEMERAL_INDEX:
+            case UiPathResumeTriggerType.INDEX_INGESTION:
                 if trigger.item_key:
                     index = await uipath.context_grounding.retrieve_by_id_async(
                         trigger.item_key
@@ -392,7 +392,7 @@ class UiPathResumeTriggerCreator:
                     await self._handle_deep_rag_job_trigger(
                         suspend_value, resume_trigger
                     )
-                case UiPathResumeTriggerType.EPHEMERAL_INDEX:
+                case UiPathResumeTriggerType.INDEX_INGESTION:
                     await self._handle_ephemeral_index_job_trigger(
                         suspend_value, resume_trigger
                     )
@@ -449,7 +449,7 @@ class UiPathResumeTriggerCreator:
         if isinstance(value, (CreateDeepRag, WaitDeepRag)):
             return UiPathResumeTriggerType.DEEP_RAG
         if isinstance(value, (CreateEphemeralIndex, WaitEphemeralIndex)):
-            return UiPathResumeTriggerType.EPHEMERAL_INDEX
+            return UiPathResumeTriggerType.INDEX_INGESTION
         if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
             return UiPathResumeTriggerType.BATCH_RAG
         if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
@@ -477,7 +477,7 @@ class UiPathResumeTriggerCreator:
         if isinstance(value, (CreateDeepRag, WaitDeepRag)):
             return UiPathResumeTriggerName.DEEP_RAG
         if isinstance(value, (CreateEphemeralIndex, WaitEphemeralIndex)):
-            return UiPathResumeTriggerName.EPHEMERAL_INDEX
+            return UiPathResumeTriggerName.INDEX_INGESTION
         if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
             return UiPathResumeTriggerName.BATCH_RAG
         if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
@@ -568,6 +568,12 @@ class UiPathResumeTriggerCreator:
                 await uipath.context_grounding.create_ephemeral_index_async(
                     usage=value.usage,
                     attachments=value.attachments,
+                )
+            )
+            await self._create_external_trigger(
+                ExternalTrigger(
+                    type=ExternalTriggerType.INDEX_INGESTION,
+                    external_id=ephemeral_index.id,
                 )
             )
             if not ephemeral_index:

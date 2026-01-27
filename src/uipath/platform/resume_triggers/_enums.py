@@ -26,6 +26,7 @@ class ExternalTriggerType(str, Enum):
     DEEP_RAG = "deepRag"
     BATCH_TRANSFORM = "batchTransform"
     IXP_EXTRACTION = "ixpExtraction"
+    INDEX_INGESTION = "indexIngestion"
 
 
 class ExternalTrigger(BaseModel):

@@ -590,7 +590,7 @@ class TestHitlReader:
             new=mock_retrieve_by_id,
         ):
             resume_trigger = UiPathResumeTrigger(
-                trigger_type=UiPathResumeTriggerType.EPHEMERAL_INDEX,
+                trigger_type=UiPathResumeTriggerType.INDEX_INGESTION,
                 item_key=index_id,
             )
             reader = UiPathResumeTriggerReader()
@@ -622,7 +622,7 @@ class TestHitlReader:
             new=mock_retrieve_by_id,
         ):
             resume_trigger = UiPathResumeTrigger(
-                trigger_type=UiPathResumeTriggerType.EPHEMERAL_INDEX,
+                trigger_type=UiPathResumeTriggerType.INDEX_INGESTION,
                 item_key=index_id,
             )
 
@@ -650,7 +650,7 @@ class TestHitlReader:
             new=mock_retrieve_by_id,
         ):
             resume_trigger = UiPathResumeTrigger(
-                trigger_type=UiPathResumeTriggerType.EPHEMERAL_INDEX,
+                trigger_type=UiPathResumeTriggerType.INDEX_INGESTION,
                 item_key=index_id,
             )
 
@@ -1009,7 +1009,7 @@ class TestHitlProcessor:
 
             assert resume_trigger is not None
             assert (
-                resume_trigger.trigger_type == UiPathResumeTriggerType.EPHEMERAL_INDEX
+                resume_trigger.trigger_type == UiPathResumeTriggerType.INDEX_INGESTION
             )
             assert resume_trigger.item_key == index_id
             mock_create_ephemeral_index.assert_called_once_with(
@@ -1035,7 +1035,7 @@ class TestHitlProcessor:
         resume_trigger = await processor.create_trigger(wait_ephemeral_index)
 
         assert resume_trigger is not None
-        assert resume_trigger.trigger_type == UiPathResumeTriggerType.EPHEMERAL_INDEX
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.INDEX_INGESTION
         assert resume_trigger.item_key == index_id
 
 
