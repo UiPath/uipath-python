@@ -1182,7 +1182,7 @@ class UiPathEvalRuntime:
         return evaluators
 
     async def _restore_parent_span(
-        self, eval_item: str, span_type: str
+        self, span_key: str, span_type: str
     ) -> NonRecordingSpan | None:
         """Restore parent span from storage during resume.
 
@@ -1190,7 +1190,7 @@ class UiPathEvalRuntime:
         across job boundaries without creating duplicate spans.
 
         Args:
-            eval_item: Storage key for the span. Examples:
+            span_key: Storage key for the span. Examples:
                 - "eval_set_run" (string literal) for Evaluation Set Run span
                 - eval_item.id (e.g., "eval-001") for individual Evaluation span
             span_type: Human-readable span type for logging (e.g., "Evaluation Set Run")
@@ -1201,7 +1201,7 @@ class UiPathEvalRuntime:
         if not self.context.resume:
             return None
 
-        saved_context = await self._get_saved_parent_span_context(eval_item)
+        saved_context = await self._get_saved_parent_span_context(span_key)
         if not saved_context:
             return None
 
@@ -1227,7 +1227,7 @@ class UiPathEvalRuntime:
             return None
 
     async def _save_span_context_for_resume(
-        self, span: Any, eval_item: str, span_type: str
+        self, span: Any, span_key: str, span_type: str
     ) -> None:
         """Save span context for retrieval during resume.
 
@@ -1236,7 +1236,7 @@ class UiPathEvalRuntime:
 
         Args:
             span: The OpenTelemetry span to save context from
-            eval_item: Storage key for the span. Examples:
+            span_key: Storage key for the span. Examples:
                 - "eval_set_run" (string literal) for Evaluation Set Run span
                 - eval_item.id (e.g., "eval-001") for individual Evaluation span
             span_type: Human-readable span type for logging (e.g., "Evaluation")
@@ -1249,7 +1249,7 @@ class UiPathEvalRuntime:
         trace_id_hex = format(span_context.trace_id, "032x")
 
         await self._save_parent_span_context(
-            eval_item,
+            span_key,
             {
                 "span_id": span_id_hex,
                 "trace_id": trace_id_hex,
@@ -1262,7 +1262,7 @@ class UiPathEvalRuntime:
         )
 
     async def _save_parent_span_context(
-        self, execution_id: str, span_context: dict[str, str]
+        self, span_key: str, span_context: dict[str, str]
     ) -> None:
         """Save parent span context for retrieval during resume.
 
@@ -1272,10 +1272,10 @@ class UiPathEvalRuntime:
         Storage structure:
             - runtime_id: self.execution_id (eval set run ID)
             - namespace: "eval_parent_span"
-            - key: execution_id parameter (span-specific identifier)
+            - key: span_key parameter (span-specific identifier)
 
         Args:
-            execution_id: Storage key for the span. Can be:
+            span_key: Storage key for the span. Can be:
                 - "eval_set_run" for Evaluation Set Run span
                 - eval_item.id for individual Evaluation spans
             span_context: Dictionary with 'span_id' and 'trace_id' keys (hex strings)
@@ -1284,19 +1284,19 @@ class UiPathEvalRuntime:
             await self._storage.set_value(
                 runtime_id=self.execution_id,
                 namespace="eval_parent_span",
-                key=execution_id,
+                key=span_key,
                 value=span_context,
             )
             logger.debug(
-                f"Saved parent span context to storage for execution_id={execution_id}: {span_context}"
+                f"Saved parent span context to storage for span_key={span_key}: {span_context}"
             )
         else:
             logger.warning(
-                f"No storage available, cannot persist parent span context for execution_id={execution_id}"
+                f"No storage available, cannot persist parent span context for span_key={span_key}"
             )
 
     async def _get_saved_parent_span_context(
-        self, execution_id: str
+        self, span_key: str
     ) -> dict[str, str] | None:
         """Retrieve saved parent span context for resume.
 
@@ -1306,10 +1306,10 @@ class UiPathEvalRuntime:
         Storage lookup:
             - runtime_id: self.execution_id (eval set run ID)
             - namespace: "eval_parent_span"
-            - key: execution_id parameter (span-specific identifier)
+            - key: span_key parameter (span-specific identifier)
 
         Args:
-            execution_id: Storage key for the span. Can be:
+            span_key: Storage key for the span. Can be:
                 - "eval_set_run" for Evaluation Set Run span
                 - eval_item.id for individual Evaluation spans
 
@@ -1320,20 +1320,20 @@ class UiPathEvalRuntime:
             context = await self._storage.get_value(
                 runtime_id=self.execution_id,
                 namespace="eval_parent_span",
-                key=execution_id,
+                key=span_key,
             )
             if context:
                 logger.debug(
-                    f"Retrieved parent span context from storage for execution_id={execution_id}: {context}"
+                    f"Retrieved parent span context from storage for span_key={span_key}: {context}"
                 )
             else:
                 logger.debug(
-                    f"No saved parent span context found in storage for execution_id={execution_id}"
+                    f"No saved parent span context found in storage for span_key={span_key}"
                 )
             return context
         else:
             logger.warning(
-                f"No storage available, cannot retrieve parent span context for execution_id={execution_id}"
+                f"No storage available, cannot retrieve parent span context for span_key={span_key}"
             )
             return None
 
