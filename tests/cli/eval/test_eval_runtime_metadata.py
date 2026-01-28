@@ -15,12 +15,12 @@ import pytest
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
+    UiPathResumableStorageProtocol,
     UiPathRuntimeEvent,
     UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
-    UiPathRuntimeStorageProtocol,
     UiPathStreamOptions,
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
@@ -116,7 +116,7 @@ class MockFactory:
     def discover_entrypoints(self) -> list[str]:
         return ["test"]
 
-    async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+    async def get_storage(self) -> UiPathResumableStorageProtocol | None:
         return None
 
     async def get_settings(self) -> UiPathRuntimeFactorySettings | None:

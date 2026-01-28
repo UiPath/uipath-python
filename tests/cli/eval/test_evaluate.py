@@ -5,12 +5,12 @@ from pydantic import BaseModel
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
+    UiPathResumableStorageProtocol,
     UiPathRuntimeEvent,
     UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
-    UiPathRuntimeStorageProtocol,
     UiPathStreamOptions,
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
@@ -77,7 +77,7 @@ async def test_evaluate():
         def discover_entrypoints(self) -> list[str]:
             return ["test"]
 
-        async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+        async def get_storage(self) -> UiPathResumableStorageProtocol | None:
             return None
 
         async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
@@ -181,7 +181,7 @@ async def test_eval_runtime_generates_uuid_when_no_custom_id():
         def discover_entrypoints(self) -> list[str]:
             return ["test"]
 
-        async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+        async def get_storage(self) -> UiPathResumableStorageProtocol | None:
             return None
 
         async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
@@ -270,7 +270,7 @@ async def test_eval_runtime_works_without_exporters():
         def discover_entrypoints(self) -> list[str]:
             return ["test"]
 
-        async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
+        async def get_storage(self) -> UiPathResumableStorageProtocol | None:
             return None
 
         async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
