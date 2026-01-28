@@ -50,7 +50,7 @@ jobs:
       - name: Run uipath-langchain tests
         working-directory: uipath-langchain-python
         run: |
-          uv sync
+          uv sync --all-extras
           uv run pytest
 
   discover-testcases:
