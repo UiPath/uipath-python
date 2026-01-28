@@ -21,6 +21,7 @@ from uipath.core.guardrails import (
 )
 
 from uipath.platform.connections import Connection
+from uipath.platform.documents import ActionPriority
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
@@ -444,10 +445,10 @@ def _resolve_task_title(v: Any) -> Any:
 class AgentEscalationChannelProperties(BaseResourceProperties):
     """Agent escalation channel properties model."""
 
-    app_name: str | None = Field(..., alias="appName")
+    app_name: str | None = Field(default=None, alias="appName")
     app_version: int = Field(..., alias="appVersion")
     folder_name: Optional[str] = Field(None, alias="folderName")
-    resource_key: str | None = Field(..., alias="resourceKey")
+    resource_key: str | None = Field(default=None, alias="resourceKey")
     is_actionable_message_enabled: Optional[bool] = Field(
         None, alias="isActionableMessageEnabled"
     )
@@ -500,6 +501,8 @@ class AgentIxpVsEscalationProperties(BaseCfg):
     """VS escalation properties model."""
 
     ixp_tool_id: str = Field(..., alias="ixpToolId")
+    action_title: str | None = Field(default=None, alias="actionTitle")
+    action_priority: ActionPriority | None = Field(default=None, alias="actionPriority")
     storage_bucket_name: str = Field(..., alias="storageBucketName")
     storage_bucket_folder_path: str = Field(..., alias="storageBucketFolderPath")
 

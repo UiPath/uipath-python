@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, Union
 from uuid import UUID
 
-from ..._utils import Endpoint
+from ..._utils import Endpoint, resource_override
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ..errors import OperationFailedException, OperationNotCompleteException
@@ -1546,6 +1546,11 @@ class DocumentsService(FolderContext, BaseService):
             extraction_response=extraction_response,
         )
 
+    @resource_override(
+        resource_type="bucket",
+        resource_identifier="storage_bucket_name",
+        folder_identifier="action_folder",
+    )
     @traced(
         name="documents_start_ixp_extraction_validation_async",
         run_type="uipath",
@@ -1575,6 +1580,11 @@ class DocumentsService(FolderContext, BaseService):
             extraction_response=extraction_response,
         )
 
+    @resource_override(
+        resource_type="bucket",
+        resource_identifier="storage_bucket_name",
+        folder_identifier="action_folder",
+    )
     @traced(
         name="documents_retrieve_ixp_extraction_validation_result",
         run_type="uipath",
