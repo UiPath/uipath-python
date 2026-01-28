@@ -909,11 +909,6 @@ class UiPathEvalRuntime:
         input_overrides: dict[str, Any] | None = None,
     ) -> UiPathEvalRunExecutionOutput:
         log_handler = self._setup_execution_logging(execution_id)
-        attributes: dict[str, Any] = {
-            "evalId": eval_item.id,
-            "span_type": "eval",
-            "uipath.custom_instrumentation": True,
-        }
 
         # Create a new runtime with runtime_id for this eval execution.
         # Use eval_item.id to maintain consistent thread_id across suspend and resume.
@@ -930,8 +925,6 @@ class UiPathEvalRuntime:
                 delegate=eval_runtime,
                 trace_manager=self.trace_manager,
                 log_handler=log_handler,
-                execution_id=execution_id,
-                span_attributes=attributes,
             )
 
             start_time = time()
