@@ -6,7 +6,8 @@ readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
   "uipath-core>=0.2.0, <0.3.0",
-  "uipath-runtime>=0.6.0, <0.7.0",
+  # TODO: Change back to "uipath-runtime>=0.7.0, <0.8.0" once PR #74 is merged and released
+  "uipath-runtime @ git+https://github.com/UiPath/uipath-runtime-python.git@feature/wait-for-triggers",
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",

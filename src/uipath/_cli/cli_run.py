@@ -80,6 +80,17 @@ console = ConsoleLogger()
     is_flag=True,
     help="Keep the temporary state file even when not resuming and no job id is provided",
 )
+@click.option(
+    "--wait-for-triggers",
+    is_flag=True,
+    help="Poll triggers until completion instead of suspending. Useful for local execution without orchestrator.",
+)
+@click.option(
+    "--trigger-poll-interval",
+    type=float,
+    default=5.0,
+    help="Seconds between poll attempts when --wait-for-triggers is enabled (default: 5.0)",
+)
 def run(
     entrypoint: str | None,
     input: str | None,
@@ -92,6 +103,8 @@ def run(
     debug: bool,
     debug_port: int,
     keep_state_file: bool,
+    wait_for_triggers: bool,
+    trigger_poll_interval: float,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -112,6 +125,8 @@ def run(
         debug=debug,
         debug_port=debug_port,
         keep_state_file=keep_state_file,
+        wait_for_triggers=wait_for_triggers,
+        trigger_poll_interval=trigger_poll_interval,
     )
 
     if result.error_message:
@@ -129,7 +144,11 @@ def run(
             async def execute_runtime(
                 ctx: UiPathRuntimeContext, runtime: UiPathRuntimeProtocol
             ) -> UiPathRuntimeResult:
-                options = UiPathExecuteOptions(resume=resume)
+                options = UiPathExecuteOptions(
+                    resume=resume,
+                    wait_for_triggers=wait_for_triggers,
+                    trigger_poll_interval=trigger_poll_interval,
+                )
                 ctx.result = await runtime.execute(
                     input=ctx.get_input(), options=options
                 )
@@ -141,7 +160,11 @@ def run(
                 debug_bridge: UiPathDebugProtocol = ConsoleDebugBridge()
 
                 await debug_bridge.emit_execution_started()
-                options = UiPathStreamOptions(resume=resume)
+                options = UiPathStreamOptions(
+                    resume=resume,
+                    wait_for_triggers=wait_for_triggers,
+                    trigger_poll_interval=trigger_poll_interval,
+                )
                 async for event in runtime.stream(ctx.get_input(), options=options):
                     if isinstance(event, UiPathRuntimeResult):
                         await debug_bridge.emit_execution_completed(event)
