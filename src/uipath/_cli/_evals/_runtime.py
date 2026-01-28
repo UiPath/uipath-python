@@ -37,11 +37,11 @@ from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathExecutionRuntime,
-    UiPathResumableStorageProtocol,
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
+    UiPathRuntimeStorageProtocol,
 )
 from uipath.runtime.errors import (
     UiPathErrorCategory,
@@ -245,7 +245,7 @@ class UiPathEvalRuntime:
         logger.info(f"EVAL RUNTIME: execution_id set to: {self.execution_id}")
         self.coverage = coverage.Coverage(branch=True)
 
-        self._storage: UiPathResumableStorageProtocol | None = None
+        self._storage: UiPathRuntimeStorageProtocol | None = None
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
         if self.context.report_coverage:

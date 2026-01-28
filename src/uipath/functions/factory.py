@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from uipath.runtime import (
+    UiPathResumableStorageProtocol,
     UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,
-    UiPathResumableStorageProtocol,
 )
 
 from .runtime import UiPathFunctionsRuntime
