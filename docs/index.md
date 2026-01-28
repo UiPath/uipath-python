@@ -51,4 +51,12 @@ title: Getting Started
 
     [Get Started](./llamaindex/quick_start.md)
 
+-   __UiPath OpenAI Agents SDK__
+
+    ---
+
+    Build enterprise-grade UiPath agents using the OpenAI Agents SDK framework, with seamless integration from build to run.
+
+    [Get Started](./openai-agents/quick_start.md)
+
 </div>
