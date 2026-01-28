@@ -37,11 +37,11 @@ from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathExecutionRuntime,
+    UiPathResumableStorageProtocol,
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
-    UiPathRuntimeStorageProtocol,
 )
 from uipath.runtime.errors import (
     UiPathErrorCategory,
@@ -233,11 +233,19 @@ class UiPathEvalRuntime:
         self.trace_manager.tracer_provider.add_span_processor(span_processor)
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
-        # Use job_id if available (for single runtime runs), otherwise generate UUID
-        self.execution_id = context.job_id or str(uuid.uuid4())
+        # Use job_id if available, then eval_set_run_id for stability across suspend/resume,
+        # otherwise generate UUID
+        logger.debug(
+            f"EVAL RUNTIME INIT: job_id={context.job_id}, "
+            f"eval_set_run_id={context.eval_set_run_id}"
+        )
+        self.execution_id = (
+            context.job_id or context.eval_set_run_id or str(uuid.uuid4())
+        )
+        logger.info(f"EVAL RUNTIME: execution_id set to: {self.execution_id}")
         self.coverage = coverage.Coverage(branch=True)
 
-        self._storage: UiPathRuntimeStorageProtocol | None = None
+        self._storage: UiPathResumableStorageProtocol | None = None
 
     async def __aenter__(self) -> "UiPathEvalRuntime":
         if self.context.report_coverage:
