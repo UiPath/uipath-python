@@ -228,11 +228,14 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": evaluation_prompt},
             ],
-            "max_tokens": self.evaluator_config.max_tokens,
             "temperature": self.evaluator_config.temperature,
             "tools": [evaluation_tool],
             "tool_choice": tool_choice,
         }
+
+        # Only include max_tokens if explicitly set (don't pass None to API)
+        if self.evaluator_config.max_tokens is not None:
+            request_data["max_tokens"] = self.evaluator_config.max_tokens
 
         if self.llm_service is None:
             raise UiPathEvaluationError(
@@ -246,8 +249,13 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         logger.info(
             f"🤖 Calling LLM evaluator with model: {model} (using function calling)"
         )
+        max_tokens_str = (
+            str(self.evaluator_config.max_tokens)
+            if self.evaluator_config.max_tokens is not None
+            else "unset"
+        )
         logger.debug(
-            f"Request data: model={model}, max_tokens={self.evaluator_config.max_tokens}, temperature={self.evaluator_config.temperature}, tool_choice=required"
+            f"Request data: model={model}, max_tokens={max_tokens_str}, temperature={self.evaluator_config.temperature}, tool_choice=required"
         )
 
         try:
@@ -281,8 +289,13 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
                         f"Response Body: {str(e.response.content) if hasattr(e.response, 'content') else 'N/A'}"
                     )
 
+            max_tokens_str = (
+                str(self.evaluator_config.max_tokens)
+                if self.evaluator_config.max_tokens is not None
+                else "unset"
+            )
             logger.error(
-                f"Request Details: model={model}, max_tokens={self.evaluator_config.max_tokens}, temperature={self.evaluator_config.temperature}, tool_choice=required"
+                f"Request Details: model={model}, max_tokens={max_tokens_str}, temperature={self.evaluator_config.temperature}, tool_choice=required"
             )
             logger.error("=" * 80)
 
