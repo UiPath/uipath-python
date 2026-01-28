@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from uipath.runtime import (
-    UiPathResumableStorageProtocol,
     UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,
+    UiPathRuntimeStorageProtocol,
 )
 
 from .runtime import UiPathFunctionsRuntime
@@ -48,7 +48,7 @@ class UiPathFunctionsRuntimeFactory:
         config = self._load_config()
         return list(config.get("functions", {}).keys())
 
-    async def get_storage(self) -> UiPathResumableStorageProtocol | None:
+    async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
         """Get storage protocol if any (placeholder for protocol compliance)."""
         return None
 

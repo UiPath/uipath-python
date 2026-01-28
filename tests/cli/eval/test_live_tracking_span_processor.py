@@ -10,8 +10,7 @@ from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
 from uipath.runtime import UiPathRuntimeFactorySettings
 
-from uipath._cli._evals._live_tracking_processor import LiveTrackingSpanProcessor
-from uipath.tracing import SpanStatus
+from uipath.tracing import LiveTrackingSpanProcessor, SpanStatus
 
 
 class TestLiveTrackingSpanProcessor:
@@ -42,7 +41,9 @@ class TestLiveTrackingSpanProcessor:
                 )
             )
         )
-        return LiveTrackingSpanProcessor(mock_exporter, settings=settings)
+        return LiveTrackingSpanProcessor(
+            mock_exporter, settings=settings.trace_settings
+        )
 
     def create_mock_span(self, attributes: dict[str, Any] | None = None):
         """Create a mock span with attributes."""
@@ -61,7 +62,6 @@ class TestLiveTrackingSpanProcessor:
         processor = LiveTrackingSpanProcessor(mock_exporter)
 
         assert processor.exporter == mock_exporter
-        assert processor.span_status == SpanStatus
 
     def test_init_with_no_settings(self, mock_exporter):
         """Test processor initialization with no settings."""
@@ -80,7 +80,9 @@ class TestLiveTrackingSpanProcessor:
                 )
             )
         )
-        processor = LiveTrackingSpanProcessor(mock_exporter, settings=settings)
+        processor = LiveTrackingSpanProcessor(
+            mock_exporter, settings=settings.trace_settings
+        )
 
         assert processor.span_filter is not None
 

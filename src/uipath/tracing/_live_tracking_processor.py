@@ -3,8 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
+from uipath.core.tracing import UiPathTraceSettings
 
-from uipath.tracing import LlmOpsHttpExporter, SpanStatus
+from uipath.tracing._otel_exporters import LlmOpsHttpExporter, SpanStatus
 
 logger = logging.getLogger(__name__)
 
@@ -34,45 +35,15 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         self,
         exporter: LlmOpsHttpExporter,
         max_workers: int = 10,
-        settings=None,
+        settings: UiPathTraceSettings | None = None,
     ):
         self.exporter = exporter
-        self.span_status = SpanStatus
-        self.settings = settings
         self.span_filter = (
-            settings.trace_settings.span_filter
-            if settings and settings.trace_settings
-            else None
+            settings.span_filter if settings and settings.span_filter else None
         )
         self.executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="span-upsert"
         )
-
-    @classmethod
-    def create_and_register(
-        cls,
-        exporter: LlmOpsHttpExporter,
-        trace_manager,
-        max_workers: int = 10,
-        settings=None,
-    ) -> "LiveTrackingSpanProcessor":
-        """Factory method to create and register a live tracking processor.
-
-        Creates one LiveTrackingSpanProcessor per exporter following the
-        architecture pattern: one processor → one exporter.
-
-        Args:
-            exporter: The LlmOpsHttpExporter to send upserts to
-            trace_manager: UiPathTraceManager instance to register with
-            max_workers: Thread pool size for async upserts
-            settings: UiPathRuntimeFactorySettings with optional span_filter
-
-        Returns:
-            The created and registered processor
-        """
-        processor = cls(exporter, max_workers, settings)
-        trace_manager.add_span_processor(processor)
-        return processor
 
     def _upsert_span_async(
         self, span: Span | ReadableSpan, status_override: int | None = None
@@ -103,7 +74,7 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         """Called when span starts - upsert with RUNNING status (non-blocking)."""
         # Apply factory span filter if configured
         if self.span_filter is None or self.span_filter(span):
-            self._upsert_span_async(span, status_override=self.span_status.RUNNING)
+            self._upsert_span_async(span, status_override=SpanStatus.RUNNING)
 
     def on_end(self, span: ReadableSpan) -> None:
         """Called when span ends - upsert with final status (non-blocking)."""
