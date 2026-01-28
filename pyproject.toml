@@ -5,8 +5,13 @@ description = "Python SDK and CLI for UiPath Platform, enabling programmatic int
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
+<<<<<<< Updated upstream
   "uipath-core>=0.2.2, <0.3.0",
   "uipath-runtime>=0.6.2, <0.7.0",
+=======
+  "uipath-core>=0.2.0, <0.3.0",
+  "uipath-runtime==0.6.2.dev1000750240",
+>>>>>>> Stashed changes
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
@@ -147,3 +152,6 @@ name = "testpypi"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
+
+[tool.uv.sources]
+uipath-runtime = { index = "testpypi" }
