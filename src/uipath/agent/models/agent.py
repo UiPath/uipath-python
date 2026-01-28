@@ -213,6 +213,7 @@ class BaseAgentResourceConfig(BaseCfg):
 
     name: str
     description: str
+    is_enabled: bool = Field(default=True, alias="isEnabled")
     # NOTE: this is the union discriminator; don't attach validators here.
     resource_type: Literal[
         AgentResourceType.TOOL,
@@ -292,7 +293,6 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     folder_path: str = Field(alias="folderPath")
     index_name: str = Field(alias="indexName")
     settings: AgentContextSettings = Field(..., description="Context settings")
-    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
 
 class AgentMcpTool(BaseCfg):
@@ -316,7 +316,6 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     folder_path: str = Field(alias="folderPath")
     slug: str = Field(..., alias="slug")
     available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
-    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
 
 def _normalize_recipient_type(recipient: Any) -> Any:
@@ -620,7 +619,6 @@ class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
     properties: AgentIntegrationToolProperties
     settings: Optional[AgentToolSettings] = Field(None)
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
     # is output schemas were only recently added so they will be missing in some resources
     output_schema: Optional[Dict[str, Any]] = Field(None, alias="outputSchema")
 
@@ -632,7 +630,6 @@ class AgentInternalToolResourceConfig(BaseAgentToolResourceConfig):
     properties: AgentInternalToolProperties
     settings: Optional[AgentToolSettings] = Field(None)
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
     output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
@@ -644,7 +641,6 @@ class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
 
     type: Literal[AgentToolType.UNKNOWN] = AgentToolType.UNKNOWN
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    is_enabled: Optional[bool] = Field(None, alias="isEnabled")
 
 
 ToolResourceConfig = Annotated[
