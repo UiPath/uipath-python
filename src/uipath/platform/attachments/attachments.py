@@ -3,7 +3,7 @@
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -18,10 +18,10 @@ class AttachmentMode(str, Enum):
 class Attachment(BaseModel):
     """Model representing an attachment. Id 'None' is used for uploads."""
 
-    id: Optional[uuid.UUID] = Field(None, alias="ID")
+    id: uuid.UUID = Field(..., alias="ID")
     full_name: str = Field(..., alias="FullName")
     mime_type: str = Field(..., alias="MimeType")
-    metadata: Optional[dict[str, str]] = Field(None, alias="Metadata")
+    metadata: Optional[dict[str, Any]] = Field(None, alias="Metadata")
     model_config = {
         "title": "UiPathAttachment",
         "validate_by_name": True,

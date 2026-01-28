@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
 from ...tracing import traced
+from ..attachments import Attachment
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ._attachments_service import AttachmentsService
 from .job import Job
@@ -18,6 +19,8 @@ class ProcessesService(FolderContext, BaseService):
     automation in UiPath, representing sequences of activities that perform
     specific business tasks.
     """
+
+    _INPUT_ARGUMENTS_SIZE_LIMIT = 10000
 
     def __init__(
         self,
@@ -37,6 +40,7 @@ class ProcessesService(FolderContext, BaseService):
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        attachments: Optional[list[Attachment]] = None,
     ) -> Job:
         """Start execution of a process by its name.
 
@@ -45,6 +49,7 @@ class ProcessesService(FolderContext, BaseService):
         Args:
             name (str): The name of the process to execute.
             input_arguments (Optional[Dict[str, Any]]): The input arguments to pass to the process.
+            attachments (Optional[list]): List of Attachment objects to pass to the process.
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
@@ -72,9 +77,11 @@ class ProcessesService(FolderContext, BaseService):
         """
         input_data = self._handle_input_arguments(
             input_arguments=input_arguments,
+            attachments=attachments,
             folder_key=folder_key,
             folder_path=folder_path,
         )
+
         spec = self._invoke_spec(
             name,
             input_data=input_data,
@@ -101,6 +108,7 @@ class ProcessesService(FolderContext, BaseService):
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        attachments: Optional[list[Attachment]] = None,
     ) -> Job:
         """Asynchronously start execution of a process by its name.
 
@@ -109,6 +117,7 @@ class ProcessesService(FolderContext, BaseService):
         Args:
             name (str): The name of the process to execute.
             input_arguments (Optional[Dict[str, Any]]): The input arguments to pass to the process.
+            attachments (Optional[list]): List of Attachment objects to pass to the process.
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
 
@@ -132,6 +141,7 @@ class ProcessesService(FolderContext, BaseService):
         """
         input_data = await self._handle_input_arguments_async(
             input_arguments=input_arguments,
+            attachments=attachments,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -157,71 +167,104 @@ class ProcessesService(FolderContext, BaseService):
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
+    @staticmethod
+    def _prepare_link_attachments(
+        attachments: Optional[list[Attachment]],
+    ) -> Optional[list[Dict[str, str]]]:
+        """Format attachments for process invocation payload."""
+        if not attachments:
+            return None
+
+        link_attachments = [
+            {"attachmentId": str(att.id)} for att in attachments if att.id is not None
+        ]
+        return link_attachments if link_attachments else None
+
     def _handle_input_arguments(
         self,
         input_arguments: Optional[Dict[str, Any]] = None,
+        attachments: Optional[list[Attachment]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> Dict[str, str]:
-        """Handle input arguments, storing as attachment if they exceed size limit.
+    ) -> Dict[str, Any]:
+        """Handle input arguments and attachments, storing as attachment if they exceed size limit.
 
         Args:
             input_arguments: The input arguments to process
+            attachments: List of Attachment objects to pass to the process
             folder_key: The folder key for attachment storage
             folder_path: The folder path for attachment storage
 
         Returns:
-            Dict containing either "InputArguments" or "InputFile" key
+            Dict containing either "InputArguments" or "InputFile" key, and optionally "Attachments"
         """
-        if not input_arguments:
-            return {"InputArguments": json.dumps({})}
+        result: Dict[str, Any] = {}
 
-        # If payload exceeds limit, store as attachment
-        payload_json = json.dumps(input_arguments)
-        if len(payload_json) > 10000:  # 10k char limit
-            attachment_id = self._attachments_service.upload(
-                name=f"{uuid.uuid4()}.json",
-                content=payload_json,
-                folder_key=folder_key,
-                folder_path=folder_path,
-            )
-            return {"InputFile": str(attachment_id)}
+        # handle input arguments
+        if not input_arguments:
+            result["InputArguments"] = json.dumps({})
         else:
-            return {"InputArguments": payload_json}
+            # If payload exceeds limit, store as attachment
+            payload_json = json.dumps(input_arguments)
+            if len(payload_json) > self._INPUT_ARGUMENTS_SIZE_LIMIT:
+                attachment_id = self._attachments_service.upload(
+                    name=f"{uuid.uuid4()}.json",
+                    content=payload_json,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+                result["InputFile"] = str(attachment_id)
+            else:
+                result["InputArguments"] = payload_json
+
+        link_attachments = self._prepare_link_attachments(attachments)
+        if link_attachments:
+            result["Attachments"] = link_attachments
+
+        return result
 
     async def _handle_input_arguments_async(
         self,
         input_arguments: Optional[Dict[str, Any]] = None,
+        attachments: Optional[list[Attachment]] = None,
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> Dict[str, str]:
-        """Handle input arguments, storing as attachment if they exceed size limit.
+    ) -> Dict[str, Any]:
+        """Handle input arguments and attachments, storing as attachment if they exceed size limit.
 
         Args:
             input_arguments: The input arguments to process
+            attachments: List of Attachment objects to pass to the process
             folder_key: The folder key for attachment storage
             folder_path: The folder path for attachment storage
 
         Returns:
-            Dict containing either "InputArguments" or "InputFile" key
+            Dict containing either "InputArguments" or "InputFile" key, and optionally "Attachments"
         """
-        if not input_arguments:
-            return {"InputArguments": json.dumps({})}
+        result: Dict[str, Any] = {}
 
-        # If payload exceeds limit, store as attachment
-        payload_json = json.dumps(input_arguments)
-        if len(payload_json) > 10000:  # 10k char limit
-            attachment_id = await self._attachments_service.upload_async(
-                name=f"{uuid.uuid4()}.json",
-                content=payload_json,
-                folder_key=folder_key,
-                folder_path=folder_path,
-            )
-            return {"InputFile": str(attachment_id)}
+        if not input_arguments:
+            result["InputArguments"] = json.dumps({})
         else:
-            return {"InputArguments": payload_json}
+            payload_json = json.dumps(input_arguments)
+            if len(payload_json) > self._INPUT_ARGUMENTS_SIZE_LIMIT:
+                attachment_id = await self._attachments_service.upload_async(
+                    name=f"{uuid.uuid4()}.json",
+                    content=payload_json,
+                    folder_key=folder_key,
+                    folder_path=folder_path,
+                )
+                result["InputFile"] = str(attachment_id)
+            else:
+                result["InputArguments"] = payload_json
+
+        formatted_attachments = self._prepare_link_attachments(attachments)
+        if formatted_attachments:
+            result["Attachments"] = formatted_attachments
+
+        return result
 
     def _invoke_spec(
         self,

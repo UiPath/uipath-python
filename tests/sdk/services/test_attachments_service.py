@@ -993,6 +993,7 @@ class TestAttachmentsService:
         file_name = "test_write_file.txt"
         file_content = b"Content to write"
         attachment = Attachment(  # type: ignore[call-arg]
+            ID=uuid.uuid4(),
             FullName=file_name,
             MimeType="text/plain",
         )
@@ -1144,6 +1145,7 @@ class TestAttachmentsService:
         file_name = "test_write_file_async.txt"
         file_content = b"Content to write async"
         attachment = Attachment(  # type: ignore[call-arg]
+            ID=uuid.uuid4(),
             FullName=file_name,
             MimeType="text/plain",
         )

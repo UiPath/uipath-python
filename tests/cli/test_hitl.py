@@ -891,6 +891,7 @@ class TestHitlProcessor:
             mock_process_invoke_async.assert_called_once_with(
                 name=invoke_process.name,
                 input_arguments=invoke_process.input_arguments,
+                attachments=None,
                 folder_path=invoke_process.process_folder_path,
                 folder_key=None,
             )
