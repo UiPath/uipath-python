@@ -87,11 +87,13 @@ class CreateDeepRag(BaseModel):
 
     name: str
     index_name: Annotated[str, Field(max_length=512)]
+    index_id: Annotated[str, Field(max_length=512)] | None = None
     prompt: Annotated[str, Field(max_length=250000)]
     glob_pattern: Annotated[str, Field(max_length=512, default="*")] = "**"
     citation_mode: CitationMode = CitationMode.SKIP
     index_folder_key: str | None = None
     index_folder_path: str | None = None
+    is_ephemeral: bool | None = None
 
 
 class WaitDeepRag(BaseModel):
@@ -120,6 +122,7 @@ class CreateBatchTransform(BaseModel):
 
     name: str
     index_name: str
+    index_id: Annotated[str, Field(max_length=512)] | None = None
     prompt: Annotated[str, Field(max_length=250000)]
     output_columns: list[BatchTransformOutputColumn]
     storage_bucket_folder_path_prefix: Annotated[str | None, Field(max_length=512)] = (
@@ -129,6 +132,7 @@ class CreateBatchTransform(BaseModel):
     destination_path: str
     index_folder_key: str | None = None
     index_folder_path: str | None = None
+    is_ephemeral: bool | None = None
 
 
 class WaitBatchTransform(BaseModel):
