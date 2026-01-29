@@ -8,6 +8,7 @@ from uuid import UUID
 
 from ..._utils import Endpoint, resource_override
 from ...tracing import traced
+from ..attachments import Attachment
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
 from ..errors import OperationFailedException, OperationNotCompleteException
 from .documents import (
@@ -207,6 +208,7 @@ class DocumentsService(FolderContext, BaseService):
             project_id=project_id,
             file=file,
             file_path=file_path,
+            attachment=None,
         )
         self._wait_for_digitization(
             project_id=project_id,
@@ -229,6 +231,7 @@ class DocumentsService(FolderContext, BaseService):
             project_id=project_id,
             file=file,
             file_path=file_path,
+            attachment=None,
         )
         await self._wait_for_digitization_async(
             project_id=project_id,
@@ -289,11 +292,61 @@ class DocumentsService(FolderContext, BaseService):
 
         return project_id, tag
 
-    def _start_digitization(
+    def _start_digitization_from_attachment(
         self,
         project_id: str,
-        file: Optional[FileContent] = None,
-        file_path: Optional[str] = None,
+        attachment: Attachment,
+    ) -> str:
+        return self.request(
+            "POST",
+            url=Endpoint(
+                f"/du_/api/framework/projects/{project_id}/digitization/startFromJobAttachment"
+            ),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+            json={
+                "attachmentId": str(attachment.id),
+                "fileName": attachment.full_name,
+                "mimeType": attachment.mime_type,
+                "folderId": str(
+                    UUID(
+                        int=0
+                    )  # temporary workaround until backend supports null folderId
+                ),
+            },
+        ).json()["documentId"]
+
+    async def _start_digitization_from_attachment_async(
+        self,
+        project_id: str,
+        attachment: Attachment,
+    ) -> str:
+        return (
+            await self.request_async(
+                "POST",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{project_id}/digitization/startFromJobAttachment"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
+                json={
+                    "attachmentId": str(attachment.id),
+                    "fileName": attachment.full_name,
+                    "mimeType": attachment.mime_type,
+                    "folderId": str(
+                        UUID(
+                            int=0
+                        )  # temporary workaround until backend supports null folderId
+                    ),
+                },
+            )
+        ).json()["documentId"]
+
+    def _start_digitization_from_file(
+        self,
+        project_id: str,
+        file: Optional[FileContent],
+        file_path: Optional[str],
     ) -> str:
         with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
             return self.request(
@@ -306,11 +359,11 @@ class DocumentsService(FolderContext, BaseService):
                 files={"File": handle},
             ).json()["documentId"]
 
-    async def _start_digitization_async(
+    async def _start_digitization_from_file_async(
         self,
         project_id: str,
-        file: Optional[FileContent] = None,
-        file_path: Optional[str] = None,
+        file: Optional[FileContent],
+        file_path: Optional[str],
     ) -> str:
         with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
             return (
@@ -324,6 +377,44 @@ class DocumentsService(FolderContext, BaseService):
                     files={"File": handle},
                 )
             ).json()["documentId"]
+
+    def _start_digitization(
+        self,
+        project_id: str,
+        file: Optional[FileContent],
+        file_path: Optional[str],
+        attachment: Optional[Attachment],
+    ) -> str:
+        if attachment is not None:
+            return self._start_digitization_from_attachment(
+                project_id=project_id,
+                attachment=attachment,
+            )
+        else:
+            return self._start_digitization_from_file(
+                project_id=project_id,
+                file=file,
+                file_path=file_path,
+            )
+
+    async def _start_digitization_async(
+        self,
+        project_id: str,
+        file: Optional[FileContent],
+        file_path: Optional[str],
+        attachment: Optional[Attachment],
+    ) -> str:
+        if attachment is not None:
+            return await self._start_digitization_from_attachment_async(
+                project_id=project_id,
+                attachment=attachment,
+            )
+        else:
+            return await self._start_digitization_from_file_async(
+                project_id=project_id,
+                file=file,
+                file_path=file_path,
+            )
 
     def _wait_for_digitization(self, project_id: str, document_id: str) -> None:
         def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
@@ -917,6 +1008,7 @@ class DocumentsService(FolderContext, BaseService):
         tag: str,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        attachment: Optional[Attachment] = None,
     ) -> StartExtractionResponse:
         """Start an IXP extraction process without waiting for results (non-blocking).
 
@@ -929,9 +1021,10 @@ class DocumentsService(FolderContext, BaseService):
             tag (str): Tag of the published project version (e.g., "staging").
             file (FileContent, optional): The document file to be processed.
             file_path (str, optional): Path to the document file to be processed.
+            attachment (Attachment, optional): An existing attachment to use for digitization.
 
         Note:
-            Either `file` or `file_path` must be provided, but not both.
+            Either `file`, `file_path` or `attachment` must be provided, but not more than one.
 
         Returns:
             ExtractionStartResponse: Contains the operation_id, document_id, project_id, and tag
@@ -946,14 +1039,14 @@ class DocumentsService(FolderContext, BaseService):
             # start_response.operation_id can be used to poll for results later
             ```
         """
-        _exactly_one_must_be_provided(file=file, file_path=file_path)
+        _exactly_one_must_be_provided(
+            file=file, file_path=file_path, attachment=attachment
+        )
 
         project_id = self._get_project_id_by_name(project_name, ProjectType.IXP)
 
         document_id = self._start_digitization(
-            project_id=project_id,
-            file=file,
-            file_path=file_path,
+            project_id=project_id, file=file, file_path=file_path, attachment=attachment
         )
 
         return self._start_extraction(
@@ -971,9 +1064,12 @@ class DocumentsService(FolderContext, BaseService):
         tag: str,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        attachment: Optional[Attachment] = None,
     ) -> StartExtractionResponse:
         """Asynchronous version of the [`start_ixp_extraction`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction] method."""
-        _exactly_one_must_be_provided(file=file, file_path=file_path)
+        _exactly_one_must_be_provided(
+            file=file, file_path=file_path, attachment=attachment
+        )
 
         project_id = await self._get_project_id_by_name_async(
             project_name, ProjectType.IXP
@@ -983,6 +1079,7 @@ class DocumentsService(FolderContext, BaseService):
             project_id=project_id,
             file=file,
             file_path=file_path,
+            attachment=attachment,
         )
 
         return await self._start_extraction_async(
