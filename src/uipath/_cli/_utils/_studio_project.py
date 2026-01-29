@@ -538,17 +538,24 @@ class StudioClient:
         ]
         return self._resources_cache
 
-    async def get_resource_overwrites(self) -> dict[str, ResourceOverwrite]:
+    async def get_resource_overwrites(self) -> dict[str, ResourceOverwrite | None]:
         """Get resource overwrites from the solution.
 
         Returns:
             dict[str, ResourceOverwrite]: Dict of resource overwrites
         """
+        from uipath._cli._utils._common import (
+            extract_binding_keys,
+            fill_missing_binding_keys,
+        )
+
         if not os.path.exists(UiPathConfig.bindings_file_path):
             return {}
 
         with open(UiPathConfig.bindings_file_path, "rb") as f:
             file_content = f.read()
+
+        bindings_list = extract_binding_keys(file_content.decode("utf-8"))
 
         solution_id = await self._get_solution_id()
         tenant_id = os.getenv(ENV_TENANT_ID, None)
@@ -572,11 +579,12 @@ class StudioClient:
             files=files,
         )
         data = response.json()
-        overwrites = {}
+        overwrites: dict[str, ResourceOverwrite | None] = {}
 
         for key, value in data.items():
             overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
+        fill_missing_binding_keys(overwrites, bindings_list)
         return overwrites
 
     async def create_virtual_resource(

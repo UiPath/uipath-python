@@ -181,7 +181,6 @@ def debug(
 
                     # Load simulation config and set up execution context for tool mocking
                     mocking_ctx = load_simulation_config()
-                    span_collector: ExecutionSpanCollector | None = None
                     execution_id = str(uuid.uuid4())
 
                     if mocking_ctx:

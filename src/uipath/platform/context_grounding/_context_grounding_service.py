@@ -5,6 +5,9 @@ import httpx
 from pydantic import Field, TypeAdapter
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ..._utils._bindings import (
+    SystemResourceOverwrite,
+)
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import (
     LLMV4_REQUEST,
@@ -234,7 +237,10 @@ class ContextGroundingService(FolderContext, BaseService):
             raise Exception("ContextGroundingIndex not found") from e
 
     @resource_override(resource_type="index")
-    @traced(name="contextgrounding_retrieve", run_type="uipath")
+    @traced(
+        name="contextgrounding_retrieve",
+        run_type="uipath",
+    )
     async def retrieve_async(
         self,
         name: str,
@@ -343,7 +349,6 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return response.json()
 
-    @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_index", run_type="uipath")
     def create_index(
         self,
@@ -398,7 +403,6 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return ContextGroundingIndex.model_validate(response.json())
 
-    @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_index", run_type="uipath")
     async def create_index_async(
         self,
@@ -453,7 +457,6 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return ContextGroundingIndex.model_validate(response.json())
 
-    @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     def create_ephemeral_index(
         self,
@@ -483,7 +486,6 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return ContextGroundingIndex.model_validate(response.json())
 
-    @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     async def create_ephemeral_index_async(
         self,
@@ -513,7 +515,12 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return ContextGroundingIndex.model_validate(response.json())
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_func_name="_resolve_system_index",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_retrieve_deep_rag", run_type="uipath")
     def retrieve_deep_rag(
         self,
@@ -542,7 +549,12 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         return DeepRagResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_coroutine_name="_resolve_system_index_async",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_retrieve_deep_rag_async", run_type="uipath")
     async def retrieve_deep_rag_async(
         self,
@@ -573,7 +585,12 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_func_name="_resolve_system_index",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_start_batch_transform", run_type="uipath")
     def start_batch_transform(
         self,
@@ -631,7 +648,12 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         return BatchTransformCreationResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_coroutine_name="_resolve_system_index_async",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_start_batch_transform_async", run_type="uipath")
     async def start_batch_transform_async(
         self,
@@ -689,7 +711,12 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         return BatchTransformCreationResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_func_name="_resolve_system_index",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_retrieve_batch_transform", run_type="uipath")
     def retrieve_batch_transform(
         self,
@@ -715,7 +742,12 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         return BatchTransformResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_coroutine_name="_resolve_system_index_async",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_retrieve_batch_transform_async", run_type="uipath")
     async def retrieve_batch_transform_async(
         self,
@@ -741,7 +773,12 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         return BatchTransformResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_func_name="_resolve_system_index",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_download_batch_transform_result", run_type="uipath")
     def download_batch_transform_result(
         self,
@@ -787,7 +824,12 @@ class ContextGroundingService(FolderContext, BaseService):
                 file_content = client.get(uri_response.uri).content
             file.write(file_content)
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_coroutine_name="_resolve_system_index_async",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(
         name="contextgrounding_download_batch_transform_result_async", run_type="uipath"
     )
@@ -837,7 +879,12 @@ class ContextGroundingService(FolderContext, BaseService):
         with open(destination_path, "wb") as file:
             file.write(file_content)
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_func_name="_resolve_system_index",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_start_deep_rag", run_type="uipath")
     def start_deep_rag(
         self,
@@ -889,7 +936,12 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagCreationResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index", resource_identifier="index_name")
+    @resource_override(
+        resource_type="index",
+        resource_identifier="index_name",
+        resolution_coroutine_name="_resolve_system_index_async",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_start_deep_rag_async", run_type="uipath")
     async def start_deep_rag_async(
         self,
@@ -942,7 +994,11 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagCreationResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index")
+    @resource_override(
+        resource_type="index",
+        resolution_func_name="_resolve_system_index",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_search", run_type="uipath")
     def search(
         self,
@@ -991,7 +1047,11 @@ class ContextGroundingService(FolderContext, BaseService):
             response.json()
         )
 
-    @resource_override(resource_type="index")
+    @resource_override(
+        resource_type="index",
+        resolution_coroutine_name="_resolve_system_index_async",
+        resolution_folder_identifier="folder_key",
+    )
     @traced(name="contextgrounding_search", run_type="uipath")
     async def search_async(
         self,
@@ -1423,6 +1483,16 @@ class ContextGroundingService(FolderContext, BaseService):
             },
         )
 
+    def _retrieve_system_index_spec(
+        self,
+        name: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/ecs_/v2/indexes/AllSystemIndexes"),
+            params={"$filter": f"Name eq '{name}'"},
+        )
+
     def _deep_rag_creation_spec(
         self,
         index_id: str,
@@ -1564,3 +1634,91 @@ class ContextGroundingService(FolderContext, BaseService):
             raise UnsupportedDataSourceException("add_to_index")
 
         return bucket_name, folder
+
+    async def _resolve_system_index_async(
+        self,
+        name: str,
+        **kwargs,
+    ) -> SystemResourceOverwrite | None:
+        """Asynchronously retrieve context grounding system index by its name.
+
+        Args:
+            name (str): The name of the context index to retrieve.
+
+        Returns:
+            SystemResourceOverwrite: The index name and folder key, if found.
+
+        """
+        spec = self._retrieve_system_index_spec(
+            name,
+        )
+
+        response = (
+            await self.request_async(
+                spec.method,
+                spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+        try:
+            context_grounding_index = next(
+                ContextGroundingIndex.model_validate(item)
+                for item in response["value"]
+                if item["name"] == name
+            )
+        except StopIteration:
+            return None
+
+        assert context_grounding_index.name is not None
+        assert context_grounding_index.folder_key is not None
+
+        return SystemResourceOverwrite(
+            resource_type="index",
+            name=context_grounding_index.name,
+            folder_key=context_grounding_index.folder_key,
+        )
+
+    def _resolve_system_index(
+        self,
+        name: str,
+        **kwargs,
+    ) -> SystemResourceOverwrite | None:
+        """Retrieve context grounding system index by its name.
+
+        Args:
+            name (str): The name of the context index to retrieve.
+
+        Returns:
+            SystemResourceOverwrite: The index name and folder key, if found.
+
+        """
+        spec = self._retrieve_system_index_spec(
+            name,
+        )
+
+        response = (
+            self.request(
+                spec.method,
+                spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+        try:
+            context_grounding_index = next(
+                ContextGroundingIndex.model_validate(item)
+                for item in response["value"]
+                if item["name"] == name
+            )
+        except StopIteration:
+            return None
+
+        assert context_grounding_index.name is not None
+        assert context_grounding_index.folder_key is not None
+
+        return SystemResourceOverwrite(
+            resource_type="index",
+            name=context_grounding_index.name,
+            folder_key=context_grounding_index.folder_key,
+        )
