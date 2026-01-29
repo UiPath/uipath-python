@@ -1,5 +1,62 @@
 {
     "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
     "$id": "entry-points.json",
-    "entryPoints": []
+    "entryPoints": [
+        {
+            "filePath": "main",
+            "uniqueId": "c700a126-f137-4002-9937-413a3fe84dd0",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "attachment": {
+                        "$ref": "#/definitions/job-attachment"
+                    }
+                },
+                "required": [
+                    "attachment"
+                ],
+                "title": "Input",
+                "definitions": {
+                    "job-attachment": {
+                        "type": "object",
+                        "required": [
+                            "ID"
+                        ],
+                        "x-uipath-resource-kind": "JobAttachment",
+                        "properties": {
+                            "ID": {
+                                "type": "string"
+                            },
+                            "FullName": {
+                                "type": "string"
+                            },
+                            "MimeType": {
+                                "type": "string"
+                            },
+                            "Metadata": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "processing_output": {
+                        "title": "Processing Output",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "processing_output"
+                ],
+                "title": "Output"
+            }
+        }
+    ]
 }
