@@ -16,6 +16,7 @@ Classes:
     UiPathLlmChatService: Service using UiPath's normalized API format
 """
 
+from enum import StrEnum
 from typing import Any
 
 from opentelemetry import trace
@@ -26,13 +27,28 @@ from ...tracing import traced
 from ...utils import EndpointManager
 from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 from .llm_gateway import (
+    BedrockCompletion,
     ChatCompletion,
     SpecificToolChoice,
     TextEmbedding,
     ToolChoice,
     ToolDefinition,
+    VertexCompletion,
 )
 from .llm_throttle import get_llm_semaphore
+
+
+class APIFlavor(StrEnum):
+    """API flavor for LLM communication."""
+
+    AUTO = "auto"
+    OPENAI_RESPONSES = "OpenAIResponses"
+    OPENAI_COMPLETIONS = "OpenAiChatCompletions"
+    AWS_BEDROCK_CONVERSE = "AwsBedrockConverse"
+    AWS_BEDROCK_INVOKE = "AwsBedrockInvoke"
+    VERTEX_GEMINI_GENERATE_CONTENT = "GeminiGenerateContent"
+    VERTEX_ANTHROPIC_CLAUDE = "AnthropicClaude"
+
 
 # Common constants
 API_VERSION = "2024-10-21"  # Standard API version for OpenAI-compatible endpoints
@@ -76,6 +92,32 @@ class EmbeddingModels(object):
 
     text_embedding_3_large = "text-embedding-3-large"
     text_embedding_ada_002 = "text-embedding-ada-002"
+
+
+class GeminiModels(object):
+    """Available Google Gemini models for Vertex AI.
+
+    This class provides constants for the supported Gemini models that can be used
+    with UiPathVertexService.
+    """
+
+    gemini_2_5_pro = "gemini-2.5-pro"
+    gemini_2_5_flash = "gemini-2.5-flash"
+    gemini_2_0_flash_001 = "gemini-2.0-flash-001"
+    gemini_3_pro_preview = "gemini-3-pro-preview"
+
+
+class BedrockModels(object):
+    """Available AWS Bedrock models.
+
+    This class provides constants for the supported Bedrock models that can be used
+    with UiPathBedrockService.
+    """
+
+    anthropic_claude_3_7_sonnet = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+    anthropic_claude_sonnet_4 = "anthropic.claude-sonnet-4-20250514-v1:0"
+    anthropic_claude_sonnet_4_5 = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+    anthropic_claude_haiku_4_5 = "anthropic.claude-haiku-4-5-20251001-v1:0"
 
 
 def _cleanup_schema(schema: dict[str, Any]) -> dict[str, Any]:
@@ -212,6 +254,8 @@ class UiPathOpenAIService(BaseService):
         temperature: float = 0,
         response_format: dict[str, Any] | type[BaseModel] | None = None,
         api_version: str = API_VERSION,
+        api_flavor: APIFlavor = APIFlavor.AUTO,
+        vendor: str = "openai",
     ):
         """Generate chat completions using UiPath's LLM Gateway service.
 
@@ -238,6 +282,12 @@ class UiPathOpenAIService(BaseService):
                 - A Pydantic BaseModel class (automatically converted to JSON schema)
                 Used to enable JSON mode or other structured outputs. Defaults to None.
             api_version (str, optional): The API version to use. Defaults to API_VERSION.
+            api_flavor (APIFlavor, optional): The API flavor to use for the request.
+                Defaults to APIFlavor.AUTO. Available options are:
+                - APIFlavor.AUTO: Let the gateway auto-detect the flavor
+                - APIFlavor.OPENAI_COMPLETIONS: Use OpenAI chat completions format
+                - APIFlavor.OPENAI_RESPONSES: Use OpenAI responses format
+            vendor (str, optional): The vendor/provider for the model. Defaults to "openai".
 
         Returns:
             ChatCompletion: The chat completion response containing the generated message,
@@ -281,6 +331,12 @@ class UiPathOpenAIService(BaseService):
                 response_format=Country,  # Pass BaseModel directly
                 max_tokens=1000
             )
+
+            # Using a specific API flavor
+            response = await service.chat_completions(
+                messages,
+                api_flavor=APIFlavor.OPENAI_COMPLETIONS
+            )
             ```
 
         Note:
@@ -293,8 +349,8 @@ class UiPathOpenAIService(BaseService):
         span.set_attribute("model", model)
         span.set_attribute("uipath.custom_instrumentation", True)
 
-        endpoint = EndpointManager.get_passthrough_endpoint().format(
-            model=model, api_version=api_version
+        endpoint = EndpointManager.get_vendor_endpoint().format(
+            vendor=vendor, model=model
         )
         endpoint = Endpoint("/" + endpoint)
 
@@ -323,13 +379,18 @@ class UiPathOpenAIService(BaseService):
                 # Use provided dictionary format directly
                 request_body["response_format"] = response_format
 
+        headers = {
+            **DEFAULT_LLM_HEADERS,
+            "X-UiPath-LlmGateway-ApiFlavor": api_flavor.value,
+        }
+
         async with get_llm_semaphore():
             response = await self.request_async(
                 "POST",
                 endpoint,
                 json=request_body,
-                params={"api-version": API_VERSION},
-                headers=DEFAULT_LLM_HEADERS,
+                params={"api-version": api_version},
+                headers=headers,
             )
 
         return ChatCompletion.model_validate(response.json())
@@ -604,3 +665,257 @@ class UiPathLlmChatService(BaseService):
             "description": tool.function.description,
             "parameters": parameters,
         }
+
+
+class UiPathVertexService(BaseService):
+    """Service for calling Google Vertex AI models through UiPath's LLM Gateway.
+
+    This service provides access to Google's Gemini models through UiPath's LLM Gateway.
+    """
+
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
+        super().__init__(config=config, execution_context=execution_context)
+
+    @traced(name="LLM call", run_type="uipath")
+    async def generate_content(
+        self,
+        contents: list[dict[str, Any]],
+        model: str = GeminiModels.gemini_2_5_flash,
+        generation_config: dict[str, Any] | None = None,
+        safety_settings: list[dict[str, Any]] | None = None,
+        system_instruction: dict[str, Any] | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_config: dict[str, Any] | None = None,
+        api_flavor: APIFlavor = APIFlavor.VERTEX_GEMINI_GENERATE_CONTENT,
+    ) -> VertexCompletion:
+        """Generate content using Google Gemini models through UiPath's LLM Gateway.
+
+        This method provides access to Google's Gemini models using the native
+        Gemini GenerateContent API format.
+
+        Args:
+            contents (list[dict[str, Any]]): The content to send to the model.
+                Each item should have 'role' and 'parts' keys, following the
+                Gemini content format.
+            model (str, optional): The Gemini model to use.
+                Defaults to GeminiModels.gemini_2_5_flash.
+            generation_config (dict[str, Any], optional): Configuration for generation
+                including temperature, maxOutputTokens, topP, topK, etc.
+            safety_settings (list[dict[str, Any]], optional): Safety settings to apply.
+            system_instruction (dict[str, Any], optional): System instruction for the model.
+            tools (list[dict[str, Any]], optional): Tool definitions for function calling.
+            tool_config (dict[str, Any], optional): Configuration for tool usage.
+            api_flavor (APIFlavor, optional): The API flavor to use.
+                Defaults to APIFlavor.VERTEX_GEMINI_GENERATE_CONTENT.
+
+        Returns:
+            VertexCompletion: The response from the Gemini API containing
+                candidates, usage metadata, and other information.
+
+        Examples:
+            ```python
+            # Simple text generation
+            contents = [
+                {
+                    "role": "user",
+                    "parts": [{"text": "What is the capital of France?"}]
+                }
+            ]
+            response = await service.generate_content(contents)
+
+            # With generation config
+            response = await service.generate_content(
+                contents,
+                generation_config={
+                    "temperature": 0.7,
+                    "maxOutputTokens": 1024,
+                    "topP": 0.9
+                }
+            )
+
+            # With system instruction
+            response = await service.generate_content(
+                contents,
+                system_instruction={
+                    "parts": [{"text": "You are a helpful assistant."}]
+                }
+            )
+            ```
+        """
+        span = trace.get_current_span()
+        span.set_attribute("model", model)
+        span.set_attribute("uipath.custom_instrumentation", True)
+
+        endpoint = EndpointManager.get_vendor_endpoint().format(
+            vendor="vertexai", model=model
+        )
+        endpoint = Endpoint("/" + endpoint)
+
+        request_body: dict[str, Any] = {
+            "contents": contents,
+        }
+
+        if generation_config:
+            request_body["generationConfig"] = generation_config
+        if safety_settings:
+            request_body["safetySettings"] = safety_settings
+        if system_instruction:
+            request_body["systemInstruction"] = system_instruction
+        if tools:
+            request_body["tools"] = tools
+        if tool_config:
+            request_body["toolConfig"] = tool_config
+
+        headers = {
+            **DEFAULT_LLM_HEADERS,
+            "X-UiPath-LlmGateway-ApiFlavor": api_flavor.value,
+        }
+
+        async with get_llm_semaphore():
+            response = await self.request_async(
+                "POST",
+                endpoint,
+                json=request_body,
+                headers=headers,
+            )
+
+        return VertexCompletion.model_validate(response.json())
+
+
+class UiPathBedrockService(BaseService):
+    """Service for calling AWS Bedrock models through UiPath's LLM Gateway.
+
+    This service provides access to AWS Bedrock models UiPath's LLM Gateway.
+    """
+
+    def __init__(
+        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+    ) -> None:
+        super().__init__(config=config, execution_context=execution_context)
+
+    @traced(name="LLM call", run_type="uipath")
+    async def converse(
+        self,
+        messages: list[dict[str, Any]],
+        model: str = BedrockModels.anthropic_claude_haiku_4_5,
+        system: list[dict[str, Any]] | None = None,
+        inference_config: dict[str, Any] | None = None,
+        tool_config: dict[str, Any] | None = None,
+        guardrail_config: dict[str, Any] | None = None,
+        additional_model_request_fields: dict[str, Any] | None = None,
+        api_flavor: APIFlavor = APIFlavor.AWS_BEDROCK_CONVERSE,
+    ) -> BedrockCompletion:
+        """Generate responses using AWS Bedrock Converse API through UiPath's LLM Gateway.
+
+        This method provides access to AWS Bedrock models using the Converse API format,
+        which provides a unified interface for different model providers.
+
+        Args:
+            messages (list[dict[str, Any]]): The messages to send to the model.
+                Each message should have 'role' and 'content' keys, following
+                the Bedrock Converse format.
+            model (str, optional): The Bedrock model to use.
+                Defaults to BedrockModels.anthropic_claude_haiku_4_5.
+            system (list[dict[str, Any]], optional): System prompts for the conversation.
+            inference_config (dict[str, Any], optional): Inference configuration including
+                maxTokens, temperature, topP, stopSequences.
+            tool_config (dict[str, Any], optional): Tool configuration for function calling.
+            guardrail_config (dict[str, Any], optional): Guardrail configuration.
+            additional_model_request_fields (dict[str, Any], optional): Additional
+                model-specific request fields.
+            api_flavor (APIFlavor, optional): The API flavor to use.
+                Defaults to APIFlavor.AWS_BEDROCK_CONVERSE.
+
+        Returns:
+            BedrockCompletion: The response from the Bedrock API. Access the text
+                content directly via the `text` property.
+
+        Examples:
+            ```python
+            # Simple conversation
+            messages = [
+                {
+                    "role": "user",
+                    "content": [{"text": "What is the capital of France?"}]
+                }
+            ]
+            response = await service.converse(messages)
+
+            # With system prompt and inference config
+            response = await service.converse(
+                messages,
+                system=[{"text": "You are a helpful assistant."}],
+                inference_config={
+                    "maxTokens": 1024,
+                    "temperature": 0.7,
+                    "topP": 0.9
+                }
+            )
+
+            # With tool configuration
+            response = await service.converse(
+                messages,
+                tool_config={
+                    "tools": [
+                        {
+                            "toolSpec": {
+                                "name": "get_weather",
+                                "description": "Get the weather for a location",
+                                "inputSchema": {
+                                    "json": {
+                                        "type": "object",
+                                        "properties": {
+                                            "location": {"type": "string"}
+                                        },
+                                        "required": ["location"]
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            )
+            ```
+        """
+        span = trace.get_current_span()
+        span.set_attribute("model", model)
+        span.set_attribute("uipath.custom_instrumentation", True)
+
+        endpoint = EndpointManager.get_vendor_endpoint().format(
+            vendor="awsbedrock", model=model
+        )
+        endpoint = Endpoint("/" + endpoint)
+
+        request_body: dict[str, Any] = {
+            "messages": messages,
+        }
+
+        if system:
+            request_body["system"] = system
+        if inference_config:
+            request_body["inferenceConfig"] = inference_config
+        if tool_config:
+            request_body["toolConfig"] = tool_config
+        if guardrail_config:
+            request_body["guardrailConfig"] = guardrail_config
+        if additional_model_request_fields:
+            request_body["additionalModelRequestFields"] = (
+                additional_model_request_fields
+            )
+
+        headers = {
+            **DEFAULT_LLM_HEADERS,
+            "X-UiPath-LlmGateway-ApiFlavor": api_flavor.value,
+        }
+
+        async with get_llm_semaphore():
+            response = await self.request_async(
+                "POST",
+                endpoint,
+                json=request_body,
+                headers=headers,
+            )
+
+        return BedrockCompletion.model_validate(response.json())

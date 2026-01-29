@@ -126,3 +126,76 @@ class ChatCompletion(BaseModel):
     model: str
     choices: List[ChatCompletionChoice]
     usage: ChatCompletionUsage
+
+
+class VertexPart(BaseModel):
+    """Model representing a part in a Vertex AI response."""
+
+    text: Optional[str] = None
+
+
+class VertexContent(BaseModel):
+    """Model representing content in a Vertex AI response."""
+
+    role: str
+    parts: List[VertexPart]
+
+
+class VertexCandidate(BaseModel):
+    """Model representing a candidate in a Vertex AI response."""
+
+    content: VertexContent
+    finishReason: Optional[str] = None
+    avgLogprobs: Optional[float] = None
+
+
+class VertexUsageMetadata(BaseModel):
+    """Model representing usage metadata in a Vertex AI response."""
+
+    promptTokenCount: Optional[int] = None
+    candidatesTokenCount: Optional[int] = None
+    totalTokenCount: Optional[int] = None
+
+
+class VertexCompletion(BaseModel):
+    """Model representing a Vertex AI (Gemini) completion response."""
+
+    candidates: List[VertexCandidate]
+    usageMetadata: Optional[VertexUsageMetadata] = None
+    modelVersion: Optional[str] = None
+
+
+class BedrockContentBlock(BaseModel):
+    """Model representing a content block in a Bedrock response."""
+
+    text: Optional[str] = None
+
+
+class BedrockMessage(BaseModel):
+    """Model representing a message in a Bedrock response."""
+
+    role: str
+    content: List[BedrockContentBlock]
+
+
+class BedrockOutput(BaseModel):
+    """Model representing output in a Bedrock response."""
+
+    message: BedrockMessage
+
+
+class BedrockUsage(BaseModel):
+    """Model representing usage statistics in a Bedrock response."""
+
+    inputTokens: Optional[int] = None
+    outputTokens: Optional[int] = None
+    totalTokens: Optional[int] = None
+
+
+class BedrockCompletion(BaseModel):
+    """Model representing an AWS Bedrock completion response."""
+
+    output: BedrockOutput
+    stopReason: Optional[str] = None
+    usage: Optional[BedrockUsage] = None
+    metrics: Optional[Dict[str, Any]] = None

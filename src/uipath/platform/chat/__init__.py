@@ -7,13 +7,19 @@ This module provides services for chat-related functionality including:
 
 from ._conversations_service import ConversationsService
 from ._llm_gateway_service import (
+    APIFlavor,
+    BedrockModels,
     ChatModels,
     EmbeddingModels,
+    GeminiModels,
+    UiPathBedrockService,
     UiPathLlmChatService,
     UiPathOpenAIService,
+    UiPathVertexService,
 )
 from .llm_gateway import (
     AutoToolChoice,
+    BedrockCompletion,
     ChatCompletion,
     ChatCompletionChoice,
     ChatCompletionUsage,
@@ -29,6 +35,7 @@ from .llm_gateway import (
     ToolFunctionDefinition,
     ToolParametersDefinition,
     ToolPropertyDefinition,
+    VertexCompletion,
 )
 from .llm_throttle import get_llm_semaphore, set_llm_concurrency
 
@@ -36,10 +43,15 @@ __all__ = [
     # Conversations Service
     "ConversationsService",
     # LLM Gateway Services
+    "APIFlavor",
+    "BedrockModels",
     "ChatModels",
     "EmbeddingModels",
+    "GeminiModels",
+    "UiPathBedrockService",
     "UiPathLlmChatService",
     "UiPathOpenAIService",
+    "UiPathVertexService",
     # LLM Throttling
     "get_llm_semaphore",
     "set_llm_concurrency",
@@ -55,6 +67,8 @@ __all__ = [
     "ChatCompletionChoice",
     "ChatCompletionUsage",
     "ChatCompletion",
+    "VertexCompletion",
+    "BedrockCompletion",
     "EmbeddingItem",
     "EmbeddingUsage",
     "TextEmbedding",

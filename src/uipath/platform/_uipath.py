@@ -6,7 +6,13 @@ from pydantic import ValidationError
 from .._utils._auth import resolve_config_from_env
 from .action_center import TasksService
 from .agenthub._agenthub_service import AgentHubService
-from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
+from .chat import (
+    ConversationsService,
+    UiPathBedrockService,
+    UiPathLlmChatService,
+    UiPathOpenAIService,
+    UiPathVertexService,
+)
 from .common import (
     ApiClient,
     ExternalApplicationService,
@@ -132,6 +138,14 @@ class UiPath:
     @property
     def llm(self) -> UiPathLlmChatService:
         return UiPathLlmChatService(self._config, self._execution_context)
+
+    @property
+    def llm_vertex(self) -> UiPathVertexService:
+        return UiPathVertexService(self._config, self._execution_context)
+
+    @property
+    def llm_bedrock(self) -> UiPathBedrockService:
+        return UiPathBedrockService(self._config, self._execution_context)
 
     @property
     def entities(self) -> EntitiesService:
