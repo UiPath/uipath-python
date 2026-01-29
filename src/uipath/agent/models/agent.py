@@ -263,9 +263,9 @@ class AgentUnknownResourceConfig(BaseAgentResourceConfig):
 class AgentContextQuerySetting(BaseCfg):
     """Agent context query setting model."""
 
-    value: str | None = Field(None)
-    description: str | None = Field(None)
-    variant: str | None = Field(None)
+    value: str | None = Field(default=None)
+    description: str | None = Field(default=None)
+    variant: str | None = Field(default=None)
 
 
 class AgentContextValueSetting(BaseCfg):
@@ -705,17 +705,17 @@ class AgentInternalDeepRagSettings(BaseCfg):
 
 
 class AgentInternalBatchTransformSettings(BaseCfg):
-    """Agent internal DeepRAG tool settings model."""
+    """Agent internal Batch Transform tool settings model."""
 
     context_type: str = Field(..., alias="contextType")
     query: AgentContextQuerySetting = Field(...)
-    folder_path_prefix: AgentContextQuerySetting = Field(None, alias="folderPathPrefix")
+    folder_path_prefix: AgentContextQuerySetting = Field(default=None, alias="folderPathPrefix")
     file_extension: BatchTransformFileExtensionSetting = Field(
         ..., alias="fileExtension"
     )
     output_columns: List[AgentContextOutputColumn] = Field(..., alias="outputColumns")
     web_search_grounding: BatchTransformWebSearchGroundingSetting = Field(
-        ..., alias="folderPathPrefix"
+        ..., alias="webSearchGrounding"
     )
 
 
