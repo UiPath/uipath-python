@@ -31,13 +31,14 @@ _LAZY_COMMANDS = {
     "eval": "cli_eval",
     "dev": "cli_dev",
     "add": "cli_add",
+    "server": "cli_server",
     "register": "cli_register",
     "debug": "cli_debug",
     "assets": "services.cli_assets",
     "buckets": "services.cli_buckets",
 }
 
-_RUNTIME_COMMANDS = {"init", "dev", "run", "eval", "debug"}
+_RUNTIME_COMMANDS = {"init", "dev", "run", "eval", "debug", "server"}
 
 _runtime_initialized = False
 
