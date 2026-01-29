@@ -126,6 +126,29 @@ def _create_spec(
     if is_actionable_message_enabled is not None:
         json_payload["isActionableMessageEnabled"] = is_actionable_message_enabled
 
+    project_id = UiPathConfig.project_id
+    trace_id = UiPathConfig.trace_id
+
+    if project_id and trace_id:
+        folder_key = UiPathConfig.folder_key
+        job_key = UiPathConfig.job_key
+        process_key = UiPathConfig.process_uuid
+
+        task_source_metadata: Dict[str, Any] = {
+            "InstanceId": trace_id,
+            "FolderKey": folder_key,
+            "JobKey": job_key,
+            "ProcessKey": process_key,
+        }
+
+        task_source = {
+            "sourceName": "Agent",
+            "sourceId": project_id,
+            "taskSourceMetadata": task_source_metadata,
+        }
+
+        json_payload["taskSource"] = task_source
+
     return RequestSpec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
