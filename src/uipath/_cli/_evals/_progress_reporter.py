@@ -964,7 +964,7 @@ class StudioWebProgressReporter:
                     "status": EvaluationStatus.COMPLETED.value,
                     "evaluatorId": evaluator_id_value,
                     "completionMetrics": {
-                        "duration": int(eval_result.result.evaluation_time)
+                        "duration": int(eval_result.result.evaluation_time * 1000)
                         if eval_result.result.evaluation_time
                         else 0,
                         "cost": usage_metrics["cost"],
@@ -1029,7 +1029,7 @@ class StudioWebProgressReporter:
                         "justification": justification,
                     },
                     "completionMetrics": {
-                        "duration": int(eval_result.result.evaluation_time)
+                        "duration": int(eval_result.result.evaluation_time * 1000)
                         if eval_result.result.evaluation_time
                         else 0,
                         "cost": usage_metrics["cost"],
@@ -1065,7 +1065,7 @@ class StudioWebProgressReporter:
                 "output": dict(actual_output),
                 "evaluatorScores": evaluator_scores,
             },
-            "completionMetrics": {"duration": int(execution_time)},
+            "completionMetrics": {"duration": int(execution_time * 1000)},
             "assertionRuns": assertion_runs,
         }
 
@@ -1116,7 +1116,7 @@ class StudioWebProgressReporter:
                 "output": dict(actual_output),
                 "scores": evaluator_scores,
             },
-            "completionMetrics": {"duration": int(execution_time)},
+            "completionMetrics": {"duration": int(execution_time * 1000)},
             "evaluatorRuns": evaluator_runs,
         }
 

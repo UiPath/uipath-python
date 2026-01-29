@@ -296,7 +296,9 @@ class TestRequestSpecGeneration:
         assert spec.json["evalRunId"] == "test-run-id"
         assert spec.json["evaluatorRuns"] == evaluator_runs
         assert spec.json["result"]["scores"] == evaluator_scores
-        assert spec.json["completionMetrics"]["duration"] == 5
+        assert (
+            spec.json["completionMetrics"]["duration"] == 5500
+        )  # 5.5 seconds * 1000 = 5500 ms
         assert spec.json["status"] == 2  # COMPLETED
 
     def test_update_legacy_eval_run_spec(self, progress_reporter):
@@ -323,7 +325,9 @@ class TestRequestSpecGeneration:
         assert spec.json["evalRunId"] == "test-run-id"
         assert spec.json["assertionRuns"] == assertion_runs
         assert spec.json["result"]["evaluatorScores"] == evaluator_scores
-        assert spec.json["completionMetrics"]["duration"] == 5
+        assert (
+            spec.json["completionMetrics"]["duration"] == 5500
+        )  # 5.5 seconds * 1000 = 5500 ms
         # Backend expects integer status
         assert spec.json["status"] == 2  # COMPLETED
 
