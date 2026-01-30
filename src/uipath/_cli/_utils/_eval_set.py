@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import click
 from pydantic import ValidationError
@@ -19,7 +20,7 @@ console = ConsoleLogger()
 EVAL_SETS_DIRECTORY_NAME = "evaluations/eval-sets"
 
 
-def discriminate_eval_set(data: dict) -> EvaluationSet | LegacyEvaluationSet:
+def discriminate_eval_set(data: dict[str, Any]) -> EvaluationSet | LegacyEvaluationSet:
     """Discriminate and parse evaluation set based on version field.
 
     Uses explicit version checking instead of Pydantic's smart union matching
