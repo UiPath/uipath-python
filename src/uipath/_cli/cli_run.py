@@ -84,6 +84,14 @@ console = ConsoleLogger()
     is_flag=True,
     help="Keep the temporary state file even when not resuming and no job id is provided",
 )
+@click.option(
+    "--poll-for-triggers",
+    type=float,
+    default=None,
+    is_flag=False,
+    flag_value=5.0,
+    help="Poll for HITL triggers instead of suspending. Default interval: 5s. Specify custom: --poll-for-triggers=10",
+)
 def run(
     entrypoint: str | None,
     input: str | None,
@@ -96,6 +104,7 @@ def run(
     debug: bool,
     debug_port: int,
     keep_state_file: bool,
+    poll_for_triggers: float | None,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -116,6 +125,7 @@ def run(
         debug=debug,
         debug_port=debug_port,
         keep_state_file=keep_state_file,
+        poll_for_triggers=poll_for_triggers,
     )
 
     if result.error_message:
@@ -195,6 +205,21 @@ def run(
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
 
+                            # Wrap with polling debug runtime if requested
+                            if poll_for_triggers is not None and poll_for_triggers > 0:
+                                from uipath.runtime.debug import UiPathDebugRuntime
+
+                                from uipath._cli._debug._silent_bridge import (
+                                    SilentDebugBridge,
+                                )
+
+                                silent_bridge = SilentDebugBridge()
+                                runtime = UiPathDebugRuntime(
+                                    delegate=runtime,
+                                    debug_bridge=silent_bridge,
+                                    trigger_poll_interval=poll_for_triggers,
+                                )
+
                             if ctx.job_id:
                                 trace_manager.add_span_processor(
                                     LiveTrackingSpanProcessor(
@@ -214,6 +239,11 @@ def run(
                                 ctx.result = await execute_runtime(
                                     ctx, chat_runtime or runtime
                                 )
+                            elif (
+                                poll_for_triggers is not None and poll_for_triggers > 0
+                            ):
+                                # Polling mode: UiPathDebugRuntime handles everything
+                                ctx.result = await execute_runtime(ctx, runtime)
                             else:
                                 ctx.result = await debug_runtime(ctx, runtime)
                         finally:
