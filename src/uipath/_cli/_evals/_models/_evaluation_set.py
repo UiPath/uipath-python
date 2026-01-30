@@ -186,14 +186,3 @@ class EvaluationStatus(IntEnum):
     IN_PROGRESS = 1
     COMPLETED = 2
     FAILED = 3
-
-
-def _discriminate_eval_set(
-    v: Any,
-) -> Literal["evaluation_set", "legacy_evaluation_set"]:
-    """Discriminator function that returns a tag based on version field."""
-    if isinstance(v, dict):
-        version = v.get("version")
-        if version == "1.0":
-            return "evaluation_set"
-    return "legacy_evaluation_set"
