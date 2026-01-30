@@ -96,6 +96,13 @@ class CreateDeepRag(BaseModel):
     index_folder_path: str | None = None
     is_ephemeral_index: bool | None = None
 
+    @model_validator(mode="after")
+    def validate_ephemeral_index_requires_index_id(self) -> "CreateBatchTransform":
+        """Validate that if it is an ephemeral index that it is using index id."""
+        if self.is_ephemeral_index is True and self.index_id is None:
+            raise ValueError("Index id must be provided for an ephemeral index")
+        return self
+
 
 class WaitDeepRag(BaseModel):
     """Model representing a wait Deep RAG task."""
@@ -134,6 +141,13 @@ class CreateBatchTransform(BaseModel):
     index_folder_key: str | None = None
     index_folder_path: str | None = None
     is_ephemeral_index: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_ephemeral_index_requires_index_id(self) -> "CreateBatchTransform":
+        """Validate that if it is an ephemeral index that it is using index id."""
+        if self.is_ephemeral_index is True and self.index_id is None:
+            raise ValueError("Index id must be provided for an ephemeral index")
+        return self
 
 
 class WaitBatchTransform(BaseModel):
