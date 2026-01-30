@@ -1,6 +1,7 @@
 import click
 
 from ._auth._auth_service import AuthService
+from ._telemetry import track_command
 from ._utils._common import environment_options
 from ._utils._console import ConsoleLogger
 
@@ -43,6 +44,7 @@ console = ConsoleLogger()
     default="OR.Execution",
     help="Space-separated list of OAuth scopes to request (e.g., 'OR.Execution OR.Queues'). Defaults to 'OR.Execution'",
 )
+@track_command("auth")
 def auth(
     environment: str,
     force: bool = False,
