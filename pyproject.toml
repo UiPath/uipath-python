@@ -22,6 +22,7 @@ dependencies = [
   "coverage>=7.8.2",
   "mermaid-builder==0.0.3",
   "applicationinsights>=0.11.10",
+  "pydantic>=2.12.5",
 ]
 classifiers = [
   "Intended Audience :: Developers",
