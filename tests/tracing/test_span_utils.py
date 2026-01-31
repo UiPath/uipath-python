@@ -320,3 +320,36 @@ class TestSpanUtils:
 
         assert span_dict["ExecutionType"] is None
         assert span_dict["AgentVersion"] is None
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_uipath_span_source_defaults_to_robots(self):
+        """Test that Source defaults to 4 (Robots) and ignores attributes.source."""
+        mock_span = Mock(spec=OTelSpan)
+
+        trace_id = 0x123456789ABCDEF0123456789ABCDEF0
+        span_id = 0x0123456789ABCDEF
+        mock_context = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=False)
+        mock_span.get_span_context.return_value = mock_context
+
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        # source in attributes should NOT override top-level Source
+        mock_span.attributes = {"source": "runtime"}
+        mock_span.events = []
+        mock_span.links = []
+
+        current_time_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = current_time_ns
+        mock_span.end_time = current_time_ns + 1000000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        # Top-level Source should be 4 (Robots), not from attributes
+        assert uipath_span.source == 4
+        assert span_dict["Source"] == 4
+
+        # attributes.source string should still be in Attributes JSON
+        attrs = json.loads(span_dict["Attributes"])
+        assert attrs["source"] == "runtime"
