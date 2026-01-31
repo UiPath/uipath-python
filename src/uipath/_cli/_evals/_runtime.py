@@ -1,9 +1,7 @@
 import json
 import logging
-import uuid
 from collections import defaultdict
 from contextlib import contextmanager
-from pathlib import Path
 from time import time
 from typing import (
     Any,
@@ -38,7 +36,6 @@ from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathExecutionRuntime,
     UiPathRuntimeFactoryProtocol,
-    UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
     UiPathRuntimeStorageProtocol,
@@ -72,10 +69,8 @@ from ..._events._events import (
 from ...eval.evaluators import BaseEvaluator
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
-from .._utils._eval_set import EvalHelpers
 from .._utils._parallelization import execute_parallel
 from ._eval_util import apply_input_overrides
-from ._evaluator_factory import EvaluatorFactory
 from ._models._evaluation_set import (
     EvaluationItem,
     EvaluationSet,
@@ -195,17 +190,20 @@ class ExecutionLogsExporter:
 class UiPathEvalContext:
     """Context used for evaluation runs."""
 
+    # Required Fields
+    runtime_schema: UiPathRuntimeSchema
+    evaluation_set: EvaluationSet
+    evaluators: list[BaseEvaluator[Any, Any, Any]]
+    execution_id: str
+
+    # Optional Fields
     entrypoint: str | None = None
-    no_report: bool | None = False
     workers: int | None = 1
-    eval_set: str | None = None
-    eval_ids: list[str] | None = None
     eval_set_run_id: str | None = None
     verbose: bool = False
     enable_mocker_cache: bool = False
     report_coverage: bool = False
     input_overrides: dict[str, Any] | None = None
-    model_settings_id: str = "default"
     resume: bool = False
     job_id: str | None = None
 
@@ -233,15 +231,11 @@ class UiPathEvalRuntime:
         self.trace_manager.tracer_provider.add_span_processor(span_processor)
 
         self.logs_exporter: ExecutionLogsExporter = ExecutionLogsExporter()
-        # Use job_id if available, then eval_set_run_id for stability across suspend/resume,
-        # otherwise generate UUID
         logger.debug(
             f"EVAL RUNTIME INIT: job_id={context.job_id}, "
             f"eval_set_run_id={context.eval_set_run_id}"
         )
-        self.execution_id = (
-            context.job_id or context.eval_set_run_id or str(uuid.uuid4())
-        )
+        self.execution_id = context.execution_id
         logger.info(f"EVAL RUNTIME: execution_id set to: {self.execution_id}")
         self.coverage = coverage.Coverage(branch=True)
 
@@ -259,11 +253,8 @@ class UiPathEvalRuntime:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
 
-    async def get_schema(self, runtime: UiPathRuntimeProtocol) -> UiPathRuntimeSchema:
-        schema = await runtime.get_schema()
-        if schema is None:
-            raise ValueError("Schema could not be loaded")
-        return schema
+    async def get_schema(self) -> UiPathRuntimeSchema:
+        return self.context.runtime_schema
 
     @contextmanager
     def _mocker_cache(self) -> Iterator[None]:
@@ -283,29 +274,18 @@ class UiPathEvalRuntime:
 
     async def initiate_evaluation(
         self,
-        runtime: UiPathRuntimeProtocol,
     ) -> Tuple[
         EvaluationSet,
         list[BaseEvaluator[Any, Any, Any]],
         Iterable[Awaitable[EvaluationRunResult]],
     ]:
-        if self.context.eval_set is None:
-            raise ValueError("eval_set must be provided for evaluation runs")
-
-        # Load eval set (path is already resolved in cli_eval.py)
-        evaluation_set, _ = EvalHelpers.load_eval_set(
-            self.context.eval_set, self.context.eval_ids
-        )
-
         # Validate that resume mode is not used with multiple evaluations
-        if self.context.resume and len(evaluation_set.evaluations) > 1:
+        if self.context.resume and len(self.context.evaluation_set.evaluations) > 1:
             raise ValueError(
                 f"Resume mode is not supported with multiple evaluations. "
-                f"Found {len(evaluation_set.evaluations)} evaluations in the set. "
+                f"Found {len(self.context.evaluation_set.evaluations)} evaluations in the set. "
                 f"Please run with a single evaluation using --eval-ids to specify one evaluation."
             )
-
-        evaluators = await self._load_evaluators(evaluation_set, runtime)
 
         await self.event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
@@ -313,18 +293,18 @@ class UiPathEvalRuntime:
                 execution_id=self.execution_id,
                 entrypoint=self.context.entrypoint or "",
                 eval_set_run_id=self.context.eval_set_run_id,
-                eval_set_id=evaluation_set.id,
-                no_of_evals=len(evaluation_set.evaluations),
-                evaluators=evaluators,
+                eval_set_id=self.context.evaluation_set.id,
+                no_of_evals=len(self.context.evaluation_set.evaluations),
+                evaluators=self.context.evaluators,
             ),
         )
 
         return (
-            evaluation_set,
-            evaluators,
+            self.context.evaluation_set,
+            self.context.evaluators,
             (
-                self._execute_eval(eval_item, evaluators, runtime)
-                for eval_item in evaluation_set.evaluations
+                self._execute_eval(eval_item, self.context.evaluators)
+                for eval_item in self.context.evaluation_set.evaluations
             ),
         )
 
@@ -336,191 +316,178 @@ class UiPathEvalRuntime:
         logger.info(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
         logger.info("=" * 80)
 
-        # Resolve model settings override from eval set
-        settings_override = self._resolve_model_settings_override()
+        with self._mocker_cache():
+            tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
 
-        runtime = await self.factory.new_runtime(
-            entrypoint=self.context.entrypoint or "",
-            runtime_id=self.execution_id,
-            settings=settings_override,
-        )
-        try:
-            with self._mocker_cache():
-                tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
+            # During resume, restore the parent "Evaluation Set Run" span context
+            # This prevents creating duplicate eval set run spans across jobs
+            eval_set_parent_span = await self._restore_parent_span(
+                "eval_set_run", "Evaluation Set Run"
+            )
 
-                # During resume, restore the parent "Evaluation Set Run" span context
-                # This prevents creating duplicate eval set run spans across jobs
-                eval_set_parent_span = await self._restore_parent_span(
-                    "eval_set_run", "Evaluation Set Run"
+            # Create "Evaluation Set Run" span or use restored parent context
+            # NOTE: Do NOT set execution.id on this parent span, as the mixin in
+            # UiPathExecutionBatchTraceProcessor propagates execution.id from parent
+            # to child spans, which would overwrite the per-eval execution.id
+            span_attributes: dict[str, str | bool] = {
+                "span_type": "eval_set_run",
+                "uipath.custom_instrumentation": True,
+            }
+            if self.context.eval_set_run_id:
+                span_attributes["eval_set_run_id"] = self.context.eval_set_run_id
+
+            eval_set_span_context_manager = (
+                use_span(
+                    eval_set_parent_span, end_on_exit=False
+                )  # Don't end the remote span
+                if eval_set_parent_span
+                else tracer.start_as_current_span(
+                    "Evaluation Set Run", attributes=span_attributes
+                )
+            )
+
+            with eval_set_span_context_manager as span:
+                await self._save_span_context_for_resume(
+                    span, "eval_set_run", "Evaluation Set Run"
                 )
 
-                # Create "Evaluation Set Run" span or use restored parent context
-                # NOTE: Do NOT set execution.id on this parent span, as the mixin in
-                # UiPathExecutionBatchTraceProcessor propagates execution.id from parent
-                # to child spans, which would overwrite the per-eval execution.id
-                span_attributes: dict[str, str | bool] = {
-                    "span_type": "eval_set_run",
-                    "uipath.custom_instrumentation": True,
-                }
-                if self.context.eval_set_run_id:
-                    span_attributes["eval_set_run_id"] = self.context.eval_set_run_id
-
-                eval_set_span_context_manager = (
-                    use_span(
-                        eval_set_parent_span, end_on_exit=False
-                    )  # Don't end the remote span
-                    if eval_set_parent_span
-                    else tracer.start_as_current_span(
-                        "Evaluation Set Run", attributes=span_attributes
+                try:
+                    (
+                        evaluation_set,
+                        evaluators,
+                        evaluation_iterable,
+                    ) = await self.initiate_evaluation()
+                    workers = self.context.workers or 1
+                    assert workers >= 1
+                    eval_run_result_list = await execute_parallel(
+                        evaluation_iterable, workers
                     )
-                )
-
-                with eval_set_span_context_manager as span:
-                    await self._save_span_context_for_resume(
-                        span, "eval_set_run", "Evaluation Set Run"
+                    results = UiPathEvalOutput(
+                        evaluation_set_name=evaluation_set.name,
+                        evaluation_set_results=eval_run_result_list,
                     )
 
-                    try:
-                        (
-                            evaluation_set,
-                            evaluators,
-                            evaluation_iterable,
-                        ) = await self.initiate_evaluation(runtime)
-                        workers = self.context.workers or 1
-                        assert workers >= 1
-                        eval_run_result_list = await execute_parallel(
-                            evaluation_iterable, workers
-                        )
-                        results = UiPathEvalOutput(
-                            evaluation_set_name=evaluation_set.name,
-                            evaluation_set_results=eval_run_result_list,
-                        )
+                    # Computing evaluator averages
+                    evaluator_averages: dict[str, float] = defaultdict(float)
+                    evaluator_count: dict[str, int] = defaultdict(int)
 
-                        # Computing evaluator averages
-                        evaluator_averages: dict[str, float] = defaultdict(float)
-                        evaluator_count: dict[str, int] = defaultdict(int)
+                    # Check if any eval runs failed
+                    any_failed = False
+                    for eval_run_result in results.evaluation_set_results:
+                        # Check if the agent execution had an error
+                        if (
+                            eval_run_result.agent_execution_output
+                            and eval_run_result.agent_execution_output.result.error
+                        ):
+                            any_failed = True
 
-                        # Check if any eval runs failed
-                        any_failed = False
-                        for eval_run_result in results.evaluation_set_results:
-                            # Check if the agent execution had an error
-                            if (
-                                eval_run_result.agent_execution_output
-                                and eval_run_result.agent_execution_output.result.error
-                            ):
-                                any_failed = True
-
-                            for result_dto in eval_run_result.evaluation_run_results:
-                                evaluator_averages[result_dto.evaluator_id] += (
-                                    result_dto.result.score
-                                )
-                                evaluator_count[result_dto.evaluator_id] += 1
-
-                        for eval_id in evaluator_averages:
-                            evaluator_averages[eval_id] = (
-                                evaluator_averages[eval_id] / evaluator_count[eval_id]
+                        for result_dto in eval_run_result.evaluation_run_results:
+                            evaluator_averages[result_dto.evaluator_id] += (
+                                result_dto.result.score
                             )
+                            evaluator_count[result_dto.evaluator_id] += 1
 
-                        # Configure span with output and metadata
-                        await configure_eval_set_run_span(
-                            span=span,
-                            evaluator_averages=evaluator_averages,
+                    for eval_id in evaluator_averages:
+                        evaluator_averages[eval_id] = (
+                            evaluator_averages[eval_id] / evaluator_count[eval_id]
+                        )
+
+                    # Configure span with output and metadata
+                    await configure_eval_set_run_span(
+                        span=span,
+                        evaluator_averages=evaluator_averages,
+                        execution_id=self.execution_id,
+                        schema=await self.get_schema(),
+                        success=not any_failed,
+                    )
+
+                    await self.event_bus.publish(
+                        EvaluationEvents.UPDATE_EVAL_SET_RUN,
+                        EvalSetRunUpdatedEvent(
                             execution_id=self.execution_id,
-                            runtime=runtime,
-                            get_schema_func=self.get_schema,
+                            evaluator_scores=evaluator_averages,
                             success=not any_failed,
-                        )
+                        ),
+                        wait_for_completion=False,
+                    )
 
-                        await self.event_bus.publish(
-                            EvaluationEvents.UPDATE_EVAL_SET_RUN,
-                            EvalSetRunUpdatedEvent(
-                                execution_id=self.execution_id,
-                                evaluator_scores=evaluator_averages,
-                                success=not any_failed,
-                            ),
-                            wait_for_completion=False,
-                        )
-
-                        # Collect triggers from all evaluation runs (pass-through from inner runtime)
-                        logger.info("=" * 80)
-                        logger.info(
-                            "EVAL RUNTIME: Collecting triggers from all evaluation runs"
-                        )
-                        all_triggers = []
-                        for eval_run_result in results.evaluation_set_results:
-                            if (
-                                eval_run_result.agent_execution_output
-                                and eval_run_result.agent_execution_output.result
-                            ):
-                                runtime_result = (
-                                    eval_run_result.agent_execution_output.result
-                                )
-                                if runtime_result.triggers:
-                                    all_triggers.extend(runtime_result.triggers)
-
-                        if all_triggers:
-                            logger.info(
-                                f"EVAL RUNTIME: ✅ Passing through {len(all_triggers)} trigger(s) to top-level result"
+                    # Collect triggers from all evaluation runs (pass-through from inner runtime)
+                    logger.info("=" * 80)
+                    logger.info(
+                        "EVAL RUNTIME: Collecting triggers from all evaluation runs"
+                    )
+                    all_triggers = []
+                    for eval_run_result in results.evaluation_set_results:
+                        if (
+                            eval_run_result.agent_execution_output
+                            and eval_run_result.agent_execution_output.result
+                        ):
+                            runtime_result = (
+                                eval_run_result.agent_execution_output.result
                             )
-                            for i, trigger in enumerate(all_triggers, 1):
+                            if runtime_result.triggers:
+                                all_triggers.extend(runtime_result.triggers)
+
+                    if all_triggers:
+                        logger.info(
+                            f"EVAL RUNTIME: ✅ Passing through {len(all_triggers)} trigger(s) to top-level result"
+                        )
+                        for i, trigger in enumerate(all_triggers, 1):
+                            logger.info(
+                                f"EVAL RUNTIME: Pass-through trigger {i}: {trigger.model_dump(by_alias=True)}"
+                            )
+                    else:
+                        logger.info("EVAL RUNTIME: No triggers to pass through")
+                    logger.info("=" * 80)
+
+                    # Determine overall status - propagate status from inner runtime
+                    # This is critical for serverless executor to know to save state and suspend job
+                    # Priority: SUSPENDED > FAULTED > SUCCESSFUL
+                    overall_status = UiPathRuntimeStatus.SUCCESSFUL
+                    for eval_run_result in results.evaluation_set_results:
+                        if (
+                            eval_run_result.agent_execution_output
+                            and eval_run_result.agent_execution_output.result
+                        ):
+                            inner_status = (
+                                eval_run_result.agent_execution_output.result.status
+                            )
+                            if inner_status == UiPathRuntimeStatus.SUSPENDED:
+                                overall_status = UiPathRuntimeStatus.SUSPENDED
                                 logger.info(
-                                    f"EVAL RUNTIME: Pass-through trigger {i}: {trigger.model_dump(by_alias=True)}"
+                                    "EVAL RUNTIME: Propagating SUSPENDED status from inner runtime"
                                 )
-                        else:
-                            logger.info("EVAL RUNTIME: No triggers to pass through")
-                        logger.info("=" * 80)
+                                break  # SUSPENDED takes highest priority, stop checking
+                            elif inner_status == UiPathRuntimeStatus.FAULTED:
+                                overall_status = UiPathRuntimeStatus.FAULTED
+                                # Continue checking in case a later eval is SUSPENDED
 
-                        # Determine overall status - propagate status from inner runtime
-                        # This is critical for serverless executor to know to save state and suspend job
-                        # Priority: SUSPENDED > FAULTED > SUCCESSFUL
-                        overall_status = UiPathRuntimeStatus.SUCCESSFUL
-                        for eval_run_result in results.evaluation_set_results:
-                            if (
-                                eval_run_result.agent_execution_output
-                                and eval_run_result.agent_execution_output.result
-                            ):
-                                inner_status = (
-                                    eval_run_result.agent_execution_output.result.status
-                                )
-                                if inner_status == UiPathRuntimeStatus.SUSPENDED:
-                                    overall_status = UiPathRuntimeStatus.SUSPENDED
-                                    logger.info(
-                                        "EVAL RUNTIME: Propagating SUSPENDED status from inner runtime"
-                                    )
-                                    break  # SUSPENDED takes highest priority, stop checking
-                                elif inner_status == UiPathRuntimeStatus.FAULTED:
-                                    overall_status = UiPathRuntimeStatus.FAULTED
-                                    # Continue checking in case a later eval is SUSPENDED
+                    result = UiPathRuntimeResult(
+                        output={**results.model_dump(by_alias=True)},
+                        status=overall_status,
+                        triggers=all_triggers if all_triggers else None,
+                    )
+                    return result
+                except Exception as e:
+                    # Set span status to ERROR on exception
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
 
-                        result = UiPathRuntimeResult(
-                            output={**results.model_dump(by_alias=True)},
-                            status=overall_status,
-                            triggers=all_triggers if all_triggers else None,
-                        )
-                        return result
-                    except Exception as e:
-                        # Set span status to ERROR on exception
-                        span.set_status(Status(StatusCode.ERROR, str(e)))
-
-                        # Publish failure event for eval set run
-                        await self.event_bus.publish(
-                            EvaluationEvents.UPDATE_EVAL_SET_RUN,
-                            EvalSetRunUpdatedEvent(
-                                execution_id=self.execution_id,
-                                evaluator_scores={},
-                                success=False,
-                            ),
-                            wait_for_completion=False,
-                        )
-                        raise
-        finally:
-            await runtime.dispose()
+                    # Publish failure event for eval set run
+                    await self.event_bus.publish(
+                        EvaluationEvents.UPDATE_EVAL_SET_RUN,
+                        EvalSetRunUpdatedEvent(
+                            execution_id=self.execution_id,
+                            evaluator_scores={},
+                            success=False,
+                        ),
+                        wait_for_completion=False,
+                    )
+                    raise
 
     async def _execute_eval(
         self,
         eval_item: EvaluationItem,
         evaluators: list[BaseEvaluator[Any, Any, Any]],
-        runtime: UiPathRuntimeProtocol,
     ) -> EvaluationRunResult:
         execution_id = str(eval_item.id)
 
@@ -558,9 +525,7 @@ class UiPathEvalRuntime:
                 try:
                     # Generate LLM-based input if input_mocking_strategy is defined
                     if eval_item.input_mocking_strategy:
-                        eval_item = await self._generate_input_for_eval(
-                            eval_item, runtime
-                        )
+                        eval_item = await self._generate_input_for_eval(eval_item)
 
                     set_execution_context(
                         MockingContext(
@@ -586,7 +551,6 @@ class UiPathEvalRuntime:
                     agent_execution_output = await self.execute_runtime(
                         eval_item,
                         execution_id,
-                        runtime,
                         input_overrides=self.context.input_overrides,
                     )
 
@@ -812,7 +776,8 @@ class UiPathEvalRuntime:
             return evaluation_run_results
 
     async def _generate_input_for_eval(
-        self, eval_item: EvaluationItem, runtime: UiPathRuntimeProtocol
+        self,
+        eval_item: EvaluationItem,
     ) -> EvaluationItem:
         """Use LLM to generate a mock input for an evaluation item."""
         expected_output = (
@@ -822,7 +787,7 @@ class UiPathEvalRuntime:
         )
         generated_input = await generate_llm_input(
             eval_item.input_mocking_strategy,
-            (await self.get_schema(runtime)).input,
+            (await self.get_schema()).input,
             expected_behavior=eval_item.expected_agent_behavior or "",
             expected_output=expected_output,
         )
@@ -841,71 +806,10 @@ class UiPathEvalRuntime:
 
         return spans, logs
 
-    def _resolve_model_settings_override(
-        self,
-    ) -> dict[str, Any] | None:
-        """Resolve model settings override from evaluation set.
-
-        Returns:
-            Model settings dict to use for override, or None if using defaults.
-            Settings are passed to factory via settings kwarg.
-        """
-        # Skip if no model settings ID specified or using default
-        if (
-            not self.context.model_settings_id
-            or self.context.model_settings_id == "default"
-        ):
-            return None
-
-        # Load evaluation set to get model settings
-        evaluation_set, _ = EvalHelpers.load_eval_set(self.context.eval_set or "")
-        if (
-            not hasattr(evaluation_set, "model_settings")
-            or not evaluation_set.model_settings
-        ):
-            logger.warning("No model settings available in evaluation set")
-            return None
-
-        # Find the specified model settings
-        target_model_settings = next(
-            (
-                ms
-                for ms in evaluation_set.model_settings
-                if ms.id == self.context.model_settings_id
-            ),
-            None,
-        )
-
-        if not target_model_settings:
-            logger.warning(
-                f"Model settings ID '{self.context.model_settings_id}' not found in evaluation set"
-            )
-            return None
-
-        logger.info(
-            f"Applying model settings override: model={target_model_settings.model_name}, temperature={target_model_settings.temperature}"
-        )
-
-        # Return settings dict with correct keys for factory
-        override: dict[str, str | float] = {}
-        if (
-            target_model_settings.model_name
-            and target_model_settings.model_name != "same-as-agent"
-        ):
-            override["model"] = target_model_settings.model_name
-        if (
-            target_model_settings.temperature is not None
-            and target_model_settings.temperature != "same-as-agent"
-        ):
-            override["temperature"] = float(target_model_settings.temperature)
-
-        return override if override else None
-
     async def execute_runtime(
         self,
         eval_item: EvaluationItem,
         execution_id: str,
-        runtime: UiPathRuntimeProtocol,
         input_overrides: dict[str, Any] | None = None,
     ) -> UiPathEvalRunExecutionOutput:
         log_handler = self._setup_execution_logging(execution_id)
@@ -1075,119 +979,6 @@ class UiPathEvalRuntime:
                 )
 
             return result
-
-    async def _get_agent_model(self, runtime: UiPathRuntimeProtocol) -> str | None:
-        """Get agent model from the runtime schema metadata.
-
-        The model is read from schema.metadata["settings"]["model"] which is
-        populated by the low-code agents runtime from agent.json.
-
-        Returns:
-            The model name from agent settings, or None if not found.
-        """
-        try:
-            schema = await self.get_schema(runtime)
-            if schema.metadata and "settings" in schema.metadata:
-                settings = schema.metadata["settings"]
-                model = settings.get("model")
-                if model:
-                    logger.debug(f"Got agent model from schema.metadata: {model}")
-                    return model
-
-            # Fallback to protocol-based approach for backwards compatibility
-            model = self._find_agent_model_in_runtime(runtime)
-            if model:
-                logger.debug(f"Got agent model from runtime protocol: {model}")
-            return model
-        except Exception:
-            return None
-
-    def _find_agent_model_in_runtime(
-        self, runtime: UiPathRuntimeProtocol
-    ) -> str | None:
-        """Recursively search for get_agent_model in runtime and its delegates.
-
-        Runtimes may be wrapped (e.g., ResumableRuntime wraps TelemetryWrapper
-        which wraps the base runtime). This method traverses the wrapper chain
-        to find a runtime that implements LLMAgentRuntimeProtocol.
-
-        Args:
-            runtime: The runtime to check (may be a wrapper)
-
-        Returns:
-            The model name if found, None otherwise.
-        """
-        # Check if this runtime implements the protocol
-        if isinstance(runtime, LLMAgentRuntimeProtocol):
-            return runtime.get_agent_model()
-
-        # Check for delegate property (used by UiPathResumableRuntime, TelemetryRuntimeWrapper)
-        delegate = getattr(runtime, "delegate", None) or getattr(
-            runtime, "_delegate", None
-        )
-        if delegate is not None:
-            return self._find_agent_model_in_runtime(delegate)
-
-        return None
-
-    async def _load_evaluators(
-        self, evaluation_set: EvaluationSet, runtime: UiPathRuntimeProtocol
-    ) -> list[BaseEvaluator[Any, Any, Any]]:
-        """Load evaluators referenced by the evaluation set."""
-        evaluators = []
-        eval_set = self.context.eval_set
-        if eval_set is None:
-            raise ValueError("eval_set cannot be None")
-        evaluators_dir = Path(eval_set).parent.parent / "evaluators"
-
-        # Load agent model for 'same-as-agent' resolution in legacy evaluators
-        agent_model = await self._get_agent_model(runtime)
-
-        # If evaluatorConfigs is specified, use that (new field with weights)
-        # Otherwise, fall back to evaluatorRefs (old field without weights)
-        if (
-            hasattr(evaluation_set, "evaluator_configs")
-            and evaluation_set.evaluator_configs
-        ):
-            # Use new evaluatorConfigs field - supports weights
-            evaluator_ref_ids = {ref.ref for ref in evaluation_set.evaluator_configs}
-        else:
-            # Fall back to old evaluatorRefs field - plain strings
-            evaluator_ref_ids = set(evaluation_set.evaluator_refs)
-
-        found_evaluator_ids = set()
-
-        for file in evaluators_dir.glob("*.json"):
-            try:
-                with open(file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except json.JSONDecodeError as e:
-                raise ValueError(
-                    f"Invalid JSON in evaluator file '{file}': {str(e)}. "
-                    f"Please check the file for syntax errors."
-                ) from e
-
-            try:
-                evaluator_id = data.get("id")
-                if evaluator_id in evaluator_ref_ids:
-                    evaluator = EvaluatorFactory.create_evaluator(
-                        data, evaluators_dir, agent_model=agent_model
-                    )
-                    evaluators.append(evaluator)
-                    found_evaluator_ids.add(evaluator_id)
-            except Exception as e:
-                raise ValueError(
-                    f"Failed to create evaluator from file '{file}': {str(e)}. "
-                    f"Please verify the evaluator configuration."
-                ) from e
-
-        missing_evaluators = evaluator_ref_ids - found_evaluator_ids
-        if missing_evaluators:
-            raise ValueError(
-                f"Could not find the following evaluators: {missing_evaluators}"
-            )
-
-        return evaluators
 
     async def _restore_parent_span(
         self, span_key: str, span_type: str

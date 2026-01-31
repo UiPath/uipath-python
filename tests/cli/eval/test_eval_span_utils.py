@@ -286,8 +286,7 @@ class TestHighLevelConfigurationFunctions:
             "eval2": 90.0,
         }
 
-        # Mock runtime and get_schema_func
-        mock_runtime = MagicMock()
+        # Mock schema
         mock_schema = MagicMock()
         mock_schema.input = {
             "type": "object",
@@ -295,15 +294,11 @@ class TestHighLevelConfigurationFunctions:
         }
         mock_schema.output = {"type": "string"}
 
-        async def mock_get_schema(runtime):
-            return mock_schema
-
         await configure_eval_set_run_span(
             span=span,  # type: ignore[arg-type]
             evaluator_averages=evaluator_averages,
             execution_id="exec-complete",
-            runtime=mock_runtime,
-            get_schema_func=mock_get_schema,
+            schema=mock_schema,
             success=True,
         )
 
@@ -331,16 +326,16 @@ class TestHighLevelConfigurationFunctions:
 
         evaluator_averages = {"eval1": 75.0}
 
-        # Mock get_schema_func that raises exception
-        async def mock_get_schema_error(runtime):
-            raise Exception("Schema not found")
+        # Mock schema with missing fields
+        mock_schema = MagicMock()
+        mock_schema.input = None
+        mock_schema.output = None
 
         await configure_eval_set_run_span(
             span=span,  # type: ignore[arg-type]
             evaluator_averages=evaluator_averages,
             execution_id="exec-no-schema",
-            runtime=MagicMock(),
-            get_schema_func=mock_get_schema_error,
+            schema=mock_schema,
             success=True,
         )
 
