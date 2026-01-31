@@ -7,6 +7,7 @@ This module tests:
 - Ensures no duplicate eval run entries in StudioWeb
 """
 
+import uuid
 from pathlib import Path
 from typing import Any, AsyncGenerator
 from unittest.mock import AsyncMock
@@ -27,6 +28,7 @@ from uipath.runtime.schema import UiPathRuntimeSchema
 
 from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._runtime import UiPathEvalContext
+from uipath._cli._utils._eval_set import EvalHelpers
 from uipath._events._event_bus import EventBus
 from uipath._events._events import EvaluationEvents
 
@@ -131,12 +133,29 @@ class MockFactory:
 
 
 @pytest.fixture
-def context():
+async def context():
     """Create eval context."""
-    context = UiPathEvalContext()
-    context.eval_set = str(
-        Path(__file__).parent / "evals" / "eval-sets" / "default.json"
+    eval_set_path = str(Path(__file__).parent / "evals" / "eval-sets" / "default.json")
+
+    # Load evaluation set
+    evaluation_set, _ = EvalHelpers.load_eval_set(eval_set_path)
+
+    # Create a mock runtime to get schema
+    runtime = SuccessfulRuntime()
+    runtime_schema = await runtime.get_schema()
+
+    # Load evaluators
+    evaluators = await EvalHelpers.load_evaluators(
+        eval_set_path, evaluation_set, agent_model=None
     )
+
+    # Set up context
+    context = UiPathEvalContext()
+    context.execution_id = str(uuid.uuid4())
+    context.evaluation_set = evaluation_set
+    context.runtime_schema = runtime_schema
+    context.evaluators = evaluators
+
     return context
 
 
