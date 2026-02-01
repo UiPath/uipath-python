@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Type hint for runtime protocol (avoids circular imports)
 try:
-    from uipath.runtime import UiPathRuntimeProtocol
+    from uipath.runtime import UiPathRuntimeProtocol, UiPathRuntimeSchema
 except ImportError:
     UiPathRuntimeProtocol = Any  # type: ignore
 
@@ -192,8 +192,7 @@ async def configure_eval_set_run_span(
     span: Span,
     evaluator_averages: Dict[str, float],
     execution_id: str,
-    runtime: Any,
-    get_schema_func: Any,
+    schema: UiPathRuntimeSchema,
     success: bool = True,
 ) -> None:
     """Configure Evaluation Set Run span with output and metadata.
@@ -216,7 +215,6 @@ async def configure_eval_set_run_span(
 
     # Get runtime schemas
     try:
-        schema = await get_schema_func(runtime)
         input_schema = schema.input
         output_schema = schema.output
     except Exception:

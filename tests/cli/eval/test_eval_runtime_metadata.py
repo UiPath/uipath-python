@@ -8,7 +8,7 @@ This module tests:
 - LLMAgentRuntimeProtocol - protocol implementation detection
 """
 
-from pathlib import Path
+import uuid
 from typing import Any, AsyncGenerator
 
 import pytest
@@ -29,6 +29,10 @@ from uipath._cli._evals._runtime import (
     LLMAgentRuntimeProtocol,
     UiPathEvalContext,
     UiPathEvalRuntime,
+)
+from uipath._cli.cli_eval import (
+    _find_agent_model_in_runtime,
+    _get_agent_model,
 )
 from uipath._events._event_bus import EventBus
 
@@ -155,184 +159,113 @@ class TestLLMAgentRuntimeProtocol:
 class TestFindAgentModelInRuntime:
     """Tests for _find_agent_model_in_runtime recursive search."""
 
-    @pytest.fixture
-    def eval_runtime(self):
-        """Create an eval runtime for testing."""
-        context = UiPathEvalContext()
-        context.eval_set = str(
-            Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-        )
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-
-        async def create_runtime():
-            return BaseTestRuntime()
-
-        factory = MockFactory(create_runtime)
-        return UiPathEvalRuntime(
-            context,
-            factory,
-            trace_manager,
-            event_bus,
-        )
-
-    def test_finds_model_in_direct_runtime(self, eval_runtime):
+    def test_finds_model_in_direct_runtime(self):
         """Test finding agent model directly on runtime."""
         runtime = AgentModelRuntime("gpt-4o")
-        result = eval_runtime._find_agent_model_in_runtime(runtime)
+        result = _find_agent_model_in_runtime(runtime)
         assert result == "gpt-4o"
 
-    def test_finds_model_in_wrapped_runtime(self, eval_runtime):
+    def test_finds_model_in_wrapped_runtime(self):
         """Test finding agent model through wrapper's delegate."""
         inner = AgentModelRuntime("claude-3")
         wrapper = WrapperRuntime(inner)
-        result = eval_runtime._find_agent_model_in_runtime(wrapper)
+        result = _find_agent_model_in_runtime(wrapper)
         assert result == "claude-3"
 
-    def test_finds_model_in_deeply_wrapped_runtime(self, eval_runtime):
+    def test_finds_model_in_deeply_wrapped_runtime(self):
         """Test finding agent model through multiple wrapper layers."""
         inner = AgentModelRuntime("gpt-4-turbo")
         wrapper1 = WrapperRuntime(inner)
         wrapper2 = WrapperRuntime(wrapper1)
-        result = eval_runtime._find_agent_model_in_runtime(wrapper2)
+        result = _find_agent_model_in_runtime(wrapper2)
         assert result == "gpt-4-turbo"
 
-    def test_finds_model_via_private_delegate(self, eval_runtime):
+    def test_finds_model_via_private_delegate(self):
         """Test finding agent model through _delegate attribute."""
         inner = AgentModelRuntime("gemini-pro")
         wrapper = PrivateDelegateRuntime(inner)
-        result = eval_runtime._find_agent_model_in_runtime(wrapper)
+        result = _find_agent_model_in_runtime(wrapper)
         assert result == "gemini-pro"
 
-    def test_returns_none_when_no_model(self, eval_runtime):
+    def test_returns_none_when_no_model(self):
         """Test returns None when no runtime implements the protocol."""
         runtime = BaseTestRuntime()
-        result = eval_runtime._find_agent_model_in_runtime(runtime)
+        result = _find_agent_model_in_runtime(runtime)
         assert result is None
 
-    def test_returns_none_for_none_model(self, eval_runtime):
+    def test_returns_none_for_none_model(self):
         """Test returns None when runtime returns None for model."""
         runtime = AgentModelRuntime(None)
-        result = eval_runtime._find_agent_model_in_runtime(runtime)
+        result = _find_agent_model_in_runtime(runtime)
         assert result is None
 
 
 class TestGetAgentModel:
-    """Tests for _get_agent_model method."""
+    """Tests for _get_agent_model function."""
 
-    @pytest.fixture
-    def context(self):
-        """Create eval context."""
-        context = UiPathEvalContext()
-        context.eval_set = str(
-            Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-        )
-        return context
+    @pytest.mark.asyncio
+    async def test_returns_agent_model(self):
+        """Test that _get_agent_model returns the correct model from schema."""
+        runtime = AgentModelRuntime("gpt-4o-2024-11-20")
+        schema = MockRuntimeSchema()
+        schema.metadata = {"settings": {"model": "gpt-4o-2024-11-20"}}
 
-    async def test_returns_agent_model(self, context):
-        """Test that _get_agent_model returns the correct model."""
-
-        async def create_runtime():
-            return AgentModelRuntime("gpt-4o-2024-11-20")
-
-        factory = MockFactory(create_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(
-            context,
-            factory,
-            trace_manager,
-            event_bus,
-        )
-
-        runtime = await create_runtime()
-        model = await eval_runtime._get_agent_model(runtime)
+        model = await _get_agent_model(runtime, schema)
         assert model == "gpt-4o-2024-11-20"
 
-    async def test_returns_none_when_no_model(self, context):
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_model(self):
         """Test that _get_agent_model returns None when runtime has no model."""
+        runtime = BaseTestRuntime()
+        schema = MockRuntimeSchema()
 
-        async def create_runtime():
-            return BaseTestRuntime()
-
-        factory = MockFactory(create_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(
-            context,
-            factory,
-            trace_manager,
-            event_bus,
-        )
-
-        runtime = await create_runtime()
-        model = await eval_runtime._get_agent_model(runtime)
+        model = await _get_agent_model(runtime, schema)
         assert model is None
 
-    async def test_returns_model_consistently(self, context):
+    @pytest.mark.asyncio
+    async def test_returns_model_consistently(self):
         """Test that _get_agent_model returns consistent results."""
-
-        async def create_runtime():
-            return AgentModelRuntime("consistent-model")
-
-        factory = MockFactory(create_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(
-            context,
-            factory,
-            trace_manager,
-            event_bus,
-        )
-
-        runtime = await create_runtime()
+        runtime = AgentModelRuntime("consistent-model")
+        schema = MockRuntimeSchema()
+        schema.metadata = {"settings": {"model": "consistent-model"}}
 
         # Multiple calls should return the same value
-        model1 = await eval_runtime._get_agent_model(runtime)
-        model2 = await eval_runtime._get_agent_model(runtime)
+        model1 = await _get_agent_model(runtime, schema)
+        model2 = await _get_agent_model(runtime, schema)
 
         assert model1 == model2 == "consistent-model"
 
-    async def test_handles_exception_gracefully(self, context):
-        """Test that _get_agent_model returns None on exception."""
+    @pytest.mark.asyncio
+    async def test_handles_exception_gracefully(self, monkeypatch):
+        """Test that _get_agent_model returns None when _find_agent_model_in_runtime raises exception."""
+        runtime = BaseTestRuntime()
+        schema = MockRuntimeSchema()
 
-        async def create_good_runtime():
-            return AgentModelRuntime("model")
+        # Mock _find_agent_model_in_runtime to raise an exception
+        def mock_find_agent_model_error(r):
+            raise RuntimeError("Unexpected error during model lookup")
 
-        factory = MockFactory(create_good_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(
-            context,
-            factory,
-            trace_manager,
-            event_bus,
+        monkeypatch.setattr(
+            "uipath._cli.cli_eval._find_agent_model_in_runtime",
+            mock_find_agent_model_error,
         )
 
-        # Create a bad runtime that raises during get_agent_model
-        class BadRuntime(BaseTestRuntime):
-            def get_agent_model(self):
-                raise RuntimeError("Get model error")
-
-        bad_runtime = BadRuntime()
-        model = await eval_runtime._get_agent_model(bad_runtime)
+        model = await _get_agent_model(runtime, schema)
         assert model is None
 
 
 class TestGetSchema:
     """Tests for get_schema method."""
 
-    @pytest.fixture
-    def context(self):
-        """Create eval context."""
+    @pytest.mark.asyncio
+    async def test_returns_schema(self):
+        """Test that get_schema returns the schema from context."""
+        schema = MockRuntimeSchema()
         context = UiPathEvalContext()
-        context.eval_set = str(
-            Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-        )
-        return context
-
-    async def test_returns_schema(self, context):
-        """Test that get_schema returns the schema."""
+        context.execution_id = str(uuid.uuid4())
+        context.evaluation_set = None  # type: ignore
+        context.runtime_schema = schema
+        context.evaluators = []
 
         async def create_runtime():
             return BaseTestRuntime()
@@ -347,13 +280,19 @@ class TestGetSchema:
             event_bus,
         )
 
-        runtime = await create_runtime()
-        schema = await eval_runtime.get_schema(runtime)
-        assert schema is not None
-        assert schema.file_path == "test.py"
+        retrieved_schema = await eval_runtime.get_schema()
+        assert retrieved_schema is not None
+        assert retrieved_schema.file_path == "test.py"
 
-    async def test_returns_schema_consistently(self, context):
-        """Test that get_schema returns consistent results."""
+    @pytest.mark.asyncio
+    async def test_returns_schema_consistently(self):
+        """Test that get_schema returns the same schema from context."""
+        schema = MockRuntimeSchema()
+        context = UiPathEvalContext()
+        context.execution_id = str(uuid.uuid4())
+        context.evaluation_set = None  # type: ignore
+        context.runtime_schema = schema
+        context.evaluators = []
 
         async def create_runtime():
             return BaseTestRuntime()
@@ -368,56 +307,19 @@ class TestGetSchema:
             event_bus,
         )
 
-        runtime = await create_runtime()
+        # Multiple calls should return the same schema from context
+        schema1 = await eval_runtime.get_schema()
+        schema2 = await eval_runtime.get_schema()
 
-        # Multiple calls should return equivalent values
-        schema1 = await eval_runtime.get_schema(runtime)
-        schema2 = await eval_runtime.get_schema(runtime)
-
-        # Should have the same properties
+        # Should be the same object
+        assert schema1 is schema2
         assert schema1.file_path == schema2.file_path == "test.py"
-
-    async def test_schema_and_model_work_with_same_runtime(self, context):
-        """Test that get_schema and _get_agent_model work with the same runtime."""
-
-        async def create_runtime():
-            return AgentModelRuntime("shared-model")
-
-        factory = MockFactory(create_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(
-            context,
-            factory,
-            trace_manager,
-            event_bus,
-        )
-
-        runtime = await create_runtime()
-
-        # Call both methods with the same runtime
-        schema = await eval_runtime.get_schema(runtime)
-        model = await eval_runtime._get_agent_model(runtime)
-
-        # Both should work correctly
-        assert schema is not None
-        assert schema.file_path == "test.py"
-        assert model == "shared-model"
 
 
 class TestWrappedRuntimeModelResolution:
     """Tests for model resolution through realistic wrapper chains."""
 
-    @pytest.fixture
-    def context(self):
-        """Create eval context."""
-        context = UiPathEvalContext()
-        context.eval_set = str(
-            Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-        )
-        return context
-
-    async def test_resolves_model_through_resumable_telemetry_chain(self, context):
+    def test_resolves_model_through_resumable_telemetry_chain(self):
         """Test model resolution through ResumableRuntime -> TelemetryWrapper -> BaseRuntime chain.
 
         This mimics the real wrapper chain:
@@ -432,18 +334,5 @@ class TestWrappedRuntimeModelResolution:
         # Simulate UiPathResumableRuntime
         resumable_runtime = WrapperRuntime(telemetry_wrapper)
 
-        async def create_runtime():
-            return resumable_runtime
-
-        factory = MockFactory(create_runtime)
-        event_bus = EventBus()
-        trace_manager = UiPathTraceManager()
-        eval_runtime = UiPathEvalRuntime(
-            context,
-            factory,
-            trace_manager,
-            event_bus,
-        )
-
-        model = await eval_runtime._get_agent_model(resumable_runtime)
+        model = _find_agent_model_in_runtime(resumable_runtime)
         assert model == "gpt-4o-from-agent-json"

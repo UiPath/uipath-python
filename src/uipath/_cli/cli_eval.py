@@ -2,16 +2,24 @@ import ast
 import asyncio
 import logging
 import os
+import uuid
 from typing import Any
 
 import click
 from uipath.core.tracing import UiPathTraceManager
-from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
+from uipath.runtime import (
+    UiPathRuntimeContext,
+    UiPathRuntimeFactoryRegistry,
+    UiPathRuntimeProtocol,
+    UiPathRuntimeSchema,
+)
 
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._evaluate import evaluate
+from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
+    LLMAgentRuntimeProtocol,
     UiPathEvalContext,
 )
 from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
@@ -60,6 +68,109 @@ def setup_reporting_prereq(no_report: bool) -> bool:
         if folder_key:
             os.environ["UIPATH_FOLDER_KEY"] = folder_key
     return True
+
+
+def _find_agent_model_in_runtime(runtime: UiPathRuntimeProtocol) -> str | None:
+    """Recursively search for get_agent_model in runtime and its delegates.
+
+    Runtimes may be wrapped (e.g., ResumableRuntime wraps TelemetryWrapper
+    which wraps the base runtime). This method traverses the wrapper chain
+    to find a runtime that implements LLMAgentRuntimeProtocol.
+
+    Args:
+        runtime: The runtime to check (may be a wrapper)
+
+    Returns:
+        The model name if found, None otherwise.
+    """
+    # Check if this runtime implements the protocol
+    if isinstance(runtime, LLMAgentRuntimeProtocol):
+        return runtime.get_agent_model()
+
+    # Check for delegate property (used by UiPathResumableRuntime, TelemetryRuntimeWrapper)
+    delegate = getattr(runtime, "delegate", None) or getattr(runtime, "_delegate", None)
+    if delegate is not None:
+        return _find_agent_model_in_runtime(delegate)
+
+    return None
+
+
+async def _get_agent_model(
+    runtime: UiPathRuntimeProtocol, schema: UiPathRuntimeSchema
+) -> str | None:
+    """Get agent model from the runtime schema metadata.
+
+    The model is read from schema.metadata["settings"]["model"] which is
+    populated by the low-code agents runtime from agent.json.
+
+    Returns:
+        The model name from agent settings, or None if not found.
+    """
+    try:
+        if schema.metadata and "settings" in schema.metadata:
+            settings = schema.metadata["settings"]
+            model = settings.get("model")
+            if model:
+                logger.debug(f"Got agent model from schema.metadata: {model}")
+                return model
+
+        # Fallback to protocol-based approach for backwards compatibility
+        model = _find_agent_model_in_runtime(runtime)
+        if model:
+            logger.debug(f"Got agent model from runtime protocol: {model}")
+        return model
+    except Exception:
+        return None
+
+
+def _resolve_model_settings_override(
+    model_settings_id: str, evaluation_set: EvaluationSet
+) -> dict[str, Any] | None:
+    """Resolve model settings override from evaluation set.
+
+    Returns:
+        Model settings dict to use for override, or None if using defaults.
+        Settings are passed to factory via settings kwarg.
+    """
+    # Skip if no model settings ID specified or using default
+    if not model_settings_id or model_settings_id == "default":
+        return None
+
+    # Load evaluation set to get model settings
+    if not evaluation_set.model_settings:
+        logger.warning("No model settings available in evaluation set")
+        return None
+
+    # Find the specified model settings
+    target_model_settings = next(
+        (ms for ms in evaluation_set.model_settings if ms.id == model_settings_id),
+        None,
+    )
+
+    if not target_model_settings:
+        logger.warning(
+            f"Model settings ID '{model_settings_id}' not found in evaluation set"
+        )
+        return None
+
+    logger.info(
+        f"Applying model settings override: model={target_model_settings.model_name}, temperature={target_model_settings.temperature}"
+    )
+
+    # Return settings dict with correct keys for factory
+    override: dict[str, str | float] = {}
+    if (
+        target_model_settings.model_name
+        and target_model_settings.model_name != "same-as-agent"
+    ):
+        override["model"] = target_model_settings.model_name
+    if (
+        target_model_settings.temperature is not None
+        and target_model_settings.temperature != "same-as-agent"
+    ):
+        override["temperature"] = float(target_model_settings.temperature)
+
+    return override if override else None
 
 
 @click.command()
@@ -188,7 +299,6 @@ def eval(
         eval_context = UiPathEvalContext()
 
         eval_context.entrypoint = entrypoint or auto_discover_entrypoint()
-        eval_context.no_report = no_report
         eval_context.workers = workers
         eval_context.eval_set_run_id = eval_set_run_id
         eval_context.enable_mocker_cache = enable_mocker_cache
@@ -197,10 +307,7 @@ def eval(
         eval_set_path = eval_set or EvalHelpers.auto_discover_eval_set()
         _, resolved_eval_set_path = EvalHelpers.load_eval_set(eval_set_path, eval_ids)
 
-        eval_context.eval_set = resolved_eval_set_path
-        eval_context.eval_ids = eval_ids
         eval_context.report_coverage = report_coverage
-        eval_context.model_settings_id = model_settings_id
         eval_context.input_overrides = input_overrides
         eval_context.resume = resume
 
@@ -268,6 +375,39 @@ def eval(
                         )
 
                     project_id = UiPathConfig.project_id
+
+                    eval_context.execution_id = (
+                        eval_context.job_id
+                        or eval_context.eval_set_run_id
+                        or str(uuid.uuid4())
+                    )
+
+                    # Load eval set (path is already resolved in cli_eval.py)
+                    eval_context.evaluation_set, _ = EvalHelpers.load_eval_set(
+                        resolved_eval_set_path, eval_ids
+                    )
+
+                    # Resolve model settings override from eval set
+                    settings_override = _resolve_model_settings_override(
+                        model_settings_id, eval_context.evaluation_set
+                    )
+
+                    runtime = await runtime_factory.new_runtime(
+                        entrypoint=eval_context.entrypoint or "",
+                        runtime_id=eval_context.execution_id,
+                        settings=settings_override,
+                    )
+
+                    eval_context.runtime_schema = await runtime.get_schema()
+
+                    eval_context.evaluators = await EvalHelpers.load_evaluators(
+                        resolved_eval_set_path,
+                        eval_context.evaluation_set,
+                        await _get_agent_model(runtime, eval_context.runtime_schema),
+                    )
+
+                    # Runtime is not required anymore.
+                    await runtime.dispose()
 
                     try:
                         if project_id:

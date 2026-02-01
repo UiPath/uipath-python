@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
@@ -18,17 +19,15 @@ from uipath.runtime.schema import UiPathRuntimeSchema
 from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._models._output import UiPathEvalOutput
 from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath._cli._utils._eval_set import EvalHelpers
 from uipath._events._event_bus import EventBus
 
 
 async def test_evaluate():
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
-    context = UiPathEvalContext()
-    context.eval_set = str(
-        Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-    )
 
+    # Create a mock runtime and factory
     async def identity(input: dict[str, Any]) -> dict[str, Any]:
         return input
 
@@ -92,6 +91,26 @@ async def test_evaluate():
             pass
 
     factory = TestFactory(identity)
+
+    # Load evaluation set
+    eval_set_path = str(Path(__file__).parent / "evals" / "eval-sets" / "default.json")
+    evaluation_set, _ = EvalHelpers.load_eval_set(eval_set_path)
+
+    # Create runtime and get schema
+    runtime = await factory.new_runtime("test", "test-runtime-id")
+    runtime_schema = await runtime.get_schema()
+
+    # Load evaluators
+    evaluators = await EvalHelpers.load_evaluators(
+        eval_set_path, evaluation_set, agent_model=None
+    )
+
+    # Set up context
+    context = UiPathEvalContext()
+    context.execution_id = str(uuid.uuid4())
+    context.evaluation_set = evaluation_set
+    context.runtime_schema = runtime_schema
+    context.evaluators = evaluators
 
     # Act
     result = await evaluate(
@@ -123,12 +142,8 @@ async def test_evaluate():
 
 
 async def test_eval_runtime_generates_uuid_when_no_custom_id():
-    """Test that UiPathEvalRuntime generates UUID when no custom eval_set_run_id provided."""
+    """Test that UiPathEvalRuntime uses execution_id from context."""
     # Arrange
-    context = UiPathEvalContext()
-    context.eval_set = str(
-        Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-    )
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
 
@@ -197,8 +212,28 @@ async def test_eval_runtime_generates_uuid_when_no_custom_id():
 
     factory = TestFactory(identity)
 
+    # Load evaluation set
+    eval_set_path = str(Path(__file__).parent / "evals" / "eval-sets" / "default.json")
+    evaluation_set, _ = EvalHelpers.load_eval_set(eval_set_path)
+
+    # Create runtime and get schema
+    runtime = await factory.new_runtime("test", "test-runtime-id")
+    runtime_schema = await runtime.get_schema()
+
+    # Load evaluators
+    evaluators = await EvalHelpers.load_evaluators(
+        eval_set_path, evaluation_set, agent_model=None
+    )
+
+    # Set up context
+    context = UiPathEvalContext()
+    context.execution_id = str(uuid.uuid4())
+    context.evaluation_set = evaluation_set
+    context.runtime_schema = runtime_schema
+    context.evaluators = evaluators
+
     # Act
-    runtime = UiPathEvalRuntime(
+    eval_runtime = UiPathEvalRuntime(
         context,
         factory,
         trace_manager,
@@ -207,17 +242,13 @@ async def test_eval_runtime_generates_uuid_when_no_custom_id():
 
     # Assert
     # Should be a valid UUID format (36 characters with dashes)
-    assert len(runtime.execution_id) == 36
-    assert runtime.execution_id.count("-") == 4
+    assert len(eval_runtime.execution_id) == 36
+    assert eval_runtime.execution_id.count("-") == 4
 
 
 async def test_eval_runtime_works_without_exporters():
     """Test that UiPathEvalRuntime works when both exporters are None (local execution)."""
     # Arrange
-    context = UiPathEvalContext()
-    context.eval_set = str(
-        Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-    )
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
 
@@ -286,8 +317,28 @@ async def test_eval_runtime_works_without_exporters():
 
     factory = TestFactory(identity)
 
+    # Load evaluation set
+    eval_set_path = str(Path(__file__).parent / "evals" / "eval-sets" / "default.json")
+    evaluation_set, _ = EvalHelpers.load_eval_set(eval_set_path)
+
+    # Create runtime and get schema
+    runtime = await factory.new_runtime("test", "test-runtime-id")
+    runtime_schema = await runtime.get_schema()
+
+    # Load evaluators
+    evaluators = await EvalHelpers.load_evaluators(
+        eval_set_path, evaluation_set, agent_model=None
+    )
+
+    # Set up context
+    context = UiPathEvalContext()
+    context.execution_id = str(uuid.uuid4())
+    context.evaluation_set = evaluation_set
+    context.runtime_schema = runtime_schema
+    context.evaluators = evaluators
+
     # Act
-    runtime = UiPathEvalRuntime(
+    eval_runtime = UiPathEvalRuntime(
         context,
         factory,
         trace_manager,
@@ -295,9 +346,9 @@ async def test_eval_runtime_works_without_exporters():
     )
 
     # Assert - Runtime should work
-    assert runtime is not None
-    assert len(runtime.execution_id) == 36
-    assert runtime.execution_id.count("-") == 4
+    assert eval_runtime is not None
+    assert len(eval_runtime.execution_id) == 36
+    assert eval_runtime.execution_id.count("-") == 4
 
     # Verify that evaluate() also works
     result = await evaluate(

@@ -4,12 +4,15 @@ These tests verify that the eval runtime code correctly creates spans
 with the expected attributes by mocking the tracer.
 """
 
+import uuid
 from contextlib import contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from uipath.runtime.schema import UiPathRuntimeSchema
 
+from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import NumericEvaluationResult
@@ -71,10 +74,39 @@ class SpanCapturingTracer:
 
 
 def create_eval_context(**kwargs: Any) -> UiPathEvalContext:
-    """Helper to create UiPathEvalContext with specific attribute values."""
+    """Helper to create UiPathEvalContext with specific attribute values.
+
+    Sets sensible defaults for required fields if not provided.
+    """
     context = UiPathEvalContext()
+
+    # Set required fields with defaults
+    if "execution_id" not in kwargs:
+        context.execution_id = str(uuid.uuid4())
+
+    if "runtime_schema" not in kwargs:
+        context.runtime_schema = UiPathRuntimeSchema(
+            filePath="test.py",
+            uniqueId="test",
+            type="workflow",
+            input={"type": "object", "properties": {}},
+            output={"type": "object", "properties": {}},
+        )
+
+    if "evaluation_set" not in kwargs:
+        context.evaluation_set = EvaluationSet(
+            id="test-eval-set",
+            name="Test Evaluation Set",
+            evaluations=[],
+        )
+
+    if "evaluators" not in kwargs:
+        context.evaluators = []
+
+    # Override with provided kwargs
     for key, value in kwargs.items():
         setattr(context, key, value)
+
     return context
 
 
@@ -258,14 +290,12 @@ class TestEvaluationSpanCreation:
         mock_execution_output.spans = []
         mock_execution_output.logs = []
 
-        mock_runtime = AsyncMock()
-
         with patch.object(
             runtime,
             "execute_runtime",
             new=AsyncMock(return_value=mock_execution_output),
         ):
-            await runtime._execute_eval(mock_eval_item, [], mock_runtime)
+            await runtime._execute_eval(mock_eval_item, [])
 
         # Verify Evaluation span was created
         evaluation_spans = capturing_tracer.get_spans_by_type("evaluation")
@@ -466,7 +496,6 @@ class TestSpanAttributeValues:
             event_bus=mock_event_bus,
         )
 
-        mock_runtime = AsyncMock()
         mock_execution_output = MagicMock()
         mock_execution_output.result.output = {}
         mock_execution_output.result.status = "successful"
@@ -489,7 +518,7 @@ class TestSpanAttributeValues:
                 "execute_runtime",
                 new=AsyncMock(return_value=mock_execution_output),
             ):
-                await runtime._execute_eval(eval_item, [], mock_runtime)
+                await runtime._execute_eval(eval_item, [])
 
         # Get execution IDs from spans
         evaluation_spans = capturing_tracer.get_spans_by_type("evaluation")
@@ -747,7 +776,7 @@ class TestSpanOutputAttributes:
                 )
 
                 # Execute evaluation
-                await runtime._execute_eval(eval_item, [evaluator], mock_runtime)
+                await runtime._execute_eval(eval_item, [evaluator])
 
         # Check that Evaluation span has output attribute
         eval_spans = self.capturing_tracer.get_spans_by_type("evaluation")
@@ -825,7 +854,7 @@ class TestSpanOutputAttributes:
                     evaluation_criterias={"test-evaluator": {}},
                 )
 
-                await runtime._execute_eval(eval_item, [evaluator], mock_runtime)
+                await runtime._execute_eval(eval_item, [evaluator])
 
         # Check metadata attributes on Evaluation span
         eval_spans = self.capturing_tracer.get_spans_by_type("evaluation")
