@@ -136,6 +136,34 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         """Get the expected output from the evaluation criteria. Must be implemented by concrete evaluator classes."""
         pass
 
+    def _is_empty_expected_output(self, expected_output: Any) -> bool:
+        """Check if the expected output is empty or contains only empty values.
+
+        Handles multiple cases:
+        - None or empty string
+        - String with only whitespace
+        - Dict where all values are empty strings or whitespace
+        - Empty list or dict
+        """
+        if expected_output is None:
+            return True
+
+        if isinstance(expected_output, str):
+            return not expected_output.strip()
+
+        if isinstance(expected_output, dict):
+            if not expected_output:  # Empty dict
+                return True
+            # Check if all values are empty strings
+            return all(
+                isinstance(v, str) and not v.strip() for v in expected_output.values()
+            )
+
+        if isinstance(expected_output, list):
+            return len(expected_output) == 0
+
+        return False
+
     async def evaluate(
         self,
         agent_execution: AgentExecution,
@@ -163,13 +191,28 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
         evaluation_criteria: T,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
+        expected_output = self._get_expected_output(evaluation_criteria)
+
+        # Validate that expected output is not empty
+        if self._is_empty_expected_output(expected_output):
+            logger.error(
+                "❌ EMPTY_EXPECTED_OUTPUT: Expected output is empty or contains only empty values. "
+                f"Received: {repr(expected_output)}"
+            )
+            raise UiPathEvaluationError(
+                code="EMPTY_EXPECTED_OUTPUT",
+                title="Expected output cannot be empty",
+                detail="The evaluation criteria must contain a non-empty expected output or expected agent behavior.",
+                category=UiPathEvaluationErrorCategory.USER,
+            )
+
         formatted_prompt = self.evaluator_config.prompt.replace(
             self.actual_output_placeholder,
             str(self._get_actual_output(agent_execution)),
         )
         formatted_prompt = formatted_prompt.replace(
             self.expected_output_placeholder,
-            str(self._get_expected_output(evaluation_criteria)),
+            str(expected_output),
         )
 
         return formatted_prompt
