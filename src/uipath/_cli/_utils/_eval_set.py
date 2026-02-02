@@ -1,8 +1,9 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import click
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
@@ -17,6 +18,24 @@ console = ConsoleLogger()
 
 
 EVAL_SETS_DIRECTORY_NAME = "evaluations/eval-sets"
+
+
+def discriminate_eval_set(data: dict[str, Any]) -> EvaluationSet | LegacyEvaluationSet:
+    """Discriminate and parse evaluation set based on version field.
+
+    Uses explicit version checking instead of Pydantic's smart union matching
+    to avoid incorrect type selection when both types have matching fields.
+
+    Args:
+        data: Dictionary containing evaluation set data
+
+    Returns:
+        Either EvaluationSet (for version 1.0) or LegacyEvaluationSet
+    """
+    version = data.get("version")
+    if isinstance(version, (int, float, str)) and float(version) >= 1:
+        return EvaluationSet.model_validate(data)
+    return LegacyEvaluationSet.model_validate(data)
 
 
 class EvalHelpers:
@@ -100,9 +119,7 @@ class EvalHelpers:
             ) from e
 
         try:
-            eval_set: EvaluationSet | LegacyEvaluationSet = TypeAdapter(
-                EvaluationSet | LegacyEvaluationSet
-            ).validate_python(data)
+            eval_set = discriminate_eval_set(data)
             if isinstance(eval_set, LegacyEvaluationSet):
 
                 def migrate_evaluation_item(
