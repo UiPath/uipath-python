@@ -33,7 +33,7 @@ def discriminate_eval_set(data: dict[str, Any]) -> EvaluationSet | LegacyEvaluat
         Either EvaluationSet (for version 1.0) or LegacyEvaluationSet
     """
     version = data.get("version")
-    if version == "1.0":
+    if float(version) >= 1:
         return EvaluationSet.model_validate(data)
     return LegacyEvaluationSet.model_validate(data)
 
