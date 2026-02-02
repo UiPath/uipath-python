@@ -60,6 +60,7 @@ class CreateTask(BaseModel):
     labels: list[str] | None = None
     is_actionable_message_enabled: bool | None = None
     actionable_message_metadata: dict[str, Any] | None = None
+    source_name: str = "Agent"
 
 
 class CreateEscalation(CreateTask):

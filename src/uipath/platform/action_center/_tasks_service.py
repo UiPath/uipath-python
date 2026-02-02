@@ -33,6 +33,7 @@ def _create_spec(
     labels: Optional[List[str]] = None,
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
+    source_name: str = "Agent",
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -125,6 +126,29 @@ def _create_spec(
         ]
     if is_actionable_message_enabled is not None:
         json_payload["isActionableMessageEnabled"] = is_actionable_message_enabled
+
+    project_id = UiPathConfig.project_id
+    trace_id = UiPathConfig.trace_id
+
+    if project_id and trace_id:
+        folder_key = UiPathConfig.folder_key
+        job_key = UiPathConfig.job_key
+        process_key = UiPathConfig.process_uuid
+
+        task_source_metadata: Dict[str, Any] = {
+            "InstanceId": trace_id,
+            "FolderKey": folder_key,
+            "JobKey": job_key,
+            "ProcessKey": process_key,
+        }
+
+        task_source = {
+            "sourceName": source_name,
+            "sourceId": project_id,
+            "taskSourceMetadata": task_source_metadata,
+        }
+
+        json_payload["taskSource"] = task_source
 
     return RequestSpec(
         method="POST",
@@ -331,6 +355,7 @@ class TasksService(FolderContext, BaseService):
         labels: Optional[List[str]] = None,
         is_actionable_message_enabled: Optional[bool] = None,
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        source_name: str = "Agent",
     ) -> Task:
         """Creates a new action asynchronously.
 
@@ -349,6 +374,7 @@ class TasksService(FolderContext, BaseService):
             labels: Optional list of labels for the task
             is_actionable_message_enabled: Optional boolean indicating whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
+            source_name: The name of the source that created the task. Defaults to 'Agent'.
 
         Returns:
             Action: The created action object
@@ -374,6 +400,7 @@ class TasksService(FolderContext, BaseService):
             labels=labels,
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
+            source_name=source_name,
         )
 
         response = await self.request_async(
@@ -414,6 +441,7 @@ class TasksService(FolderContext, BaseService):
         labels: Optional[List[str]] = None,
         is_actionable_message_enabled: Optional[bool] = None,
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        source_name: str = "Agent",
     ) -> Task:
         """Creates a new task synchronously.
 
@@ -432,6 +460,7 @@ class TasksService(FolderContext, BaseService):
             labels: Optional list of labels for the task
             is_actionable_message_enabled: Optional boolean indicating  whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
+            source_name: The name of the source that created the task. Defaults to 'Agent'.
 
         Returns:
             Action: The created action object
@@ -457,6 +486,7 @@ class TasksService(FolderContext, BaseService):
             labels=labels,
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
+            source_name=source_name,
         )
 
         response = self.request(
