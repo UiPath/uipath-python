@@ -1597,6 +1597,7 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "uri": "https://storage.example.com/result.csv",
+                "isEncrypted": False,
             },
         )
 
@@ -1670,6 +1671,7 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "uri": "https://storage.example.com/result.csv",
+                "isEncrypted": False,
             },
         )
 
@@ -1741,6 +1743,7 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "uri": "https://storage.example.com/result.csv",
+                "isEncrypted": False,
             },
         )
 
@@ -1759,6 +1762,67 @@ class TestContextGroundingService:
         assert destination.exists()
         assert destination.read_bytes() == b"col1,col2\nval1,val2"
         assert destination.parent.exists()
+
+    def test_download_batch_transform_result_encrypted(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+        tmp_path,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
+            status_code=200,
+            json={
+                "uri": f"{base_url}{org}{tenant}/storage/encrypted/result.csv",
+                "isEncrypted": True,
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/storage/encrypted/result.csv",
+            status_code=200,
+            content=b"encrypted,data\nval1,val2",
+        )
+
+        destination = tmp_path / "result_encrypted.csv"
+        service.download_batch_transform_result(
+            id="test-batch-id",
+            destination_path=str(destination),
+        )
+
+        assert destination.exists()
+        assert destination.read_bytes() == b"encrypted,data\nval1,val2"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        # Verify the download request includes Authorization header
+        download_request = sent_requests[2]
+        assert download_request.method == "GET"
+        assert "Authorization" in download_request.headers
+        assert download_request.headers["Authorization"].startswith("Bearer ")
 
     def test_create_ephemeral_index(
         self,
@@ -1903,6 +1967,7 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "uri": "https://storage.example.com/result.csv",
+                "isEncrypted": False,
             },
         )
 
@@ -1921,3 +1986,65 @@ class TestContextGroundingService:
         assert destination.exists()
         assert destination.read_bytes() == b"col1,col2\nval1,val2"
         assert destination.parent.exists()
+
+    @pytest.mark.anyio
+    async def test_download_batch_transform_result_async_encrypted(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+        tmp_path,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
+            status_code=200,
+            json={
+                "uri": f"{base_url}{org}{tenant}/storage/encrypted/result.csv",
+                "isEncrypted": True,
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/storage/encrypted/result.csv",
+            status_code=200,
+            content=b"encrypted,data\nval1,val2",
+        )
+
+        destination = tmp_path / "result_encrypted.csv"
+        await service.download_batch_transform_result_async(
+            id="test-batch-id",
+            destination_path=str(destination),
+        )
+
+        assert destination.exists()
+        assert destination.read_bytes() == b"encrypted,data\nval1,val2"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        # Verify the download request includes Authorization header
+        download_request = sent_requests[2]
+        assert download_request.method == "GET"
+        assert "Authorization" in download_request.headers
+        assert download_request.headers["Authorization"].startswith("Bearer ")

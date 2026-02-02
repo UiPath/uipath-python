@@ -783,8 +783,15 @@ class ContextGroundingService(FolderContext, BaseService):
         Path(destination_path).parent.mkdir(parents=True, exist_ok=True)
 
         with open(destination_path, "wb") as file:
-            with httpx.Client(**get_httpx_client_kwargs()) as client:
-                file_content = client.get(uri_response.uri).content
+            if uri_response.is_encrypted:
+                # Use authenticated client for encrypted artifacts
+                file_content = self._client.get(
+                    uri_response.uri, headers=self.auth_headers
+                ).content
+            else:
+                # Use unauthenticated client for non-encrypted artifacts
+                with httpx.Client(**get_httpx_client_kwargs()) as client:
+                    file_content = client.get(uri_response.uri).content
             file.write(file_content)
 
     @resource_override(resource_type="index", resource_identifier="index_name")
@@ -828,9 +835,17 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         uri_response = BatchTransformReadUriResponse.model_validate(response.json())
 
-        async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
-            download_response = await client.get(uri_response.uri)
+        if uri_response.is_encrypted:
+            # Use authenticated client for encrypted artifacts
+            download_response = await self._client_async.get(
+                uri_response.uri, headers=self.auth_headers
+            )
             file_content = download_response.content
+        else:
+            # Use unauthenticated client for non-encrypted artifacts
+            async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
+                download_response = await client.get(uri_response.uri)
+                file_content = download_response.content
 
         Path(destination_path).parent.mkdir(parents=True, exist_ok=True)
 
