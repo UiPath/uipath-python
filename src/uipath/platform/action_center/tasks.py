@@ -103,3 +103,4 @@ class Task(BaseModel):
     creation_time: Optional[datetime] = Field(default=None, alias="creationTime")
     creator_user_id: Optional[int] = Field(default=None, alias="creatorUserId")
     id: Optional[int] = None
+    task_url: Optional[str] = Field(default=None, alias="taskUrl")

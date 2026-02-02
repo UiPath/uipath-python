@@ -371,6 +371,22 @@ class UiPathResumeTriggerReader:
         )
 
 
+def _build_task_url(task_id: str) -> str | None:
+    """Build Action Center task URL matching Agents/backend pattern.
+
+    Args:
+        task_id: The task key/ID
+        tenant_id: The tenant ID
+
+    Returns:
+        Task URL if config is available, None otherwise
+    """
+    if not UiPathConfig.base_url or not UiPathConfig.organization_id:
+        return None
+
+    return f"{UiPathConfig.base_url}/actions_/tasks/{task_id}"
+
+
 class UiPathResumeTriggerCreator:
     """Creates resume triggers from suspend values.
 
@@ -557,6 +573,8 @@ class UiPathResumeTriggerCreator:
             )
             if not action:
                 raise Exception("Failed to create action")
+
+            action.task_url = _build_task_url(str(action.id))
             resume_trigger.item_key = action.key
 
     async def _handle_deep_rag_job_trigger(
