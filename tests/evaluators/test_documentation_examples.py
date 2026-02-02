@@ -8,6 +8,7 @@ mocked completions to avoid API calls.
 from typing import Any
 
 import pytest
+from pydantic import TypeAdapter
 from pytest_mock.plugin import MockerFixture
 
 from uipath.eval.evaluators import (
@@ -39,13 +40,15 @@ class TestIndexExamples:
         )
 
         # Create evaluator
-        evaluator = ExactMatchEvaluator(  # type: ignore[call-arg]
-            id="exact-match-1",
-            config={
-                "name": "ExactMatchEvaluator",
-                "case_sensitive": False,
-                "target_output_key": "result",
-            },
+        evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
+            dict(
+                id="exact-match-1",
+                evaluatorConfig={
+                    "name": "ExactMatchEvaluator",
+                    "case_sensitive": False,
+                    "target_output_key": "result",
+                },
+            )
         )
 
         # Evaluate
@@ -67,13 +70,15 @@ class TestContainsExamples:
         from uipath.eval.models import AgentExecution
 
         # Create evaluator - extracts "response" field for comparison
-        evaluator = ContainsEvaluator(  # type: ignore[call-arg]
-            id="contains-check",
-            config={
-                "name": "ContainsEvaluator",
-                "case_sensitive": False,
-                "target_output_key": "response",  # Extract the "response" field
-            },
+        evaluator = TypeAdapter(ContainsEvaluator).validate_python(
+            dict(
+                id="contains-check",
+                evaluatorConfig={
+                    "name": "ContainsEvaluator",
+                    "case_sensitive": False,
+                    "target_output_key": "response",  # Extract the "response" field
+                },
+            )
         )
 
         # agent_output must be a dict
@@ -94,13 +99,15 @@ class TestContainsExamples:
     @pytest.mark.asyncio
     async def test_case_sensitive_search(self) -> None:
         """Test case-sensitive search example."""
-        evaluator = ContainsEvaluator(  # type: ignore[call-arg]
-            id="contains-case-sensitive",
-            config={
-                "name": "ContainsEvaluator",
-                "case_sensitive": True,
-                "target_output_key": "message",  # Extract the "message" field
-            },
+        evaluator = TypeAdapter(ContainsEvaluator).validate_python(
+            dict(
+                id="contains-case-sensitive",
+                evaluatorConfig={
+                    "name": "ContainsEvaluator",
+                    "case_sensitive": True,
+                    "target_output_key": "message",  # Extract the "message" field
+                },
+            )
         )
 
         agent_execution = AgentExecution(
@@ -120,13 +127,15 @@ class TestContainsExamples:
     @pytest.mark.asyncio
     async def test_negated_search(self) -> None:
         """Test negated search example."""
-        evaluator = ContainsEvaluator(  # type: ignore[call-arg]
-            id="contains-negated",
-            config={
-                "name": "ContainsEvaluator",
-                "negated": True,
-                "target_output_key": "status",  # Extract the "status" field
-            },
+        evaluator = TypeAdapter(ContainsEvaluator).validate_python(
+            dict(
+                id="contains-negated",
+                evaluatorConfig={
+                    "name": "ContainsEvaluator",
+                    "negated": True,
+                    "target_output_key": "status",  # Extract the "status" field
+                },
+            )
         )
 
         agent_execution = AgentExecution(
@@ -146,9 +155,14 @@ class TestContainsExamples:
     @pytest.mark.asyncio
     async def test_target_specific_output_field(self) -> None:
         """Test targeting specific output field example."""
-        evaluator = ContainsEvaluator(  # type: ignore[call-arg]
-            id="contains-targeted",
-            config={"name": "ContainsEvaluator", "target_output_key": "message"},
+        evaluator = TypeAdapter(ContainsEvaluator).validate_python(
+            dict(
+                id="contains-targeted",
+                evaluatorConfig={
+                    "name": "ContainsEvaluator",
+                    "target_output_key": "message",
+                },
+            )
         )
 
         agent_execution = AgentExecution(
@@ -186,13 +200,15 @@ class TestExactMatchExamples:
         )
 
         # Create evaluator - extracts "result" field for comparison
-        evaluator = ExactMatchEvaluator(  # type: ignore[call-arg]
-            id="exact-match-1",
-            config={
-                "name": "ExactMatchEvaluator",
-                "case_sensitive": False,
-                "target_output_key": "result",  # Extract the "result" field
-            },
+        evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
+            dict(
+                id="exact-match-1",
+                evaluatorConfig={
+                    "name": "ExactMatchEvaluator",
+                    "case_sensitive": False,
+                    "target_output_key": "result",  # Extract the "result" field
+                },
+            )
         )
 
         # Evaluate - compares just the "result" field value
@@ -212,13 +228,15 @@ class TestExactMatchExamples:
             agent_trace=[],
         )
 
-        evaluator = ExactMatchEvaluator(  # type: ignore[call-arg]
-            id="exact-match-case",
-            config={
-                "name": "ExactMatchEvaluator",
-                "case_sensitive": True,
-                "target_output_key": "status",  # Extract the "status" field
-            },
+        evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
+            dict(
+                id="exact-match-case",
+                evaluatorConfig={
+                    "name": "ExactMatchEvaluator",
+                    "case_sensitive": True,
+                    "target_output_key": "status",  # Extract the "status" field
+                },
+            )
         )
 
         # Fails due to case mismatch
@@ -246,12 +264,14 @@ class TestExactMatchExamples:
             agent_trace=[],
         )
 
-        evaluator = ExactMatchEvaluator(  # type: ignore[call-arg]
-            id="exact-match-dict",
-            config={
-                "name": "ExactMatchEvaluator",
-                "target_output_key": "*",  # Compare entire output (default)
-            },
+        evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
+            dict(
+                id="exact-match-dict",
+                evaluatorConfig={
+                    "name": "ExactMatchEvaluator",
+                    "target_output_key": "*",  # Compare entire output (default)
+                },
+            )
         )
 
         # Entire dict structure must match
@@ -271,13 +291,15 @@ class TestExactMatchExamples:
             agent_trace=[],
         )
 
-        evaluator = ExactMatchEvaluator(  # type: ignore[call-arg]
-            id="exact-match-negated",
-            config={
-                "name": "ExactMatchEvaluator",
-                "negated": True,
-                "target_output_key": "result",  # Extract the "result" field
-            },
+        evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
+            dict(
+                id="exact-match-negated",
+                evaluatorConfig={
+                    "name": "ExactMatchEvaluator",
+                    "negated": True,
+                    "target_output_key": "result",  # Extract the "result" field
+                },
+            )
         )
 
         # Passes because outputs do NOT match
@@ -297,13 +319,17 @@ class TestExactMatchExamples:
             agent_trace=[],
         )
 
-        evaluator = ExactMatchEvaluator(  # type: ignore[call-arg]
-            id="exact-match-default",
-            config={
-                "name": "ExactMatchEvaluator",
-                "target_output_key": "status",  # Extract the "status" field
-                "default_evaluation_criteria": {"expected_output": {"status": "OK"}},
-            },
+        evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
+            dict(
+                id="exact-match-default",
+                evaluatorConfig={
+                    "name": "ExactMatchEvaluator",
+                    "target_output_key": "status",  # Extract the "status" field
+                    "default_evaluation_criteria": {
+                        "expected_output": {"status": "OK"}
+                    },
+                },
+            )
         )
 
         # Use default criteria
@@ -329,12 +355,14 @@ class TestJsonSimilarityExamples:
             agent_trace=[],
         )
 
-        evaluator = JsonSimilarityEvaluator(  # type: ignore[call-arg]
-            id="json-sim-1",
-            config={
-                "name": "JsonSimilarityEvaluator"
-                # target_output_key defaults to "*" - compares entire output dict
-            },
+        evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
+            dict(
+                id="json-sim-1",
+                evaluatorConfig={
+                    "name": "JsonSimilarityEvaluator"
+                    # target_output_key defaults to "*" - compares entire output dict
+                },
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -361,9 +389,11 @@ class TestJsonSimilarityExamples:
             agent_trace=[],
         )
 
-        evaluator = JsonSimilarityEvaluator(  # type: ignore[call-arg]
-            id="json-sim-numeric",
-            config={"name": "JsonSimilarityEvaluator"},
+        evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
+            dict(
+                id="json-sim-numeric",
+                evaluatorConfig={"name": "JsonSimilarityEvaluator"},
+            )
         )
 
         # Slightly different numbers
@@ -386,9 +416,11 @@ class TestJsonSimilarityExamples:
             agent_trace=[],
         )
 
-        evaluator = JsonSimilarityEvaluator(  # type: ignore[call-arg]
-            id="json-sim-string",
-            config={"name": "JsonSimilarityEvaluator"},
+        evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
+            dict(
+                id="json-sim-string",
+                evaluatorConfig={"name": "JsonSimilarityEvaluator"},
+            )
         )
 
         # Similar but not exact string
@@ -415,9 +447,11 @@ class TestJsonSimilarityExamples:
             agent_trace=[],
         )
 
-        evaluator = JsonSimilarityEvaluator(  # type: ignore[call-arg]
-            id="json-sim-nested",
-            config={"name": "JsonSimilarityEvaluator"},
+        evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
+            dict(
+                id="json-sim-nested",
+                evaluatorConfig={"name": "JsonSimilarityEvaluator"},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -444,9 +478,11 @@ class TestJsonSimilarityExamples:
             agent_trace=[],
         )
 
-        evaluator = JsonSimilarityEvaluator(  # type: ignore[call-arg]
-            id="json-sim-array",
-            config={"name": "JsonSimilarityEvaluator"},
+        evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
+            dict(
+                id="json-sim-array",
+                evaluatorConfig={"name": "JsonSimilarityEvaluator"},
+            )
         )
 
         # Partial match (2 out of 3 correct)
@@ -474,9 +510,11 @@ class TestJsonSimilarityExamples:
             agent_trace=[],
         )
 
-        evaluator = JsonSimilarityEvaluator(  # type: ignore[call-arg]
-            id="json-sim-extra",
-            config={"name": "JsonSimilarityEvaluator"},
+        evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
+            dict(
+                id="json-sim-extra",
+                evaluatorConfig={"name": "JsonSimilarityEvaluator"},
+            )
         )
 
         # Only expected keys are evaluated
@@ -499,12 +537,14 @@ class TestJsonSimilarityExamples:
             agent_trace=[],
         )
 
-        evaluator = JsonSimilarityEvaluator(  # type: ignore[call-arg]
-            id="json-sim-targeted",
-            config={
-                "name": "JsonSimilarityEvaluator",
-                "target_output_key": "result",
-            },
+        evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
+            dict(
+                id="json-sim-targeted",
+                evaluatorConfig={
+                    "name": "JsonSimilarityEvaluator",
+                    "target_output_key": "result",
+                },
+            )
         )
 
         # Only compares the "result" field
@@ -552,15 +592,17 @@ class TestLLMJudgeOutputExamples:
             agent_trace=[],
         )
 
-        evaluator = LLMJudgeOutputEvaluator(  # type: ignore[call-arg]
-            id="llm-judge-1",
-            config={
-                "name": "LLMJudgeOutputEvaluator",
-                "model": "gpt-4",
-                "temperature": 0.0,
-                "target_output_key": "answer",  # Extract the "answer" field
-            },
-            llm_service=mock_chat_completions,
+        evaluator = TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
+            dict(
+                id="llm-judge-1",
+                evaluatorConfig={
+                    "name": "LLMJudgeOutputEvaluator",
+                    "model": "gpt-4",
+                    "temperature": 0.0,
+                    "target_output_key": "answer",  # Extract the "answer" field
+                },
+                llm_service=mock_chat_completions,
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -612,16 +654,18 @@ Provide a score from 0-100 based on semantic similarity.
             agent_trace=[],
         )
 
-        evaluator = LLMJudgeOutputEvaluator(  # type: ignore[call-arg]
-            id="llm-judge-custom",
-            config={
-                "name": "LLMJudgeOutputEvaluator",
-                "model": "gpt-4",
-                "prompt": custom_prompt,
-                "temperature": 0.0,
-                "target_output_key": "message",  # Extract the "message" field
-            },
-            llm_service=mock_chat_completions,
+        evaluator = TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
+            dict(
+                id="llm-judge-custom",
+                evaluatorConfig={
+                    "name": "LLMJudgeOutputEvaluator",
+                    "model": "gpt-4",
+                    "prompt": custom_prompt,
+                    "temperature": 0.0,
+                    "target_output_key": "message",  # Extract the "message" field
+                },
+                llm_service=mock_chat_completions,
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -672,15 +716,17 @@ Support Team"""
             agent_trace=[],
         )
 
-        evaluator = LLMJudgeOutputEvaluator(  # type: ignore[call-arg]
-            id="llm-judge-quality",
-            config={
-                "name": "LLMJudgeOutputEvaluator",
-                "model": "gpt-4o",
-                "temperature": 0.0,
-                "target_output_key": "email",  # Extract the "email" field
-            },
-            llm_service=mock_chat_completions,
+        evaluator = TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
+            dict(
+                id="llm-judge-quality",
+                evaluatorConfig={
+                    "name": "LLMJudgeOutputEvaluator",
+                    "model": "gpt-4o",
+                    "temperature": 0.0,
+                    "target_output_key": "email",  # Extract the "email" field
+                },
+                llm_service=mock_chat_completions,
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -731,14 +777,18 @@ Support Team"""
             agent_trace=[],
         )
 
-        evaluator = LLMJudgeStrictJSONSimilarityOutputEvaluator(  # type: ignore[call-arg]
-            id="llm-json-strict",
-            config={
-                "name": "LLMJudgeStrictJSONSimilarityOutputEvaluator",
-                "model": "gpt-4",
-                "temperature": 0.0,
-            },
-            llm_service=mock_chat_completions,
+        evaluator = TypeAdapter(
+            LLMJudgeStrictJSONSimilarityOutputEvaluator
+        ).validate_python(
+            dict(
+                id="llm-json-strict",
+                evaluatorConfig={
+                    "name": "LLMJudgeStrictJSONSimilarityOutputEvaluator",
+                    "model": "gpt-4",
+                    "temperature": 0.0,
+                },
+                llm_service=mock_chat_completions,
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -793,14 +843,16 @@ class TestLLMJudgeTrajectoryExamples:
             ],
         )
 
-        evaluator = LLMJudgeTrajectoryEvaluator(  # type: ignore[call-arg]
-            id="trajectory-judge-1",
-            config={
-                "name": "LLMJudgeTrajectoryEvaluator",
-                "model": "gpt-4",
-                "temperature": 0.0,
-            },
-            llm_service=mock_chat_completions,
+        evaluator = TypeAdapter(LLMJudgeTrajectoryEvaluator).validate_python(
+            dict(
+                id="trajectory-judge-1",
+                evaluatorConfig={
+                    "name": "LLMJudgeTrajectoryEvaluator",
+                    "model": "gpt-4",
+                    "temperature": 0.0,
+                },
+                llm_service=mock_chat_completions,
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -848,14 +900,16 @@ class TestLLMJudgeTrajectoryExamples:
             ],
         )
 
-        evaluator = LLMJudgeTrajectoryEvaluator(  # type: ignore[call-arg]
-            id="trajectory-tools",
-            config={
-                "name": "LLMJudgeTrajectoryEvaluator",
-                "model": "gpt-4o",
-                "temperature": 0.0,
-            },
-            llm_service=mock_chat_completions,
+        evaluator = TypeAdapter(LLMJudgeTrajectoryEvaluator).validate_python(
+            dict(
+                id="trajectory-tools",
+                evaluatorConfig={
+                    "name": "LLMJudgeTrajectoryEvaluator",
+                    "model": "gpt-4o",
+                    "temperature": 0.0,
+                },
+                llm_service=mock_chat_completions,
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -912,14 +966,16 @@ class TestLLMJudgeTrajectoryExamples:
     """,
         )
 
-        evaluator = LLMJudgeTrajectorySimulationEvaluator(  # type: ignore[call-arg]
-            id="sim-trajectory-1",
-            config={
-                "name": "LLMJudgeTrajectorySimulationEvaluator",
-                "model": "gpt-4",
-                "temperature": 0.0,
-            },
-            llm_service=mock_chat_completions,
+        evaluator = TypeAdapter(LLMJudgeTrajectorySimulationEvaluator).validate_python(
+            dict(
+                id="sim-trajectory-1",
+                evaluatorConfig={
+                    "name": "LLMJudgeTrajectorySimulationEvaluator",
+                    "model": "gpt-4",
+                    "temperature": 0.0,
+                },
+                llm_service=mock_chat_completions,
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -984,9 +1040,11 @@ class TestToolCallOrderExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOrderEvaluator(  # type: ignore[call-arg]
-            id="order-check-1",
-            config={"name": "ToolCallOrderEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
+            dict(
+                id="order-check-1",
+                evaluatorConfig={"name": "ToolCallOrderEvaluator", "strict": False},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1033,9 +1091,11 @@ class TestToolCallOrderExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOrderEvaluator(  # type: ignore[call-arg]
-            id="order-strict",
-            config={"name": "ToolCallOrderEvaluator", "strict": True},
+        evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
+            dict(
+                id="order-strict",
+                evaluatorConfig={"name": "ToolCallOrderEvaluator", "strict": True},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1087,9 +1147,11 @@ class TestToolCallOrderExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOrderEvaluator(  # type: ignore[call-arg]
-            id="order-lcs",
-            config={"name": "ToolCallOrderEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
+            dict(
+                id="order-lcs",
+                evaluatorConfig={"name": "ToolCallOrderEvaluator", "strict": False},
+            )
         )
 
         # Expected sequence
@@ -1145,9 +1207,11 @@ class TestToolCallOrderExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOrderEvaluator(  # type: ignore[call-arg]
-            id="db-transaction",
-            config={"name": "ToolCallOrderEvaluator", "strict": True},
+        evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
+            dict(
+                id="db-transaction",
+                evaluatorConfig={"name": "ToolCallOrderEvaluator", "strict": True},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1211,9 +1275,11 @@ class TestToolCallOrderExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOrderEvaluator(  # type: ignore[call-arg]
-            id="api-workflow",
-            config={"name": "ToolCallOrderEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
+            dict(
+                id="api-workflow",
+                evaluatorConfig={"name": "ToolCallOrderEvaluator", "strict": False},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1265,15 +1331,17 @@ class TestToolCallOrderExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOrderEvaluator(  # type: ignore[call-arg]
-            id="order-default",
-            config={
-                "name": "ToolCallOrderEvaluator",
-                "strict": False,
-                "default_evaluation_criteria": {
-                    "tool_calls_order": ["init", "process", "cleanup"]
+        evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
+            dict(
+                id="order-default",
+                evaluatorConfig={
+                    "name": "ToolCallOrderEvaluator",
+                    "strict": False,
+                    "default_evaluation_criteria": {
+                        "tool_calls_order": ["init", "process", "cleanup"]
+                    },
                 },
-            },
+            )
         )
 
         # Use default criteria
@@ -1346,9 +1414,11 @@ class TestToolCallCountExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallCountEvaluator(  # type: ignore[call-arg]
-            id="count-check-1",
-            config={"name": "ToolCallCountEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
+            dict(
+                id="count-check-1",
+                evaluatorConfig={"name": "ToolCallCountEvaluator", "strict": False},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1404,9 +1474,11 @@ class TestToolCallCountExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallCountEvaluator(  # type: ignore[call-arg]
-            id="count-operators",
-            config={"name": "ToolCallCountEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
+            dict(
+                id="count-operators",
+                evaluatorConfig={"name": "ToolCallCountEvaluator", "strict": False},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1457,9 +1529,11 @@ class TestToolCallCountExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallCountEvaluator(  # type: ignore[call-arg]
-            id="count-strict",
-            config={"name": "ToolCallCountEvaluator", "strict": True},
+        evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
+            dict(
+                id="count-strict",
+                evaluatorConfig={"name": "ToolCallCountEvaluator", "strict": True},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1517,9 +1591,11 @@ class TestToolCallCountExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallCountEvaluator(  # type: ignore[call-arg]
-            id="prevent-redundant",
-            config={"name": "ToolCallCountEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
+            dict(
+                id="prevent-redundant",
+                evaluatorConfig={"name": "ToolCallCountEvaluator", "strict": False},
+            )
         )
 
         # Ensure expensive operations aren't called too many times
@@ -1578,9 +1654,11 @@ class TestToolCallCountExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallCountEvaluator(  # type: ignore[call-arg]
-            id="loop-validation",
-            config={"name": "ToolCallCountEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
+            dict(
+                id="loop-validation",
+                evaluatorConfig={"name": "ToolCallCountEvaluator", "strict": False},
+            )
         )
 
         # Verify loop processed correct number of items
@@ -1627,13 +1705,15 @@ class TestToolCallArgsExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallArgsEvaluator(  # type: ignore[call-arg]
-            id="args-check-1",
-            config={
-                "name": "ToolCallArgsEvaluator",
-                "strict": False,
-                "subset": False,
-            },
+        evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
+            dict(
+                id="args-check-1",
+                evaluatorConfig={
+                    "name": "ToolCallArgsEvaluator",
+                    "strict": False,
+                    "subset": False,
+                },
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1679,9 +1759,15 @@ class TestToolCallArgsExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallArgsEvaluator(  # type: ignore[call-arg]
-            id="args-strict",
-            config={"name": "ToolCallArgsEvaluator", "strict": True, "subset": False},
+        evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
+            dict(
+                id="args-strict",
+                evaluatorConfig={
+                    "name": "ToolCallArgsEvaluator",
+                    "strict": True,
+                    "subset": False,
+                },
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1727,9 +1813,15 @@ class TestToolCallArgsExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallArgsEvaluator(  # type: ignore[call-arg]
-            id="args-subset",
-            config={"name": "ToolCallArgsEvaluator", "strict": False, "subset": True},
+        evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
+            dict(
+                id="args-subset",
+                evaluatorConfig={
+                    "name": "ToolCallArgsEvaluator",
+                    "strict": False,
+                    "subset": True,
+                },
+            )
         )
 
         # Only validate critical fields
@@ -1790,9 +1882,15 @@ class TestToolCallArgsExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallArgsEvaluator(  # type: ignore[call-arg]
-            id="args-multiple",
-            config={"name": "ToolCallArgsEvaluator", "strict": False, "subset": False},
+        evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
+            dict(
+                id="args-multiple",
+                evaluatorConfig={
+                    "name": "ToolCallArgsEvaluator",
+                    "strict": False,
+                    "subset": False,
+                },
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1826,25 +1924,31 @@ class TestToolCallArgsExamples:
 
         mock_spans = [
             ReadableSpan(
-                name="configure_service",
+                name="evaluatorConfigure_service",
                 start_time=0,
                 end_time=1,
                 attributes={
-                    "tool.name": "configure_service",
-                    "input.value": "{'service': 'api', 'config': {'host': 'api.example.com', 'port': 443, 'ssl': {'enabled': True, 'cert_path': '/path/to/cert'}}}",
+                    "tool.name": "evaluatorConfigure_service",
+                    "input.value": "{'service': 'api', 'evaluatorConfig': {'host': 'api.example.com', 'port': 443, 'ssl': {'enabled': True, 'cert_path': '/path/to/cert'}}}",
                 },
             ),
         ]
 
         agent_execution = AgentExecution(
-            agent_input={"task": "Configure API service"},
-            agent_output={"status": "configured"},
+            agent_input={"task": "evaluatorConfigure API service"},
+            agent_output={"status": "evaluatorConfigured"},
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallArgsEvaluator(  # type: ignore[call-arg]
-            id="args-nested",
-            config={"name": "ToolCallArgsEvaluator", "strict": False, "subset": False},
+        evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
+            dict(
+                id="args-nested",
+                evaluatorConfig={
+                    "name": "ToolCallArgsEvaluator",
+                    "strict": False,
+                    "subset": False,
+                },
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1852,10 +1956,10 @@ class TestToolCallArgsExamples:
             evaluation_criteria={
                 "tool_calls": [
                     {
-                        "name": "configure_service",
+                        "name": "evaluatorConfigure_service",
                         "args": {
                             "service": "api",
-                            "config": {
+                            "evaluatorConfig": {
                                 "host": "api.example.com",
                                 "port": 443,
                                 "ssl": {"enabled": True, "cert_path": "/path/to/cert"},
@@ -1913,13 +2017,15 @@ class TestToolCallArgsExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallArgsEvaluator(  # type: ignore[call-arg]
-            id="args-proportional",
-            config={
-                "name": "ToolCallArgsEvaluator",
-                "strict": False,  # Proportional scoring
-                "subset": False,
-            },
+        evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
+            dict(
+                id="args-proportional",
+                evaluatorConfig={
+                    "name": "ToolCallArgsEvaluator",
+                    "strict": False,  # Proportional scoring
+                    "subset": False,
+                },
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -1978,9 +2084,11 @@ class TestToolCallOutputExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOutputEvaluator(  # type: ignore[call-arg]
-            id="output-check-1",
-            config={"name": "ToolCallOutputEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
+            dict(
+                id="output-check-1",
+                evaluatorConfig={"name": "ToolCallOutputEvaluator", "strict": False},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -2022,9 +2130,11 @@ class TestToolCallOutputExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOutputEvaluator(  # type: ignore[call-arg]
-            id="output-strict",
-            config={"name": "ToolCallOutputEvaluator", "strict": True},
+        evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
+            dict(
+                id="output-strict",
+                evaluatorConfig={"name": "ToolCallOutputEvaluator", "strict": True},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -2075,9 +2185,11 @@ class TestToolCallOutputExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOutputEvaluator(  # type: ignore[call-arg]
-            id="output-multiple",
-            config={"name": "ToolCallOutputEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
+            dict(
+                id="output-multiple",
+                evaluatorConfig={"name": "ToolCallOutputEvaluator", "strict": False},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -2117,9 +2229,11 @@ class TestToolCallOutputExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOutputEvaluator(  # type: ignore[call-arg]
-            id="error-validation",
-            config={"name": "ToolCallOutputEvaluator", "strict": False},
+        evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
+            dict(
+                id="error-validation",
+                evaluatorConfig={"name": "ToolCallOutputEvaluator", "strict": False},
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
@@ -2181,12 +2295,14 @@ class TestToolCallOutputExamples:
             agent_trace=mock_spans,
         )
 
-        evaluator = ToolCallOutputEvaluator(  # type: ignore[call-arg]
-            id="output-proportional",
-            config={
-                "name": "ToolCallOutputEvaluator",
-                "strict": False,  # Proportional scoring
-            },
+        evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
+            dict(
+                id="output-proportional",
+                evaluatorConfig={
+                    "name": "ToolCallOutputEvaluator",
+                    "strict": False,  # Proportional scoring
+                },
+            )
         )
 
         result = await evaluator.validate_and_evaluate_criteria(

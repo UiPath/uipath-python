@@ -5,13 +5,13 @@ Tests span extraction, chunk normalization, and LLM evaluation.
 
 import json
 from types import MappingProxyType
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import LegacyContextPrecisionEvaluator
-from uipath.eval.evaluators.legacy_base_evaluator import LegacyEvaluationCriteria
+from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
 from uipath.eval.models.models import (
     AgentExecution,
     LegacyEvaluatorCategory,
@@ -19,18 +19,18 @@ from uipath.eval.models.models import (
 )
 
 
-def _make_base_params() -> EvaluatorBaseParams:
+def _make_base_params() -> dict[str, Any]:
     """Create base parameters for context precision evaluator."""
-    return EvaluatorBaseParams(
-        id="context-precision",
-        category=LegacyEvaluatorCategory.LlmAsAJudge,
-        evaluator_type=LegacyEvaluatorType.ContextPrecision,
-        name="Context Precision",
-        description="Evaluates context chunk relevance",
-        created_at="2025-01-01T00:00:00Z",
-        updated_at="2025-01-01T00:00:00Z",
-        target_output_key="*",
-    )
+    return {
+        "id": "context-precision",
+        "category": LegacyEvaluatorCategory.LlmAsAJudge,
+        "type": LegacyEvaluatorType.ContextPrecision,
+        "name": "Context Precision",
+        "description": "Evaluates context chunk relevance",
+        "createdAt": "2025-01-01T00:00:00Z",
+        "updatedAt": "2025-01-01T00:00:00Z",
+        "targetOutputKey": "*",
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -46,8 +46,7 @@ def mock_uipath_platform():
 def evaluator_with_mocked_llm():
     """Fixture to create evaluator with mocked LLM service."""
     evaluator = LegacyContextPrecisionEvaluator(
-        **_make_base_params().model_dump(),
-        config={},
+        **_make_base_params(),
         model="gpt-4.1-2025-04-14",
     )
     return evaluator

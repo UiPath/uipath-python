@@ -10,8 +10,8 @@ from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ...platform.chat import UiPathLlmChatService
 from ...platform.chat.llm_gateway import RequiredToolChoice
 from ..models.models import AgentExecution, EvaluationResult, LLMResponse
-from .legacy_base_evaluator import (
-    LegacyBaseEvaluator,
+from .base_legacy_evaluator import (
+    BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
     LegacyEvaluatorConfig,
 )
@@ -24,7 +24,7 @@ class LegacyLlmAsAJudgeEvaluatorConfig(LegacyEvaluatorConfig):
     name: str = "LegacyLlmAsAJudgeEvaluator"
 
 
-class LegacyLlmAsAJudgeEvaluator(LegacyBaseEvaluator[LegacyLlmAsAJudgeEvaluatorConfig]):
+class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorConfig]):
     """Legacy evaluator that uses an LLM to judge the quality of agent output."""
 
     prompt: str

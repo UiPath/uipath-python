@@ -15,7 +15,7 @@ from uipath._utils.constants import (
 )
 
 
-class DataSourceBase(BaseModel):
+class BaseDataSource(BaseModel):
     """Base model for data source configurations."""
 
     folder: str = Field(alias="folder", description="Folder path")
@@ -25,7 +25,7 @@ class DataSourceBase(BaseModel):
     directory_path: str = Field(alias="directoryPath", description="Directory path")
 
 
-class BucketDataSource(DataSourceBase):
+class BucketDataSource(BaseDataSource):
     """Data source configuration for storage buckets."""
 
     odata_type: str = Field(
@@ -35,7 +35,7 @@ class BucketDataSource(DataSourceBase):
     bucket_name: str = Field(alias="bucketName", description="Storage bucket name")
 
 
-class GoogleDriveDataSource(DataSourceBase):
+class GoogleDriveDataSource(BaseDataSource):
     """Data source configuration for Google Drive."""
 
     odata_type: str = Field(
@@ -47,7 +47,7 @@ class GoogleDriveDataSource(DataSourceBase):
     leaf_folder_id: str = Field(alias="leafFolderId", description="Leaf folder ID")
 
 
-class DropboxDataSource(DataSourceBase):
+class DropboxDataSource(BaseDataSource):
     """Data source configuration for Dropbox."""
 
     odata_type: str = Field(
@@ -58,7 +58,7 @@ class DropboxDataSource(DataSourceBase):
     connection_name: str = Field(alias="connectionName", description="Connection name")
 
 
-class OneDriveDataSource(DataSourceBase):
+class OneDriveDataSource(BaseDataSource):
     """Data source configuration for OneDrive."""
 
     odata_type: str = Field(
@@ -70,7 +70,7 @@ class OneDriveDataSource(DataSourceBase):
     leaf_folder_id: str = Field(alias="leafFolderId", description="Leaf folder ID")
 
 
-class ConfluenceDataSource(DataSourceBase):
+class ConfluenceDataSource(BaseDataSource):
     """Data source configuration for Confluence."""
 
     odata_type: str = Field(

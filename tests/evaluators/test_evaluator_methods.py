@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
+from pydantic import ValidationError
 from pytest_mock.plugin import MockerFixture
 
 from uipath.eval.evaluators.contains_evaluator import (
@@ -139,7 +140,7 @@ class TestExactMatchEvaluator:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
@@ -159,7 +160,7 @@ class TestExactMatchEvaluator:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
             expected_output={"output": "Different output"}  # pyright: ignore[reportCallIssue]
@@ -181,7 +182,7 @@ class TestExactMatchEvaluator:
             "negated": True,
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
             expected_output={"output": "Test output"},  # pyright: ignore[reportCallIssue]
@@ -202,7 +203,7 @@ class TestExactMatchEvaluator:
             "case_sensitive": True,
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         raw_criteria = {"expected_output": {"output": "Test output"}}
 
@@ -228,7 +229,7 @@ class TestContainsEvaluator:
             "default_evaluation_criteria": {"search_text": "Test output"},
         }
         evaluator = ContainsEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ContainsEvaluationCriteria(search_text="Test output")
         result = await evaluator.evaluate(sample_agent_execution, criteria)
@@ -248,7 +249,7 @@ class TestContainsEvaluator:
             "default_evaluation_criteria": {"search_text": "Test output"},
         }
         evaluator = ContainsEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ContainsEvaluationCriteria(search_text="Test output")
         result = await evaluator.evaluate(sample_agent_execution, criteria)
@@ -267,7 +268,7 @@ class TestContainsEvaluator:
             "default_evaluation_criteria": {"search_text": "Test output"},
         }
         evaluator = ContainsEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ContainsEvaluationCriteria(search_text="Test output")
         result = await evaluator.validate_and_evaluate_criteria(
@@ -292,7 +293,7 @@ class TestJsonSimilarityEvaluator:
             "name": "JsonSimilarityTest",
         }
         evaluator = JsonSimilarityEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
             expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
@@ -316,7 +317,7 @@ class TestJsonSimilarityEvaluator:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = JsonSimilarityEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
             expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
@@ -339,7 +340,7 @@ class TestJsonSimilarityEvaluator:
             "name": "JsonSimilarityTest",
         }
         evaluator = JsonSimilarityEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         raw_criteria = {"expected_output": {"name": "John", "age": 30, "city": "NYC"}}
 
@@ -364,7 +365,7 @@ class TestToolCallOrderEvaluator:
         }
 
         evaluator = ToolCallOrderEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOrderEvaluationCriteria(
             tool_calls_order=["tool1", "tool2", "tool1", "tool2"]
@@ -387,7 +388,7 @@ class TestToolCallOrderEvaluator:
         }
 
         evaluator = ToolCallOrderEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOrderEvaluationCriteria(
             tool_calls_order=["tool1", "tool1", "tool2", "tool2"]
@@ -409,7 +410,7 @@ class TestToolCallOrderEvaluator:
             "strict": False,
         }
         evaluator = ToolCallOrderEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOrderEvaluationCriteria(
             tool_calls_order=["tool1", "tool1", "tool2", "tool2"]
@@ -430,7 +431,7 @@ class TestToolCallOrderEvaluator:
             "strict": True,
         }
         evaluator = ToolCallOrderEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         raw_criteria = {"tool_calls_order": ["tool1", "tool2", "tool1", "tool2"]}
 
@@ -455,7 +456,7 @@ class TestToolCallCountEvaluator:
             "strict": True,
         }
         evaluator = ToolCallCountEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallCountEvaluationCriteria(
             tool_calls_count={"tool1": ("=", 2), "tool2": ("=", 2)}
@@ -476,7 +477,7 @@ class TestToolCallCountEvaluator:
             "strict": True,
         }
         evaluator = ToolCallCountEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallCountEvaluationCriteria(
             tool_calls_count={"tool1": (">", 1), "tool2": (">", 1)}
@@ -497,7 +498,7 @@ class TestToolCallCountEvaluator:
             "strict": True,
         }
         evaluator = ToolCallCountEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallCountEvaluationCriteria(
             tool_calls_count={"tool1": ("=", 2), "tool2": ("=", 1)}
@@ -518,7 +519,7 @@ class TestToolCallCountEvaluator:
             "strict": False,
         }
         evaluator = ToolCallCountEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallCountEvaluationCriteria(
             tool_calls_count={"tool1": ("=", 2), "tool2": ("=", 1)}
@@ -539,7 +540,7 @@ class TestToolCallCountEvaluator:
             "strict": True,
         }
         evaluator = ToolCallCountEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         raw_criteria = {"tool_calls_count": {"tool1": ("=", 2), "tool2": ("=", 2)}}
 
@@ -564,7 +565,7 @@ class TestToolCallArgsEvaluator:
             "strict": True,
         }
         evaluator = ToolCallArgsEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallArgsEvaluationCriteria(
             tool_calls=[
@@ -590,7 +591,7 @@ class TestToolCallArgsEvaluator:
             "strict": False,
         }
         evaluator = ToolCallArgsEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallArgsEvaluationCriteria(
             tool_calls=[
@@ -616,7 +617,7 @@ class TestToolCallArgsEvaluator:
             "strict": True,
         }
         evaluator = ToolCallArgsEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         raw_criteria = {
             "tool_calls": [
@@ -648,7 +649,7 @@ class TestToolCallOutputEvaluator:
             "strict": True,
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOutputEvaluationCriteria(
             tool_outputs=[
@@ -674,7 +675,7 @@ class TestToolCallOutputEvaluator:
             "strict": False,
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOutputEvaluationCriteria(
             tool_outputs=[
@@ -700,7 +701,7 @@ class TestToolCallOutputEvaluator:
             "strict": True,
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOutputEvaluationCriteria(
             tool_outputs=[
@@ -726,7 +727,7 @@ class TestToolCallOutputEvaluator:
             "strict": False,
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOutputEvaluationCriteria(
             tool_outputs=[
@@ -750,7 +751,7 @@ class TestToolCallOutputEvaluator:
             "strict": False,
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOutputEvaluationCriteria(tool_outputs=[])
 
@@ -769,7 +770,7 @@ class TestToolCallOutputEvaluator:
             "strict": True,
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         raw_criteria = {
             "tool_outputs": [
@@ -831,7 +832,7 @@ class TestLlmAsAJudgeEvaluator:
             "model": "gpt-4o-2024-08-06",
         }
         evaluator = LLMJudgeOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
 
         criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
@@ -875,7 +876,7 @@ class TestLlmAsAJudgeEvaluator:
         }
         evaluator = LLMJudgeOutputEvaluator.model_validate(
             {
-                "config": config,
+                "evaluatorConfig": config,
                 "llm_service": mock_chat_completions,
                 "id": str(uuid.uuid4()),
             }
@@ -931,7 +932,7 @@ class TestLlmAsAJudgeEvaluator:
             "model": "gpt-4",
         }
         evaluator = LLMJudgeOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         raw_criteria = {"expected_output": "Expected output"}
 
@@ -989,7 +990,7 @@ class TestLlmJudgeTrajectoryEvaluator:
             "model": "gpt-4",
         }
         evaluator = LLMJudgeTrajectoryEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
 
         criteria = TrajectoryEvaluationCriteria(
@@ -1044,7 +1045,7 @@ class TestLlmJudgeTrajectoryEvaluator:
             "model": "gpt-4",
         }
         evaluator = LLMJudgeTrajectoryEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         raw_criteria = {"expected_agent_behavior": "Agent should respond helpfully"}
 
@@ -1069,7 +1070,7 @@ class TestEvaluatorErrorHandling:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
 
         with pytest.raises(UiPathEvaluationError):
@@ -1088,10 +1089,10 @@ class TestEvaluatorErrorHandling:
             "default_evaluation_criteria": {},
         }
 
-        with pytest.raises(UiPathEvaluationError, match="Field required"):
+        with pytest.raises(ValidationError):
             # Missing required field 'model'
             LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
 
@@ -1107,7 +1108,7 @@ class TestEvaluationResultTypes:
             "name": "Test",
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
@@ -1130,7 +1131,7 @@ class TestJustificationHandling:
             "case_sensitive": True,
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(expected_output={"output": "Test output"})  # pyright: ignore[reportCallIssue]
 
@@ -1157,7 +1158,7 @@ class TestJustificationHandling:
             "name": "JsonSimilarityTest",
         }
         evaluator = JsonSimilarityEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(
             expected_output={"name": "John", "age": 30, "city": "NYC"}  # pyright: ignore[reportCallIssue]
@@ -1184,7 +1185,7 @@ class TestJustificationHandling:
             "strict": True,
         }
         evaluator = ToolCallOrderEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOrderEvaluationCriteria(
             tool_calls_order=["tool1", "tool2", "tool1", "tool2"]
@@ -1211,7 +1212,7 @@ class TestJustificationHandling:
             "strict": True,
         }
         evaluator = ToolCallCountEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallCountEvaluationCriteria(
             tool_calls_count={"tool1": ("=", 2), "tool2": ("=", 2)}
@@ -1238,7 +1239,7 @@ class TestJustificationHandling:
             "strict": True,
         }
         evaluator = ToolCallArgsEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallArgsEvaluationCriteria(
             tool_calls=[
@@ -1270,7 +1271,7 @@ class TestJustificationHandling:
             "strict": True,
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = ToolCallOutputEvaluationCriteria(
             tool_outputs=[
@@ -1331,7 +1332,7 @@ class TestJustificationHandling:
             "model": "gpt-4o-2024-08-06",
         }
         evaluator = LLMJudgeOutputEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
 
@@ -1387,7 +1388,7 @@ class TestJustificationHandling:
             "model": "gpt-4",
         }
         evaluator = LLMJudgeTrajectoryEvaluator.model_validate(
-            {"config": config, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
         criteria = TrajectoryEvaluationCriteria(
             expected_agent_behavior="Agent should respond helpfully"
@@ -1412,7 +1413,7 @@ class TestJustificationHandling:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         none_evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         # All inputs should return None for None type evaluators
@@ -1431,7 +1432,7 @@ class TestJustificationHandling:
         mock_llm_service = mocker.MagicMock()
         str_evaluator = LLMJudgeOutputEvaluator.model_validate(
             {
-                "config": llm_config_dict,
+                "evaluatorConfig": llm_config_dict,
                 "llm_service": mock_llm_service,
                 "id": str(uuid.uuid4()),
             }
@@ -1540,7 +1541,7 @@ class TestJustificationHandling:
                 # max_tokens is intentionally omitted (defaults to None)
             }
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
             # Evaluate

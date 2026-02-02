@@ -66,7 +66,7 @@ from ..._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from ...eval.evaluators import BaseEvaluator
+from ...eval.evaluators.base_evaluator import GenericBaseEvaluator
 from ...eval.models import EvaluationResult
 from ...eval.models.models import AgentExecution, EvalItemResult
 from .._utils._parallelization import execute_parallel
@@ -193,7 +193,7 @@ class UiPathEvalContext:
     # Required Fields
     runtime_schema: UiPathRuntimeSchema
     evaluation_set: EvaluationSet
-    evaluators: list[BaseEvaluator[Any, Any, Any]]
+    evaluators: list[GenericBaseEvaluator[Any, Any, Any]]
     execution_id: str
 
     # Optional Fields
@@ -276,7 +276,7 @@ class UiPathEvalRuntime:
         self,
     ) -> Tuple[
         EvaluationSet,
-        list[BaseEvaluator[Any, Any, Any]],
+        list[GenericBaseEvaluator[Any, Any, Any]],
         Iterable[Awaitable[EvaluationRunResult]],
     ]:
         # Validate that resume mode is not used with multiple evaluations
@@ -487,7 +487,7 @@ class UiPathEvalRuntime:
     async def _execute_eval(
         self,
         eval_item: EvaluationItem,
-        evaluators: list[BaseEvaluator[Any, Any, Any]],
+        evaluators: list[GenericBaseEvaluator[Any, Any, Any]],
     ) -> EvaluationRunResult:
         execution_id = str(eval_item.id)
 
@@ -664,11 +664,12 @@ class UiPathEvalRuntime:
                         evaluator=evaluator,
                         execution_output=agent_execution_output,
                         eval_item=eval_item,
+                        # If evaluation criteria is None, validate_and_evaluate defaults to the default
                         evaluation_criteria=evaluator.evaluation_criteria_type(
                             **evaluation_criteria
                         )
                         if evaluation_criteria
-                        else evaluator.evaluator_config.default_evaluation_criteria,
+                        else None,
                     )
 
                     dto_result = EvaluationResultDto.from_evaluation_result(
@@ -906,7 +907,7 @@ class UiPathEvalRuntime:
 
     async def run_evaluator(
         self,
-        evaluator: BaseEvaluator[Any, Any, Any],
+        evaluator: GenericBaseEvaluator[Any, Any, Any],
         execution_output: UiPathEvalRunExecutionOutput,
         eval_item: EvaluationItem,
         *,

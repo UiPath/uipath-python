@@ -14,7 +14,7 @@ from uipath._cli._evals._models._evaluation_set import (
 )
 from uipath._cli._evals.mocks.types import InputMockingStrategy, LLMMockingStrategy
 from uipath._cli._utils._console import ConsoleLogger
-from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 
 console = ConsoleLogger()
 
@@ -183,7 +183,7 @@ class EvalHelpers:
         eval_set_path: str,
         evaluation_set: EvaluationSet,
         agent_model: str | None = None,
-    ) -> list[BaseEvaluator[Any, Any, Any]]:
+    ) -> list[GenericBaseEvaluator[Any, Any, Any]]:
         """Load evaluators referenced by the evaluation set."""
         evaluators = []
         if evaluation_set is None:

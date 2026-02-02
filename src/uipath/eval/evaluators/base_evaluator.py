@@ -11,7 +11,10 @@ from pydantic.alias_generators import to_camel
 
 from .._helpers.helpers import track_evaluation_metrics
 from ..models import AgentExecution, EvaluationResult
-from ..models.models import UiPathEvaluationError, UiPathEvaluationErrorCategory
+from ..models.models import (
+    UiPathEvaluationError,
+    UiPathEvaluationErrorCategory,
+)
 
 
 class BaseEvaluationCriteria(BaseModel):
@@ -51,7 +54,7 @@ C = TypeVar("C", bound=BaseEvaluatorConfig[Any])
 J = TypeVar("J", bound=Union[str, None, BaseEvaluatorJustification])
 
 
-class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
+class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
     """Abstract base class for all evaluators.
 
     Generic Parameters:
@@ -77,16 +80,17 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: str
-    config: dict[str, Any] = Field(description="The config dictionary")
-    config_type: type[C] = Field(description="The config type class")
+    name: str = Field(default="", description="The name of the evaluator")
+    description: str = Field(default="", description="The description of the evaluator")
+
+    config_type: type[C] = Field(description="The config type class", exclude=True)
     evaluation_criteria_type: type[T] = Field(
-        description="The type used for evaluation criteria validation and creation"
+        description="The type used for evaluation criteria validation and creation",
+        exclude=True,
     )
     justification_type: type[J] = Field(
-        description="The type used for justification validation and creation"
-    )
-    evaluator_config: C = Field(
-        exclude=True, description="The validated config object instance"
+        description="The type used for justification validation and creation",
+        exclude=True,
     )
 
     def __init_subclass__(cls, **kwargs: Any):
@@ -99,26 +103,6 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             new_evaluation_method = track_evaluation_metrics(cls.evaluate)
             new_evaluation_method._has_metrics_decorator = True  # type: ignore[attr-defined] # probably a better way to do this
             cls.evaluate = new_evaluation_method  # type: ignore[method-assign] # probably a better way to do this
-
-    @property
-    def name(self) -> str:
-        """Evaluator's name."""
-        return self.evaluator_config.name
-
-    @name.setter
-    def name(self, value: str) -> None:
-        """Set the evaluator's name."""
-        self.evaluator_config.name = value
-
-    @property
-    def description(self) -> str:
-        """Evaluator's description."""
-        return self.evaluator_config.description
-
-    @description.setter
-    def description(self, value: str) -> None:
-        """Set the evaluator's description."""
-        self.evaluator_config.description = value
 
     @model_validator(mode="before")
     @classmethod
@@ -137,6 +121,10 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             ValueError: If types cannot be determined or are inconsistent
         """
         if isinstance(values, dict):
+            if "description" in values and "evaluatorConfig" in values:
+                values["evaluatorConfig"]["description"] = values.pop("description")
+            if "name" in values and "evaluatorConfig" in values:
+                values["evaluatorConfig"]["name"] = values.pop("name")
             # Always extract and set evaluation_criteria_type
             criteria_type = cls._extract_evaluation_criteria_type()
             values["evaluation_criteria_type"] = criteria_type
@@ -574,21 +562,12 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             "justificationSchema": cls.get_justification_schema(),
         }
 
+    @abstractmethod
     async def validate_and_evaluate_criteria(
         self, agent_execution: AgentExecution, evaluation_criteria: Any
     ) -> EvaluationResult:
         """Evaluate the given data and return a result from a raw evaluation criteria."""
-        if evaluation_criteria is None:
-            evaluation_criteria = self.evaluator_config.default_evaluation_criteria
-        if evaluation_criteria is None:
-            raise UiPathEvaluationError(
-                code="NO_EVALUATION_CRITERIA_PROVIDED",
-                title="No evaluation criteria provided and no default evaluation criteria configured",
-                detail="No evaluation criteria provided and no default evaluation criteria configured",
-                category=UiPathEvaluationErrorCategory.SYSTEM,
-            )
-        criteria = self.validate_evaluation_criteria(evaluation_criteria)
-        return await self.evaluate(agent_execution, criteria)
+        pass
 
     @abstractmethod
     async def evaluate(
@@ -608,3 +587,45 @@ class BaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             EvaluationResult containing the score and details
         """
         pass
+
+
+class BaseEvaluator(GenericBaseEvaluator[T, C, J]):
+    """Abstract base class for all coded evaluators. Not naming this BaseCodedEvaluator for backwards compatibility."""
+
+    version: str = Field(default="1.0", description="Version of the evaluator")
+    evaluator_type_id: str = Field(
+        default="", alias="evaluatorTypeId", description="Type of the evaluator"
+    )
+    evaluator_config: C = Field(
+        alias="evaluatorConfig", description="The validated config object instance"
+    )
+
+    name: str = Field(default="", description="The name of the evaluator", exclude=True)
+    description: str = Field(
+        default="", description="The description of the evaluator", exclude=True
+    )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Post initialization of the evaluator."""
+        if not self.evaluator_type_id:
+            self.evaluator_type_id = type(self).get_evaluator_id()
+        if not self.name:
+            self.name = self.evaluator_config.name
+        if not self.description:
+            self.description = self.evaluator_config.description
+
+    async def validate_and_evaluate_criteria(
+        self, agent_execution: AgentExecution, evaluation_criteria: Any
+    ) -> EvaluationResult:
+        """Evaluate the given data and return a result from a raw evaluation criteria."""
+        if evaluation_criteria is None:
+            evaluation_criteria = self.evaluator_config.default_evaluation_criteria
+        if evaluation_criteria is None:
+            raise UiPathEvaluationError(
+                code="NO_EVALUATION_CRITERIA_PROVIDED",
+                title="No evaluation criteria provided and no default evaluation criteria configured",
+                detail="No evaluation criteria provided and no default evaluation criteria configured",
+                category=UiPathEvaluationErrorCategory.SYSTEM,
+            )
+        criteria = self.validate_evaluation_criteria(evaluation_criteria)
+        return await self.evaluate(agent_execution, criteria)

@@ -8,8 +8,8 @@ from uipath.eval.models import NumericEvaluationResult
 
 from ...platform.chat import UiPathLlmChatService
 from ..models.models import AgentExecution, EvaluationResult
-from .legacy_base_evaluator import (
-    LegacyBaseEvaluator,
+from .base_legacy_evaluator import (
+    BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
     LegacyEvaluatorConfig,
     track_evaluation_metrics,
@@ -22,7 +22,9 @@ class LegacyContextPrecisionEvaluatorConfig(LegacyEvaluatorConfig):
 
     name: str = "LegacyContextPrecisionEvaluator"
     model: str = ""
-    prompt: str = """You are an expert evaluator assessing the relevance of context chunks to a given query.
+
+
+PROMPT = """You are an expert evaluator assessing the relevance of context chunks to a given query.
 
 TASK: Evaluate how relevant each provided context chunk is to answering the query.
 Your scoring should be deterministic - the same chunk-query pair should always receive the same score.
@@ -86,7 +88,7 @@ Evaluate each chunk's relevance to the query and respond with the structured out
 
 
 class LegacyContextPrecisionEvaluator(
-    LegacyBaseEvaluator[LegacyContextPrecisionEvaluatorConfig]
+    BaseLegacyEvaluator[LegacyContextPrecisionEvaluatorConfig]
 ):
     """Legacy evaluator that assesses context precision using an LLM.
 
@@ -282,9 +284,9 @@ class LegacyContextPrecisionEvaluator(
         """
         # Create evaluation prompt
         chunks_text = "\n".join(chunks)
-        prompt = self.evaluator_config.prompt.replace(
-            self.query_placeholder, query
-        ).replace(self.chunks_placeholder, chunks_text)
+        prompt = PROMPT.replace(self.query_placeholder, query).replace(
+            self.chunks_placeholder, chunks_text
+        )
 
         # Get LLM response
         response_obj = await self._get_structured_llm_response(prompt)

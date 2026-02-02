@@ -3,8 +3,8 @@
 from uipath.eval.models import BooleanEvaluationResult, EvaluationResult
 
 from ..models.models import AgentExecution
-from .legacy_base_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
-from .legacy_deterministic_evaluator_base import DeterministicEvaluatorBase
+from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
+from .legacy_deterministic_evaluator_base import BaseLegacyDeterministicEvaluator
 
 
 class LegacyExactMatchEvaluatorConfig(LegacyEvaluatorConfig):
@@ -14,7 +14,7 @@ class LegacyExactMatchEvaluatorConfig(LegacyEvaluatorConfig):
 
 
 class LegacyExactMatchEvaluator(
-    DeterministicEvaluatorBase[LegacyExactMatchEvaluatorConfig]
+    BaseLegacyDeterministicEvaluator[LegacyExactMatchEvaluatorConfig]
 ):
     """Evaluator that performs exact structural matching between expected and actual outputs.
 

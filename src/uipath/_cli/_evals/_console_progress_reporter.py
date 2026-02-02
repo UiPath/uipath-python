@@ -15,7 +15,7 @@ from uipath._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 from uipath.eval.models import ScoreType
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class ConsoleProgressReporter:
 
     def __init__(self):
         self.console = Console()
-        self.evaluators: dict[str, BaseEvaluator[Any, Any, Any]] = {}
+        self.evaluators: dict[str, GenericBaseEvaluator[Any, Any, Any]] = {}
         self.display_started = False
         self.eval_results_by_name: dict[str, list[Any]] = {}
 

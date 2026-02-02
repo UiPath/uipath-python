@@ -6,8 +6,8 @@ from typing import Any, Tuple, TypeVar
 from uipath.eval.models import EvaluationResult, NumericEvaluationResult
 
 from ..models.models import AgentExecution
-from .legacy_base_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
-from .legacy_deterministic_evaluator_base import DeterministicEvaluatorBase
+from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
+from .legacy_deterministic_evaluator_base import BaseLegacyDeterministicEvaluator
 
 T = TypeVar("T")
 
@@ -19,7 +19,7 @@ class LegacyJsonSimilarityEvaluatorConfig(LegacyEvaluatorConfig):
 
 
 class LegacyJsonSimilarityEvaluator(
-    DeterministicEvaluatorBase[LegacyJsonSimilarityEvaluatorConfig]
+    BaseLegacyDeterministicEvaluator[LegacyJsonSimilarityEvaluatorConfig]
 ):
     """Legacy deterministic evaluator that scores structural JSON similarity between expected and actual output.
 

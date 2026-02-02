@@ -4,12 +4,12 @@ from typing import Any
 
 # Current coded evaluators
 from .base_evaluator import BaseEvaluationCriteria, BaseEvaluator, BaseEvaluatorConfig
+from .base_legacy_evaluator import BaseLegacyEvaluator
+
+# Legacy evaluators
 from .contains_evaluator import ContainsEvaluator
 from .exact_match_evaluator import ExactMatchEvaluator
 from .json_similarity_evaluator import JsonSimilarityEvaluator
-
-# Legacy evaluators
-from .legacy_base_evaluator import LegacyBaseEvaluator
 from .legacy_context_precision_evaluator import LegacyContextPrecisionEvaluator
 from .legacy_exact_match_evaluator import LegacyExactMatchEvaluator
 from .legacy_faithfulness_evaluator import LegacyFaithfulnessEvaluator
@@ -44,16 +44,15 @@ EVALUATORS: list[type[BaseEvaluator[Any, Any, Any]]] = [
     ToolCallCountEvaluator,
     ToolCallOutputEvaluator,
 ]
-
 __all__ = [
     # Legacy evaluators
-    "LegacyBaseEvaluator",
+    "BaseLegacyEvaluator",
     "LegacyContextPrecisionEvaluator",
     "LegacyExactMatchEvaluator",
     "LegacyFaithfulnessEvaluator",
-    "LegacyJsonSimilarityEvaluator",
     "LegacyLlmAsAJudgeEvaluator",
     "LegacyTrajectoryEvaluator",
+    "LegacyJsonSimilarityEvaluator",
     # Current coded evaluators
     "BaseEvaluator",
     "ContainsEvaluator",

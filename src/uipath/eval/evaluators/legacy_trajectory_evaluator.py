@@ -16,8 +16,8 @@ from ..models.models import (
     NumericEvaluationResult,
     TrajectoryEvaluationTrace,
 )
-from .legacy_base_evaluator import (
-    LegacyBaseEvaluator,
+from .base_legacy_evaluator import (
+    BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
     LegacyEvaluatorConfig,
 )
@@ -30,7 +30,7 @@ class LegacyTrajectoryEvaluatorConfig(LegacyEvaluatorConfig):
     name: str = "LegacyTrajectoryEvaluator"
 
 
-class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorConfig]):
+class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorConfig]):
     """Legacy evaluator that analyzes the trajectory/path taken to reach outputs."""
 
     prompt: str
