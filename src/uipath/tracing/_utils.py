@@ -249,6 +249,12 @@ class _SpanUtils:
         agent_version = attributes_dict.get("agentVersion")
         reference_id = attributes_dict.get("referenceId")
 
+        # Source: default is 4 (Robots) for coded agents, but allow integer override
+        # from attributes for low-code agents (source=1). String values like "runtime"
+        # are ignored here and pass through in attributes JSON.
+        source_attr = attributes_dict.get("source")
+        source = source_attr if isinstance(source_attr, int) else None
+
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
             (otel_span.start_time or 0) / 1e9
@@ -277,6 +283,7 @@ class _SpanUtils:
             execution_type=execution_type,
             agent_version=agent_version,
             reference_id=reference_id,
+            **({"source": source} if source is not None else {}),
         )
 
     @staticmethod

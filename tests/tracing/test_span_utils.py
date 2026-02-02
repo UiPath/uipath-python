@@ -346,10 +346,39 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        # Top-level Source should be 4 (Robots), not from attributes
+        # Top-level Source should be 4 (Robots), string "runtime" is ignored
         assert uipath_span.source == 4
         assert span_dict["Source"] == 4
 
         # attributes.source string should still be in Attributes JSON
         attrs = json.loads(span_dict["Attributes"])
         assert attrs["source"] == "runtime"
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_uipath_span_source_override_with_integer(self):
+        """Test that integer source from attributes overrides default (for low-code agents)."""
+        mock_span = Mock(spec=OTelSpan)
+
+        trace_id = 0x123456789ABCDEF0123456789ABCDEF0
+        span_id = 0x0123456789ABCDEF
+        mock_context = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=False)
+        mock_span.get_span_context.return_value = mock_context
+
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        # Integer source=1 (Agents) should override default of 4 (Robots)
+        mock_span.attributes = {"source": 1}
+        mock_span.events = []
+        mock_span.links = []
+
+        current_time_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = current_time_ns
+        mock_span.end_time = current_time_ns + 1000000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        # Integer source should override - low-code agents use 1 (Agents)
+        assert uipath_span.source == 1
+        assert span_dict["Source"] == 1
