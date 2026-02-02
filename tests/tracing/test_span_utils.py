@@ -355,8 +355,8 @@ class TestSpanUtils:
         assert attrs["source"] == "runtime"
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
-    def test_uipath_span_source_override_with_topLevelSource(self):
-        """Test that topLevelSource attribute overrides default (for low-code agents)."""
+    def test_uipath_span_source_override_with_uipath_source(self):
+        """Test that uipath.source attribute overrides default (for low-code agents)."""
         mock_span = Mock(spec=OTelSpan)
 
         trace_id = 0x123456789ABCDEF0123456789ABCDEF0
@@ -367,8 +367,8 @@ class TestSpanUtils:
         mock_span.name = "test-span"
         mock_span.parent = None
         mock_span.status.status_code = StatusCode.OK
-        # topLevelSource=1 (Agents) overrides default of 4 (Robots)
-        mock_span.attributes = {"topLevelSource": 1, "source": "runtime"}
+        # uipath.source=1 (Agents) overrides default of 4 (Robots)
+        mock_span.attributes = {"uipath.source": 1, "source": "runtime"}
         mock_span.events = []
         mock_span.links = []
 
@@ -379,7 +379,7 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        # topLevelSource overrides - low-code agents use 1 (Agents)
+        # uipath.source overrides - low-code agents use 1 (Agents)
         assert uipath_span.source == 1
         assert span_dict["Source"] == 1
 

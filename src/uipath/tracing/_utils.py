@@ -249,9 +249,9 @@ class _SpanUtils:
         agent_version = attributes_dict.get("agentVersion")
         reference_id = attributes_dict.get("referenceId")
 
-        # Source: default 4 (Robots), override via topLevelSource attribute
-        top_level_source = attributes_dict.get("topLevelSource")
-        source = top_level_source if isinstance(top_level_source, int) else None
+        # Source: default 4 (Robots), override via uipath.source attribute
+        uipath_source = attributes_dict.get("uipath.source")
+        source = uipath_source if isinstance(uipath_source, int) else None
 
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
