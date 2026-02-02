@@ -35,7 +35,7 @@ from uipath.eval.models import (
 )
 
 
-class EvaluatorBaseParams(BaseModel):
+class LegacyEvaluatorBaseParams(BaseModel):
     """Parameters for initializing the base evaluator."""
 
     id: str
@@ -48,7 +48,7 @@ class EvaluatorBaseParams(BaseModel):
     file_name: str = Field(..., alias="fileName")
 
 
-class LLMEvaluatorParams(EvaluatorBaseParams):
+class LegacyLLMEvaluatorParams(LegacyEvaluatorBaseParams):
     category: Literal[LegacyEvaluatorCategory.LlmAsAJudge] = Field(
         ..., alias="category"
     )
@@ -60,7 +60,7 @@ class LLMEvaluatorParams(EvaluatorBaseParams):
     )
 
 
-class TrajectoryEvaluatorParams(EvaluatorBaseParams):
+class LegacyTrajectoryEvaluatorParams(LegacyEvaluatorBaseParams):
     category: Literal[LegacyEvaluatorCategory.Trajectory] = Field(..., alias="category")
     prompt: str = Field(..., alias="prompt")
     model: str = Field(..., alias="model")
@@ -70,75 +70,19 @@ class TrajectoryEvaluatorParams(EvaluatorBaseParams):
     )
 
 
-class EqualsEvaluatorParams(EvaluatorBaseParams):
+class LegacyEqualsEvaluatorParams(LegacyEvaluatorBaseParams):
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
 
 
-class JsonSimilarityEvaluatorParams(EvaluatorBaseParams):
+class LegacyJsonSimilarityEvaluatorParams(LegacyEvaluatorBaseParams):
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
 
 
-class UnknownEvaluatorParams(EvaluatorBaseParams):
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-def evaluator_discriminator(data: Any) -> str:
-    if isinstance(data, dict):
-        category = data.get("category")
-        evaluator_type = data.get("type")
-        match category:
-            case LegacyEvaluatorCategory.LlmAsAJudge:
-                return "LLMEvaluatorParams"
-            case LegacyEvaluatorCategory.Trajectory:
-                return "TrajectoryEvaluatorParams"
-            case LegacyEvaluatorCategory.Deterministic:
-                match evaluator_type:
-                    case LegacyEvaluatorType.Equals:
-                        return "EqualsEvaluatorParams"
-                    case LegacyEvaluatorType.JsonSimilarity:
-                        return "JsonSimilarityEvaluatorParams"
-                    case _:
-                        return "UnknownEvaluatorParams"
-            case _:
-                return "UnknownEvaluatorParams"
-    else:
-        return "UnknownEvaluatorParams"
-
-
-Evaluator = Annotated[
-    Union[
-        Annotated[
-            LLMEvaluatorParams,
-            Tag("LLMEvaluatorParams"),
-        ],
-        Annotated[
-            TrajectoryEvaluatorParams,
-            Tag("TrajectoryEvaluatorParams"),
-        ],
-        Annotated[
-            EqualsEvaluatorParams,
-            Tag("EqualsEvaluatorParams"),
-        ],
-        Annotated[
-            JsonSimilarityEvaluatorParams,
-            Tag("JsonSimilarityEvaluatorParams"),
-        ],
-        Annotated[
-            UnknownEvaluatorParams,
-            Tag("UnknownEvaluatorParams"),
-        ],
-    ],
-    Field(discriminator=Discriminator(evaluator_discriminator)),
-]
-
-
-class UnknownEvaluatorConfig(BaseEvaluatorConfig[Any]):
+class LegacyUnknownEvaluatorParams(LegacyEvaluatorBaseParams):
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
@@ -150,21 +94,54 @@ def legacy_evaluator_discriminator(data: Any) -> str:
         evaluator_type = data.get("type")
         match category:
             case LegacyEvaluatorCategory.LlmAsAJudge:
-                return "LLMEvaluatorParams"
+                return "LegacyLLMEvaluatorParams"
             case LegacyEvaluatorCategory.Trajectory:
-                return "TrajectoryEvaluatorParams"
+                return "LegacyTrajectoryEvaluatorParams"
             case LegacyEvaluatorCategory.Deterministic:
                 match evaluator_type:
                     case LegacyEvaluatorType.Equals:
-                        return "EqualsEvaluatorParams"
+                        return "LegacyEqualsEvaluatorParams"
                     case LegacyEvaluatorType.JsonSimilarity:
-                        return "JsonSimilarityEvaluatorParams"
+                        return "LegacyJsonSimilarityEvaluatorParams"
                     case _:
-                        return "UnknownEvaluatorParams"
+                        return "LegacyUnknownEvaluatorParams"
             case _:
-                return "UnknownEvaluatorParams"
+                return "LegacyUnknownEvaluatorParams"
     else:
-        return "UnknownEvaluatorParams"
+        return "LegacyUnknownLegacyEvaluatorParams"
+
+
+LegacyEvaluator = Annotated[
+    Union[
+        Annotated[
+            LegacyLLMEvaluatorParams,
+            Tag("LegacyLLMEvaluatorParams"),
+        ],
+        Annotated[
+            LegacyTrajectoryEvaluatorParams,
+            Tag("LegacyTrajectoryEvaluatorParams"),
+        ],
+        Annotated[
+            LegacyEqualsEvaluatorParams,
+            Tag("LegacyEqualsEvaluatorParams"),
+        ],
+        Annotated[
+            LegacyJsonSimilarityEvaluatorParams,
+            Tag("LegacyJsonSimilarityEvaluatorParams"),
+        ],
+        Annotated[
+            LegacyUnknownEvaluatorParams,
+            Tag("LegacyUnknownEvaluatorParams"),
+        ],
+    ],
+    Field(discriminator=Discriminator(legacy_evaluator_discriminator)),
+]
+
+
+class UnknownEvaluatorConfig(BaseEvaluatorConfig[Any]):
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
 
 
 def evaluator_config_discriminator(data: Any) -> str:
@@ -198,32 +175,6 @@ def evaluator_config_discriminator(data: Any) -> str:
     else:
         return "UnknownEvaluatorConfig"
 
-
-LegacyEvaluator = Annotated[
-    Union[
-        Annotated[
-            LLMEvaluatorParams,
-            Tag("LLMEvaluatorParams"),
-        ],
-        Annotated[
-            TrajectoryEvaluatorParams,
-            Tag("TrajectoryEvaluatorParams"),
-        ],
-        Annotated[
-            EqualsEvaluatorParams,
-            Tag("EqualsEvaluatorParams"),
-        ],
-        Annotated[
-            JsonSimilarityEvaluatorParams,
-            Tag("JsonSimilarityEvaluatorParams"),
-        ],
-        Annotated[
-            UnknownEvaluatorParams,
-            Tag("UnknownEvaluatorParams"),
-        ],
-    ],
-    Field(discriminator=Discriminator(legacy_evaluator_discriminator)),
-]
 
 EvaluatorConfig = Annotated[
     Union[

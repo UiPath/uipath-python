@@ -10,12 +10,12 @@ from uipath._cli._evals._helpers import (  # type: ignore # Remove after gnarly 
     try_extract_file_and_class_name,
 )
 from uipath._cli._evals._models._evaluator import (
-    EqualsEvaluatorParams,
     EvaluatorConfig,
-    JsonSimilarityEvaluatorParams,
+    LegacyEqualsEvaluatorParams,
     LegacyEvaluator,
-    LLMEvaluatorParams,
-    TrajectoryEvaluatorParams,
+    LegacyJsonSimilarityEvaluatorParams,
+    LegacyLLMEvaluatorParams,
+    LegacyTrajectoryEvaluatorParams,
 )
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath._utils.constants import EVALS_FOLDER
@@ -401,15 +401,15 @@ class EvaluatorFactory:
         params: EvaluatorBaseParams = TypeAdapter(LegacyEvaluator).validate_python(data)
 
         match params:
-            case EqualsEvaluatorParams():
+            case LegacyEqualsEvaluatorParams():
                 return EvaluatorFactory._create_legacy_exact_match_evaluator(params)
-            case JsonSimilarityEvaluatorParams():
+            case LegacyJsonSimilarityEvaluatorParams():
                 return EvaluatorFactory._create_legacy_json_similarity_evaluator(params)
-            case LLMEvaluatorParams():
+            case LegacyLLMEvaluatorParams():
                 return EvaluatorFactory._create_legacy_llm_as_judge_evaluator(
                     params, agent_model
                 )
-            case TrajectoryEvaluatorParams():
+            case LegacyTrajectoryEvaluatorParams():
                 return EvaluatorFactory._create_legacy_trajectory_evaluator(
                     params, agent_model
                 )
@@ -418,21 +418,21 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_legacy_exact_match_evaluator(
-        params: EqualsEvaluatorParams,
+        params: LegacyEqualsEvaluatorParams,
     ) -> LegacyExactMatchEvaluator:
         """Create a deterministic evaluator."""
         return LegacyExactMatchEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_json_similarity_evaluator(
-        params: JsonSimilarityEvaluatorParams,
+        params: LegacyJsonSimilarityEvaluatorParams,
     ) -> LegacyJsonSimilarityEvaluator:
         """Create a deterministic evaluator."""
         return LegacyJsonSimilarityEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_llm_as_judge_evaluator(
-        params: LLMEvaluatorParams,
+        params: LegacyLLMEvaluatorParams,
         agent_model: str | None = None,
     ) -> LegacyBaseEvaluator[Any]:
         """Create an LLM-as-a-judge evaluator or context precision evaluator based on type."""
@@ -465,7 +465,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_legacy_trajectory_evaluator(
-        params: TrajectoryEvaluatorParams,
+        params: LegacyTrajectoryEvaluatorParams,
         agent_model: str | None = None,
     ) -> LegacyTrajectoryEvaluator:
         """Create a trajectory evaluator."""
