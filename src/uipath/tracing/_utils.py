@@ -249,9 +249,7 @@ class _SpanUtils:
         agent_version = attributes_dict.get("agentVersion")
         reference_id = attributes_dict.get("referenceId")
 
-        # Source: default is 4 (Robots) for coded agents.
-        # Low-code agents can override via `topLevelSource` attribute (e.g., topLevelSource=1).
-        # String `source` ("runtime", "playground") passes through in Attributes JSON.
+        # Source: default 4 (Robots), override via topLevelSource attribute
         top_level_source = attributes_dict.get("topLevelSource")
         source = top_level_source if isinstance(top_level_source, int) else None
 
