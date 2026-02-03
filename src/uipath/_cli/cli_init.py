@@ -293,7 +293,7 @@ def init(no_agents_md_override: bool) -> None:
 
                     if not entrypoints:
                         console.warning(
-                            'No function entrypoints found. Add them to `uipath.json` under "functions": {"my_function": "src/main.py:main"}'
+                            'No entrypoints found. Add them to `uipath.json` under "functions" or "agents": {"my_function": "src/main.py:main"}'
                         )
 
                     # Gather schemas from all discovered runtimes

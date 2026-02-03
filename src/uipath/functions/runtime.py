@@ -37,11 +37,25 @@ logger = logging.getLogger(__name__)
 class UiPathFunctionsRuntime:
     """Runtime wrapper for a single Python function with full script executor compatibility."""
 
-    def __init__(self, file_path: str, function_name: str, entrypoint_name: str):
-        """Initialize the function runtime."""
+    def __init__(
+        self,
+        file_path: str,
+        function_name: str,
+        entrypoint_name: str,
+        entrypoint_type: str = "function",
+    ):
+        """Initialize the function runtime.
+
+        Args:
+            file_path: Path to the Python file containing the function
+            function_name: Name of the function to execute
+            entrypoint_name: Name of the entrypoint
+            entrypoint_type: Type of entrypoint - 'function' or 'agent'
+        """
         self.file_path = Path(file_path)
         self.function_name = function_name
         self.entrypoint_name = entrypoint_name
+        self.entrypoint_type = entrypoint_type
         self._function: Callable[..., Any] | None = None
         self._module: ModuleType | None = None
 
@@ -180,10 +194,11 @@ class UiPathFunctionsRuntime:
         # Determine output schema
         raw_output_schema = get_type_schema(hints.get("return"))
         output_schema = transform_attachments(raw_output_schema)
+
         return UiPathRuntimeSchema(
             filePath=self.entrypoint_name,
             uniqueId=str(uuid.uuid4()),
-            type="agent",
+            type=self.entrypoint_type,
             input=input_schema,
             output=output_schema,
         )
