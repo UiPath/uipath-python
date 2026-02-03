@@ -1794,13 +1794,13 @@ class TestContextGroundingService:
             url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
             status_code=200,
             json={
-                "uri": f"{base_url}{org}{tenant}/storage/encrypted/result.csv",
+                "uri": f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/DownloadBlob",
                 "isEncrypted": True,
             },
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/storage/encrypted/result.csv",
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/DownloadBlob",
             status_code=200,
             content=b"encrypted,data\nval1,val2",
         )
@@ -1818,9 +1818,10 @@ class TestContextGroundingService:
         if sent_requests is None:
             raise Exception("No request was sent")
 
-        # Verify the download request includes Authorization header
+        # Verify the DownloadBlob endpoint was called with Authorization header
         download_request = sent_requests[2]
         assert download_request.method == "GET"
+        assert "/DownloadBlob" in str(download_request.url)
         assert "Authorization" in download_request.headers
         assert download_request.headers["Authorization"].startswith("Bearer ")
 
@@ -2019,13 +2020,13 @@ class TestContextGroundingService:
             url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
             status_code=200,
             json={
-                "uri": f"{base_url}{org}{tenant}/storage/encrypted/result.csv",
+                "uri": f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/DownloadBlob",
                 "isEncrypted": True,
             },
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/storage/encrypted/result.csv",
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/DownloadBlob",
             status_code=200,
             content=b"encrypted,data\nval1,val2",
         )
@@ -2043,8 +2044,9 @@ class TestContextGroundingService:
         if sent_requests is None:
             raise Exception("No request was sent")
 
-        # Verify the download request includes Authorization header
+        # Verify the DownloadBlob endpoint was called with Authorization header
         download_request = sent_requests[2]
         assert download_request.method == "GET"
+        assert "/DownloadBlob" in str(download_request.url)
         assert "Authorization" in download_request.headers
         assert download_request.headers["Authorization"].startswith("Bearer ")
