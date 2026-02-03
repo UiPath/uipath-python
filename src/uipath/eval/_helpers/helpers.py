@@ -10,6 +10,33 @@ import click
 from ..models import ErrorEvaluationResult, EvaluationResult
 
 
+def is_empty_value(value: Any) -> bool:
+    """Check if a value is empty or contains only empty values.
+
+    Handles multiple cases:
+    - None or empty string
+    - String with only whitespace
+    - Dict where all values are empty strings or whitespace
+    - Empty list or dict
+    """
+    if value is None:
+        return True
+
+    if isinstance(value, str):
+        return not value.strip()
+
+    if isinstance(value, dict):
+        if not value:  # Empty dict
+            return True
+        # Check if all values are empty strings
+        return all(isinstance(v, str) and not v.strip() for v in value.values())
+
+    if isinstance(value, list):
+        return len(value) == 0
+
+    return False
+
+
 def auto_discover_entrypoint() -> str:
     """Auto-discover entrypoint from config file.
 

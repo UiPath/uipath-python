@@ -1,5 +1,6 @@
 """LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
 
+import logging
 from typing import Any, Optional
 
 from pydantic import field_validator
@@ -9,13 +10,22 @@ from uipath.eval.models import NumericEvaluationResult
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ...platform.chat import UiPathLlmChatService
 from ...platform.chat.llm_gateway import RequiredToolChoice
-from ..models.models import AgentExecution, EvaluationResult, LLMResponse
+from .._helpers.helpers import is_empty_value
+from ..models.models import (
+    AgentExecution,
+    EvaluationResult,
+    LLMResponse,
+    UiPathEvaluationError,
+    UiPathEvaluationErrorCategory,
+)
 from .base_legacy_evaluator import (
     BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
     LegacyEvaluatorConfig,
 )
 from .legacy_llm_helpers import create_evaluation_tool, extract_tool_call_response
+
+logger = logging.getLogger(__name__)
 
 
 class LegacyLlmAsAJudgeEvaluatorConfig(LegacyEvaluatorConfig):
@@ -124,6 +134,19 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         self, expected_output: Any, actual_output: Any
     ) -> str:
         """Create the evaluation prompt for the LLM."""
+        # Validate that expected output is not empty
+        if is_empty_value(expected_output):
+            logger.error(
+                "❌ EMPTY_EXPECTED_OUTPUT: Expected output is empty or contains only empty values. "
+                f"Received: {repr(expected_output)}"
+            )
+            raise UiPathEvaluationError(
+                code="EMPTY_EXPECTED_OUTPUT",
+                title="Expected output cannot be empty",
+                detail="The evaluation criteria must contain a non-empty expected output.",
+                category=UiPathEvaluationErrorCategory.USER,
+            )
+
         formatted_prompt = self.prompt.replace(
             self.actual_output_placeholder,
             str(actual_output),
