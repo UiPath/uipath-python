@@ -127,6 +127,10 @@ class LlmOpsHttpExporter(SpanExporter):
         self.http_client = httpx.Client(**client_kwargs, headers=self.headers)
         self.trace_id = trace_id
 
+        # Track filtered root span IDs across export batches for reparenting
+        # Maps original parent ID -> new parent ID for reparenting
+        self._parent_id_mapping: dict[str, str] = {}
+
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         """Export spans to UiPath LLM Ops."""
         if len(spans) == 0:
@@ -145,6 +149,16 @@ class LlmOpsHttpExporter(SpanExporter):
             ).to_dict(serialize_attributes=False)
             for span in spans
         ]
+
+        # Filter out root span and reparent children if UIPATH_FILTER_PARENT_SPAN is set
+        filter_parent_span = os.environ.get("UIPATH_FILTER_PARENT_SPAN")
+        parent_span_id = os.environ.get("UIPATH_PARENT_SPAN_ID")
+        if filter_parent_span and parent_span_id:
+            span_list = self._filter_root_and_reparent(span_list, parent_span_id)
+
+        if len(span_list) == 0:
+            logger.debug("No spans to export after filtering")
+            return SpanExportResult.SUCCESS
 
         url = self._build_url(span_list)
 
@@ -365,6 +379,89 @@ class LlmOpsHttpExporter(SpanExporter):
         error = attributes.get("error") or attributes.get("exception.message")
         status = self._determine_status(error)
         span_data["Status"] = status
+
+    def _filter_root_and_reparent(
+        self, span_list: List[Dict[str, Any]], new_parent_id: str
+    ) -> List[Dict[str, Any]]:
+        """Filter out root spans and reparent their children to the new parent ID.
+
+        Maintains a persistent mapping of filtered span IDs to their replacement parent IDs
+        to handle cases where child spans arrive in later batches than their parents.
+
+        Args:
+            span_list: List of span dictionaries
+            new_parent_id: The new parent span ID for orphaned children
+
+        Returns:
+            Filtered list of spans with updated parent IDs
+        """
+        logger.info(
+            f"_filter_root_and_reparent called with {len(span_list)} spans, "
+            f"new_parent_id={new_parent_id}, "
+            f"existing mapping keys: {list(self._parent_id_mapping.keys())}"
+        )
+
+        # First pass: Find all root span IDs in this batch and build the mapping
+        for span in span_list:
+            attributes = span.get("Attributes", {})
+            is_root = isinstance(attributes, dict) and attributes.get("uipath.root_span")
+            logger.info(
+                f"Pass 1 - Checking span: Id={span.get('Id')}, Name={span.get('Name')}, "
+                f"ParentId={span.get('ParentId')}, is_root={is_root}, "
+                f"attributes type={type(attributes).__name__}"
+            )
+            if is_root:
+                self._parent_id_mapping[span["Id"]] = new_parent_id
+                logger.info(
+                    f"Added root span to mapping: {span['Id']} -> {new_parent_id}"
+                )
+
+        logger.info(f"After pass 1, mapping: {self._parent_id_mapping}")
+
+        # Build set of span IDs in this batch
+        batch_span_ids = {span["Id"] for span in span_list}
+
+        # Second pass: Filter out root spans and reparent children
+        filtered_spans = []
+        for span in span_list:
+            span_id = span["Id"]
+            parent_id = span.get("ParentId")
+
+            # Skip root spans (they are in the mapping)
+            if span_id in self._parent_id_mapping:
+                logger.info(f"Pass 2 - Filtering out root span: Id={span_id}, Name={span.get('Name')}")
+                continue
+
+            # Reparent spans whose parent was filtered (is in the mapping)
+            if parent_id and parent_id in self._parent_id_mapping:
+                old_parent = parent_id
+                span["ParentId"] = self._parent_id_mapping[parent_id]
+                logger.info(
+                    f"Pass 2 - Reparented span: Id={span_id}, Name={span.get('Name')}, "
+                    f"old ParentId={old_parent} -> new ParentId={span['ParentId']}"
+                )
+            # Reparent orphan spans whose parent is not in batch, not in mapping, and not the new_parent_id
+            elif parent_id and parent_id not in batch_span_ids and parent_id != new_parent_id:
+                old_parent = parent_id
+                span["ParentId"] = new_parent_id
+                # Add to mapping so future spans with same parent get reparented
+                self._parent_id_mapping[parent_id] = new_parent_id
+                logger.info(
+                    f"Pass 2 - Reparented orphan span: Id={span_id}, Name={span.get('Name')}, "
+                    f"old ParentId={old_parent} -> new ParentId={new_parent_id} (parent not in batch)"
+                )
+            else:
+                logger.info(
+                    f"Pass 2 - Keeping span unchanged: Id={span_id}, Name={span.get('Name')}, "
+                    f"ParentId={parent_id}, in_mapping={parent_id in self._parent_id_mapping if parent_id else 'N/A'}"
+                )
+
+            filtered_spans.append(span)
+
+        logger.info(
+            f"Filtering complete: {len(span_list)} -> {len(filtered_spans)} spans"
+        )
+        return filtered_spans
 
     def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
         """Construct the URL for the API request."""
