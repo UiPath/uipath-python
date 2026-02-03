@@ -87,12 +87,21 @@ class CreateDeepRag(BaseModel):
     """Model representing a Deep RAG task creation."""
 
     name: str
-    index_name: Annotated[str, Field(max_length=512)]
+    index_name: Annotated[str, Field(max_length=512)] | None = None
+    index_id: Annotated[str, Field(max_length=512)] | None = None
     prompt: Annotated[str, Field(max_length=250000)]
     glob_pattern: Annotated[str, Field(max_length=512, default="*")] = "**"
     citation_mode: CitationMode = CitationMode.SKIP
     index_folder_key: str | None = None
     index_folder_path: str | None = None
+    is_ephemeral_index: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_ephemeral_index_requires_index_id(self) -> "CreateDeepRag":
+        """Validate that if it is an ephemeral index that it is using index id."""
+        if self.is_ephemeral_index is True and self.index_id is None:
+            raise ValueError("Index id must be provided for an ephemeral index")
+        return self
 
 
 class WaitDeepRag(BaseModel):
@@ -120,7 +129,8 @@ class CreateBatchTransform(BaseModel):
     """Model representing a Batch Transform task creation."""
 
     name: str
-    index_name: str
+    index_name: str | None = None
+    index_id: Annotated[str, Field(max_length=512)] | None = None
     prompt: Annotated[str, Field(max_length=250000)]
     output_columns: list[BatchTransformOutputColumn]
     storage_bucket_folder_path_prefix: Annotated[str | None, Field(max_length=512)] = (
@@ -130,6 +140,14 @@ class CreateBatchTransform(BaseModel):
     destination_path: str
     index_folder_key: str | None = None
     index_folder_path: str | None = None
+    is_ephemeral_index: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_ephemeral_index_requires_index_id(self) -> "CreateBatchTransform":
+        """Validate that if it is an ephemeral index that it is using index id."""
+        if self.is_ephemeral_index is True and self.index_id is None:
+            raise ValueError("Index id must be provided for an ephemeral index")
+        return self
 
 
 class WaitBatchTransform(BaseModel):
