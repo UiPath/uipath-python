@@ -607,7 +607,6 @@ class StudioClient:
                 match binding_resource.resource:
                     case "index":
                         await try_add_system_index(binding_resource)
-                        break
                     # can be extended for other system resources
 
         return overwrites

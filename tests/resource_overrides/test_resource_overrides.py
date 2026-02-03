@@ -13,6 +13,7 @@ from pytest_httpx import HTTPXMock
 
 from uipath._cli import cli
 from uipath._utils._bindings import ResourceOverwriteParser
+from uipath.platform.common import UiPathConfig
 
 
 @pytest.fixture
@@ -403,6 +404,8 @@ class TestResourceOverrides:
         """Test that get_resource_overwrites resolves system index bindings without explicit overwrites."""
         from uipath._cli._utils._studio_project import StudioClient
         from uipath._utils._bindings import SystemResourceOverwrite
+
+        UiPathConfig.studio_solution_id = None
 
         with patch.dict(
             os.environ,
