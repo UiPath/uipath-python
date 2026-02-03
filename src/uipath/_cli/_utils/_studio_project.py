@@ -6,8 +6,9 @@ from pathlib import PurePath
 from typing import Any, Callable, List, Optional, Union
 
 import click
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
+from uipath._cli.models.runtime_schema import BindingResource, Bindings
 from uipath._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from uipath._utils.constants import (
     ENV_TENANT_ID,
@@ -550,6 +551,10 @@ class StudioClient:
         with open(UiPathConfig.bindings_file_path, "rb") as f:
             file_content = f.read()
 
+        bindings = TypeAdapter(Bindings).validate_python(
+            json.loads(file_content.decode("utf-8"))
+        )
+
         solution_id = await self._get_solution_id()
         tenant_id = os.getenv(ENV_TENANT_ID, None)
 
@@ -576,6 +581,34 @@ class StudioClient:
 
         for key, value in data.items():
             overwrites[key] = ResourceOverwriteParser.parse(key, value)
+
+        from functools import cache
+
+        @cache
+        def get_uipath():
+            from uipath.platform import UiPath
+
+            return UiPath()
+
+        async def try_add_system_index(binding_resource: BindingResource) -> None:
+            binding_resource_name = binding_resource.value["name"].default_value
+            if (
+                system_index
+                := await get_uipath().context_grounding._resolve_system_index_async(
+                    binding_resource_name
+                )
+            ):
+                binding_key = f"{binding_resource.resource}.{binding_resource_name}"
+                overwrites[binding_key] = system_index
+
+        # check any missing binding from overwrites list (and try to resolve it)
+        for binding_resource in bindings.resources:
+            if binding_resource.key not in overwrites:
+                match binding_resource.resource:
+                    case "index":
+                        await try_add_system_index(binding_resource)
+                        break
+                    # can be extended for other system resources
 
         return overwrites
 
