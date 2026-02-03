@@ -10,12 +10,12 @@ from uipath._cli._evals._helpers import (  # type: ignore # Remove after gnarly 
     try_extract_file_and_class_name,
 )
 from uipath._cli._evals._models._evaluator import (
-    EqualsEvaluatorParams,
     EvaluatorConfig,
-    JsonSimilarityEvaluatorParams,
+    LegacyEqualsEvaluatorParams,
     LegacyEvaluator,
-    LLMEvaluatorParams,
-    TrajectoryEvaluatorParams,
+    LegacyJsonSimilarityEvaluatorParams,
+    LegacyLLMEvaluatorParams,
+    LegacyTrajectoryEvaluatorParams,
 )
 from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath._utils.constants import EVALS_FOLDER
@@ -73,6 +73,20 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
 from uipath.eval.models import LegacyEvaluatorType
 
 logger = logging.getLogger(__name__)
+
+EVALUATOR_SCHEMA_TO_EVALUATOR_CLASS = {
+    ContainsEvaluatorConfig: ContainsEvaluator,
+    ExactMatchEvaluatorConfig: ExactMatchEvaluator,
+    JsonSimilarityEvaluatorConfig: JsonSimilarityEvaluator,
+    LLMJudgeOutputEvaluatorConfig: LLMJudgeOutputEvaluator,
+    LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig: LLMJudgeStrictJSONSimilarityOutputEvaluator,
+    LLMJudgeTrajectoryEvaluatorConfig: LLMJudgeTrajectoryEvaluator,
+    LLMJudgeTrajectorySimulationEvaluatorConfig: LLMJudgeTrajectorySimulationEvaluator,
+    ToolCallArgsEvaluatorConfig: ToolCallArgsEvaluator,
+    ToolCallCountEvaluatorConfig: ToolCallCountEvaluator,
+    ToolCallOrderEvaluatorConfig: ToolCallOrderEvaluator,
+    ToolCallOutputEvaluatorConfig: ToolCallOutputEvaluator,
+}
 
 
 class EvaluatorFactory:
@@ -137,50 +151,15 @@ class EvaluatorFactory:
                 data, file_path, class_name, evaluators_dir
             )
 
-        # use built-in evaluators
         config: BaseEvaluatorConfig[Any] = TypeAdapter(EvaluatorConfig).validate_python(
             data
         )
-        match config:
-            case ContainsEvaluatorConfig():
-                return EvaluatorFactory._create_contains_evaluator(data)
-            case ExactMatchEvaluatorConfig():
-                return EvaluatorFactory._create_exact_match_evaluator(data)
-            case JsonSimilarityEvaluatorConfig():
-                return EvaluatorFactory._create_json_similarity_evaluator(data)
-            case LLMJudgeOutputEvaluatorConfig():
-                return EvaluatorFactory._create_llm_judge_output_evaluator(data)
-            case LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig():
-                return EvaluatorFactory._create_llm_judge_strict_json_similarity_output_evaluator(
-                    data
-                )
-            case LLMJudgeTrajectoryEvaluatorConfig():
-                return EvaluatorFactory._create_trajectory_evaluator(data)
-            case ToolCallArgsEvaluatorConfig():
-                return EvaluatorFactory._create_tool_call_args_evaluator(data)
-            case ToolCallCountEvaluatorConfig():
-                return EvaluatorFactory._create_tool_call_count_evaluator(data)
-            case ToolCallOrderEvaluatorConfig():
-                return EvaluatorFactory._create_tool_call_order_evaluator(data)
-            case ToolCallOutputEvaluatorConfig():
-                return EvaluatorFactory._create_tool_call_output_evaluator(data)
-            case LLMJudgeTrajectorySimulationEvaluatorConfig():
-                return (
-                    EvaluatorFactory._create_llm_judge_simulation_trajectory_evaluator(
-                        data
-                    )
-                )
-            case _:
-                raise ValueError(f"Unknown evaluator configuration: {config}")
-
-    @staticmethod
-    def _create_contains_evaluator(data: dict[str, Any]) -> ContainsEvaluator:
-        evaluator_id = data.get("id")
-        if not evaluator_id or not isinstance(evaluator_id, str):
-            raise ValueError("Evaluator 'id' must be a non-empty string")
-        return TypeAdapter(ContainsEvaluator).validate_python(
+        evaluator_class = EVALUATOR_SCHEMA_TO_EVALUATOR_CLASS.get(type(config))
+        if not evaluator_class:
+            raise ValueError(f"Unknown evaluator configuration: {config}")
+        return TypeAdapter(evaluator_class).validate_python(
             {
-                "id": evaluator_id,
+                "id": data.get("id"),
                 "config": EvaluatorFactory._prepare_evaluator_config(data),
             }
         )
@@ -271,116 +250,6 @@ class EvaluatorFactory:
         )
 
     @staticmethod
-    def _create_exact_match_evaluator(
-        data: dict[str, Any],
-    ) -> ExactMatchEvaluator:
-        return TypeAdapter(ExactMatchEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_json_similarity_evaluator(
-        data: dict[str, Any],
-    ) -> JsonSimilarityEvaluator:
-        return TypeAdapter(JsonSimilarityEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_llm_judge_output_evaluator(
-        data: dict[str, Any],
-    ) -> LLMJudgeOutputEvaluator:
-        return TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_llm_judge_strict_json_similarity_output_evaluator(
-        data: dict[str, Any],
-    ) -> LLMJudgeStrictJSONSimilarityOutputEvaluator:
-        return TypeAdapter(LLMJudgeStrictJSONSimilarityOutputEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_trajectory_evaluator(
-        data: dict[str, Any],
-    ) -> LLMJudgeTrajectoryEvaluator:
-        return TypeAdapter(LLMJudgeTrajectoryEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_tool_call_args_evaluator(
-        data: dict[str, Any],
-    ) -> ToolCallArgsEvaluator:
-        return TypeAdapter(ToolCallArgsEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_tool_call_count_evaluator(
-        data: dict[str, Any],
-    ) -> ToolCallCountEvaluator:
-        return TypeAdapter(ToolCallCountEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_tool_call_order_evaluator(
-        data: dict[str, Any],
-    ) -> ToolCallOrderEvaluator:
-        return TypeAdapter(ToolCallOrderEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_tool_call_output_evaluator(
-        data: dict[str, Any],
-    ) -> ToolCallOutputEvaluator:
-        return TypeAdapter(ToolCallOutputEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
-    def _create_llm_judge_simulation_trajectory_evaluator(
-        data: dict[str, Any],
-    ) -> LLMJudgeTrajectorySimulationEvaluator:
-        return TypeAdapter(LLMJudgeTrajectorySimulationEvaluator).validate_python(
-            {
-                "id": data.get("id"),
-                "config": EvaluatorFactory._prepare_evaluator_config(data),
-            }
-        )
-
-    @staticmethod
     def _create_legacy_evaluator_internal(
         data: dict[str, Any],
         agent_model: str | None = None,
@@ -401,15 +270,15 @@ class EvaluatorFactory:
         params: EvaluatorBaseParams = TypeAdapter(LegacyEvaluator).validate_python(data)
 
         match params:
-            case EqualsEvaluatorParams():
+            case LegacyEqualsEvaluatorParams():
                 return EvaluatorFactory._create_legacy_exact_match_evaluator(params)
-            case JsonSimilarityEvaluatorParams():
+            case LegacyJsonSimilarityEvaluatorParams():
                 return EvaluatorFactory._create_legacy_json_similarity_evaluator(params)
-            case LLMEvaluatorParams():
+            case LegacyLLMEvaluatorParams():
                 return EvaluatorFactory._create_legacy_llm_as_judge_evaluator(
                     params, agent_model
                 )
-            case TrajectoryEvaluatorParams():
+            case LegacyTrajectoryEvaluatorParams():
                 return EvaluatorFactory._create_legacy_trajectory_evaluator(
                     params, agent_model
                 )
@@ -418,21 +287,21 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_legacy_exact_match_evaluator(
-        params: EqualsEvaluatorParams,
+        params: LegacyEqualsEvaluatorParams,
     ) -> LegacyExactMatchEvaluator:
         """Create a deterministic evaluator."""
         return LegacyExactMatchEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_json_similarity_evaluator(
-        params: JsonSimilarityEvaluatorParams,
+        params: LegacyJsonSimilarityEvaluatorParams,
     ) -> LegacyJsonSimilarityEvaluator:
         """Create a deterministic evaluator."""
         return LegacyJsonSimilarityEvaluator(**params.model_dump(), config={})
 
     @staticmethod
     def _create_legacy_llm_as_judge_evaluator(
-        params: LLMEvaluatorParams,
+        params: LegacyLLMEvaluatorParams,
         agent_model: str | None = None,
     ) -> LegacyBaseEvaluator[Any]:
         """Create an LLM-as-a-judge evaluator or context precision evaluator based on type."""
@@ -465,7 +334,7 @@ class EvaluatorFactory:
 
     @staticmethod
     def _create_legacy_trajectory_evaluator(
-        params: TrajectoryEvaluatorParams,
+        params: LegacyTrajectoryEvaluatorParams,
         agent_model: str | None = None,
     ) -> LegacyTrajectoryEvaluator:
         """Create a trajectory evaluator."""

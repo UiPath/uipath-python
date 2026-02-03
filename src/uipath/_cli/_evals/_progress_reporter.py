@@ -16,7 +16,6 @@ from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
     EvaluationStatus,
 )
-from uipath._cli._evals._models._evaluator import Evaluator
 from uipath._cli._evals._models._sw_reporting import (
     StudioWebAgentSnapshot,
     StudioWebProgressItem,
@@ -453,7 +452,7 @@ class StudioWebProgressReporter:
     async def update_eval_run(
         self,
         sw_progress_item: StudioWebProgressItem,
-        evaluators: dict[str, Evaluator],
+        evaluators: dict[str, BaseEvaluator[Any, Any, Any]],
         is_coded: bool = False,
         spans: list[Any] | None = None,
     ):

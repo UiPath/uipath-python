@@ -5,6 +5,7 @@ from typing import Any
 import click
 from pydantic import ValidationError
 
+from uipath._cli._evals._evaluator_factory import EvaluatorFactory
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
     EvaluationSet,
@@ -13,6 +14,7 @@ from uipath._cli._evals._models._evaluation_set import (
 )
 from uipath._cli._evals.mocks.types import InputMockingStrategy, LLMMockingStrategy
 from uipath._cli._utils._console import ConsoleLogger
+from uipath.eval.evaluators import BaseEvaluator
 
 console = ConsoleLogger()
 
@@ -175,3 +177,61 @@ class EvalHelpers:
         if eval_ids:
             eval_set.extract_selected_evals(eval_ids)
         return eval_set, resolved_path
+
+    @staticmethod
+    async def load_evaluators(
+        eval_set_path: str,
+        evaluation_set: EvaluationSet,
+        agent_model: str | None = None,
+    ) -> list[BaseEvaluator[Any, Any, Any]]:
+        """Load evaluators referenced by the evaluation set."""
+        evaluators = []
+        if evaluation_set is None:
+            raise ValueError("eval_set cannot be None")
+        evaluators_dir = Path(eval_set_path).parent.parent / "evaluators"
+
+        # If evaluatorConfigs is specified, use that (new field with weights)
+        # Otherwise, fall back to evaluatorRefs (old field without weights)
+        if (
+            hasattr(evaluation_set, "evaluator_configs")
+            and evaluation_set.evaluator_configs
+        ):
+            # Use new evaluatorConfigs field - supports weights
+            evaluator_ref_ids = {ref.ref for ref in evaluation_set.evaluator_configs}
+        else:
+            # Fall back to old evaluatorRefs field - plain strings
+            evaluator_ref_ids = set(evaluation_set.evaluator_refs)
+
+        found_evaluator_ids = set()
+
+        for file in evaluators_dir.glob("*.json"):
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"Invalid JSON in evaluator file '{file}': {str(e)}. "
+                    f"Please check the file for syntax errors."
+                ) from e
+
+            try:
+                evaluator_id = data.get("id")
+                if evaluator_id in evaluator_ref_ids:
+                    evaluator = EvaluatorFactory.create_evaluator(
+                        data, evaluators_dir, agent_model=agent_model
+                    )
+                    evaluators.append(evaluator)
+                    found_evaluator_ids.add(evaluator_id)
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to create evaluator from file '{file}': {str(e)}. "
+                    f"Please verify the evaluator configuration."
+                ) from e
+
+        missing_evaluators = evaluator_ref_ids - found_evaluator_ids
+        if missing_evaluators:
+            raise ValueError(
+                f"Could not find the following evaluators: {missing_evaluators}"
+            )
+
+        return evaluators

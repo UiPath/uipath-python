@@ -1,5 +1,6 @@
 """Unit tests for eval resume flow to ensure UiPathExecuteOptions is passed correctly."""
 
+import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -14,6 +15,7 @@ from uipath.runtime import (
 )
 
 from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath._cli._utils._eval_set import EvalHelpers
 from uipath._events._event_bus import EventBus
 
 # ============================================================================
@@ -27,25 +29,42 @@ from uipath._events._event_bus import EventBus
 
 @pytest.mark.asyncio
 async def test_execute_runtime_method_passes_options_with_resume_false():
-    """Direct test of execute_runtime method to verify UiPathExecuteOptions(resume=False) is passed."""
+    """Test that execute_runtime respects resume=False setting."""
     # Arrange
     from uipath._cli._evals._models._evaluation_set import EvaluationItem
 
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
-    context = UiPathEvalContext()
-    context.eval_set = str(
-        Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-    )
-    context.resume = False  # Test resume=False
 
-    # Create a mock runtime that will be wrapped
+    # Load evaluation set
+    eval_set_path = str(Path(__file__).parent / "evals" / "eval-sets" / "default.json")
+    evaluation_set, _ = EvalHelpers.load_eval_set(eval_set_path)
+
+    # Create a mock runtime to get schema
     mock_runtime = AsyncMock(spec=UiPathRuntimeProtocol)
     mock_runtime.execute = AsyncMock(
         return_value=UiPathRuntimeResult(
             output={"result": "success"}, status=UiPathRuntimeStatus.SUCCESSFUL
         )
     )
+    mock_runtime.get_schema = AsyncMock()
+
+    runtime_schema = await mock_runtime.get_schema()
+    runtime_schema.input = {"type": "object", "properties": {}}
+    runtime_schema.output = {"type": "object", "properties": {}}
+
+    # Load evaluators
+    evaluators = await EvalHelpers.load_evaluators(
+        eval_set_path, evaluation_set, agent_model=None
+    )
+
+    # Set up context
+    context = UiPathEvalContext()
+    context.execution_id = str(uuid.uuid4())
+    context.evaluation_set = evaluation_set
+    context.runtime_schema = runtime_schema
+    context.evaluators = evaluators
+    context.resume = False  # Test resume=False
 
     # Create a mock factory
     mock_factory = AsyncMock(spec=UiPathRuntimeFactoryProtocol)
@@ -74,7 +93,7 @@ async def test_execute_runtime_method_passes_options_with_resume_false():
         mock_execution_runtime_class.return_value = mock_execution_runtime_instance
 
         await eval_runtime.execute_runtime(
-            eval_item=eval_item, execution_id="test-exec-id", runtime=mock_runtime
+            eval_item=eval_item, execution_id="test-exec-id"
         )
 
         # Assert - Verify that execute was called with UiPathExecuteOptions(resume=False)
@@ -96,17 +115,16 @@ async def test_execute_runtime_method_passes_options_with_resume_false():
 
 @pytest.mark.asyncio
 async def test_execute_runtime_method_passes_options_with_resume_true():
-    """Direct test of execute_runtime method to verify UiPathExecuteOptions(resume=True) is passed."""
+    """Test that execute_runtime respects resume=True setting."""
     # Arrange
     from uipath._cli._evals._models._evaluation_set import EvaluationItem
 
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
-    context = UiPathEvalContext()
-    context.eval_set = str(
-        Path(__file__).parent / "evals" / "eval-sets" / "default.json"
-    )
-    context.resume = True  # Test resume=True
+
+    # Load evaluation set
+    eval_set_path = str(Path(__file__).parent / "evals" / "eval-sets" / "default.json")
+    evaluation_set, _ = EvalHelpers.load_eval_set(eval_set_path)
 
     # Create a mock runtime
     mock_runtime = AsyncMock(spec=UiPathRuntimeProtocol)
@@ -115,6 +133,24 @@ async def test_execute_runtime_method_passes_options_with_resume_true():
             output={"result": "success"}, status=UiPathRuntimeStatus.SUCCESSFUL
         )
     )
+    mock_runtime.get_schema = AsyncMock()
+
+    runtime_schema = await mock_runtime.get_schema()
+    runtime_schema.input = {"type": "object", "properties": {}}
+    runtime_schema.output = {"type": "object", "properties": {}}
+
+    # Load evaluators
+    evaluators = await EvalHelpers.load_evaluators(
+        eval_set_path, evaluation_set, agent_model=None
+    )
+
+    # Set up context
+    context = UiPathEvalContext()
+    context.execution_id = str(uuid.uuid4())
+    context.evaluation_set = evaluation_set
+    context.runtime_schema = runtime_schema
+    context.evaluators = evaluators
+    context.resume = True  # Test resume=True
 
     # Create a mock factory
     mock_factory = AsyncMock(spec=UiPathRuntimeFactoryProtocol)
@@ -143,7 +179,7 @@ async def test_execute_runtime_method_passes_options_with_resume_true():
         mock_execution_runtime_class.return_value = mock_execution_runtime_instance
 
         await eval_runtime.execute_runtime(
-            eval_item=eval_item, execution_id="test-exec-id", runtime=mock_runtime
+            eval_item=eval_item, execution_id="test-exec-id"
         )
 
         # Assert - Verify that execute was called with UiPathExecuteOptions(resume=True)
@@ -167,15 +203,35 @@ async def test_resume_with_multiple_evaluations_raises_error():
     # Arrange
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
-    context = UiPathEvalContext()
-    context.eval_set = str(
+
+    # Load evaluation set with multiple evals
+    eval_set_path = str(
         Path(__file__).parent / "evals" / "eval-sets" / "multiple-evals.json"
     )
+    evaluation_set, _ = EvalHelpers.load_eval_set(eval_set_path)
+
+    # Create a mock runtime
+    mock_runtime = AsyncMock(spec=UiPathRuntimeProtocol)
+    mock_runtime.get_schema = AsyncMock()
+    runtime_schema = await mock_runtime.get_schema()
+    runtime_schema.input = {"type": "object", "properties": {}}
+    runtime_schema.output = {"type": "object", "properties": {}}
+
+    # Load evaluators
+    evaluators = await EvalHelpers.load_evaluators(
+        eval_set_path, evaluation_set, agent_model=None
+    )
+
+    # Set up context
+    context = UiPathEvalContext()
+    context.execution_id = str(uuid.uuid4())
+    context.evaluation_set = evaluation_set
+    context.runtime_schema = runtime_schema
+    context.evaluators = evaluators
     context.resume = True  # Enable resume mode
 
     # Create a mock factory
     mock_factory = AsyncMock(spec=UiPathRuntimeFactoryProtocol)
-    mock_runtime = AsyncMock(spec=UiPathRuntimeProtocol)
     mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)
 
     eval_runtime = UiPathEvalRuntime(
@@ -190,4 +246,4 @@ async def test_resume_with_multiple_evaluations_raises_error():
         ValueError,
         match=r"Resume mode is not supported with multiple evaluations.*Found 2 evaluations",
     ):
-        await eval_runtime.initiate_evaluation(mock_runtime)
+        await eval_runtime.initiate_evaluation()
