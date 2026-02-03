@@ -592,14 +592,19 @@ class ContextGroundingService(FolderContext, BaseService):
         """Starts a Batch Transform, task on the targeted index.
 
         Batch Transform tasks are processing and transforming csv files from the index.
+        Only one file can be processed per batch transform job.
 
         Args:
             name (str): The name of the Deep RAG task.
             index_name (str): The name of the context index to search in.
             prompt (str): Describe the task: what to research, what to synthesize.
             output_columns (list[BatchTransformOutputColumn]):  The output columns to add into the csv.
-            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket. Use "*" to include all files. Defaults to "*".
-            target_file_name (str, optional): Specific file name to target. If provided, overrides storage_bucket_folder_path_prefix. Only one file can be processed per batch transform job.
+            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket.
+                Can be combined with target_file_name. Defaults to None.
+            target_file_name (str, optional): Specific file name to target.
+                If both target_file_name and storage_bucket_folder_path_prefix are provided, they will be combined (e.g., "data/file.csv").
+                If only target_file_name is provided, it will be used directly.
+                Only one file can be processed per batch transform job.
             enable_web_search_grounding (Optional[bool]): Whether to enable web search. Defaults to False.
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
@@ -653,14 +658,19 @@ class ContextGroundingService(FolderContext, BaseService):
         """Asynchronously starts a Batch Transform, task on the targeted index.
 
         Batch Transform tasks are processing and transforming csv files from the index.
+        Only one file can be processed per batch transform job.
 
         Args:
             name (str): The name of the Deep RAG task.
             index_name (str): The name of the context index to search in.
             prompt (str): Describe the task: what to research, what to synthesize.
             output_columns (list[BatchTransformOutputColumn]):  The output columns to add into the csv.
-            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket. Use "*" to include all files. Defaults to "*".
-            target_file_name (str, optional): Specific file name to target. If provided, overrides storage_bucket_folder_path_prefix. Only one file can be processed per batch transform job.
+            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket.
+                Can be combined with target_file_name. Defaults to None.
+            target_file_name (str, optional): Specific file name to target.
+                If both target_file_name and storage_bucket_folder_path_prefix are provided, they will be combined (e.g., "data/file.csv").
+                If only target_file_name is provided, it will be used directly.
+                Only one file can be processed per batch transform job.
             enable_web_search_grounding (Optional[bool]): Whether to enable web search. Defaults to False.
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
@@ -1494,8 +1504,16 @@ class ContextGroundingService(FolderContext, BaseService):
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
 
-        # determine targetFileGlobPattern
-        if target_file_name:
+        # determine targetFileGlobPattern based on the provided parameters:
+        # 1. if both target_file_name and storage_bucket_folder_path_prefix are provided, combine them
+        # 2. if only target_file_name is provided, use it directly
+        # 3. if only storage_bucket_folder_path_prefix is provided, use it with wildcard
+        # 4. default to "**" if neither is provided
+        if target_file_name and storage_bucket_folder_path_prefix:
+            target_file_glob_pattern = (
+                f"{storage_bucket_folder_path_prefix}/{target_file_name}"
+            )
+        elif target_file_name:
             target_file_glob_pattern = target_file_name
         elif storage_bucket_folder_path_prefix:
             target_file_glob_pattern = f"{storage_bucket_folder_path_prefix}/*"
