@@ -44,22 +44,18 @@ class UiPathFunctionsRuntimeFactory:
         return self._config
 
     def discover_entrypoints(self) -> list[str]:
-        """Discover all function entrypoints from uipath.json."""
+        """Discover all entrypoints (functions and agents) from uipath.json."""
         config = self._load_config()
-        return list(config.get("functions", {}).keys())
+        functions = list(config.get("functions", {}).keys())
+        agents = list(config.get("agents", {}).keys())
+        return functions + agents
 
     async def get_storage(self) -> UiPathRuntimeStorageProtocol | None:
         """Get storage protocol if any (placeholder for protocol compliance)."""
         return None
 
     async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
-        """Get factory settings for coded functions.
-
-        Coded functions don't need span filtering - all spans are relevant
-        since developers have full control over instrumentation.
-
-        Low-code agents (LangGraph) need filtering due to framework overhead.
-        """
+        """Get factory settings for coded functions."""
         return None
 
     async def new_runtime(
@@ -76,14 +72,21 @@ class UiPathFunctionsRuntimeFactory:
         """Create runtime instance from entrypoint specification."""
         config = self._load_config()
         functions = config.get("functions", {})
+        agents = config.get("agents", {})
 
-        if entrypoint not in functions:
+        # Check both functions and agents
+        if entrypoint in functions:
+            func_spec = functions[entrypoint]
+            entrypoint_type = "function"
+        elif entrypoint in agents:
+            func_spec = agents[entrypoint]
+            entrypoint_type = "agent"
+        else:
+            available = list(functions.keys()) + list(agents.keys())
             raise ValueError(
                 f"Entrypoint '{entrypoint}' not found in uipath.json. "
-                f"Available: {', '.join(functions.keys())}"
+                f"Available: {', '.join(available)}"
             )
-
-        func_spec = functions[entrypoint]
 
         if ":" not in func_spec:
             raise ValueError(
@@ -97,4 +100,6 @@ class UiPathFunctionsRuntimeFactory:
         if not full_path.exists():
             raise ValueError(f"File not found: {full_path}")
 
-        return UiPathFunctionsRuntime(str(full_path), function_name, entrypoint)
+        return UiPathFunctionsRuntime(
+            str(full_path), function_name, entrypoint, entrypoint_type
+        )

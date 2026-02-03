@@ -89,6 +89,12 @@ class UiPathJsonConfig(BaseModelWithDefaultConfig):
         "Each key is an entrypoint name, and each value is a path in format 'file_path:function_name'",
     )
 
+    agents: dict[str, str] = Field(
+        default_factory=dict,
+        description="Entrypoint definitions for agent scripts. "
+        "Each key is an entrypoint name, and each value is a path in format 'file_path:agent_name'",
+    )
+
     def to_json_string(self, indent: int = 2) -> str:
         """Export to JSON string with proper formatting."""
         return self.model_dump_json(
@@ -110,6 +116,7 @@ class UiPathJsonConfig(BaseModelWithDefaultConfig):
                 include_uv_lock=True,
             ),
             functions={},
+            agents={},
         )
 
     @classmethod
