@@ -67,6 +67,9 @@ jobs:
         TELEMETRY_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         APP_INSIGHTS_APP_ID: ${{ secrets.APP_INSIGHTS_APP_ID }}
         APP_INSIGHTS_API_KEY: ${{ secrets.APP_INSIGHTS_API_KEY }}
+
+        # Azure Blob Storage for performance metrics
+        AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
       working-directory: testcases/${{ matrix.testcase }}
       run: |
         # If any errors occur execution will stop with exit code
@@ -79,6 +82,14 @@ jobs:
         # Execute the testcase run script directly
         bash run.sh
         bash ../common/validate_output.sh
+
+    - name: Upload testcase artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: artifacts-${{ matrix.testcase }}-${{ matrix.environment }}
+        path: testcases/${{ matrix.testcase }}/artifacts/
+        if-no-files-found: ignore
 
   summarize-results:
     needs: [integration-tests]
