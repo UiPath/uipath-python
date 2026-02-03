@@ -8,7 +8,7 @@ from uipath._utils._bindings import (
     GenericResourceOverwrite,
     ResourceOverwriteParser,
     ResourceOverwritesContext,
-    _resource_overwrites,
+    _binding_overwrites,
 )
 
 
@@ -26,12 +26,12 @@ class TestBindingsInference:
             return name, folder_path
 
         # Set the context variable
-        token = _resource_overwrites.set(overwrites)
+        token = _binding_overwrites.set(overwrites)
         try:
             result = dummy_func("old_name", "old_folder")
             assert result == ("new_name", "new_folder")
         finally:
-            _resource_overwrites.reset(token)
+            _binding_overwrites.reset(token)
 
     def test_infer_bindings_overwrites_without_folder_path(self):
         """Test that infer_bindings overwrites when key doesn't include folder_path."""
@@ -46,12 +46,12 @@ class TestBindingsInference:
             return name, folder_path
 
         # Set the context variable
-        token = _resource_overwrites.set(overwrites)
+        token = _binding_overwrites.set(overwrites)
         try:
             result = dummy_func("old_name", "old_folder")
             assert result == ("new_name", "new_folder")
         finally:
-            _resource_overwrites.reset(token)
+            _binding_overwrites.reset(token)
 
     def test_infer_bindings_skips_when_no_context(self):
         """Test that infer_bindings doesn't overwrite when context variable is not set."""
@@ -76,12 +76,12 @@ class TestBindingsInference:
             return name, folder_path
 
         # Set the context variable
-        token = _resource_overwrites.set(overwrites)
+        token = _binding_overwrites.set(overwrites)
         try:
             result = dummy_func("old_name", "old_folder")
             assert result == ("old_name", "old_folder")
         finally:
-            _resource_overwrites.reset(token)
+            _binding_overwrites.reset(token)
 
     def test_infer_bindings_only_name_present(self):
         """Test that infer_bindings works when only name parameter is present."""
@@ -96,12 +96,12 @@ class TestBindingsInference:
             return name, folder_path
 
         # Set the context variable
-        token = _resource_overwrites.set(overwrites)
+        token = _binding_overwrites.set(overwrites)
         try:
             result = dummy_func("old_name")
             assert result == ("new_name", "new_folder")
         finally:
-            _resource_overwrites.reset(token)
+            _binding_overwrites.reset(token)
 
     def test_infer_bindings_prefers_specific_folder_path_key(self):
         """Test that infer_bindings prefers the more specific key with folder_path."""
@@ -123,12 +123,12 @@ class TestBindingsInference:
             return name, folder_path
 
         # Set the context variable
-        token = _resource_overwrites.set(overwrites)
+        token = _binding_overwrites.set(overwrites)
         try:
             result = dummy_func("my_bucket", "specific_folder")
             assert result == ("specific_name", "specific_folder")
         finally:
-            _resource_overwrites.reset(token)
+            _binding_overwrites.reset(token)
 
 
 class TestResourceOverwritesContext:

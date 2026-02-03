@@ -5,11 +5,13 @@ from typing import Literal
 from urllib.parse import urlparse
 
 import click
+from pydantic import TypeAdapter
 
 from uipath.platform.common import UiPathConfig
 
 from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
+from ..models.runtime_schema import Bindings
 from ..spinner import Spinner
 from ._console import ConsoleLogger
 from ._studio_project import (
@@ -180,19 +182,41 @@ async def may_override_files(
     )
 
 
+def extract_binding_keys(bindings_file_content: str) -> list[str]:
+    bindings_list: list[str] = []
+    bindings = TypeAdapter(Bindings).validate_python(json.loads(bindings_file_content))
+    for resource in bindings.resources:
+        bindings_list.append(f"{resource.resource}.{resource.key}")
+    return bindings_list
+
+
+def fill_missing_binding_keys(
+    overwrites: dict[str, ResourceOverwrite | None], binding_keys: list[str]
+):
+    """Ensure all binding keys exist in the overwrites dict, defaulting to None."""
+    for binding_key in binding_keys:
+        if binding_key not in overwrites:
+            overwrites[binding_key] = None
+
+
 async def read_resource_overwrites_from_file(
     directory_path: str | None = None,
-) -> dict[str, ResourceOverwrite]:
+) -> dict[str, ResourceOverwrite | None]:
     """Read resource overwrites from a JSON file."""
     config_file_name = UiPathConfig.config_file_name
     if directory_path is not None:
-        file_path = Path(f"{directory_path}/{config_file_name}")
+        file_path = Path(directory_path) / config_file_name
     else:
-        file_path = Path(f"{config_file_name}")
+        file_path = Path(config_file_name)
 
-    overwrites_dict = {}
+    overwrites_dict: dict[str, ResourceOverwrite | None] = {}
 
     try:
+        # read configured bindings
+        with open(UiPathConfig.bindings_file_path, "r") as f:
+            bindings_list = extract_binding_keys(f.read())
+
+        # read overwrites
         with open(file_path, "r") as f:
             data = json.load(f)
             resource_overwrites = (
@@ -200,8 +224,11 @@ async def read_resource_overwrites_from_file(
                 .get("internalArguments", {})
                 .get("resourceOverwrites", {})
             )
-            for key, value in resource_overwrites.items():
-                overwrites_dict[key] = ResourceOverwriteParser.parse(key, value)
+        for key, value in resource_overwrites.items():
+            overwrites_dict[key] = ResourceOverwriteParser.parse(key, value)
+
+        fill_missing_binding_keys(overwrites_dict, bindings_list)
+        return overwrites_dict
 
     # Return empty dict if file doesn't exist or invalid json
     except FileNotFoundError:
