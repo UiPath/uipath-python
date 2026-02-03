@@ -40,6 +40,20 @@ class ResourceOverwrite(BaseModel, ABC):
         pass
 
 
+class SystemResourceOverwrite(ResourceOverwrite):
+    resource_type: Literal["index"]
+    name: str = Field(alias="name")
+    folder_key: str = Field(alias="folderKey")
+
+    @property
+    def resource_identifier(self) -> str:
+        return self.name
+
+    @property
+    def folder_identifier(self) -> str:
+        return self.folder_key
+
+
 class GenericResourceOverwrite(ResourceOverwrite):
     resource_type: Literal["process", "index", "app", "asset", "bucket", "mcpServer"]
     name: str = Field(alias="name")
@@ -142,6 +156,8 @@ def resource_override(
     resource_type: str,
     resource_identifier: str = "name",
     folder_identifier: str = "folder_path",
+    identifiers_resolver_callable: Callable[[ResourceOverwrite], tuple[str, str]]
+    | None = None,
 ) -> Callable[..., Any]:
     """Decorator for applying resource overrides for an overridable resource.
 
@@ -152,6 +168,8 @@ def resource_override(
         resource_type: Type of resource to check for overrides (e.g., "asset", "bucket")
         resource_identifier: Key name for the resource ID in override data (default: "name")
         folder_identifier: Key name for the folder path in override data (default: "folder_path")
+        identifiers_resolver_callable: Resolver func for identifier names, used for more complex logic if needed.
+                              Should return a tuple[str, str] containing (resource_identifier, folder_identifier)
 
     Returns:
         Decorated function that receives overridden resource identifiers when applicable
@@ -180,6 +198,8 @@ def resource_override(
             context_overwrites = _resource_overwrites.get()
 
             if context_overwrites is not None:
+                resource_identifier_key = resource_identifier
+                folder_identifier_key = folder_identifier
                 resource_identifier_value = all_args.get(resource_identifier)
                 folder_identifier_value = all_args.get(folder_identifier)
 
@@ -196,12 +216,18 @@ def resource_override(
 
                 # Apply the matched overwrite
                 if matched_overwrite is not None:
-                    if resource_identifier in sig.parameters:
-                        all_args[resource_identifier] = (
+                    if identifiers_resolver_callable:
+                        # if identifiers resolver is provided, use it to extract the argument names to be replaced when calling the func
+                        resource_identifier_key, folder_identifier_key = (
+                            identifiers_resolver_callable(matched_overwrite)
+                        )
+
+                    if resource_identifier_key in sig.parameters:
+                        all_args[resource_identifier_key] = (
                             matched_overwrite.resource_identifier
                         )
-                    if folder_identifier in sig.parameters:
-                        all_args[folder_identifier] = (
+                    if folder_identifier_key in sig.parameters:
+                        all_args[folder_identifier_key] = (
                             matched_overwrite.folder_identifier
                         )
 

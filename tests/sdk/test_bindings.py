@@ -6,8 +6,10 @@ from uipath._utils import resource_override
 from uipath._utils._bindings import (
     ConnectionResourceOverwrite,
     GenericResourceOverwrite,
+    ResourceOverwrite,
     ResourceOverwriteParser,
     ResourceOverwritesContext,
+    SystemResourceOverwrite,
     _resource_overwrites,
 )
 
@@ -127,6 +129,70 @@ class TestBindingsInference:
         try:
             result = dummy_func("my_bucket", "specific_folder")
             assert result == ("specific_name", "specific_folder")
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_identifiers_resolver_callable_with_generic_resource(self):
+        """Test that identifiers_resolver_callable works correctly with GenericResourceOverwrite."""
+        from typing import cast
+
+        overwrites = {
+            "index.my_index": GenericResourceOverwrite(
+                resource_type="index", name="new_index", folder_path="new_folder"
+            )
+        }
+
+        @resource_override(
+            resource_type="index",
+            identifiers_resolver_callable=lambda overwrite: cast(
+                dict[type[ResourceOverwrite], tuple[str, str]],
+                {
+                    GenericResourceOverwrite: ("name", "folder_path"),
+                    SystemResourceOverwrite: ("name", "folder_key"),
+                },
+            ).get(type(overwrite), ("name", "folder_path")),
+        )
+        def search_index(name, folder_path=None, folder_key=None):
+            return name, folder_path, folder_key
+
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = search_index("my_index", folder_path="old_folder")
+            # Should use folder_path for GenericResourceOverwrite
+            assert result == ("new_index", "new_folder", None)
+        finally:
+            _resource_overwrites.reset(token)
+
+    def test_identifiers_resolver_callable_with_system_resource(self):
+        """Test that identifiers_resolver_callable works correctly with SystemResourceOverwrite."""
+        from typing import cast
+
+        overwrites = {
+            "index.system_index": SystemResourceOverwrite(
+                resource_type="index",
+                name="new_system_index",
+                folder_key="new_folder_key",
+            )
+        }
+
+        @resource_override(
+            resource_type="index",
+            identifiers_resolver_callable=lambda overwrite: cast(
+                dict[type[ResourceOverwrite], tuple[str, str]],
+                {
+                    GenericResourceOverwrite: ("name", "folder_path"),
+                    SystemResourceOverwrite: ("name", "folder_key"),
+                },
+            ).get(type(overwrite), ("name", "folder_path")),
+        )
+        def search_index(name, folder_path=None, folder_key=None):
+            return name, folder_path, folder_key
+
+        token = _resource_overwrites.set(overwrites)
+        try:
+            result = search_index("system_index", folder_key="old_key")
+            # Should use folder_key for SystemResourceOverwrite
+            assert result == ("new_system_index", None, "new_folder_key")
         finally:
             _resource_overwrites.reset(token)
 

@@ -60,19 +60,6 @@ class TestContextGroundingService:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
-            status_code=200,
-            json={
-                "PageItems": [
-                    {
-                        "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
-                    }
-                ]
-            },
-        )
-
-        httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/ecs_/v1/search",
             status_code=200,
             json=[
@@ -97,20 +84,6 @@ class TestContextGroundingService:
                     {
                         "Key": "test-folder-key",
                         "FullyQualifiedName": "test-folder-path",
-                    }
-                ]
-            },
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
-            status_code=200,
-            json={
-                "value": [
-                    {
-                        "id": "test-index-id",
-                        "name": "test-index",
-                        "lastIngestionStatus": "Completed",
                     }
                 ]
             },
@@ -134,12 +107,12 @@ class TestContextGroundingService:
         if sent_requests is None:
             raise Exception("No request was sent")
 
-        assert sent_requests[3].method == "POST"
-        assert sent_requests[3].url == f"{base_url}{org}{tenant}/ecs_/v1/search"
+        assert sent_requests[1].method == "POST"
+        assert sent_requests[1].url == f"{base_url}{org}{tenant}/ecs_/v1/search"
 
-        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert HEADER_USER_AGENT in sent_requests[1].headers
         assert (
-            sent_requests[3].headers[HEADER_USER_AGENT]
+            sent_requests[1].headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.search/{version}"
         )
 
@@ -153,19 +126,6 @@ class TestContextGroundingService:
         tenant: str,
         version: str,
     ) -> None:
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
-            status_code=200,
-            json={
-                "PageItems": [
-                    {
-                        "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
-                    }
-                ]
-            },
-        )
-
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/ecs_/v1/search",
             status_code=200,
@@ -196,20 +156,6 @@ class TestContextGroundingService:
             },
         )
 
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
-            status_code=200,
-            json={
-                "value": [
-                    {
-                        "id": "test-index-id",
-                        "name": "test-index",
-                        "lastIngestionStatus": "Completed",
-                    }
-                ]
-            },
-        )
-
         response = await service.search_async(
             name="test-index", query="test query", number_of_results=1
         )
@@ -228,12 +174,12 @@ class TestContextGroundingService:
         if sent_requests is None:
             raise Exception("No request was sent")
 
-        assert sent_requests[3].method == "POST"
-        assert sent_requests[3].url == f"{base_url}{org}{tenant}/ecs_/v1/search"
+        assert sent_requests[1].method == "POST"
+        assert sent_requests[1].url == f"{base_url}{org}{tenant}/ecs_/v1/search"
 
-        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert HEADER_USER_AGENT in sent_requests[1].headers
         assert (
-            sent_requests[3].headers[HEADER_USER_AGENT]
+            sent_requests[1].headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.search_async/{version}"
         )
 
@@ -862,29 +808,18 @@ class TestContextGroundingService:
 
             # Test search method
             with patch.object(service, "request") as mock_request:
-                # First call for retrieve
-                retrieve_response = MagicMock()
-                retrieve_response.json.return_value = {
-                    "value": [
-                        {
-                            "id": "test-index-id",
-                            "name": "test-index",
-                            "lastIngestionStatus": "Completed",
-                        }
-                    ]
-                }
-                # Second call for search
+                # Mock the search response
                 search_response = MagicMock()
                 search_response.json.return_value = []
-                mock_request.side_effect = [retrieve_response, search_response]
+                mock_request.return_value = search_response
 
                 service.search(
                     name="test-index", query="test query", number_of_results=10
                 )
 
-                # Check the search request (second call)
-                assert mock_request.call_count == 2
-                search_call = mock_request.call_args_list[1]
+                # Check the search request
+                assert mock_request.call_count == 1
+                search_call = mock_request.call_args
                 assert search_call[0][0] == "POST"  # method
                 assert str(search_call[0][1]) == "/ecs_/v1/search"  # endpoint
                 assert "json" in search_call[1]

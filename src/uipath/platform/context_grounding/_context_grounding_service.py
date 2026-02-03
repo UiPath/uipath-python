@@ -1,10 +1,15 @@
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, List, Optional, Tuple, Union, cast
 
 import httpx
 from pydantic import Field, TypeAdapter
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
+from ..._utils._bindings import (
+    GenericResourceOverwrite,
+    ResourceOverwrite,
+    SystemResourceOverwrite,
+)
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import (
     LLMV4_REQUEST,
@@ -980,7 +985,16 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagCreationResponse.model_validate(response.json())
 
-    @resource_override(resource_type="index")
+    @resource_override(
+        resource_type="index",
+        identifiers_resolver_callable=lambda overwrite: cast(
+            dict[type[ResourceOverwrite], tuple[str, str]],
+            {
+                GenericResourceOverwrite: ("name", "folder_path"),
+                SystemResourceOverwrite: ("name", "folder_key"),
+            },
+        ).get(type(overwrite), ("name", "folder_path")),
+    )
     @traced(name="contextgrounding_search", run_type="uipath")
     def search(
         self,
@@ -1006,10 +1020,6 @@ class ContextGroundingService(FolderContext, BaseService):
             List[ContextGroundingQueryResponse]: A list of search results, each containing
                 relevant contextual information and metadata.
         """
-        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
-        if index and index.in_progress_ingestion():
-            raise IngestionInProgressException(index_name=name)
-
         spec = self._search_spec(
             name,
             query,
@@ -1029,7 +1039,16 @@ class ContextGroundingService(FolderContext, BaseService):
             response.json()
         )
 
-    @resource_override(resource_type="index")
+    @resource_override(
+        resource_type="index",
+        identifiers_resolver_callable=lambda overwrite: cast(
+            dict[type[ResourceOverwrite], tuple[str, str]],
+            {
+                GenericResourceOverwrite: ("name", "folder_path"),
+                SystemResourceOverwrite: ("name", "folder_key"),
+            },
+        ).get(type(overwrite), ("name", "folder_path")),
+    )
     @traced(name="contextgrounding_search", run_type="uipath")
     async def search_async(
         self,
@@ -1055,13 +1074,6 @@ class ContextGroundingService(FolderContext, BaseService):
             List[ContextGroundingQueryResponse]: A list of search results, each containing
                 relevant contextual information and metadata.
         """
-        index = self.retrieve(
-            name,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
-        if index and index.in_progress_ingestion():
-            raise IngestionInProgressException(index_name=name)
         spec = self._search_spec(
             name,
             query,
@@ -1205,6 +1217,60 @@ class ContextGroundingService(FolderContext, BaseService):
             spec.method,
             spec.endpoint,
             headers=spec.headers,
+        )
+
+    async def _resolve_system_index_async(
+        self,
+        name: str,
+        **kwargs,
+    ) -> SystemResourceOverwrite | None:
+        """Asynchronously retrieve context grounding system index by its name.
+
+        Args:
+            name (str): The name of the context index to retrieve.
+
+        Returns:
+            SystemResourceOverwrite: The index name and folder key, if found.
+
+        """
+        spec = self._retrieve_system_index_spec(
+            name,
+        )
+
+        response = (
+            await self.request_async(
+                spec.method,
+                spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+        try:
+            context_grounding_index = next(
+                ContextGroundingIndex.model_validate(item)
+                for item in response["value"]
+                if item["name"] == name
+            )
+        except StopIteration:
+            return None
+
+        assert context_grounding_index.name is not None
+        assert context_grounding_index.folder_key is not None
+
+        return SystemResourceOverwrite(
+            resource_type="index",
+            name=context_grounding_index.name,
+            folder_key=context_grounding_index.folder_key,
+        )
+
+    def _retrieve_system_index_spec(
+        self,
+        name: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/ecs_/v2/indexes/AllSystemIndexes"),
+            params={"$filter": f"Name eq '{name}'"},
         )
 
     def _ingest_spec(

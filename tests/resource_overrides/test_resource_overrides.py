@@ -1,4 +1,5 @@
 # type: ignore
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ from pytest_httpx import HTTPXMock
 
 from uipath._cli import cli
 from uipath._utils._bindings import ResourceOverwriteParser
+from uipath.platform.common import UiPathConfig
 
 
 @pytest.fixture
@@ -392,6 +394,92 @@ class TestResourceOverrides:
                     os.chdir(current_dir_copy)
 
                     self._assert(result, httpx_mock)
+
+    @pytest.mark.anyio
+    async def test_get_resource_overwrites_resolves_system_index_from_bindings(
+        self,
+        temp_dir: str,
+        httpx_mock: HTTPXMock,
+    ):
+        """Test that get_resource_overwrites resolves system index bindings without explicit overwrites."""
+        from uipath._cli._utils._studio_project import StudioClient
+        from uipath._utils._bindings import SystemResourceOverwrite
+
+        UiPathConfig.studio_solution_id = None
+
+        with patch.dict(
+            os.environ,
+            {
+                "UIPATH_URL": "https://example.com/org/tenant",
+                "UIPATH_ORGANIZATION_ID": "test-org",
+                "UIPATH_TENANT_ID": "test-tenant",
+                "UIPATH_PROJECT_ID": "test-project-123",
+                "UIPATH_ACCESS_TOKEN": "test-token",
+            },
+        ):
+            # Create bindings.json with a system index binding (no explicit overwrite)
+            bindings_data = {
+                "version": "1.0",
+                "resources": [
+                    {
+                        "resource": "index",
+                        "key": "index.MySystemIndex",
+                        "value": {
+                            "name": {
+                                "defaultValue": "MySystemIndex",
+                                "isExpression": False,
+                                "displayName": "My System Index",
+                            }
+                        },
+                    }
+                ],
+            }
+
+            bindings_path = os.path.join(temp_dir, "bindings.json")
+            with open(bindings_path, "w") as f:
+                json.dump(bindings_data, f)
+
+            # solution ID API call
+            httpx_mock.add_response(
+                url="https://example.com/org/studio_/backend/api/Project/test-project-123",
+                method="GET",
+                json={"solutionId": "test-solution-123"},
+            )
+
+            # binding-overwrites API call (returns empty - no explicit overwrites)
+            httpx_mock.add_response(
+                url="https://example.com/org/studio_/backend/api/resourcebuilder/test-solution-123/binding-overwrites",
+                method="POST",
+                json={},  # no explicit overwrites
+            )
+
+            #  system index API response
+            httpx_mock.add_response(
+                url="https://example.com/org/tenant/ecs_/v2/indexes/AllSystemIndexes?$filter=Name eq 'MySystemIndex'",
+                method="GET",
+                json={
+                    "value": [
+                        {
+                            "id": "system-index-123",
+                            "name": "MySystemIndex",
+                            "folderKey": "system-folder-key-789",
+                            "lastIngestionStatus": "Completed",
+                        }
+                    ]
+                },
+            )
+
+            with contextlib.chdir(temp_dir):
+                client = StudioClient(project_id="test-project-123")
+                overwrites = await client.get_resource_overwrites()
+
+                # verify the system index was resolved and added to overwrites
+                assert "index.MySystemIndex" in overwrites
+                system_index = overwrites["index.MySystemIndex"]
+
+                assert isinstance(system_index, SystemResourceOverwrite)
+                assert system_index.name == "MySystemIndex"
+                assert system_index.folder_key == "system-folder-key-789"
 
 
 class TestResourceOverrideWithTracing:
