@@ -37,8 +37,9 @@ from uipath._utils.constants import (
 )
 from uipath.eval.evaluators import (
     BaseEvaluator,
-    LegacyBaseEvaluator,
+    BaseLegacyEvaluator,
 )
+from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
@@ -312,7 +313,7 @@ class StudioWebProgressReporter:
         return "agentsruntime_/api/"
 
     def _is_coded_evaluator(
-        self, evaluators: list[BaseEvaluator[Any, Any, Any]]
+        self, evaluators: list[GenericBaseEvaluator[Any, Any, Any]]
     ) -> bool:
         """Check if evaluators are coded (BaseEvaluator) vs legacy (LegacyBaseEvaluator).
 
@@ -325,7 +326,7 @@ class StudioWebProgressReporter:
         if not evaluators:
             return False
         # Check the first evaluator type
-        return not isinstance(evaluators[0], LegacyBaseEvaluator)
+        return not isinstance(evaluators[0], BaseLegacyEvaluator)
 
     def _extract_usage_from_spans(
         self, spans: list[Any]
@@ -395,7 +396,7 @@ class StudioWebProgressReporter:
         eval_set_id: str,
         agent_snapshot: StudioWebAgentSnapshot,
         no_of_evals: int,
-        evaluators: list[LegacyBaseEvaluator[Any]],
+        evaluators: list[BaseLegacyEvaluator[Any]],
         is_coded: bool = False,
     ) -> str:
         """Create a new evaluation set run in StudioWeb."""
@@ -458,12 +459,12 @@ class StudioWebProgressReporter:
     ):
         """Update an evaluation run with results."""
         coded_evaluators: dict[str, BaseEvaluator[Any, Any, Any]] = {}
-        legacy_evaluators: dict[str, LegacyBaseEvaluator[Any]] = {}
+        legacy_evaluators: dict[str, BaseLegacyEvaluator[Any]] = {}
         evaluator_runs: list[dict[str, Any]] = []
         evaluator_scores: list[dict[str, Any]] = []
 
         for k, v in evaluators.items():
-            if isinstance(v, LegacyBaseEvaluator):
+            if isinstance(v, BaseLegacyEvaluator):
                 legacy_evaluators[k] = v
             elif isinstance(v, BaseEvaluator):
                 coded_evaluators[k] = v
@@ -922,7 +923,7 @@ class StudioWebProgressReporter:
     def _collect_results(
         self,
         eval_results: list[EvalItemResult],
-        evaluators: dict[str, LegacyBaseEvaluator[Any]],
+        evaluators: dict[str, BaseLegacyEvaluator[Any]],
         spans: list[Any],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         assertion_runs: list[dict[str, Any]] = []
@@ -972,9 +973,7 @@ class StudioWebProgressReporter:
                         "promptTokens": usage_metrics["promptTokens"] or 0,
                     },
                     "assertionSnapshot": {
-                        "assertionType": evaluators[
-                            eval_result.evaluator_id
-                        ].evaluator_type.name,
+                        "assertionType": evaluators[eval_result.evaluator_id].type.name,
                         "outputKey": evaluators[
                             eval_result.evaluator_id
                         ].target_output_key,

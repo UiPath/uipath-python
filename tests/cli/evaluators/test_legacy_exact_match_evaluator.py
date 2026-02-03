@@ -4,13 +4,13 @@ Tests the exact match evaluation functionality including target_output_key suppo
 canonical JSON normalization, and number normalization.
 """
 
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import LegacyExactMatchEvaluator
-from uipath.eval.evaluators.legacy_base_evaluator import LegacyEvaluationCriteria
+from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
 from uipath.eval.models.models import (
     AgentExecution,
     LegacyEvaluatorCategory,
@@ -18,28 +18,25 @@ from uipath.eval.models.models import (
 )
 
 
-def _make_base_params(target_output_key: str = "*") -> EvaluatorBaseParams:
-    """Create base parameters for exact match evaluator."""
-    return EvaluatorBaseParams(
-        id="exact_match",
-        category=LegacyEvaluatorCategory.Deterministic,
-        evaluator_type=LegacyEvaluatorType.Equals,
-        name="ExactMatch",
-        description="Evaluates exact match of outputs",
-        created_at="2025-01-01T00:00:00Z",
-        updated_at="2025-01-01T00:00:00Z",
-        target_output_key=target_output_key,
-    )
+def _make_base_params(target_output_key: str = "*") -> dict[str, Any]:
+    """Create base parameters for faithfulness evaluator."""
+    return {
+        "id": "exact_match",
+        "category": LegacyEvaluatorCategory.Deterministic,
+        "type": LegacyEvaluatorType.Equals,
+        "name": "ExactMatch",
+        "description": "Evaluates exact match of outputs",
+        "createdAt": "2025-01-01T00:00:00Z",
+        "updatedAt": "2025-01-01T00:00:00Z",
+        "targetOutputKey": target_output_key,
+    }
 
 
 @pytest.fixture
 def evaluator():
     """Fixture to create evaluator."""
     with patch("uipath.platform.UiPath"):
-        return LegacyExactMatchEvaluator(
-            **_make_base_params().model_dump(),
-            config={},
-        )
+        return LegacyExactMatchEvaluator(**_make_base_params())
 
 
 @pytest.fixture
@@ -47,8 +44,7 @@ def evaluator_with_target_key():
     """Fixture to create evaluator with a specific target output key."""
     with patch("uipath.platform.UiPath"):
         return LegacyExactMatchEvaluator(
-            **_make_base_params(target_output_key="result").model_dump(),
-            config={},
+            **_make_base_params(target_output_key="result")
         )
 
 

@@ -4,12 +4,12 @@ Covers exact matches, numeric tolerance, string similarity, and nested structure
 """
 
 import json
+from typing import Any
 
 import pytest
 
-from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators import LegacyJsonSimilarityEvaluator
-from uipath.eval.evaluators.legacy_base_evaluator import LegacyEvaluationCriteria
+from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
 from uipath.eval.models.models import (
     AgentExecution,
     LegacyEvaluatorCategory,
@@ -17,26 +17,24 @@ from uipath.eval.models.models import (
 )
 
 
-def _make_base_params() -> EvaluatorBaseParams:
-    return EvaluatorBaseParams(
-        id="json-sim",
-        category=LegacyEvaluatorCategory.Deterministic,
-        evaluator_type=LegacyEvaluatorType.JsonSimilarity,
-        name="JSON Similarity",
-        description="Compares JSON structures",
-        created_at="2025-01-01T00:00:00Z",
-        updated_at="2025-01-01T00:00:00Z",
-        target_output_key="*",
-    )
+def _make_base_params() -> dict[str, Any]:
+    """Create base parameters for faithfulness evaluator."""
+    return {
+        "id": "json-sim",
+        "category": LegacyEvaluatorCategory.Deterministic,
+        "type": LegacyEvaluatorType.JsonSimilarity,
+        "name": "JSON Similarity",
+        "description": "Compares JSON structures",
+        "createdAt": "2025-01-01T00:00:00Z",
+        "updatedAt": "2025-01-01T00:00:00Z",
+        "targetOutputKey": "*",
+    }
 
 
 class TestJsonSimilarityEvaluator:
     @pytest.mark.asyncio
     async def test_json_similarity_exact_score_1(self) -> None:
-        evaluator = LegacyJsonSimilarityEvaluator(
-            **_make_base_params().model_dump(),
-            config={},
-        )
+        evaluator = LegacyJsonSimilarityEvaluator(**_make_base_params())
         expected_json = """
             {
                 "user": {
@@ -82,10 +80,7 @@ class TestJsonSimilarityEvaluator:
 
     @pytest.mark.asyncio
     async def test_json_similarity_exact_score_2(self) -> None:
-        evaluator = LegacyJsonSimilarityEvaluator(
-            **_make_base_params().model_dump(),
-            config={},
-        )
+        evaluator = LegacyJsonSimilarityEvaluator(**_make_base_params())
         expected_json = """
         {
             "users": [
@@ -122,10 +117,7 @@ class TestJsonSimilarityEvaluator:
 
     @pytest.mark.asyncio
     async def test_json_similarity_exact_score_3(self) -> None:
-        evaluator = LegacyJsonSimilarityEvaluator(
-            **_make_base_params().model_dump(),
-            config={},
-        )
+        evaluator = LegacyJsonSimilarityEvaluator(**_make_base_params())
         expected_json = """
         {
             "name": "Alice",
@@ -159,10 +151,7 @@ class TestJsonSimilarityEvaluator:
 
     @pytest.mark.asyncio
     async def test_json_similarity_exact_score_4(self) -> None:
-        evaluator = LegacyJsonSimilarityEvaluator(
-            **_make_base_params().model_dump(),
-            config={},
-        )
+        evaluator = LegacyJsonSimilarityEvaluator(**_make_base_params())
         expected_json = """
         {
           "user": {

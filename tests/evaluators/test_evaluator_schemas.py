@@ -347,7 +347,7 @@ class TestBaseEvaluatorFunctionality:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         assert isinstance(evaluator.evaluator_config, ExactMatchEvaluatorConfig)
@@ -361,7 +361,7 @@ class TestBaseEvaluatorFunctionality:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         # Test dict validation
@@ -379,7 +379,7 @@ class TestBaseEvaluatorFunctionality:
             "default_evaluation_criteria": {"tool_calls_order": ["tool1", "tool2"]},
         }
         evaluator = ToolCallOrderEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         # Test dict validation
@@ -400,7 +400,7 @@ class TestBaseEvaluatorFunctionality:
             },
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         assert isinstance(evaluator.evaluator_config, ToolCallOutputEvaluatorConfig)
@@ -417,7 +417,7 @@ class TestBaseEvaluatorFunctionality:
             },
         }
         evaluator = ToolCallOutputEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         # Test dict validation
@@ -446,7 +446,7 @@ class TestBaseEvaluatorFunctionality:
         mock_llm_service = mocker.MagicMock()
         evaluator = LLMJudgeOutputEvaluator.model_validate(
             {
-                "config": config_dict,
+                "evaluatorConfig": config_dict,
                 "llm_service": mock_llm_service,
                 "id": str(uuid.uuid4()),
             }
@@ -467,7 +467,7 @@ class TestBaseEvaluatorFunctionality:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = JsonSimilarityEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         # Types should be set correctly
@@ -481,7 +481,7 @@ class TestBaseEvaluatorFunctionality:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         # Test None validation
@@ -498,7 +498,7 @@ class TestBaseEvaluatorFunctionality:
         mock_llm_service = mocker.MagicMock()
         evaluator = LLMJudgeOutputEvaluator.model_validate(
             {
-                "config": config_dict,
+                "evaluatorConfig": config_dict,
                 "llm_service": mock_llm_service,
                 "id": str(uuid.uuid4()),
             }
@@ -520,7 +520,7 @@ class TestBaseEvaluatorFunctionality:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         exact_match_evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
         assert exact_match_evaluator.justification_type is type(None)
 
@@ -533,7 +533,7 @@ class TestBaseEvaluatorFunctionality:
         mock_llm_service = mocker.MagicMock()
         llm_evaluator = LLMJudgeOutputEvaluator.model_validate(
             {
-                "config": llm_config_dict,
+                "evaluatorConfig": llm_config_dict,
                 "llm_service": mock_llm_service,
                 "id": str(uuid.uuid4()),
             }
@@ -552,7 +552,7 @@ class TestEvaluatorInstances:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = ExactMatchEvaluator.model_validate(
-            {"config": config_data, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_data, "id": str(uuid.uuid4())}
         )
 
         # Test direct config access
@@ -569,7 +569,7 @@ class TestEvaluatorInstances:
             "default_evaluation_criteria": {"expected_output": "test"},
         }
         evaluator = JsonSimilarityEvaluator.model_validate(
-            {"config": config_dict, "id": str(uuid.uuid4())}
+            {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
         # Should be able to get schemas from instances

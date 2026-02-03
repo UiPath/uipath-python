@@ -41,6 +41,7 @@ C = TypeVar("C", bound=OutputEvaluatorConfig[Any])
 J = TypeVar("J", bound=Union[str, None, BaseEvaluatorJustification])
 
 
+# NOTE: This evaluator is only used in coded evaluators
 class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
     """Abstract base class for all output evaluators.
 
@@ -105,6 +106,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         return expected_output
 
 
+# NOTE: This evaluator is only used in coded evaluators.
 class OutputEvaluator(BaseOutputEvaluator[T_OutputCriteria, C, J]):
     """Abstract base class for all output evaluators.
 
