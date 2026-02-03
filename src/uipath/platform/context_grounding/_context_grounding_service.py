@@ -782,9 +782,20 @@ class ContextGroundingService(FolderContext, BaseService):
 
         Path(destination_path).parent.mkdir(parents=True, exist_ok=True)
 
+        # SAS uris can be downloaded without authentication
+        # encrypted artifacts require authenticated DownloadBlob endpoint
         with open(destination_path, "wb") as file:
-            with httpx.Client(**get_httpx_client_kwargs()) as client:
-                file_content = client.get(uri_response.uri).content
+            if uri_response.is_encrypted:
+                download_spec = self._batch_transform_download_blob_spec(id=id)
+                download_response = self.request(
+                    download_spec.method,
+                    download_spec.endpoint,
+                    headers=download_spec.headers,
+                )
+                file_content = download_response.content
+            else:
+                with httpx.Client(**get_httpx_client_kwargs()) as client:
+                    file_content = client.get(uri_response.uri).content
             file.write(file_content)
 
     @resource_override(resource_type="index", resource_identifier="index_name")
@@ -828,9 +839,20 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         uri_response = BatchTransformReadUriResponse.model_validate(response.json())
 
-        async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
-            download_response = await client.get(uri_response.uri)
+        # SAS uris can be downloaded without authentication
+        # encrypted artifacts require authenticated DownloadBlob endpoint
+        if uri_response.is_encrypted:
+            download_spec = self._batch_transform_download_blob_spec(id=id)
+            download_response = await self.request_async(
+                download_spec.method,
+                download_spec.endpoint,
+                headers=download_spec.headers,
+            )
             file_content = download_response.content
+        else:
+            async with httpx.AsyncClient(**get_httpx_client_kwargs()) as client:
+                download_response = await client.get(uri_response.uri)
+                file_content = download_response.content
 
         Path(destination_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -1513,6 +1535,15 @@ class ContextGroundingService(FolderContext, BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/batchRag/{id}/GetReadUri"),
+        )
+
+    def _batch_transform_download_blob_spec(
+        self,
+        id: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"/ecs_/v2/batchRag/{id}/DownloadBlob"),
         )
 
     def _resolve_folder_key(self, folder_key, folder_path):
