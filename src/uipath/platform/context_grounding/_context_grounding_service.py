@@ -584,6 +584,7 @@ class ContextGroundingService(FolderContext, BaseService):
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
+        target_file_name: Annotated[str | None, Field(max_length=512)] = None,
         enable_web_search_grounding: bool = False,
         folder_key: str | None = None,
         folder_path: str | None = None,
@@ -591,13 +592,19 @@ class ContextGroundingService(FolderContext, BaseService):
         """Starts a Batch Transform, task on the targeted index.
 
         Batch Transform tasks are processing and transforming csv files from the index.
+        Only one file can be processed per batch transform job.
 
         Args:
             name (str): The name of the Deep RAG task.
             index_name (str): The name of the context index to search in.
             prompt (str): Describe the task: what to research, what to synthesize.
             output_columns (list[BatchTransformOutputColumn]):  The output columns to add into the csv.
-            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket. Use "*" to include all files. Defaults to "*".
+            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket.
+                Can be combined with target_file_name. Defaults to None.
+            target_file_name (str, optional): Specific file name to target.
+                If both target_file_name and storage_bucket_folder_path_prefix are provided, they will be combined (e.g., "data/file.csv").
+                If only target_file_name is provided, it will be used directly.
+                Only one file can be processed per batch transform job.
             enable_web_search_grounding (Optional[bool]): Whether to enable web search. Defaults to False.
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
@@ -615,6 +622,7 @@ class ContextGroundingService(FolderContext, BaseService):
             index_id=index.id,
             name=name,
             storage_bucket_folder_path_prefix=storage_bucket_folder_path_prefix,
+            target_file_name=target_file_name,
             prompt=prompt,
             output_columns=output_columns,
             enable_web_search_grounding=enable_web_search_grounding,
@@ -642,6 +650,7 @@ class ContextGroundingService(FolderContext, BaseService):
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
+        target_file_name: Annotated[str | None, Field(max_length=512)] = None,
         enable_web_search_grounding: bool = False,
         folder_key: str | None = None,
         folder_path: str | None = None,
@@ -649,13 +658,19 @@ class ContextGroundingService(FolderContext, BaseService):
         """Asynchronously starts a Batch Transform, task on the targeted index.
 
         Batch Transform tasks are processing and transforming csv files from the index.
+        Only one file can be processed per batch transform job.
 
         Args:
             name (str): The name of the Deep RAG task.
             index_name (str): The name of the context index to search in.
             prompt (str): Describe the task: what to research, what to synthesize.
             output_columns (list[BatchTransformOutputColumn]):  The output columns to add into the csv.
-            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket. Use "*" to include all files. Defaults to "*".
+            storage_bucket_folder_path_prefix (str): The prefix pattern for filtering files in the storage bucket.
+                Can be combined with target_file_name. Defaults to None.
+            target_file_name (str, optional): Specific file name to target.
+                If both target_file_name and storage_bucket_folder_path_prefix are provided, they will be combined (e.g., "data/file.csv").
+                If only target_file_name is provided, it will be used directly.
+                Only one file can be processed per batch transform job.
             enable_web_search_grounding (Optional[bool]): Whether to enable web search. Defaults to False.
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
@@ -673,6 +688,7 @@ class ContextGroundingService(FolderContext, BaseService):
             index_id=index.id,
             name=name,
             storage_bucket_folder_path_prefix=storage_bucket_folder_path_prefix,
+            target_file_name=target_file_name,
             prompt=prompt,
             output_columns=output_columns,
             enable_web_search_grounding=enable_web_search_grounding,
@@ -1481,11 +1497,28 @@ class ContextGroundingService(FolderContext, BaseService):
         enable_web_search_grounding: bool,
         output_columns: list[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: str | None,
+        target_file_name: str | None,
         prompt: str,
         folder_key: str | None = None,
         folder_path: str | None = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
+
+        # determine targetFileGlobPattern based on the provided parameters:
+        # 1. if both target_file_name and storage_bucket_folder_path_prefix are provided, combine them
+        # 2. if only target_file_name is provided, use it directly
+        # 3. if only storage_bucket_folder_path_prefix is provided, use it with wildcard
+        # 4. default to "**" if neither is provided
+        if target_file_name and storage_bucket_folder_path_prefix:
+            target_file_glob_pattern = (
+                f"{storage_bucket_folder_path_prefix}/{target_file_name}"
+            )
+        elif target_file_name:
+            target_file_glob_pattern = target_file_name
+        elif storage_bucket_folder_path_prefix:
+            target_file_glob_pattern = f"{storage_bucket_folder_path_prefix}/*"
+        else:
+            target_file_glob_pattern = "**"
 
         return RequestSpec(
             method="POST",
@@ -1493,9 +1526,7 @@ class ContextGroundingService(FolderContext, BaseService):
             json={
                 "name": name,
                 "prompt": prompt,
-                "targetFileGlobPattern": f"{storage_bucket_folder_path_prefix}/*"
-                if storage_bucket_folder_path_prefix
-                else "**",
+                "targetFileGlobPattern": target_file_glob_pattern,
                 "useWebSearchGrounding": enable_web_search_grounding,
                 "outputColumns": [
                     column.model_dump(by_alias=True) for column in output_columns

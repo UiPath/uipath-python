@@ -1464,6 +1464,320 @@ class TestContextGroundingService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_async/{version}"
         )
 
+    def test_start_batch_transform_with_target_file_name(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="Emoji",
+                description="Emoji",
+            ),
+            BatchTransformOutputColumn(
+                name="Language",
+                description="The output Language should be loaded from the row",
+            ),
+        ]
+
+        response = service.start_batch_transform(
+            name="my-batch-transform",
+            index_name="test-index",
+            prompt="Extract emojis and language",
+            output_columns=output_columns,
+            target_file_name="size_1KB.csv",
+            enable_web_search_grounding=True,
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-batch-transform"
+        assert request_data["prompt"] == "Extract emojis and language"
+        assert request_data["targetFileGlobPattern"] == "size_1KB.csv"
+        assert request_data["useWebSearchGrounding"] is True
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_start_batch_transform_async_with_target_file_name(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="Emoji",
+                description="Emoji",
+            ),
+            BatchTransformOutputColumn(
+                name="Language",
+                description="The output Language should be loaded from the row",
+            ),
+        ]
+
+        response = await service.start_batch_transform_async(
+            name="my-batch-transform",
+            index_name="test-index",
+            prompt="Extract emojis and language",
+            output_columns=output_columns,
+            target_file_name="size_1KB.csv",
+            enable_web_search_grounding=True,
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-batch-transform"
+        assert request_data["prompt"] == "Extract emojis and language"
+        assert request_data["targetFileGlobPattern"] == "size_1KB.csv"
+        assert request_data["useWebSearchGrounding"] is True
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_async/{version}"
+        )
+
+    def test_start_batch_transform_with_combined_prefix_and_filename(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="summary",
+                description="A summary of the document",
+            )
+        ]
+
+        response = service.start_batch_transform(
+            name="my-batch-transform",
+            index_name="test-index",
+            prompt="Summarize the document",
+            output_columns=output_columns,
+            storage_bucket_folder_path_prefix="data",
+            target_file_name="size_1KB.csv",
+            enable_web_search_grounding=False,
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-batch-transform"
+        assert request_data["prompt"] == "Summarize the document"
+        # Verify that both prefix and filename are combined
+        assert request_data["targetFileGlobPattern"] == "data/size_1KB.csv"
+        assert request_data["useWebSearchGrounding"] is False
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform/{version}"
+        )
+
     def test_retrieve_batch_transform(
         self,
         httpx_mock: HTTPXMock,
