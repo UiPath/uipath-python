@@ -701,7 +701,9 @@ class AgentInternalDeepRagSettings(BaseCfg):
 
     context_type: str = Field(..., alias="contextType")
     query: AgentContextQuerySetting = Field(...)
-    folder_path_prefix: AgentContextQuerySetting | None = Field(default=None, alias="folderPathPrefix")
+    folder_path_prefix: AgentContextQuerySetting | None = Field(
+        default=None, alias="folderPathPrefix"
+    )
     citation_mode: DeepRagCitationModeSetting = Field(..., alias="citationMode")
     file_extension: DeepRagFileExtensionSetting = Field(..., alias="fileExtension")
 
@@ -711,7 +713,9 @@ class AgentInternalBatchTransformSettings(BaseCfg):
 
     context_type: str = Field(..., alias="contextType")
     query: AgentContextQuerySetting = Field(...)
-    folder_path_prefix: AgentContextQuerySetting | None = Field(default=None, alias="folderPathPrefix")
+    folder_path_prefix: AgentContextQuerySetting | None = Field(
+        default=None, alias="folderPathPrefix"
+    )
     file_extension: BatchTransformFileExtensionSetting = Field(
         ..., alias="fileExtension"
     )
