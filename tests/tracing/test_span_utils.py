@@ -1,63 +1,63 @@
 import json
 import os
-import uuid
 from datetime import datetime
 from unittest.mock import Mock, patch
 
+import pytest
 from opentelemetry.sdk.trace import Span as OTelSpan
 from opentelemetry.trace import SpanContext, StatusCode
 
 from uipath.tracing._utils import UiPathSpan, _SpanUtils
 
 
-class TestUUIDMapper:
-    def test_trace_id_to_uuid4(self):
-        """Test that trace_id_to_uuid4 converts trace IDs to valid UUID4 format."""
-        trace_id = int("1234567890ABCDEF1234567890ABCDEF", 16)  # 128-bit trace ID
+class TestNormalizeIds:
+    """Tests for OTEL ID normalization functions."""
 
-        # Convert to UUID
-        uuid_obj = _SpanUtils.trace_id_to_uuid4(trace_id)
+    def test_normalize_trace_id_from_hex(self):
+        """Test normalizing a 32-char hex trace ID."""
+        trace_id = "1234567890abcdef1234567890abcdef"
+        result = _SpanUtils.normalize_trace_id(trace_id)
+        assert result == "1234567890abcdef1234567890abcdef"
 
-        # Check that it's a valid UUID4
-        assert uuid_obj.version == 4
-        assert uuid_obj.variant == uuid.RFC_4122
+    def test_normalize_trace_id_from_uuid(self):
+        """Test normalizing a UUID format trace ID to hex."""
+        trace_id = "12345678-90ab-cdef-1234-567890abcdef"
+        result = _SpanUtils.normalize_trace_id(trace_id)
+        assert result == "1234567890abcdef1234567890abcdef"
 
-        # Check that the same trace_id always maps to the same UUID
-        uuid_obj2 = _SpanUtils.trace_id_to_uuid4(trace_id)
-        assert uuid_obj == uuid_obj2
+    def test_normalize_trace_id_uppercase(self):
+        """Test normalizing uppercase hex to lowercase."""
+        trace_id = "1234567890ABCDEF1234567890ABCDEF"
+        result = _SpanUtils.normalize_trace_id(trace_id)
+        assert result == "1234567890abcdef1234567890abcdef"
 
-    def test_span_id_to_uuid4_deterministic(self):
-        """Test that span_id_to_uuid4 is deterministic for the same span_id."""
-        span_id = 0x1234567890ABCDEF  # 64-bit span ID
+    def test_normalize_trace_id_invalid_length(self):
+        """Test that invalid length raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid trace ID format"):
+            _SpanUtils.normalize_trace_id("1234")
 
-        # Convert to UUID twice
-        uuid_obj1 = _SpanUtils.span_id_to_uuid4(span_id)
-        uuid_obj2 = _SpanUtils.span_id_to_uuid4(span_id)
+    def test_normalize_span_id_from_hex(self):
+        """Test normalizing a 16-char hex span ID."""
+        span_id = "1234567890abcdef"
+        result = _SpanUtils.normalize_span_id(span_id)
+        assert result == "1234567890abcdef"
 
-        # They should be the same
-        assert uuid_obj1 == uuid_obj2
+    def test_normalize_span_id_from_uuid(self):
+        """Test normalizing a UUID format span ID (takes last 16 chars)."""
+        span_id = "00000000-0000-0000-1234-567890abcdef"
+        result = _SpanUtils.normalize_span_id(span_id)
+        assert result == "1234567890abcdef"
 
-        # Check that it's a valid UUID4
-        assert uuid_obj1.version == 4
-        assert uuid_obj1.variant == uuid.RFC_4122
+    def test_normalize_span_id_uppercase(self):
+        """Test normalizing uppercase hex to lowercase."""
+        span_id = "1234567890ABCDEF"
+        result = _SpanUtils.normalize_span_id(span_id)
+        assert result == "1234567890abcdef"
 
-    def test_span_id_to_uuid4_different_ids(self):
-        """Test that different span_ids map to different UUIDs."""
-        span_id1 = 0x1234567890ABCDEF  # 64-bit span ID
-        span_id2 = 0x2345678901BCDEF0  # Different 64-bit span ID
-
-        # Convert to UUIDs
-        uuid_obj1 = _SpanUtils.span_id_to_uuid4(span_id1)
-        uuid_obj2 = _SpanUtils.span_id_to_uuid4(span_id2)
-
-        # They should be different
-        assert uuid_obj1 != uuid_obj2
-
-        # But both should be valid UUID4
-        assert uuid_obj1.version == 4
-        assert uuid_obj1.variant == uuid.RFC_4122
-        assert uuid_obj2.version == 4
-        assert uuid_obj2.variant == uuid.RFC_4122
+    def test_normalize_span_id_invalid_length(self):
+        """Test that invalid length raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid span ID format"):
+            _SpanUtils.normalize_span_id("1234")
 
 
 class TestSpanUtils:
@@ -106,6 +106,11 @@ class TestSpanUtils:
         assert uipath_span.name == "test-span"
         assert uipath_span.status == 1  # OK
         assert uipath_span.span_type == "CustomSpanType"
+
+        # Verify IDs are in OTEL hex format
+        assert uipath_span.trace_id == "123456789abcdef0123456789abcdef0"  # 32-char hex
+        assert uipath_span.id == "0123456789abcdef"  # 16-char hex
+        assert uipath_span.parent_id is None
 
         # Verify attributes
         attributes_value = uipath_span.attributes
@@ -180,7 +185,8 @@ class TestSpanUtils:
         assert attrs["key2"] == 123
 
     @patch.dict(os.environ, {"UIPATH_TRACE_ID": "00000000-0000-4000-8000-000000000000"})
-    def test_otel_span_to_uipath_span_with_env_trace_id(self):
+    def test_otel_span_to_uipath_span_with_env_trace_id_uuid_format(self):
+        """Test that UUID format UIPATH_TRACE_ID is normalized to hex."""
         # Create a mock OTel span
         mock_span = Mock(spec=OTelSpan)
 
@@ -210,8 +216,43 @@ class TestSpanUtils:
         # Convert to UiPath span
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
 
-        # Verify the trace ID is taken from environment
-        assert str(uipath_span.trace_id) == "00000000-0000-4000-8000-000000000000"
+        # Verify the trace ID is normalized to 32-char hex format
+        assert uipath_span.trace_id == "00000000000040008000000000000000"
+
+    @patch.dict(os.environ, {"UIPATH_TRACE_ID": "1234567890abcdef1234567890abcdef"})
+    def test_otel_span_to_uipath_span_with_env_trace_id_hex_format(self):
+        """Test that hex format UIPATH_TRACE_ID is used directly."""
+        # Create a mock OTel span
+        mock_span = Mock(spec=OTelSpan)
+
+        # Set span context
+        trace_id = 0x123456789ABCDEF0123456789ABCDEF0
+        span_id = 0x0123456789ABCDEF
+        mock_context = SpanContext(
+            trace_id=trace_id,
+            span_id=span_id,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+
+        # Set span properties
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {}
+        mock_span.events = []
+        mock_span.links = []
+
+        # Set times
+        current_time_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = current_time_ns
+        mock_span.end_time = current_time_ns + 1000000  # 1ms later
+
+        # Convert to UiPath span
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        # Verify the trace ID is used as-is (lowercase)
+        assert uipath_span.trace_id == "1234567890abcdef1234567890abcdef"
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_uipath_span_includes_execution_type(self):
