@@ -8,7 +8,7 @@ from typing import List, Optional
 from pydantic import Field
 
 from uipath._cli._evals._models._evaluation_set import EvaluationSet
-from uipath._cli._evals._models._evaluator import LegacyEvaluator
+from uipath._cli._evals._models._evaluator import Evaluator
 from uipath.agent.models.agent import (
     AgentDefinition,
 )
@@ -22,6 +22,6 @@ class AgentEvalsDefinition(AgentDefinition):
         alias="evaluationSets",
         description="List of agent evaluation sets",
     )
-    evaluators: Optional[List[LegacyEvaluator]] = Field(
+    evaluators: Optional[List[Evaluator]] = Field(
         None, description="List of agent evaluators"
     )
