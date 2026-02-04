@@ -411,6 +411,26 @@ class TestLangchainExporter(unittest.TestCase):
         self.assertIn("input", attributes)
         self.assertEqual(attributes["input"], {})
 
+    def test_tool_span_preserves_existing_tool_type(self):
+        """Test that existing toolType in attributes is preserved, not overwritten."""
+        span_data = {
+            "Id": "test-span-id",
+            "TraceId": "test-trace-id",
+            "Attributes": {
+                "openinference.span.kind": "TOOL",
+                "tool.name": "my_custom_tool",
+                "input.value": "{}",
+                "output.value": '"result"',
+                "toolType": "Escalation",
+            },
+        }
+
+        self.exporter._process_span_attributes(span_data)
+
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+        self.assertEqual(attributes["toolType"], "Escalation")
+
     def test_llm_span_mapping_consistency(self):
         """
         Test that LLM spans are consistently mapped to completion type.
