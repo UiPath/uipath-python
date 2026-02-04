@@ -67,7 +67,7 @@ class MockingAnswer(BaseModel):
 
 class MockingBehavior(BaseModel):
     function: str = Field(..., alias="function")
-    arguments: MockingArgument = Field(..., alias="arguments")
+    arguments: MockingArgument | None = Field(default=None, alias="arguments")
     then: list[MockingAnswer] = Field(..., alias="then")
 
 

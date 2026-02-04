@@ -351,6 +351,7 @@ def test_mockito_mockable_sync():
     with pytest.raises(NotImplementedError):
         assert foofoo()
 
+    assert evaluation.mocking_strategy.behaviors[0].arguments is not None
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
     set_execution_context(
         MockingContext(
@@ -376,6 +377,56 @@ def test_mockito_mockable_sync():
         "test-execution-id",
     )
     assert foo(x=2) == "bar1"
+
+
+def test_mockito_mockable_sync_arguments_omitted():
+    """Test that omitting 'arguments' entirely matches any call"""
+
+    # Arrange
+    @mockable()
+    def bar(*args, **kwargs):
+        raise NotImplementedError()
+
+    evaluation_item: dict[str, Any] = {
+        "id": "evaluation-id",
+        "name": "Mock bar",
+        "inputs": {},
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
+        "mockingStrategy": {
+            "type": "mockito",
+            "behaviors": [
+                {
+                    "function": "bar",
+                    # No "arguments" field - should match any call
+                    "then": [{"type": "return", "value": "mocked"}],
+                }
+            ],
+        },
+    }
+    evaluation = EvaluationItem(**evaluation_item)
+    assert isinstance(evaluation.mocking_strategy, MockitoMockingStrategy)
+    # Verify arguments is None when omitted
+    assert evaluation.mocking_strategy.behaviors[0].arguments is None
+
+    # Act & Assert
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
+
+    # All these should work - match any call signature
+    assert bar() == "mocked"
+    assert bar(x=1) == "mocked"
+    assert bar("positional") == "mocked"
+    assert bar(a=1, b=2, c=3) == "mocked"
+    assert bar("pos1", "pos2", key="value") == "mocked"
 
 
 @pytest.mark.asyncio
@@ -433,6 +484,7 @@ async def test_mockito_mockable_async():
     with pytest.raises(NotImplementedError):
         assert await foofoo()
 
+    assert evaluation.mocking_strategy.behaviors[0].arguments is not None
     evaluation.mocking_strategy.behaviors[0].arguments.kwargs = {"x": 1}
     set_execution_context(
         MockingContext(
