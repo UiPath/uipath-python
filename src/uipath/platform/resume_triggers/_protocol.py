@@ -684,7 +684,7 @@ class UiPathResumeTriggerCreator:
         assert resume_trigger.item_key
         await self._create_external_trigger(
             ExternalTrigger(
-                type=ExternalTriggerType.BATCH_TRANSFORM,
+                type=ExternalTriggerType.BATCH_RAG,
                 external_id=resume_trigger.item_key,
             )
         )
