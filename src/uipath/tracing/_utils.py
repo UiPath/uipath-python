@@ -6,17 +6,45 @@ import random
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import IntEnum
 from os import environ as env
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
+from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
 
 logger = logging.getLogger(__name__)
 
 # SourceEnum.Robots = 4 (default for Python SDK / coded agents)
 DEFAULT_SOURCE = 4
+
+
+class AttachmentProvider(IntEnum):
+    ORCHESTRATOR = 0
+
+
+class AttachmentDirection(IntEnum):
+    NONE = 0
+    IN = 1
+    OUT = 2
+
+
+class SpanAttachment(BaseModel):
+    """Represents an attachment in the UiPath tracing system."""
+
+    model_config = ConfigDict(populate_by_name=True, use_enum_values=True)
+
+    id: str = Field(..., alias="id")
+    file_name: str = Field(..., alias="fileName")
+    mime_type: str = Field(..., alias="mimeType")
+    provider: AttachmentProvider = Field(
+        default=AttachmentProvider.ORCHESTRATOR, alias="provider"
+    )
+    direction: AttachmentDirection = Field(
+        default=AttachmentDirection.NONE, alias="direction"
+    )
 
 
 @dataclass
@@ -60,6 +88,7 @@ class UiPathSpan:
     # Top-level fields for internal tracing schema
     execution_type: Optional[int] = None
     agent_version: Optional[str] = None
+    attachments: Optional[List[SpanAttachment]] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
         """Convert the Span to a dictionary suitable for JSON serialization.
@@ -74,10 +103,22 @@ class UiPathSpan:
         trace_id_str = str(self.trace_id)
         parent_id_str = str(self.parent_id) if self.parent_id else None
 
-        # Handle attributes serialization
         attributes_out = self.attributes
         if serialize_attributes and isinstance(self.attributes, dict):
             attributes_out = json.dumps(self.attributes)
+
+        attachments_out = None
+        if self.attachments is not None:
+            attachments_out = [
+                {
+                    "Id": att.id,
+                    "FileName": att.file_name,
+                    "MimeType": att.mime_type,
+                    "Provider": int(att.provider),
+                    "Direction": int(att.direction),
+                }
+                for att in self.attachments
+            ]
 
         return {
             "Id": id_str,
@@ -101,6 +142,7 @@ class UiPathSpan:
             "ReferenceId": self.reference_id,
             "ExecutionType": self.execution_type,
             "AgentVersion": self.agent_version,
+            "Attachments": attachments_out,
         }
 
 
@@ -256,6 +298,24 @@ class _SpanUtils:
         uipath_source = attributes_dict.get("uipath.source")
         source = uipath_source if isinstance(uipath_source, int) else DEFAULT_SOURCE
 
+        attachments = None
+        attachments_data = attributes_dict.get("attachments")
+        if attachments_data:
+            try:
+                attachments_list = json.loads(attachments_data)
+                attachments = [
+                    SpanAttachment(
+                        id=att.get("id"),
+                        file_name=att.get("fileName", ""),
+                        mime_type=att.get("mimeType", ""),
+                        provider=att.get("provider", 0),
+                        direction=att.get("direction", 0),
+                    )
+                    for att in attachments_list
+                ]
+            except Exception as e:
+                logger.warning(f"Error processing attachments: {e}")
+
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
             (otel_span.start_time or 0) / 1e9
@@ -285,6 +345,7 @@ class _SpanUtils:
             agent_version=agent_version,
             reference_id=reference_id,
             source=source,
+            attachments=attachments,
         )
 
     @staticmethod
