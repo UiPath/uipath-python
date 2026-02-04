@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
@@ -89,6 +90,9 @@ def serialize_object(obj):
             return serialize_object(dict(obj))
         except (TypeError, ValueError):
             return obj
+    # UUIDs must be serialized explicitly
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
     # Return primitive types as is
     else:
         return obj
