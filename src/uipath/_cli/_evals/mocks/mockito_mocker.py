@@ -4,6 +4,8 @@ import importlib
 from typing import Any, Callable
 
 from mockito import (  # type: ignore[import-untyped]
+    ARGS,
+    KWARGS,
     invocation,
     mocking,
 )
@@ -72,16 +74,20 @@ class MockitoMocker(Mocker):
         mock_obj = mocking.Mock(self.stub)
 
         for behavior in self.context.strategy.behaviors:
-            resolved_args = _resolve_value(behavior.arguments.args)
-            resolved_kwargs = _resolve_value(behavior.arguments.kwargs)
-
-            args = resolved_args if resolved_args is not None else []
-            kwargs = resolved_kwargs if resolved_kwargs is not None else {}
-
-            stubbed = invocation.StubbedInvocation(mock_obj, behavior.function)(
-                *args,
-                **kwargs,
-            )
+            # If arguments is omitted (None), match any call signature
+            if behavior.arguments is None:
+                stubbed = invocation.StubbedInvocation(mock_obj, behavior.function)(
+                    *ARGS, **KWARGS
+                )
+            else:
+                resolved_args = _resolve_value(behavior.arguments.args)
+                resolved_kwargs = _resolve_value(behavior.arguments.kwargs)
+                args = resolved_args if resolved_args is not None else []
+                kwargs = resolved_kwargs if resolved_kwargs is not None else {}
+                stubbed = invocation.StubbedInvocation(mock_obj, behavior.function)(
+                    *args,
+                    **kwargs,
+                )
 
             for answer in behavior.then:
                 answer_dict = answer.model_dump()
