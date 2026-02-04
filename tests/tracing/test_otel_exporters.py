@@ -428,6 +428,7 @@ class TestLangchainExporter(unittest.TestCase):
         self.exporter._process_span_attributes(span_data)
 
         attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
         self.assertEqual(attributes["toolType"], "Escalation")
 
     def test_llm_span_mapping_consistency(self):
